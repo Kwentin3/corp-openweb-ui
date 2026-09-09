@@ -13,6 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "openwebui_actions" / "goal391_mapping_lab_pipe.py"
 BUNDLE = ROOT / "openwebui_actions" / "goal391_mapping_lab_pipe_bundled.py"
+PRODUCT_MAPPING_RUNTIME = ROOT / "broker_reports_gate1" / "ordinary_trade_mapping_runtime.py"
 
 
 def _load_source_module():
@@ -223,6 +224,19 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     assert "grouped_mapping_response_format" in source
 
 
+def test_product_and_lab_use_the_same_strict_mapping_response_contract():
+    """The lab cannot accept a provider response the product would reject."""
+
+    product_source = PRODUCT_MAPPING_RUNTIME.read_text(encoding="utf-8")
+    lab_source = SOURCE.read_text(encoding="utf-8")
+    helper = "require_strict_json_schema_response("
+
+    assert helper in product_source
+    assert helper in lab_source
+    assert lab_source.index(helper) > lab_source.index("response = await client.extract(")
+    assert lab_source.index(helper) < lab_source.index("response_value = (")
+
+
 def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monkeypatch):
     module = _load_source_module()
     slots = [
@@ -388,6 +402,57 @@ def test_preflight_receipt_is_terminal_and_has_zero_provider_calls():
         "records": [],
     }
     assert receipt["constraints"] == pipe._blocked_receipt("x")["constraints"]
+
+
+def test_lab_execute_rejects_a_non_strict_provider_response_before_semantic_validation(
+    monkeypatch,
+):
+    module = _load_source_module()
+
+    class NonStrictClient:
+        async def extract(self, **_kwargs):
+            return SimpleNamespace(
+                structured_output_mode="openwebui_response_format_json_schema",
+                response_format_type="json_schema",
+                response_format_schema_mode="strict_json_schema",
+                fallback_used=True,
+                repair_attempt_count=0,
+                execution_metadata={"provider": "test"},
+            )
+
+        @staticmethod
+        def qualification_lifecycle_snapshot():
+            return {
+                "local_invocations_total": 1,
+                "provider_submissions_total": 1,
+                "provider_responses_total": 1,
+            }
+
+    class ClientFactory:
+        def __init__(self, **_kwargs):
+            pass
+
+        @staticmethod
+        def create():
+            return NonStrictClient()
+
+    monkeypatch.setattr(module, "Gate2StructuredModelClientFactory", ClientFactory)
+    receipt = asyncio.run(
+        module.Pipe()._execute(
+            cases=[{"package": {}}],
+            prompt=object(),
+            request=object(),
+            user=_ordinary_user(),
+        )
+    )
+
+    assert receipt["status"] == "FAILED"
+    assert receipt["terminal_error"] == (
+        "goal391_lab_ordinary_trade_mapping_strict_output_required"
+    )
+    assert receipt["corpus"]["provider_calls_started_total"] == 1
+    assert receipt["corpus"]["provider_calls_returned_total"] == 1
+    assert receipt["corpus"]["records"] == []
 
 
 def test_safe_record_accepts_valid_selected_instructional_evidence_subset():

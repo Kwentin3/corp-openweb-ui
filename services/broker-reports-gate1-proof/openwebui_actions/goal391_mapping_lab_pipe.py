@@ -36,6 +36,7 @@ from broker_reports_gate1.gate2_model_clients import Gate2StructuredModelClientF
 from broker_reports_gate1.gate2_model_contracts import (
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClientConfig,
+    require_strict_json_schema_response,
 )
 from broker_reports_gate1.gate2_model_requests import (
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
@@ -635,6 +636,11 @@ class Pipe:
                     package=item["package"],
                     model_id=str(self.valves.model_id),
                     response_format=response_format,
+                )
+                require_strict_json_schema_response(
+                    response,
+                    error_code="ordinary_trade_mapping_strict_output_required",
+                    error_message="Semantic mapping requires one strict output without repair",
                 )
                 response_value = (
                     expand_grouped_response(response=response, package=item["package"])

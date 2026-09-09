@@ -10,7 +10,7 @@ import re
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext
-from .gate2_model_contracts import Gate2SourceFactRuntimeError
+from .gate2_model_contracts import require_strict_json_schema_response
 from .ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
 )
@@ -489,7 +489,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=1
             )
         try:
-            _strict_result(response)
+            require_strict_json_schema_response(
+                response,
+                error_code="ordinary_trade_mapping_strict_output_required",
+                error_message="Semantic mapping requires one strict output without repair",
+            )
             response_for_validation = self._expand_mapping_response_to_v13(
                 response=response,
                 package=package,
@@ -756,7 +760,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 model_id=self._model_id,
                 response_format=self._semantic.mapping_response_format(),
             )
-            _strict_result(response)
+            require_strict_json_schema_response(
+                response,
+                error_code="ordinary_trade_mapping_strict_output_required",
+                error_message="Semantic mapping requires one strict output without repair",
+            )
             if self._semantic.mapping_response_contract_failure_code(response) is not None:
                 raise OrdinaryTradeSemanticMappingError(
                     "ordinary_trade_semantic_mapping_response_invalid"
@@ -921,7 +929,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=1
             )
         try:
-            _strict_result(response)
+            require_strict_json_schema_response(
+                response,
+                error_code="ordinary_trade_mapping_strict_output_required",
+                error_message="Semantic mapping requires one strict output without repair",
+            )
             interpretation = self._semantic.validate_answer_response(
                 response=response,
                 question=payload["question"],
@@ -1113,7 +1125,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 model_id=self._model_id,
                 response_format=instructional_response_format(),
             )
-            _strict_result(response)
+            require_strict_json_schema_response(
+                response,
+                error_code="ordinary_trade_mapping_strict_output_required",
+                error_message="Semantic mapping requires one strict output without repair",
+            )
             response_value = _model_content_dict(response)
             admitted = self._semantic.admit_instructional_classification(
                 canonical=binding["canonical"],
@@ -1239,24 +1255,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 context=context,
             ),
         }
-
-
-def _strict_result(response: Any) -> None:
-    if (
-        response is None
-        or getattr(response, "structured_output_mode", None)
-        != "openwebui_response_format_json_schema"
-        or getattr(response, "response_format_type", None) != "json_schema"
-        or getattr(response, "response_format_schema_mode", None)
-        != "strict_json_schema"
-        or getattr(response, "fallback_used", None) is not False
-        or getattr(response, "repair_attempt_count", None) != 0
-        or getattr(response, "execution_metadata", None) is None
-    ):
-        raise Gate2SourceFactRuntimeError(
-            "ordinary_trade_mapping_strict_output_required",
-            "Semantic mapping requires one strict output without repair",
-        )
 
 
 def _model_content_dict(response: Any) -> dict[str, Any]:
