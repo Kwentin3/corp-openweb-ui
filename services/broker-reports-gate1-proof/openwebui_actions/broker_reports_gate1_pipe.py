@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from contextlib import nullcontext
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -84,10 +84,26 @@ from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
+    ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+    OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID as ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER as ORDINARY_TRADE_MAPPING_PROMPT_PLACEHOLDER,
+    PROMPT_REQUIRED_TAG as ORDINARY_TRADE_MAPPING_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
+    OrdinaryTradeGroupedMappingV14AdapterFactory,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
@@ -161,6 +177,50 @@ NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
 FULL_SOURCE_PROJECTION_SCHEMA_VERSION = "broker_reports_full_source_projection_v1"
 FULL_SOURCE_ZIP_FILENAME = "full-source.zip"
+
+
+@dataclass(frozen=True)
+class _OrdinaryTradeMappingRouteProfile:
+    """Closed production route configuration; never a user-provided Prompt map."""
+
+    profile_id: str
+    prompt_command: str
+    template_id: str
+    template_kind: str
+    output_schema_id: str
+    output_schema_version: str
+    required_tag: str
+    grouped_v14_response: bool = False
+
+    def mapping_response_adapter(self) -> Any | None:
+        if self.grouped_v14_response:
+            return OrdinaryTradeGroupedMappingV14AdapterFactory.create()
+        return None
+
+
+_ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
+    "ordinary_trade_mapping_v13": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v13",
+        prompt_command=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+        output_schema_version=ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
+        required_tag=ORDINARY_TRADE_MAPPING_PROMPT_REQUIRED_TAG,
+    ),
+    "ordinary_trade_mapping_v14": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v14",
+        prompt_command=ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+        grouped_v14_response=True,
+    ),
+}
 
 
 class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -254,6 +314,13 @@ class Pipe:
         # The Pipe owns only the pinned configuration and authenticated caller
         # context. Prompt content, history and access remain with OpenWebUI's
         # native server owners. There is intentionally no database-path Valve.
+        ordinary_trade_mapping_profile_id: str = Field(
+            default="ordinary_trade_mapping_v13",
+            description=(
+                "Sealed production mapping route profile. Only the released "
+                "v13 and v14 profiles are admitted."
+            ),
+        )
         ordinary_trade_mapping_prompt_id: str = Field(default="")
         ordinary_trade_mapping_prompt_command: str = Field(
             default=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND
@@ -1742,6 +1809,7 @@ class Pipe:
             mapping_prompt_resolver = None
             mapping_prompt_user_context_factory = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
+                mapping_route_profile = self._ordinary_trade_mapping_route_profile()
                 mapping_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
                         request_profile=(
@@ -1794,6 +1862,11 @@ class Pipe:
                 ),
                 mapping_provider_profile_id=(
                     self.valves.ordinary_trade_mapping_provider_profile_id
+                    if mapping_client is not None
+                    else None
+                ),
+                mapping_response_adapter=(
+                    mapping_route_profile.mapping_response_adapter()
                     if mapping_client is not None
                     else None
                 ),
@@ -3340,6 +3413,7 @@ class Pipe:
     ) -> tuple[Any, Any]:
         """Compose the mapping Prompt adapter; never read Prompt tables here."""
 
+        profile = self._ordinary_trade_mapping_route_profile()
         prompt_id = str(self.valves.ordinary_trade_mapping_prompt_id or "").strip()
         command = str(
             self.valves.ordinary_trade_mapping_prompt_command or ""
@@ -3350,11 +3424,16 @@ class Pipe:
         release_hash = str(
             self.valves.ordinary_trade_mapping_prompt_hash or ""
         ).strip()
-        if (
-            not prompt_id and not command
-        ):
+        if not prompt_id and not command:
             raise NdflWorkflowError(
                 "ordinary_trade_mapping_prompt_configuration_invalid"
+            )
+        # The command remains a release pin for compatibility with deployed
+        # Function Valves.  It cannot select another Prompt route: the sealed
+        # profile above is the only selector.
+        if command != profile.prompt_command:
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_prompt_command_profile_mismatch"
             )
         user_id = self._authenticated_user_id(user)
         user_role = self._user_role(user, metadata)
@@ -3362,7 +3441,20 @@ class Pipe:
             OrdinaryTradeMappingPromptConfig(
                 source="openwebui_server",
                 prompt_id=prompt_id or None,
-                command=command or None,
+                command=None if prompt_id else profile.prompt_command,
+                required_command=profile.prompt_command,
+                required_template_id=profile.template_id,
+                required_template_kind=profile.template_kind,
+                required_prompt_contract_id=(
+                    ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID
+                ),
+                required_input_schema_version=(
+                    ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION
+                ),
+                required_output_schema_id=profile.output_schema_id,
+                required_output_schema_version=profile.output_schema_version,
+                required_tag=profile.required_tag,
+                required_placeholder=ORDINARY_TRADE_MAPPING_PROMPT_PLACEHOLDER,
                 release_prompt_version=release_version,
                 release_prompt_hash=release_hash,
             )
@@ -3384,6 +3476,17 @@ class Pipe:
             )
 
         return resolver, user_context_factory
+
+    def _ordinary_trade_mapping_route_profile(
+        self,
+    ) -> _OrdinaryTradeMappingRouteProfile:
+        profile_id = str(
+            self.valves.ordinary_trade_mapping_profile_id or ""
+        ).strip()
+        profile = _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES.get(profile_id)
+        if profile is None:
+            raise NdflWorkflowError("ordinary_trade_mapping_profile_invalid")
+        return profile
 
     async def _openwebui_passport_completion(
         self,

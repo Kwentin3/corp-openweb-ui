@@ -65,6 +65,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         mapping_prompt_resolver: Any | None = None,
         instructional_prompt_resolver: Any | None = None,
         mapping_prompt_user_context_factory: Any | None = None,
+        mapping_response_adapter: Any | None = None,
         mapping_model_id: str | None = None,
         mapping_provider_profile_id: str | None = None,
     ) -> None:
@@ -76,6 +77,10 @@ class OrdinaryTradeProductionRuntimeFactory:
         self._mapping_prompt_resolver = mapping_prompt_resolver
         self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
+        # This is a representation-only boundary adapter.  It may compact a
+        # released wire response, but the established semantic owner still
+        # receives the exact v13 representation after expansion.
+        self._mapping_response_adapter = mapping_response_adapter
         self._mapping_model_id = mapping_model_id
         self._mapping_provider_profile_id = mapping_provider_profile_id
 
@@ -111,6 +116,7 @@ class OrdinaryTradeProductionRuntimeFactory:
                 mapping_prompt_user_context_factory=(
                     self._mapping_prompt_user_context_factory
                 ),
+                mapping_response_adapter=self._mapping_response_adapter,
                 model_id=str(self._mapping_model_id),
                 provider_profile_id=str(self._mapping_provider_profile_id),
             ).create()
