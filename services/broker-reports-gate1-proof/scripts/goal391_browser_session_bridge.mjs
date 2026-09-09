@@ -34,12 +34,27 @@ async function dispatch(page, message) {
     const [auth, models, prompt, chats] = await Promise.all([
       get(page, '/api/v1/auths/'), get(page, '/api/models'), get(page, `/api/v1/prompts/id/${message.prompt_id}`), get(page, '/api/v1/chats/?page=1'),
     ]);
-    if (auth.status !== 200 || auth.body?.role !== 'user' || models.status !== 200 || prompt.status !== 200 || !Array.isArray(chats.body)) {
+    if (
+      auth.status !== 200 || auth.body?.role !== 'user' || models.status !== 200
+      || !Array.isArray(models.body?.data)
+      || !models.body.data.some((model) => model?.id === 'models/gemini-3.5-flash')
+      || prompt.status !== 200 || !Array.isArray(chats.body)
+    ) {
       throw new Error('goal391_browser_preflight_rejected');
     }
     const history = await get(page, `/api/v1/prompts/id/${message.prompt_id}/history/${prompt.body.version_id}`);
     if (history.status !== 200) throw new Error('goal391_browser_prompt_history_unavailable');
-    return { auth: auth.body, models: models.body, prompt: prompt.body, history: history.body, chat_count: chats.body.length };
+    // The coordinator needs a user identity, the selected Prompt snapshot, and
+    // counts only. Do not copy browser credentials, profile data, model
+    // definitions, or chat records out of Chrome merely to prove preflight.
+    return {
+      auth: { id: auth.body.id, role: auth.body.role },
+      model_available: Array.isArray(models.body?.data)
+        && models.body.data.some((model) => model?.id === 'models/gemini-3.5-flash'),
+      prompt: prompt.body,
+      history: history.body,
+      chat_count: chats.body.length,
+    };
   }
   if (message.op === 'chat_count') {
     const chats = await get(page, '/api/v1/chats/?page=1');
