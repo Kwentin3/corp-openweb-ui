@@ -547,23 +547,16 @@ def test_native_table_continuation_annotation_rejects_rebound_original_pages(
     assert str(caught.value) == "pdf_document_annotation_source_page_binding_mismatch"
 
 
-def test_native_table_continuation_annotation_rejects_more_than_eight_source_pages_before_http(
+def test_native_table_continuation_annotation_accepts_full_document_page_scope(
     tmp_path: Path,
 ) -> None:
-    opener = _FakeOpener(_FakeResponse({}))
-
-    with pytest.raises(PdfDocumentExtractionError) as caught:
-        _extractor(tmp_path, opener).extract_with_table_continuation_assessment(
-            PDF_BYTES,
-            _source_context(9),
-            source_page_numbers=tuple(range(9)),
-            document_annotation_prompt="Link physical table continuations.",
-        )
-
-    assert opener.calls == []
-    _assert_typed_failure_without_leak(
-        caught, expected_code="PDF_DOCUMENT_AI_ANNOTATION_SOURCE_PAGES_INVALID"
+    from broker_reports_gate1.mistral_pdf_document_ai import (
+        _validated_annotation_source_page_numbers,
     )
+
+    assert _validated_annotation_source_page_numbers(
+        tuple(range(9)), source_context=_source_context(9)
+    ) == tuple(range(9))
 
 
 @pytest.mark.parametrize(

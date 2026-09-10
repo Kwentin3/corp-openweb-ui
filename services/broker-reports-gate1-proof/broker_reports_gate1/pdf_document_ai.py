@@ -161,7 +161,6 @@ class PdfDocumentTableContinuationAssessment:
             raise ValueError("pdf_document_annotation_schema_version_invalid")
         if (
             not self.source_page_numbers
-            or len(self.source_page_numbers) > 8
             or any(
                 type(page_number) is not int or page_number < 0
                 for page_number in self.source_page_numbers

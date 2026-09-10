@@ -54,7 +54,6 @@ _MAX_IMAGES = 64
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024
 _PAGE_SEPARATOR = b"\n\n"
-_MAX_DOCUMENT_ANNOTATION_PAGES = 8
 MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION = (
     "mistral_ocr_table_continuation_annotation_v2"
 )
@@ -527,7 +526,6 @@ def _validated_annotation_source_page_numbers(
     if (
         type(source_page_numbers) is not tuple
         or not source_page_numbers
-        or len(source_page_numbers) > _MAX_DOCUMENT_ANNOTATION_PAGES
         or any(
             type(page_number) is not int
             or page_number < 0
