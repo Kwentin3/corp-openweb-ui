@@ -10,9 +10,17 @@ from dataclasses import replace
 from typing import Any
 
 from .artifact_lifecycle import lifecycle_for_visibility
-from .artifact_models import ArtifactAccessContext, ArtifactRecord
+from .artifact_models import (
+    PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE,
+    ArtifactAccessContext,
+    ArtifactRecord,
+)
 from .artifact_resolver import ArtifactResolver
 from .canonical_store import CanonicalReaderFactory
+from .physical_table_continuation_context import (
+    PhysicalTableContinuationContextError,
+    bind_physical_table_continuation_context,
+)
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
@@ -136,12 +144,77 @@ class OrdinaryTradeMappingCaseRuntime:
             "canonical_binding": canonical_binding,
             "user_scope_sha256": user_scope_sha256,
         }
+        physical_context = self._physical_table_continuation_context(
+            document_id=document_id,
+            context=context,
+            canonical=envelope.artifact,
+            canonical_binding=canonical_binding,
+        )
         return {
             **identity,
             "case_binding_sha256": _sha256_json(identity),
             "case_id": "otcase_" + _sha256_json(identity)[:32],
             "canonical": envelope.artifact,
+            "physical_table_continuation_context": physical_context,
         }
+
+    def _physical_table_continuation_context(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        canonical: dict[str, Any],
+        canonical_binding: dict[str, str],
+    ) -> dict[str, Any] | None:
+        """Resolve at most one source-bound private sidecar for this Canonical."""
+
+        records = self._resolver.catalog_case(context)
+        source_candidates = [
+            record
+            for record in records
+            if record.artifact_id == canonical_binding["source_artifact_ref"]
+        ]
+        if len(source_candidates) != 1:
+            _fail("ordinary_trade_mapping_case_source_binding_ambiguous")
+        source_context = replace(
+            context, normalization_run_id=source_candidates[0].normalization_run_id
+        )
+        source_record = self._resolver.resolve(
+            source_candidates[0].artifact_id, source_context
+        )["record"]
+        if source_record.document_id != document_id:
+            _fail("ordinary_trade_mapping_case_source_binding_stale")
+        matching = []
+        same_document_run = []
+        for record in records:
+            if record.artifact_type != PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE:
+                continue
+            if record.document_id != document_id or record.normalization_run_id != source_record.normalization_run_id:
+                continue
+            same_document_run.append(record)
+            if record.source_file_ref == source_record.source_file_ref:
+                matching.append(record)
+        if len(matching) > 1:
+            _fail("ordinary_trade_mapping_case_physical_continuation_ambiguous")
+        if not matching:
+            if same_document_run:
+                _fail("ordinary_trade_mapping_case_physical_continuation_stale")
+            return None
+        sidecar_record = self._resolver.resolve(
+            matching[0].artifact_id, source_context
+        )["record"]
+        try:
+            return bind_physical_table_continuation_context(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                source_record=source_record,
+                sidecar_record=sidecar_record,
+                sidecar=self._resolver.resolve(
+                    sidecar_record.artifact_id, source_context
+                )["payload"],
+            )
+        except PhysicalTableContinuationContextError as exc:
+            _fail(exc.args[0])
 
     def current(
         self, *, document_id: str, context: ArtifactAccessContext

@@ -7,6 +7,8 @@ Canonical nodes, and it does not call a provider.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -15,7 +17,6 @@ from .pdf_table_continuation_annotation_contract import (
     validate_pdf_table_continuation_annotation_prompt_snapshot,
 )
 
-from .contracts import stable_digest
 from .pdf_document_ai import (
     PdfDocumentExtraction,
     PdfSourceContext,
@@ -131,8 +132,98 @@ def build_physical_table_continuation_sidecar(
     }
     return {
         **copy.deepcopy(material),
-        "sidecar_id": "ptcont_" + stable_digest([material], length=24),
+        "sidecar_id": _sidecar_id(material),
     }
+
+
+def validate_physical_table_continuation_sidecar(
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate a persisted sidecar without reopening its Full Source units.
+
+    Gate 1 validates the stronger source-unit binding before persistence.  This
+    public validator is for a later private reader to reject tampering while it
+    binds the already immutable unit references to Canonical provenance.
+    """
+
+    required = {
+        "schema_version",
+        "normalization_run_id",
+        "document_id",
+        "source_pdf_sha256",
+        "links",
+        "annotation_receipt",
+        "visibility",
+        "sidecar_id",
+    }
+    if not isinstance(value, Mapping) or set(value) != required:
+        raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+    if (
+        value.get("schema_version") != PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION
+        or value.get("visibility") != "private_case"
+        or not isinstance(value.get("links"), list)
+        or not value["links"]
+    ):
+        raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+    _require_text(value.get("normalization_run_id"), "physical_table_continuation_invalid")
+    _require_text(value.get("document_id"), "physical_table_continuation_invalid")
+    _require_sha256(value.get("source_pdf_sha256"), "physical_table_continuation_invalid")
+    annotation_receipt = _validated_annotation_receipt(value["annotation_receipt"])
+    parents: set[str] = set()
+    children: set[str] = set()
+    normalized_links: list[dict[str, dict[str, Any]]] = []
+    for link in value["links"]:
+        if not isinstance(link, Mapping) or set(link) != {"parent", "child"}:
+            raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+        normalized: dict[str, dict[str, Any]] = {}
+        for endpoint_name in ("parent", "child"):
+            endpoint = link.get(endpoint_name)
+            if not isinstance(endpoint, Mapping) or set(endpoint) != {
+                "unit_ref",
+                "native_table_ref",
+                "native_table_sha256",
+                "page_number",
+            }:
+                raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+            _require_text(endpoint.get("unit_ref"), "physical_table_continuation_invalid")
+            _require_text(endpoint.get("native_table_ref"), "physical_table_continuation_invalid")
+            _require_sha256(endpoint.get("native_table_sha256"), "physical_table_continuation_invalid")
+            if type(endpoint.get("page_number")) is not int or endpoint["page_number"] < 1:
+                raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+            normalized[endpoint_name] = dict(endpoint)
+        if normalized["child"]["page_number"] != normalized["parent"]["page_number"] + 1:
+            raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+        parent_ref = normalized["parent"]["unit_ref"]
+        child_ref = normalized["child"]["unit_ref"]
+        if parent_ref in parents or child_ref in children:
+            raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+        parents.add(parent_ref)
+        children.add(child_ref)
+        normalized_links.append(normalized)
+    if parents & children:
+        raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+    material = {
+        "schema_version": value["schema_version"],
+        "normalization_run_id": value["normalization_run_id"],
+        "document_id": value["document_id"],
+        "source_pdf_sha256": value["source_pdf_sha256"],
+        "links": normalized_links,
+        "annotation_receipt": annotation_receipt,
+        "visibility": value["visibility"],
+    }
+    sidecar_id = _sidecar_id(material)
+    if value.get("sidecar_id") != sidecar_id:
+        raise PhysicalTableContinuationError("physical_table_continuation_invalid")
+    return {**copy.deepcopy(material), "sidecar_id": sidecar_id}
+
+
+def _sidecar_id(material: Mapping[str, Any]) -> str:
+    """Stable across JSON-backed ArtifactStore read/write key ordering."""
+
+    encoded = json.dumps(
+        material, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    return "ptcont_" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:24]
 
 
 def _validated_annotation_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
