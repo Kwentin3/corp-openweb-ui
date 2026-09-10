@@ -12,7 +12,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings, load_settings
 from .officecli import OfficeCliExecutor, OfficeCliFailure, OfficeCliOutput, SubprocessOfficeCliExecutor
-from .openwebui_client import HttpOpenWebUiClient, OpenWebUiClient, OpenWebUiFailure
+from .openwebui_client import (
+    HttpOpenWebUiClient,
+    OpenWebUiClient,
+    OpenWebUiFailure,
+    OpenWebUiUnauthorized,
+)
 
 
 class SkillRequest(BaseModel):
@@ -48,9 +53,11 @@ class NativeDocxReference(BaseModel):
     @field_validator("file_id", mode="before")
     @classmethod
     def only_accept_an_opaque_native_file_id(cls, value: object) -> str | None:
+        if value is None:
+            return None
         if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9-]{1,128}", value):
             return value
-        return None
+        raise ValueError("file_id must be omitted or be an opaque native OpenWebUI file id")
 
 
 class InspectOfficeDocumentRequest(NativeDocxReference):
@@ -124,6 +131,8 @@ def _bearer(authorization: str | None) -> str:
 
 
 def _http_error(error: Exception) -> HTTPException:
+    if isinstance(error, OpenWebUiUnauthorized):
+        return HTTPException(status_code=401, detail="forwarded OpenWebUI session was rejected")
     return HTTPException(status_code=502, detail=str(error))
 
 
@@ -145,8 +154,18 @@ def create_app(
     )
     app = FastAPI(title="OfficeCLI OpenAPI proof", version="0.2.0")
 
+    def authenticated_bearer(authorization: str | None) -> str:
+        bearer = _bearer(authorization)
+        try:
+            openwebui.verify_session(bearer)
+        except OpenWebUiUnauthorized as error:
+            raise _http_error(error) from error
+        except OpenWebUiFailure as error:
+            raise _http_error(error) from error
+        return bearer
+
     def guidance_response_for(authorization: str | None, *arguments: str) -> GuidanceResponse:
-        _bearer(authorization)
+        authenticated_bearer(authorization)
         try:
             output = officecli.run(*arguments)
         except OfficeCliFailure as error:
@@ -202,7 +221,7 @@ def create_app(
         chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
         message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
     ) -> InspectionResponse:
-        bearer = _bearer(authorization)
+        bearer = authenticated_bearer(authorization)
         native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
         try:
             source_file_id = request.file_id or openwebui.resolve_nearest_docx_attachment(
@@ -240,7 +259,7 @@ def create_app(
         chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
         message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
     ) -> ApplyResponse:
-        bearer = _bearer(authorization)
+        bearer = authenticated_bearer(authorization)
         native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
 
         native_file: dict[str, Any] | None = None
@@ -250,36 +269,36 @@ def create_app(
             )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 workspace = Path(directory)
-                source = workspace / "source.docx"
-                result = workspace / request.output_name
-                source_after = workspace / "source-after.docx"
-                openwebui.download(source_file_id, bearer, source)
-                source_sha256 = sha256(source.read_bytes()).hexdigest()
-                result.write_bytes(source.read_bytes())
+                source_path = workspace / "source-input.docx"
+                result_path = workspace / "result.docx"
+                source_after_path = workspace / "source-after-check.docx"
+                openwebui.download(source_file_id, bearer, source_path)
+                source_sha256 = sha256(source_path.read_bytes()).hexdigest()
+                result_path.write_bytes(source_path.read_bytes())
 
                 batch_output = officecli.run(
                     "batch",
-                    str(result),
+                    str(result_path),
                     "--stop-on-error",
                     "--json",
                     input_text=json.dumps(request.commands, ensure_ascii=False, separators=(",", ":")),
                 )
                 batch_result = _officecli_json(batch_output, "batch")
-                validation_output = officecli.run("validate", str(result), "--json")
+                validation_output = officecli.run("validate", str(result_path), "--json")
                 validation_result = _officecli_json(validation_output, "validate")
 
-                if not result.is_file() or result.stat().st_size == 0:
+                if not result_path.is_file() or result_path.stat().st_size == 0:
                     raise OfficeCliFailure("officecli did not leave a DOCX result")
-                result_sha256 = sha256(result.read_bytes()).hexdigest()
+                result_sha256 = sha256(result_path.read_bytes()).hexdigest()
                 if result_sha256 == source_sha256:
                     raise OfficeCliFailure("officecli result bytes did not change")
 
-                openwebui.download(source_file_id, bearer, source_after)
-                source_bytes_preserved = sha256(source_after.read_bytes()).hexdigest() == source_sha256
+                openwebui.download(source_file_id, bearer, source_after_path)
+                source_bytes_preserved = sha256(source_after_path.read_bytes()).hexdigest() == source_sha256
                 if not source_bytes_preserved:
                     raise OpenWebUiFailure("source file bytes changed during the request")
 
-                native_file = openwebui.upload(result, request.output_name, bearer)
+                native_file = openwebui.upload(result_path, request.output_name, bearer)
                 openwebui.attach(native_chat_id, native_message_id, native_file, bearer)
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             if native_file and isinstance(native_file.get("id"), str):

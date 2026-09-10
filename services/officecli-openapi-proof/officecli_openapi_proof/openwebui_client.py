@@ -10,7 +10,13 @@ class OpenWebUiFailure(RuntimeError):
     pass
 
 
+class OpenWebUiUnauthorized(OpenWebUiFailure):
+    """The forwarded OpenWebUI session was rejected by its native owner."""
+
+
 class OpenWebUiClient(Protocol):
+    def verify_session(self, authorization: str) -> None: ...
+
     def resolve_nearest_docx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
@@ -50,8 +56,16 @@ class HttpOpenWebUiClient:
             )
             response.raise_for_status()
             return response
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code in {401, 403}:
+                raise OpenWebUiUnauthorized("forwarded OpenWebUI session was rejected") from error
+            raise OpenWebUiFailure(f"OpenWebUI public API {method} {path} failed") from error
         except httpx.HTTPError as error:
             raise OpenWebUiFailure(f"OpenWebUI public API {method} {path} failed") from error
+
+    def verify_session(self, authorization: str) -> None:
+        """Delegate session authentication to the native OpenWebUI auth endpoint."""
+        self._request("GET", "/api/v1/auths/", authorization)
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
         response = self._request("GET", f"/api/v1/files/{file_id}/content", authorization)

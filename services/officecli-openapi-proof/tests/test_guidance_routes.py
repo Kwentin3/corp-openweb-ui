@@ -6,11 +6,13 @@ import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+import httpx
+import pytest
 
 from officecli_openapi_proof.app import create_app
 from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
-from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient
+from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient, OpenWebUiUnauthorized
 
 
 def office_output(*arguments: str, payload: object | None = None) -> OfficeCliOutput:
@@ -46,6 +48,10 @@ class RecordingOpenWebUi:
     calls: list[tuple[str, object]] = field(default_factory=list)
     uploaded: dict[str, object] | None = None
 
+    def verify_session(self, authorization: str) -> None:
+        return None
+    uploaded_bytes: bytes | None = None
+
     def resolve_nearest_docx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
         self.calls.append(("resolve", (chat_id, message_id)))
         return "resolved-file-id"
@@ -56,7 +62,7 @@ class RecordingOpenWebUi:
 
     def upload(self, source: Path, output_name: str, authorization: str) -> dict[str, object]:
         self.calls.append(("upload", output_name))
-        assert source.read_bytes() == b"changed DOCX bytes"
+        self.uploaded_bytes = source.read_bytes()
         self.uploaded = {"id": "result-file-id", "filename": output_name}
         return self.uploaded
 
@@ -82,6 +88,24 @@ def test_load_word_skill_returns_official_executor_output() -> None:
     assert response.status_code == 200
     assert response.json()["content"] == "official load_skill word output"
     assert executor.calls == [("load_skill", "word")]
+
+
+def test_invalid_explicit_file_id_does_not_fall_back_to_message_ancestry() -> None:
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(RecordingOfficeCli(), files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/inspect",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={"file_id": "__UNKNOWN__", "command_payload": {"command": "view", "mode": "annotated"}},
+    )
+
+    assert response.status_code == 422
+    assert files.calls == []
 
 
 def test_openapi_exposes_only_the_proof_operations() -> None:
@@ -139,6 +163,39 @@ def test_guidance_requires_the_forwarded_openwebui_session() -> None:
     assert executor.calls == []
 
 
+def test_fake_bearer_cannot_reach_officecli_guidance_or_execution() -> None:
+    class RejectingOpenWebUi(RecordingOpenWebUi):
+        def verify_session(self, authorization: str) -> None:
+            assert authorization == "Bearer fake-session"
+            raise OpenWebUiUnauthorized("forwarded OpenWebUI session was rejected")
+
+    executor = RecordingOfficeCli()
+    files = RejectingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    guidance = client.post(
+        "/v1/officecli/skills/load",
+        headers={"Authorization": "Bearer fake-session"},
+        json={"skill": "word"},
+    )
+    execution = client.post(
+        "/v1/officecli/documents/apply-batch",
+        headers={
+            "Authorization": "Bearer fake-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"output_name": "document-updated.docx", "commands": [{"command": "set"}]},
+    )
+
+    assert guidance.status_code == 401
+    assert guidance.json() == {"detail": "forwarded OpenWebUI session was rejected"}
+    assert execution.status_code == 401
+    assert execution.json() == {"detail": "forwarded OpenWebUI session was rejected"}
+    assert executor.calls == []
+    assert files.calls == []
+
+
 def test_inspect_downloads_native_file_and_only_runs_annotated_view() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
@@ -192,6 +249,35 @@ def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:
     assert "--stop-on-error" in executor.calls[0]
     assert executor.inputs[0] == '[{"command":"set","path":"/body/p[1]","props":{"text":"updated"}}]'
     assert files.source == b"original DOCX bytes"
+    assert files.uploaded_bytes == b"changed DOCX bytes"
+
+
+def test_apply_keeps_internal_paths_distinct_from_output_name() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi(source=b"source DOCX bytes")
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/apply-batch",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "source-after.docx",
+            "commands": [{"command": "set", "path": "/body/p[1]", "props": {"text": "updated"}}],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert files.uploaded == {"id": "result-file-id", "filename": "source-after.docx"}
+    assert files.uploaded_bytes == b"changed DOCX bytes"
+    assert files.uploaded_bytes != files.source
+    assert body["result_sha256"] == sha256(files.uploaded_bytes).hexdigest()
+    assert body["source_sha256"] == sha256(files.source).hexdigest()
+    assert body["source_bytes_preserved"] is True
 
 
 def test_apply_requires_native_chat_and_message_identifiers_before_side_effects() -> None:
@@ -296,6 +382,33 @@ def test_http_client_resolves_docx_from_the_native_message_ancestry(monkeypatch)
     )
 
     assert result == "result-file-id"
+
+
+def test_http_client_uses_native_openwebui_session_endpoint_and_rejects_fake_bearer(monkeypatch) -> None:
+    requested: list[tuple[str, str, dict[str, object]]] = []
+
+    def request(method, url, **kwargs):
+        requested.append((method, url, kwargs))
+        response = httpx.Response(401, request=httpx.Request(method, url))
+        raise httpx.HTTPStatusError("Unauthorized", request=response.request, response=response)
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    with pytest.raises(OpenWebUiUnauthorized):
+        client.verify_session("Bearer fake-session")
+
+    assert requested == [
+        (
+            "GET",
+            "http://openwebui:8080/api/v1/auths/",
+            {
+                "headers": {"Authorization": "Bearer fake-session"},
+                "timeout": 30,
+                "follow_redirects": False,
+            },
+        )
+    ]
 
 
 def test_http_client_attaches_a_native_chat_file_reference(monkeypatch) -> None:

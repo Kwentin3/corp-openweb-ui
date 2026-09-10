@@ -18,13 +18,7 @@ services:
     expose:
       - "8080"
     labels:
-      - traefik.enable=true
-      - traefik.http.routers.officecli451.rule=Host(`${OPENWEBUI_HOST:-gpt.alpha-soft.ru}`) && PathPrefix(`/officecli-openapi-proof`)
-      - traefik.http.routers.officecli451.entrypoints=websecure
-      - traefik.http.routers.officecli451.tls=true
-      - traefik.http.routers.officecli451.middlewares=officecli451-strip
-      - traefik.http.middlewares.officecli451-strip.stripprefix.prefixes=/officecli-openapi-proof
-      - traefik.http.services.officecli451.loadbalancer.server.port=8080
+      - traefik.enable=false
     networks:
       - openwebui_web
 
