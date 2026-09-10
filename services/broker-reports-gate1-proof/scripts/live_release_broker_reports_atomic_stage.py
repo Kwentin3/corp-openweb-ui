@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -275,6 +276,36 @@ def _run_native_prompt_publication(
     return _validated_prompt_pin(value)
 
 
+def _verify_native_prompt_publication_after_remote_release(
+    *,
+    ssh_target: str,
+    source_revision: str,
+    source_archive: Path,
+    expected_pin: Mapping[str, str],
+) -> dict[str, str]:
+    """Read back the native Prompt after the remote transaction cleaned its staging."""
+    verification_release_name = "broker-reports-" + hashlib.sha256(
+        ("prompt-verify:" + source_revision).encode("ascii")
+    ).hexdigest()[:12]
+    verification_dir = _prepare_remote_staging(ssh_target, verification_release_name)
+    try:
+        _copy_prompt_publication_payload(
+            ssh_target=ssh_target,
+            remote_dir=verification_dir,
+            source_archive=source_archive,
+        )
+        verification = _run_native_prompt_publication(
+            ssh_target=ssh_target,
+            remote_dir=verification_dir,
+            verify_pin=expected_pin,
+        )
+        if verification != _validated_prompt_pin(dict(expected_pin)):
+            raise StageReleaseDriverError("stage_release_prompt_publication_pin_drift")
+        return verification
+    finally:
+        _cleanup_remote_staging(ssh_target, verification_dir)
+
+
 def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
     value = _validated_prompt_pin(dict(pin))
     return {
@@ -360,6 +391,7 @@ def execute(
     remote_dir: str | None = None
     with tempfile.TemporaryDirectory(prefix="broker-reports-stage-release-") as temp:
         remote_dir = _prepare_remote_staging(ssh_target, release_name)
+        prompt_source_archive: Path | None = None
         try:
             if apply:
                 prompt_source_archive = Path(temp) / PROMPT_ARCHIVE_NAME
@@ -416,13 +448,13 @@ def execute(
                 prove_rollback=prove_rollback,
             )
             if apply:
-                prompt_verification = _run_native_prompt_publication(
+                assert prompt_source_archive is not None
+                prompt_verification = _verify_native_prompt_publication_after_remote_release(
                     ssh_target=ssh_target,
-                    remote_dir=remote_dir,
-                    verify_pin=prompt_pin,
+                    source_revision=source_revision,
+                    source_archive=prompt_source_archive,
+                    expected_pin=prompt_pin,
                 )
-                if prompt_verification != prompt_pin:
-                    raise StageReleaseDriverError("stage_release_prompt_publication_pin_drift")
                 receipt["ordinary_trade_mapping_prompt"] = {
                     "pin": prompt_verification,
                     "history_binding_attested": True,

@@ -124,6 +124,106 @@ def test_atomic_release_archives_the_same_v14_prompt_profile_it_pins(tmp_path: P
     assert not any(name.endswith("broker_reports_ordinary_trade_mapping_prompt.v13.md") for name in names)
 
 
+def test_post_remote_prompt_readback_uses_fresh_staging_and_always_cleans_it(
+    tmp_path: Path,
+):
+    archive = tmp_path / "source.zip"
+    archive.write_bytes(b"prompt-source")
+    events: list[tuple[str, str]] = []
+
+    with (
+        mock.patch.object(
+            release,
+            "_prepare_remote_staging",
+            side_effect=lambda _target, _release: events.append(("prepare", _release)) or "/verify",
+        ),
+        mock.patch.object(
+            release,
+            "_copy_prompt_publication_payload",
+            side_effect=lambda **kwargs: events.append(("copy", kwargs["remote_dir"])),
+        ),
+        mock.patch.object(
+            release,
+            "_run_native_prompt_publication",
+            side_effect=lambda **kwargs: events.append(("verify", kwargs["remote_dir"])) or _PIN,
+        ),
+        mock.patch.object(
+            release,
+            "_cleanup_remote_staging",
+            side_effect=lambda _target, remote_dir: events.append(("cleanup", remote_dir)),
+        ),
+    ):
+        assert release._verify_native_prompt_publication_after_remote_release(
+            ssh_target="release-host",
+            source_revision="0123456789abcdef0123456789abcdef01234567",
+            source_archive=archive,
+            expected_pin=_PIN,
+        ) == _PIN
+
+    assert events == [
+        (
+            "prepare",
+            "broker-reports-"
+            + release.hashlib.sha256(
+                b"prompt-verify:0123456789abcdef0123456789abcdef01234567"
+            ).hexdigest()[:12],
+        ),
+        ("copy", "/verify"),
+        ("verify", "/verify"),
+        ("cleanup", "/verify"),
+    ]
+
+
+@pytest.mark.parametrize("failure_point", ["copy", "verify"])
+def test_post_remote_prompt_readback_cleans_fresh_staging_after_failure(
+    tmp_path: Path, failure_point: str
+):
+    archive = tmp_path / "source.zip"
+    archive.write_bytes(b"prompt-source")
+    events: list[tuple[str, str]] = []
+
+    def fail_copy(**kwargs):
+        events.append(("copy", kwargs["remote_dir"]))
+        raise RuntimeError("copy_failed")
+
+    def fail_verify(**kwargs):
+        events.append(("verify", kwargs["remote_dir"]))
+        raise RuntimeError("verify_failed")
+
+    with (
+        mock.patch.object(release, "_prepare_remote_staging", return_value="/verify"),
+        mock.patch.object(
+            release,
+            "_copy_prompt_publication_payload",
+            side_effect=(
+                fail_copy
+                if failure_point == "copy"
+                else lambda **kwargs: events.append(("copy", kwargs["remote_dir"]))
+            ),
+        ),
+        mock.patch.object(
+            release,
+            "_run_native_prompt_publication",
+            side_effect=fail_verify if failure_point == "verify" else _PIN,
+        ),
+        mock.patch.object(
+            release,
+            "_cleanup_remote_staging",
+            side_effect=lambda _target, remote_dir: events.append(("cleanup", remote_dir)),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match=f"{failure_point}_failed"):
+            release._verify_native_prompt_publication_after_remote_release(
+                ssh_target="release-host",
+                source_revision="0123456789abcdef0123456789abcdef01234567",
+                source_archive=archive,
+                expected_pin=_PIN,
+            )
+
+    assert events[-1] == ("cleanup", "/verify")
+    assert events.count(("cleanup", "/verify")) == 1
+
+
 @pytest.mark.parametrize(
     "profile",
     ["goal391_grouped_mapping_lab_v14", "ordinary_trade_mapping_v14"],

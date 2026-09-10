@@ -170,6 +170,107 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             receipt["manifest"]["loader_sha256"],
         )
 
+    def test_apply_reads_back_prompt_only_after_the_atomic_remote_transaction(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        pin = {
+            "prompt_ref": "prompt-1",
+            "prompt_command": "broker_ordinary_trade_semantic_mapping_v14",
+            "prompt_history_id": "history-1",
+            "prompt_hash": "a" * 64,
+        }
+        events: list[str] = []
+
+        with (
+            mock.patch.object(
+                driver,
+                "_assert_release_tree",
+                return_value={"worktree_clean": True},
+            ),
+            mock.patch.object(
+                driver,
+                "_prepare_remote_staging",
+                return_value="/atomic-staging",
+            ),
+            mock.patch.object(driver, "_copy_prompt_publication_payload"),
+            mock.patch.object(driver, "_copy_payload"),
+            mock.patch.object(
+                driver,
+                "_run_native_prompt_publication",
+                side_effect=lambda **_kwargs: events.append("publish") or pin,
+            ),
+            mock.patch.object(
+                driver,
+                "_run_remote_release",
+                side_effect=lambda **_kwargs: events.append("atomic_remote") or {"status": "passed"},
+            ),
+            mock.patch.object(
+                driver,
+                "_verify_native_prompt_publication_after_remote_release",
+                side_effect=lambda **kwargs: (
+                    events.append("post_remote_verify"),
+                    self.assertTrue(kwargs["source_archive"].is_file()),
+                    pin,
+                )[-1],
+            ) as verify,
+        ):
+            receipt = driver.execute(
+                source_revision=revision,
+                ssh_target="validated-target",
+                apply=True,
+                prove_rollback=True,
+            )
+
+        self.assertEqual(["publish", "atomic_remote", "post_remote_verify"], events)
+        self.assertEqual(1, verify.call_count)
+        self.assertEqual(pin, receipt["ordinary_trade_mapping_prompt"]["pin"])
+
+    def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        pin = {
+            "prompt_ref": "prompt-1",
+            "prompt_command": "broker_ordinary_trade_semantic_mapping_v14",
+            "prompt_history_id": "history-1",
+            "prompt_hash": "a" * 64,
+        }
+
+        with (
+            mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
+            mock.patch.object(driver, "_prepare_remote_staging", return_value="/atomic-staging"),
+            mock.patch.object(driver, "_copy_prompt_publication_payload"),
+            mock.patch.object(driver, "_copy_payload"),
+            mock.patch.object(driver, "_run_native_prompt_publication", return_value=pin),
+            mock.patch.object(driver, "_run_remote_release", return_value={"status": "passed"}) as apply,
+            mock.patch.object(
+                driver,
+                "_verify_native_prompt_publication_after_remote_release",
+                side_effect=RuntimeError("verify_lost"),
+            ) as verify,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "verify_lost"):
+                driver.execute(
+                    source_revision=revision,
+                    ssh_target="validated-target",
+                    apply=True,
+                    prove_rollback=True,
+                )
+
+        self.assertEqual(1, apply.call_count)
+        self.assertEqual(1, verify.call_count)
+
     def test_git_blob_loader_identity_ignores_checkout_line_endings(self):
         revision = subprocess.run(
             ["git", "rev-parse", "HEAD"],
