@@ -22,14 +22,14 @@ class OfficeCliOutput:
 
 
 class OfficeCliExecutor(Protocol):
-    def run(self, *arguments: str) -> OfficeCliOutput: ...
+    def run(self, *arguments: str, input_text: str | None = None) -> OfficeCliOutput: ...
 
 
 class SubprocessOfficeCliExecutor:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
-    def run(self, *arguments: str) -> OfficeCliOutput:
+    def run(self, *arguments: str, input_text: str | None = None) -> OfficeCliOutput:
         command = (self._settings.binary, *arguments)
         environment = {
             **os.environ,
@@ -41,6 +41,7 @@ class SubprocessOfficeCliExecutor:
                 command,
                 check=False,
                 capture_output=True,
+                input=input_text,
                 encoding="utf-8",
                 errors="replace",
                 env=environment,

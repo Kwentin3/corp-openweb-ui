@@ -1,0 +1,26 @@
+services:
+  officecli-openapi-proof:
+    build:
+      context: ..
+      dockerfile: services/officecli-openapi-proof/Dockerfile
+    image: corp-openwebui/officecli-openapi-proof:issue-451
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      OPENWEBUI_BASE_URL: http://openwebui:8080
+      OFFICECLI_PROOF_TIMEOUT_SECONDS: "60"
+    expose:
+      - "8080"
+    networks:
+      - openwebui_web
+
+networks:
+  openwebui_web:
+    external: true
+    name: openwebui_web
