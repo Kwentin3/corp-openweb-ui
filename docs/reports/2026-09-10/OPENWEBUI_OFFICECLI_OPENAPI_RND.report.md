@@ -176,10 +176,12 @@ thin resident-pipe clients that retain the same batch vocabulary:
 - [Node SDK](https://github.com/iOfficeAI/OfficeCLI/tree/v1.0.148/sdk/node)
 - [batch contract](https://github.com/iOfficeAI/OfficeCLI/wiki/command-batch)
 
-The first proof should use direct one-shot subprocess calls, not resident mode
-or either SDK. This keeps process and file lifetime equal to one HTTP request.
-`batch` opens the file once, applies the official command array atomically, and
-saves before returning.
+The first proof should use direct one-shot subprocess calls, not the resident
+SDKs. `view` and other ordinary commands can auto-start a resident, so the
+adapter must set the exact release guard described in section 5.3. This keeps
+the intended process and file lifetime equal to one HTTP request. `batch`
+opens the file once, applies the official command array atomically, and saves
+before returning.
 
 The adapter must evaluate both process exit status and the OfficeCLI JSON
 `success` field. Large JSON output can use OfficeCLI's official `outputFile`
@@ -188,24 +190,60 @@ spill contract, which the adapter must unfold before returning its HTTP JSON.
 ### 5.3 Reproducible runtime
 
 The service image should install the exact release asset, verify its published
-SHA-256, and set the supported
-[update guard](https://github.com/iOfficeAI/OfficeCLI/blob/v1.0.148/src/officecli/Program.cs#L268):
+SHA-256, and set its supported one-shot guards:
 
 ```text
 OFFICECLI_SKIP_UPDATE=1
+OFFICECLI_NO_AUTO_RESIDENT=1
 ```
 
-The proof must use standalone one-shot calls and never invoke `open` or resident
-mode; exact `v1.0.148` exposes no supported environment switch that disables
-resident mode globally. The update guard prevents version drift. OfficeCLI is
-Apache-2.0 licensed and publishes self-contained Linux/Alpine/Windows/macOS
-release binaries. PNG screenshot rendering has additional browser dependencies;
-it is not required for the first structural DOCX edit proof.
+`OFFICECLI_NO_AUTO_RESIDENT=1` disables the automatic resident start used even
+by `view`; it does not prevent a command from connecting to a resident that
+already exists for the same path
+([TryResident](https://github.com/iOfficeAI/OfficeCLI/blob/0a450e43389531eadf05510dff209d541c1dec1e/src/officecli/CommandBuilder.cs#L578-L605),
+[view route](https://github.com/iOfficeAI/OfficeCLI/blob/0a450e43389531eadf05510dff209d541c1dec1e/src/officecli/CommandBuilder.View.cs#L116-L138)).
+The adapter therefore creates one unique request workspace and unique output
+path before any OfficeCLI call, never invokes `open`, and records that no
+resident was started before returning the uploaded result. It does not need a
+process manager. `OFFICECLI_SKIP_UPDATE=1` prevents version drift. OfficeCLI
+is Apache-2.0 licensed and publishes self-contained
+Linux/Alpine/Windows/macOS release binaries. PNG screenshot rendering has
+additional browser dependencies; it is not required for the first structural
+DOCX edit proof.
 
 ## 6. Minimal OpenAPI contract
 
-The eventual capability needs only three model-visible operations. Their
-payloads preserve OfficeCLI's own vocabulary rather than inventing one:
+The first proof uses two document operations and two read-only official
+guidance operations. The guidance is served from the installed, release-pinned
+OfficeCLI binary through the same OpenAPI Tool Server; it is not copied into a
+second Word instruction set and gives no installation or desktop authority.
+
+### `load_officecli_skill`
+
+```json
+{"skill": "word"}
+```
+
+For this DOCX proof, `skill` is the single allowed value `word`. The adapter
+runs the official `officecli load_skill word` and returns its exact output as a
+tool result. It does not expose arbitrary skill installation, plugins, or
+filesystem locations.
+
+### `get_officecli_help`
+
+```json
+{"topic": ["docx", "set", "paragraph"]}
+```
+
+The adapter validates the small token array and runs `officecli help` with
+those tokens. For the proof, accepted topics are limited to the chosen DOCX
+operation and its target element. The model calls this operation whenever a
+property name, value format, or syntax is uncertain, as required by the
+[official SKILL.md](https://github.com/iOfficeAI/OfficeCLI/blob/0a450e43389531eadf05510dff209d541c1dec1e/SKILL.md).
+No hand-written Office property knowledge is added to prompts or adapter code.
+
+The two document-operation payloads preserve OfficeCLI's own vocabulary rather
+than inventing one:
 
 ### `inspect_office_document`
 
@@ -235,10 +273,11 @@ not interpret document meaning.
 The adapter first copies the authenticated OpenWebUI download to the new
 `output_name`, because OfficeCLI batch mutates its target file in place. It then
 runs the official atomic batch on that output copy, runs OfficeCLI validation,
-and returns the OpenWebUI-native uploaded file object. Validation is OfficeCLI
-behavior; the adapter only orders the calls and reports the result. Atomic batch
-protects the output copy from partial application; the prior copy step is what
-keeps the OpenWebUI source bytes unchanged.
+and returns the OpenWebUI-native uploaded file object together with its
+`result_file_id`. Validation is OfficeCLI behavior; the adapter only orders the
+calls and reports the result. Atomic batch protects the output copy from partial
+application; the prior copy step is what keeps the OpenWebUI source bytes
+unchanged.
 
 ### `create_office_document`
 
@@ -292,52 +331,76 @@ Any proof implementation belongs under a new
 4. **Office binary responses are not automatically Office attachments.** The
    adapter must upload through OpenWebUI and emit the returned native file object;
    returning DOCX bytes directly from an OpenAPI operation is insufficient.
-5. **Continuation is not yet proven.** Exact source explicitly injects files
-   from stored user messages. A generated file attached to an assistant message
-   may require the user to reattach it through native OpenWebUI UX before the next
-   edit. The proof must test this; no custom continuation layer is authorized.
-6. **Rendering is separate from structural validity.** The first proof checks
-   OfficeCLI validation and a human-opened DOCX. Screenshot/render qualification
-   can follow only if the structural proof exposes a real need.
+5. **Continuation is a native-result hypothesis, not a reattachment fallback.**
+   The adapter returns the new native `result_file_id` in its tool result and
+   emits the matching native file event. The proof must establish whether that
+   ID remains available to the model through ordinary OpenWebUI tool-result
+   history on the next user turn. Manual download, reupload, or reattachment is
+   not a successful continuation and must be recorded as a product gap; no
+   adapter-side document/revision registry is authorized.
+6. **Structural validity is not preservation evidence.** `validate` checks
+   OpenXML validity, not that the requested edit left unrelated Word content
+   and formatting intact. The proof therefore needs the focused before/after
+   checks in section 9, not a new test framework.
 7. **No production claim.** Static source evidence does not prove deployed image,
-   model behavior, file access, browser persistence, or real Office fidelity.
+   model behavior, file access, browser persistence, real Office fidelity, or
+   process cleanup.
 
 ## 9. One minimal next proof
 
-Terminal for this R&D is a proposal only. Implementation requires the next
-explicit authorization.
+This R&D terminates with one implementation-ready, bounded proof definition.
+It does not itself execute or activate the proof.
 
 ### Proof scope
 
-One privacy-safe DOCX with a visible section `3.2`; one ordinary corporate user;
+One privacy-safe DOCX made in ordinary Word, with a visible section `3.2`, a
+table, header/footer, and mixed text formatting; one ordinary corporate user;
 one fresh chat; one pinned OfficeCLI `v1.0.148` binary/version with a bounded
-subprocess per operation; two OpenAPI operations: `inspect_office_document` and
-`apply_office_batch`.
+subprocess per operation. The model receives the official `word` skill and
+uses official help when needed. The document path has two guidance reads
+(`load_officecli_skill`, `get_officecli_help`) and two document operations:
+`inspect_office_document` and `apply_office_batch`.
 
 ### Proof steps
 
 1. Build an isolated `services/officecli-openapi-proof/` service with no DB and
    no imports from Broker, NDFL, STT, or OpenWebUI internals.
-2. Install and checksum the pinned OfficeCLI binary; disable auto-update, use
-   standalone calls, and prove that no `open` or resident path was invoked.
+2. Install and checksum the pinned OfficeCLI binary. Set
+   `OFFICECLI_SKIP_UPDATE=1` and `OFFICECLI_NO_AUTO_RESIDENT=1`; use a unique
+   request workspace/output path, never invoke `open`, and prove from the
+   request receipt that no resident was auto-started and all child work ended
+   before the result is uploaded.
 3. Register it as a Global OpenAPI Tool Server through the native admin surface,
    with native access control, `auth_type=session`, and chat/message header
    templates.
-4. In the real Web UI, upload the DOCX through the ordinary file control and ask
-   the selected model to change section `3.2`.
-5. Prove from browser network evidence and adapter/OpenWebUI receipts that:
+4. In the real Web UI, upload the DOCX through the ordinary file control. Let
+   the selected model obtain `load_officecli_skill word` and, when the requested
+   edit needs syntax/property confirmation, `get_officecli_help`; it must not
+   guess Word properties.
+5. Ask the model to change section `3.2`.
+6. Prove from browser network evidence and adapter/OpenWebUI receipts that:
    - the model received and passed the native opaque attachment ID;
+   - official skill/help output, when used, came from the pinned binary;
    - OpenWebUI authorized the source GET under its existing sharing model;
    - `view annotated` identified the target;
    - one atomic OfficeCLI batch produced the edit;
    - the source file remained unchanged;
    - the result was uploaded by the native Files API;
-   - the native file object was persisted on the assistant message;
+   - the native file object and its `result_file_id` were persisted on the
+     assistant message and returned through the tool result;
    - the ordinary user downloaded and opened the result;
-   - section `3.2` changed and unrelated structure remained present.
-6. Ask for one additional edit in the next turn. Record whether OpenWebUI
-   automatically supplies the generated file or requires native user reattachment.
-7. Remove only proof-created runtime state and confirm Broker/NDFL files and
+   - section `3.2` changed, while fixed unaffected checks of ordinary Word text,
+     table content, header/footer, and selected mixed formatting match the
+     before-state; and
+   - Word opens both source and result for the same focused before/after check.
+   This is an addressable checklist, not a new validation, rendering, or
+   document-diff subsystem.
+7. In the next turn, ask the ordinary user-path question "now change this too"
+   without downloading, reuploading, or reattaching the generated file. Prove
+   that the model receives the prior `result_file_id` from native tool-result
+   history, supplies it to the next document operation, and returns a further
+   native result attachment.
+8. Remove only proof-created runtime state and confirm Broker/NDFL files and
    services were unchanged.
 
 ### Proof acceptance terminal
@@ -346,11 +409,15 @@ subprocess per operation; two OpenAPI operations: `inspect_office_document` and
 OFFICECLI OPENAPI DOCX EDIT PROOF QUALIFIED
 ```
 
-If any native file, session, attachment, or continuation seam fails, stop with:
+If any native file, session, attachment, source-preservation, process-lifetime,
+or continuation seam fails, stop with:
 
 ```text
 OFFICECLI OPENAPI PROOF BLOCKED / EXACT NATIVE GAP RECORDED
 ```
+
+In particular, a first edit that requires manual file reattachment for the
+second edit is not `QUALIFIED`; record the native continuation gap and stop.
 
 Do not add a second storage, ACL, browser patch, Action, MCP route, or OpenWebUI
 core change to make a failing proof appear green.
@@ -358,9 +425,10 @@ core change to make a failing proof appear green.
 ## 10. R&D terminal
 
 ```text
-R&D CLOSED / MINIMAL PROOF OWNER AUTHORIZATION REQUIRED
+R&D CLOSED / ONE NARROW CHAT PROOF READY
 ```
 
 The architecture is selected, ownership is explicit, the adapter gap is
 confirmed, and one bounded proof is specified. No runtime implementation,
-deployment, provider call, production mutation, or activation was performed.
+deployment, provider call, production mutation, or activation was performed
+by this R&D slice.
