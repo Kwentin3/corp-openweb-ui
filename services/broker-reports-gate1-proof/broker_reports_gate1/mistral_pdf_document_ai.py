@@ -56,12 +56,12 @@ _MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024
 _PAGE_SEPARATOR = b"\n\n"
 _MAX_DOCUMENT_ANNOTATION_PAGES = 8
 MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION = (
-    "mistral_ocr_table_continuation_annotation_v1"
+    "mistral_ocr_table_continuation_annotation_v2"
 )
 MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
-        "name": "broker_reports_native_table_continuation_links_v1",
+        "name": "broker_reports_native_table_continuation_links_v2",
         "strict": True,
         "schema": {
             "type": "object",
@@ -77,25 +77,37 @@ MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
                                 "type": "object",
                                 "additionalProperties": False,
                                 "properties": {
-                                    "page_index": {"type": "integer", "minimum": 0},
-                                    "table_id": {
-                                        "type": "string",
-                                        "pattern": "^[A-Za-z0-9._-]{1,255}$",
+                                    "selected_page_position": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                    },
+                                    "table_ordinal": {
+                                        "type": "integer",
+                                        "minimum": 1,
                                     },
                                 },
-                                "required": ["page_index", "table_id"],
+                                "required": [
+                                    "selected_page_position",
+                                    "table_ordinal",
+                                ],
                             },
                             "child": {
                                 "type": "object",
                                 "additionalProperties": False,
                                 "properties": {
-                                    "page_index": {"type": "integer", "minimum": 0},
-                                    "table_id": {
-                                        "type": "string",
-                                        "pattern": "^[A-Za-z0-9._-]{1,255}$",
+                                    "selected_page_position": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                    },
+                                    "table_ordinal": {
+                                        "type": "integer",
+                                        "minimum": 1,
                                     },
                                 },
-                                "required": ["page_index", "table_id"],
+                                "required": [
+                                    "selected_page_position",
+                                    "table_ordinal",
+                                ],
                             },
                         },
                         "required": ["parent", "child"],
@@ -258,7 +270,6 @@ class MistralPdfDocumentExtractor:
             response=response,
             extraction=extraction,
             document_annotation_prompt=document_annotation_prompt,
-            response_page_indices=response_page_indices,
             source_page_numbers=source_page_numbers,
         )
         try:
@@ -560,7 +571,6 @@ def _parse_table_continuation_assessment(
     response: Mapping[str, Any],
     extraction: PdfDocumentExtraction,
     document_annotation_prompt: str,
-    response_page_indices: tuple[int, ...],
     source_page_numbers: tuple[int, ...],
 ) -> PdfDocumentTableContinuationAssessment:
     raw_annotation = response.get("document_annotation")
@@ -576,10 +586,9 @@ def _parse_table_continuation_assessment(
     if not isinstance(raw_links, list):
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
 
-    table_by_native_location = {
-        (response_page_indices[table.page_number - 1], table.markdown_target): table
-        for table in extraction.table_refs
-    }
+    table_by_selected_position_and_ordinal = _tables_by_selected_position_and_ordinal(
+        extraction.table_refs
+    )
     selected_page_bindings = tuple(
         PdfDocumentSelectedPageBinding(
             local_page_number=local_page_number,
@@ -602,11 +611,15 @@ def _parse_table_continuation_assessment(
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
         parent = _annotation_table_ref(
             raw_link["parent"],
-            table_by_native_location=table_by_native_location,
+            table_by_selected_position_and_ordinal=(
+                table_by_selected_position_and_ordinal
+            ),
         )
         child = _annotation_table_ref(
             raw_link["child"],
-            table_by_native_location=table_by_native_location,
+            table_by_selected_position_and_ordinal=(
+                table_by_selected_position_and_ordinal
+            ),
         )
         if parent.local_ref == child.local_ref:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_SELF_LINK")
@@ -671,23 +684,53 @@ def _parse_table_continuation_assessment(
 def _annotation_table_ref(
     value: object,
     *,
-    table_by_native_location: Mapping[tuple[int, str], PdfDocumentTableRef],
+    table_by_selected_position_and_ordinal: Mapping[
+        tuple[int, int], PdfDocumentTableRef
+    ],
 ) -> PdfDocumentTableRef:
-    if not isinstance(value, Mapping) or set(value) != {"page_index", "table_id"}:
+    if not isinstance(value, Mapping) or set(value) != {
+        "selected_page_position",
+        "table_ordinal",
+    }:
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
-    page_index = value["page_index"]
-    table_id = value["table_id"]
+    selected_page_position = value["selected_page_position"]
+    table_ordinal = value["table_ordinal"]
     if (
-        type(page_index) is not int
-        or page_index < 0
-        or not isinstance(table_id, str)
-        or not re.fullmatch(r"[A-Za-z0-9._-]{1,255}", table_id)
+        type(selected_page_position) is not int
+        or selected_page_position < 0
+        or type(table_ordinal) is not int
+        or table_ordinal < 1
     ):
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
-    table = table_by_native_location.get((page_index, table_id))
+    table = table_by_selected_position_and_ordinal.get(
+        (selected_page_position, table_ordinal)
+    )
     if table is None:
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_UNKNOWN_TABLE")
     return table
+
+
+def _tables_by_selected_position_and_ordinal(
+    table_refs: tuple[PdfDocumentTableRef, ...],
+) -> dict[tuple[int, int], PdfDocumentTableRef]:
+    """Bind R&D annotation positions to this exact response table ordering.
+
+    The provider's opaque table ids remain inside the extraction only.  The
+    annotation contract can name a table solely by its zero-based selected-page
+    position and one-based ordinal in the already validated response order.
+    """
+
+    table_by_position_and_ordinal: dict[tuple[int, int], PdfDocumentTableRef] = {}
+    ordinal_by_local_page: dict[int, int] = {}
+    for table in table_refs:
+        local_page_number = table.page_number
+        ordinal = ordinal_by_local_page.get(local_page_number, 0) + 1
+        ordinal_by_local_page[local_page_number] = ordinal
+        key = (local_page_number - 1, ordinal)
+        if key in table_by_position_and_ordinal:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+        table_by_position_and_ordinal[key] = table
+    return table_by_position_and_ordinal
 
 
 def _has_table_continuation_cycle(
