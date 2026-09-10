@@ -115,11 +115,32 @@ class HttpOpenWebUiClient:
     def attach(
         self, chat_id: str, message_id: str, native_file: dict[str, Any], authorization: str
     ) -> None:
+        file_id = native_file.get("id")
+        if not isinstance(file_id, str) or not file_id:
+            raise OpenWebUiFailure("OpenWebUI upload did not return a native file id")
+
+        metadata = native_file.get("meta")
+        metadata = metadata if isinstance(metadata, dict) else {}
+        filename = native_file.get("filename")
+        filename = filename if isinstance(filename, str) and filename else "updated.docx"
+        chat_file = {
+            "type": "file",
+            "file": native_file,
+            "id": file_id,
+            "url": file_id,
+            "name": filename,
+            "status": "uploaded",
+            "size": metadata.get("size"),
+            "content_type": metadata.get(
+                "content_type",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ),
+        }
         self._request(
             "POST",
             f"/api/v1/chats/{chat_id}/messages/{message_id}/event",
             authorization,
-            json={"type": "files", "data": {"files": [native_file]}},
+            json={"type": "files", "data": {"files": [chat_file]}},
         )
 
     def delete(self, file_id: str, authorization: str) -> None:

@@ -298,6 +298,65 @@ def test_http_client_resolves_docx_from_the_native_message_ancestry(monkeypatch)
     assert result == "result-file-id"
 
 
+def test_http_client_attaches_a_native_chat_file_reference(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    def request(method, url, **kwargs):
+        captured.update({"method": method, "url": url, **kwargs})
+        return Response()
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    client.attach(
+        "native-chat-id",
+        "assistant-now",
+        {
+            "id": "result-file-id",
+            "filename": "updated.docx",
+            "meta": {
+                "size": 123,
+                "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+        },
+        "Bearer user-session",
+    )
+
+    assert captured["method"] == "POST"
+    assert captured["url"] == (
+        "http://openwebui:8080/api/v1/chats/native-chat-id/messages/assistant-now/event"
+    )
+    assert captured["headers"] == {"Authorization": "Bearer user-session"}
+    assert captured["json"] == {
+        "type": "files",
+        "data": {
+            "files": [
+                {
+                    "type": "file",
+                    "file": {
+                        "id": "result-file-id",
+                        "filename": "updated.docx",
+                        "meta": {
+                            "size": 123,
+                            "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        },
+                    },
+                    "id": "result-file-id",
+                    "url": "result-file-id",
+                    "name": "updated.docx",
+                    "status": "uploaded",
+                    "size": 123,
+                    "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                }
+            ]
+        },
+    }
+
+
 def settings() -> Settings:
     return Settings(
         binary="/usr/local/bin/officecli",
