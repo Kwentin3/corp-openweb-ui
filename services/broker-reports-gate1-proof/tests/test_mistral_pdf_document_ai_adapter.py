@@ -826,6 +826,13 @@ def test_native_html_table_is_preserved_as_physical_header_and_headerless_units(
         (unit["source_location"]["page"], unit["source_location"]["structural_header_row_ordinals"])
         for unit in table_units
     ] == [(1, [1]), (2, [])]
+    assert [
+        (unit["document_ai_native_table_ref"], unit["document_ai_native_table_sha256"])
+        for unit in table_units
+    ] == [
+        (item.local_ref, item.sha256)
+        for item in extraction.table_refs
+    ]
     assert all("tbl-" not in str(unit.get("text") or "") for unit in built.units)
 
     projected = NormalizedTableProjectionFactory().create().build_for_document(

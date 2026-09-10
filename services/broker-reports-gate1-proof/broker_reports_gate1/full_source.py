@@ -1034,6 +1034,17 @@ class FullSourceArtifactBuilder:
                 "vectorization_performed": False,
             }
         )
+        # A native OCR table is an independently addressable physical source.
+        # Keep its opaque identity on the Full Source unit so a later
+        # provenance-bound sidecar can resolve it without parsing cells or
+        # guessing from layout.  Non-table descriptors deliberately receive
+        # no such identity.
+        for key in (
+            "document_ai_native_table_ref",
+            "document_ai_native_table_sha256",
+        ):
+            if key in descriptor:
+                unit[key] = copy.deepcopy(descriptor[key])
         payload["coverage_index"] = copy.deepcopy(unit.get("coverage") or {})
         payload["coverage_index"].update(
             {
