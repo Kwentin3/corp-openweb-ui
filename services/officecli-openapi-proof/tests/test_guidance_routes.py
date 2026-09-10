@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from officecli_openapi_proof.app import create_app
 from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
+from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient
 
 
 def office_output(*arguments: str, payload: object | None = None) -> OfficeCliOutput:
@@ -44,6 +45,10 @@ class RecordingOpenWebUi:
     source: bytes = b"original DOCX bytes"
     calls: list[tuple[str, object]] = field(default_factory=list)
     uploaded: dict[str, object] | None = None
+
+    def resolve_nearest_docx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
+        self.calls.append(("resolve", (chat_id, message_id)))
+        return "resolved-file-id"
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
         self.calls.append(("download", file_id))
@@ -135,13 +140,18 @@ def test_inspect_downloads_native_file_and_only_runs_annotated_view() -> None:
 
     response = client.post(
         "/v1/officecli/documents/inspect",
-        headers={"Authorization": "Bearer user-session"},
-        json={"file_id": "source-file-id", "command_payload": {"command": "view", "mode": "annotated"}},
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"command_payload": {"command": "view", "mode": "annotated"}},
     )
 
     assert response.status_code == 200
     assert response.json()["officecli_result"] == {"success": True, "data": {"operation": "view"}}
-    assert files.calls == [("download", "source-file-id")]
+    assert response.json()["file_id"] == "resolved-file-id"
+    assert files.calls == [("resolve", ("native-chat-id", "native-message-id")), ("download", "resolved-file-id")]
     assert executor.calls[0][0] == "view"
     assert executor.calls[0][2:] == ("annotated", "--json")
 
@@ -159,7 +169,6 @@ def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:
             "X-OpenWebUI-Message-Id": "native-message-id",
         },
         json={
-            "file_id": "source-file-id",
             "output_name": "document-updated.docx",
             "commands": [{"command": "set", "path": "/body/p[1]", "props": {"text": "updated"}}],
         },
@@ -170,7 +179,8 @@ def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:
     assert body["result_file_id"] == "result-file-id"
     assert body["source_bytes_preserved"] is True
     assert body["bounded_processes_completed"] is True
-    assert [call[0] for call in files.calls] == ["download", "download", "upload", "attach"]
+    assert body["source_file_id"] == "resolved-file-id"
+    assert [call[0] for call in files.calls] == ["resolve", "download", "download", "upload", "attach"]
     assert [call[0] for call in executor.calls] == ["batch", "validate"]
     assert executor.calls[0][0] == "batch"
     assert "--stop-on-error" in executor.calls[0]
@@ -186,7 +196,7 @@ def test_apply_requires_native_chat_and_message_identifiers_before_side_effects(
     response = client.post(
         "/v1/officecli/documents/apply-batch",
         headers={"Authorization": "Bearer user-session"},
-        json={"file_id": "source-file-id", "output_name": "document-updated.docx", "commands": [{"command": "set"}]},
+        json={"output_name": "document-updated.docx", "commands": [{"command": "set"}]},
     )
 
     assert response.status_code == 400
@@ -207,11 +217,11 @@ def test_apply_stops_before_upload_when_officecli_reports_failure() -> None:
             "X-OpenWebUI-Chat-Id": "native-chat-id",
             "X-OpenWebUI-Message-Id": "native-message-id",
         },
-        json={"file_id": "source-file-id", "output_name": "document-updated.docx", "commands": [{"command": "set"}]},
+        json={"output_name": "document-updated.docx", "commands": [{"command": "set"}]},
     )
 
     assert response.status_code == 502
-    assert [call[0] for call in files.calls] == ["download"]
+    assert [call[0] for call in files.calls] == ["resolve", "download"]
     assert [call[0] for call in executor.calls] == ["batch"]
 
 
@@ -239,6 +249,47 @@ def test_subprocess_executor_disables_auto_resident_for_official_commands(monkey
     assert captured["environment"]["OFFICECLI_SKIP_UPDATE"] == "1"
     assert captured["environment"]["OFFICECLI_NO_AUTO_RESIDENT"] == "1"
     assert result.text == "official skill"
+
+
+def test_http_client_resolves_docx_from_the_native_message_ancestry(monkeypatch) -> None:
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "chat": {
+                    "history": {
+                        "messages": {
+                            "assistant-now": {"parentId": "user-followup", "files": []},
+                            "user-followup": {"parentId": "assistant-prior", "files": []},
+                            "assistant-prior": {
+                                "parentId": "user-source",
+                                "files": [{"id": "result-file-id", "name": "first-edit.docx"}],
+                            },
+                            "user-source": {
+                                "parentId": None,
+                                "files": [{"id": "source-file-id", "name": "source.docx"}],
+                            },
+                        }
+                    }
+                }
+            }
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "http://openwebui:8080/api/v1/chats/native-chat-id"
+        assert kwargs["headers"] == {"Authorization": "Bearer user-session"}
+        return Response()
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    result = client.resolve_nearest_docx_attachment(
+        "native-chat-id", "assistant-now", "Bearer user-session"
+    )
+
+    assert result == "result-file-id"
 
 
 def settings() -> Settings:

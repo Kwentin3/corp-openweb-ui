@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -35,13 +36,28 @@ class InspectCommandPayload(BaseModel):
     mode: Literal["annotated"]
 
 
-class InspectOfficeDocumentRequest(BaseModel):
-    file_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9-]{1,128}$")]
+class NativeDocxReference(BaseModel):
+    file_id: str | None = Field(
+        default=None,
+        description=(
+            "Optional native OpenWebUI DOCX file id. Omit it rather than guessing: "
+            "the nearest DOCX attachment in the native message ancestry is used."
+        ),
+    )
+
+    @field_validator("file_id", mode="before")
+    @classmethod
+    def only_accept_an_opaque_native_file_id(cls, value: object) -> str | None:
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9-]{1,128}", value):
+            return value
+        return None
+
+
+class InspectOfficeDocumentRequest(NativeDocxReference):
     command_payload: InspectCommandPayload
 
 
-class ApplyOfficeBatchRequest(BaseModel):
-    file_id: Annotated[str, Field(pattern=r"^[A-Za-z0-9-]{1,128}$")]
+class ApplyOfficeBatchRequest(NativeDocxReference):
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
 
@@ -103,6 +119,12 @@ def _http_error(error: Exception) -> HTTPException:
     return HTTPException(status_code=502, detail=str(error))
 
 
+def _native_chat_message_ids(chat_id: str | None, message_id: str | None) -> tuple[str, str]:
+    if not chat_id or not message_id:
+        raise HTTPException(status_code=400, detail="native chat and message ids are required")
+    return chat_id, message_id
+
+
 def create_app(
     executor: OfficeCliExecutor | None = None,
     openwebui_client: OpenWebUiClient | None = None,
@@ -155,19 +177,25 @@ def create_app(
     def inspect_office_document(
         request: InspectOfficeDocumentRequest,
         authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
     ) -> InspectionResponse:
         bearer = _bearer(authorization)
+        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
         try:
+            source_file_id = request.file_id or openwebui.resolve_nearest_docx_attachment(
+                native_chat_id, native_message_id, bearer
+            )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.docx"
-                openwebui.download(request.file_id, bearer, source)
+                openwebui.download(source_file_id, bearer, source)
                 output = officecli.run("view", str(source), request.command_payload.mode, "--json")
                 result = _officecli_json(output, "view")
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
             source=f"officecli v{active_settings.expected_version}",
-            file_id=request.file_id,
+            file_id=source_file_id,
             officecli_result=result,
             officecli_result_sha256=output.content_sha256,
             auto_resident_disabled=output.auto_resident_disabled,
@@ -185,17 +213,19 @@ def create_app(
         message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
     ) -> ApplyResponse:
         bearer = _bearer(authorization)
-        if not chat_id or not message_id:
-            raise HTTPException(status_code=400, detail="native chat and message ids are required")
+        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
 
         native_file: dict[str, Any] | None = None
         try:
+            source_file_id = request.file_id or openwebui.resolve_nearest_docx_attachment(
+                native_chat_id, native_message_id, bearer
+            )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 workspace = Path(directory)
                 source = workspace / "source.docx"
                 result = workspace / request.output_name
                 source_after = workspace / "source-after.docx"
-                openwebui.download(request.file_id, bearer, source)
+                openwebui.download(source_file_id, bearer, source)
                 source_sha256 = sha256(source.read_bytes()).hexdigest()
                 result.write_bytes(source.read_bytes())
 
@@ -216,13 +246,13 @@ def create_app(
                 if result_sha256 == source_sha256:
                     raise OfficeCliFailure("officecli result bytes did not change")
 
-                openwebui.download(request.file_id, bearer, source_after)
+                openwebui.download(source_file_id, bearer, source_after)
                 source_bytes_preserved = sha256(source_after.read_bytes()).hexdigest() == source_sha256
                 if not source_bytes_preserved:
                     raise OpenWebUiFailure("source file bytes changed during the request")
 
                 native_file = openwebui.upload(result, request.output_name, bearer)
-                openwebui.attach(chat_id, message_id, native_file, bearer)
+                openwebui.attach(native_chat_id, native_message_id, native_file, bearer)
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             if native_file and isinstance(native_file.get("id"), str):
                 try:
@@ -233,7 +263,7 @@ def create_app(
 
         return ApplyResponse(
             source=f"officecli v{active_settings.expected_version}",
-            source_file_id=request.file_id,
+            source_file_id=source_file_id,
             result_file_id=native_file["id"],
             result_file=native_file,
             batch_result=batch_result,

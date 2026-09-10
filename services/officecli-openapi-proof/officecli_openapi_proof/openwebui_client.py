@@ -11,6 +11,10 @@ class OpenWebUiFailure(RuntimeError):
 
 
 class OpenWebUiClient(Protocol):
+    def resolve_nearest_docx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> str: ...
+
     def download(self, file_id: str, authorization: str, destination: Path) -> None: ...
 
     def upload(self, source: Path, output_name: str, authorization: str) -> dict[str, Any]: ...
@@ -52,6 +56,39 @@ class HttpOpenWebUiClient:
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
         response = self._request("GET", f"/api/v1/files/{file_id}/content", authorization)
         destination.write_bytes(response.content)
+
+    def resolve_nearest_docx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> str:
+        response = self._request("GET", f"/api/v1/chats/{chat_id}", authorization)
+        try:
+            chat_record = response.json()
+            messages = chat_record["chat"]["history"]["messages"]
+        except (KeyError, TypeError, ValueError) as error:
+            raise OpenWebUiFailure("OpenWebUI chat did not contain native message history") from error
+        if not isinstance(messages, dict):
+            raise OpenWebUiFailure("OpenWebUI chat message history was not an object")
+
+        visited: set[str] = set()
+        current_id: str | None = message_id
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            message = messages.get(current_id)
+            if not isinstance(message, dict):
+                break
+            files = message.get("files", [])
+            if isinstance(files, list):
+                for native_file in files:
+                    if not isinstance(native_file, dict):
+                        continue
+                    name = native_file.get("name") or native_file.get("filename") or ""
+                    file_id = native_file.get("id") or native_file.get("url")
+                    if isinstance(name, str) and name.lower().endswith(".docx") and isinstance(file_id, str):
+                        return file_id
+            parent_id = message.get("parentId")
+            current_id = parent_id if isinstance(parent_id, str) else None
+
+        raise OpenWebUiFailure("no DOCX attachment exists in the native message ancestry")
 
     def upload(self, source: Path, output_name: str, authorization: str) -> dict[str, Any]:
         with source.open("rb") as document:
