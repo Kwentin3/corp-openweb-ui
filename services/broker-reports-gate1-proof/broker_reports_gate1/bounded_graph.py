@@ -10,6 +10,7 @@ from .artifact_models import (
     ArtifactAccessContext,
     ArtifactRecord,
     PRIVATE_BINARY_ARTIFACT_TYPE,
+    PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE,
     RetentionPolicy,
     build_private_binary_payload,
     utc_now_iso,
@@ -21,6 +22,11 @@ from .full_source import (
     validate_full_source_unit,
 )
 from .pdf_document_ai import PdfDocumentImageRef
+from .physical_table_continuation import (
+    PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION,
+    PhysicalTableContinuationError,
+    build_physical_table_continuation_sidecar,
+)
 from .source_provenance import validate_normalized_slice_provenance
 from .table_projection import TableProjectionValidator
 
@@ -224,6 +230,7 @@ class Gate1BoundedGraph:
         self.private_refs_by_doc: dict[str, list[str]] = {}
         self.private_source_payload_refs_by_doc: dict[str, list[str]] = {}
         self.private_source_unit_refs_by_doc: dict[str, list[str]] = {}
+        self.physical_table_continuation_refs_by_doc: dict[str, list[str]] = {}
         self.table_projection_refs_by_doc: dict[str, list[str]] = {}
         self._payload_logical_refs: set[str] = set()
         self._unit_logical_refs: set[str] = set()
@@ -321,6 +328,7 @@ class Gate1BoundedGraph:
         *,
         result: FullSourceBuildResult,
         image_refs: tuple[PdfDocumentImageRef, ...],
+        physical_table_continuation_sidecar: dict[str, Any] | None = None,
     ) -> None:
         """Publish one complete PDF Markdown/unit/image graph or none of it."""
 
@@ -379,6 +387,15 @@ class Gate1BoundedGraph:
                 source_checksum_sha256=source_checksum,
             ).get("errors"):
                 raise Gate1BoundedGraphError("bounded_value_validation_failed")
+
+        sidecar_metadata: dict[str, Any] | None = None
+        if physical_table_continuation_sidecar is not None:
+            sidecar_metadata = self._validate_physical_table_continuation_sidecar(
+                sidecar=physical_table_continuation_sidecar,
+                result=result,
+                document_id=document_id,
+                source_checksum=source_checksum,
+            )
 
         payload_collection = self.collection("private_normalized_source_payloads")
         unit_collection = self.collection("private_normalized_source_units")
@@ -442,7 +459,23 @@ class Gate1BoundedGraph:
             )
             for image in image_refs
         ]
-        records = [*payload_records, *unit_records, *image_records]
+        sidecar_records = []
+        if sidecar_metadata is not None:
+            sidecar_records.append(
+                self._build_record(
+                    artifact_id=new_artifact_id(),
+                    artifact_type=PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE,
+                    document_id=document_id,
+                    source_file_ref=source_ref,
+                    visibility="private_case",
+                    storage_backend="project_artifact_payload",
+                    validation_status="validated",
+                    payload=copy.deepcopy(physical_table_continuation_sidecar),
+                    safe_metadata=sidecar_metadata,
+                    access_policy=access_policy,
+                )
+            )
+        records = [*payload_records, *unit_records, *image_records, *sidecar_records]
         self.store.put_records_atomic(records)
 
         for payload, unit, payload_record, unit_record in zip(
@@ -468,10 +501,95 @@ class Gate1BoundedGraph:
                 str(payload.get("source_payload_ref") or "")
             )
             self._unit_logical_refs.add(str(unit.get("unit_ref") or ""))
+        for record in sidecar_records:
+            self.physical_table_continuation_refs_by_doc.setdefault(
+                document_id, []
+            ).append(record.artifact_id)
         for record in records:
             self.refs_by_type.setdefault(record.artifact_type, []).append(
                 record.artifact_id
             )
+
+    def _validate_physical_table_continuation_sidecar(
+        self,
+        *,
+        sidecar: dict[str, Any],
+        result: FullSourceBuildResult,
+        document_id: str,
+        source_checksum: str,
+    ) -> dict[str, Any]:
+        """Accept only a nonempty sidecar bound to this exact Full Source batch."""
+
+        expected_keys = {
+            "schema_version",
+            "normalization_run_id",
+            "document_id",
+            "source_pdf_sha256",
+            "links",
+            "annotation_receipt",
+            "visibility",
+            "sidecar_id",
+        }
+        if (
+            not isinstance(sidecar, dict)
+            or set(sidecar) != expected_keys
+            or sidecar.get("schema_version")
+            != PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION
+            or sidecar.get("normalization_run_id") != self.normalization_run_id
+            or sidecar.get("document_id") != document_id
+            or sidecar.get("source_pdf_sha256") != source_checksum
+            or sidecar.get("visibility") != "private_case"
+            or not isinstance(sidecar.get("links"), list)
+            or not sidecar["links"]
+        ):
+            raise Gate1BoundedGraphError("bounded_physical_table_continuation_invalid")
+        proposals: list[dict[str, Any]] = []
+        for link in sidecar["links"]:
+            if not isinstance(link, dict) or set(link) != {"parent", "child"}:
+                raise Gate1BoundedGraphError(
+                    "bounded_physical_table_continuation_invalid"
+                )
+            proposal: dict[str, Any] = {}
+            for endpoint_name in ("parent", "child"):
+                endpoint = link.get(endpoint_name)
+                if not isinstance(endpoint, dict) or set(endpoint) != {
+                    "unit_ref",
+                    "native_table_ref",
+                    "native_table_sha256",
+                    "page_number",
+                }:
+                    raise Gate1BoundedGraphError(
+                        "bounded_physical_table_continuation_invalid"
+                    )
+                proposal[endpoint_name] = {
+                    "native_table_ref": endpoint.get("native_table_ref"),
+                    "native_table_sha256": endpoint.get("native_table_sha256"),
+                    "page_number": endpoint.get("page_number"),
+                }
+            proposals.append(proposal)
+        try:
+            expected = build_physical_table_continuation_sidecar(
+                normalization_run_id=self.normalization_run_id,
+                document_id=document_id,
+                source_pdf_sha256=source_checksum,
+                source_units=result.units,
+                proposed_links=proposals,
+                annotation_receipt=sidecar.get("annotation_receipt", {}),
+            )
+        except PhysicalTableContinuationError as exc:
+            raise Gate1BoundedGraphError(
+                "bounded_physical_table_continuation_invalid"
+            ) from exc
+        if sidecar != expected:
+            raise Gate1BoundedGraphError("bounded_physical_table_continuation_invalid")
+        return {
+            "schema_version": sidecar["schema_version"],
+            "sidecar_id": sidecar["sidecar_id"],
+            "document_id": document_id,
+            "source_checksum_ref": source_checksum,
+            "links_total": len(sidecar["links"]),
+            "contains_source_values": False,
+        }
 
     def _persist_value(
         self,

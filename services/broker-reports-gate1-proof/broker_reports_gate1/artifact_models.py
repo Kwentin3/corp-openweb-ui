@@ -13,6 +13,9 @@ from typing import Any, Protocol
 ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
 PRIVATE_BINARY_ARTIFACT_TYPE = "private_binary_artifact_v1"
 PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION = PRIVATE_BINARY_ARTIFACT_TYPE
+PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE = (
+    "broker_reports_physical_table_continuation_v1"
+)
 ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = "broker_reports_artifact_lifecycle_result_v1"
 CANONICAL_VERSION_SCHEMA_VERSION = "broker_reports_canonical_version_v1"
 CANONICAL_ACTIVATION_RECEIPT_SCHEMA_VERSION = (
@@ -113,6 +116,7 @@ ARTIFACT_TYPES = {
     "private_normalized_source_payload_v0",
     "private_normalized_source_unit_v0",
     PRIVATE_BINARY_ARTIFACT_TYPE,
+    PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE,
     "broker_reports_normalized_table_projection_v0",
     "broker_reports_canonical_artifact_v1",
     "broker_reports_canonical_legacy_compare_receipt_v1",

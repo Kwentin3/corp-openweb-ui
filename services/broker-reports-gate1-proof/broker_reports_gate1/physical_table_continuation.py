@@ -12,14 +12,64 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .contracts import stable_digest
+from .pdf_document_ai import (
+    PdfDocumentExtraction,
+    PdfSourceContext,
+    PdfDocumentTableContinuationAssessment,
+    validate_table_continuation_assessment,
+)
 
 
-PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION = "physical_table_continuation_v1"
+PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION = "physical_table_continuation_v2"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class PhysicalTableContinuationError(ValueError):
     """A proposed relation cannot be bound to this exact Full Source run."""
+
+
+def proposed_links_from_native_assessment(
+    *,
+    extraction: PdfDocumentExtraction,
+    assessment: PdfDocumentTableContinuationAssessment,
+    source_context: PdfSourceContext,
+) -> list[dict[str, dict[str, Any]]]:
+    """Turn one validated native response into opaque Full Source link inputs."""
+
+    try:
+        validate_table_continuation_assessment(
+            assessment,
+            extraction=extraction,
+            source_context=source_context,
+        )
+    except ValueError as exc:
+        raise PhysicalTableContinuationError(
+            "physical_table_continuation_assessment_unbound"
+        ) from exc
+    tables = {item.local_ref: item for item in extraction.table_refs}
+    proposals: list[dict[str, dict[str, Any]]] = []
+    for link in assessment.links:
+        parent = tables.get(link.parent_table_ref)
+        child = tables.get(link.child_table_ref)
+        if parent is None or child is None:
+            raise PhysicalTableContinuationError(
+                "physical_table_continuation_assessment_unbound"
+            )
+        proposals.append(
+            {
+                "parent": {
+                    "native_table_ref": parent.local_ref,
+                    "native_table_sha256": parent.sha256,
+                    "page_number": parent.page_number,
+                },
+                "child": {
+                    "native_table_ref": child.local_ref,
+                    "native_table_sha256": child.sha256,
+                    "page_number": child.page_number,
+                },
+            }
+        )
+    return proposals
 
 
 def build_physical_table_continuation_sidecar(
@@ -29,6 +79,7 @@ def build_physical_table_continuation_sidecar(
     source_pdf_sha256: str,
     source_units: Sequence[Mapping[str, Any]],
     proposed_links: Sequence[Mapping[str, Any]],
+    annotation_receipt: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Return an append-only, private relation between existing table units.
 
@@ -41,6 +92,7 @@ def build_physical_table_continuation_sidecar(
     _require_text(normalization_run_id, "physical_table_continuation_run_invalid")
     _require_text(document_id, "physical_table_continuation_document_invalid")
     _require_sha256(source_pdf_sha256, "physical_table_continuation_source_invalid")
+    annotation_receipt = _validated_annotation_receipt(annotation_receipt)
     units_by_native_ref = _eligible_units(
         source_units=source_units,
         normalization_run_id=normalization_run_id,
@@ -70,12 +122,62 @@ def build_physical_table_continuation_sidecar(
         "document_id": document_id,
         "source_pdf_sha256": source_pdf_sha256,
         "links": links,
+        "annotation_receipt": annotation_receipt,
         "visibility": "private_case",
     }
     return {
         **copy.deepcopy(material),
         "sidecar_id": "ptcont_" + stable_digest([material], length=24),
     }
+
+
+def _validated_annotation_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Accept only a body-free receipt for the exact native annotation call."""
+
+    required = {
+        "assessment_schema_version",
+        "annotation_prompt_sha256",
+        "annotation_schema_sha256",
+        "request_parameters_sha256",
+        "raw_annotation_sha256",
+        "selected_page_bindings_sha256",
+        "prompt_snapshot",
+    }
+    if not isinstance(value, Mapping) or set(value) != required:
+        raise PhysicalTableContinuationError(
+            "physical_table_continuation_annotation_receipt_invalid"
+        )
+    for field in (
+        "annotation_prompt_sha256",
+        "annotation_schema_sha256",
+        "request_parameters_sha256",
+        "raw_annotation_sha256",
+        "selected_page_bindings_sha256",
+    ):
+        _require_sha256(value.get(field), "physical_table_continuation_annotation_receipt_invalid")
+    if not isinstance(value.get("assessment_schema_version"), str) or not value[
+        "assessment_schema_version"
+    ]:
+        raise PhysicalTableContinuationError(
+            "physical_table_continuation_annotation_receipt_invalid"
+        )
+    snapshot = value.get("prompt_snapshot")
+    if not isinstance(snapshot, Mapping) or _contains_prompt_body(snapshot):
+        raise PhysicalTableContinuationError(
+            "physical_table_continuation_annotation_receipt_invalid"
+        )
+    return copy.deepcopy(dict(value))
+
+
+def _contains_prompt_body(value: object) -> bool:
+    if isinstance(value, Mapping):
+        return any(
+            key == "content" or _contains_prompt_body(item)
+            for key, item in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_prompt_body(item) for item in value)
+    return False
 
 
 def _eligible_units(

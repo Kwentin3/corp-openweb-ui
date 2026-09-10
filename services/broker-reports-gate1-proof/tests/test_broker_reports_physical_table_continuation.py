@@ -42,6 +42,21 @@ def _proposal() -> dict:
     }
 
 
+def _annotation_receipt() -> dict:
+    return {
+        "assessment_schema_version": "broker_reports_pdf_document_table_continuation_assessment_v1",
+        "annotation_prompt_sha256": "d" * 64,
+        "annotation_schema_sha256": "e" * 64,
+        "request_parameters_sha256": "f" * 64,
+        "raw_annotation_sha256": "1" * 64,
+        "selected_page_bindings_sha256": "2" * 64,
+        "prompt_snapshot": {
+            "schema_version": "test_prompt_snapshot_v1",
+            "prompt_hash": "d" * 64,
+        },
+    }
+
+
 def _build(*, units: list[dict] | None = None, links: list[dict] | None = None) -> dict:
     return build_physical_table_continuation_sidecar(
         normalization_run_id="run-1",
@@ -53,6 +68,7 @@ def _build(*, units: list[dict] | None = None, links: list[dict] | None = None) 
             _unit(ref="unit-b", table_ref="native-b", table_sha=TABLE_B_SHA, page=4),
         ],
         proposed_links=links or [_proposal()],
+        annotation_receipt=_annotation_receipt(),
     )
 
 
@@ -107,3 +123,30 @@ def test_rejects_conflicting_parent_or_child() -> None:
     second["child"]["page_number"] = 4
     with pytest.raises(PhysicalTableContinuationError):
         _build(links=[_proposal(), second])
+
+
+def test_rejects_annotation_receipt_with_prompt_body() -> None:
+    receipt = _annotation_receipt()
+    receipt["prompt_snapshot"]["content"] = "must not persist"
+    with pytest.raises(PhysicalTableContinuationError):
+        build_physical_table_continuation_sidecar(
+            normalization_run_id="run-1",
+            document_id="document-1",
+            source_pdf_sha256=SOURCE_SHA,
+            source_units=[
+                _unit(
+                    ref="unit-a",
+                    table_ref="native-a",
+                    table_sha=TABLE_A_SHA,
+                    page=3,
+                ),
+                _unit(
+                    ref="unit-b",
+                    table_ref="native-b",
+                    table_sha=TABLE_B_SHA,
+                    page=4,
+                ),
+            ],
+            proposed_links=[_proposal()],
+            annotation_receipt=receipt,
+        )

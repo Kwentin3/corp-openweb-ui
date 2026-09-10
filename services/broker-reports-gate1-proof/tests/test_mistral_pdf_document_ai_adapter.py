@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import hashlib
 import io
 import json
@@ -19,6 +20,7 @@ import pytest
 
 from broker_reports_gate1.artifact_models import (
     PRIVATE_BINARY_ARTIFACT_TYPE,
+    PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE,
     ArtifactAccessContext,
     ArtifactStoreError,
     RetentionPolicy,
@@ -53,6 +55,7 @@ from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentExtractionError,
     PdfDocumentExtractorFactory,
     PdfDocumentImageRef,
+    PdfDocumentTableRef,
     PdfDocumentSelectedPageBinding,
     PdfDocumentTableContinuationRAndDResult,
     PdfSourceContext,
@@ -60,6 +63,10 @@ from broker_reports_gate1.pdf_document_ai import (
     UnconfiguredPdfDocumentExtractor,
     pdf_document_selected_page_bindings_sha256,
     pdf_document_table_refs_sha256,
+)
+from broker_reports_gate1.physical_table_continuation import (
+    PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION,
+    build_physical_table_continuation_sidecar,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -1869,6 +1876,104 @@ def _pdf_graph_fixture(tmp_path: Path):
     return store, graph, context, result, image
 
 
+def _pdf_graph_with_native_table_sidecar(tmp_path: Path):
+    store, graph, context, _result, _image = _pdf_graph_fixture(tmp_path)
+    first_page = b"[first](table-1.html)"
+    second_page = b"[second](table-2.html)"
+    markdown = b"\n\n".join((first_page, second_page))
+    parameters = (("include_image_base64", True),)
+    extraction = PdfDocumentExtraction(
+        source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
+        page_numbers=(1, 2),
+        markdown_bytes=markdown,
+        markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+        image_refs=(),
+        provider_id="offline_fixture_provider",
+        requested_model_id="offline_fixture_model",
+        model_id="offline_fixture_model",
+        adapter_id="offline_fixture_adapter_v1",
+        request_contract_version="offline_fixture_request_v1",
+        request_parameters=parameters,
+        request_parameters_sha256=hashlib.sha256(
+            b'{"include_image_base64":true}'
+        ).hexdigest(),
+        page_markdown_sha256=tuple(
+            hashlib.sha256(page).hexdigest() for page in (first_page, second_page)
+        ),
+        qualification_status="offline_fixture",
+        usage_page_count=2,
+        page_markdown_bytes=(first_page, second_page),
+        table_refs=(
+            PdfDocumentTableRef(
+                page_number=1,
+                markdown_target="table-1.html",
+                local_ref="pdftable_atomic_1",
+                sha256=hashlib.sha256(
+                    b"<table><tr><th>Date</th></tr><tr><td>1</td></tr></table>"
+                ).hexdigest(),
+                html_bytes=b"<table><tr><th>Date</th></tr><tr><td>1</td></tr></table>",
+            ),
+            PdfDocumentTableRef(
+                page_number=2,
+                markdown_target="table-2.html",
+                local_ref="pdftable_atomic_2",
+                sha256=hashlib.sha256(
+                    b"<table><tr><td>2</td></tr></table>"
+                ).hexdigest(),
+                html_bytes=b"<table><tr><td>2</td></tr></table>",
+            ),
+        ),
+    )
+    result = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id=context.normalization_run_id,
+        document_id="pdf-atomic-publication-document",
+        profile_id="technical_pdf_profile_v0",
+        extraction=extraction,
+    )
+    tables = [
+        unit
+        for unit in result.units
+        if unit.get("document_ai_native_table_ref") is not None
+    ]
+    sidecar = build_physical_table_continuation_sidecar(
+        normalization_run_id=context.normalization_run_id,
+        document_id="pdf-atomic-publication-document",
+        source_pdf_sha256=extraction.source_pdf_sha256,
+        source_units=tables,
+        proposed_links=[
+            {
+                "parent": {
+                    "native_table_ref": tables[0]["document_ai_native_table_ref"],
+                    "native_table_sha256": tables[0][
+                        "document_ai_native_table_sha256"
+                    ],
+                    "page_number": 1,
+                },
+                "child": {
+                    "native_table_ref": tables[1]["document_ai_native_table_ref"],
+                    "native_table_sha256": tables[1][
+                        "document_ai_native_table_sha256"
+                    ],
+                    "page_number": 2,
+                },
+            }
+        ],
+        annotation_receipt={
+            "assessment_schema_version": "offline_fixture_annotation_v1",
+            "annotation_prompt_sha256": "a" * 64,
+            "annotation_schema_sha256": "b" * 64,
+            "request_parameters_sha256": "c" * 64,
+            "raw_annotation_sha256": "d" * 64,
+            "selected_page_bindings_sha256": "e" * 64,
+            "prompt_snapshot": {
+                "schema_version": "offline_fixture_prompt_snapshot_v1",
+                "prompt_hash": "a" * 64,
+            },
+        },
+    )
+    return store, graph, context, result, sidecar
+
+
 def test_pdf_full_source_and_image_are_one_atomic_private_publication(
     tmp_path: Path,
 ) -> None:
@@ -1941,6 +2046,94 @@ def test_pdf_atomic_failure_does_not_publish_images_or_update_graph_indexes(
     assert len(graph.collection("private_normalized_source_units")) == 0
     assert PRIVATE_BINARY_ARTIFACT_TYPE not in graph.refs_by_type
     assert store.get_record_unchecked(image.local_ref) is None
+
+
+def test_pdf_full_source_and_physical_table_sidecar_are_one_atomic_publication(
+    tmp_path: Path,
+) -> None:
+    store, graph, _context, result, sidecar = _pdf_graph_with_native_table_sidecar(
+        tmp_path
+    )
+
+    graph.publish_pdf_full_source_atomic(
+        result=result,
+        image_refs=(),
+        physical_table_continuation_sidecar=sidecar,
+    )
+
+    sidecar_refs = graph.physical_table_continuation_refs_by_doc[
+        "pdf-atomic-publication-document"
+    ]
+    assert len(sidecar_refs) == 1
+    assert graph.refs_by_type[PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE] == sidecar_refs
+    stored = store.get_record_unchecked(sidecar_refs[0])
+    assert stored is not None
+    assert stored.visibility == "private_case"
+    assert stored.safe_metadata == {
+        "schema_version": PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION,
+        "sidecar_id": sidecar["sidecar_id"],
+        "document_id": "pdf-atomic-publication-document",
+        "source_checksum_ref": hashlib.sha256(PDF_BYTES).hexdigest(),
+        "links_total": 1,
+        "contains_source_values": False,
+    }
+    assert store.read_payload(stored) == sidecar
+
+
+def test_pdf_atomic_failure_does_not_publish_or_index_physical_table_sidecar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, graph, _context, result, sidecar = _pdf_graph_with_native_table_sidecar(
+        tmp_path
+    )
+
+    def fail_atomic(_records: object) -> None:
+        raise ArtifactStoreError("artifact_atomic_write_failed", "synthetic")
+
+    monkeypatch.setattr(store, "put_records_atomic", fail_atomic)
+    with pytest.raises(ArtifactStoreError, match="synthetic"):
+        graph.publish_pdf_full_source_atomic(
+            result=result,
+            image_refs=(),
+            physical_table_continuation_sidecar=sidecar,
+        )
+
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE not in graph.refs_by_type
+    assert all(
+        record.artifact_type != PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE
+        for record in store.list_by_run("pdf-atomic-publication-run")
+    )
+
+
+def test_pdf_rejects_invalid_physical_table_sidecar_before_atomic_store_call(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, graph, _context, result, sidecar = _pdf_graph_with_native_table_sidecar(
+        tmp_path
+    )
+    invalid_sidecar = copy.deepcopy(sidecar)
+    invalid_sidecar["source_pdf_sha256"] = "0" * 64
+    calls = 0
+
+    def unexpected_atomic_call(_records: object) -> None:
+        nonlocal calls
+        calls += 1
+        raise AssertionError("invalid sidecar reached atomic persistence")
+
+    monkeypatch.setattr(store, "put_records_atomic", unexpected_atomic_call)
+    with pytest.raises(
+        Exception, match="bounded_physical_table_continuation_invalid"
+    ):
+        graph.publish_pdf_full_source_atomic(
+            result=result,
+            image_refs=(),
+            physical_table_continuation_sidecar=invalid_sidecar,
+        )
+
+    assert calls == 0
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE not in graph.refs_by_type
 
 
 def test_production_pipe_uses_configured_native_mistral_once_and_nonblocking(
@@ -2085,7 +2278,13 @@ def test_static_provider_ownership_stays_out_of_pipe_and_downstream_modules() ->
         assert provider_owned_name not in pipe_source
 
     package_root = service_root / "broker_reports_gate1"
-    allowed = {"pdf_document_ai.py", "mistral_pdf_document_ai.py"}
+    allowed = {
+        "pdf_document_ai.py",
+        "mistral_pdf_document_ai.py",
+        # The managed instruction contract pins this response schema but does
+        # not own provider transport, credentials or endpoint selection.
+        "pdf_table_continuation_annotation_prompt.py",
+    }
     offenders = {
         path.name
         for path in package_root.glob("*.py")

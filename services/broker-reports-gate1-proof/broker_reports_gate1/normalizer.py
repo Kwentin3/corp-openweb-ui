@@ -34,9 +34,16 @@ from .pdf_document_ai import (
     PdfDocumentExtractionError,
     PdfDocumentExtractor,
     PdfDocumentExtractorFactory,
+    PdfDocumentTableContinuationAnnotationExecution,
+    PdfDocumentTableContinuationAssessor,
     PdfSourceContext,
     is_terminal_pdf_document_ai_request,
     validate_extraction_source,
+)
+from .physical_table_continuation import (
+    PhysicalTableContinuationError,
+    build_physical_table_continuation_sidecar,
+    proposed_links_from_native_assessment,
 )
 from .profilers_csv_txt import profile_csv, profile_txt
 from .profilers_docx import profile_docx
@@ -103,6 +110,9 @@ class Gate1Normalizer:
         input_context: dict | None = None,
         extra_private_markers: list[str] | None = None,
         bounded_graph=None,
+        pdf_table_continuation_annotation_execution: (
+            PdfDocumentTableContinuationAnnotationExecution | None
+        ) = None,
         workload_checkpoint: Callable[[], Any] | None = None,
         workload_progress: Callable[[str, dict[str, Any]], Any] | None = None,
     ) -> NormalizationResult:
@@ -313,6 +323,10 @@ class Gate1Normalizer:
 
             doc_blockers.extend(profile_blockers)
             pdf_extraction = None
+            pdf_table_continuation_assessment = None
+            annotation_execution_content = None
+            annotation_execution_content_sha256 = None
+            annotation_execution_snapshot = None
             if (
                 container == "pdf"
                 and content_bytes is not None
@@ -325,10 +339,53 @@ class Gate1Normalizer:
                         expected_pdf_sha256=content_sha256,
                         preflight_page_count=int((profile or {}).get("pages_count") or 0),
                     )
-                    pdf_extraction = self._pdf_document_extractor.extract(
-                        content_bytes,
-                        source_context,
-                    )
+                    if pdf_table_continuation_annotation_execution is None:
+                        pdf_extraction = self._pdf_document_extractor.extract(
+                            content_bytes,
+                            source_context,
+                        )
+                    else:
+                        annotation_execution_content = getattr(
+                            pdf_table_continuation_annotation_execution,
+                            "content",
+                            None,
+                        )
+                        annotation_execution_content_sha256 = getattr(
+                            pdf_table_continuation_annotation_execution,
+                            "content_sha256",
+                            None,
+                        )
+                        annotation_execution_snapshot = getattr(
+                            pdf_table_continuation_annotation_execution,
+                            "prompt_snapshot",
+                            None,
+                        )
+                        if (
+                            not isinstance(annotation_execution_content, str)
+                            or not annotation_execution_content
+                            or not isinstance(annotation_execution_content_sha256, str)
+                            or not isinstance(annotation_execution_snapshot, dict)
+                        ):
+                            raise PdfDocumentExtractionError(
+                                "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
+                            )
+                        if not isinstance(
+                            self._pdf_document_extractor,
+                            PdfDocumentTableContinuationAssessor,
+                        ):
+                            raise PdfDocumentExtractionError(
+                                "PDF_DOCUMENT_AI_ANNOTATION_UNSUPPORTED"
+                            )
+                        annotation_result = self._pdf_document_extractor.extract_with_table_continuation_assessment(
+                            content_bytes,
+                            source_context,
+                            source_page_numbers=tuple(
+                                range(source_context.preflight_page_count)
+                            ),
+                            document_annotation_prompt=annotation_execution_content,
+                        )
+                        pdf_extraction = annotation_result.extraction
+                        pdf_table_continuation_assessment = annotation_result.assessment
                     validate_extraction_source(
                         pdf_extraction,
                         pdf_bytes=content_bytes,
@@ -371,6 +428,7 @@ class Gate1Normalizer:
                 profiles.append(profile)
             full_source_result = None
             table_projection_result = None
+            physical_table_continuation_sidecar = None
             if pdf_extraction is not None and content_sha256:
                 full_source_result = full_source_builder.build_document_extraction(
                     normalization_run_id=run_id,
@@ -378,6 +436,63 @@ class Gate1Normalizer:
                     profile_id=profile["profile_id"] if profile else profile_id(doc_id),
                     extraction=pdf_extraction,
                 )
+                if (
+                    pdf_table_continuation_assessment is not None
+                    and pdf_table_continuation_annotation_execution is not None
+                ):
+                    try:
+                        proposed_links = proposed_links_from_native_assessment(
+                            extraction=pdf_extraction,
+                            assessment=pdf_table_continuation_assessment,
+                            source_context=source_context,
+                        )
+                        if proposed_links:
+                            physical_table_continuation_sidecar = (
+                                build_physical_table_continuation_sidecar(
+                                normalization_run_id=run_id,
+                                document_id=doc_id,
+                                source_pdf_sha256=content_sha256,
+                                source_units=full_source_result.units,
+                                proposed_links=proposed_links,
+                                annotation_receipt={
+                                    "assessment_schema_version": (
+                                        pdf_table_continuation_assessment.schema_version
+                                    ),
+                                    "annotation_prompt_sha256": (
+                                        pdf_table_continuation_assessment.annotation_prompt_sha256
+                                    ),
+                                    "annotation_schema_sha256": (
+                                        pdf_table_continuation_assessment.annotation_schema_sha256
+                                    ),
+                                    "request_parameters_sha256": (
+                                        pdf_table_continuation_assessment.request_parameters_sha256
+                                    ),
+                                    "raw_annotation_sha256": (
+                                        pdf_table_continuation_assessment.raw_annotation_sha256
+                                    ),
+                                    "selected_page_bindings_sha256": (
+                                        pdf_table_continuation_assessment.selected_page_bindings_sha256
+                                    ),
+                                    "prompt_snapshot": (
+                                        annotation_execution_snapshot
+                                    ),
+                                },
+                                )
+                            )
+                            if (
+                                physical_table_continuation_sidecar[
+                                    "annotation_receipt"
+                                ]["annotation_prompt_sha256"]
+                                != annotation_execution_content_sha256
+                            ):
+                                raise PhysicalTableContinuationError(
+                                    "physical_table_continuation_prompt_mismatch"
+                                )
+                    except PhysicalTableContinuationError:
+                        # Annotation is optional source context.  An empty or
+                        # unbound relation never changes the normal Full Source
+                        # route and must not be reconstructed heuristically.
+                        physical_table_continuation_sidecar = None
             elif (
                 content_bytes is not None
                 and content_sha256
@@ -534,6 +649,9 @@ class Gate1Normalizer:
                         bounded_graph.publish_pdf_full_source_atomic(
                             result=full_source_result,
                             image_refs=pdf_extraction.image_refs,
+                            physical_table_continuation_sidecar=(
+                                physical_table_continuation_sidecar
+                            ),
                         )
                     else:
                         private_source_payloads.extend(full_source_result.payloads)

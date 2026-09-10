@@ -107,6 +107,12 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     PROMPT_TEMPLATE_ID as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
     PROMPT_TEMPLATE_KIND as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
 )
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
+    PROMPT_COMMAND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
+    PdfTableContinuationAnnotationExecution,
+    PdfTableContinuationAnnotationPromptConfig,
+    PdfTableContinuationAnnotationPromptResolverFactory,
+)
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
     OrdinaryTradeGroupedMappingV14AdapterFactory,
 )
@@ -372,6 +378,20 @@ class Pipe:
             description=(
                 "Release-pinned SHA-256 identity of the managed mapping Prompt."
             ),
+        )
+        # Disabled until a native Workspace Prompt, its public read grant and
+        # its release pin are configured. The pipe owns only that selector;
+        # Prompt content and history remain owned by OpenWebUI.
+        pdf_table_continuation_annotation_enabled: bool = Field(default=False)
+        pdf_table_continuation_annotation_prompt_id: str = Field(default="")
+        pdf_table_continuation_annotation_prompt_command: str = Field(
+            default=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND
+        )
+        pdf_table_continuation_annotation_prompt_version: str = Field(
+            default="release-pin-required"
+        )
+        pdf_table_continuation_annotation_prompt_hash: str = Field(
+            default="0000000000000000000000000000000000000000000000000000000000000000"
         )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
@@ -793,6 +813,21 @@ class Pipe:
             safe_body, safe_metadata
         )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
+        pdf_table_continuation_annotation_execution = None
+        if any(
+            extension_from_name(
+                item.original_filename_private,
+                item.mime_type,
+            )
+            == "pdf"
+            for item in file_inputs
+        ):
+            pdf_table_continuation_annotation_execution = (
+                await self._pdf_table_continuation_annotation_execution(
+                    user=__user__,
+                    metadata=safe_metadata,
+                )
+            )
         retention_policy = self._retention_policy(safe_body, safe_metadata)
         normalizer = Gate1Normalizer(
             _server_request=__request__,
@@ -840,6 +875,9 @@ class Pipe:
             },
             extra_private_markers=self._private_markers(file_refs),
             bounded_graph=bounded_graph,
+            pdf_table_continuation_annotation_execution=(
+                pdf_table_continuation_annotation_execution
+            ),
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
         )
@@ -3511,6 +3549,53 @@ class Pipe:
             )
 
         return resolver, user_context_factory
+
+    async def _pdf_table_continuation_annotation_execution(
+        self, *, user: Any, metadata: dict[str, Any]
+    ) -> PdfTableContinuationAnnotationExecution | None:
+        """Resolve one ordinary user's released OCR annotation instruction.
+
+        This is the sole OpenWebUI composition point for the optional Prompt.
+        The normalizer only receives the frozen execution object and cannot
+        read Valves, Prompt rows, history or access grants itself.
+        """
+
+        if not self.valves.pdf_table_continuation_annotation_enabled:
+            return None
+        prompt_id = str(
+            self.valves.pdf_table_continuation_annotation_prompt_id or ""
+        ).strip()
+        command = str(
+            self.valves.pdf_table_continuation_annotation_prompt_command or ""
+        ).strip()
+        if command != PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND:
+            raise NdflWorkflowError(
+                "pdf_table_continuation_annotation_prompt_command_invalid"
+            )
+        resolver = PdfTableContinuationAnnotationPromptResolverFactory(
+            PdfTableContinuationAnnotationPromptConfig(
+                source="openwebui_server",
+                prompt_id=prompt_id or None,
+                command=None if prompt_id else command,
+                release_prompt_version=str(
+                    self.valves.pdf_table_continuation_annotation_prompt_version
+                    or ""
+                ).strip(),
+                release_prompt_hash=str(
+                    self.valves.pdf_table_continuation_annotation_prompt_hash
+                    or ""
+                ).strip(),
+            )
+        ).create_async()
+        prompt = await resolver.resolve(
+            OrdinaryTradeMappingPromptUserContext(
+                user_id=self._authenticated_user_id(user),
+                user_role=self._user_role(user, metadata),
+                # Prompt group membership comes only from OpenWebUI owners.
+                user_groups=(),
+            )
+        )
+        return PdfTableContinuationAnnotationExecution.from_managed_prompt(prompt)
 
     def _ordinary_trade_mapping_route_profile(
         self,

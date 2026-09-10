@@ -613,6 +613,31 @@ class PdfDocumentExtractor(Protocol):
     ) -> PdfDocumentExtraction: ...
 
 
+@runtime_checkable
+class PdfDocumentTableContinuationAssessor(Protocol):
+    """Optional native annotation capability of the existing PDF owner."""
+
+    def extract_with_table_continuation_assessment(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+        *,
+        source_page_numbers: tuple[int, ...],
+        document_annotation_prompt: str,
+    ) -> PdfDocumentTableContinuationRAndDResult: ...
+
+
+@runtime_checkable
+class PdfDocumentTableContinuationAnnotationExecution(Protocol):
+    """Frozen instruction supplied by the native OpenWebUI composition root."""
+
+    content: str
+    prompt_snapshot: dict[str, object]
+
+    @property
+    def content_sha256(self) -> str: ...
+
+
 class UnconfiguredPdfDocumentExtractor:
     adapter_id = "unconfigured_pdf_document_extractor_v1"
 
