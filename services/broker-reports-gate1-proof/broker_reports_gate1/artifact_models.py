@@ -175,6 +175,7 @@ ARTIFACT_TYPES = {
     "broker_reports_authenticated_case_taxpayer_binding_v1",
     "broker_reports_declaration_external_authority_v1",
     "broker_reports_ordinary_trade_declaration_mvp_receipt_v1",
+    "broker_reports_ordinary_trade_declaration_mvp_receipt_v2",
     "broker_reports_ordinary_trade_declaration_xml_v1",
     "broker_reports_gate5_declaration_scope_assertion_v0",
     "broker_reports_gate5_openwebui_case_fact_submission_v0",
