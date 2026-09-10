@@ -106,6 +106,7 @@ MODULE_ORDER = [
     "artifact_retention",
     "artifact_store",
     "physical_table_continuation",
+    "physical_table_continuation_context",
     "bounded_graph",
     "taxonomy",
     "criticality",
