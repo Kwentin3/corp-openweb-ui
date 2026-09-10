@@ -98,6 +98,131 @@ def _sha256_json(value) -> str:
     ).hexdigest()
 
 
+def _physical_continuation_context(*table_node_ids: str) -> dict:
+    assert len(table_node_ids) == 2
+    return {
+        "schema_version": "broker_reports_physical_table_continuation_context_v1",
+        "sidecar_artifact_ref": "private-sidecar",
+        "sidecar_id": "ptcont_test",
+        "source_binding": {
+            "normalization_run_id": "run",
+            "document_id": "document",
+            "source_artifact_ref": "source",
+            "source_sha256": "a" * 64,
+            "canonical_version_id": "version",
+            "canonical_root_sha256": "b" * 64,
+        },
+        "links": [
+            {
+                "parent_table_node_id": table_node_ids[0],
+                "child_table_node_id": table_node_ids[1],
+            }
+        ],
+    }
+
+
+def test_mapping_package_projects_only_opaque_physical_continuation_refs(tmp_path) -> None:
+    _store, _context, _document_id, canonical, _binding = (
+        case_fixtures._unknown_two_table_case(tmp_path)
+    )
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    table_ids = [
+        node["node_id"] for node in canonical["nodes"] if node["node_type"] == "TABLE"
+    ]
+
+    package = semantic.build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=table_ids,
+        physical_table_continuation_context=_physical_continuation_context(*table_ids),
+    )
+
+    assert package["case"]["physical_table_continuation_links"] == [
+        {"parent_table_ref": "table_1", "child_table_ref": "table_2"}
+    ]
+    assert all("node_id" not in item for item in package["case"]["tables"])
+    assert "sidecar_artifact_ref" not in str(package)
+
+
+def test_physical_continuation_rejects_partial_scope_and_oversize_pair(
+    tmp_path, monkeypatch
+) -> None:
+    _store, _context, _document_id, canonical, _binding = (
+        case_fixtures._unknown_two_table_case(tmp_path)
+    )
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    table_ids = [
+        node["node_id"] for node in canonical["nodes"] if node["node_type"] == "TABLE"
+    ]
+    physical_context = _physical_continuation_context(*table_ids)
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as partial:
+        semantic.build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=[],
+            target_table_node_ids=[table_ids[0]],
+            physical_table_continuation_context=physical_context,
+        )
+    assert partial.value.code == "ordinary_trade_mapping_physical_continuation_scope_incomplete"
+
+    singleton = semantic.build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=[table_ids[0]],
+    )
+    monkeypatch.setattr(
+        semantic_module,
+        "_MAX_CONTEXT_BYTES",
+        len(json.dumps(singleton, ensure_ascii=False).encode("utf-8")) + 1,
+    )
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as oversize:
+        semantic.build_mapping_batch_plan(
+            canonical=canonical,
+            confirmed_understandings=[],
+            target_table_node_ids=table_ids,
+            physical_table_continuation_context=physical_context,
+        )
+    assert oversize.value.code == "ordinary_trade_semantic_mapping_context_limit"
+
+
+def test_batch_plan_rejects_forged_split_of_physical_continuation_pair(tmp_path) -> None:
+    _store, _context, _document_id, canonical, binding = (
+        case_fixtures._unknown_two_table_case(tmp_path)
+    )
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    table_ids = [
+        node["node_id"] for node in canonical["nodes"] if node["node_type"] == "TABLE"
+    ]
+    forged_plan = {
+        "schema_version": "broker_reports_ordinary_trade_mapping_batch_plan_v1",
+        "target_table_node_ids": table_ids,
+        "batches": [
+            {
+                "batch_id": "batch_0001",
+                "target_table_node_ids": [table_ids[0]],
+                "mapping_package_sha256": "a" * 64,
+            },
+            {
+                "batch_id": "batch_0002",
+                "target_table_node_ids": [table_ids[1]],
+                "mapping_package_sha256": "b" * 64,
+            },
+        ],
+    }
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as split:
+        semantic.aggregate_mapping_batch_outcomes(
+            canonical=canonical,
+            canonical_binding=binding,
+            user_scope_sha256="c" * 64,
+            confirmed_understandings=[],
+            batch_plan=forged_plan,
+            batch_outcomes=[],
+            physical_table_continuation_context=_physical_continuation_context(*table_ids),
+        )
+    assert split.value.code == "ordinary_trade_mapping_physical_continuation_scope_incomplete"
+
+
 def _product_batches(tmp_path, monkeypatch):
     store, context, document_id, canonical, _binding = case_fixtures._unknown_two_table_case(tmp_path)
     tables = [node for node in canonical["nodes"] if node["node_type"] == "TABLE"]

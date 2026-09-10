@@ -566,6 +566,7 @@ class OrdinaryTradeSemanticMapping:
         canonical: Mapping[str, Any],
         confirmed_understandings: list[dict[str, Any]],
         target_table_node_ids: Iterable[str] | None = None,
+        physical_table_continuation_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         tables, refs_by_node_id = _model_table_surfaces(
             canonical,
@@ -612,6 +613,11 @@ class OrdinaryTradeSemanticMapping:
                 continue
             decision["table_ref"] = refs_by_node_id[table_node_id]
             confirmed_decisions.append(decision)
+        continuation_links = _physical_continuation_links_for_scope(
+            canonical=canonical,
+            target_table_node_ids=list(refs_by_node_id),
+            physical_table_continuation_context=physical_table_continuation_context,
+        )
         package = {
             "phase": "map",
             "case": {
@@ -623,6 +629,14 @@ class OrdinaryTradeSemanticMapping:
                 "user_currency_assertions": user_currency_assertions,
             },
         }
+        if continuation_links:
+            package["case"]["physical_table_continuation_links"] = [
+                {
+                    "parent_table_ref": refs_by_node_id[parent_id],
+                    "child_table_ref": refs_by_node_id[child_id],
+                }
+                for parent_id, child_id in continuation_links
+            ]
         if len(_canonical_json(package).encode("utf-8")) > _MAX_CONTEXT_BYTES:
             _fail("ordinary_trade_semantic_mapping_context_limit")
         return package
@@ -662,6 +676,7 @@ class OrdinaryTradeSemanticMapping:
         canonical: Mapping[str, Any],
         confirmed_understandings: list[dict[str, Any]],
         target_table_node_ids: Iterable[str],
+        physical_table_continuation_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Split one explicit table scope into deterministic bounded packages.
 
@@ -677,13 +692,18 @@ class OrdinaryTradeSemanticMapping:
         )
         batches: list[dict[str, Any]] = []
         pending: list[str] = []
-        for table_node_id in target_ids:
-            candidate = [*pending, table_node_id]
+        for group in _physical_continuation_batch_groups(
+            canonical=canonical,
+            target_table_node_ids=target_ids,
+            physical_table_continuation_context=physical_table_continuation_context,
+        ):
+            candidate = [*pending, *group]
             try:
                 package = self.build_mapping_package(
                     canonical=canonical,
                     confirmed_understandings=confirmed_understandings,
                     target_table_node_ids=candidate,
+                    physical_table_continuation_context=physical_table_continuation_context,
                 )
             except OrdinaryTradeSemanticMappingError as exc:
                 if exc.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -699,6 +719,7 @@ class OrdinaryTradeSemanticMapping:
                 canonical=canonical,
                 confirmed_understandings=confirmed_understandings,
                 target_table_node_ids=pending,
+                physical_table_continuation_context=physical_table_continuation_context,
             )
             batches.append(
                 {
@@ -710,15 +731,17 @@ class OrdinaryTradeSemanticMapping:
             self.build_mapping_package(
                 canonical=canonical,
                 confirmed_understandings=confirmed_understandings,
-                target_table_node_ids=[table_node_id],
+                target_table_node_ids=group,
+                physical_table_continuation_context=physical_table_continuation_context,
             )
-            pending = [table_node_id]
+            pending = list(group)
         if not pending:
             _fail("ordinary_trade_mapping_batch_plan_invalid")
         finalized = self.build_mapping_package(
             canonical=canonical,
             confirmed_understandings=confirmed_understandings,
             target_table_node_ids=pending,
+            physical_table_continuation_context=physical_table_continuation_context,
         )
         batches.append(
             {
@@ -736,6 +759,7 @@ class OrdinaryTradeSemanticMapping:
             plan=plan,
             canonical=canonical,
             confirmed_understandings=confirmed_understandings,
+            physical_table_continuation_context=physical_table_continuation_context,
         )
         return plan
 
@@ -750,6 +774,7 @@ class OrdinaryTradeSemanticMapping:
         batch_outcomes: Iterable[Mapping[str, Any]],
         frozen_mappings: Iterable[Mapping[str, Any]] = (),
         transport_confirmed_understandings: list[dict[str, Any]] | None = None,
+        physical_table_continuation_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Validate a complete batch set, then replay the existing compiler once.
 
@@ -765,6 +790,7 @@ class OrdinaryTradeSemanticMapping:
                 confirmed_understandings if transport_confirmed_understandings is None
                 else transport_confirmed_understandings
             ),
+            physical_table_continuation_context=physical_table_continuation_context,
         )
         submitted = list(batch_outcomes)
         expected_batches = plan["batches"]
@@ -1362,6 +1388,101 @@ def _managed_prompt(
     )
 
 
+def _physical_continuation_links_for_scope(
+    *,
+    canonical: Mapping[str, Any],
+    target_table_node_ids: Iterable[str],
+    physical_table_continuation_context: Mapping[str, Any] | None,
+) -> list[tuple[str, str]]:
+    """Return exact source-bound links only when their full pair is in scope."""
+
+    if physical_table_continuation_context is None:
+        return []
+    if (
+        not isinstance(physical_table_continuation_context, Mapping)
+        or physical_table_continuation_context.get("schema_version")
+        != "broker_reports_physical_table_continuation_context_v1"
+        or not isinstance(physical_table_continuation_context.get("links"), list)
+    ):
+        _fail("ordinary_trade_mapping_physical_continuation_context_invalid")
+    target_ids = _ordered_target_table_node_ids(
+        canonical=canonical, target_table_node_ids=target_table_node_ids
+    )
+    canonical_ids = _ordered_target_table_node_ids(
+        canonical=canonical,
+        target_table_node_ids=[
+            node["node_id"]
+            for node in canonical.get("nodes", [])
+            if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+        ],
+    )
+    known_ids = set(canonical_ids)
+    selected_ids = set(target_ids)
+    links: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for link in physical_table_continuation_context["links"]:
+        if (
+            not isinstance(link, Mapping)
+            or set(link) != {"parent_table_node_id", "child_table_node_id"}
+            or not isinstance(link.get("parent_table_node_id"), str)
+            or not isinstance(link.get("child_table_node_id"), str)
+        ):
+            _fail("ordinary_trade_mapping_physical_continuation_context_invalid")
+        pair = (link["parent_table_node_id"], link["child_table_node_id"])
+        if pair[0] == pair[1] or not set(pair).issubset(known_ids) or pair in seen:
+            _fail("ordinary_trade_mapping_physical_continuation_context_invalid")
+        seen.add(pair)
+        in_scope = [endpoint in selected_ids for endpoint in pair]
+        if any(in_scope) and not all(in_scope):
+            _fail("ordinary_trade_mapping_physical_continuation_scope_incomplete")
+        if all(in_scope):
+            links.append(pair)
+    return links
+
+
+def _physical_continuation_batch_groups(
+    *,
+    canonical: Mapping[str, Any],
+    target_table_node_ids: Iterable[str],
+    physical_table_continuation_context: Mapping[str, Any] | None,
+) -> list[list[str]]:
+    """Make each physical continuation component a contiguous batch unit."""
+
+    target_ids = _ordered_target_table_node_ids(
+        canonical=canonical, target_table_node_ids=target_table_node_ids
+    )
+    links = _physical_continuation_links_for_scope(
+        canonical=canonical,
+        target_table_node_ids=target_ids,
+        physical_table_continuation_context=physical_table_continuation_context,
+    )
+    if not links:
+        return [[table_node_id] for table_node_id in target_ids]
+    positions = {table_node_id: index for index, table_node_id in enumerate(target_ids)}
+    intervals = sorted(
+        (min(positions[parent], positions[child]), max(positions[parent], positions[child]))
+        for parent, child in links
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in intervals:
+        if merged and start <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    groups: list[list[str]] = []
+    cursor = 0
+    for start, end in merged:
+        while cursor < start:
+            groups.append([target_ids[cursor]])
+            cursor += 1
+        groups.append(target_ids[start : end + 1])
+        cursor = end + 1
+    while cursor < len(target_ids):
+        groups.append([target_ids[cursor]])
+        cursor += 1
+    return groups
+
+
 def _ordered_target_table_node_ids(
     *, canonical: Mapping[str, Any], target_table_node_ids: Iterable[str]
 ) -> list[str]:
@@ -1403,6 +1524,7 @@ def _validate_mapping_batch_plan(
     plan: Mapping[str, Any],
     canonical: Mapping[str, Any],
     confirmed_understandings: list[dict[str, Any]],
+    physical_table_continuation_context: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         not isinstance(plan, Mapping)
@@ -1442,6 +1564,7 @@ def _validate_mapping_batch_plan(
             canonical=canonical,
             confirmed_understandings=confirmed_understandings,
             target_table_node_ids=batch["target_table_node_ids"],
+            physical_table_continuation_context=physical_table_continuation_context,
         )
         if batch["mapping_package_sha256"] != _sha256_json(package):
             _fail("ordinary_trade_mapping_batch_plan_integrity_invalid")
