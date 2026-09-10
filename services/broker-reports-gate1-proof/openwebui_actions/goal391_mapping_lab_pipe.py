@@ -825,12 +825,18 @@ class Pipe:
                 Gate2SourceFactRuntimeError,
                 Goal391GroupedMappingLabError,
                 OrdinaryTradeSemanticCompilerError,
-                OrdinaryTradeSemanticMappingError,
             ),
         ):
             # These existing owners expose fixed contract identifiers only.
             # They contain neither source text nor provider output, so they are
             # safe for the isolated laboratory receipt.
+            return f"goal391_lab_{exc.code}"
+        if isinstance(exc, OrdinaryTradeSemanticMappingError):
+            diagnostic_code = getattr(exc, "diagnostic_code", None)
+            if isinstance(diagnostic_code, str) and diagnostic_code.startswith(
+                "ordinary_trade_mapping_decision_"
+            ):
+                return f"goal391_lab_{diagnostic_code}"
             return f"goal391_lab_{exc.code}"
         # Existing owners may carry source, provider or Prompt context in their
         # exception classes.  The chat-visible laboratory receipt deliberately

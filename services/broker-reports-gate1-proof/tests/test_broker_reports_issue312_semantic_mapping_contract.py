@@ -1227,6 +1227,7 @@ def test_current_incomplete_trade_rejects_model_authored_gap_list(tmp_path) -> N
         )
 
     assert exc.value.code == "ordinary_trade_semantic_mapping_table_decision_invalid"
+    assert exc.value.diagnostic_code == "ordinary_trade_mapping_decision_fields_invalid"
 
 
 def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> None:
@@ -1452,6 +1453,9 @@ def test_no_consumer_derives_complete_canonical_context(
             user_scope_sha256="a" * 64,
         )
     assert exc.value.code == "ordinary_trade_semantic_mapping_table_decision_invalid"
+    assert exc.value.diagnostic_code == (
+        "ordinary_trade_mapping_decision_no_consumer_fields_invalid"
+    )
 
 
 def test_no_consumer_v9_preserves_selected_context_and_legacy_replays(tmp_path) -> None:

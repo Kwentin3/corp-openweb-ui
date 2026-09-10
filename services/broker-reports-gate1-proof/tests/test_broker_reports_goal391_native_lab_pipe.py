@@ -563,6 +563,12 @@ def test_safe_error_code_keeps_only_fixed_contract_identifiers():
         )
     ) == "goal391_lab_ordinary_trade_semantic_mapping_columns_invalid"
     assert module.Pipe._safe_error_code(
+        module.OrdinaryTradeSemanticMappingError(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_fields_invalid",
+        )
+    ) == "goal391_lab_ordinary_trade_mapping_decision_fields_invalid"
+    assert module.Pipe._safe_error_code(
         module.Gate2SourceFactRuntimeError(
             "gate2_model_content_invalid", "private provider/source detail"
         )

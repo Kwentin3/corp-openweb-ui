@@ -161,8 +161,14 @@ _DECISION_KINDS = {
 
 
 class OrdinaryTradeSemanticMappingError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, diagnostic_code: str | None = None) -> None:
         self.code = code
+        # A diagnostic code describes only the rejected wire shape.  It never
+        # contains a source literal, model text, table identifier or reference.
+        # The product receipt keeps the stable public code; an isolated lab may
+        # use this extra value to locate the contract seam without inventing a
+        # second validator.
+        self.diagnostic_code = diagnostic_code
         super().__init__(code)
 
 
@@ -2227,29 +2233,49 @@ def _validate_table_decision(
     legacy_no_consumer_fields = no_consumer_fields | {
         "classification_evidence",
     }
-    if (
-        not isinstance(decision, dict)
-        or set(decision)
-        not in {
-            frozenset(base_fields),
-            frozenset(incomplete_fields),
-            frozenset(no_consumer_fields),
-            frozenset(legacy_no_consumer_fields),
-        }
-        or decision.get("table_node_id") != table["table_node_id"]
-        or not isinstance(decision.get("header_row"), int)
-        or decision.get("disposition") not in _TABLE_DISPOSITIONS
-        or not all(
-            isinstance(decision.get(key), list)
-            for key in (
-                "columns",
-                "amount_currency_bindings",
-                "side_values",
-                "row_dispositions",
-            )
+    if not isinstance(decision, dict):
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_not_object",
+        )
+    if set(decision) not in {
+        frozenset(base_fields),
+        frozenset(incomplete_fields),
+        frozenset(no_consumer_fields),
+        frozenset(legacy_no_consumer_fields),
+    }:
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_fields_invalid",
+        )
+    if decision.get("table_node_id") != table["table_node_id"]:
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_table_binding_invalid",
+        )
+    if not isinstance(decision.get("header_row"), int):
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_header_type_invalid",
+        )
+    if decision.get("disposition") not in _TABLE_DISPOSITIONS:
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_disposition_invalid",
+        )
+    if not all(
+        isinstance(decision.get(key), list)
+        for key in (
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+            "row_dispositions",
         )
     ):
-        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_collection_invalid",
+        )
     disposition = decision["disposition"]
     incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
     if (
@@ -2259,7 +2285,10 @@ def _validate_table_decision(
             or (not incomplete and set(decision) == incomplete_fields)
         )
     ):
-        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_incomplete_fields_invalid",
+        )
     no_consumer = disposition == "NO_NAMED_CONSUMER"
     requires_model_classification_evidence = (
         model_supplies_classification_evidence
@@ -2276,13 +2305,19 @@ def _validate_table_decision(
     if no_consumer and set(decision) != expected_no_consumer_fields and not (
         allow_legacy_no_consumer and set(decision) == base_fields
     ):
-        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_no_consumer_fields_invalid",
+        )
     if (
         no_consumer
         and "no_consumer_kind" in decision
         and decision["no_consumer_kind"] not in _NO_CONSUMER_KINDS
     ):
-        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+        _fail(
+            "ordinary_trade_semantic_mapping_table_decision_invalid",
+            diagnostic_code="ordinary_trade_mapping_decision_no_consumer_kind_invalid",
+        )
     classification_evidence = None
     if no_consumer and requires_model_classification_evidence:
         # V6/V7 are immutable model replays.  Keep their old wire contracts
@@ -3241,8 +3276,8 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _fail(code: str) -> None:
-    raise OrdinaryTradeSemanticMappingError(code)
+def _fail(code: str, *, diagnostic_code: str | None = None) -> None:
+    raise OrdinaryTradeSemanticMappingError(code, diagnostic_code=diagnostic_code)
 
 
 __all__ = [
