@@ -14,7 +14,7 @@ ENV HOME=/tmp
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y ca-certificates curl \
+    && apt-get install --no-install-recommends -y ca-certificates curl libicu76 \
     && curl --fail --location --silent --show-error \
       --output /usr/local/bin/officecli \
       "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${OFFICECLI_VERSION}/officecli-linux-x64" \
