@@ -193,6 +193,7 @@ GATE1_GATE5_MODULES = [
     "gate5_trusted_methodology",
     "gate5_residency_evidence",
     "gate5_deterministic_source_fact_consumption",
+    "gate5_operation_set_demand_derivation",
     "gate5_securities_disposal_tax_model",
     "gate5_tax_period_category_aggregation",
     "gate5_income_group_tax_base",
