@@ -7,7 +7,7 @@ import hashlib
 import json
 import re
 from dataclasses import replace
-from typing import Any
+from typing import Any, Mapping
 
 from .artifact_lifecycle import lifecycle_for_visibility
 from .artifact_models import (
@@ -39,12 +39,14 @@ from .ordinary_trade_semantic_compiler import USER_CURRENCY_ASSERTION_SCHEMA_VER
 
 
 # The model package remains v2.  This is the separately versioned, durable
-# private receipt that additionally binds a managed Workspace Prompt snapshot.
-MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v5"
+# private receipt that additionally binds a managed Workspace Prompt snapshot
+# and, when consumed by the mapper, the exact physical-table sidecar identity.
+MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v6"
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
 _LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
 _V3_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v3"
 _V4_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v4"
+_V5_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v5"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
@@ -74,6 +76,7 @@ def mapping_case_artifact_types() -> frozenset[str]:
     return frozenset(
         {
             MAPPING_CASE_ARTIFACT_TYPE,
+            _V5_MAPPING_CASE_ARTIFACT_TYPE,
             _V4_MAPPING_CASE_ARTIFACT_TYPE,
             _V3_MAPPING_CASE_ARTIFACT_TYPE,
             _LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
@@ -140,16 +143,20 @@ class OrdinaryTradeMappingCaseRuntime:
                 "workspace_model_id": context.workspace_model_id,
             }
         )
-        identity = {
-            "canonical_binding": canonical_binding,
-            "user_scope_sha256": user_scope_sha256,
-        }
         physical_context = self._physical_table_continuation_context(
             document_id=document_id,
             context=context,
             canonical=envelope.artifact,
             canonical_binding=canonical_binding,
         )
+        identity = {
+            "canonical_binding": canonical_binding,
+            "user_scope_sha256": user_scope_sha256,
+        }
+        if physical_context is not None:
+            identity["physical_table_continuation_binding"] = (
+                _physical_table_continuation_binding(physical_context)
+            )
         return {
             **identity,
             "case_binding_sha256": _sha256_json(identity),
@@ -1012,6 +1019,11 @@ class OrdinaryTradeMappingCaseRuntime:
         payload = {
             "schema_version": (
                 MAPPING_CASE_RECEIPT_SCHEMA_VERSION
+                if (
+                    "physical_table_continuation_binding" in binding
+                    and prompt_snapshot is not None
+                )
+                else _V5_MAPPING_CASE_ARTIFACT_TYPE
                 if prompt_snapshot is not None or instructional_prompt_snapshot is not None
                 else MAPPING_CASE_SCHEMA_VERSION
             ),
@@ -1032,7 +1044,10 @@ class OrdinaryTradeMappingCaseRuntime:
             "execution_metadata_sha256": values["execution_metadata_sha256"],
             "reason_code": values["reason_code"],
         }
-        if payload["schema_version"] == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        if payload["schema_version"] in {
+            MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
+            _V5_MAPPING_CASE_ARTIFACT_TYPE,
+        }:
             payload["mapping_prompt_snapshot"] = prompt_snapshot
             payload["mapping_batch_state"] = copy.deepcopy(batch_state)
             payload["instructional_prompt_snapshot"] = instructional_prompt_snapshot
@@ -1128,7 +1143,10 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         "integrity_sha256",
     }
     schema_version = payload.get("schema_version") if isinstance(payload, dict) else None
-    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+    if schema_version in {
+        MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
+        _V5_MAPPING_CASE_ARTIFACT_TYPE,
+    }:
         expected_keys = {
             *expected_keys,
             "mapping_prompt_snapshot",
@@ -1148,6 +1166,7 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
             MAPPING_CASE_SCHEMA_VERSION,
             _V3_MAPPING_CASE_ARTIFACT_TYPE,
             _V4_MAPPING_CASE_ARTIFACT_TYPE,
+            _V5_MAPPING_CASE_ARTIFACT_TYPE,
             MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
         }
         or not isinstance(payload.get("case_id"), str)
@@ -1171,10 +1190,14 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
             ) from exc
     if schema_version in {
         _V4_MAPPING_CASE_ARTIFACT_TYPE,
+        _V5_MAPPING_CASE_ARTIFACT_TYPE,
         MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
     }:
         _validate_mapping_batch_state(payload.get("mapping_batch_state"))
-    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+    if schema_version in {
+        _V5_MAPPING_CASE_ARTIFACT_TYPE,
+        MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
+    }:
         mapping_snapshot = payload.get("mapping_prompt_snapshot")
         if mapping_snapshot is not None:
             try:
@@ -1208,29 +1231,41 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     if digest != _sha256_json(frozen):
         _fail("ordinary_trade_mapping_case_integrity_invalid")
     binding = payload.get("case_binding")
+    identity = {
+        "canonical_binding": binding.get("canonical_binding")
+        if isinstance(binding, dict)
+        else None,
+        "user_scope_sha256": binding.get("user_scope_sha256")
+        if isinstance(binding, dict)
+        else None,
+    }
+    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        identity["physical_table_continuation_binding"] = (
+            binding.get("physical_table_continuation_binding")
+            if isinstance(binding, dict)
+            else None
+        )
+    expected_binding_keys = {
+        "canonical_binding",
+        "user_scope_sha256",
+        "case_binding_sha256",
+    }
+    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        expected_binding_keys.add("physical_table_continuation_binding")
     if (
         not isinstance(binding, dict)
-        or set(binding)
-        != {
-            "canonical_binding",
-            "user_scope_sha256",
-            "case_binding_sha256",
-        }
+        or set(binding) != expected_binding_keys
+        or (
+            schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION
+            and not _valid_physical_table_continuation_binding(
+                binding.get("physical_table_continuation_binding")
+            )
+        )
         or payload["case_id"]
         != "otcase_"
-        + _sha256_json(
-            {
-                "canonical_binding": binding["canonical_binding"],
-                "user_scope_sha256": binding["user_scope_sha256"],
-            }
-        )[:32]
+        + _sha256_json(identity)[:32]
         or binding["case_binding_sha256"]
-        != _sha256_json(
-            {
-                "canonical_binding": binding["canonical_binding"],
-                "user_scope_sha256": binding["user_scope_sha256"],
-            }
-        )
+        != _sha256_json(identity)
     ):
         _fail("ordinary_trade_mapping_case_binding_invalid")
     confirmed = payload.get("confirmed_understandings")
@@ -1494,11 +1529,69 @@ def _validate_instructional_classification_state(value: Any) -> None:
 
 
 def _public_binding(binding: dict[str, Any]) -> dict[str, Any]:
-    return {
+    public = {
         "canonical_binding": copy.deepcopy(binding["canonical_binding"]),
         "user_scope_sha256": binding["user_scope_sha256"],
         "case_binding_sha256": binding["case_binding_sha256"],
     }
+    if "physical_table_continuation_binding" in binding:
+        public["physical_table_continuation_binding"] = copy.deepcopy(
+            binding["physical_table_continuation_binding"]
+        )
+    return public
+
+
+def _physical_table_continuation_binding(
+    context: Mapping[str, Any],
+) -> dict[str, str]:
+    """Keep sidecar identity in the case receipt, never in a model package."""
+
+    required = {
+        "schema_version",
+        "sidecar_artifact_ref",
+        "sidecar_id",
+        "source_binding",
+        "links",
+    }
+    if (
+        not isinstance(context, Mapping)
+        or set(context) != required
+        or not isinstance(context.get("sidecar_artifact_ref"), str)
+        or not context["sidecar_artifact_ref"]
+        or not isinstance(context.get("sidecar_id"), str)
+        or not context["sidecar_id"]
+        or not isinstance(context.get("source_binding"), Mapping)
+        or not isinstance(context.get("links"), list)
+        or not context["links"]
+    ):
+        _fail("ordinary_trade_mapping_case_physical_continuation_binding_invalid")
+    return {
+        "sidecar_artifact_ref": context["sidecar_artifact_ref"],
+        "sidecar_id": context["sidecar_id"],
+        "source_binding_sha256": _sha256_json(context["source_binding"]),
+        "links_sha256": _sha256_json(context["links"]),
+    }
+
+
+def _valid_physical_table_continuation_binding(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value)
+        == {
+            "sidecar_artifact_ref",
+            "sidecar_id",
+            "source_binding_sha256",
+            "links_sha256",
+        }
+        and all(
+            isinstance(value.get(key), str) and value[key]
+            for key in {"sidecar_artifact_ref", "sidecar_id"}
+        )
+        and all(
+            isinstance(value.get(key), str) and _SHA256.fullmatch(value[key])
+            for key in {"source_binding_sha256", "links_sha256"}
+        )
+    )
 
 
 def _valid_user_currency_decision(

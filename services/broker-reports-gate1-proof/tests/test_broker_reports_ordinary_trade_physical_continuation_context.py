@@ -20,6 +20,7 @@ from broker_reports_gate1.physical_table_continuation import (
 )
 
 import test_broker_reports_gate4_sql_materialization as gate4_fixtures
+import test_broker_reports_issue312_mapping_runtime as runtime_fixtures
 from test_broker_reports_physical_table_continuation import _annotation_receipt
 
 
@@ -187,6 +188,41 @@ def test_case_binding_exposes_exact_private_context_without_mutating_canonical(t
             }
         ],
     }
+
+
+def test_mapping_case_receipt_binds_sidecar_identity_without_storing_links(tmp_path) -> None:
+    store, context, document_id, envelope, source_record = _case(tmp_path)
+    _persist_sidecar(
+        store=store,
+        context=context,
+        document_id=document_id,
+        source_record=source_record,
+        payload=_sidecar(
+            context=context,
+            document_id=document_id,
+            source_sha=envelope.artifact["source"]["source_sha256"],
+        ),
+        artifact_id="physical-sidecar-bound-receipt",
+    )
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    binding = cases.case_binding(document_id=document_id, context=context)
+
+    record, payload = cases.save_provider_terminal(
+        document_id=document_id,
+        context=context,
+        status="PROVIDER_UNAVAILABLE",
+        reason_code="test_terminal",
+        message="No provider call was made.",
+        provider_calls_total=0,
+        mapping_prompt_snapshot=runtime_fixtures._test_mapping_prompt().snapshot(),
+    )
+
+    expected = binding["physical_table_continuation_binding"]
+    assert record.artifact_type == "broker_reports_ordinary_trade_mapping_case_v6"
+    assert payload["schema_version"] == "broker_reports_ordinary_trade_mapping_case_v6"
+    assert payload["case_binding"]["physical_table_continuation_binding"] == expected
+    assert "parent_table_node_id" not in str(payload["case_binding"])
+    assert "physical-sidecar-bound-receipt" in str(payload["case_binding"])
 
 
 def test_case_binding_rejects_tampered_private_sidecar_before_semantic_mapping(tmp_path) -> None:

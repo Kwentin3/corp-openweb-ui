@@ -435,6 +435,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 canonical=binding["canonical"],
                 confirmed_understandings=confirmed,
                 target_table_node_ids=target_table_node_ids,
+                physical_table_continuation_context=binding[
+                    "physical_table_continuation_context"
+                ],
             )
         except OrdinaryTradeSemanticMappingError as exc:
             if exc.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -443,6 +446,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 batch_plan = self._semantic.build_mapping_batch_plan(
                     canonical=binding["canonical"], confirmed_understandings=confirmed,
                     target_table_node_ids=target_table_node_ids,
+                    physical_table_continuation_context=binding[
+                        "physical_table_continuation_context"
+                    ],
                 )
             except OrdinaryTradeSemanticMappingError as plan_error:
                 if plan_error.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -778,6 +784,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 batch_plan=plan,
                 batch_outcomes=completed,
                 frozen_mappings=self._frozen_mappings,
+                physical_table_continuation_context=binding[
+                    "physical_table_continuation_context"
+                ],
             )
             instructional_state = current[1].get(
                 "instructional_classification_state"
@@ -823,6 +832,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
             canonical=binding["canonical"],
             confirmed_understandings=transport_confirmed,
             target_table_node_ids=next_batch["target_table_node_ids"],
+            physical_table_continuation_context=binding[
+                "physical_table_continuation_context"
+            ],
         )
         if _sha256_json(package) != next_batch["mapping_package_sha256"]:
             saved = self._cases.save_batch_state(
@@ -943,6 +955,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
         return _sha256_json({
             "canonical_binding": binding["canonical_binding"],
             "user_scope_sha256": binding["user_scope_sha256"],
+            "physical_table_continuation_binding": binding.get(
+                "physical_table_continuation_binding"
+            ),
             "confirmed_understandings": confirmed,
             "model_id": self._model_id,
             "provider_profile_id": self._provider_profile_id,

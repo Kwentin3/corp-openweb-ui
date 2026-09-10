@@ -1437,7 +1437,8 @@ def _physical_continuation_links_for_scope(
             _fail("ordinary_trade_mapping_physical_continuation_scope_incomplete")
         if all(in_scope):
             links.append(pair)
-    return links
+    positions = {table_node_id: index for index, table_node_id in enumerate(canonical_ids)}
+    return sorted(links, key=lambda pair: (positions[pair[0]], positions[pair[1]]))
 
 
 def _physical_continuation_batch_groups(
