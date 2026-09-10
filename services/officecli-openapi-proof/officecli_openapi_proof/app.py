@@ -115,7 +115,8 @@ def create_app(
     )
     app = FastAPI(title="OfficeCLI OpenAPI proof", version="0.2.0")
 
-    def guidance_response_for(*arguments: str) -> GuidanceResponse:
+    def guidance_response_for(authorization: str | None, *arguments: str) -> GuidanceResponse:
+        _bearer(authorization)
         try:
             output = officecli.run(*arguments)
         except OfficeCliFailure as error:
@@ -133,12 +134,18 @@ def create_app(
         return {"status": "ok", "officecli_version": active_settings.expected_version}
 
     @app.post("/v1/officecli/skills/load", response_model=GuidanceResponse, operation_id="load_officecli_skill")
-    def load_officecli_skill(request: SkillRequest) -> GuidanceResponse:
-        return guidance_response_for("load_skill", request.skill)
+    def load_officecli_skill(
+        request: SkillRequest,
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> GuidanceResponse:
+        return guidance_response_for(authorization, "load_skill", request.skill)
 
     @app.post("/v1/officecli/help", response_model=GuidanceResponse, operation_id="get_officecli_help")
-    def get_officecli_help(request: HelpRequest) -> GuidanceResponse:
-        return guidance_response_for(*HELP_ARGUMENTS[request.topic])
+    def get_officecli_help(
+        request: HelpRequest,
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> GuidanceResponse:
+        return guidance_response_for(authorization, *HELP_ARGUMENTS[request.topic])
 
     @app.post(
         "/v1/officecli/documents/inspect",

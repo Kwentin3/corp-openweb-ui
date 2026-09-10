@@ -68,7 +68,11 @@ def test_load_word_skill_returns_official_executor_output() -> None:
     executor = RecordingOfficeCli()
     client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
 
-    response = client.post("/v1/officecli/skills/load", json={"skill": "word"})
+    response = client.post(
+        "/v1/officecli/skills/load",
+        headers={"Authorization": "Bearer user-session"},
+        json={"skill": "word"},
+    )
 
     assert response.status_code == 200
     assert response.json()["content"] == "official load_skill word output"
@@ -97,13 +101,31 @@ def test_help_uses_only_a_whitelisted_official_topic() -> None:
     executor = RecordingOfficeCli()
     client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
 
-    response = client.post("/v1/officecli/help", json={"topic": "docx set paragraph"})
+    response = client.post(
+        "/v1/officecli/help",
+        headers={"Authorization": "Bearer user-session"},
+        json={"topic": "docx set paragraph"},
+    )
 
     assert response.status_code == 200
     assert executor.calls == [("help", "docx", "set", "paragraph")]
-    rejected = client.post("/v1/officecli/help", json={"topic": "docx; rm -rf /"})
+    rejected = client.post(
+        "/v1/officecli/help",
+        headers={"Authorization": "Bearer user-session"},
+        json={"topic": "docx; rm -rf /"},
+    )
     assert rejected.status_code == 422
     assert executor.calls == [("help", "docx", "set", "paragraph")]
+
+
+def test_guidance_requires_the_forwarded_openwebui_session() -> None:
+    executor = RecordingOfficeCli()
+    client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
+
+    response = client.post("/v1/officecli/skills/load", json={"skill": "word"})
+
+    assert response.status_code == 401
+    assert executor.calls == []
 
 
 def test_inspect_downloads_native_file_and_only_runs_annotated_view() -> None:
