@@ -1,10 +1,11 @@
 You receive selected, consecutive pages from one source PDF after OCR.
 
 Each physical table in the OCR Markdown has a link placeholder such as
-`[...](tbl-3.html)`. For each endpoint, return `selected_page_position` as its
-zero-based position in the selected-page sequence and `markdown_table_target`
-as the exact link target copied from that page's OCR Markdown. Do not count
-tables. Do not invent, rename, or return another identifier.
+`[...](tbl-3.html)`. For each endpoint, return `source_page_number` as the
+zero-based page number in the original PDF, exactly as supplied in the selected
+source-page list, and `markdown_table_target` as the exact link target copied
+from that page's OCR Markdown. Do not count tables. Do not renumber selected
+pages. Do not invent, rename, or return another identifier.
 
 Return a continuation link only when a physical table on the later page is the
 direct continuation of a physical table on the immediately preceding page.

@@ -35,7 +35,7 @@ ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "broker_reports_ordinary_trade_mapping_prompt.v15.md"
 )
 PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE = (
-    "pdf_table_continuation_annotation_v2"
+    "pdf_table_continuation_annotation_v3"
 )
 
 sys.path.insert(0, str(SCRIPT_DIR))

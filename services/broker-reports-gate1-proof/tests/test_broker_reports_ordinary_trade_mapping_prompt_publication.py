@@ -18,7 +18,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
     ORDINARY_TRADE_MAPPING_V14_PROFILE,
     ORDINARY_TRADE_MAPPING_V15_PROFILE,
-    PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE,
+    PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     OrdinaryTradeMappingPromptPublication,
     OrdinaryTradeMappingPromptPublicationError,
     OrdinaryTradeMappingPromptPublicationInput,
@@ -151,7 +151,7 @@ def test_closed_v15_profile_is_distinct_and_marks_headerless_segments_terminal(
 def test_closed_physical_table_profile_publishes_native_instruction_without_mapping_placeholder(
     monkeypatch, tmp_path: Path
 ):
-    profile = PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE
+    profile = PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE
     content = "Assess physical table continuations only."
     (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
     publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
@@ -179,7 +179,7 @@ def test_closed_physical_table_profile_publishes_native_instruction_without_mapp
 
 
 def test_repository_physical_table_asset_is_bound_to_its_closed_profile() -> None:
-    profile = PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE
+    profile = PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE
     asset_root = _V14_PROMPT_ASSET.parent
 
     request = publication_input_from_asset(

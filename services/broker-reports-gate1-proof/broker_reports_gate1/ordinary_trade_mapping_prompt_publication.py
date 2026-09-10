@@ -189,13 +189,13 @@ ORDINARY_TRADE_MAPPING_V15_PROFILE = OrdinaryTradeMappingPromptPublicationProfil
 
 # A distinct physical-source profile. It reuses only the native
 # Prompt/history/grant lifecycle below, not ordinary-trade meaning.
-PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE = (
+PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE = (
     OrdinaryTradeMappingPromptPublicationProfile(
-        profile_id="pdf_table_continuation_annotation_v2",
+        profile_id="pdf_table_continuation_annotation_v3",
         command=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
         name="Broker Reports PDF physical table continuation annotation",
-        asset_filename="broker_reports_native_table_continuation_annotation_prompt.v2.md",
-        asset_version="v2",
+        asset_filename="broker_reports_native_table_continuation_annotation_prompt.v3.md",
+        asset_version="v3",
         template_id=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_ID,
         template_kind=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_KIND,
         prompt_contract_id=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_CONTRACT_ID,
@@ -207,7 +207,7 @@ PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE = (
         is_production=True,
         initial_access_grants=(("user", "*", "read"),),
         metadata_extension={"annotation_domain": "physical_table_continuation"},
-        commit_message="Publish Broker Reports PDF table-continuation annotation Prompt v2",
+        commit_message="Publish Broker Reports PDF table-continuation annotation Prompt v3",
     )
 )
 
@@ -218,7 +218,7 @@ _PUBLISHABLE_PROFILES = {
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE,
-        PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE,
+        PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     )
 }
 
@@ -586,7 +586,7 @@ def _metadata(
         raise OrdinaryTradeMappingPromptPublicationError(
             "ordinary_trade_mapping_prompt_profile_invalid"
         )
-    if profile is PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE:
+    if profile is PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE:
         base.pop("mapping_domain")
     return {**base, **extension}
 
@@ -691,7 +691,7 @@ __all__ = [
     "GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE",
     "ORDINARY_TRADE_MAPPING_V14_PROFILE",
     "ORDINARY_TRADE_MAPPING_V15_PROFILE",
-    "PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE",
+    "PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE",
     "PROMPT_ASSET_FILENAME",
     "PROMPT_ASSET_VERSION",
     "publication_input_from_asset",
