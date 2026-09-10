@@ -366,7 +366,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual("static_ready", document_ai["adapter_status"])
         self.assertEqual("mistral_ocr", document_ai["selected_engine"])
         self.assertEqual(
-            "mistral_serverless_ocr_adapter_v2", document_ai["selected_adapter"]
+            "mistral_serverless_ocr_adapter_v3", document_ai["selected_adapter"]
         )
         self.assertTrue(document_ai["static_ready"])
         self.assertEqual(
@@ -379,7 +379,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertFalse(document_ai["automatic_fallback"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v33",
+                "architecture_policy_version": "broker_reports_architecture_policy_v34",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,

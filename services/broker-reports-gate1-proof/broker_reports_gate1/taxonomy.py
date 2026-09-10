@@ -331,14 +331,23 @@ def _has_pdf_html_parse_evidence(
 
 def _has_document_ai_text_representation(private_slices: list[dict]) -> bool:
     for item in private_slices:
-        if not isinstance(item, dict) or not str(item.get("text") or "").strip():
+        if not isinstance(item, dict):
             continue
         location = item.get("source_location") or item.get("location") or {}
+        is_text = bool(str(item.get("text") or "").strip())
+        is_native_table = bool(item.get("rows") or item.get("cells"))
         if (
-            item.get("parser") == "document_ai_extraction_envelope"
+            item.get("parser")
+            in {"document_ai_extraction_envelope", "document_ai_native_table_html"}
             and isinstance(location, dict)
             and location.get("kind")
-            in {"document_ai_extraction", "document_ai_page_markdown"}
+            in {
+                "document_ai_extraction",
+                "document_ai_page_markdown",
+                "document_ai_page_markdown_body",
+                "document_ai_native_table_html",
+            }
+            and (is_text or is_native_table)
         ):
             return True
     return False

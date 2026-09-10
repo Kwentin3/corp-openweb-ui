@@ -288,7 +288,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v33",
+            "broker_reports_architecture_policy_v34",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -467,7 +467,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertEqual(PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE, "mistral_ocr")
         self.assertEqual(
             PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
-            "mistral_serverless_ocr_adapter_v2",
+            "mistral_serverless_ocr_adapter_v3",
         )
         self.assertTrue(PDF_DOCUMENT_EXTRACTION_STATIC_READY)
         self.assertEqual(

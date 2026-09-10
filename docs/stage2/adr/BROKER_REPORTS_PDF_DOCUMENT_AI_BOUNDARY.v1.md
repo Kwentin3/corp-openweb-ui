@@ -8,6 +8,7 @@ PDF understanding belongs to one port in the existing source-normalization
 domain: `PdfDocumentExtractor.extract(pdf_bytes, source_context) ->
 PdfDocumentExtraction`. The immutable result is provider-neutral and carries
 source/Markdown hashes, ordered pages, opaque image references with hashes,
+opaque provider-native HTML table references with hashes and exact page Markdown anchors,
 provider provenance, qualification status, page usage, and a text-free safe
 technical summary. It is transport evidence, not a second Canonical or a
 financial-semantic authority.
@@ -28,7 +29,10 @@ For one accepted PDF the adapter makes exactly one provider call. Retry,
 automatic fallback, engine probing, and a second extraction path are
 forbidden. Ordered page Markdown bytes are assembled with exactly two LF
 bytes (`b"\n\n"`) between adjacent pages. Page bytes are not stripped,
-trimmed, repaired, or otherwise normalized. Image references in the result are
+trimmed, repaired, or otherwise normalized. Native HTML tables remain separate
+physical page segments; their header presence comes only from `<thead>`/`<th>`
+structure and they are never joined across pages or repaired from neighbours.
+Image references in the result are
 opaque ArtifactStore identifiers; every reference remains bound to its
 page-scoped Markdown target and raw SHA-256. Decoded image bytes exist only in
 the short-lived neutral extraction envelope until the existing bounded-graph
@@ -71,7 +75,9 @@ hybrid/dual-engine execution, structural repair, and automatic fallback are
 rejected product paths. An engine may be introduced only as one adapter behind
 the same port and selected explicitly at the single composition point;
 Pipe, Full Source, Canonical, financial mapping, Gate 4, and Gate 5 must not
-gain provider-specific knowledge.
+gain provider-specific knowledge. The Mistral adapter owns `table_format=html`
+in its versioned request contract. Full Source stores the private physical table
+unit; Canonical alone translates its structure into TABLE/row/cell representation.
 
 ## OpenWebUI 0.9.6 compatibility seam
 

@@ -9,8 +9,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Protocol, runtime_checkable
 
 
-PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v4"
-PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v4"
+PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v5"
+PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v5"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
 PDF_DOCUMENT_AI_PAYMENT_REQUIRED = "PDF_DOCUMENT_AI_PAYMENT_REQUIRED"
 _SAFE_TECHNICAL_SUMMARY_KEYS = {
@@ -18,6 +18,7 @@ _SAFE_TECHNICAL_SUMMARY_KEYS = {
     "images_count",
     "markdown_bytes",
     "pages_count",
+    "tables_count",
 }
 
 
@@ -55,10 +56,48 @@ class PdfDocumentImageRef:
             raise ValueError("pdf_document_image_sha256_mismatch")
 
 
+@dataclass(frozen=True)
+class PdfDocumentTableRef:
+    """Opaque native table material owned by one document-extraction envelope."""
+
+    page_number: int
+    markdown_target: str
+    local_ref: str
+    sha256: str
+    html_bytes: bytes = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if type(self.page_number) is not int or self.page_number < 1:
+            raise ValueError("pdf_document_table_page_number_invalid")
+        _require_closed_relative_ref(
+            self.markdown_target,
+            "pdf_document_table_markdown_target_must_be_closed_relative",
+        )
+        _require_closed_relative_ref(
+            self.local_ref,
+            "pdf_document_table_ref_must_be_closed_local",
+        )
+        _require_sha256(self.sha256, "pdf_document_table_sha256_invalid")
+        if type(self.html_bytes) is not bytes or not self.html_bytes:
+            raise ValueError("pdf_document_table_bytes_required")
+        try:
+            self.html_bytes.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise ValueError("pdf_document_table_not_utf8") from exc
+        if hashlib.sha256(self.html_bytes).hexdigest() != self.sha256:
+            raise ValueError("pdf_document_table_sha256_mismatch")
+
+
 def new_pdf_document_image_ref() -> str:
     """Mint an opaque, unpublished ref without choosing a storage backend."""
 
     return f"pdfimg_{secrets.token_urlsafe(24)}"
+
+
+def new_pdf_document_table_ref() -> str:
+    """Mint an opaque, unpublished table ref without choosing persistence."""
+
+    return f"pdftable_{secrets.token_urlsafe(24)}"
 
 
 def _require_closed_relative_ref(value: str, code: str) -> None:
@@ -99,6 +138,7 @@ class PdfDocumentExtraction:
     qualification_status: str
     usage_page_count: int
     page_markdown_bytes: tuple[bytes, ...] = field(repr=False, default=())
+    table_refs: tuple[PdfDocumentTableRef, ...] = field(repr=False, default=())
     page_content_dispositions: tuple[str, ...] = ()
     safe_technical_summary: tuple[tuple[str, int], ...] = ()
     schema_version: str = PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION
@@ -181,6 +221,25 @@ class PdfDocumentExtraction:
             ):
                 if bool(page) != (disposition == "markdown_materialized"):
                     raise ValueError("pdf_document_page_content_disposition_mismatch")
+        if self.schema_version not in {
+            "broker_reports_pdf_document_extraction_v4",
+            PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
+        }:
+            raise ValueError("pdf_document_extraction_schema_version_invalid")
+        if self.table_refs and self.schema_version != PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION:
+            raise ValueError("pdf_document_table_refs_require_v5")
+        if len({item.local_ref for item in self.table_refs}) != len(self.table_refs):
+            raise ValueError("pdf_document_table_ref_duplicate")
+        if any(item.page_number not in self.page_numbers for item in self.table_refs):
+            raise ValueError("pdf_document_table_page_not_in_document")
+        table_associations = {
+            (item.page_number, item.markdown_target) for item in self.table_refs
+        }
+        if len(table_associations) != len(self.table_refs):
+            raise ValueError("pdf_document_table_association_duplicate")
+        table_pages = tuple(item.page_number for item in self.table_refs)
+        if table_pages != tuple(sorted(table_pages)):
+            raise ValueError("pdf_document_table_page_order_invalid")
         if self.qualification_status not in {
             "offline_fixture",
             "qualified",
@@ -210,6 +269,7 @@ class PdfDocumentExtraction:
             "images_count": len(self.image_refs),
             "markdown_bytes": len(self.markdown_bytes),
             "pages_count": self.usage_page_count,
+            "tables_count": len(self.table_refs),
         }
         if any(
             key in summary and summary[key] != expected

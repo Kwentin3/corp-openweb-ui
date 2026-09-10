@@ -39,6 +39,11 @@ from broker_reports_gate1.mistral_pdf_document_ai import (
     MistralPdfDocumentExtractor,
 )
 from broker_reports_gate1.full_source import FullSourceArtifactFactory
+from broker_reports_gate1.canonical_artifact import (
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+)
+from broker_reports_gate1.table_projection import NormalizedTableProjectionFactory
 from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentExtraction,
     PdfDocumentExtractionError,
@@ -178,6 +183,7 @@ def _assert_one_post(
             ),
         },
         "include_image_base64": True,
+        "table_format": "html",
     }
     return payload
 
@@ -227,7 +233,7 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert result.requested_model_id == "mistral-ocr-4-1"
     assert result.model_id == MISTRAL_OCR_MODEL
     assert result.adapter_id == MISTRAL_OCR_ADAPTER_ID
-    assert result.request_contract_version == "mistral_ocr_request_v1"
+    assert result.request_contract_version == "mistral_ocr_request_v2"
     assert result.request_parameters == MISTRAL_OCR_REQUEST_PARAMETERS
     assert (
         result.request_parameters_sha256
@@ -263,6 +269,133 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert PDF_BASE64 not in result_text
     assert PDF_BYTES.decode("ascii") not in result_text
     assert RAW_PROVIDER_SECRET not in result_text
+
+
+def test_native_html_table_is_preserved_as_physical_header_and_headerless_units(
+    tmp_path: Path,
+) -> None:
+    first_html = (
+        "<table><thead><tr><th>Date</th><th>Amount</th></tr></thead>"
+        "<tbody><tr><td>2026-01-01</td><td>10</td></tr></tbody></table>"
+    )
+    continuation_html = "<table><tbody><tr><td>2026-01-02</td><td>11</td></tr></tbody></table>"
+    response = _FakeResponse(
+        _response(
+            [
+                {
+                    "index": 0,
+                    "markdown": "Opening\n[t0](tbl-0.html)\nClosing",
+                    "images": [],
+                    "tables": [{"id": "tbl-0.html", "content": first_html}],
+                },
+                {
+                    "index": 1,
+                    "markdown": "[t1](tbl-1.html)",
+                    "images": [],
+                    "tables": [{"id": "tbl-1.html", "content": continuation_html}],
+                },
+            ]
+        )
+    )
+    extraction = _extractor(tmp_path, _FakeOpener(response)).extract(
+        PDF_BYTES, _source_context(2)
+    )
+
+    assert len(extraction.table_refs) == 2
+    assert all(item.markdown_target.startswith("tbl-") for item in extraction.table_refs)
+    assert all(item.local_ref.startswith("pdftable_") for item in extraction.table_refs)
+    built = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id="native-table-run",
+        document_id="native-table-document",
+        profile_id="native-table-profile",
+        extraction=extraction,
+    )
+    table_units = [
+        unit
+        for unit in built.units
+        if (unit.get("source_location") or {}).get("kind")
+        == "document_ai_native_table_html"
+    ]
+    assert len(table_units) == 2
+    assert [
+        (unit["source_location"]["page"], unit["source_location"]["structural_header_row_ordinals"])
+        for unit in table_units
+    ] == [(1, [1]), (2, [])]
+    assert all("tbl-" not in str(unit.get("text") or "") for unit in built.units)
+
+    projected = NormalizedTableProjectionFactory().create().build_for_document(
+        source_format="pdf", payloads=built.payloads, source_units=built.units
+    ).projections
+    assert len(projected) == 2
+    assert projected[0]["header_model"]["header_row_refs"]
+    assert not projected[1]["header_model"]["header_row_refs"]
+    assert [row["row_role"] for row in projected[1]["rows"]] == ["data_row"]
+    assert all(item["page_refs"] in (["page_1"], ["page_2"]) for item in projected)
+    canonical = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(normalizer_version="native-table-test-v1")
+    ).create().build(
+        tenant_id="native-table-tenant",
+        artifact_version=1,
+        document={"container_format": "pdf", "sha256": hashlib.sha256(PDF_BYTES).hexdigest()},
+        source_artifact_ref="native-table-source",
+        source_payloads=built.payloads,
+        source_units=built.units,
+        table_projections=projected,
+    )
+    canonical_tables = [node for node in canonical["nodes"] if node["node_type"] == "TABLE"]
+    assert len(canonical_tables) == 2
+    assert canonical_tables[0]["content"]["header"] == ["Date", "Amount"]
+    assert canonical_tables[1]["content"]["header"] == []
+    assert all(
+        "document_ai_continuation" not in table["content"].get("metadata", {})
+        for table in canonical_tables
+    )
+
+
+def test_native_table_missing_exact_markdown_anchor_fails_closed(tmp_path: Path) -> None:
+    opener = _FakeOpener(
+        _FakeResponse(
+            _response(
+                [
+                    {
+                        "index": 0,
+                        "markdown": "no matching native table anchor",
+                        "images": [],
+                        "tables": [{"id": "tbl-0.html", "content": "<table><tr><td>x</td></tr></table>"}],
+                    }
+                ]
+            )
+        )
+    )
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract(PDF_BYTES, _source_context(1))
+    _assert_one_post(opener)
+    _assert_typed_failure_without_leak(
+        caught, expected_code="PDF_DOCUMENT_AI_TABLE_ASSOCIATION_INVALID"
+    )
+
+
+def test_native_table_cannot_reuse_an_image_markdown_target(tmp_path: Path) -> None:
+    opener = _FakeOpener(
+        _FakeResponse(
+            _response(
+                [
+                    {
+                        "index": 0,
+                        "markdown": "![image](shared.html)",
+                        "images": [{"id": "shared.html", "image_base64": PNG_BASE64}],
+                        "tables": [{"id": "shared.html", "content": "<table><tr><td>x</td></tr></table>"}],
+                    }
+                ]
+            )
+        )
+    )
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract(PDF_BYTES, _source_context(1))
+    _assert_one_post(opener)
+    _assert_typed_failure_without_leak(
+        caught, expected_code="PDF_DOCUMENT_AI_TABLE_INVALID"
+    )
 
 
 def test_full_source_carries_only_declared_provider_empty_page_as_evidence() -> None:

@@ -278,6 +278,7 @@ class CanonicalNormalizer:
                     or 1
                 ),
                 int(_location(item).get("line_start") or 0),
+                int(_location(item).get("content_order") or 0),
                 str(item.get("unit_ref") or ""),
             ),
         )
@@ -1493,7 +1494,11 @@ def pdf_source_atom_accounting(
             int(_location(unit).get("page") or 0)
             for unit in source_units
             if str(_location(unit).get("kind") or "")
-            == "document_ai_page_markdown"
+            in {
+                "document_ai_page_markdown",
+                "document_ai_page_markdown_body",
+                "document_ai_native_table_html",
+            }
             and int(_location(unit).get("page") or 0) > 0
         }
         if document_ai_pages:
@@ -1502,7 +1507,10 @@ def pdf_source_atom_accounting(
                 max(0, int(_location(unit).get("line_end") or 0))
                 for unit in source_units
                 if str(_location(unit).get("kind") or "")
-                == "document_ai_page_markdown"
+                in {
+                    "document_ai_page_markdown",
+                    "document_ai_page_markdown_body",
+                }
             )
     page_containers_total = sum(
         item.get("container_type") == "PAGE" for item in containers
@@ -2208,7 +2216,8 @@ def _is_explicit_provider_empty_pdf_page(unit: dict[str, Any]) -> bool:
 
     location = _location(unit)
     return (
-        location.get("kind") == "document_ai_page_markdown"
+        location.get("kind")
+        in {"document_ai_page_markdown", "document_ai_page_markdown_body"}
         and location.get("page_content_disposition") == "provider_empty_page"
         and str(unit.get("text") or "") == ""
         and not (unit.get("rows") or unit.get("cells"))

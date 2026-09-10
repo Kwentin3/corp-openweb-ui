@@ -322,12 +322,15 @@ broker-neutral visual region
 
 `PdfDocumentExtraction` preserves exact UTF-8 Markdown bytes, source and
 Markdown hashes, ordered pages, opaque ArtifactStore image references with hashes,
+opaque provider-native HTML table references with hashes and exact page Markdown anchors,
 provider/model/adapter provenance, qualification status, page usage, and a
 text-free safe technical summary. It does not reconstruct tables, repair
 content, choose financial meaning, or publish Canonical. For every provider
 image, the adapter preserves one ordered association:
 `page_number + markdown_target -> local_ref + sha256`; positional
-reconstruction is forbidden. An absent or unselected engine terminates with
+reconstruction is forbidden. Native tables remain physical page segments:
+Canonical derives header presence only from their native HTML structure and never
+joins page segments or copies a header into a headerless segment. An absent or unselected engine terminates with
 `PDF_DOCUMENT_AI_NOT_CONFIGURED`; a configured Mistral engine is available to
 the ordinary authenticated Pipe route. There is no admin qualification or
 custom intake/action. Native file identity and exact owner reads belong to

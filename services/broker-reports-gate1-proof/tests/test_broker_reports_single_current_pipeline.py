@@ -64,5 +64,7 @@ def test_current_gate1_contract_does_not_advertise_retired_table_routes() -> Non
         if contract.startswith("broker_reports_pdf_")
     } == {
         "broker_reports_pdf_document_ai_v2",
+        "broker_reports_pdf_document_ai_v5",
         "broker_reports_pdf_document_extraction_v4",
+        "broker_reports_pdf_document_extraction_v5",
     }

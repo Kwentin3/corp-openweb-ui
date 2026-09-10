@@ -315,6 +315,10 @@ class FullSourceArtifactBuilder:
         }
         payloads: list[dict[str, Any]] = []
         units: list[dict[str, Any]] = []
+        tables_by_page = {
+            page: [table for table in extraction.table_refs if table.page_number == page]
+            for page in extraction.page_numbers
+        }
         for ordinal, (page, page_bytes, page_sha256) in enumerate(
             zip(
                 extraction.page_numbers,
@@ -334,44 +338,60 @@ class FullSourceArtifactBuilder:
                     else "unclassified_empty_page"
                 )
             )
-            descriptor = {
-                "logical_identity": f"document_ai_markdown_page_{page:03d}",
-                "slice_type": "text_excerpt",
-                "parser": "document_ai_extraction_envelope",
-                "parser_version": extraction.schema_version,
-                "parser_completeness_status": "complete",
-                "parser_completeness_reason_codes": [],
-                "format_reason_codes": ["document_ai_content_not_semantically_parsed"],
-                "format_structural_inventory": {
-                    "page_number": page,
-                    "page_markdown_bytes": len(page_bytes),
-                    "page_markdown_sha256": page_sha256,
-                    "images_count": len(image_refs_by_page[page]),
-                },
-                "source_location": {
-                    "kind": "document_ai_page_markdown",
-                    "page": page,
-                    "line_start": 1,
-                    "line_end": len(text.splitlines()),
-                    "page_content_disposition": page_content_disposition,
-                },
-                "text": text,
-                "document_ai_provenance": provenance,
-                "document_ai_markdown_sha256": extraction.markdown_sha256,
-                "document_ai_image_refs": image_refs_by_page[page],
-            }
-            payload, unit = self._build_descriptor(
-                normalization_run_id=normalization_run_id,
-                document_id=document_id,
-                profile_id=profile_id,
-                source_checksum_sha256=extraction.source_pdf_sha256,
-                container_format="pdf",
-                ordinal=ordinal,
-                descriptor=descriptor,
-            )
-            payloads.append(payload)
-            if unit is not None:
-                units.append(unit)
+            page_tables = tables_by_page[page]
+            if page_tables:
+                descriptors = _document_ai_native_page_descriptors(
+                    page=page,
+                    text=text,
+                    page_bytes=page_bytes,
+                    page_sha256=page_sha256,
+                    page_content_disposition=page_content_disposition,
+                    page_tables=page_tables,
+                    image_refs=image_refs_by_page[page],
+                    provenance=provenance,
+                    markdown_sha256=extraction.markdown_sha256,
+                    parser_version=extraction.schema_version,
+                )
+            else:
+                descriptors = [{
+                    "logical_identity": f"document_ai_markdown_page_{page:03d}",
+                    "slice_type": "text_excerpt",
+                    "parser": "document_ai_extraction_envelope",
+                    "parser_version": extraction.schema_version,
+                    "parser_completeness_status": "complete",
+                    "parser_completeness_reason_codes": [],
+                    "format_reason_codes": ["document_ai_content_not_semantically_parsed"],
+                    "format_structural_inventory": {
+                        "page_number": page,
+                        "page_markdown_bytes": len(page_bytes),
+                        "page_markdown_sha256": page_sha256,
+                        "images_count": len(image_refs_by_page[page]),
+                    },
+                    "source_location": {
+                        "kind": "document_ai_page_markdown",
+                        "page": page,
+                        "line_start": 1,
+                        "line_end": len(text.splitlines()),
+                        "page_content_disposition": page_content_disposition,
+                    },
+                    "text": text,
+                    "document_ai_provenance": provenance,
+                    "document_ai_markdown_sha256": extraction.markdown_sha256,
+                    "document_ai_image_refs": image_refs_by_page[page],
+                }]
+            for segment_ordinal, descriptor in enumerate(descriptors, start=1):
+                payload, unit = self._build_descriptor(
+                    normalization_run_id=normalization_run_id,
+                    document_id=document_id,
+                    profile_id=profile_id,
+                    source_checksum_sha256=extraction.source_pdf_sha256,
+                    container_format="pdf",
+                    ordinal=ordinal * 1000 + segment_ordinal,
+                    descriptor=descriptor,
+                )
+                payloads.append(payload)
+                if unit is not None:
+                    units.append(unit)
         unit_refs = [str(item["unit_ref"]) for item in units]
         for index, unit in enumerate(units):
             unit["remaining_unit_refs"] = unit_refs[index + 1 :]
@@ -397,8 +417,8 @@ class FullSourceArtifactBuilder:
                 "parser_completeness_reason_codes": [],
                 "payloads_total": len(payloads),
                 "extraction_units_total": len(units),
-                "rows_total": 0,
-                "cells_total": 0,
+                "rows_total": sum(int(item.get("rows_total") or 0) for item in payloads),
+                "cells_total": sum(int(item.get("cells_total") or 0) for item in payloads),
                 "text_characters_total": sum(len(page) for page in extraction.page_markdown_bytes),
                 "text_segments_total": 0,
                 "full_coverage_available": bool(units),
@@ -866,6 +886,8 @@ class FullSourceArtifactBuilder:
             "document_ai_provenance",
             "document_ai_markdown_sha256",
             "document_ai_image_refs",
+            "document_ai_native_table_ref",
+            "document_ai_native_table_sha256",
         ):
             if key in descriptor:
                 checksum_material[key] = copy.deepcopy(descriptor[key])
@@ -917,6 +939,8 @@ class FullSourceArtifactBuilder:
             "document_ai_provenance",
             "document_ai_markdown_sha256",
             "document_ai_image_refs",
+            "document_ai_native_table_ref",
+            "document_ai_native_table_sha256",
         ):
             if key in descriptor:
                 payload[key] = copy.deepcopy(descriptor[key])
@@ -1090,6 +1114,177 @@ def validate_full_source_unit(
     }
 
 
+def _document_ai_native_page_descriptors(
+    *,
+    page: int,
+    text: str,
+    page_bytes: bytes,
+    page_sha256: str,
+    page_content_disposition: str,
+    page_tables: list[Any],
+    image_refs: list[dict[str, Any]],
+    provenance: dict[str, Any],
+    markdown_sha256: str,
+    parser_version: str,
+) -> list[dict[str, Any]]:
+    """Split only provider-owned table placeholders; never infer continuations."""
+
+    by_target = {str(table.markdown_target): table for table in page_tables}
+    if len(by_target) != len(page_tables):
+        raise ValueError("pdf_document_ai_native_table_association_duplicate")
+    pattern = re.compile(r"\[[^\]\r\n]*\]\(([^\s)]+)\)")
+    descriptors: list[dict[str, Any]] = []
+    cursor = 0
+    content_order = 0
+    for match in pattern.finditer(text):
+        table = by_target.get(match.group(1))
+        if table is None:
+            continue
+        before = text[cursor : match.start()]
+        if before:
+            content_order += 1
+            descriptors.append(
+                _document_ai_native_text_descriptor(
+                    page=page,
+                    text=before,
+                    content_order=content_order,
+                    page_content_disposition=page_content_disposition,
+                    provenance=provenance,
+                    markdown_sha256=markdown_sha256,
+                    parser_version=parser_version,
+                )
+            )
+        content_order += 1
+        descriptors.append(
+            _document_ai_native_table_descriptor(
+                page=page,
+                table=table,
+                content_order=content_order,
+                provenance=provenance,
+                markdown_sha256=markdown_sha256,
+                parser_version=parser_version,
+            )
+        )
+        cursor = match.end()
+        del by_target[match.group(1)]
+    if by_target:
+        raise ValueError("pdf_document_ai_native_table_anchor_missing")
+    after = text[cursor:]
+    if after:
+        content_order += 1
+        descriptors.append(
+            _document_ai_native_text_descriptor(
+                page=page,
+                text=after,
+                content_order=content_order,
+                page_content_disposition=page_content_disposition,
+                provenance=provenance,
+                markdown_sha256=markdown_sha256,
+                parser_version=parser_version,
+            )
+        )
+    if not descriptors:
+        raise ValueError("pdf_document_ai_native_table_page_empty")
+    descriptors[0]["document_ai_image_refs"] = copy.deepcopy(image_refs)
+    for descriptor in descriptors[1:]:
+        descriptor["document_ai_image_refs"] = []
+    for descriptor in descriptors:
+        inventory = descriptor.setdefault("format_structural_inventory", {})
+        inventory.update(
+            {
+                "page_markdown_bytes": len(page_bytes),
+                "page_markdown_sha256": page_sha256,
+                "page_tables_count": len(page_tables),
+            }
+        )
+    return descriptors
+
+
+def _document_ai_native_text_descriptor(
+    *,
+    page: int,
+    text: str,
+    content_order: int,
+    page_content_disposition: str,
+    provenance: dict[str, Any],
+    markdown_sha256: str,
+    parser_version: str,
+) -> dict[str, Any]:
+    return {
+        "logical_identity": (
+            f"document_ai_markdown_body_page_{page:03d}_{content_order:03d}"
+        ),
+        "slice_type": "text_excerpt",
+        "parser": "document_ai_extraction_envelope",
+        "parser_version": parser_version,
+        "parser_completeness_status": "complete",
+        "parser_completeness_reason_codes": [],
+        "format_reason_codes": ["document_ai_content_not_semantically_parsed"],
+        "format_structural_inventory": {"page_number": page},
+        "source_location": {
+            "kind": "document_ai_page_markdown_body",
+            "page": page,
+            "content_order": content_order,
+            "line_start": 1,
+            "line_end": len(text.splitlines()),
+            "page_content_disposition": page_content_disposition,
+        },
+        "text": text,
+        "document_ai_provenance": copy.deepcopy(provenance),
+        "document_ai_markdown_sha256": markdown_sha256,
+    }
+
+
+def _document_ai_native_table_descriptor(
+    *,
+    page: int,
+    table: Any,
+    content_order: int,
+    provenance: dict[str, Any],
+    markdown_sha256: str,
+    parser_version: str,
+) -> dict[str, Any]:
+    parser = _FullHtmlExtractor(
+        max_media_items=0,
+        max_media_bytes_per_item=0,
+        max_media_bytes_per_document=0,
+    )
+    parser.feed(table.html_bytes.decode("utf-8", errors="strict"))
+    parser.close()
+    if parser.blocking_reason_codes() or len(parser.tables) != 1:
+        raise ValueError("pdf_document_ai_native_table_html_invalid")
+    rows = parser.tables[0]
+    if not rows:
+        raise ValueError("pdf_document_ai_native_table_rows_missing")
+    headers = parser.table_header_row_ordinals[0]
+    return {
+        "logical_identity": f"document_ai_table_page_{page:03d}_{content_order:03d}",
+        "slice_type": "table_rows",
+        "parser": "document_ai_native_table_html",
+        "parser_version": parser_version,
+        "parser_completeness_status": "complete",
+        "parser_completeness_reason_codes": [],
+        "format_reason_codes": ["document_ai_native_table_structure"],
+        "format_structural_inventory": {
+            "page_number": page,
+            "rows_count": len(rows),
+            "structural_header_rows_count": len(headers),
+        },
+        "source_location": {
+            "kind": "document_ai_native_table_html",
+            "page": page,
+            "content_order": content_order,
+            "table_ref": table.local_ref,
+            "structural_header_row_ordinals": list(headers),
+        },
+        "cells": copy.deepcopy(rows),
+        "document_ai_provenance": copy.deepcopy(provenance),
+        "document_ai_markdown_sha256": markdown_sha256,
+        "document_ai_native_table_ref": table.local_ref,
+        "document_ai_native_table_sha256": table.sha256,
+    }
+
+
 class _FullHtmlExtractor(HTMLParser):
     def __init__(
         self,
@@ -1110,10 +1305,14 @@ class _FullHtmlExtractor(HTMLParser):
         self._outside_parts: list[str] = []
         self._ordered_content_blocks: list[dict[str, Any]] = []
         self._current_table: list[list[str]] | None = None
+        self._current_table_header_rows: list[int] | None = None
         self._current_row: list[str] | None = None
+        self._current_row_is_header = False
         self._current_cell: list[str] | None = None
         self._current_caption: list[str] | None = None
         self.tables: list[list[list[str]]] = []
+        self.table_header_row_ordinals: list[list[int]] = []
+        self._thead_depth = 0
         self.script_elements_total = 0
         self.script_characters_total = 0
         self.style_elements_total = 0
@@ -1193,12 +1392,19 @@ class _FullHtmlExtractor(HTMLParser):
             self._table_depth += 1
             if self._table_depth == 1:
                 self._current_table = []
+                self._current_table_header_rows = []
+            return
+        if tag == "thead" and self._table_depth == 1:
+            self._thead_depth += 1
             return
         if tag == "tr" and self._table_depth == 1:
             self._current_row = []
+            self._current_row_is_header = bool(self._thead_depth)
         elif tag == "caption" and self._table_depth == 1:
             self._current_caption = []
         elif tag in {"td", "th"} and self._current_row is not None:
+            if tag == "th":
+                self._current_row_is_header = True
             self._current_cell = []
         elif not self._table_depth and tag in {"br", "p", "div", "li", "section", "h1", "h2", "h3"}:
             self._outside_parts.append("\n")
@@ -1228,11 +1434,20 @@ class _FullHtmlExtractor(HTMLParser):
             if any(cell for cell in self._current_row):
                 assert self._current_table is not None
                 self._current_table.append(self._current_row)
+                if self._current_row_is_header:
+                    assert self._current_table_header_rows is not None
+                    self._current_table_header_rows.append(len(self._current_table))
             self._current_row = None
+            self._current_row_is_header = False
             self._current_cell = None
+        elif tag == "thead" and self._thead_depth:
+            self._thead_depth -= 1
         elif tag == "table" and self._table_depth:
             if self._table_depth == 1 and self._current_table is not None:
                 self.tables.append(self._current_table)
+                self.table_header_row_ordinals.append(
+                    list(self._current_table_header_rows or [])
+                )
                 self._ordered_content_blocks.append(
                     {
                         "kind": "table",
@@ -1254,6 +1469,7 @@ class _FullHtmlExtractor(HTMLParser):
                         block["caption"] = caption
                     self._semantic_blocks.append(block)
                 self._current_table = None
+                self._current_table_header_rows = None
                 self._current_caption = None
             self._table_depth -= 1
         elif not self._table_depth and tag in {"p", "div", "li", "section", "h1", "h2", "h3"}:

@@ -70,6 +70,7 @@ class NormalizedTableProjectionService:
         self.native_builders = {
             "csv": CsvTableProjectionBuilder(config),
             "html": HtmlTableProjectionBuilder(config),
+            "pdf": PdfDocumentAiHtmlTableProjectionBuilder(config),
             "xlsx": XlsxTableProjectionBuilder(config),
             "xml": XmlTableProjectionBuilder(config),
         }
@@ -226,7 +227,8 @@ class _NativeTableProjectionBuilder:
                     "value_checksum_ref": item.get("value_checksum_ref"),
                 }
             )
-        roles = _classify_rows(
+        roles = self._row_roles(
+            source_unit=source_unit,
             row_provenance=row_provenance,
             cells=cells,
             private_values=private_values,
@@ -283,18 +285,40 @@ class _NativeTableProjectionBuilder:
                 table_owned=source_selected,
             ),
             quality=quality,
-            page_refs=[],
+            page_refs=self._page_refs(source_unit),
             sheet_refs=_sheet_refs(source_unit),
             section_refs=[],
             table_bbox_ref=None,
             table_candidate_status=None,
-            reconstruction_strategy="parser_native",
+            reconstruction_strategy=self._reconstruction_strategy(),
             reconstruction_reason_codes=budget_reasons,
         )
         if budget_reasons:
             projection["projection_status"] = "blocked"
             projection["reconstruction_quality"] = "blocked"
         return _finish_projection(_apply_serialized_budget(projection, self.config))
+
+    def _row_roles(
+        self,
+        *,
+        source_unit: dict[str, Any],
+        row_provenance: list[dict[str, Any]],
+        cells: list[dict[str, Any]],
+        private_values: list[dict[str, Any]],
+    ) -> dict[str, str]:
+        del source_unit
+        return _classify_rows(
+            row_provenance=row_provenance,
+            cells=cells,
+            private_values=private_values,
+        )
+
+    def _page_refs(self, source_unit: dict[str, Any]) -> list[str]:
+        del source_unit
+        return []
+
+    def _reconstruction_strategy(self) -> str:
+        return "parser_native"
 
 
 class CsvTableProjectionBuilder(_NativeTableProjectionBuilder):
@@ -303,6 +327,55 @@ class CsvTableProjectionBuilder(_NativeTableProjectionBuilder):
 
 class HtmlTableProjectionBuilder(_NativeTableProjectionBuilder):
     source_format = "html"
+
+
+class PdfDocumentAiHtmlTableProjectionBuilder(_NativeTableProjectionBuilder):
+    """Use only the native HTML header structure declared by Document AI."""
+
+    source_format = "pdf"
+
+    def _row_roles(
+        self,
+        *,
+        source_unit: dict[str, Any],
+        row_provenance: list[dict[str, Any]],
+        cells: list[dict[str, Any]],
+        private_values: list[dict[str, Any]],
+    ) -> dict[str, str]:
+        del cells, private_values
+        location = _object(source_unit.get("source_location"))
+        ordinals = location.get("structural_header_row_ordinals")
+        if (
+            location.get("kind") != "document_ai_native_table_html"
+            or not isinstance(ordinals, list)
+            or any(type(value) is not int or value < 1 for value in ordinals)
+        ):
+            raise ValueError("document_ai_native_table_header_structure_invalid")
+        header_ordinals = set(ordinals)
+        if len(header_ordinals) != len(ordinals) or any(
+            ordinal > len(row_provenance) for ordinal in header_ordinals
+        ):
+            raise ValueError("document_ai_native_table_header_structure_invalid")
+        roles: dict[str, str] = {}
+        for row in row_provenance:
+            row_ref = str(row.get("row_ref") or "")
+            ordinal = int(row.get("row_ordinal") or 0)
+            if ordinal in header_ordinals:
+                roles[row_ref] = "header_row"
+            elif row.get("cell_refs"):
+                roles[row_ref] = "data_row"
+            else:
+                roles[row_ref] = "blank_row"
+        return roles
+
+    def _page_refs(self, source_unit: dict[str, Any]) -> list[str]:
+        page = _object(source_unit.get("source_location")).get("page")
+        if type(page) is not int or page < 1:
+            raise ValueError("document_ai_native_table_page_invalid")
+        return [f"page_{page}"]
+
+    def _reconstruction_strategy(self) -> str:
+        return "provider_native_table_html"
 
 
 class XlsxTableProjectionBuilder(_NativeTableProjectionBuilder):

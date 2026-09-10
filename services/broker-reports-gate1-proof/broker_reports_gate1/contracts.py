@@ -53,6 +53,8 @@ SUPPORTED_CONTRACTS = [
     "full_source_coverage_summary_v0",
     "broker_reports_normalized_table_projection_v0",
     "broker_reports_pdf_document_extraction_v4",
+    "broker_reports_pdf_document_extraction_v5",
+    "broker_reports_pdf_document_ai_v5",
     "broker_reports_pdf_document_ai_v2",
     "broker_reports_table_projection_coverage_v0",
     "broker_reports_table_reconstruction_quality_v0",

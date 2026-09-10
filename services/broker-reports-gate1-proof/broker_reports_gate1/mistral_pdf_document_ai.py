@@ -22,23 +22,26 @@ from .pdf_document_ai import (
     PdfDocumentAiExecutionContract,
     PdfDocumentExtractionError,
     PdfDocumentImageRef,
+    PdfDocumentTableRef,
     PdfSourceContext,
     new_pdf_document_image_ref,
+    new_pdf_document_table_ref,
 )
 
 
 MISTRAL_OCR_MODEL = "mistral-ocr-4-1"
-MISTRAL_OCR_ADAPTER_ID = "mistral_serverless_ocr_adapter_v2"
+MISTRAL_OCR_ADAPTER_ID = "mistral_serverless_ocr_adapter_v3"
 MISTRAL_OCR_PROVIDER_ID = "mistral"
 MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS = (
     "mistral-ocr-4-1",
     "mistral-ocr-4-1-completion",
 )
-MISTRAL_OCR_REQUEST_CONTRACT_VERSION = "mistral_ocr_request_v1"
+MISTRAL_OCR_REQUEST_CONTRACT_VERSION = "mistral_ocr_request_v2"
 MISTRAL_OCR_REQUEST_PARAMETERS = (
     ("document_type", "document_url"),
     ("document_url_media_type", "application/pdf"),
     ("include_image_base64", True),
+    ("table_format", "html"),
 )
 _MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 _MAX_IMAGES = 64
@@ -151,6 +154,7 @@ class MistralPdfDocumentExtractor:
         markdown_parts: list[bytes] = []
         page_content_dispositions: list[str] = []
         encoded_images: list[tuple[int, str, str]] = []
+        table_refs: list[PdfDocumentTableRef] = []
         for expected_index, page in enumerate(pages):
             if not isinstance(page, Mapping):
                 raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
@@ -195,6 +199,41 @@ class MistralPdfDocumentExtractor:
                 raise PdfDocumentExtractionError(
                     "PDF_DOCUMENT_AI_IMAGE_ASSOCIATION_INVALID"
                 )
+            tables = page.get("tables", [])
+            if not isinstance(tables, list):
+                raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_TABLE_INVALID")
+            page_table_ids: list[str] = []
+            markdown_link_targets = re.findall(
+                r"\[[^\]\r\n]*\]\(([^\s)]+)\)", markdown
+            )
+            for table in tables:
+                if not isinstance(table, Mapping):
+                    raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_TABLE_INVALID")
+                table_id = table.get("id")
+                html = table.get("content")
+                if (
+                    not isinstance(table_id, str)
+                    or not re.fullmatch(r"[A-Za-z0-9._-]{1,255}", table_id)
+                    or table_id in page_table_ids
+                    or table_id in page_image_ids
+                    or not isinstance(html, str)
+                ):
+                    raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_TABLE_INVALID")
+                html_bytes = html.encode("utf-8", errors="strict")
+                if not html_bytes or markdown_link_targets.count(table_id) != 1:
+                    raise PdfDocumentExtractionError(
+                        "PDF_DOCUMENT_AI_TABLE_ASSOCIATION_INVALID"
+                    )
+                page_table_ids.append(table_id)
+                table_refs.append(
+                    PdfDocumentTableRef(
+                        page_number=expected_index + 1,
+                        markdown_target=table_id,
+                        local_ref=new_pdf_document_table_ref(),
+                        sha256=hashlib.sha256(html_bytes).hexdigest(),
+                        html_bytes=html_bytes,
+                    )
+                )
 
         usage = response.get("usage_info")
         if not isinstance(usage, Mapping) or type(usage.get("pages_processed")) is not int:
@@ -232,12 +271,14 @@ class MistralPdfDocumentExtractor:
             qualification_status=self._qualification_status,
             usage_page_count=usage_page_count,
             page_markdown_bytes=tuple(markdown_parts),
+            table_refs=tuple(table_refs),
             page_content_dispositions=tuple(page_content_dispositions),
             safe_technical_summary=(
                 ("document_bytes", len(pdf_bytes)),
                 ("images_count", len(image_refs)),
                 ("markdown_bytes", len(markdown_bytes)),
                 ("pages_count", usage_page_count),
+                ("tables_count", len(table_refs)),
             ),
         )
 
@@ -254,6 +295,7 @@ class MistralPdfDocumentExtractor:
                     ),
                 },
                 "include_image_base64": parameters["include_image_base64"],
+                "table_format": parameters["table_format"],
             },
             ensure_ascii=True,
             separators=(",", ":"),
