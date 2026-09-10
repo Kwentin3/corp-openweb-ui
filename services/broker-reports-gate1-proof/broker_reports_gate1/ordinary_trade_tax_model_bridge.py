@@ -85,10 +85,10 @@ class OrdinaryTradeTaxModelBridgeRuntimeFactory:
         self._retention_policy = retention_policy
 
     def create(self) -> "OrdinaryTradeTaxModelBridgeRuntime":
-        source_fact_consumption = OrdinaryTradeCandidateRuntimeFactory(
+        current_fact_set, source_fact_consumption = OrdinaryTradeCandidateRuntimeFactory(
             store=self._store,
             read_enabled=self._read_enabled,
-        ).create()
+        ).create_with_current_fact_set()
         operation_tax_model = Gate5SecuritiesDisposalTaxModelRuntimeFactory(
             store=self._store,
             read_enabled=self._read_enabled,
@@ -98,6 +98,7 @@ class OrdinaryTradeTaxModelBridgeRuntimeFactory:
         )
         return OrdinaryTradeTaxModelBridgeRuntime(
             current_facts=source_fact_consumption,
+            current_fact_set=current_fact_set,
             operation_tax_model=operation_tax_model,
             category_aggregation=(
                 Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
@@ -112,8 +113,10 @@ class OrdinaryTradeTaxModelBridgeRuntime:
         current_facts: Any,
         operation_tax_model: Gate5SecuritiesDisposalTaxModelRuntime,
         category_aggregation: Gate5TaxPeriodCategoryAggregationRuntime,
+        current_fact_set: Any = None,
     ) -> None:
         self._current_facts = current_facts
+        self._current_fact_set = current_fact_set
         self._operation_tax_model = operation_tax_model
         self._category_aggregation = category_aggregation
 
@@ -138,6 +141,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
         operation_set: dict[str, Any] | None = None
         validated_taxpayer_binding: dict[str, Any] | None = None
         try:
+            initial_fact_set = self._ready_fact_set(context=context)
             pinned_consumption = self._current_consumption_snapshot(
                 source_fact_methodology_ref=source_fact_methodology_ref,
                 context=context,
@@ -151,6 +155,8 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 source_fact_consumption_sha256=pinned_consumption_sha256,
                 context=context,
             )
+            operation_set["current_fact_set_snapshot"] = initial_fact_set
+            operation_set["current_fact_set_sha256"] = _sha256_json(initial_fact_set)
             if taxpayer_binding is None:
                 return _operation_set_blocked(
                     reason_code="gate5_tax_model_bridge_taxpayer_binding_missing",
@@ -293,6 +299,12 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 members=members,
                 completeness_evidence=completeness_evidence,
             )
+            final_fact_set = self._ready_fact_set(context=context)
+            if final_fact_set != initial_fact_set:
+                raise Gate5TaxPeriodCategoryAggregationError(
+                    "ordinary_trade_tax_model_bridge_current_fact_set_changed"
+                )
+            operation_set["final_current_fact_set_sha256"] = _sha256_json(final_fact_set)
         except Gate5DeterministicSourceFactConsumptionError as exc:
             return _operation_set_blocked(
                 reason_code=exc.code,
@@ -343,6 +355,23 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 context=context,
             ),
         )
+
+    def _ready_fact_set(self, *, context: ArtifactAccessContext) -> dict[str, Any]:
+        if self._current_fact_set is None:
+            raise Gate5TaxPeriodCategoryAggregationError(
+                "ordinary_trade_tax_model_bridge_current_fact_set_required"
+            )
+        snapshot = self._current_fact_set.current_fact_set(context=context)
+        if (
+            not isinstance(snapshot, dict)
+            or snapshot.get("status") != "READY"
+            or snapshot.get("blockers") != []
+            or not isinstance(snapshot.get("facts"), list)
+        ):
+            raise Gate5TaxPeriodCategoryAggregationError(
+                "ordinary_trade_tax_model_bridge_current_fact_set_not_ready"
+            )
+        return copy.deepcopy(snapshot)
 
     def _current_disposal_fact_ids(
         self,

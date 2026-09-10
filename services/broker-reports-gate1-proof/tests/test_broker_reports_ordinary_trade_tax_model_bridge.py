@@ -696,6 +696,12 @@ def test_current_case_operation_set_aggregates_every_disposal_exactly_once(
     assert preflight["operation_results"] == []
     assert preflight["category_result"] is None
     assert completed["status"] == "proven"
+    fact_set = runtime._current_fact_set.current_fact_set(context=context)
+    receipt = completed["operation_set"]
+    assert receipt["current_fact_set_snapshot"] == fact_set
+    assert fact_set["status"] == "READY"
+    assert fact_set["blockers"] == []
+    assert receipt["current_fact_set_sha256"] == receipt["final_current_fact_set_sha256"]
     assert completed["terminal"] == (
         ACTIVE_FACT_V2_OPERATION_SET_TO_CATEGORY_TAX_MODEL_PROVEN
     )
@@ -709,6 +715,68 @@ def test_current_case_operation_set_aggregates_every_disposal_exactly_once(
     ]
     assert len(completed["demands"]) == len(expected_ids)
     assert completed["execution_constraints"]["declaration_projection"] is False
+
+
+def test_operation_set_blocks_incomplete_row_beside_valid_operations(tmp_path: Path) -> None:
+    rows = (*_two_disposal_rows(), _with_roles(_row(side=_DISPOSAL_SIDE), gross_amount=""))
+    store, context, _facts = _case(tmp_path / "incomplete-extra-row", rows=rows)
+    runtime = _runtime(store)
+    projections = runtime._current_fact_set._projections
+
+    class RecognizedIncompleteProjection:
+        def current_case(self, **kwargs):
+            results = []
+            for record, original in projections.current_case(**kwargs):
+                projection = copy.deepcopy(original)
+                for observation in projection["source_observations"]:
+                    if observation["disposition"] == "RELEVANT_UNMAPPED":
+                        observation["disposition"] = "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
+                        observation["reason_code"] = "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
+                results.append((record, projection))
+            return results
+
+    runtime._current_fact_set._projections = RecognizedIncompleteProjection()
+    source = runtime._current_fact_set.current_fact_set(context=context)
+    assert source["facts"]
+    assert source["status"] == "SOURCE_ROLE_INCOMPLETE"
+    result = _run_operation_set(runtime, context=context, completeness_evidence=None)
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "ordinary_trade_tax_model_bridge_current_fact_set_not_ready"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
+
+
+@pytest.mark.parametrize("change", ["status", "facts"])
+def test_operation_set_blocks_changed_final_ready_snapshot(tmp_path: Path, change: str) -> None:
+    store, context, _facts = _case(tmp_path / change, rows=_two_disposal_rows())
+    runtime = _runtime(store)
+    original = runtime._current_fact_set
+
+    class ChangedFactSet:
+        reads = 0
+
+        def current_fact_set(self, **kwargs):
+            self.reads += 1
+            result = copy.deepcopy(original.current_fact_set(**kwargs))
+            if self.reads > 1:
+                if change == "status":
+                    result["status"] = "SOURCE_ROLE_INCOMPLETE"
+                else:
+                    result["facts"] = result["facts"][:-1]
+            return result
+
+    runtime._current_fact_set = ChangedFactSet()
+    result = _run_operation_set(runtime, context=context, completeness_evidence=None)
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "ordinary_trade_tax_model_bridge_current_fact_set_not_ready"
+        if change == "status"
+        else "ordinary_trade_tax_model_bridge_current_fact_set_changed"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
 
 
 def test_operation_set_incomplete_member_never_returns_partial_models(
