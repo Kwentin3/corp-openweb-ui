@@ -59,7 +59,15 @@ class InspectOfficeDocumentRequest(NativeDocxReference):
 
 class ApplyOfficeBatchRequest(NativeDocxReference):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    commands: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=64,
+        description=(
+            "Official OfficeCLI batch items. Each item has a bare verb in command and its "
+            "arguments as sibling fields, for example command=set with path and props. "
+            "Obtain the exact command details from OfficeCLI help before calling."
+        ),
+    )
 
     @field_validator("output_name")
     @classmethod
@@ -155,14 +163,24 @@ def create_app(
     def healthz() -> dict[str, str]:
         return {"status": "ok", "officecli_version": active_settings.expected_version}
 
-    @app.post("/v1/officecli/skills/load", response_model=GuidanceResponse, operation_id="load_officecli_skill")
+    @app.post(
+        "/v1/officecli/skills/load",
+        response_model=GuidanceResponse,
+        operation_id="load_officecli_skill",
+        description="Load the installed official OfficeCLI DOCX skill before planning DOCX work.",
+    )
     def load_officecli_skill(
         request: SkillRequest,
         authorization: Annotated[str | None, Header()] = None,
     ) -> GuidanceResponse:
         return guidance_response_for(authorization, "load_skill", request.skill)
 
-    @app.post("/v1/officecli/help", response_model=GuidanceResponse, operation_id="get_officecli_help")
+    @app.post(
+        "/v1/officecli/help",
+        response_model=GuidanceResponse,
+        operation_id="get_officecli_help",
+        description="Read installed OfficeCLI help for an allowed DOCX topic; do not guess command syntax.",
+    )
     def get_officecli_help(
         request: HelpRequest,
         authorization: Annotated[str | None, Header()] = None,
@@ -173,6 +191,10 @@ def create_app(
         "/v1/officecli/documents/inspect",
         response_model=InspectionResponse,
         operation_id="inspect_office_document",
+        description=(
+            "Read the nearest DOCX attachment from the native current-message ancestry and return "
+            "official annotated OfficeCLI output. Use its exact paragraph path to plan an edit."
+        ),
     )
     def inspect_office_document(
         request: InspectOfficeDocumentRequest,
@@ -205,6 +227,12 @@ def create_app(
         "/v1/officecli/documents/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_batch",
+        description=(
+            "Complete a requested DOCX edit after inspection: apply official OfficeCLI batch items to "
+            "the nearest native DOCX attachment, validate it, and attach the resulting DOCX to this "
+            "assistant message. Omit file_id rather than guessing it. This is the final execution "
+            "operation; do not replace it with a textual explanation."
+        ),
     )
     def apply_office_batch(
         request: ApplyOfficeBatchRequest,

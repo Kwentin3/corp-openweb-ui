@@ -100,6 +100,12 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "inspect_office_document",
         "apply_office_batch",
     }
+    assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
+        "description"
+    ]
+    assert "bare verb" in schema["components"]["schemas"]["ApplyOfficeBatchRequest"]["properties"][
+        "commands"
+    ]["description"]
 
 
 def test_help_uses_only_a_whitelisted_official_topic() -> None:
