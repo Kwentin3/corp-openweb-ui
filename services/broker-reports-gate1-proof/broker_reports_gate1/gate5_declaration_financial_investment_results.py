@@ -8,7 +8,11 @@ import json
 import re
 from typing import Any
 
+from .gate5_operation_set_demand_derivation import (
+    derive_operation_set_demands_from_sealed_scope,
+)
 from .gate5_tax_period_category_aggregation import (
+    GATE5_TAX_PERIOD_CATEGORY_SCOPE_BINDING_SCHEMA_VERSION,
     Gate5TaxPeriodCategoryAggregationRuntime,
     Gate5TaxPeriodCategoryAggregationRuntimeFactory,
 )
@@ -110,6 +114,9 @@ _CATEGORY_RESULT_KEYS = frozenset(
         "completeness",
         "category_tax_model",
     }
+)
+_CATEGORY_SCOPE_BINDING_KEYS = frozenset(
+    {"schema_version", "scope", "members", "scope_binding_sha256"}
 )
 _COMPONENT_KEYS = frozenset(
     {
@@ -371,7 +378,6 @@ class Gate5DeclarationFinancialInvestmentResultsRuntime:
             or value.get("status") != "proven"
             or value.get("terminal") != _OPERATION_SET_TERMINAL
             or value.get("blockers") != []
-            or value.get("demands") != []
             or value.get("execution_constraints") != _OPERATION_SET_CONSTRAINTS
         ):
             _fail("gate5_financial_investment_operation_set_invalid")
@@ -448,6 +454,7 @@ class Gate5DeclarationFinancialInvestmentResultsRuntime:
         ):
             _fail("gate5_financial_investment_operation_set_members_invalid")
         expected_members = []
+        category_members = []
         for disposal_fact_id, operation_ref, result in zip(
             disposal_ids, operation_refs, operation_results, strict=True
         ):
@@ -491,6 +498,13 @@ class Gate5DeclarationFinancialInvestmentResultsRuntime:
                     "operation_model_sha256": _canonical_sha256(model),
                 }
             )
+            category_members.append(
+                {
+                    "operation_ref": operation_ref,
+                    "source_scope_ref": scope["case_id"],
+                    "tax_model": model,
+                }
+            )
         category_result = value.get("category_result")
         scope_binding = operation_set.get("scope_binding")
         if (
@@ -499,7 +513,21 @@ class Gate5DeclarationFinancialInvestmentResultsRuntime:
             or category_result.get("status") != "complete"
             or category_result.get("scope_binding") != scope_binding
             or not isinstance(scope_binding, dict)
+            or set(scope_binding) != _CATEGORY_SCOPE_BINDING_KEYS
+            or scope_binding.get("schema_version")
+            != GATE5_TAX_PERIOD_CATEGORY_SCOPE_BINDING_SCHEMA_VERSION
+            or not isinstance(scope_binding.get("scope"), dict)
             or scope_binding.get("members") != expected_members
+            or _SHA256.fullmatch(scope_binding.get("scope_binding_sha256", ""))
+            is None
+            or scope_binding["scope_binding_sha256"]
+            != _canonical_sha256(
+                {
+                    key: copy.deepcopy(item)
+                    for key, item in scope_binding.items()
+                    if key != "scope_binding_sha256"
+                }
+            )
             or not isinstance(category_result.get("category_tax_model"), dict)
         ):
             _fail("gate5_financial_investment_operation_set_members_invalid")
@@ -519,6 +547,29 @@ class Gate5DeclarationFinancialInvestmentResultsRuntime:
             or category.get("member_operations") != expected_members
         ):
             _fail("gate5_financial_investment_operation_set_scope_mismatch")
+        try:
+            rebuilt_category_result = self._category_runtime.run_tax_model(
+                scope=scope_binding["scope"],
+                members=category_members,
+                completeness_evidence=category_result["completeness"],
+            )
+        except ValueError as exc:
+            raise Gate5DeclarationFinancialInvestmentResultsError(
+                "gate5_financial_investment_operation_set_category_invalid"
+            ) from exc
+        if rebuilt_category_result != category_result:
+            _fail("gate5_financial_investment_operation_set_category_invalid")
+        try:
+            expected_demands = derive_operation_set_demands_from_sealed_scope(
+                operation_results=operation_results,
+                scope_binding=scope,
+            )
+        except ValueError as exc:
+            raise Gate5DeclarationFinancialInvestmentResultsError(
+                "gate5_financial_investment_operation_set_invalid"
+            ) from exc
+        if value.get("demands") != expected_demands or expected_demands:
+            _fail("gate5_financial_investment_operation_set_invalid")
         return category
 
 

@@ -309,6 +309,88 @@ def test_operation_set_input_v1_rejects_self_consistent_subset_of_snapshot_dispo
     assert exc_info.value.code == "gate5_financial_investment_operation_set_invalid"
 
 
+def test_operation_set_input_v1_rebuilds_category_from_unchanged_operation_models(
+    tmp_path: Path,
+) -> None:
+    operation_set, scope = _proven_operation_set(tmp_path)
+    value = _operation_set_input(operation_set, scope)
+    category_result = value["operation_set_result"]["category_result"]
+    for aggregate in (
+        category_result["known_values"]["gross_income"],
+        category_result["category_tax_model"]["category_gross_income"],
+    ):
+        aggregate["value"]["amount"] = "121.00"
+        aggregate["derivation"]["contributions"][0]["value"]["amount"] = "61.00"
+
+    with pytest.raises(Gate5DeclarationFinancialInvestmentResultsError) as exc_info:
+        Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+            component_input=value
+        )
+
+    assert exc_info.value.code == "gate5_financial_investment_operation_set_category_invalid"
+
+
+def test_operation_set_input_v1_rejects_resealed_scope_binding_without_scope(
+    tmp_path: Path,
+) -> None:
+    operation_set, scope = _proven_operation_set(tmp_path)
+    value = _operation_set_input(operation_set, scope)
+    scope_binding = value["operation_set_result"]["operation_set"]["scope_binding"]
+    scope_binding.pop("scope")
+    scope_binding["scope_binding_sha256"] = _sha256(
+        {
+            key: item
+            for key, item in scope_binding.items()
+            if key != "scope_binding_sha256"
+        }
+    )
+    value["operation_set_result"]["category_result"]["scope_binding"] = (
+        copy.deepcopy(scope_binding)
+    )
+
+    with pytest.raises(Gate5DeclarationFinancialInvestmentResultsError) as exc_info:
+        Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+            component_input=value
+        )
+
+    assert exc_info.value.code == "gate5_financial_investment_operation_set_members_invalid"
+
+
+def test_operation_set_input_v1_rejects_erased_real_acquisition_commission_demand(
+    tmp_path: Path,
+) -> None:
+    store, context, _facts = bridge_fixtures._case(
+        tmp_path,
+        rows=bridge_fixtures._two_disposal_rows(),
+    )
+    runtime = bridge_fixtures._runtime(store)
+    preflight = bridge_fixtures._run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+    operation_set = bridge_fixtures._run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=bridge_fixtures._completeness(
+            preflight["operation_set"]["scope_binding"]["scope_binding_sha256"]
+        ),
+    )
+    assert operation_set["demands"]
+    assert operation_set["demands"][0]["required_input"] == (
+        "partial_acquisition_commission_allocation"
+    )
+    value = _operation_set_input(operation_set, _operation_set_scope(context))
+    value["operation_set_result"]["demands"] = []
+
+    with pytest.raises(Gate5DeclarationFinancialInvestmentResultsError) as exc_info:
+        Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+            component_input=value
+        )
+
+    assert exc_info.value.code == "gate5_financial_investment_operation_set_invalid"
+
+
 def test_factory_source_reuses_category_owner_and_has_no_hidden_authority() -> None:
     source = inspect.getsource(module)
     imports = {
