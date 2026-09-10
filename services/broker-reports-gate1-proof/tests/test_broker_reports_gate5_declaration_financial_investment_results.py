@@ -24,12 +24,16 @@ from broker_reports_gate1.gate5_declaration_financial_investment_results import 
 from broker_reports_gate1.gate5_declaration_scope_resolution import (
     GATE5_DECLARATION_SCOPE_COMPONENT_EVIDENCE_SCHEMA_VERSION,
 )
+from broker_reports_gate1.gate5_tax_period_category_aggregation import (
+    Gate5TaxPeriodCategoryAggregationRuntimeFactory,
+)
 import test_broker_reports_gate5_declaration_budget_outcome as budget_fixtures
 import test_broker_reports_gate5_declaration_income_sources as source_fixtures
 import test_broker_reports_gate5_declaration_scope_resolution as scope_fixtures
 import test_broker_reports_gate5_declaration_tax_settlement as income_fixtures
 import test_broker_reports_gate5_filing_and_party_identity as filing_fixtures
 import test_broker_reports_gate5_resolved_declaration_package as package_fixtures
+import test_broker_reports_ordinary_trade_tax_model_bridge as bridge_fixtures
 
 
 def test_exact_component_resolves_only_activated_supplied_case_obligation(
@@ -160,6 +164,151 @@ def test_completeness_or_category_tamper_fails_closed(
     assert exc_info.value.code == "gate5_financial_investment_component_mismatch"
 
 
+def test_operation_set_input_v1_derives_one_existing_component_from_two_operations(
+    tmp_path: Path,
+) -> None:
+    operation_set, scope = _proven_operation_set(tmp_path)
+
+    component = Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+        component_input=_operation_set_input(operation_set, scope)
+    )
+
+    assert component["schema_version"] == (
+        GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPONENT_SCHEMA_VERSION
+    )
+    assert component["input_snapshot"]["schema_version"] == (
+        "broker_reports_gate5_financial_investment_results_input_v1"
+    )
+    assert "category_tax_models" not in component["input_snapshot"]
+    assert component["category_tax_models"] == [
+        operation_set["category_result"]["category_tax_model"]
+    ]
+    assert len(operation_set["operation_results"]) == 2
+
+
+def test_v0_input_remains_the_existing_component_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _store, _context, _operation, receipt, tax_base = income_fixtures._proof_models(
+        tmp_path, monkeypatch
+    )
+    value = _input(receipt["scope_binding"], tax_base["input_snapshot"]["category_tax_model"])
+
+    component = Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+        component_input=value
+    )
+
+    assert component["schema_version"] == (
+        GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPONENT_SCHEMA_VERSION
+    )
+    assert component["input_snapshot"] == value
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        ("omitted", "gate5_financial_investment_operation_set_members_invalid"),
+        ("extra", "gate5_financial_investment_operation_set_members_invalid"),
+        ("foreign", "gate5_financial_investment_operation_set_scope_mismatch"),
+        ("case", "gate5_financial_investment_operation_set_scope_mismatch"),
+        ("scope", "gate5_financial_investment_operation_set_scope_mismatch"),
+        (
+            "consumption_hash",
+            "gate5_financial_investment_operation_set_members_invalid",
+        ),
+        ("member", "gate5_financial_investment_operation_set_members_invalid"),
+        ("demands", "gate5_financial_investment_operation_set_invalid"),
+        (
+            "current_not_ready",
+            "gate5_financial_investment_operation_set_current_fact_invalid",
+        ),
+        ("raw_category", "gate5_financial_investment_operation_set_input_invalid"),
+    ],
+)
+def test_operation_set_input_v1_rejects_unbound_or_incomplete_bridge_material(
+    tmp_path: Path,
+    mutation: str,
+    expected_code: str,
+) -> None:
+    operation_set, scope = _proven_operation_set(tmp_path / mutation)
+    value = _operation_set_input(operation_set, scope)
+    receipt = value["operation_set_result"]
+    if mutation == "omitted":
+        receipt["operation_results"] = receipt["operation_results"][:-1]
+    elif mutation == "extra":
+        receipt["operation_results"].append(
+            copy.deepcopy(receipt["operation_results"][0])
+        )
+    elif mutation == "foreign":
+        receipt["taxpayer_binding"]["taxpayer_scope_ref"] = "foreign-taxpayer"
+    elif mutation == "case":
+        value["scope_binding"]["case_id"] = "foreign-case"
+        value["scope_binding"] = _reseal_scope(value["scope_binding"])
+    elif mutation == "scope":
+        value["scope_binding"]["taxpayer_scope_ref"] = "foreign-taxpayer"
+        value["scope_binding"] = _reseal_scope(value["scope_binding"])
+    elif mutation == "consumption_hash":
+        receipt["operation_set"]["source_fact_consumption_sha256"] = "0" * 64
+    elif mutation == "member":
+        receipt["category_result"]["scope_binding"]["members"] = []
+    elif mutation == "demands":
+        receipt["demands"] = [{"required_input": "forbidden-demand"}]
+    elif mutation == "current_not_ready":
+        receipt["operation_set"]["current_fact_set_snapshot"]["status"] = (
+            "SOURCE_ROLE_INCOMPLETE"
+        )
+    else:
+        value["category_tax_models"] = [
+            copy.deepcopy(receipt["category_result"]["category_tax_model"])
+        ]
+
+    with pytest.raises(Gate5DeclarationFinancialInvestmentResultsError) as exc_info:
+        Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+            component_input=value
+        )
+    assert exc_info.value.code == expected_code
+
+
+def test_operation_set_input_v1_rejects_self_consistent_subset_of_snapshot_disposals(
+    tmp_path: Path,
+) -> None:
+    operation_set, scope = _proven_operation_set(tmp_path)
+    value = _operation_set_input(operation_set, scope)
+    receipt = value["operation_set_result"]
+    operation = receipt["operation_results"][0]
+    category_runtime = Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
+    category_scope = receipt["operation_set"]["scope_binding"]["scope"]
+    members = [
+        {
+            "operation_ref": operation["operation_ref"],
+            "source_scope_ref": scope["case_id"],
+            "tax_model": copy.deepcopy(operation["operation_result"]["tax_model"]),
+        }
+    ]
+    binding = category_runtime.describe_scope(scope=category_scope, members=members)
+    completeness = copy.deepcopy(receipt["category_result"]["completeness"])
+    completeness["scope_binding_sha256"] = binding["scope_binding_sha256"]
+    receipt["category_result"] = category_runtime.run_tax_model(
+        scope=category_scope,
+        members=members,
+        completeness_evidence=completeness,
+    )
+    receipt["operation_results"] = [operation]
+    receipt["operation_set"]["disposal_fact_ids"] = [operation["disposal_fact_id"]]
+    receipt["operation_set"]["operation_refs"] = [operation["operation_ref"]]
+    receipt["operation_set"]["disposal_fact_ids_sha256"] = _sha256(
+        receipt["operation_set"]["disposal_fact_ids"]
+    )
+    receipt["operation_set"]["scope_binding"] = binding
+
+    with pytest.raises(Gate5DeclarationFinancialInvestmentResultsError) as exc_info:
+        Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+            component_input=value
+        )
+    assert exc_info.value.code == "gate5_financial_investment_operation_set_invalid"
+
+
 def test_factory_source_reuses_category_owner_and_has_no_hidden_authority() -> None:
     source = inspect.getsource(module)
     imports = {
@@ -226,6 +375,65 @@ def _input(scope_binding: dict, category: dict) -> dict:
             },
         },
     }
+
+
+def _proven_operation_set(tmp_path: Path) -> tuple[dict, dict]:
+    rows = list(bridge_fixtures._two_disposal_rows())
+    for position in (1, 3):
+        rows[position] = bridge_fixtures._with_roles(
+            rows[position],
+            broker_commission="",
+            exchange_commission="",
+        )
+    store, context, _facts = bridge_fixtures._case(
+        tmp_path,
+        rows=tuple(rows),
+    )
+    runtime = bridge_fixtures._runtime(store)
+    preflight = bridge_fixtures._run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+    completed = bridge_fixtures._run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=bridge_fixtures._completeness(
+            preflight["operation_set"]["scope_binding"]["scope_binding_sha256"]
+        ),
+    )
+    assert completed["status"] == "proven"
+    assert completed["demands"] == []
+    return completed, _operation_set_scope(context)
+
+
+def _operation_set_scope(context) -> dict:
+    return _reseal_scope(
+        {
+            "schema_version": "broker_reports_gate5_supplied_case_scope_v0",
+            "scope_ref": "financial-investment-operation-set-2025",
+            "taxpayer_scope_ref": "synthetic-taxpayer-control",
+            "tax_period": "2025",
+            "authenticated_user_ref": context.user_id,
+            "case_id": context.case_id,
+            "normalization_run_ref": context.normalization_run_id,
+        }
+    )
+
+
+def _operation_set_input(operation_set: dict, scope: dict) -> dict:
+    category = operation_set["category_result"]["category_tax_model"]
+    return {
+        "schema_version": "broker_reports_gate5_financial_investment_results_input_v1",
+        "scope_binding": copy.deepcopy(scope),
+        "operation_set_result": copy.deepcopy(operation_set),
+        "completeness_evidence": copy.deepcopy(_input(scope, category)["completeness_evidence"]),
+    }
+
+
+def _reseal_scope(scope: dict) -> dict:
+    base = {key: copy.deepcopy(value) for key, value in scope.items() if key != "scope_binding_sha256"}
+    return {**base, "scope_binding_sha256": _sha256(base)}
 
 
 def _sha256(value) -> str:
