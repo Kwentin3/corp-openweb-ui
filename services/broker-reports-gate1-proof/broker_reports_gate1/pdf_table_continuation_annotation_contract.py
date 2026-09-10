@@ -14,16 +14,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-PROMPT_CONTRACT_ID = "broker_reports_pdf_table_continuation_annotation_prompt_v1"
-PROMPT_TEMPLATE_ID = "broker_reports.pdf_table_continuation_annotation.v1"
+PROMPT_CONTRACT_ID = "broker_reports_pdf_table_continuation_annotation_prompt_v2"
+PROMPT_TEMPLATE_ID = "broker_reports.pdf_table_continuation_annotation.v2"
 PROMPT_TEMPLATE_KIND = "broker_reports_pdf_table_continuation_annotation"
-PROMPT_COMMAND = "broker_pdf_table_continuation_annotation_v1"
+PROMPT_COMMAND = "broker_pdf_table_continuation_annotation_v2"
 PROMPT_REQUIRED_TAG = "broker-reports-pdf-table-continuation"
 INPUT_SCHEMA_VERSION = "broker_reports_pdf_document_annotation_input_v1"
-OUTPUT_SCHEMA_ID = "mistral_ocr_table_continuation_annotation_v2"
+OUTPUT_SCHEMA_ID = "mistral_ocr_table_continuation_annotation_v3"
 OUTPUT_SCHEMA_VERSION = OUTPUT_SCHEMA_ID
 PROMPT_SNAPSHOT_SCHEMA_VERSION = (
-    "broker_reports_pdf_table_continuation_annotation_prompt_snapshot_v1"
+    "broker_reports_pdf_table_continuation_annotation_prompt_snapshot_v2"
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _EXECUTION_ISSUER = object()

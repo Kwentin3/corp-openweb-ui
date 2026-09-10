@@ -79,12 +79,12 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
 
 
 def test_physical_table_prompt_pin_projects_only_its_four_release_valves():
-    pin = {**_PIN, "prompt_command": "broker_pdf_table_continuation_annotation_v1"}
+    pin = {**_PIN, "prompt_command": "broker_pdf_table_continuation_annotation_v2"}
 
     assert release._pdf_table_continuation_annotation_prompt_valves(pin) == {
         "pdf_table_continuation_annotation_prompt_id": "prompt-1",
         "pdf_table_continuation_annotation_prompt_command": (
-            "broker_pdf_table_continuation_annotation_v1"
+            "broker_pdf_table_continuation_annotation_v2"
         ),
         "pdf_table_continuation_annotation_prompt_version": "history-1",
         "pdf_table_continuation_annotation_prompt_hash": "a" * 64,
@@ -270,7 +270,7 @@ def test_post_remote_prompt_readback_cleans_fresh_staging_after_failure(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
-        "pdf_table_continuation_annotation_v1",
+        "pdf_table_continuation_annotation_v2",
     ],
 )
 def test_host_profile_selector_is_closed_and_reaches_only_native_runner(
@@ -326,5 +326,5 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     assert "OrdinaryTradeMappingPromptPublisher" in container_source
     assert "from open_webui.models.prompt_history" not in container_source
     assert '"ordinary_trade_mapping_v15"' in container_source
-    assert "pdf_table_continuation_annotation_v1" in container._PROFILE_IDS
-    assert "pdf_table_continuation_annotation_v1" in host._PROFILE_IDS
+    assert "pdf_table_continuation_annotation_v2" in container._PROFILE_IDS
+    assert "pdf_table_continuation_annotation_v2" in host._PROFILE_IDS

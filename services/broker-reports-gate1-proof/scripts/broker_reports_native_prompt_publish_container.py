@@ -27,7 +27,7 @@ _PROFILE_IDS = frozenset(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
-        "pdf_table_continuation_annotation_v1",
+        "pdf_table_continuation_annotation_v2",
     }
 )
 
@@ -69,7 +69,7 @@ async def _run(
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE,
-        PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE,
+        PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE,
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         OrdinaryTradeMappingPromptPublication,
         OrdinaryTradeMappingPromptPublisher,
@@ -81,7 +81,7 @@ async def _run(
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE.profile_id: GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V15_PROFILE,
-        PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE.profile_id: PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE,
+        PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE.profile_id: PDF_TABLE_CONTINUATION_ANNOTATION_V2_PROFILE,
     }
     profile = profiles.get(profile_id)
     if profile is None:

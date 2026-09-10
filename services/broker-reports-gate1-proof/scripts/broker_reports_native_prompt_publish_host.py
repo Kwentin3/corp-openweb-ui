@@ -25,7 +25,7 @@ _PROFILE_IDS = frozenset(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
-        "pdf_table_continuation_annotation_v1",
+        "pdf_table_continuation_annotation_v2",
     }
 )
 

@@ -327,11 +327,11 @@ def test_native_table_continuation_annotation_is_bound_to_one_selected_source_sl
                 {
                     "parent": {
                         "selected_page_position": 0,
-                        "table_ordinal": 1,
+                        "markdown_table_target": "page-4-table.html",
                     },
                     "child": {
                         "selected_page_position": 1,
-                        "table_ordinal": 1,
+                        "markdown_table_target": "page-5-table.html",
                     },
                 }
             ]
@@ -383,7 +383,7 @@ def test_native_table_continuation_annotation_is_bound_to_one_selected_source_sl
     )
     assert (
         MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION
-        == "mistral_ocr_table_continuation_annotation_v2"
+        == "mistral_ocr_table_continuation_annotation_v3"
     )
     serialized_schema = json.dumps(
         MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA,
@@ -391,8 +391,8 @@ def test_native_table_continuation_annotation_is_bound_to_one_selected_source_sl
         sort_keys=True,
     )
     assert '"selected_page_position"' in serialized_schema
-    assert '"table_ordinal"' in serialized_schema
-    assert '"table_id"' not in serialized_schema
+    assert '"markdown_table_target"' in serialized_schema
+    assert '"table_ordinal"' not in serialized_schema
     assert result.extraction.source_pdf_sha256 == hashlib.sha256(PDF_BYTES).hexdigest()
     assert result.extraction.page_numbers == (1, 2)
     assert result.assessment.source_page_numbers == (4, 5)
@@ -476,8 +476,8 @@ def test_native_table_continuation_annotation_rejects_native_table_id_mutation(
         ]
     )
     response["document_annotation"] = (
-        '{"continuation_links":[{"parent":{"selected_page_position":0,"table_ordinal":1},'
-        '"child":{"selected_page_position":1,"table_ordinal":1}}]}'
+        '{"continuation_links":[{"parent":{"selected_page_position":0,"markdown_table_target":"first.html"},'
+        '"child":{"selected_page_position":1,"markdown_table_target":"second.html"}}]}'
     )
     result = _extractor(tmp_path, _FakeOpener(_FakeResponse(response))).extract_with_table_continuation_assessment(
         PDF_BYTES,
@@ -536,8 +536,8 @@ def test_native_table_continuation_annotation_rejects_rebound_original_pages(
         ]
     )
     response["document_annotation"] = (
-        '{"continuation_links":[{"parent":{"selected_page_position":0,"table_ordinal":1},'
-        '"child":{"selected_page_position":1,"table_ordinal":1}}]}'
+        '{"continuation_links":[{"parent":{"selected_page_position":0,"markdown_table_target":"first.html"},'
+        '"child":{"selected_page_position":1,"markdown_table_target":"second.html"}}]}'
     )
     result = _extractor(tmp_path, _FakeOpener(_FakeResponse(response))).extract_with_table_continuation_assessment(
         PDF_BYTES,
@@ -588,11 +588,29 @@ def test_native_table_continuation_annotation_accepts_full_document_page_scope(
                     {
                         "parent": {
                             "selected_page_position": 0,
-                            "table_ordinal": 3,
+                            "markdown_table_target": "missing.html",
                         },
                         "child": {
                             "selected_page_position": 1,
-                            "table_ordinal": 1,
+                            "markdown_table_target": "second.html",
+                        },
+                    }
+                ]
+            },
+            (0, 1),
+            "PDF_DOCUMENT_AI_ANNOTATION_UNKNOWN_TABLE",
+        ),
+        (
+            {
+                "continuation_links": [
+                    {
+                        "parent": {
+                            "selected_page_position": 1,
+                            "markdown_table_target": "first.html",
+                        },
+                        "child": {
+                            "selected_page_position": 1,
+                            "markdown_table_target": "second.html",
                         },
                     }
                 ]
@@ -606,11 +624,11 @@ def test_native_table_continuation_annotation_accepts_full_document_page_scope(
                     {
                         "parent": {
                             "selected_page_position": 0,
-                            "table_ordinal": 1,
+                            "markdown_table_target": "first.html",
                         },
                         "child": {
                             "selected_page_position": 1,
-                            "table_ordinal": 1,
+                            "markdown_table_target": "second.html",
                         },
                     }
                 ]
@@ -624,21 +642,21 @@ def test_native_table_continuation_annotation_accepts_full_document_page_scope(
                     {
                         "parent": {
                             "selected_page_position": 0,
-                            "table_ordinal": 1,
+                            "markdown_table_target": "first.html",
                         },
                         "child": {
                             "selected_page_position": 1,
-                            "table_ordinal": 1,
+                            "markdown_table_target": "second.html",
                         },
                     },
                     {
                         "parent": {
                             "selected_page_position": 0,
-                            "table_ordinal": 2,
+                            "markdown_table_target": "other-first.html",
                         },
                         "child": {
                             "selected_page_position": 1,
-                            "table_ordinal": 1,
+                            "markdown_table_target": "second.html",
                         },
                     },
                 ]
@@ -647,7 +665,12 @@ def test_native_table_continuation_annotation_accepts_full_document_page_scope(
             "PDF_DOCUMENT_AI_ANNOTATION_MULTIPLE_PARENT",
         ),
     ),
-    ids=("unknown_ordinal", "nonadjacent_source_pages", "multiple_parent"),
+    ids=(
+        "unknown_target",
+        "target_from_another_page",
+        "nonadjacent_source_pages",
+        "multiple_parent",
+    ),
 )
 def test_native_table_continuation_annotation_rejects_unbound_or_ambiguous_links(
     tmp_path: Path,
@@ -756,6 +779,88 @@ def test_native_table_continuation_annotation_rejects_v1_native_table_id_shape(
         caught,
         expected_code="PDF_DOCUMENT_AI_ANNOTATION_INVALID",
     )
+
+
+def test_native_table_continuation_annotation_rejects_legacy_v2_ordinal_shape(
+    tmp_path: Path,
+) -> None:
+    response = _response(
+        [
+            {
+                "index": 0,
+                "markdown": "[first](first.html)",
+                "images": [],
+                "tables": [{"id": "first.html", "content": "<table><tr><td>first</td></tr></table>"}],
+            },
+            {
+                "index": 1,
+                "markdown": "[second](second.html)",
+                "images": [],
+                "tables": [{"id": "second.html", "content": "<table><tr><td>second</td></tr></table>"}],
+            },
+        ]
+    )
+    response["document_annotation"] = (
+        '{"continuation_links":[{"parent":{"selected_page_position":0,"table_ordinal":1},'
+        '"child":{"selected_page_position":1,"table_ordinal":1}}]}'
+    )
+    opener = _FakeOpener(_FakeResponse(response))
+
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract_with_table_continuation_assessment(
+            PDF_BYTES,
+            _source_context(2),
+            source_page_numbers=(0, 1),
+            document_annotation_prompt="Link physical table continuations.",
+        )
+
+    _assert_one_post(
+        opener,
+        expected_annotation_prompt="Link physical table continuations.",
+        expected_source_page_numbers=(0, 1),
+    )
+    _assert_typed_failure_without_leak(
+        caught,
+        expected_code="PDF_DOCUMENT_AI_ANNOTATION_INVALID",
+    )
+
+
+def test_native_table_continuation_annotation_scopes_identical_targets_by_page(
+    tmp_path: Path,
+) -> None:
+    response = _response(
+        [
+            {
+                "index": 0,
+                "markdown": "[first](tbl-0.html)",
+                "images": [],
+                "tables": [{"id": "tbl-0.html", "content": "<table><tr><td>first</td></tr></table>"}],
+            },
+            {
+                "index": 1,
+                "markdown": "[second](tbl-0.html)",
+                "images": [],
+                "tables": [{"id": "tbl-0.html", "content": "<table><tr><td>second</td></tr></table>"}],
+            },
+        ]
+    )
+    response["document_annotation"] = (
+        '{"continuation_links":[{"parent":{"selected_page_position":0,"markdown_table_target":"tbl-0.html"},'
+        '"child":{"selected_page_position":1,"markdown_table_target":"tbl-0.html"}}]}'
+    )
+
+    result = _extractor(
+        tmp_path, _FakeOpener(_FakeResponse(response))
+    ).extract_with_table_continuation_assessment(
+        PDF_BYTES,
+        _source_context(2),
+        source_page_numbers=(0, 1),
+        document_annotation_prompt="Link physical table continuations.",
+    )
+
+    assert [(link.parent_table_ref, link.child_table_ref) for link in result.assessment.links] == [
+        (result.extraction.table_refs[0].local_ref, result.extraction.table_refs[1].local_ref)
+    ]
 
 
 def test_native_table_continuation_annotation_rejects_ambiguous_provider_page_binding(

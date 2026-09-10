@@ -62,7 +62,7 @@ _PAGE_SEPARATOR = b"\n\n"
 MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
-        "name": "broker_reports_native_table_continuation_links_v2",
+        "name": "broker_reports_native_table_continuation_links_v3",
         "strict": True,
         "schema": {
             "type": "object",
@@ -82,14 +82,15 @@ MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
                                         "type": "integer",
                                         "minimum": 0,
                                     },
-                                    "table_ordinal": {
-                                        "type": "integer",
-                                        "minimum": 1,
+                                    "markdown_table_target": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255,
                                     },
                                 },
                                 "required": [
                                     "selected_page_position",
-                                    "table_ordinal",
+                                    "markdown_table_target",
                                 ],
                             },
                             "child": {
@@ -100,14 +101,15 @@ MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
                                         "type": "integer",
                                         "minimum": 0,
                                     },
-                                    "table_ordinal": {
-                                        "type": "integer",
-                                        "minimum": 1,
+                                    "markdown_table_target": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 255,
                                     },
                                 },
                                 "required": [
                                     "selected_page_position",
-                                    "table_ordinal",
+                                    "markdown_table_target",
                                 ],
                             },
                         },
@@ -586,7 +588,7 @@ def _parse_table_continuation_assessment(
     if not isinstance(raw_links, list):
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
 
-    table_by_selected_position_and_ordinal = _tables_by_selected_position_and_ordinal(
+    table_by_selected_position_and_target = _tables_by_selected_position_and_target(
         extraction.table_refs
     )
     selected_page_bindings = tuple(
@@ -611,14 +613,14 @@ def _parse_table_continuation_assessment(
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
         parent = _annotation_table_ref(
             raw_link["parent"],
-            table_by_selected_position_and_ordinal=(
-                table_by_selected_position_and_ordinal
+            table_by_selected_position_and_target=(
+                table_by_selected_position_and_target
             ),
         )
         child = _annotation_table_ref(
             raw_link["child"],
-            table_by_selected_position_and_ordinal=(
-                table_by_selected_position_and_ordinal
+            table_by_selected_position_and_target=(
+                table_by_selected_position_and_target
             ),
         )
         if parent.local_ref == child.local_ref:
@@ -684,53 +686,44 @@ def _parse_table_continuation_assessment(
 def _annotation_table_ref(
     value: object,
     *,
-    table_by_selected_position_and_ordinal: Mapping[
-        tuple[int, int], PdfDocumentTableRef
+    table_by_selected_position_and_target: Mapping[
+        tuple[int, str], PdfDocumentTableRef
     ],
 ) -> PdfDocumentTableRef:
     if not isinstance(value, Mapping) or set(value) != {
         "selected_page_position",
-        "table_ordinal",
+        "markdown_table_target",
     }:
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
     selected_page_position = value["selected_page_position"]
-    table_ordinal = value["table_ordinal"]
+    markdown_table_target = value["markdown_table_target"]
     if (
         type(selected_page_position) is not int
         or selected_page_position < 0
-        or type(table_ordinal) is not int
-        or table_ordinal < 1
+        or not isinstance(markdown_table_target, str)
+        or re.fullmatch(r"[A-Za-z0-9._-]{1,255}", markdown_table_target) is None
     ):
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
-    table = table_by_selected_position_and_ordinal.get(
-        (selected_page_position, table_ordinal)
+    table = table_by_selected_position_and_target.get(
+        (selected_page_position, markdown_table_target)
     )
     if table is None:
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_UNKNOWN_TABLE")
     return table
 
 
-def _tables_by_selected_position_and_ordinal(
+def _tables_by_selected_position_and_target(
     table_refs: tuple[PdfDocumentTableRef, ...],
-) -> dict[tuple[int, int], PdfDocumentTableRef]:
-    """Bind R&D annotation positions to this exact response table ordering.
+) -> dict[tuple[int, str], PdfDocumentTableRef]:
+    """Bind annotation links to native targets verified in this OCR response."""
 
-    The provider's opaque table ids remain inside the extraction only.  The
-    annotation contract can name a table solely by its zero-based selected-page
-    position and one-based ordinal in the already validated response order.
-    """
-
-    table_by_position_and_ordinal: dict[tuple[int, int], PdfDocumentTableRef] = {}
-    ordinal_by_local_page: dict[int, int] = {}
+    table_by_position_and_target: dict[tuple[int, str], PdfDocumentTableRef] = {}
     for table in table_refs:
-        local_page_number = table.page_number
-        ordinal = ordinal_by_local_page.get(local_page_number, 0) + 1
-        ordinal_by_local_page[local_page_number] = ordinal
-        key = (local_page_number - 1, ordinal)
-        if key in table_by_position_and_ordinal:
+        key = (table.page_number - 1, table.markdown_target)
+        if key in table_by_position_and_target:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
-        table_by_position_and_ordinal[key] = table
-    return table_by_position_and_ordinal
+        table_by_position_and_target[key] = table
+    return table_by_position_and_target
 
 
 def _has_table_continuation_cycle(

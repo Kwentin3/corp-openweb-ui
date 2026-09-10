@@ -247,8 +247,8 @@ def _annotation_execution() -> PdfTableContinuationAnnotationExecution:
         template_kind=PROMPT_TEMPLATE_KIND,
         prompt_contract_id=PROMPT_CONTRACT_ID,
         input_schema_version="broker_reports_pdf_document_annotation_input_v1",
-        output_schema_id="mistral_ocr_table_continuation_annotation_v2",
-        output_schema_version="mistral_ocr_table_continuation_annotation_v2",
+        output_schema_id="mistral_ocr_table_continuation_annotation_v3",
+        output_schema_version="mistral_ocr_table_continuation_annotation_v3",
         tags=(PROMPT_REQUIRED_TAG,),
         safe_metadata={"name": "test"},
     )
