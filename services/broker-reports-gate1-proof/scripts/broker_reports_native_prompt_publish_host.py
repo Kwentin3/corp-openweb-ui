@@ -67,7 +67,7 @@ def execute(
     *,
     staging_dir: Path,
     verify_pin: dict[str, str] | None,
-    profile: str = "ordinary_trade_mapping_v13",
+    profile: str = "ordinary_trade_mapping_v14",
 ) -> dict[str, str]:
     if profile not in _PROFILE_IDS:
         raise RuntimeError("ordinary_trade_mapping_prompt_release_profile_invalid")
@@ -103,7 +103,7 @@ def main() -> int:
     parser.add_argument("--staging-dir", required=True)
     parser.add_argument("--verify-pin-json", default=None)
     parser.add_argument(
-        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v13"
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v14"
     )
     args = parser.parse_args()
     verify_pin = None

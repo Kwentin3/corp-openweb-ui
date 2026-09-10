@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -55,14 +56,17 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
 
     assert result == _PIN
     assert any(call[:2] == ["docker", "cp"] for call in calls)
-    assert any(
-        call[:9] == ["docker", "exec", "-w", "/app/backend", "-e", "PYTHONPATH=/app/backend", "openwebui", "python", "/tmp/broker-reports-prompt-release/publish.py"]
-        for call in calls
-    )
+    python_call = next(call for call in calls if "python" in call)
+    assert python_call[:9] == [
+        "docker", "exec", "-w", "/app/backend", "-e", "PYTHONPATH=/app/backend",
+        "openwebui", "python", "/tmp/broker-reports-prompt-release/publish.py",
+    ]
+    assert python_call[-2:] == ["--profile", "ordinary_trade_mapping_v14"]
 
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -70,6 +74,54 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     }
     with pytest.raises(release.StageReleaseDriverError, match="publication_receipt_invalid"):
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
+
+
+def test_atomic_release_publishes_and_rechecks_the_production_v14_profile():
+    calls: list[list[str]] = []
+
+    def run(args, *, check=True, timeout=None):
+        calls.append(args)
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=json.dumps(_PIN),
+            stderr="",
+        )
+
+    with mock.patch.object(release, "_run", side_effect=run):
+        assert release._run_native_prompt_publication(
+            ssh_target="release-host",
+            remote_dir="/safe/staging",
+            verify_pin=None,
+        ) == _PIN
+
+    assert len(calls) == 1
+    assert calls[0][-4:] == [
+        "--staging-dir",
+        "/safe/staging",
+        "--profile",
+        "ordinary_trade_mapping_v14",
+    ]
+
+
+def test_atomic_release_archives_the_same_v14_prompt_profile_it_pins(tmp_path: Path):
+    archive = tmp_path / "source.zip"
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    release._write_prompt_source_archive(
+        source_revision=revision,
+        destination=archive,
+    )
+
+    with zipfile.ZipFile(archive) as payload:
+        names = set(payload.namelist())
+    assert release.ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET in names
+    assert not any(name.endswith("broker_reports_ordinary_trade_mapping_prompt.v13.md") for name in names)
 
 
 @pytest.mark.parametrize(

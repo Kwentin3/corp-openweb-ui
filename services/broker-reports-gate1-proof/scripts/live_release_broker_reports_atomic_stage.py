@@ -27,6 +27,11 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v14"
+ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
+    "services/broker-reports-gate1-proof/managed_assets/prompts/"
+    "broker_reports_ordinary_trade_mapping_prompt.v14.md"
+)
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -197,8 +202,7 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
     """Archive only release-owned source, directly from the approved Git tree."""
     paths = (
         "services/broker-reports-gate1-proof/broker_reports_gate1",
-        "services/broker-reports-gate1-proof/managed_assets/prompts/"
-        "broker_reports_ordinary_trade_mapping_prompt.v13.md",
+        ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET,
     )
     _run(
         [
@@ -221,8 +225,7 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
     required = {
         "services/broker-reports-gate1-proof/broker_reports_gate1/"
         "ordinary_trade_mapping_prompt_publication.py",
-        "services/broker-reports-gate1-proof/managed_assets/prompts/"
-        "broker_reports_ordinary_trade_mapping_prompt.v13.md",
+        ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET,
     }
     if not required <= names:
         raise StageReleaseDriverError("stage_release_prompt_source_archive_invalid")
@@ -257,6 +260,8 @@ def _run_native_prompt_publication(
         f"{remote_dir}/{PROMPT_HOST_SCRIPT.name}",
         "--staging-dir",
         remote_dir,
+        "--profile",
+        ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
     ]
     if verify_pin is not None:
         command.extend(["--verify-pin-json", json.dumps(dict(verify_pin), sort_keys=True)])
@@ -273,6 +278,7 @@ def _run_native_prompt_publication(
 def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
     value = _validated_prompt_pin(dict(pin))
     return {
+        "ordinary_trade_mapping_profile_id": ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
         "ordinary_trade_mapping_prompt_id": value["prompt_ref"],
         "ordinary_trade_mapping_prompt_command": value["prompt_command"],
         "ordinary_trade_mapping_prompt_version": value["prompt_history_id"],

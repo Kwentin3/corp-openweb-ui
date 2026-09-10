@@ -118,7 +118,7 @@ def main() -> int:
     parser.add_argument("--source-archive", required=True)
     parser.add_argument("--verify-pin-json", default=None)
     parser.add_argument(
-        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v13"
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v14"
     )
     args = parser.parse_args()
     archive = Path(args.source_archive)
