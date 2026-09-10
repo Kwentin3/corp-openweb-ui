@@ -1,0 +1,98 @@
+"""Value-free control contract for the temporary Goal #391 mapping lab.
+
+This module owns only the sealed laboratory-plan shape.  It does not read a
+source, infer financial meaning, call a provider, or persist anything.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from typing import Any, Mapping
+
+
+SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION = "goal391_server_bound_case_plan_v2"
+_EXPECTED_ASSESSMENT_FIELDS = frozenset(
+    {
+        "expected_status",
+        "required_table_decisions",
+        "unresolved_table_node_ids",
+        "forbidden_qualified_mapping_table_node_ids",
+    }
+)
+_DECISION_FIELDS = frozenset(
+    {"table_node_id", "disposition", "no_consumer_kind"}
+)
+_NO_NAMED_CONSUMER_KINDS = frozenset(
+    {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
+)
+
+
+def sha256_json(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def valid_expected_assessment(
+    value: Any,
+    *,
+    target_table_node_ids: list[str] | tuple[str, ...] | None = None,
+) -> bool:
+    """Validate a human R&D assertion without interpreting its content."""
+
+    if not isinstance(value, Mapping) or set(value) != _EXPECTED_ASSESSMENT_FIELDS:
+        return False
+    if not isinstance(value["expected_status"], str) or not value["expected_status"]:
+        return False
+    decisions = value["required_table_decisions"]
+    unresolved = value["unresolved_table_node_ids"]
+    forbidden = value["forbidden_qualified_mapping_table_node_ids"]
+    if not all(isinstance(items, list) for items in (decisions, unresolved, forbidden)):
+        return False
+    if any(not isinstance(node_id, str) or not node_id for node_id in unresolved + forbidden):
+        return False
+    if len(set(unresolved)) != len(unresolved) or len(set(forbidden)) != len(forbidden):
+        return False
+
+    decision_ids: list[str] = []
+    no_named_consumer_ids: list[str] = []
+    for decision in decisions:
+        if not isinstance(decision, Mapping) or set(decision) - _DECISION_FIELDS:
+            return False
+        table_node_id = decision.get("table_node_id")
+        disposition = decision.get("disposition")
+        if not isinstance(table_node_id, str) or not table_node_id:
+            return False
+        if not isinstance(disposition, str) or not disposition:
+            return False
+        no_consumer_kind = decision.get("no_consumer_kind")
+        if disposition == "NO_NAMED_CONSUMER":
+            if no_consumer_kind not in _NO_NAMED_CONSUMER_KINDS:
+                return False
+            no_named_consumer_ids.append(table_node_id)
+        elif no_consumer_kind is not None:
+            return False
+        decision_ids.append(table_node_id)
+    if len(set(decision_ids)) != len(decision_ids):
+        return False
+    if not set(no_named_consumer_ids).issubset(forbidden):
+        return False
+
+    if target_table_node_ids is not None:
+        if (
+            not target_table_node_ids
+            or any(not isinstance(node_id, str) or not node_id for node_id in target_table_node_ids)
+            or len(set(target_table_node_ids)) != len(target_table_node_ids)
+        ):
+            return False
+        target_ids = set(target_table_node_ids)
+        if not set(decision_ids + unresolved + forbidden).issubset(target_ids):
+            return False
+    return True

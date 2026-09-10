@@ -60,6 +60,11 @@ from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
     expand_grouped_response,
     grouped_mapping_response_format,
 )
+from broker_reports_gate1.goal391_mapping_lab_control_plan import (
+    SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION,
+    sha256_json,
+    valid_expected_assessment,
+)
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
@@ -73,7 +78,6 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
 SAFE_RECEIPT_SCHEMA_VERSION = "goal391_native_mapping_lab_pipe_receipt_v1"
-SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION = "goal391_server_bound_case_plan_v2"
 _MIN_CASES_REQUIRED_TOTAL = 1
 _MAX_CASES_REQUIRED_TOTAL = 2
 _CANONICAL_BINDING_FIELDS = (
@@ -290,7 +294,10 @@ class Goal391ServerBoundCaseLoader:
             or len(set(slot["target_table_node_ids"])) != len(slot["target_table_node_ids"])
             or not isinstance(slot["confirmed_understandings"], list)
             or not isinstance(slot["frozen_mappings"], list)
-            or not Pipe._valid_assessment(slot["expected_assessment"])
+            or not valid_expected_assessment(
+                slot["expected_assessment"],
+                target_table_node_ids=slot["target_table_node_ids"],
+            )
         ):
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
         return copy.deepcopy(dict(slot))
@@ -313,13 +320,17 @@ class Goal391ServerBoundCaseLoader:
         # storage-owner contract.  The source scope is deliberately separate
         # from the browser transport used to invoke this Pipe.
         scope = slot["historical_source_scope"]
+        scope_identity = (
+            {"case_id": scope["case_id"]}
+            if scope["case_id"] is not None
+            else {"chat_id": scope["chat_id"]}
+        )
         return ArtifactAccessContext(
             user_id=user_id,
             normalization_run_id="goal391-source-file-selection",
-            case_id=scope["case_id"],
-            chat_id=scope["chat_id"],
             workspace_model_id=scope["workspace_model_id"],
             allow_private=True,
+            **scope_identity,
         )
 
     @staticmethod
@@ -354,15 +365,7 @@ class Goal391ServerBoundCaseLoader:
 
     @staticmethod
     def _sha256(value: Any) -> str:
-        return hashlib.sha256(
-            json.dumps(
-                value,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-                allow_nan=False,
-            ).encode("utf-8")
-        ).hexdigest()
+        return sha256_json(value)
 
 
 class Pipe:
@@ -547,7 +550,10 @@ class Pipe:
             if not isinstance(canonical, Mapping) or validate_canonical_artifact(canonical).get("passed") is not True:
                 raise Goal391MappingLabPipeError("goal391_lab_canonical_invalid")
             assessment = case["expected_assessment"]
-            if not self._valid_assessment(assessment):
+            if not valid_expected_assessment(
+                assessment,
+                target_table_node_ids=case["target_table_node_ids"],
+            ):
                 raise Goal391MappingLabPipeError("goal391_lab_assessment_invalid")
             package = semantic.build_mapping_package(
                 canonical=canonical,
@@ -592,31 +598,6 @@ class Pipe:
             "constraints": self._constraints(),
             "terminal_error": None,
         }
-
-    @staticmethod
-    def _valid_assessment(value: Any) -> bool:
-        required = {
-            "expected_status",
-            "required_table_decisions",
-            "unresolved_table_node_ids",
-            "forbidden_qualified_mapping_table_node_ids",
-        }
-        if not isinstance(value, Mapping) or set(value) != required:
-            return False
-        if not isinstance(value["expected_status"], str) or not isinstance(value["required_table_decisions"], list):
-            return False
-        for decision in value["required_table_decisions"]:
-            if not isinstance(decision, Mapping) or set(decision) - {
-                "table_node_id", "disposition", "no_consumer_kind"
-            }:
-                return False
-            if not isinstance(decision.get("table_node_id"), str) or not isinstance(decision.get("disposition"), str):
-                return False
-            if decision["disposition"] == "NO_NAMED_CONSUMER" and decision.get("no_consumer_kind") not in {
-                "INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"
-            }:
-                return False
-        return all(isinstance(value[key], list) for key in required - {"expected_status", "required_table_decisions"})
 
     async def _execute(self, *, cases, prompt, request: Any, user: Any) -> dict[str, Any]:
         client = Gate2StructuredModelClientFactory(

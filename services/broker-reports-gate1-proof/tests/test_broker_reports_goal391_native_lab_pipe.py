@@ -216,6 +216,58 @@ def test_native_lab_accepts_one_sealed_case_only_when_its_valve_is_one():
     assert [item["slot_id"] for item in loaded["slots"]] == ["slot-1"]
 
 
+def test_server_bound_loader_rejects_human_assessment_outside_selected_tables(
+    monkeypatch,
+):
+    module = _load_source_module()
+    slot = _slot(1)
+    calls = _install_read_owners(monkeypatch, module, [slot])
+    slot["expected_assessment"]["required_table_decisions"][0]["table_node_id"] = (
+        "table-not-in-scope"
+    )
+    slot["expected_assessment"]["forbidden_qualified_mapping_table_node_ids"] = (
+        ["table-not-in-scope"]
+    )
+    plan = json.loads(_plan(module, slots=[slot]))
+    digest_material = dict(plan)
+    digest_material.pop("plan_digest")
+    plan["plan_digest"] = module.Goal391ServerBoundCaseLoader._sha256(
+        digest_material
+    )
+    valves = SimpleNamespace(
+        ordinary_test_user_id="ordinary-test-user",
+        cases_required_total=1,
+        case_control_plan_json=json.dumps(plan),
+        artifact_store_path="/safe/artifacts.sqlite3",
+        artifact_payload_root="/safe/payloads",
+    )
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        module.Goal391ServerBoundCaseLoader(valves=valves).load(
+            user=_ordinary_user()
+        )
+    assert exc.value.code == "goal391_lab_control_plan_slot_invalid"
+    assert calls["factory"] == []
+
+
+def test_server_bound_loader_preserves_a_chat_only_source_scope(monkeypatch):
+    module = _load_source_module()
+    slot = _slot(1, source_case_id=None)
+    slot["historical_source_scope"]["chat_id"] = "historical-source-chat"
+    calls = _install_read_owners(monkeypatch, module, [slot])
+    plan = _plan(module, slots=[slot])
+    valves = SimpleNamespace(
+        ordinary_test_user_id="ordinary-test-user",
+        cases_required_total=1,
+        case_control_plan_json=plan,
+        artifact_store_path="/safe/artifacts.sqlite3",
+        artifact_payload_root="/safe/payloads",
+    )
+    module.Goal391ServerBoundCaseLoader(valves=valves).load(user=_ordinary_user())
+    request = calls["selection"][0]
+    assert request.context.case_id is None
+    assert request.context.chat_id == "historical-source-chat"
+
+
 def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     source = SOURCE.read_text(encoding="utf-8")
     assert "import sqlite3" not in source
