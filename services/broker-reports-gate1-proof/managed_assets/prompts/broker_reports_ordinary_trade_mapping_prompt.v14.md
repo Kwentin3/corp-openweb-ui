@@ -20,9 +20,8 @@ use SECURITY_TRADES_INCOMPLETE rather than COMPLETE.
 
 For NO_NAMED_CONSUMER and UNSUPPORTED_FINANCIAL_MEANING tables, retain the
 schema's empty row fields. Classify INSTRUCTIONAL_REFERENCE only when supplied
-content establishes an explanatory or instructional purpose. Do not emit
-classification_evidence: the Canonical owner binds the full supplied source
-context after it validates your classification.
+content establishes an explanatory or instructional purpose; include its exact
+context_ref/relation evidence.
 
 Return only an object that satisfies the response schema.
 

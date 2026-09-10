@@ -1450,6 +1450,9 @@ async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> Non
         "side_values": [],
         "row_dispositions": [],
         "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+        "classification_evidence": [
+            {"context_ref": "context_2", "relation": "PRECEDING_SAME_CONTAINER"},
+        ],
     }
     client = BoundaryModelClient([response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
@@ -1484,15 +1487,6 @@ async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> Non
     assert current["table_resolutions"][1]["no_consumer_kind"] == (
         "INSTRUCTIONAL_REFERENCE"
     )
-    assert [
-        (item["context_ref"], item["relation"])
-        for item in current["table_resolutions"][1]["classification_evidence"]
-    ] == [
-        (item["context_ref"], item["relation"])
-        for item in client.calls[0]["package"]["case"]["tables"][1][
-            "source_context"
-        ]["entries"]
-    ]
 
 
 async def _overflowed_scope_uses_bounded_batches(tmp_path) -> None:
