@@ -525,6 +525,8 @@ class Gate5ResolvedDeclarationPackageRuntime:
                 item["component_sha256"],
             )
             binding = evidence.get(evidence_key)
+            if evidence_key in supplied_evidence:
+                _fail("gate5_resolved_package_component_ambiguous")
             if binding is None and item["component_contract_id"] not in {
                 GATE5_FILING_AND_PARTY_IDENTITY_COMPONENT_SCHEMA_VERSION,
                 GATE5_INCOME_GROUP_TAX_RESULTS_COMPONENT_SCHEMA_VERSION,
@@ -575,7 +577,12 @@ class Gate5ResolvedDeclarationPackageRuntime:
             ):
                 _fail("gate5_resolved_package_component_orphan")
             contract_key = (binding["domain_id"], item["component_contract_id"])
-            if contract_key in unique_contracts:
+            if contract_key in unique_contracts and not _distinct_bounded_operation(
+                domain=domain,
+                contract_id=item["component_contract_id"],
+                root_coverage=validated["root_coverage"],
+                evidence_binding=binding,
+            ):
                 _fail("gate5_resolved_package_component_ambiguous")
             unique_contracts.add(contract_key)
             component_ref = f"component:{item['component_sha256']}"
@@ -754,7 +761,15 @@ class Gate5ResolvedDeclarationPackageRuntime:
             ):
                 _fail("gate5_resolved_package_component_binding_invalid")
             contract_key = (item["domain_id"], item["component_contract_id"])
-            if evidence_key in supplied_evidence or contract_key in unique_contracts:
+            if evidence_key in supplied_evidence or (
+                contract_key in unique_contracts
+                and not _distinct_bounded_operation(
+                    domain=domain,
+                    contract_id=item["component_contract_id"],
+                    root_coverage=item["root_coverage"],
+                    evidence_binding=binding,
+                )
+            ):
                 _fail("gate5_resolved_package_component_ambiguous")
             if binding is not None:
                 supplied_evidence.add(evidence_key)
@@ -1181,6 +1196,19 @@ def _requirement_resolutions(
         }
         result.append({**row, "resolution_sha256": _canonical_sha256(row)})
     return result
+
+
+def _distinct_bounded_operation(
+    *, domain: dict[str, Any], contract_id: str, root_coverage: str,
+    evidence_binding: dict[str, Any] | None,
+) -> bool:
+    return (
+        evidence_binding is not None
+        and domain["domain_id"] == GATE5_FINANCIAL_INVESTMENT_RESULTS_DOMAIN_ID
+        and contract_id == GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
+        and contract_id in domain["expected_component"]["contract_ids"]
+        and root_coverage == "bounded_partial_only"
+    )
 
 
 def _completeness_receipt(

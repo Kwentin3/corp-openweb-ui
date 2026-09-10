@@ -21,6 +21,10 @@ from broker_reports_gate1.gate5_resolved_declaration_package import (
     Gate5ResolvedDeclarationPackageRuntimeFactory,
 )
 import test_broker_reports_gate5_declaration_scope_resolution as scope_fixtures
+import test_broker_reports_ordinary_trade_tax_model_bridge as bridge_fixtures
+import test_broker_reports_gate5_declaration_financial_investment_results as financial_fixtures
+from broker_reports_gate1.gate4_ordinary_trade_candidate import Gate4OrdinaryTradeCandidateRuntimeFactory
+from broker_reports_gate1.gate5_declaration_scope_resolution import Gate5DeclarationScopeResolutionRuntimeFactory
 
 
 def test_representative_package_accounts_every_definition_domain_without_promotion(
@@ -382,6 +386,74 @@ def test_orphan_and_duplicate_component_inputs_fail_closed(
         )
         == "gate5_resolved_package_component_ambiguous"
     )
+
+
+def _two_operation_package_case(tmp_path):
+    store, context, _ = bridge_fixtures._case(tmp_path, rows=bridge_fixtures._two_disposal_rows())
+    bridge = bridge_fixtures._runtime(store)
+    preflight = bridge_fixtures._run_operation_set(bridge, context=context, completeness_evidence=None)
+    result = bridge_fixtures._run_operation_set(
+        bridge, context=context,
+        completeness_evidence=bridge_fixtures._completeness(preflight["operation_set"]["scope_binding"]["scope_binding_sha256"]),
+    )
+    assert result["status"] == "proven"
+    components = [_component(item["operation_result"]["tax_model"]) for item in result["operation_results"]]
+    retention = build_retention_policy(mode="synthetic_dev")
+    scope_owner = Gate5DeclarationScopeResolutionRuntimeFactory(
+        store=store, read_enabled=True, retention_policy=retention,
+    ).create_current_source_fact_scope(
+        gate4_runtime=Gate4OrdinaryTradeCandidateRuntimeFactory(store=store, read_enabled=True).create(),
+        source_boundary="ordinary_trade_current_fact_v2",
+    )
+    scope = scope_owner.resolve(
+        definition_ref=_definition_ref(),
+        scope={"schema_version": scope_fixtures.GATE5_DECLARATION_SCOPE_SCHEMA_VERSION,
+               "scope_ref": "two-operation-package", "taxpayer_scope_ref": "synthetic-taxpayer-control", "tax_period": "2025"},
+        typed_component_evidence=components, assertion_refs=[], context=context,
+        taxpayer_binding=bridge_fixtures._taxpayer_binding(),
+    )
+    runtime = Gate5ResolvedDeclarationPackageRuntimeFactory(
+        store=store, read_enabled=True, retention_policy=retention,
+    ).create_current_source_fact_package(scope_runtime=scope_owner)
+    return runtime, context, scope, components, result
+
+
+def test_distinct_scope_bound_operations_assemble_and_replay_in_hash_order(tmp_path):
+    runtime, context, scope, components, _ = _two_operation_package_case(tmp_path)
+    packages = [runtime.assemble(definition_ref=_definition_ref(), scope_receipt=scope,
+        typed_component_snapshots=items, context=context) for items in (components, list(reversed(components)))]
+    assert packages[0] == packages[1]
+    package = packages[0]
+    assert len(package["component_snapshots"]) == 2
+    assert [item["content_sha256"] for item in package["component_snapshots"]] == sorted(item["component_sha256"] for item in components)
+    assert package["status"] == "DECLARATION_INCOMPLETE_FOR_SUPPLIED_CASE"
+    assert _closed_runtime().validate_package(package=package) == package
+
+
+@pytest.mark.parametrize("mutation,code", [("duplicate", "gate5_resolved_package_component_ambiguous"), ("omit", "gate5_resolved_package_scope_component_snapshot_missing")])
+def test_operation_set_duplicate_and_omission_fail_assembly_and_replay(tmp_path, mutation, code):
+    runtime, context, scope, components, _ = _two_operation_package_case(tmp_path)
+    package = runtime.assemble(definition_ref=_definition_ref(), scope_receipt=scope, typed_component_snapshots=components, context=context)
+    changed = components + [copy.deepcopy(components[0])] if mutation == "duplicate" else components[:1]
+    assert _error_code(lambda: runtime.assemble(definition_ref=_definition_ref(), scope_receipt=scope, typed_component_snapshots=changed, context=context)) == code
+    if mutation == "duplicate":
+        package["component_snapshots"].append(copy.deepcopy(package["component_snapshots"][0]))
+    else:
+        package["component_snapshots"].pop()
+    _rehash_package(package)
+    assert _error_code(lambda: _closed_runtime().validate_package(package=package)) == code
+
+
+def test_other_component_duplicate_remains_rejected_with_operation_set(tmp_path):
+    runtime, context, scope, components, result = _two_operation_package_case(tmp_path)
+    root = financial_fixtures._component(scope["scope_binding"], result["category_result"]["category_tax_model"])
+    evidence = financial_fixtures._component_evidence(root)
+    package = runtime.assemble(definition_ref=_definition_ref(), scope_receipt=scope, typed_component_snapshots=components + [evidence], context=context)
+    assert _error_code(lambda: runtime.assemble(definition_ref=_definition_ref(), scope_receipt=scope, typed_component_snapshots=components + [evidence, copy.deepcopy(evidence)], context=context)) == "gate5_resolved_package_component_ambiguous"
+    root_snapshot = next(item for item in package["component_snapshots"] if item["root_coverage"] == "exact_root_domain")
+    package["component_snapshots"].append(copy.deepcopy(root_snapshot))
+    _rehash_package(package)
+    assert _error_code(lambda: _closed_runtime().validate_package(package=package)) == "gate5_resolved_package_component_ambiguous"
 
 
 def test_completeness_receipt_hash_drift_fails_closed(
