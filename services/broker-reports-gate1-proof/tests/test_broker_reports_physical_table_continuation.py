@@ -8,6 +8,19 @@ from broker_reports_gate1.physical_table_continuation import (
     PhysicalTableContinuationError,
     build_physical_table_continuation_sidecar,
 )
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    PdfTableContinuationAnnotationManagedPrompt,
+    execution_from_managed_prompt,
+    pdf_table_continuation_annotation_prompt_hash,
+)
 
 
 SOURCE_SHA = "a" * 64
@@ -43,21 +56,42 @@ def _proposal() -> dict:
 
 
 def _annotation_receipt() -> dict:
+    content = "Assess physical table continuations only."
+    execution = execution_from_managed_prompt(
+        PdfTableContinuationAnnotationManagedPrompt(
+            prompt_ref="test-prompt",
+            command=PROMPT_COMMAND,
+            version="test-history",
+            content=content,
+            hash=pdf_table_continuation_annotation_prompt_hash(content),
+            source="test",
+            template_id=PROMPT_TEMPLATE_ID,
+            template_kind=PROMPT_TEMPLATE_KIND,
+            prompt_contract_id=PROMPT_CONTRACT_ID,
+            input_schema_version=INPUT_SCHEMA_VERSION,
+            output_schema_id=OUTPUT_SCHEMA_ID,
+            output_schema_version=OUTPUT_SCHEMA_VERSION,
+            tags=(PROMPT_REQUIRED_TAG,),
+            safe_metadata={"name": "test"},
+        )
+    )
     return {
         "assessment_schema_version": "broker_reports_pdf_document_table_continuation_assessment_v1",
-        "annotation_prompt_sha256": "d" * 64,
+        "annotation_prompt_sha256": execution.content_sha256,
         "annotation_schema_sha256": "e" * 64,
         "request_parameters_sha256": "f" * 64,
         "raw_annotation_sha256": "1" * 64,
         "selected_page_bindings_sha256": "2" * 64,
-        "prompt_snapshot": {
-            "schema_version": "test_prompt_snapshot_v1",
-            "prompt_hash": "d" * 64,
-        },
+        "prompt_snapshot": execution.validated_prompt_snapshot(),
     }
 
 
-def _build(*, units: list[dict] | None = None, links: list[dict] | None = None) -> dict:
+def _build(
+    *,
+    units: list[dict] | None = None,
+    links: list[dict] | None = None,
+    receipt: dict | None = None,
+) -> dict:
     return build_physical_table_continuation_sidecar(
         normalization_run_id="run-1",
         document_id="document-1",
@@ -68,7 +102,7 @@ def _build(*, units: list[dict] | None = None, links: list[dict] | None = None) 
             _unit(ref="unit-b", table_ref="native-b", table_sha=TABLE_B_SHA, page=4),
         ],
         proposed_links=links or [_proposal()],
-        annotation_receipt=_annotation_receipt(),
+        annotation_receipt=receipt or _annotation_receipt(),
     )
 
 
@@ -150,3 +184,11 @@ def test_rejects_annotation_receipt_with_prompt_body() -> None:
             proposed_links=[_proposal()],
             annotation_receipt=receipt,
         )
+
+
+def test_rejects_annotation_receipt_not_bound_to_sealed_prompt_snapshot() -> None:
+    receipt = _annotation_receipt()
+    receipt["annotation_prompt_sha256"] = "0" * 64
+
+    with pytest.raises(PhysicalTableContinuationError):
+        _build(receipt=receipt)

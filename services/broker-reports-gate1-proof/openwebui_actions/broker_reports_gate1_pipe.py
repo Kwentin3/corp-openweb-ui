@@ -112,6 +112,7 @@ from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PdfTableContinuationAnnotationExecution,
     PdfTableContinuationAnnotationPromptConfig,
     PdfTableContinuationAnnotationPromptResolverFactory,
+    execution_from_managed_prompt,
 )
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
     OrdinaryTradeGroupedMappingV14AdapterFactory,
@@ -3595,7 +3596,7 @@ class Pipe:
                 user_groups=(),
             )
         )
-        return PdfTableContinuationAnnotationExecution.from_managed_prompt(prompt)
+        return execution_from_managed_prompt(prompt)
 
     def _ordinary_trade_mapping_route_profile(
         self,

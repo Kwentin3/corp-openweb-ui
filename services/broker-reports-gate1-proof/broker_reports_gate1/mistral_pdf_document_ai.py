@@ -33,6 +33,11 @@ from .pdf_document_ai import (
     pdf_document_selected_page_bindings_sha256,
     pdf_document_table_refs_sha256,
 )
+from .pdf_table_continuation_annotation_contract import OUTPUT_SCHEMA_ID
+
+# Compatibility name for existing native OCR response-contract consumers. The
+# physical annotation contract is the single source of the value.
+MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION = OUTPUT_SCHEMA_ID
 
 
 MISTRAL_OCR_MODEL = "mistral-ocr-4-1"
@@ -54,9 +59,6 @@ _MAX_IMAGES = 64
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024
 _PAGE_SEPARATOR = b"\n\n"
-MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION = (
-    "mistral_ocr_table_continuation_annotation_v2"
-)
 MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
     "type": "json_schema",
     "json_schema": {

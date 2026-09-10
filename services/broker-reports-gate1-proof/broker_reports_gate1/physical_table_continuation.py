@@ -11,6 +11,10 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from .pdf_table_continuation_annotation_contract import (
+    validate_pdf_table_continuation_annotation_prompt_snapshot,
+)
+
 from .contracts import stable_digest
 from .pdf_document_ai import (
     PdfDocumentExtraction,
@@ -162,22 +166,19 @@ def _validated_annotation_receipt(value: Mapping[str, Any]) -> dict[str, Any]:
             "physical_table_continuation_annotation_receipt_invalid"
         )
     snapshot = value.get("prompt_snapshot")
-    if not isinstance(snapshot, Mapping) or _contains_prompt_body(snapshot):
+    try:
+        snapshot = validate_pdf_table_continuation_annotation_prompt_snapshot(snapshot)
+    except Exception as exc:
+        raise PhysicalTableContinuationError(
+            "physical_table_continuation_annotation_receipt_invalid"
+        ) from exc
+    if value["annotation_prompt_sha256"] != snapshot["prompt_content_sha256"]:
         raise PhysicalTableContinuationError(
             "physical_table_continuation_annotation_receipt_invalid"
         )
-    return copy.deepcopy(dict(value))
-
-
-def _contains_prompt_body(value: object) -> bool:
-    if isinstance(value, Mapping):
-        return any(
-            key == "content" or _contains_prompt_body(item)
-            for key, item in value.items()
-        )
-    if isinstance(value, (list, tuple)):
-        return any(_contains_prompt_body(item) for item in value)
-    return False
+    receipt = copy.deepcopy(dict(value))
+    receipt["prompt_snapshot"] = snapshot
+    return receipt
 
 
 def _eligible_units(

@@ -68,6 +68,19 @@ from broker_reports_gate1.physical_table_continuation import (
     PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION,
     build_physical_table_continuation_sidecar,
 )
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
+    INPUT_SCHEMA_VERSION as TABLE_ANNOTATION_INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID as TABLE_ANNOTATION_OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION as TABLE_ANNOTATION_OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND as TABLE_ANNOTATION_PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID as TABLE_ANNOTATION_PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG as TABLE_ANNOTATION_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as TABLE_ANNOTATION_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as TABLE_ANNOTATION_PROMPT_TEMPLATE_KIND,
+    PdfTableContinuationAnnotationManagedPrompt,
+    execution_from_managed_prompt,
+    pdf_table_continuation_annotation_prompt_hash,
+)
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingFactory,
@@ -1876,6 +1889,37 @@ def _pdf_graph_fixture(tmp_path: Path):
     return store, graph, context, result, image
 
 
+def _native_table_annotation_receipt() -> dict[str, str | dict[str, object]]:
+    content = "Assess physical table continuations only."
+    execution = execution_from_managed_prompt(
+        PdfTableContinuationAnnotationManagedPrompt(
+            prompt_ref="test-prompt",
+            command=TABLE_ANNOTATION_PROMPT_COMMAND,
+            version="test-history",
+            content=content,
+            hash=pdf_table_continuation_annotation_prompt_hash(content),
+            source="test",
+            template_id=TABLE_ANNOTATION_PROMPT_TEMPLATE_ID,
+            template_kind=TABLE_ANNOTATION_PROMPT_TEMPLATE_KIND,
+            prompt_contract_id=TABLE_ANNOTATION_PROMPT_CONTRACT_ID,
+            input_schema_version=TABLE_ANNOTATION_INPUT_SCHEMA_VERSION,
+            output_schema_id=TABLE_ANNOTATION_OUTPUT_SCHEMA_ID,
+            output_schema_version=TABLE_ANNOTATION_OUTPUT_SCHEMA_VERSION,
+            tags=(TABLE_ANNOTATION_PROMPT_REQUIRED_TAG,),
+            safe_metadata={"name": "test"},
+        )
+    )
+    return {
+        "assessment_schema_version": "offline_fixture_annotation_v1",
+        "annotation_prompt_sha256": execution.content_sha256,
+        "annotation_schema_sha256": "b" * 64,
+        "request_parameters_sha256": "c" * 64,
+        "raw_annotation_sha256": "d" * 64,
+        "selected_page_bindings_sha256": "e" * 64,
+        "prompt_snapshot": execution.validated_prompt_snapshot(),
+    }
+
+
 def _pdf_graph_with_native_table_sidecar(tmp_path: Path):
     store, graph, context, _result, _image = _pdf_graph_fixture(tmp_path)
     first_page = b"[first](table-1.html)"
@@ -1958,18 +2002,7 @@ def _pdf_graph_with_native_table_sidecar(tmp_path: Path):
                 },
             }
         ],
-        annotation_receipt={
-            "assessment_schema_version": "offline_fixture_annotation_v1",
-            "annotation_prompt_sha256": "a" * 64,
-            "annotation_schema_sha256": "b" * 64,
-            "request_parameters_sha256": "c" * 64,
-            "raw_annotation_sha256": "d" * 64,
-            "selected_page_bindings_sha256": "e" * 64,
-            "prompt_snapshot": {
-                "schema_version": "offline_fixture_prompt_snapshot_v1",
-                "prompt_hash": "a" * 64,
-            },
-        },
+        annotation_receipt=_native_table_annotation_receipt(),
     )
     return store, graph, context, result, sidecar
 

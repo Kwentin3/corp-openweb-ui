@@ -34,11 +34,14 @@ from .pdf_document_ai import (
     PdfDocumentExtractionError,
     PdfDocumentExtractor,
     PdfDocumentExtractorFactory,
-    PdfDocumentTableContinuationAnnotationExecution,
     PdfDocumentTableContinuationAssessor,
     PdfSourceContext,
     is_terminal_pdf_document_ai_request,
     validate_extraction_source,
+)
+from .pdf_table_continuation_annotation_contract import (
+    PdfTableContinuationAnnotationContractError,
+    PdfTableContinuationAnnotationExecution,
 )
 from .physical_table_continuation import (
     PhysicalTableContinuationError,
@@ -111,7 +114,7 @@ class Gate1Normalizer:
         extra_private_markers: list[str] | None = None,
         bounded_graph=None,
         pdf_table_continuation_annotation_execution: (
-            PdfDocumentTableContinuationAnnotationExecution | None
+            PdfTableContinuationAnnotationExecution | None
         ) = None,
         workload_checkpoint: Callable[[], Any] | None = None,
         workload_progress: Callable[[str, dict[str, Any]], Any] | None = None,
@@ -345,30 +348,32 @@ class Gate1Normalizer:
                             source_context,
                         )
                     else:
-                        annotation_execution_content = getattr(
-                            pdf_table_continuation_annotation_execution,
-                            "content",
-                            None,
-                        )
-                        annotation_execution_content_sha256 = getattr(
-                            pdf_table_continuation_annotation_execution,
-                            "content_sha256",
-                            None,
-                        )
-                        annotation_execution_snapshot = getattr(
-                            pdf_table_continuation_annotation_execution,
-                            "prompt_snapshot",
-                            None,
-                        )
+                        # The resolver is the only owner allowed to turn a
+                        # native Prompt/history row into an execution value.
+                        # Do not accept a lookalike object here: otherwise a
+                        # caller could send an arbitrary instruction to the
+                        # provider and forge a self-consistent sidecar receipt.
                         if (
-                            not isinstance(annotation_execution_content, str)
-                            or not annotation_execution_content
-                            or not isinstance(annotation_execution_content_sha256, str)
-                            or not isinstance(annotation_execution_snapshot, dict)
+                            type(pdf_table_continuation_annotation_execution)
+                            is not PdfTableContinuationAnnotationExecution
                         ):
                             raise PdfDocumentExtractionError(
                                 "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
                             )
+                        try:
+                            annotation_execution_content = (
+                                pdf_table_continuation_annotation_execution.content
+                            )
+                            annotation_execution_content_sha256 = (
+                                pdf_table_continuation_annotation_execution.content_sha256
+                            )
+                            annotation_execution_snapshot = (
+                                pdf_table_continuation_annotation_execution.validated_prompt_snapshot()
+                            )
+                        except PdfTableContinuationAnnotationContractError as exc:
+                            raise PdfDocumentExtractionError(
+                                "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
+                            ) from exc
                         if not isinstance(
                             self._pdf_document_extractor,
                             PdfDocumentTableContinuationAssessor,

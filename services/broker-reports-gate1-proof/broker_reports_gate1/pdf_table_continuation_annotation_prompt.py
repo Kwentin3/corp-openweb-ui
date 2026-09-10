@@ -9,15 +9,27 @@ Canonical data, or financial interpretation.
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
-from .mistral_pdf_document_ai import (
-    MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION,
+from .pdf_table_continuation_annotation_contract import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_SNAPSHOT_SCHEMA_VERSION,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    PdfTableContinuationAnnotationExecution,
+    _execution_from_native_prompt,
+    pdf_table_continuation_annotation_content_sha256,
+    pdf_table_continuation_annotation_prompt_hash,
+    validate_pdf_table_continuation_annotation_prompt_snapshot,
 )
 from .ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptConfig,
@@ -36,21 +48,9 @@ FORBIDDEN = (
     "OpenWebUI Prompt, prompt_history or access_grant owners directly"
 )
 
-PROMPT_CONTRACT_ID = "broker_reports_pdf_table_continuation_annotation_prompt_v1"
-PROMPT_TEMPLATE_ID = "broker_reports.pdf_table_continuation_annotation.v1"
-PROMPT_TEMPLATE_KIND = "broker_reports_pdf_table_continuation_annotation"
-PROMPT_COMMAND = "broker_pdf_table_continuation_annotation_v1"
-PROMPT_REQUIRED_TAG = "broker-reports-pdf-table-continuation"
 # The PDF bytes and the native response schema are supplied by the Mistral OCR
 # request.  The managed Prompt is an instruction, not a template expanded with
 # private document content, so it deliberately has no textual placeholder.
-INPUT_SCHEMA_VERSION = "broker_reports_pdf_document_annotation_input_v1"
-OUTPUT_SCHEMA_ID = MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION
-OUTPUT_SCHEMA_VERSION = OUTPUT_SCHEMA_ID
-PROMPT_SNAPSHOT_SCHEMA_VERSION = (
-    "broker_reports_pdf_table_continuation_annotation_prompt_snapshot_v1"
-)
-_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,9 @@ class PdfTableContinuationAnnotationManagedPrompt:
             "prompt_command": self.command,
             "prompt_version": self.version,
             "prompt_hash": self.hash,
+            "prompt_content_sha256": (
+                pdf_table_continuation_annotation_content_sha256(self.content)
+            ),
             "prompt_source": self.source,
             "prompt_contract_id": self.prompt_contract_id,
             "template_id": self.template_id,
@@ -85,58 +88,36 @@ class PdfTableContinuationAnnotationManagedPrompt:
             "input_schema_version": self.input_schema_version,
             "output_schema_id": self.output_schema_id,
             "output_schema_version": self.output_schema_version,
-            "tags": list(self.tags),
-            "safe_metadata": copy.deepcopy(self.safe_metadata),
+            # This receipt is persisted with private source evidence.  It is
+            # deliberately a sealed contract, not an echo of mutable native
+            # Prompt presentation metadata or arbitrary tags.
+            "tags": [PROMPT_REQUIRED_TAG],
+            "safe_metadata": {
+                "annotation_domain": "physical_table_continuation",
+            },
         }
 
 
-@dataclass(frozen=True)
-class PdfTableContinuationAnnotationExecution:
-    """Frozen instruction and body-free receipt crossing into PDF processing.
+def execution_from_managed_prompt(
+    prompt: PdfTableContinuationAnnotationManagedPrompt,
+) -> PdfTableContinuationAnnotationExecution:
+    """Issue the sealed execution value after native resolver access checks."""
 
-    Resolution and access checks happen in the asynchronous OpenWebUI boundary.
-    The synchronous normalizer receives this value only; it cannot select a
-    Prompt, read configuration or access OpenWebUI persistence.
-    """
-
-    content: str
-    prompt_snapshot: dict[str, Any]
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.content, str) or not self.content.strip():
-            raise OrdinaryTradeMappingPromptError(
-                "pdf_table_continuation_annotation_execution_invalid",
-                "PDF table-continuation annotation instruction is required",
-            )
-        snapshot = validate_pdf_table_continuation_annotation_prompt_snapshot(
-            self.prompt_snapshot
+    if type(prompt) is not PdfTableContinuationAnnotationManagedPrompt:
+        raise OrdinaryTradeMappingPromptError(
+            "pdf_table_continuation_annotation_execution_invalid",
+            "PDF table-continuation managed Prompt is required",
         )
-        if (
-            pdf_table_continuation_annotation_prompt_hash(self.content)
-            != snapshot["prompt_hash"]
-        ):
-            raise OrdinaryTradeMappingPromptError(
-                "pdf_table_continuation_annotation_execution_invalid",
-                "PDF table-continuation annotation instruction does not match its receipt",
-            )
-        object.__setattr__(self, "prompt_snapshot", snapshot)
-
-    @classmethod
-    def from_managed_prompt(
-        cls, prompt: PdfTableContinuationAnnotationManagedPrompt
-    ) -> "PdfTableContinuationAnnotationExecution":
-        if not isinstance(prompt, PdfTableContinuationAnnotationManagedPrompt):
-            raise OrdinaryTradeMappingPromptError(
-                "pdf_table_continuation_annotation_execution_invalid",
-                "PDF table-continuation managed Prompt is required",
-            )
-        return cls(content=prompt.content, prompt_snapshot=prompt.snapshot())
-
-    @property
-    def content_sha256(self) -> str:
-        """Exact body digest returned by the native OCR receipt."""
-
-        return hashlib.sha256(self.content.encode("utf-8")).hexdigest()
+    try:
+        return _execution_from_native_prompt(
+            content=prompt.content,
+            prompt_snapshot=prompt.snapshot(),
+        )
+    except ValueError as exc:
+        raise OrdinaryTradeMappingPromptError(
+            "pdf_table_continuation_annotation_execution_invalid",
+            "PDF table-continuation managed Prompt receipt is invalid",
+        ) from exc
 
 
 @dataclass(frozen=True)
@@ -294,90 +275,18 @@ class PdfTableContinuationAnnotationPromptResolverFactory:
         )
 
 
-def pdf_table_continuation_annotation_prompt_hash(prompt_content: str) -> str:
-    """Bind a release pin to both instruction body and this exact contract."""
-    material = (
-        prompt_content.replace("\r\n", "\n").strip()
-        + "\nprompt_contract:"
-        + PROMPT_CONTRACT_ID
-        + "\ninput_schema:"
-        + INPUT_SCHEMA_VERSION
-        + "\noutput_schema_id:"
-        + OUTPUT_SCHEMA_ID
-        + "\noutput_schema_version:"
-        + OUTPUT_SCHEMA_VERSION
-    )
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()
-
-
-def validate_pdf_table_continuation_annotation_prompt_snapshot(
-    value: Any,
-) -> dict[str, Any]:
-    """Validate the body-free receipt before it crosses the PDF boundary."""
-    if not isinstance(value, dict) or set(value) != {
-        "schema_version",
-        "prompt_ref",
-        "prompt_command",
-        "prompt_version",
-        "prompt_hash",
-        "prompt_source",
-        "prompt_contract_id",
-        "template_id",
-        "template_kind",
-        "input_schema_version",
-        "output_schema_id",
-        "output_schema_version",
-        "tags",
-        "safe_metadata",
-    }:
-        raise _snapshot_error()
-    if (
-        value.get("schema_version") != PROMPT_SNAPSHOT_SCHEMA_VERSION
-        or not isinstance(value.get("prompt_ref"), str)
-        or not value["prompt_ref"].strip()
-        or value.get("prompt_command") != PROMPT_COMMAND
-        or not isinstance(value.get("prompt_version"), str)
-        or not value["prompt_version"].strip()
-        or not isinstance(value.get("prompt_hash"), str)
-        or _SHA256.fullmatch(value["prompt_hash"]) is None
-        or value.get("prompt_source") not in {"openwebui_prompt_history", "test"}
-        or value.get("prompt_contract_id") != PROMPT_CONTRACT_ID
-        or value.get("template_id") != PROMPT_TEMPLATE_ID
-        or value.get("template_kind") != PROMPT_TEMPLATE_KIND
-        or value.get("input_schema_version") != INPUT_SCHEMA_VERSION
-        or value.get("output_schema_id") != OUTPUT_SCHEMA_ID
-        or value.get("output_schema_version") != OUTPUT_SCHEMA_VERSION
-        or not isinstance(value.get("tags"), list)
-        or any(not isinstance(tag, str) for tag in value["tags"])
-        or PROMPT_REQUIRED_TAG not in value["tags"]
-        or not isinstance(value.get("safe_metadata"), dict)
-        or set(value["safe_metadata"]) - {"name", "annotation_domain"}
-        or value["safe_metadata"].get("annotation_domain")
-        not in {None, "physical_table_continuation"}
-    ):
-        raise _snapshot_error()
-    return copy.deepcopy(value)
-
-
 def _validate_release_pin(*, version: str | None, prompt_hash: str | None) -> None:
     normalized_version = str(version or "").strip()
     normalized_hash = str(prompt_hash or "").strip()
     if (
         not normalized_version
         or len(normalized_version) > 200
-        or _SHA256.fullmatch(normalized_hash) is None
+        or not re.fullmatch(r"[0-9a-f]{64}", normalized_hash)
     ):
         raise OrdinaryTradeMappingPromptError(
             "pdf_table_continuation_annotation_prompt_release_pin_invalid",
             "PDF table-continuation annotation release Prompt version and hash are required",
         )
-
-
-def _snapshot_error() -> OrdinaryTradeMappingPromptError:
-    return OrdinaryTradeMappingPromptError(
-        "pdf_table_continuation_annotation_prompt_snapshot_invalid",
-        "PDF table-continuation annotation Prompt snapshot contract is invalid",
-    )
 
 
 def _json_dict(value: Any) -> dict[str, Any]:
@@ -424,6 +333,7 @@ __all__ = [
     "PdfTableContinuationAnnotationPromptResolver",
     "PdfTableContinuationAnnotationPromptResolverFactory",
     "StaticPdfTableContinuationAnnotationPromptResolver",
+    "execution_from_managed_prompt",
     "pdf_table_continuation_annotation_prompt_hash",
     "validate_pdf_table_continuation_annotation_prompt_snapshot",
 ]

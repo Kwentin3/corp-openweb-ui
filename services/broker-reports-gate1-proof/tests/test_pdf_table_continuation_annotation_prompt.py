@@ -26,8 +26,12 @@ from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PdfTableContinuationAnnotationPromptConfig,
     PdfTableContinuationAnnotationPromptResolverFactory,
     StaticPdfTableContinuationAnnotationPromptResolver,
+    execution_from_managed_prompt,
     pdf_table_continuation_annotation_prompt_hash,
     validate_pdf_table_continuation_annotation_prompt_snapshot,
+)
+from broker_reports_gate1.pdf_table_continuation_annotation_contract import (
+    PdfTableContinuationAnnotationContractError,
 )
 
 
@@ -67,7 +71,7 @@ def test_snapshot_is_own_contract_and_body_free() -> None:
 
 def test_execution_binds_instruction_to_the_body_free_prompt_receipt() -> None:
     prompt = _prompt()
-    execution = PdfTableContinuationAnnotationExecution.from_managed_prompt(prompt)
+    execution = execution_from_managed_prompt(prompt)
 
     assert execution.content == prompt.content
     assert execution.content_sha256 == hashlib.sha256(
@@ -77,24 +81,24 @@ def test_execution_binds_instruction_to_the_body_free_prompt_receipt() -> None:
 
     snapshot = prompt.snapshot()
     snapshot["prompt_hash"] = "a" * 64
-    with pytest.raises(OrdinaryTradeMappingPromptError) as mismatch:
+    with pytest.raises(PdfTableContinuationAnnotationContractError) as mismatch:
         PdfTableContinuationAnnotationExecution(
             content=prompt.content,
             prompt_snapshot=snapshot,
         )
-    assert mismatch.value.code == "pdf_table_continuation_annotation_execution_invalid"
+    assert mismatch.value.code == "pdf_table_continuation_annotation_execution_issuer_invalid"
 
 
 def test_snapshot_rejects_foreign_identity_or_annotation_domain() -> None:
     snapshot = _prompt().snapshot()
     snapshot["prompt_contract_id"] = "broker_reports_ordinary_trade_mapping_prompt_v1"
-    with pytest.raises(OrdinaryTradeMappingPromptError) as foreign:
+    with pytest.raises(PdfTableContinuationAnnotationContractError) as foreign:
         validate_pdf_table_continuation_annotation_prompt_snapshot(snapshot)
     assert foreign.value.code == "pdf_table_continuation_annotation_prompt_snapshot_invalid"
 
     snapshot = _prompt().snapshot()
     snapshot["safe_metadata"]["annotation_domain"] = "financial_roles"
-    with pytest.raises(OrdinaryTradeMappingPromptError) as semantic_leak:
+    with pytest.raises(PdfTableContinuationAnnotationContractError) as semantic_leak:
         validate_pdf_table_continuation_annotation_prompt_snapshot(snapshot)
     assert semantic_leak.value.code == "pdf_table_continuation_annotation_prompt_snapshot_invalid"
 

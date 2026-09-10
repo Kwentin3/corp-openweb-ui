@@ -85,6 +85,7 @@ MODULE_ORDER = [
     "table_projection",
     "blockers",
     "pdf_document_ai",
+    "pdf_table_continuation_annotation_contract",
     "file_processing_outcomes",
     "inputs",
     "archive_intake",

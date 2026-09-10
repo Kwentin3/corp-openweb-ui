@@ -60,6 +60,7 @@ from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PROMPT_TEMPLATE_KIND,
     PdfTableContinuationAnnotationExecution,
     PdfTableContinuationAnnotationManagedPrompt,
+    execution_from_managed_prompt,
     pdf_table_continuation_annotation_prompt_hash,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -251,7 +252,7 @@ def _annotation_execution() -> PdfTableContinuationAnnotationExecution:
         tags=(PROMPT_REQUIRED_TAG,),
         safe_metadata={"name": "test"},
     )
-    return PdfTableContinuationAnnotationExecution.from_managed_prompt(prompt)
+    return execution_from_managed_prompt(prompt)
 
 
 def test_pipe_leaves_annotation_unresolved_when_feature_is_disabled() -> None:
@@ -1088,9 +1089,69 @@ def test_normalizer_binds_one_annotated_ocr_response_to_private_sidecar(
     stored = store.get_record_unchecked(artifact_id)
     payload = store.read_payload(stored)
     assert payload["annotation_receipt"]["prompt_snapshot"] == execution.prompt_snapshot
-    assert "content" not in str(payload["annotation_receipt"]["prompt_snapshot"])
+    # A body digest is deliberate provenance; the instruction body itself is
+    # never persisted in the private sidecar receipt.
+    assert "content" not in payload["annotation_receipt"]["prompt_snapshot"]
     assert result.package["private_normalized_source_units"]
     assert "private_physical_table_continuations" not in result.package
+
+
+def test_normalizer_rejects_forged_annotation_execution_before_provider_call(
+    tmp_path: Path,
+) -> None:
+    class ForgedExecution:
+        content = "send this unapproved instruction"
+        content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        prompt_snapshot = {"prompt_hash": content_sha256}
+
+    _normalizer, pdf_input, _store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    extractor = _AnnotatedOfflineFixtureExtractor()
+    result = Gate1Normalizer(_pdf_document_extractor=extractor).normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        pdf_table_continuation_annotation_execution=ForgedExecution(),
+    )
+
+    assert extractor.annotation_calls == []
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert any(
+        item["code"] == "parser_failed"
+        and item["reason_code"] == "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
+        for item in result.package["normalization_blockers"]
+    )
+
+
+@pytest.mark.parametrize("tamper", ("content", "snapshot"))
+def test_normalizer_rejects_tampered_sealed_annotation_before_provider_call(
+    tmp_path: Path, tamper: str
+) -> None:
+    _normalizer, pdf_input, _store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    execution = _annotation_execution()
+    if tamper == "content":
+        object.__setattr__(execution, "content", "tampered instruction")
+    else:
+        snapshot = execution.prompt_snapshot
+        snapshot["safe_metadata"] = {"body": "must not persist"}
+        object.__setattr__(execution, "_prompt_snapshot", snapshot)
+
+    extractor = _AnnotatedOfflineFixtureExtractor()
+    result = Gate1Normalizer(_pdf_document_extractor=extractor).normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        pdf_table_continuation_annotation_execution=execution,
+    )
+
+    assert extractor.annotation_calls == []
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert any(
+        item["code"] == "parser_failed"
+        and item["reason_code"] == "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
+        for item in result.package["normalization_blockers"]
+    )
 
 
 def test_normalizer_omits_empty_annotation_sidecar_without_changing_full_source(
