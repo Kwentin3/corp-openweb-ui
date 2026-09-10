@@ -93,6 +93,11 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
@@ -104,6 +109,9 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
 )
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
     OrdinaryTradeGroupedMappingV14AdapterFactory,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
+    OrdinaryTradeGroupedMappingV15AdapterFactory,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
@@ -193,6 +201,7 @@ class _OrdinaryTradeMappingRouteProfile:
         output_schema_version: str,
         required_tag: str,
         grouped_v14_response: bool = False,
+        grouped_v15_response: bool = False,
     ) -> None:
         self.profile_id = profile_id
         self.prompt_command = prompt_command
@@ -202,10 +211,13 @@ class _OrdinaryTradeMappingRouteProfile:
         self.output_schema_version = output_schema_version
         self.required_tag = required_tag
         self.grouped_v14_response = grouped_v14_response
+        self.grouped_v15_response = grouped_v15_response
 
     def mapping_response_adapter(self) -> Any | None:
         if self.grouped_v14_response:
             return OrdinaryTradeGroupedMappingV14AdapterFactory.create()
+        if self.grouped_v15_response:
+            return OrdinaryTradeGroupedMappingV15AdapterFactory.create()
         return None
 
 
@@ -230,6 +242,18 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         ),
         required_tag=ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
         grouped_v14_response=True,
+    ),
+    "ordinary_trade_mapping_v15": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v15",
+        prompt_command=ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+        grouped_v15_response=True,
     ),
 }
 
@@ -329,7 +353,7 @@ class Pipe:
             default="ordinary_trade_mapping_v13",
             description=(
                 "Sealed production mapping route profile. Only the released "
-                "v13 and v14 profiles are admitted."
+                "v13, v14 and v15 profiles are admitted."
             ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")

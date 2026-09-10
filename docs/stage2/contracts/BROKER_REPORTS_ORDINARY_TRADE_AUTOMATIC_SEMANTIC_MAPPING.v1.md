@@ -85,6 +85,9 @@ paths.
 Every Canonical table receives exactly one disposition:
 
 - `SECURITY_TRADES` requires a complete validated mapping;
+- `HEADER_ABSENT` is allowed only for a native physical table segment whose
+  Canonical `physical_header_state` is `ABSENT`; it retains every row as a
+  provenance-bound source observation and emits no runtime financial record;
 - `NO_NAMED_CONSUMER` retains literal observations and provenance but emits no
   Fact v2 only after an exact machine-applicable table-disposition decision was
   explicitly confirmed; model output alone stops for specialist review;

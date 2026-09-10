@@ -27,7 +27,7 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v13"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v14"
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11 = (
     "broker_reports_ordinary_trade_semantic_mapping_response_v11"
@@ -40,6 +40,7 @@ _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
         "broker_reports_ordinary_trade_semantic_mapping_response_v9",
         "broker_reports_ordinary_trade_semantic_mapping_response_v10",
         _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11,
+        "broker_reports_ordinary_trade_semantic_mapping_response_v13",
     }
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
@@ -98,6 +99,7 @@ _MAPPING_STATUSES = {
     "CURRENCY_ASSERTION_REQUIRED",
 }
 _TABLE_DISPOSITIONS = {
+    "HEADER_ABSENT",
     "SECURITY_TRADES",
     "SECURITY_TRADES_INCOMPLETE",
     "NO_NAMED_CONSUMER",
@@ -266,7 +268,12 @@ class OrdinaryTradeSemanticMapping:
             or refs_by_node_id.get(table_node_id) != model_tables[0].get("table_ref")
         ):
             _fail("ordinary_trade_instructional_descriptor_invalid")
-        case = build_instructional_classification_case(table=model_tables[0])
+        # The retired one-table classifier has its own frozen wire contract.
+        # It is not the current product route and must not silently gain the
+        # newer physical-header field.
+        classifier_table = copy.deepcopy(model_tables[0])
+        classifier_table.pop("physical_header_row", None)
+        case = build_instructional_classification_case(table=classifier_table)
         return {
             "schema_version": INSTRUCTIONAL_CLASSIFICATION_DESCRIPTOR_SCHEMA_VERSION,
             "table_node_id": table_node_id,
@@ -1254,10 +1261,9 @@ class OrdinaryTradeSemanticMapping:
             for table in table_surfaces
             if table["table_node_id"] in resolutions_by_node_id
         ]
-        # The current compiler intentionally predates the source-gap disposition.
-        # Keep the owner result exact, but pass only its already-supported subset
-        # into this local no-publication coverage check.  The caller receives the
-        # unmodified SECURITY_TRADES_INCOMPLETE resolution for the downstream seam.
+        # Keep the owner result exact, but pass only compiler-supported source-gap
+        # dispositions into this local no-publication coverage check. The caller
+        # retains the unmodified resolution for the downstream seam.
         compiler_table_resolutions = [
             item
             for item in table_resolutions
@@ -1283,7 +1289,8 @@ class OrdinaryTradeSemanticMapping:
         incomplete_table_node_ids = {
             item["table_node_id"]
             for item in table_resolutions
-            if item["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+            if item["disposition"]
+            in {"SECURITY_TRADES_INCOMPLETE", "HEADER_ABSENT"}
         }
         if any(
             item.get("disposition") == "RELEVANT_UNMAPPED"
@@ -1479,8 +1486,14 @@ def _table_surfaces(
             continue
         container_ref = node["container_ref"]
         node_id = node.get("node_id")
-        cells = (node.get("content") or {}).get("cells")
-        if not isinstance(node_id, str) or not node_id or not isinstance(cells, list):
+        content = node.get("content")
+        cells = (content or {}).get("cells")
+        if (
+            not isinstance(node_id, str)
+            or not node_id
+            or not isinstance(content, Mapping)
+            or not isinstance(cells, list)
+        ):
             _fail("ordinary_trade_semantic_mapping_canonical_invalid")
         if target_ids is not None and node_id not in target_ids:
             continue
@@ -1509,10 +1522,33 @@ def _table_surfaces(
             {"row": row, "cells": sorted(items, key=lambda item: item["column"])}
             for row, items in sorted(by_row.items())
         ]
+        header = content.get("header")
+        metadata = content.get("metadata")
+        physical_header_state = (
+            metadata.get("physical_header_state")
+            if isinstance(metadata, Mapping)
+            else None
+        )
+        if isinstance(metadata, Mapping) and (
+            "physical_header_state" in metadata
+            and physical_header_state not in {"PRESENT", "ABSENT"}
+        ):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        if physical_header_state in {"PRESENT", "ABSENT"}:
+            if not isinstance(header, list):
+                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+            if (physical_header_state == "PRESENT") != bool(header):
+                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+            physical_header_row = 1 if physical_header_state == "PRESENT" else None
+        else:
+            # Compatibility for immutable Canonical fixtures written before the
+            # source owner emitted an explicit physical-header surface.
+            physical_header_row = rows[0]["row"] if rows else None
         tables.append(
             {
                 "table_node_id": node_id,
                 "rows": rows,
+                "physical_header_row": physical_header_row,
                 **_source_context_for_table(
                     table_node_id=node_id,
                     title_value=(node.get("content") or {}).get("title"),
@@ -1788,12 +1824,15 @@ def _model_table_surfaces(
         model_table = {
             "table_ref": refs_by_node_id[table["table_node_id"]],
             "rows_total": len(rows),
+            "physical_header_row": table["physical_header_row"],
             # This is a structural selector, not a financial interpretation.
             # It prevents the model from referring to a visual row number that
             # does not exist in the Canonical table contract.
-            "header_row_choices": [
-                item["row"] for item in rows if item["cells"]
-            ],
+            "header_row_choices": (
+                [table["physical_header_row"]]
+                if table["physical_header_row"] is not None
+                else []
+            ),
             "rows": copy.deepcopy(rows),
             "rows_truncated": False,
             "source_context": copy.deepcopy(table["source_context"]),
@@ -2253,7 +2292,10 @@ def _validate_table_decision(
             "ordinary_trade_semantic_mapping_table_decision_invalid",
             diagnostic_code="ordinary_trade_mapping_decision_table_binding_invalid",
         )
-    if not isinstance(decision.get("header_row"), int):
+    if not (
+        isinstance(decision.get("header_row"), int)
+        or decision.get("header_row") is None
+    ):
         _fail(
             "ordinary_trade_semantic_mapping_table_decision_invalid",
             diagnostic_code="ordinary_trade_mapping_decision_header_type_invalid",
@@ -2277,6 +2319,41 @@ def _validate_table_decision(
             diagnostic_code="ordinary_trade_mapping_decision_collection_invalid",
         )
     disposition = decision["disposition"]
+    if disposition == "HEADER_ABSENT":
+        if (
+            decision.get("header_row") is not None
+            or table.get("physical_header_row") is not None
+            or any(
+                decision[key]
+                for key in (
+                    "columns",
+                    "amount_currency_bindings",
+                    "side_values",
+                    "row_dispositions",
+                )
+            )
+        ):
+            _fail("ordinary_trade_semantic_mapping_header_absent_invalid")
+        headers: list[dict[str, Any]] = []
+        return {
+            "table_node_id": table["table_node_id"],
+            "header_row": None,
+            "structural_fingerprint": structural_fingerprint(
+                title_literal=None, columns=[]
+            ),
+            "evidence_surface": {"title_literal": None, "headers": headers},
+            "disposition": disposition,
+            "headers": headers,
+            "columns": [],
+            "amount_currency_bindings": [],
+            "side_values": [],
+            "security_trade_rows": [],
+        }
+    if (
+        not isinstance(decision.get("header_row"), int)
+        or decision["header_row"] != table.get("physical_header_row")
+    ):
+        _fail("ordinary_trade_semantic_mapping_header_invalid")
     incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
     if (
         model_supplies_missing_required_roles
@@ -2950,7 +3027,12 @@ def _mapping_response_schema() -> dict[str, Any]:
     }
     table_decision_common = {
         "table_ref": {"type": "string", "minLength": 1},
-        "header_row": {"type": "integer", "minimum": 1},
+        "header_row": {
+            "anyOf": [
+                {"type": "integer", "minimum": 1},
+                {"type": "null"},
+            ]
+        },
     }
     security_trade_table_decision = {
         "type": "object",
@@ -3131,8 +3213,31 @@ def _mapping_response_schema() -> dict[str, Any]:
             "row_dispositions": {"type": "array", "maxItems": 0},
         },
     }
+    header_absent_table_decision = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "table_ref",
+            "header_row",
+            "disposition",
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+            "row_dispositions",
+        ],
+        "properties": {
+            **table_decision_common,
+            "header_row": {"type": "null"},
+            "disposition": {"const": "HEADER_ABSENT"},
+            "columns": {"type": "array", "maxItems": 0},
+            "amount_currency_bindings": {"type": "array", "maxItems": 0},
+            "side_values": {"type": "array", "maxItems": 0},
+            "row_dispositions": {"type": "array", "maxItems": 0},
+        },
+    }
     table_decision = {
         "anyOf": [
+            header_absent_table_decision,
             security_trade_table_decision,
             incomplete_security_trade_table_decision,
             instructional_reference_table_decision,

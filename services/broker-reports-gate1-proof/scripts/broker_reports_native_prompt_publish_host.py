@@ -24,6 +24,7 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v13",
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
+        "ordinary_trade_mapping_v15",
     }
 )
 
@@ -67,7 +68,7 @@ def execute(
     *,
     staging_dir: Path,
     verify_pin: dict[str, str] | None,
-    profile: str = "ordinary_trade_mapping_v14",
+    profile: str = "ordinary_trade_mapping_v15",
 ) -> dict[str, str]:
     if profile not in _PROFILE_IDS:
         raise RuntimeError("ordinary_trade_mapping_prompt_release_profile_invalid")
@@ -103,7 +104,7 @@ def main() -> int:
     parser.add_argument("--staging-dir", required=True)
     parser.add_argument("--verify-pin-json", default=None)
     parser.add_argument(
-        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v14"
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v15"
     )
     args = parser.parse_args()
     verify_pin = None

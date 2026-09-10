@@ -192,21 +192,29 @@ class OrdinaryTradeSemanticCompiler:
             if not matches:
                 if resolution is not None:
                     recognized_incomplete = (
-                        resolution["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+                        resolution["disposition"]
+                        in {"SECURITY_TRADES_INCOMPLETE", "HEADER_ABSENT"}
+                    )
+                    retained_rows = (
+                        rows
+                        if resolution["disposition"] == "HEADER_ABSENT"
+                        else {
+                            row: cells
+                            for row, cells in rows.items()
+                            if row > resolution["header_row"]
+                        }
                     )
                     observations.extend(
                         _unmapped_table_rows(
                             binding=binding,
                             table=table,
-                            rows={
-                                row: cells
-                                for row, cells in rows.items()
-                                if row > resolution["header_row"]
-                            },
+                            rows=retained_rows,
                             reason=(
                                 "NO_NAMED_ORDINARY_TRADE_CONSUMER"
                                 if resolution["disposition"]
                                 == "NO_NAMED_CONSUMER"
+                                else "ORDINARY_TRADE_SOURCE_HEADER_ABSENT"
+                                if resolution["disposition"] == "HEADER_ABSENT"
                                 else "ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE"
                                 if recognized_incomplete
                                 else "UNKNOWN_STRUCTURAL_FINGERPRINT"
@@ -996,15 +1004,25 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         )
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
-        or not isinstance(value.get("header_row"), int)
-        or value["header_row"] < 1
+        or not (
+            isinstance(value.get("header_row"), int)
+            or value.get("header_row") is None
+        )
         or value.get("disposition")
         not in {
             "SECURITY_TRADES",
             "SECURITY_TRADES_INCOMPLETE",
             "NO_NAMED_CONSUMER",
             "UNSUPPORTED_FINANCIAL_MEANING",
+            "HEADER_ABSENT",
         }
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    header_absent = value["disposition"] == "HEADER_ABSENT"
+    if header_absent != (value.get("header_row") is None):
+        _fail("ordinary_trade_table_resolution_invalid")
+    if not header_absent and (
+        not isinstance(value.get("header_row"), int) or value["header_row"] < 1
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     incomplete = value["disposition"] == "SECURITY_TRADES_INCOMPLETE"
@@ -1105,7 +1123,8 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         or set(surface) != {"title_literal", "headers"}
         or surface.get("title_literal") is not None
         or not isinstance(surface.get("headers"), list)
-        or not surface["headers"]
+        or (not header_absent and not surface["headers"])
+        or (header_absent and surface["headers"])
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     headers = surface["headers"]
@@ -1146,6 +1165,18 @@ def _matching_table_resolutions(
     result = []
     for resolution in resolutions:
         if resolution["table_node_id"] != table.get("node_id"):
+            continue
+        if resolution["disposition"] == "HEADER_ABSENT":
+            content = table.get("content") or {}
+            header = content.get("header")
+            metadata = content.get("metadata")
+            if (
+                header != []
+                or not isinstance(metadata, Mapping)
+                or metadata.get("physical_header_state") != "ABSENT"
+            ):
+                _fail("ordinary_trade_table_resolution_surface_stale")
+            result.append(resolution)
             continue
         cells = rows.get(resolution["header_row"])
         expected = {

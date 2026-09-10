@@ -26,6 +26,7 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v13",
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
+        "ordinary_trade_mapping_v15",
     }
 )
 
@@ -66,6 +67,7 @@ async def _run(
     from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
+        ORDINARY_TRADE_MAPPING_V15_PROFILE,
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         OrdinaryTradeMappingPromptPublication,
         OrdinaryTradeMappingPromptPublisher,
@@ -76,6 +78,7 @@ async def _run(
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE.profile_id: GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V14_PROFILE,
+        ORDINARY_TRADE_MAPPING_V15_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V15_PROFILE,
     }
     profile = profiles.get(profile_id)
     if profile is None:
@@ -118,7 +121,7 @@ def main() -> int:
     parser.add_argument("--source-archive", required=True)
     parser.add_argument("--verify-pin-json", default=None)
     parser.add_argument(
-        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v14"
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v15"
     )
     args = parser.parse_args()
     archive = Path(args.source_archive)

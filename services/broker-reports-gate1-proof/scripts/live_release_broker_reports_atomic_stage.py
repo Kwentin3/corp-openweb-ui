@@ -29,10 +29,10 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
-ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v14"
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v15"
 ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
-    "broker_reports_ordinary_trade_mapping_prompt.v14.md"
+    "broker_reports_ordinary_trade_mapping_prompt.v15.md"
 )
 
 sys.path.insert(0, str(SCRIPT_DIR))

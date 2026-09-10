@@ -692,13 +692,14 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 8
+    assert len(disposition_enums) == 9
     assert {"SECURITY_TRADES"} in disposition_enums
     assert {"SECURITY_TRADES_INCOMPLETE"} in disposition_enums
     assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
     assert {"NO_NAMED_CONSUMER"} in disposition_enums
     assert {"UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
     assert {
+        "HEADER_ABSENT",
         "SECURITY_TRADES",
         "SECURITY_TRADES_INCOMPLETE",
         "NO_NAMED_CONSUMER",
@@ -718,6 +719,49 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         for values in normalized_value_enums
     )
     assert response_format == canonical_response_format
+
+
+def test_header_absent_schema_permits_only_the_zero_mapping_terminal() -> None:
+    schema = (
+        OrdinaryTradeSemanticMappingFactory.create()
+        .mapping_response_format()["json_schema"]["schema"]
+    )
+    decision = {
+        "table_ref": "table_1",
+        "header_row": None,
+        "disposition": "HEADER_ABSENT",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+    }
+    validator = Draft202012Validator(schema)
+    validator.validate(
+        {
+            "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+            "status": "COMPLETE",
+            "table_decisions": [decision],
+            "clarification": None,
+            "message": "The physical continuation has no header.",
+        }
+    )
+    invalid_cases = (
+        ("header_row", 1),
+        ("columns", [{"column": 1, "semantic_role": "trade_date"}]),
+    )
+    for invalid_field, invalid_value in invalid_cases:
+        invalid = copy.deepcopy(decision)
+        invalid[invalid_field] = invalid_value
+        with pytest.raises(ValidationError):
+            validator.validate(
+                {
+                    "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                    "status": "COMPLETE",
+                    "table_decisions": [invalid],
+                    "clarification": None,
+                    "message": "The physical continuation has no header.",
+                }
+            )
 
 
 def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
@@ -1033,9 +1077,7 @@ def test_prompt_injection_cell_cannot_author_mapping_or_source_literal(tmp_path)
     assert "canonical_binding" not in str(package)
     assert "canonical_root_sha256" not in str(package)
     assert package["case"]["tables"][0]["table_ref"] == "table_1"
-    assert package["case"]["tables"][0]["header_row_choices"] == [
-        item["row"] for item in table["content"]["cells"] if item["column"] == 1
-    ]
+    assert package["case"]["tables"][0]["header_row_choices"] == [1]
     assert "table_node_id" not in str(package)
     forged = _complete_response(table, known)
     forged["table_decisions"][0]["side_values"][0]["source_literal"] = "SELL"
@@ -1195,6 +1237,83 @@ def test_recognized_incomplete_security_trade_retains_role_without_fact_mapping(
         "unmapped",
     }
     assert resolution[0]["security_trade_rows"] == [2, 3]
+
+
+def test_explicitly_headerless_native_table_retains_every_source_row_without_runtime_fact(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, _known = _canonical_case(tmp_path)
+    table["content"]["header"] = []
+    table["content"].setdefault("metadata", {})["physical_header_state"] = "ABSENT"
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "header_row": None,
+                "disposition": "HEADER_ABSENT",
+                "columns": [],
+                "amount_currency_bindings": [],
+                "side_values": [],
+                "row_dispositions": [],
+            }
+        ],
+        "clarification": None,
+        "message": "В продолжении таблицы нет физического заголовка.",
+    }
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=result["qualified_mappings"],
+        table_resolutions=result["table_resolutions"],
+    )
+
+    assert result["qualified_mappings"] == []
+    assert len(result["table_resolutions"]) == 1
+    resolution = result["table_resolutions"][0]
+    assert resolution["table_node_id"] == table["node_id"]
+    assert resolution["header_row"] is None
+    assert resolution["evidence_surface"] == {"title_literal": None, "headers": []}
+    assert resolution["disposition"] == "HEADER_ABSENT"
+    assert resolution["security_trade_rows"] == []
+    assert projection["runtime_records"] == []
+    assert [item["row"] for item in projection["source_observations"]] == [1, 2, 3]
+    assert {
+        item["reason_code"] for item in projection["source_observations"]
+    } == {"ORDINARY_TRADE_SOURCE_HEADER_ABSENT"}
+    assert {
+        item["disposition"] for item in projection["source_observations"]
+    } == {"SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"}
+
+    table["content"]["metadata"].pop("physical_header_state")
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=binding,
+            mappings=result["qualified_mappings"],
+            table_resolutions=result["table_resolutions"],
+        )
+    assert exc.value.code == "ordinary_trade_table_resolution_surface_stale"
+
+    table["content"]["metadata"]["physical_header_state"] = "UNKNOWN"
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=[],
+        )
+    assert exc.value.code == "ordinary_trade_semantic_mapping_canonical_invalid"
 
 
 def test_current_incomplete_trade_rejects_model_authored_gap_list(tmp_path) -> None:

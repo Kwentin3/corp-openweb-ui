@@ -339,6 +339,13 @@ ArtifactStore. No local parser, OpenWebUI extractor, VLM, retry, or
 alternative engine may run as fallback. Exact rules are in
 [the current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
+For a `provider_native_table_html` segment, Canonical records only the native
+`physical_header_state` (`PRESENT` or `ABSENT`). `ABSENT` permits exactly the
+mapping terminal `HEADER_ABSENT`: the physical rows remain source observations
+with their provenance, but create no financial runtime record. Supplying a
+neighbouring-page header, joining segments, or assigning financial roles to
+that headerless segment is forbidden.
+
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
 | `OrdinaryTradeProductionRuntimeFactory.create` | `PRODUCT/NORMATIVE` | sole active ordinary-trade and bounded declaration-product composition root; current Canonical/source owner + current Human Facts + pinned methodology -> `INPUT_REQUIRED | DRAFT_READY | DECLARATION_XML_READY`; deterministic Gate 5 and private XML delivery, zero FNS transport |

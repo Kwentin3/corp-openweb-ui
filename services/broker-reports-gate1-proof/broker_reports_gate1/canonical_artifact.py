@@ -398,6 +398,20 @@ class CanonicalNormalizer:
                         "parser_duplicate_text_suppressed": True,
                         **(
                             {
+                                "physical_header_state": (
+                                    "PRESENT"
+                                    if (projection.get("header_model") or {}).get(
+                                        "header_row_refs"
+                                    )
+                                    else "ABSENT"
+                                )
+                            }
+                            if projection.get("reconstruction_strategy")
+                            == "provider_native_table_html"
+                            else {}
+                        ),
+                        **(
+                            {
                                 "logical_table_id": projection.get(
                                     "logical_table_id"
                                 ),
@@ -568,6 +582,20 @@ class CanonicalNormalizer:
                     ),
                     "standalone_source_bound_projection": True,
                     "parser_duplicate_text_suppressed": False,
+                    **(
+                        {
+                            "physical_header_state": (
+                                "PRESENT"
+                                if (projection.get("header_model") or {}).get(
+                                    "header_row_refs"
+                                )
+                                else "ABSENT"
+                            )
+                        }
+                        if projection.get("reconstruction_strategy")
+                        == "provider_native_table_html"
+                        else {}
+                    ),
                     **(
                         {
                             "logical_table_id": projection.get("logical_table_id"),

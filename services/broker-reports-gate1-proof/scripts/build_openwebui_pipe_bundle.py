@@ -230,6 +230,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_qualified_mappings",
     "ordinary_trade_semantic_mapping",
     "ordinary_trade_grouped_mapping_v14",
+    "ordinary_trade_grouped_mapping_v15",
     "ordinary_trade_mapping_prompt",
     "instructional_table_classification_prompt",
     "ordinary_trade_mapping_case",

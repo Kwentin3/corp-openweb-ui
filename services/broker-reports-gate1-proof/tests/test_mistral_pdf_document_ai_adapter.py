@@ -53,6 +53,13 @@ from broker_reports_gate1.pdf_document_ai import (
     RejectedPdfDocumentExtractor,
     UnconfiguredPdfDocumentExtractor,
 )
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
+)
+from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerFactory,
+)
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 
 
@@ -346,6 +353,80 @@ def test_native_html_table_is_preserved_as_physical_header_and_headerless_units(
     assert len(canonical_tables) == 2
     assert canonical_tables[0]["content"]["header"] == ["Date", "Amount"]
     assert canonical_tables[1]["content"]["header"] == []
+    assert [
+        table["content"]["metadata"].get("physical_header_state")
+        for table in canonical_tables
+    ] == ["PRESENT", "ABSENT"]
+    mapping_package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+    )
+    mapping_tables = mapping_package["case"]["tables"]
+    assert [table["physical_header_row"] for table in mapping_tables] == [1, None]
+    assert mapping_tables[1]["header_row_choices"] == []
+    assert mapping_tables[1]["rows"] == [
+        {
+            "row": 1,
+            "cells": [
+                {"column": 1, "literal": "2026-01-02"},
+                {"column": 2, "literal": "11"},
+            ],
+        }
+    ]
+    headerless_table = canonical_tables[1]
+    binding = {
+        "document_id": "native-table-document",
+        "canonical_version_id": "native-table-version",
+        "canonical_root_sha256": canonical["canonical_root_hash"],
+        "source_artifact_ref": canonical["source"]["source_artifact_ref"],
+        "source_sha256": canonical["source"]["source_sha256"],
+    }
+    mapping_result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response={
+            "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+            "status": "COMPLETE",
+            "table_decisions": [
+                {
+                    "table_ref": "table_1",
+                    "header_row": None,
+                    "disposition": "HEADER_ABSENT",
+                    "columns": [],
+                    "amount_currency_bindings": [],
+                    "side_values": [],
+                    "row_dispositions": [],
+                }
+            ],
+            "clarification": None,
+            "message": "The physical continuation has no header.",
+        },
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata={"fixture": "native-mistral-headerless"},
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(b"native-table-user").hexdigest(),
+        target_table_node_ids=[headerless_table["node_id"]],
+    )
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=mapping_result["qualified_mappings"],
+        table_resolutions=mapping_result["table_resolutions"],
+    )
+    continuation_observations = [
+        item
+        for item in projection["source_observations"]
+        if item["table_node_id"] == headerless_table["node_id"]
+    ]
+    assert mapping_result["qualified_mappings"] == []
+    assert projection["runtime_records"] == []
+    assert [(item["row"], item["reason_code"]) for item in continuation_observations] == [
+        (1, "ORDINARY_TRADE_SOURCE_HEADER_ABSENT")
+    ]
+    assert [
+        field["literal"] for field in continuation_observations[0]["fields"]
+    ] == ["2026-01-02", "11"]
     assert all(
         "document_ai_continuation" not in table["content"].get("metadata", {})
         for table in canonical_tables
