@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host half of the native ordinary-trade Prompt release boundary.
+"""Host half of the closed native Broker Reports Prompt release boundary.
 
 This small adapter moves an exact repository archive into the running
 OpenWebUI container and invokes the container-side native owner adapter.  It
@@ -25,6 +25,7 @@ _PROFILE_IDS = frozenset(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
+        "pdf_table_continuation_annotation_v1",
     }
 )
 

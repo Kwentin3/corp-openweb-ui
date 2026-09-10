@@ -34,6 +34,9 @@ ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
     "broker_reports_ordinary_trade_mapping_prompt.v15.md"
 )
+PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE = (
+    "pdf_table_continuation_annotation_v1"
+)
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -51,6 +54,9 @@ from broker_reports_release_source import (  # noqa: E402
     git_blob_bytes,
 )
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (  # noqa: E402
+    PROMPT_COMMAND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
+)
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _default_ssh_target,
     _read_env,
@@ -322,6 +328,24 @@ def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
         "ordinary_trade_mapping_prompt_command": value["prompt_command"],
         "ordinary_trade_mapping_prompt_version": value["prompt_history_id"],
         "ordinary_trade_mapping_prompt_hash": value["prompt_hash"],
+    }
+
+
+def _pdf_table_continuation_annotation_prompt_valves(
+    pin: Mapping[str, str],
+) -> dict[str, str]:
+    """Project a native history pin; activation remains an explicit Valve."""
+
+    value = _validated_prompt_pin(dict(pin))
+    if value["prompt_command"] != PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND:
+        raise StageReleaseDriverError(
+            "stage_release_pdf_table_continuation_prompt_command_invalid"
+        )
+    return {
+        "pdf_table_continuation_annotation_prompt_id": value["prompt_ref"],
+        "pdf_table_continuation_annotation_prompt_command": value["prompt_command"],
+        "pdf_table_continuation_annotation_prompt_version": value["prompt_history_id"],
+        "pdf_table_continuation_annotation_prompt_hash": value["prompt_hash"],
     }
 
 

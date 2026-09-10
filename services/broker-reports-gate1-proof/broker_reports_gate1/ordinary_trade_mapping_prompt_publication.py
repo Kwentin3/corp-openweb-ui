@@ -1,4 +1,4 @@
-"""Publish the repository-owned ordinary-trade Prompt through OpenWebUI.
+"""Publish closed repository-owned Broker Reports Prompts through OpenWebUI.
 
 This is a release-time composition boundary.  It deliberately delegates
 versioning and grants to OpenWebUI's Prompt owners: ``Prompts`` creates or
@@ -39,6 +39,16 @@ from .ordinary_trade_mapping_prompt import (
     PROMPT_TEMPLATE_KIND,
     ordinary_trade_mapping_prompt_hash,
 )
+from .pdf_table_continuation_annotation_prompt import (
+    INPUT_SCHEMA_VERSION as PDF_TABLE_CONTINUATION_ANNOTATION_INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID as PDF_TABLE_CONTINUATION_ANNOTATION_OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION as PDF_TABLE_CONTINUATION_ANNOTATION_OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_KIND,
+)
 
 
 PROMPT_ASSET_VERSION = "v13"
@@ -70,8 +80,8 @@ class OrdinaryTradeMappingPromptPublicationProfile:
 
     The publisher is intentionally not a generic Prompt writer: a caller can
     select only one of the repository-owned immutable profiles below.
-    This keeps the Goal #391 lab separate from the released v13 product Prompt
-    while retaining the same OpenWebUI Prompt/history/grant owner.
+    The profiles retain their independent domain contracts while sharing only
+    the OpenWebUI Prompt/history/grant lifecycle.
     """
 
     profile_id: str
@@ -86,9 +96,11 @@ class OrdinaryTradeMappingPromptPublicationProfile:
     output_schema_id: str
     output_schema_version: str
     required_tag: str
-    placeholder: str
+    placeholder: str | None
     is_production: bool
     initial_access_grants: tuple[tuple[str, str, str], ...]
+    metadata_extension: Mapping[str, Any] | None = None
+    commit_message: str | None = None
     legacy_metadata: Mapping[str, Any] | None = None
     legacy_name: str | None = None
     legacy_data: Mapping[str, Any] | None = None
@@ -175,6 +187,30 @@ ORDINARY_TRADE_MAPPING_V15_PROFILE = OrdinaryTradeMappingPromptPublicationProfil
     initial_access_grants=(("user", "*", "read"),),
 )
 
+# A distinct physical-source profile. It reuses only the native
+# Prompt/history/grant lifecycle below, not ordinary-trade meaning.
+PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE = (
+    OrdinaryTradeMappingPromptPublicationProfile(
+        profile_id="pdf_table_continuation_annotation_v1",
+        command=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
+        name="Broker Reports PDF physical table continuation annotation",
+        asset_filename="broker_reports_native_table_continuation_annotation_prompt.v1.md",
+        asset_version="v1",
+        template_id=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_ID,
+        template_kind=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_CONTRACT_ID,
+        input_schema_version=PDF_TABLE_CONTINUATION_ANNOTATION_INPUT_SCHEMA_VERSION,
+        output_schema_id=PDF_TABLE_CONTINUATION_ANNOTATION_OUTPUT_SCHEMA_ID,
+        output_schema_version=PDF_TABLE_CONTINUATION_ANNOTATION_OUTPUT_SCHEMA_VERSION,
+        required_tag=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_REQUIRED_TAG,
+        placeholder=None,
+        is_production=True,
+        initial_access_grants=(("user", "*", "read"),),
+        metadata_extension={"annotation_domain": "physical_table_continuation"},
+        commit_message="Publish Broker Reports PDF table-continuation annotation Prompt v1",
+    )
+)
+
 _PUBLISHABLE_PROFILES = {
     profile.profile_id: profile
     for profile in (
@@ -182,6 +218,7 @@ _PUBLISHABLE_PROFILES = {
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE,
+        PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE,
     )
 }
 
@@ -250,19 +287,7 @@ def publication_input_from_asset(
     return OrdinaryTradeMappingPromptPublicationInput(
         actor_user_id=actor_user_id,
         content=content,
-        commit_message=(
-            "Publish Broker Reports ordinary-trade mapping Prompt v13"
-            if profile is ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE
-            else (
-                "Publish Goal 391 grouped mapping lab Prompt v14"
-                if profile is GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE
-                else (
-                    "Publish Broker Reports ordinary-trade mapping Prompt v14"
-                    if profile is ORDINARY_TRADE_MAPPING_V14_PROFILE
-                    else "Publish Broker Reports ordinary-trade mapping Prompt v15"
-                )
-            )
-        ),
+        commit_message=profile.commit_message or _default_commit_message(profile),
     )
 
 
@@ -546,7 +571,7 @@ def _metadata(
     profile: OrdinaryTradeMappingPromptPublicationProfile = ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
 ) -> dict[str, Any]:
     profile = _require_known_profile(profile)
-    return {
+    base = {
         "template_id": profile.template_id,
         "template_kind": profile.template_kind,
         "prompt_contract_id": profile.prompt_contract_id,
@@ -556,15 +581,28 @@ def _metadata(
         "structured_output_required": True,
         "mapping_domain": "ordinary_trade",
     }
+    extension = dict(profile.metadata_extension or {})
+    if set(extension) & set(base):
+        raise OrdinaryTradeMappingPromptPublicationError(
+            "ordinary_trade_mapping_prompt_profile_invalid"
+        )
+    if profile is PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE:
+        base.pop("mapping_domain")
+    return {**base, **extension}
 
 
 def _require_contract_content(
     content: str, *, profile: OrdinaryTradeMappingPromptPublicationProfile
 ) -> None:
     profile = _require_known_profile(profile)
-    if not isinstance(content, str) or not content.strip() or content.count(
-        profile.placeholder
-    ) != 1:
+    if (
+        not isinstance(content, str)
+        or not content.strip()
+        or (
+            profile.placeholder is not None
+            and content.count(profile.placeholder) != 1
+        )
+    ):
         raise OrdinaryTradeMappingPromptPublicationError(
             "ordinary_trade_mapping_prompt_asset_contract_invalid"
         )
@@ -614,6 +652,22 @@ def _profile_prompt_hash(
     )
 
 
+def _default_commit_message(
+    profile: OrdinaryTradeMappingPromptPublicationProfile,
+) -> str:
+    if profile is ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v13"
+    if profile is GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE:
+        return "Publish Goal 391 grouped mapping lab Prompt v14"
+    if profile is ORDINARY_TRADE_MAPPING_V14_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v14"
+    if profile is ORDINARY_TRADE_MAPPING_V15_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v15"
+    raise OrdinaryTradeMappingPromptPublicationError(
+        "ordinary_trade_mapping_prompt_profile_invalid"
+    )
+
+
 def _require_known_profile(
     profile: OrdinaryTradeMappingPromptPublicationProfile,
 ) -> OrdinaryTradeMappingPromptPublicationProfile:
@@ -637,6 +691,7 @@ __all__ = [
     "GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE",
     "ORDINARY_TRADE_MAPPING_V14_PROFILE",
     "ORDINARY_TRADE_MAPPING_V15_PROFILE",
+    "PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE",
     "PROMPT_ASSET_FILENAME",
     "PROMPT_ASSET_VERSION",
     "publication_input_from_asset",

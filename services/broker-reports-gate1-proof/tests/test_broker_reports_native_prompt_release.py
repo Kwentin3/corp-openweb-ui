@@ -16,6 +16,7 @@ SCRIPTS = ROOT / "services" / "broker-reports-gate1-proof" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 import broker_reports_native_prompt_publish_host as host  # noqa: E402
+import broker_reports_native_prompt_publish_container as container  # noqa: E402
 import live_release_broker_reports_atomic_stage as release  # noqa: E402
 
 
@@ -75,6 +76,24 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     }
     with pytest.raises(release.StageReleaseDriverError, match="publication_receipt_invalid"):
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
+
+
+def test_physical_table_prompt_pin_projects_only_its_four_release_valves():
+    pin = {**_PIN, "prompt_command": "broker_pdf_table_continuation_annotation_v1"}
+
+    assert release._pdf_table_continuation_annotation_prompt_valves(pin) == {
+        "pdf_table_continuation_annotation_prompt_id": "prompt-1",
+        "pdf_table_continuation_annotation_prompt_command": (
+            "broker_pdf_table_continuation_annotation_v1"
+        ),
+        "pdf_table_continuation_annotation_prompt_version": "history-1",
+        "pdf_table_continuation_annotation_prompt_hash": "a" * 64,
+    }
+    with pytest.raises(
+        release.StageReleaseDriverError,
+        match="pdf_table_continuation_prompt_command_invalid",
+    ):
+        release._pdf_table_continuation_annotation_prompt_valves(_PIN)
 
 
 def test_atomic_release_publishes_and_rechecks_the_production_v15_profile():
@@ -251,6 +270,7 @@ def test_post_remote_prompt_readback_cleans_fresh_staging_after_failure(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
+        "pdf_table_continuation_annotation_v1",
     ],
 )
 def test_host_profile_selector_is_closed_and_reaches_only_native_runner(
@@ -306,3 +326,5 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     assert "OrdinaryTradeMappingPromptPublisher" in container_source
     assert "from open_webui.models.prompt_history" not in container_source
     assert '"ordinary_trade_mapping_v15"' in container_source
+    assert "pdf_table_continuation_annotation_v1" in container._PROFILE_IDS
+    assert "pdf_table_continuation_annotation_v1" in host._PROFILE_IDS

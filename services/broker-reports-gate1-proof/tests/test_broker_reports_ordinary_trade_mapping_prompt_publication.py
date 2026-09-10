@@ -18,11 +18,15 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
     ORDINARY_TRADE_MAPPING_V14_PROFILE,
     ORDINARY_TRADE_MAPPING_V15_PROFILE,
+    PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE,
     OrdinaryTradeMappingPromptPublication,
     OrdinaryTradeMappingPromptPublicationError,
     OrdinaryTradeMappingPromptPublicationInput,
     OrdinaryTradeMappingPromptPublisher,
     publication_input_from_asset,
+)
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
+    pdf_table_continuation_annotation_prompt_hash,
 )
 
 
@@ -142,6 +146,52 @@ def test_closed_v15_profile_is_distinct_and_marks_headerless_segments_terminal(
     assert "physical_header_row is null" in asset
     assert "HEADER_ABSENT" in asset
     assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_closed_physical_table_profile_publishes_native_instruction_without_mapping_placeholder(
+    monkeypatch, tmp_path: Path
+):
+    profile = PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE
+    content = "Assess physical table continuations only."
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    assert profile.placeholder is None
+    assert owner["prompts"].inserted.meta["annotation_domain"] == (
+        "physical_table_continuation"
+    )
+    assert "mapping_domain" not in owner["prompts"].inserted.meta
+    assert owner["prompts"].inserted.access_grants == [
+        {"principal_type": "user", "principal_id": "*", "permission": "read"}
+    ]
+    assert result.safe_pin()["prompt_command"] == profile.command
+    assert result.prompt_hash == pdf_table_continuation_annotation_prompt_hash(content)
+
+
+def test_repository_physical_table_asset_is_bound_to_its_closed_profile() -> None:
+    profile = PDF_TABLE_CONTINUATION_ANNOTATION_V1_PROFILE
+    asset_root = _V14_PROMPT_ASSET.parent
+
+    request = publication_input_from_asset(
+        actor_user_id="admin", asset_root=asset_root, profile=profile
+    )
+
+    assert profile.placeholder is None
+    assert request.content == (asset_root / profile.asset_filename).read_text(
+        encoding="utf-8"
+    )
+    assert "physical table" in request.content
+    assert "{{" not in request.content
 
 
 def test_v14_managed_prompt_requires_complete_document_currency_bindings():
@@ -400,6 +450,7 @@ def _native_owner(
         inserted = None
         updated = None
         latest_history_id = initial_history_id
+        latest_content = str(existing["content"]) if existing is not None else _CONTENT
 
         async def get_prompt_by_command(self, command, *, db):
             assert command == profile.command
@@ -410,6 +461,7 @@ def _native_owner(
             assert user_id == "admin" and db == "session"
             self.inserted = form
             self.latest_history_id = "history-created"
+            self.latest_content = form.content
             return _model(
                 _row(
                     version_id="history-created", content=form.content, profile=profile
@@ -420,6 +472,7 @@ def _native_owner(
             assert prompt_id == "prompt-1" and user_id == "admin" and db == "session"
             self.updated = form
             self.latest_history_id = "history-updated"
+            self.latest_content = form.content
             return _model(
                 _row(
                     version_id="history-updated", content=form.content, profile=profile
@@ -435,7 +488,7 @@ def _native_owner(
             return SimpleNamespace(
                 id=prompts.latest_history_id,
                 prompt_id=history_prompt_id or "prompt-1",
-                snapshot=_snapshot(_CONTENT, profile=profile),
+                snapshot=_snapshot(prompts.latest_content, profile=profile),
             )
 
     return {
