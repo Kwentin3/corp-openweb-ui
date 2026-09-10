@@ -2267,6 +2267,15 @@ def _validate_table_decision(
             decision.get("no_consumer_kind") == "INSTRUCTIONAL_REFERENCE"
             or preserve_model_classification_evidence
         )
+        and "classification_evidence" in decision
+    )
+    # The classifier owns the semantic conclusion, but it must not have to
+    # reproduce Canonical-owned provenance merely to exclude an instructional
+    # table.  A current strict response may omit that optional wire field; in
+    # that case this owner binds the complete already-admitted context below.
+    preserve_model_classification_evidence = (
+        preserve_model_classification_evidence
+        and "classification_evidence" in decision
     )
     expected_no_consumer_fields = (
         legacy_no_consumer_fields
@@ -3052,6 +3061,29 @@ def _mapping_response_schema() -> dict[str, Any]:
             "classification_evidence": classification_evidence,
         },
     }
+    instructional_reference_table_decision_without_evidence = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "table_ref",
+            "header_row",
+            "disposition",
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+            "row_dispositions",
+            "no_consumer_kind",
+        ],
+        "properties": {
+            **table_decision_common,
+            "disposition": {"const": "NO_NAMED_CONSUMER"},
+            "columns": {"type": "array", "maxItems": 0},
+            "amount_currency_bindings": {"type": "array", "maxItems": 0},
+            "side_values": {"type": "array", "maxItems": 0},
+            "row_dispositions": {"type": "array", "maxItems": 0},
+            "no_consumer_kind": {"const": "INSTRUCTIONAL_REFERENCE"},
+        },
+    }
     other_no_named_consumer_table_decision = {
         "type": "object",
         "additionalProperties": False,
@@ -3101,6 +3133,7 @@ def _mapping_response_schema() -> dict[str, Any]:
             security_trade_table_decision,
             incomplete_security_trade_table_decision,
             instructional_reference_table_decision,
+            instructional_reference_table_decision_without_evidence,
             other_no_named_consumer_table_decision,
             unsupported_financial_meaning_table_decision,
         ]

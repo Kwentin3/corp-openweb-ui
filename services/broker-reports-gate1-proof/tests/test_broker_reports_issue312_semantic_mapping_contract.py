@@ -692,7 +692,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 8
+    assert len(disposition_enums) == 9
     assert {"SECURITY_TRADES"} in disposition_enums
     assert {"SECURITY_TRADES_INCOMPLETE"} in disposition_enums
     assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
@@ -749,6 +749,7 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
         validator.validate(response)
 
     response["table_decisions"][0]["columns"] = []
+    validator.validate(response)
     response["table_decisions"][0]["classification_evidence"] = [
         {"context_ref": "context_1", "relation": "TABLE_TITLE"}
     ]
@@ -779,8 +780,7 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
         "message": "The table is explanatory material.",
     }
 
-    with pytest.raises(ValidationError):
-        validator.validate(response)
+    validator.validate(response)
     decision["classification_evidence"] = [
         {"context_ref": "context_1", "relation": "TABLE_TITLE"}
     ]
@@ -796,8 +796,7 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
     decision["no_consumer_kind"] = "OTHER_NO_NAMED_CONSUMER"
     validator.validate(response)
     decision["no_consumer_kind"] = "INSTRUCTIONAL_REFERENCE"
-    with pytest.raises(ValidationError):
-        validator.validate(response)
+    validator.validate(response)
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:
