@@ -1676,6 +1676,34 @@ def test_oversized_response_is_rejected_before_json_parsing(tmp_path: Path) -> N
     assert len(response.read_limits) == 1
 
 
+def test_private_rnd_capture_returns_exact_bounded_annotation_response_once(
+    tmp_path: Path,
+) -> None:
+    raw_response = (
+        b'{"document_annotation":"private provider response",'
+        b'"pages":[{"index":0,"markdown":"[t](tbl-0.html)","tables":[]}]}'
+    )
+    opener = _FakeOpener(_FakeResponse(raw=raw_response))
+    prompt = "Capture one physical table annotation response."
+
+    captured = _extractor(
+        tmp_path, opener
+    ).capture_unvalidated_table_annotation_response_once(
+        PDF_BYTES,
+        _source_context(1),
+        source_page_numbers=(0,),
+        document_annotation_prompt=prompt,
+    )
+
+    assert captured == raw_response
+    _assert_one_post(
+        opener,
+        expected_annotation_prompt=prompt,
+        expected_source_page_numbers=(0,),
+    )
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_partial_image_decode_failure_never_touches_filesystem(tmp_path: Path) -> None:
     opener = _FakeOpener(
         _FakeResponse(

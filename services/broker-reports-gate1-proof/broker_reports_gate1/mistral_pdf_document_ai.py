@@ -245,15 +245,13 @@ class MistralPdfDocumentExtractor:
     ) -> PdfDocumentTableContinuationRAndDResult:
         """Run the native, non-product annotation experiment in one OCR call."""
 
-        source_page_numbers = _validated_annotation_source_page_numbers(
-            source_page_numbers,
-            source_context=source_context,
+        source_page_numbers, document_annotation_prompt = (
+            _validated_table_continuation_annotation_request(
+                source_page_numbers=source_page_numbers,
+                source_context=source_context,
+                document_annotation_prompt=document_annotation_prompt,
+            )
         )
-        if (
-            not isinstance(document_annotation_prompt, str)
-            or not document_annotation_prompt.strip()
-        ):
-            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_PROMPT_INVALID")
         response = self._post_once(
             pdf_bytes,
             document_annotation_prompt=document_annotation_prompt,
@@ -285,6 +283,34 @@ class MistralPdfDocumentExtractor:
             raise PdfDocumentExtractionError(
                 "PDF_DOCUMENT_AI_ANNOTATION_INVALID"
             ) from exc
+
+    def capture_unvalidated_table_annotation_response_once(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+        *,
+        source_page_numbers: tuple[int, ...],
+        document_annotation_prompt: str,
+    ) -> bytes:
+        """Return one bounded native annotation response for private R&D only.
+
+        This deliberately does not decode, classify, persist, or project the
+        response. It exists only so an isolated laboratory can inspect a
+        validation failure without making the product path permissive.
+        """
+
+        source_page_numbers, document_annotation_prompt = (
+            _validated_table_continuation_annotation_request(
+                source_page_numbers=source_page_numbers,
+                source_context=source_context,
+                document_annotation_prompt=document_annotation_prompt,
+            )
+        )
+        return self._post_raw_once(
+            pdf_bytes,
+            document_annotation_prompt=document_annotation_prompt,
+            source_page_numbers=source_page_numbers,
+        )
 
     def _extraction_from_response(
         self,
@@ -449,6 +475,26 @@ class MistralPdfDocumentExtractor:
         document_annotation_prompt: str | None = None,
         source_page_numbers: tuple[int, ...] | None = None,
     ) -> Mapping[str, Any]:
+        raw = self._post_raw_once(
+            pdf_bytes,
+            document_annotation_prompt=document_annotation_prompt,
+            source_page_numbers=source_page_numbers,
+        )
+        try:
+            value = json.loads(raw.decode("utf-8", errors="strict"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID") from None
+        if not isinstance(value, Mapping):
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
+        return value
+
+    def _post_raw_once(
+        self,
+        pdf_bytes: bytes,
+        *,
+        document_annotation_prompt: str | None = None,
+        source_page_numbers: tuple[int, ...] | None = None,
+    ) -> bytes:
         parameters = dict(MISTRAL_OCR_REQUEST_PARAMETERS)
         payload_object: dict[str, object] = {
             "model": MISTRAL_OCR_MODEL,
@@ -513,13 +559,7 @@ class MistralPdfDocumentExtractor:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
         if len(raw) > _MAX_RESPONSE_BYTES:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_TOO_LARGE")
-        try:
-            value = json.loads(raw.decode("utf-8", errors="strict"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID") from None
-        if not isinstance(value, Mapping):
-            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
-        return value
+        return raw
 
 
 def _validated_annotation_source_page_numbers(
@@ -542,6 +582,21 @@ def _validated_annotation_source_page_numbers(
             "PDF_DOCUMENT_AI_ANNOTATION_SOURCE_PAGES_INVALID"
         )
     return source_page_numbers
+
+
+def _validated_table_continuation_annotation_request(
+    *,
+    source_page_numbers: tuple[int, ...],
+    source_context: PdfSourceContext,
+    document_annotation_prompt: str,
+) -> tuple[tuple[int, ...], str]:
+    source_page_numbers = _validated_annotation_source_page_numbers(
+        source_page_numbers,
+        source_context=source_context,
+    )
+    if not isinstance(document_annotation_prompt, str) or not document_annotation_prompt.strip():
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_PROMPT_INVALID")
+    return source_page_numbers, document_annotation_prompt
 
 
 def _bound_annotation_response_page_indices(

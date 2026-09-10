@@ -12,6 +12,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import os
 import re
 import sys
 from collections.abc import Mapping
@@ -178,6 +179,7 @@ def _safe_receipt(
     annotation_responses_validated_total: int,
     extractor: Any | None = None,
     evidence_written: bool = False,
+    raw_response: bytes | None = None,
 ) -> dict[str, object]:
     """Return a receipt containing only terminal state, hashes, and counts."""
     receipt: dict[str, object] = {
@@ -201,6 +203,9 @@ def _safe_receipt(
         receipt["annotation_prompt_bytes_total"] = len(prompt.encode("utf-8"))
     if extractor is not None:
         receipt["adapter_id"] = str(getattr(extractor, "adapter_id", ""))
+    if raw_response is not None:
+        receipt["raw_response_sha256"] = _sha256_bytes(raw_response)
+        receipt["raw_response_bytes_total"] = len(raw_response)
     return receipt
 
 
@@ -257,6 +262,19 @@ def _write_json_new(path: Path, value: Mapping[str, object]) -> None:
         handle.write("\n")
 
 
+def _write_private_bytes_new(path: Path, value: bytes) -> None:
+    """Write provider bytes once with owner-only permissions outside Git."""
+
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except OSError as exc:
+        raise NativeTableAnnotationLabError(
+            "goal391_annotation_private_response_write_failed"
+        ) from exc
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(value)
+
+
 async def _preflight(args: argparse.Namespace) -> tuple[bytes, str, tuple[int, ...], Any]:
     source_bytes = _read_source(
         source_pdf=args.source_pdf.resolve(),
@@ -272,9 +290,12 @@ async def _preflight(args: argparse.Namespace) -> tuple[bytes, str, tuple[int, .
         ordinary_user_id=args.ordinary_user_id,
     )
     extractor = PdfDocumentExtractorFactory.create(server_request=request)
-    if not callable(
-        getattr(extractor, "extract_with_table_continuation_assessment", None)
-    ):
+    required_method = (
+        "capture_unvalidated_table_annotation_response_once"
+        if args.capture_one_unvalidated_response
+        else "extract_with_table_continuation_assessment"
+    )
+    if not callable(getattr(extractor, required_method, None)):
         raise NativeTableAnnotationLabError("goal391_annotation_method_unavailable")
     return source_bytes, prompt, selected_pages, extractor
 
@@ -311,6 +332,28 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
             preflight_page_count=args.source_page_count,
         )
         annotation_attempts_started_total = 1
+        if args.capture_one_unvalidated_response:
+            raw_response = extractor.capture_unvalidated_table_annotation_response_once(
+                source_bytes,
+                context,
+                source_page_numbers=selected_pages,
+                document_annotation_prompt=prompt,
+            )
+            _write_private_bytes_new(args.private_raw_response, raw_response)
+            return _safe_receipt(
+                status="RAW_RESPONSE_CAPTURED_AWAITING_PRIVATE_AUDIT",
+                terminal="ONE_CLEAN_CALL_RAW_RESPONSE_READY",
+                source_sha256=source_sha256,
+                source_bytes_total=source_bytes_total,
+                source_page_count=args.source_page_count,
+                selected_pages=selected_pages,
+                prompt=prompt,
+                annotation_attempts_started_total=annotation_attempts_started_total,
+                annotation_responses_validated_total=0,
+                extractor=extractor,
+                evidence_written=True,
+                raw_response=raw_response,
+            )
         result = extractor.extract_with_table_continuation_assessment(
             source_bytes,
             context,
@@ -394,6 +437,7 @@ def main() -> int:
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--preflight-only", action="store_true")
     modes.add_argument("--execute-one-clean-call", action="store_true")
+    modes.add_argument("--capture-one-unvalidated-response", action="store_true")
     parser.add_argument("--source-pdf", type=Path, required=True)
     parser.add_argument("--expected-source-sha256", required=True)
     parser.add_argument("--source-page-count", type=int, required=True)
@@ -401,11 +445,25 @@ def main() -> int:
     parser.add_argument("--prompt-file", type=Path, required=True)
     parser.add_argument("--ordinary-user-id", required=True)
     parser.add_argument("--safe-receipt", type=Path, required=True)
-    parser.add_argument("--private-evidence", type=Path, required=True)
+    parser.add_argument("--private-evidence", type=Path)
+    parser.add_argument("--private-raw-response", type=Path)
     args = parser.parse_args()
     try:
         args.safe_receipt = _require_new_external_path(args.safe_receipt)
-        args.private_evidence = _require_new_external_path(args.private_evidence)
+        if args.capture_one_unvalidated_response:
+            if args.private_evidence is not None or args.private_raw_response is None:
+                raise NativeTableAnnotationLabError(
+                    "goal391_annotation_private_output_mode_invalid"
+                )
+            args.private_raw_response = _require_new_external_path(
+                args.private_raw_response
+            )
+        elif args.private_raw_response is not None or args.private_evidence is None:
+            raise NativeTableAnnotationLabError(
+                "goal391_annotation_private_output_mode_invalid"
+            )
+        else:
+            args.private_evidence = _require_new_external_path(args.private_evidence)
     except NativeTableAnnotationLabError as exc:
         raise SystemExit(str(exc)) from None
     receipt = asyncio.run(run(args))
@@ -414,7 +472,11 @@ def main() -> int:
     return (
         0
         if receipt["status"]
-        in {"PREFLIGHT_PASSED", "COMPLETED_AWAITING_VISUAL_AUDIT"}
+        in {
+            "PREFLIGHT_PASSED",
+            "COMPLETED_AWAITING_VISUAL_AUDIT",
+            "RAW_RESPONSE_CAPTURED_AWAITING_PRIVATE_AUDIT",
+        }
         else 1
     )
 
