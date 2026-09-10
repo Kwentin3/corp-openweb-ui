@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -265,7 +266,14 @@ def _run_native_prompt_publication(
         ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
     ]
     if verify_pin is not None:
-        command.extend(["--verify-pin-json", json.dumps(dict(verify_pin), sort_keys=True)])
+        # ssh joins trailing argv items into a remote POSIX shell command.  Quote
+        # JSON explicitly so Windows OpenSSH cannot split it at spaces/quotes.
+        command.extend(
+            [
+                "--verify-pin-json",
+                shlex.quote(json.dumps(dict(verify_pin), sort_keys=True)),
+            ]
+        )
     completed = _run(command, check=False, timeout=300)
     if completed.returncode != 0:
         raise StageReleaseDriverError("stage_release_prompt_publication_failed")

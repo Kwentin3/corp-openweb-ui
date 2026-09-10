@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 import zipfile
@@ -101,6 +102,26 @@ def test_atomic_release_publishes_and_rechecks_the_production_v14_profile():
         "/safe/staging",
         "--profile",
         "ordinary_trade_mapping_v14",
+    ]
+
+
+def test_prompt_readback_keeps_json_pin_as_one_remote_shell_argument():
+    calls: list[list[str]] = []
+
+    def run(args, *, check=True, timeout=None):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(_PIN), stderr="")
+
+    with mock.patch.object(release, "_run", side_effect=run):
+        assert release._run_native_prompt_publication(
+            ssh_target="release-host",
+            remote_dir="/safe/staging",
+            verify_pin=_PIN,
+        ) == _PIN
+
+    assert calls[0][-2:] == [
+        "--verify-pin-json",
+        shlex.quote(json.dumps(_PIN, sort_keys=True)),
     ]
 
 
