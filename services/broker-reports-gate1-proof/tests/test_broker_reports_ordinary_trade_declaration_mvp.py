@@ -832,7 +832,7 @@ def test_whole_active_canonical_document_without_projection_blocks_before_xml(
     assert complete["declaration"] is None
     assert complete["product"]["xml_created"] is False
     assert complete["product"]["terminal"] == (
-        "ordinary_trade_declaration_disposal_binding_required"
+        "ordinary_trade_declaration_bundle_stale"
     )
 
 
