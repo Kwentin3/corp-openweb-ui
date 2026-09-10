@@ -23,9 +23,15 @@ from .pdf_document_ai import (
     PdfDocumentExtractionError,
     PdfDocumentImageRef,
     PdfDocumentTableRef,
+    PdfDocumentTableContinuationAssessment,
+    PdfDocumentTableContinuationLink,
+    PdfDocumentTableContinuationRAndDResult,
+    PdfDocumentSelectedPageBinding,
     PdfSourceContext,
     new_pdf_document_image_ref,
     new_pdf_document_table_ref,
+    pdf_document_selected_page_bindings_sha256,
+    pdf_document_table_refs_sha256,
 )
 
 
@@ -48,6 +54,66 @@ _MAX_IMAGES = 64
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024
 _PAGE_SEPARATOR = b"\n\n"
+_MAX_DOCUMENT_ANNOTATION_PAGES = 8
+MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_CONTRACT_VERSION = (
+    "mistral_ocr_table_continuation_annotation_v1"
+)
+MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "broker_reports_native_table_continuation_links_v1",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "continuation_links": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "parent": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "page_index": {"type": "integer", "minimum": 0},
+                                    "table_id": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9._-]{1,255}$",
+                                    },
+                                },
+                                "required": ["page_index", "table_id"],
+                            },
+                            "child": {
+                                "type": "object",
+                                "additionalProperties": False,
+                                "properties": {
+                                    "page_index": {"type": "integer", "minimum": 0},
+                                    "table_id": {
+                                        "type": "string",
+                                        "pattern": "^[A-Za-z0-9._-]{1,255}$",
+                                    },
+                                },
+                                "required": ["page_index", "table_id"],
+                            },
+                        },
+                        "required": ["parent", "child"],
+                    },
+                }
+            },
+            "required": ["continuation_links"],
+        },
+    },
+}
+MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_REQUEST_PARAMETERS = tuple(
+    sorted(
+        (
+            *MISTRAL_OCR_REQUEST_PARAMETERS,
+            ("document_annotation_format", "json_schema"),
+        )
+    )
+)
 
 
 def execution_contract() -> PdfDocumentAiExecutionContract:
@@ -147,8 +213,80 @@ class MistralPdfDocumentExtractor:
         source_context: PdfSourceContext,
     ) -> PdfDocumentExtraction:
         response = self._post_once(pdf_bytes)
+        return self._extraction_from_response(
+            response=response,
+            pdf_bytes=pdf_bytes,
+            source_context=source_context,
+            expected_response_page_indices=None,
+        )
+
+    def extract_with_table_continuation_assessment(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+        *,
+        source_page_numbers: tuple[int, ...],
+        document_annotation_prompt: str,
+    ) -> PdfDocumentTableContinuationRAndDResult:
+        """Run the native, non-product annotation experiment in one OCR call."""
+
+        source_page_numbers = _validated_annotation_source_page_numbers(
+            source_page_numbers,
+            source_context=source_context,
+        )
+        if (
+            not isinstance(document_annotation_prompt, str)
+            or not document_annotation_prompt.strip()
+        ):
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_PROMPT_INVALID")
+        response = self._post_once(
+            pdf_bytes,
+            document_annotation_prompt=document_annotation_prompt,
+            source_page_numbers=source_page_numbers,
+        )
+        response_page_indices = _bound_annotation_response_page_indices(
+            response,
+            source_page_numbers=source_page_numbers,
+        )
+        extraction = self._extraction_from_response(
+            response=response,
+            pdf_bytes=pdf_bytes,
+            source_context=source_context,
+            expected_response_page_indices=response_page_indices,
+        )
+        assessment = _parse_table_continuation_assessment(
+            response=response,
+            extraction=extraction,
+            document_annotation_prompt=document_annotation_prompt,
+            response_page_indices=response_page_indices,
+            source_page_numbers=source_page_numbers,
+        )
+        try:
+            return PdfDocumentTableContinuationRAndDResult(
+                extraction=extraction,
+                assessment=assessment,
+                source_context=source_context,
+            )
+        except ValueError as exc:
+            raise PdfDocumentExtractionError(
+                "PDF_DOCUMENT_AI_ANNOTATION_INVALID"
+            ) from exc
+
+    def _extraction_from_response(
+        self,
+        *,
+        response: Mapping[str, Any],
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+        expected_response_page_indices: tuple[int, ...] | None,
+    ) -> PdfDocumentExtraction:
         pages = response.get("pages")
-        if not isinstance(pages, list) or len(pages) != source_context.preflight_page_count:
+        expected_page_count = (
+            source_context.preflight_page_count
+            if expected_response_page_indices is None
+            else len(expected_response_page_indices)
+        )
+        if not isinstance(pages, list) or len(pages) != expected_page_count:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAGE_COUNT_MISMATCH")
 
         markdown_parts: list[bytes] = []
@@ -158,7 +296,15 @@ class MistralPdfDocumentExtractor:
         for expected_index, page in enumerate(pages):
             if not isinstance(page, Mapping):
                 raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
-            if type(page.get("index")) is not int or page.get("index") != expected_index:
+            expected_response_index = (
+                expected_index
+                if expected_response_page_indices is None
+                else expected_response_page_indices[expected_index]
+            )
+            if (
+                type(page.get("index")) is not int
+                or page.get("index") != expected_response_index
+            ):
                 raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAGE_ORDER_INVALID")
             markdown = page.get("markdown")
             if not isinstance(markdown, str):
@@ -282,21 +428,38 @@ class MistralPdfDocumentExtractor:
             ),
         )
 
-    def _post_once(self, pdf_bytes: bytes) -> Mapping[str, Any]:
+    def _post_once(
+        self,
+        pdf_bytes: bytes,
+        *,
+        document_annotation_prompt: str | None = None,
+        source_page_numbers: tuple[int, ...] | None = None,
+    ) -> Mapping[str, Any]:
         parameters = dict(MISTRAL_OCR_REQUEST_PARAMETERS)
-        payload = json.dumps(
-            {
-                "model": MISTRAL_OCR_MODEL,
-                "document": {
-                    "type": parameters["document_type"],
-                    "document_url": (
-                        f"data:{parameters['document_url_media_type']};base64,"
-                        + base64.b64encode(pdf_bytes).decode("ascii")
-                    ),
-                },
-                "include_image_base64": parameters["include_image_base64"],
-                "table_format": parameters["table_format"],
+        payload_object: dict[str, object] = {
+            "model": MISTRAL_OCR_MODEL,
+            "document": {
+                "type": parameters["document_type"],
+                "document_url": (
+                    f"data:{parameters['document_url_media_type']};base64,"
+                    + base64.b64encode(pdf_bytes).decode("ascii")
+                ),
             },
+            "include_image_base64": parameters["include_image_base64"],
+            "table_format": parameters["table_format"],
+        }
+        if document_annotation_prompt is not None:
+            payload_object["document_annotation_format"] = (
+                MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA
+            )
+            payload_object["document_annotation_prompt"] = document_annotation_prompt
+            if source_page_numbers is None:
+                raise PdfDocumentExtractionError(
+                    "PDF_DOCUMENT_AI_ANNOTATION_SOURCE_PAGES_INVALID"
+                )
+            payload_object["pages"] = list(source_page_numbers)
+        payload = json.dumps(
+            payload_object,
             ensure_ascii=True,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -343,6 +506,216 @@ class MistralPdfDocumentExtractor:
         if not isinstance(value, Mapping):
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
         return value
+
+
+def _validated_annotation_source_page_numbers(
+    source_page_numbers: tuple[int, ...],
+    *,
+    source_context: PdfSourceContext,
+) -> tuple[int, ...]:
+    if (
+        type(source_page_numbers) is not tuple
+        or not source_page_numbers
+        or len(source_page_numbers) > _MAX_DOCUMENT_ANNOTATION_PAGES
+        or any(
+            type(page_number) is not int
+            or page_number < 0
+            or page_number >= source_context.preflight_page_count
+            for page_number in source_page_numbers
+        )
+        or source_page_numbers != tuple(sorted(set(source_page_numbers)))
+    ):
+        raise PdfDocumentExtractionError(
+            "PDF_DOCUMENT_AI_ANNOTATION_SOURCE_PAGES_INVALID"
+        )
+    return source_page_numbers
+
+
+def _bound_annotation_response_page_indices(
+    response: Mapping[str, Any],
+    *,
+    source_page_numbers: tuple[int, ...],
+) -> tuple[int, ...]:
+    pages = response.get("pages")
+    if not isinstance(pages, list) or len(pages) != len(source_page_numbers):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAGE_COUNT_MISMATCH")
+    response_page_indices = tuple(
+        page.get("index") if isinstance(page, Mapping) else None for page in pages
+    )
+    if any(type(page_index) is not int for page_index in response_page_indices):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
+    zero_based_subset_indices = tuple(range(len(source_page_numbers)))
+    if response_page_indices not in {
+        source_page_numbers,
+        zero_based_subset_indices,
+    }:
+        raise PdfDocumentExtractionError(
+            "PDF_DOCUMENT_AI_ANNOTATION_RESPONSE_PAGE_BINDING_INVALID"
+        )
+    return tuple(int(page_index) for page_index in response_page_indices)
+
+
+def _parse_table_continuation_assessment(
+    *,
+    response: Mapping[str, Any],
+    extraction: PdfDocumentExtraction,
+    document_annotation_prompt: str,
+    response_page_indices: tuple[int, ...],
+    source_page_numbers: tuple[int, ...],
+) -> PdfDocumentTableContinuationAssessment:
+    raw_annotation = response.get("document_annotation")
+    if not isinstance(raw_annotation, str):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+    try:
+        annotation = json.loads(raw_annotation)
+    except json.JSONDecodeError:
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID") from None
+    if not isinstance(annotation, Mapping) or set(annotation) != {"continuation_links"}:
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+    raw_links = annotation["continuation_links"]
+    if not isinstance(raw_links, list):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+
+    table_by_native_location = {
+        (response_page_indices[table.page_number - 1], table.markdown_target): table
+        for table in extraction.table_refs
+    }
+    selected_page_bindings = tuple(
+        PdfDocumentSelectedPageBinding(
+            local_page_number=local_page_number,
+            source_page_number=source_page_number,
+        )
+        for local_page_number, source_page_number in zip(
+            extraction.page_numbers, source_page_numbers, strict=True
+        )
+    )
+    source_page_number_by_local_page = {
+        binding.local_page_number: binding.source_page_number
+        for binding in selected_page_bindings
+    }
+    links: list[PdfDocumentTableContinuationLink] = []
+    pairs: set[tuple[str, str]] = set()
+    parent_refs: set[str] = set()
+    child_refs: set[str] = set()
+    for raw_link in raw_links:
+        if not isinstance(raw_link, Mapping) or set(raw_link) != {"parent", "child"}:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+        parent = _annotation_table_ref(
+            raw_link["parent"],
+            table_by_native_location=table_by_native_location,
+        )
+        child = _annotation_table_ref(
+            raw_link["child"],
+            table_by_native_location=table_by_native_location,
+        )
+        if parent.local_ref == child.local_ref:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_SELF_LINK")
+        parent_source_page_number = source_page_number_by_local_page[parent.page_number]
+        child_source_page_number = source_page_number_by_local_page[child.page_number]
+        if child_source_page_number <= parent_source_page_number:
+            raise PdfDocumentExtractionError(
+                "PDF_DOCUMENT_AI_ANNOTATION_CHILD_PAGE_ORDER_INVALID"
+            )
+        if child_source_page_number != parent_source_page_number + 1:
+            raise PdfDocumentExtractionError(
+                "PDF_DOCUMENT_AI_ANNOTATION_NONADJACENT_PAGE_LINK"
+            )
+        pair = (parent.local_ref, child.local_ref)
+        if pair in pairs:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_DUPLICATE_LINK")
+        if child.local_ref in child_refs:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_MULTIPLE_PARENT")
+        if parent.local_ref in parent_refs:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_MULTIPLE_CHILD")
+        pairs.add(pair)
+        parent_refs.add(parent.local_ref)
+        child_refs.add(child.local_ref)
+        links.append(
+            PdfDocumentTableContinuationLink(
+                parent_table_ref=parent.local_ref,
+                child_table_ref=child.local_ref,
+            )
+        )
+    if _has_table_continuation_cycle(tuple(links)):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_CYCLE")
+    try:
+        return PdfDocumentTableContinuationAssessment(
+            source_pdf_sha256=extraction.source_pdf_sha256,
+            table_refs_sha256=pdf_document_table_refs_sha256(extraction.table_refs),
+            raw_annotation_sha256=hashlib.sha256(
+                raw_annotation.encode("utf-8", errors="strict")
+            ).hexdigest(),
+            request_parameters_sha256=_json_sha256(
+                {
+                    **dict(MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_REQUEST_PARAMETERS),
+                    "source_page_numbers": list(source_page_numbers),
+                }
+            ),
+            annotation_prompt_sha256=hashlib.sha256(
+                document_annotation_prompt.encode("utf-8", errors="strict")
+            ).hexdigest(),
+            annotation_schema_sha256=_json_sha256(
+                MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA
+            ),
+            selected_page_bindings_sha256=pdf_document_selected_page_bindings_sha256(
+                selected_page_bindings
+            ),
+            source_page_numbers=source_page_numbers,
+            selected_page_bindings=selected_page_bindings,
+            links=tuple(links),
+        )
+    except (TypeError, UnicodeEncodeError, ValueError):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID") from None
+
+
+def _annotation_table_ref(
+    value: object,
+    *,
+    table_by_native_location: Mapping[tuple[int, str], PdfDocumentTableRef],
+) -> PdfDocumentTableRef:
+    if not isinstance(value, Mapping) or set(value) != {"page_index", "table_id"}:
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+    page_index = value["page_index"]
+    table_id = value["table_id"]
+    if (
+        type(page_index) is not int
+        or page_index < 0
+        or not isinstance(table_id, str)
+        or not re.fullmatch(r"[A-Za-z0-9._-]{1,255}", table_id)
+    ):
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_INVALID")
+    table = table_by_native_location.get((page_index, table_id))
+    if table is None:
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_ANNOTATION_UNKNOWN_TABLE")
+    return table
+
+
+def _has_table_continuation_cycle(
+    links: tuple[PdfDocumentTableContinuationLink, ...],
+) -> bool:
+    children_by_parent = {
+        link.parent_table_ref: link.child_table_ref for link in links
+    }
+    for start in children_by_parent:
+        seen: set[str] = set()
+        cursor = start
+        while cursor in children_by_parent:
+            if cursor in seen:
+                return True
+            seen.add(cursor)
+            cursor = children_by_parent[cursor]
+    return False
+
+
+def _json_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def create_from_openwebui_request(

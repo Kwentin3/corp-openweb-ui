@@ -88,6 +88,229 @@ class PdfDocumentTableRef:
             raise ValueError("pdf_document_table_sha256_mismatch")
 
 
+PDF_DOCUMENT_TABLE_CONTINUATION_ASSESSMENT_SCHEMA_VERSION = (
+    "broker_reports_pdf_document_table_continuation_assessment_v1"
+)
+
+
+@dataclass(frozen=True)
+class PdfDocumentTableContinuationLink:
+    """A relation between two opaque native table references in one extraction."""
+
+    parent_table_ref: str
+    child_table_ref: str
+
+    def __post_init__(self) -> None:
+        if not all(
+            isinstance(value, str) and value.startswith("pdftable_")
+            for value in (self.parent_table_ref, self.child_table_ref)
+        ):
+            raise ValueError("pdf_document_table_continuation_ref_invalid")
+        if self.parent_table_ref == self.child_table_ref:
+            raise ValueError("pdf_document_table_continuation_self_link")
+
+
+@dataclass(frozen=True)
+class PdfDocumentSelectedPageBinding:
+    """Bind one local OCR page to the original zero-based PDF page."""
+
+    local_page_number: int
+    source_page_number: int
+
+    def __post_init__(self) -> None:
+        if type(self.local_page_number) is not int or self.local_page_number < 1:
+            raise ValueError("pdf_document_annotation_local_page_invalid")
+        if type(self.source_page_number) is not int or self.source_page_number < 0:
+            raise ValueError("pdf_document_annotation_source_page_invalid")
+
+
+@dataclass(frozen=True)
+class PdfDocumentTableContinuationAssessment:
+    """R&D-only native annotation receipt; it carries no Canonical meaning."""
+
+    source_pdf_sha256: str = field(repr=False)
+    table_refs_sha256: str = field(repr=False)
+    raw_annotation_sha256: str = field(repr=False)
+    request_parameters_sha256: str = field(repr=False)
+    annotation_prompt_sha256: str = field(repr=False)
+    annotation_schema_sha256: str = field(repr=False)
+    selected_page_bindings_sha256: str = field(repr=False)
+    source_page_numbers: tuple[int, ...]
+    selected_page_bindings: tuple[PdfDocumentSelectedPageBinding, ...]
+    links: tuple[PdfDocumentTableContinuationLink, ...]
+    schema_version: str = PDF_DOCUMENT_TABLE_CONTINUATION_ASSESSMENT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        for value, code in (
+            (self.source_pdf_sha256, "pdf_document_annotation_source_sha256_invalid"),
+            (self.table_refs_sha256, "pdf_document_annotation_table_refs_sha256_invalid"),
+            (self.raw_annotation_sha256, "pdf_document_annotation_raw_sha256_invalid"),
+            (
+                self.request_parameters_sha256,
+                "pdf_document_annotation_request_parameters_sha256_invalid",
+            ),
+            (self.annotation_prompt_sha256, "pdf_document_annotation_prompt_sha256_invalid"),
+            (self.annotation_schema_sha256, "pdf_document_annotation_schema_sha256_invalid"),
+            (
+                self.selected_page_bindings_sha256,
+                "pdf_document_annotation_selected_page_bindings_sha256_invalid",
+            ),
+        ):
+            _require_sha256(value, code)
+        if self.schema_version != PDF_DOCUMENT_TABLE_CONTINUATION_ASSESSMENT_SCHEMA_VERSION:
+            raise ValueError("pdf_document_annotation_schema_version_invalid")
+        if (
+            not self.source_page_numbers
+            or len(self.source_page_numbers) > 8
+            or any(
+                type(page_number) is not int or page_number < 0
+                for page_number in self.source_page_numbers
+            )
+            or self.source_page_numbers != tuple(sorted(set(self.source_page_numbers)))
+        ):
+            raise ValueError("pdf_document_annotation_source_page_numbers_invalid")
+        if (
+            not self.selected_page_bindings
+            or len(self.selected_page_bindings) != len(self.source_page_numbers)
+            or any(
+                not isinstance(binding, PdfDocumentSelectedPageBinding)
+                for binding in self.selected_page_bindings
+            )
+            or len(
+                {
+                    binding.local_page_number
+                    for binding in self.selected_page_bindings
+                }
+            )
+            != len(self.selected_page_bindings)
+        ):
+            raise ValueError("pdf_document_annotation_selected_page_bindings_invalid")
+        if self.selected_page_bindings_sha256 != pdf_document_selected_page_bindings_sha256(
+            self.selected_page_bindings
+        ):
+            raise ValueError(
+                "pdf_document_annotation_selected_page_bindings_sha256_mismatch"
+            )
+        if any(
+            not isinstance(link, PdfDocumentTableContinuationLink)
+            for link in self.links
+        ):
+            raise ValueError("pdf_document_annotation_link_invalid")
+        pairs = tuple(
+            (link.parent_table_ref, link.child_table_ref) for link in self.links
+        )
+        if len(set(pairs)) != len(pairs):
+            raise ValueError("pdf_document_annotation_duplicate_link")
+        children = [link.child_table_ref for link in self.links]
+        if len(set(children)) != len(children):
+            raise ValueError("pdf_document_annotation_multiple_parent")
+        parents = [link.parent_table_ref for link in self.links]
+        if len(set(parents)) != len(parents):
+            raise ValueError("pdf_document_annotation_multiple_child")
+
+
+def pdf_document_table_refs_sha256(
+    table_refs: tuple[PdfDocumentTableRef, ...],
+) -> str:
+    """Hash the exact physical table set without exposing its HTML bytes."""
+
+    material = [
+        {
+            "local_ref": item.local_ref,
+            "markdown_target": item.markdown_target,
+            "page_number": item.page_number,
+            "sha256": item.sha256,
+        }
+        for item in table_refs
+    ]
+    return hashlib.sha256(
+        json.dumps(
+            material,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def validate_table_continuation_assessment(
+    assessment: PdfDocumentTableContinuationAssessment,
+    *,
+    extraction: "PdfDocumentExtraction",
+    source_context: "PdfSourceContext | None" = None,
+) -> None:
+    """Verify that an R&D annotation belongs to this exact OCR extraction."""
+
+    if assessment.source_pdf_sha256 != extraction.source_pdf_sha256:
+        raise ValueError("pdf_document_annotation_source_mismatch")
+    if assessment.table_refs_sha256 != pdf_document_table_refs_sha256(
+        extraction.table_refs
+    ):
+        raise ValueError("pdf_document_annotation_table_refs_mismatch")
+    expected_local_page_numbers = extraction.page_numbers
+    actual_local_page_numbers = tuple(
+        binding.local_page_number for binding in assessment.selected_page_bindings
+    )
+    if actual_local_page_numbers != expected_local_page_numbers:
+        raise ValueError("pdf_document_annotation_local_page_binding_mismatch")
+    actual_source_page_numbers = tuple(
+        binding.source_page_number for binding in assessment.selected_page_bindings
+    )
+    if actual_source_page_numbers != assessment.source_page_numbers:
+        raise ValueError("pdf_document_annotation_source_page_binding_mismatch")
+    if source_context is not None:
+        if extraction.source_pdf_sha256 != source_context.expected_pdf_sha256:
+            raise ValueError("pdf_document_annotation_source_context_mismatch")
+        if any(
+            source_page_number >= source_context.preflight_page_count
+            for source_page_number in actual_source_page_numbers
+        ):
+            raise ValueError("pdf_document_annotation_source_page_out_of_range")
+    tables_by_ref = {item.local_ref: item for item in extraction.table_refs}
+    for link in assessment.links:
+        parent = tables_by_ref.get(link.parent_table_ref)
+        child = tables_by_ref.get(link.child_table_ref)
+        if parent is None or child is None:
+            raise ValueError("pdf_document_annotation_unknown_table_ref")
+        if child.page_number <= parent.page_number:
+            raise ValueError("pdf_document_annotation_child_page_order_invalid")
+        if child.page_number != parent.page_number + 1:
+            raise ValueError("pdf_document_annotation_nonadjacent_page_link")
+    children_by_parent = {
+        link.parent_table_ref: link.child_table_ref for link in assessment.links
+    }
+    for start in children_by_parent:
+        seen: set[str] = set()
+        cursor = start
+        while cursor in children_by_parent:
+            if cursor in seen:
+                raise ValueError("pdf_document_annotation_cycle")
+            seen.add(cursor)
+            cursor = children_by_parent[cursor]
+
+
+def pdf_document_selected_page_bindings_sha256(
+    selected_page_bindings: tuple[PdfDocumentSelectedPageBinding, ...],
+) -> str:
+    """Hash the local-to-original page mapping carried by an R&D receipt."""
+
+    material = [
+        {
+            "local_page_number": binding.local_page_number,
+            "source_page_number": binding.source_page_number,
+        }
+        for binding in selected_page_bindings
+    ]
+    return hashlib.sha256(
+        json.dumps(
+            material,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def new_pdf_document_image_ref() -> str:
     """Mint an opaque, unpublished ref without choosing a storage backend."""
 
@@ -276,6 +499,34 @@ class PdfDocumentExtraction:
             for key, expected in expected_counts.items()
         ):
             raise ValueError("pdf_document_safe_summary_count_mismatch")
+
+
+@dataclass(frozen=True)
+class PdfDocumentTableContinuationRAndDResult:
+    """One OCR response plus its native table-continuation assessment.
+
+    This is intentionally an R&D result.  It is not a Full Source or
+    Canonical input, and it has no production factory or runtime consumer.
+    """
+
+    extraction: PdfDocumentExtraction = field(repr=False)
+    assessment: PdfDocumentTableContinuationAssessment = field(repr=False)
+    source_context: "PdfSourceContext" = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.extraction, PdfDocumentExtraction):
+            raise ValueError("pdf_document_annotation_extraction_invalid")
+        if not isinstance(self.assessment, PdfDocumentTableContinuationAssessment):
+            raise ValueError("pdf_document_annotation_assessment_invalid")
+        if not isinstance(self.source_context, PdfSourceContext):
+            raise ValueError("pdf_document_annotation_source_context_invalid")
+        if len(self.assessment.source_page_numbers) != self.extraction.usage_page_count:
+            raise ValueError("pdf_document_annotation_source_page_count_mismatch")
+        validate_table_continuation_assessment(
+            self.assessment,
+            extraction=self.extraction,
+            source_context=self.source_context,
+        )
 
 
 @dataclass(frozen=True)

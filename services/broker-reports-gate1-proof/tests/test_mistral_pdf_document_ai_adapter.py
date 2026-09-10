@@ -8,6 +8,7 @@ import json
 import re
 import traceback
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -36,6 +37,8 @@ from broker_reports_gate1.mistral_pdf_document_ai import (
     MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS,
     MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
     MISTRAL_OCR_REQUEST_PARAMETERS,
+    MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_REQUEST_PARAMETERS,
+    MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA,
     MistralPdfDocumentExtractor,
 )
 from broker_reports_gate1.full_source import FullSourceArtifactFactory
@@ -49,9 +52,13 @@ from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentExtractionError,
     PdfDocumentExtractorFactory,
     PdfDocumentImageRef,
+    PdfDocumentSelectedPageBinding,
+    PdfDocumentTableContinuationRAndDResult,
     PdfSourceContext,
     RejectedPdfDocumentExtractor,
     UnconfiguredPdfDocumentExtractor,
+    pdf_document_selected_page_bindings_sha256,
+    pdf_document_table_refs_sha256,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -169,7 +176,11 @@ def _extractor(
 
 
 def _assert_one_post(
-    opener: _FakeOpener, *, expected_pdf_bytes: bytes = PDF_BYTES
+    opener: _FakeOpener,
+    *,
+    expected_pdf_bytes: bytes = PDF_BYTES,
+    expected_annotation_prompt: str | None = None,
+    expected_source_page_numbers: tuple[int, ...] | None = None,
 ) -> dict[str, Any]:
     assert len(opener.calls) == 1
     request, timeout = opener.calls[0]
@@ -180,7 +191,7 @@ def _assert_one_post(
     assert request.get_header("Content-type") == "application/json"
     assert request.data is not None
     payload = json.loads(request.data.decode("utf-8"))
-    assert payload == {
+    expected_payload: dict[str, object] = {
         "model": MISTRAL_OCR_MODEL,
         "document": {
             "type": "document_url",
@@ -192,6 +203,14 @@ def _assert_one_post(
         "include_image_base64": True,
         "table_format": "html",
     }
+    if expected_annotation_prompt is not None:
+        assert expected_source_page_numbers is not None
+        expected_payload["document_annotation_format"] = (
+            MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA
+        )
+        expected_payload["document_annotation_prompt"] = expected_annotation_prompt
+        expected_payload["pages"] = list(expected_source_page_numbers)
+    assert payload == expected_payload
     return payload
 
 
@@ -276,6 +295,388 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert PDF_BASE64 not in result_text
     assert PDF_BYTES.decode("ascii") not in result_text
     assert RAW_PROVIDER_SECRET not in result_text
+
+
+def test_native_table_continuation_annotation_is_bound_to_one_selected_source_slice(
+    tmp_path: Path,
+) -> None:
+    raw_annotation = json.dumps(
+        {
+            "continuation_links": [
+                {
+                    "parent": {"page_index": 4, "table_id": "page-4-table.html"},
+                    "child": {"page_index": 5, "table_id": "page-5-table.html"},
+                }
+            ]
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    response = _response(
+        [
+            {
+                "index": 4,
+                "markdown": "[first](page-4-table.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "page-4-table.html",
+                        "content": "<table><tr><td>first</td></tr></table>",
+                    }
+                ],
+            },
+            {
+                "index": 5,
+                "markdown": "[second](page-5-table.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "page-5-table.html",
+                        "content": "<table><tr><td>second</td></tr></table>",
+                    }
+                ],
+            },
+        ]
+    )
+    response["document_annotation"] = raw_annotation
+    opener = _FakeOpener(_FakeResponse(response))
+    prompt = "Link only physical table continuations in this selected source slice."
+
+    result = _extractor(tmp_path, opener).extract_with_table_continuation_assessment(
+        PDF_BYTES,
+        _source_context(8),
+        source_page_numbers=(4, 5),
+        document_annotation_prompt=prompt,
+    )
+
+    _assert_one_post(
+        opener,
+        expected_annotation_prompt=prompt,
+        expected_source_page_numbers=(4, 5),
+    )
+    assert result.extraction.source_pdf_sha256 == hashlib.sha256(PDF_BYTES).hexdigest()
+    assert result.extraction.page_numbers == (1, 2)
+    assert result.assessment.source_page_numbers == (4, 5)
+    assert [
+        (binding.local_page_number, binding.source_page_number)
+        for binding in result.assessment.selected_page_bindings
+    ] == [(1, 4), (2, 5)]
+    assert result.assessment.selected_page_bindings_sha256 == (
+        pdf_document_selected_page_bindings_sha256(
+            result.assessment.selected_page_bindings
+        )
+    )
+    assert result.assessment.table_refs_sha256 == pdf_document_table_refs_sha256(
+        result.extraction.table_refs
+    )
+    assert result.assessment.raw_annotation_sha256 == hashlib.sha256(
+        raw_annotation.encode("utf-8")
+    ).hexdigest()
+    assert result.assessment.request_parameters_sha256 == hashlib.sha256(
+        json.dumps(
+            {
+                **dict(MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_REQUEST_PARAMETERS),
+                "source_page_numbers": [4, 5],
+            },
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert result.assessment.annotation_prompt_sha256 == hashlib.sha256(
+        prompt.encode("utf-8")
+    ).hexdigest()
+    assert result.assessment.annotation_schema_sha256 == hashlib.sha256(
+        json.dumps(
+            MISTRAL_OCR_TABLE_CONTINUATION_ANNOTATION_SCHEMA,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert len(result.assessment.links) == 1
+    link = result.assessment.links[0]
+    assert link.parent_table_ref == result.extraction.table_refs[0].local_ref
+    assert link.child_table_ref == result.extraction.table_refs[1].local_ref
+    assert all(
+        not hasattr(result.assessment, field)
+        for field in ("raw_annotation", "document_annotation_prompt", "schema")
+    )
+    assert prompt not in repr(result)
+    assert raw_annotation not in repr(result)
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_native_table_continuation_annotation_rejects_table_id_mutation(
+    tmp_path: Path,
+) -> None:
+    response = _response(
+        [
+            {
+                "index": 0,
+                "markdown": "[first](first.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "first.html",
+                        "content": "<table><tr><td>first</td></tr></table>",
+                    }
+                ],
+            },
+            {
+                "index": 1,
+                "markdown": "[second](second.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "second.html",
+                        "content": "<table><tr><td>second</td></tr></table>",
+                    }
+                ],
+            },
+        ]
+    )
+    response["document_annotation"] = (
+        '{"continuation_links":[{"parent":{"page_index":0,"table_id":"first.html"},'
+        '"child":{"page_index":1,"table_id":"second.html"}}]}'
+    )
+    result = _extractor(tmp_path, _FakeOpener(_FakeResponse(response))).extract_with_table_continuation_assessment(
+        PDF_BYTES,
+        _source_context(2),
+        source_page_numbers=(0, 1),
+        document_annotation_prompt="Link physical table continuations.",
+    )
+    mutated_table = replace(
+        result.extraction.table_refs[0], markdown_target="renamed-first.html"
+    )
+    mutated_extraction = replace(
+        result.extraction,
+        table_refs=(mutated_table, *result.extraction.table_refs[1:]),
+    )
+
+    assert pdf_document_table_refs_sha256(mutated_extraction.table_refs) != (
+        result.assessment.table_refs_sha256
+    )
+    with pytest.raises(ValueError) as caught:
+        PdfDocumentTableContinuationRAndDResult(
+            extraction=mutated_extraction,
+            assessment=result.assessment,
+            source_context=result.source_context,
+        )
+
+    assert str(caught.value) == "pdf_document_annotation_table_refs_mismatch"
+
+
+def test_native_table_continuation_annotation_rejects_rebound_original_pages(
+    tmp_path: Path,
+) -> None:
+    response = _response(
+        [
+            {
+                "index": 4,
+                "markdown": "[first](first.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "first.html",
+                        "content": "<table><tr><td>first</td></tr></table>",
+                    }
+                ],
+            },
+            {
+                "index": 5,
+                "markdown": "[second](second.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "second.html",
+                        "content": "<table><tr><td>second</td></tr></table>",
+                    }
+                ],
+            },
+        ]
+    )
+    response["document_annotation"] = (
+        '{"continuation_links":[{"parent":{"page_index":4,"table_id":"first.html"},'
+        '"child":{"page_index":5,"table_id":"second.html"}}]}'
+    )
+    result = _extractor(tmp_path, _FakeOpener(_FakeResponse(response))).extract_with_table_continuation_assessment(
+        PDF_BYTES,
+        _source_context(8),
+        source_page_numbers=(4, 5),
+        document_annotation_prompt="Link physical table continuations.",
+    )
+    rebound_bindings = (
+        PdfDocumentSelectedPageBinding(local_page_number=1, source_page_number=5),
+        PdfDocumentSelectedPageBinding(local_page_number=2, source_page_number=4),
+    )
+    rebound_assessment = replace(
+        result.assessment,
+        selected_page_bindings=rebound_bindings,
+        selected_page_bindings_sha256=pdf_document_selected_page_bindings_sha256(
+            rebound_bindings
+        ),
+    )
+
+    with pytest.raises(ValueError) as caught:
+        PdfDocumentTableContinuationRAndDResult(
+            extraction=result.extraction,
+            assessment=rebound_assessment,
+            source_context=result.source_context,
+        )
+
+    assert str(caught.value) == "pdf_document_annotation_source_page_binding_mismatch"
+
+
+def test_native_table_continuation_annotation_rejects_more_than_eight_source_pages_before_http(
+    tmp_path: Path,
+) -> None:
+    opener = _FakeOpener(_FakeResponse({}))
+
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract_with_table_continuation_assessment(
+            PDF_BYTES,
+            _source_context(9),
+            source_page_numbers=tuple(range(9)),
+            document_annotation_prompt="Link physical table continuations.",
+        )
+
+    assert opener.calls == []
+    _assert_typed_failure_without_leak(
+        caught, expected_code="PDF_DOCUMENT_AI_ANNOTATION_SOURCE_PAGES_INVALID"
+    )
+
+
+@pytest.mark.parametrize(
+    ("annotation", "source_page_numbers", "expected_code"),
+    (
+        (
+            {
+                "continuation_links": [
+                    {
+                        "parent": {"page_index": 0, "table_id": "unknown.html"},
+                        "child": {"page_index": 1, "table_id": "second.html"},
+                    }
+                ]
+            },
+            (0, 1),
+            "PDF_DOCUMENT_AI_ANNOTATION_UNKNOWN_TABLE",
+        ),
+        (
+            {
+                "continuation_links": [
+                    {
+                        "parent": {"page_index": 0, "table_id": "first.html"},
+                        "child": {"page_index": 1, "table_id": "second.html"},
+                    }
+                ]
+            },
+            (0, 2),
+            "PDF_DOCUMENT_AI_ANNOTATION_NONADJACENT_PAGE_LINK",
+        ),
+        (
+            {
+                "continuation_links": [
+                    {
+                        "parent": {"page_index": 0, "table_id": "first.html"},
+                        "child": {"page_index": 1, "table_id": "second.html"},
+                    },
+                    {
+                        "parent": {"page_index": 0, "table_id": "other-first.html"},
+                        "child": {"page_index": 1, "table_id": "second.html"},
+                    },
+                ]
+            },
+            (0, 1),
+            "PDF_DOCUMENT_AI_ANNOTATION_MULTIPLE_PARENT",
+        ),
+    ),
+    ids=("unknown_table", "nonadjacent_source_pages", "multiple_parent"),
+)
+def test_native_table_continuation_annotation_rejects_unbound_or_ambiguous_links(
+    tmp_path: Path,
+    annotation: dict[str, object],
+    source_page_numbers: tuple[int, ...],
+    expected_code: str,
+) -> None:
+    response = _response(
+        [
+            {
+                "index": 0,
+                "markdown": "[first](first.html)\n[other](other-first.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "first.html",
+                        "content": "<table><tr><td>first</td></tr></table>",
+                    },
+                    {
+                        "id": "other-first.html",
+                        "content": "<table><tr><td>other</td></tr></table>",
+                    },
+                ],
+            },
+            {
+                "index": 1,
+                "markdown": "[second](second.html)",
+                "images": [],
+                "tables": [
+                    {
+                        "id": "second.html",
+                        "content": "<table><tr><td>second</td></tr></table>",
+                    }
+                ],
+            },
+        ]
+    )
+    response["document_annotation"] = json.dumps(annotation, separators=(",", ":"))
+    opener = _FakeOpener(_FakeResponse(response))
+
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract_with_table_continuation_assessment(
+            PDF_BYTES,
+            _source_context(3),
+            source_page_numbers=source_page_numbers,
+            document_annotation_prompt="Link physical table continuations.",
+        )
+
+    _assert_one_post(
+        opener,
+        expected_annotation_prompt="Link physical table continuations.",
+        expected_source_page_numbers=source_page_numbers,
+    )
+    _assert_typed_failure_without_leak(caught, expected_code=expected_code)
+
+
+def test_native_table_continuation_annotation_rejects_ambiguous_provider_page_binding(
+    tmp_path: Path,
+) -> None:
+    response = _response(
+        [
+            {"index": 2, "markdown": "", "images": []},
+            {"index": 3, "markdown": "", "images": []},
+        ]
+    )
+    response["document_annotation"] = '{"continuation_links":[]}'
+    opener = _FakeOpener(_FakeResponse(response))
+
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract_with_table_continuation_assessment(
+            PDF_BYTES,
+            _source_context(8),
+            source_page_numbers=(4, 5),
+            document_annotation_prompt="Link physical table continuations.",
+        )
+
+    _assert_one_post(
+        opener,
+        expected_annotation_prompt="Link physical table continuations.",
+        expected_source_page_numbers=(4, 5),
+    )
+    _assert_typed_failure_without_leak(
+        caught,
+        expected_code="PDF_DOCUMENT_AI_ANNOTATION_RESPONSE_PAGE_BINDING_INVALID",
+    )
 
 
 def test_native_html_table_is_preserved_as_physical_header_and_headerless_units(
