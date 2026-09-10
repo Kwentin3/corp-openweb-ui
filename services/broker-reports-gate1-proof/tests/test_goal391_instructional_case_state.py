@@ -15,7 +15,6 @@ from broker_reports_gate1.instructional_table_classification_prompt import (
     InstructionalClassificationManagedPrompt,
 )
 from broker_reports_gate1.ordinary_trade_mapping_case import (
-    MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
     OrdinaryTradeMappingCaseError,
     OrdinaryTradeMappingCaseFactory,
 )
@@ -65,7 +64,9 @@ def test_instructional_progress_is_private_v5_and_not_published(tmp_path) -> Non
         provider_calls_total=0,
     )
 
-    assert payload["schema_version"] == MAPPING_CASE_RECEIPT_SCHEMA_VERSION
+    # Instructional state has no physical-table sidecar binding.  It must
+    # remain the v5 receipt instead of claiming the v6 continuation contract.
+    assert payload["schema_version"] == "broker_reports_ordinary_trade_mapping_case_v5"
     assert payload["instructional_classification_state"]["pending_table_node_id"] == "table_1"
     assert payload["qualified_mappings"] == []
     assert payload["table_resolutions"] == []
