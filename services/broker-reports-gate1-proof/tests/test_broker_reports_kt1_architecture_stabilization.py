@@ -899,6 +899,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "goal391_grouped_mapping_lab_v14.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "goal391_mapping_lab_control_plan.py"
+        ),
     }
     allowed_private_corpus_export_modules = {
         (
