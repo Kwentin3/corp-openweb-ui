@@ -458,46 +458,13 @@ class ActiveCategoryDeclarationAssemblyRuntime:
                 completeness_evidence=category_completeness_evidence,
                 context=context,
             )
-            if (
-                bridge["terminal"] != ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN
-                or bridge["blockers"]
-                or bridge["demands"]
-            ):
-                reason = (
-                    bridge["blockers"][0].get("reason_code")
-                    if bridge["blockers"]
-                    else bridge["demands"][0].get("required_input")
-                )
-                return {
-                    "schema_version": "broker_reports_active_category_declaration_preview_v1",
-                    "status": "blocked",
-                    "reason_code": reason,
-                    "xml_created": False,
-                }
-            category = bridge["category_result"]["category_tax_model"]
-            tax_base = self._right_side.income_group_tax_base(
-                category=category,
+            return self._preview_from_bridge(
+                bridge=bridge,
+                expected_terminal=ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
                 residency=residency,
-                inputs=right_side_inputs,
-            )
-            definition = Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create().publication()
-            scope_receipt = self._scope.resolve(
-                definition_ref=definition,
-                scope=_scope_input(right_side_inputs),
-                typed_component_evidence=[
-                    _component_evidence(
-                        GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION,
-                        bridge["operation_result"]["tax_model"],
-                    )
-                ],
-                assertion_refs=[],
+                right_side_inputs=right_side_inputs,
                 taxpayer_binding=taxpayer_binding,
                 context=context,
-            )
-            settlement = self._right_side.settlement_component(
-                inputs=right_side_inputs,
-                scope_binding=scope_receipt["scope_binding"],
-                tax_base=tax_base,
             )
         except Exception as exc:
             return {
@@ -508,6 +475,133 @@ class ActiveCategoryDeclarationAssemblyRuntime:
                 ),
                 "xml_created": False,
             }
+
+    def preview_operation_set_v1(
+        self,
+        *,
+        operation_methodology_ref: dict[str, Any],
+        source_fact_methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        category_scope: dict[str, Any],
+        taxpayer_binding: dict[str, Any] | None,
+        category_completeness_evidence: dict[str, Any] | None,
+        right_side_inputs: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        """Preview the entire current operation set without package, release or XML."""
+
+        try:
+            if "raw_ordinary_trade_table" in right_side_inputs:
+                _fail(
+                    "gate5_active_assembly_raw_control_forbidden",
+                    "raw_ordinary_trade_table",
+                )
+            residency = self._right_side.residency_classification(right_side_inputs)
+            bound = copy.deepcopy(resolved_inputs)
+            if not isinstance(bound.get("tax_context"), dict):
+                _fail(
+                    "gate5_active_assembly_tax_context_missing",
+                    "resolved_inputs.tax_context",
+                )
+            bound["tax_context"]["residency"] = gate5_residency_methodology_input(
+                residency,
+                input_channel="minimal_tax_context",
+            )
+            bridge = self._bridge.run_current_case_operation_set(
+                operation_methodology_ref=operation_methodology_ref,
+                source_fact_methodology_ref=source_fact_methodology_ref,
+                resolved_inputs=bound,
+                category_scope=category_scope,
+                taxpayer_binding=taxpayer_binding,
+                completeness_evidence=category_completeness_evidence,
+                context=context,
+            )
+            return self._preview_from_bridge(
+                bridge=bridge,
+                expected_terminal=(
+                    ACTIVE_FACT_V2_OPERATION_SET_TO_CATEGORY_TAX_MODEL_PROVEN
+                ),
+                residency=residency,
+                right_side_inputs=right_side_inputs,
+                taxpayer_binding=taxpayer_binding,
+                context=context,
+                operation_set_v1=True,
+            )
+        except Exception as exc:
+            return {
+                "schema_version": "broker_reports_active_category_declaration_preview_v1",
+                "status": "blocked",
+                "reason_code": str(
+                    getattr(exc, "code", "gate5_active_preview_internal_failure")
+                ),
+                "xml_created": False,
+            }
+
+    def _preview_from_bridge(
+        self,
+        *,
+        bridge: dict[str, Any],
+        expected_terminal: str,
+        residency: dict[str, Any],
+        right_side_inputs: dict[str, Any],
+        taxpayer_binding: dict[str, Any] | None,
+        context: ArtifactAccessContext,
+        operation_set_v1: bool = False,
+    ) -> dict[str, Any]:
+        """Coordinate existing owners into the non-filing preview contract."""
+
+        if (
+            bridge["terminal"] != expected_terminal
+            or bridge["blockers"]
+            or bridge["demands"]
+        ):
+            reason = (
+                bridge["blockers"][0].get("reason_code")
+                if bridge["blockers"]
+                else bridge["demands"][0].get("required_input")
+                if bridge["demands"]
+                else "gate5_active_preview_bridge_unproven"
+            )
+            return {
+                "schema_version": "broker_reports_active_category_declaration_preview_v1",
+                "status": "blocked",
+                "reason_code": reason,
+                "xml_created": False,
+            }
+        category = bridge["category_result"]["category_tax_model"]
+        tax_base = self._right_side.income_group_tax_base(
+            category=category,
+            residency=residency,
+            inputs=right_side_inputs,
+        )
+        operation_models = (
+            [
+                row["operation_result"]["tax_model"]
+                for row in bridge["operation_results"]
+            ]
+            if operation_set_v1
+            else [bridge["operation_result"]["tax_model"]]
+        )
+        definition = Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create().publication()
+        scope_receipt = self._scope.resolve(
+            definition_ref=definition,
+            scope=_scope_input(right_side_inputs),
+            typed_component_evidence=[
+                _component_evidence(
+                    GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION,
+                    operation,
+                )
+                for operation in operation_models
+            ],
+            assertion_refs=[],
+            taxpayer_binding=taxpayer_binding,
+            context=context,
+        )
+        settlement = self._right_side.settlement_component(
+            inputs=right_side_inputs,
+            scope_binding=scope_receipt["scope_binding"],
+            tax_base=tax_base,
+        )
         preview = {
             "schema_version": "broker_reports_active_category_declaration_preview_v1",
             "status": "calculated",

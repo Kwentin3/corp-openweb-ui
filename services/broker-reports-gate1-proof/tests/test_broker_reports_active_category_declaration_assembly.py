@@ -745,6 +745,31 @@ def test_operation_set_v1_reaches_xsd_with_every_operation_and_replays(tmp_path)
         runtime.validate_receipt(first, context=context)
 
 
+def test_operation_set_preview_v1_uses_every_operation_without_release(tmp_path):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path)
+
+    first = runtime.preview_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+    second = runtime.preview_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+
+    assert first == second
+    assert first["schema_version"] == (
+        "broker_reports_active_category_declaration_preview_v1"
+    )
+    assert first["status"] == "calculated"
+    assert first["xml_created"] is False
+    assert "released_values" not in first
+    assert "target_receipt" not in first
+    assert "operation_set_result" not in first
+    assert len(first["category_tax_model"]["member_operations"]) == 2
+    assert first["preview_sha256"] == _sha(
+        {key: value for key, value in first.items() if key != "preview_sha256"}
+    )
+
+
 def test_operation_set_v1_demands_stop_before_scope_package_and_release(tmp_path):
     runtime, context, inputs, right_side = _operation_set_case(tmp_path, demands=True)
 
@@ -762,6 +787,45 @@ def test_operation_set_v1_demands_stop_before_scope_package_and_release(tmp_path
     assert result["status"] == "blocked"
     assert result["demands"]
     assert result["released_values"] is result["target_receipt"] is None
+
+
+def test_operation_set_preview_v1_demands_stop_before_scope_package_release_or_xml(
+    tmp_path, monkeypatch
+):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path, demands=True)
+
+    class ForbiddenDownstream:
+        def resolve(self, **kwargs):
+            pytest.fail("Scope must not run after an unresolved demand")
+
+        def assemble(self, **kwargs):
+            pytest.fail("Package must not run after an unresolved demand")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Release or XML projection must not run after an unresolved demand")
+
+    runtime._scope = runtime._package = ForbiddenDownstream()
+    monkeypatch.setattr(
+        assembly_module.Gate5DeclarationSemanticInputRuntimeFactory,
+        "create",
+        forbidden,
+    )
+    monkeypatch.setattr(
+        assembly_module.Gate5FullTargetXmlProjectionRuntimeFactory,
+        "create",
+        forbidden,
+    )
+
+    result = runtime.preview_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+
+    assert result == {
+        "schema_version": "broker_reports_active_category_declaration_preview_v1",
+        "status": "blocked",
+        "reason_code": "partial_acquisition_commission_allocation",
+        "xml_created": False,
+    }
 
 
 @pytest.mark.parametrize(
