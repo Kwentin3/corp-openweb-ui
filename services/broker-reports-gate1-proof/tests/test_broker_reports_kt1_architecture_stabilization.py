@@ -839,6 +839,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_support_modules = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_operation_set_demand_derivation.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_mapping_prompt_publication.py"
         ),
         (

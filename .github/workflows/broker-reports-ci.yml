@@ -198,6 +198,7 @@ jobs:
           tests/test_broker_reports_gate5_human_fact_scope.py
           tests/test_broker_reports_gate5_residency_evidence.py
           tests/test_broker_reports_ordinary_trade_tax_model_bridge.py
+          tests/test_broker_reports_gate5_declaration_financial_investment_results.py
           tests/test_broker_reports_active_category_declaration_assembly.py
           tests/test_broker_reports_gate5_declaration_input_contract_audit.py
           tests/test_broker_reports_gate5_full_target_xml_projection.py
