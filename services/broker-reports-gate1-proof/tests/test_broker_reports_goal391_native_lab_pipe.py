@@ -193,11 +193,27 @@ def _install_read_owners(monkeypatch, module, slots):
 def _loader(module, plan: str):
     valves = SimpleNamespace(
         ordinary_test_user_id="ordinary-test-user",
+        cases_required_total=2,
         case_control_plan_json=plan,
         artifact_store_path="/safe/artifacts.sqlite3",
         artifact_payload_root="/safe/payloads",
     )
     return module.Goal391ServerBoundCaseLoader(valves=valves)
+
+
+def test_native_lab_accepts_one_sealed_case_only_when_its_valve_is_one():
+    module = _load_source_module()
+    slot = _slot(1)
+    plan = _plan(module, slots=[slot])
+    valves = SimpleNamespace(
+        ordinary_test_user_id="ordinary-test-user",
+        cases_required_total=1,
+        case_control_plan_json=plan,
+        artifact_store_path="/safe/artifacts.sqlite3",
+        artifact_payload_root="/safe/payloads",
+    )
+    loaded = module.Goal391ServerBoundCaseLoader(valves=valves)._read_plan()
+    assert [item["slot_id"] for item in loaded["slots"]] == ["slot-1"]
 
 
 def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():

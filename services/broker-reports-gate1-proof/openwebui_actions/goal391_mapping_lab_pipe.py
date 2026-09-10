@@ -74,7 +74,8 @@ PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
 SAFE_RECEIPT_SCHEMA_VERSION = "goal391_native_mapping_lab_pipe_receipt_v1"
 SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION = "goal391_server_bound_case_plan_v2"
-_EXACT_CASES_REQUIRED_TOTAL = 2
+_MIN_CASES_REQUIRED_TOTAL = 1
+_MAX_CASES_REQUIRED_TOTAL = 2
 _CANONICAL_BINDING_FIELDS = (
     "document_id",
     "canonical_version_id",
@@ -207,6 +208,7 @@ class Goal391ServerBoundCaseLoader:
             "slots",
         }:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
+        cases_required_total = int(getattr(self._valves, "cases_required_total", 0))
         if (
             plan["schema_version"] != SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION
             or not isinstance(plan["plan_ref"], str)
@@ -216,7 +218,12 @@ class Goal391ServerBoundCaseLoader:
             or not isinstance(plan["ordinary_test_user_id"], str)
             or not plan["ordinary_test_user_id"].strip()
             or not isinstance(plan["slots"], list)
-            or len(plan["slots"]) != _EXACT_CASES_REQUIRED_TOTAL
+            or not (
+                _MIN_CASES_REQUIRED_TOTAL
+                <= cases_required_total
+                <= _MAX_CASES_REQUIRED_TOTAL
+            )
+            or len(plan["slots"]) != cases_required_total
         ):
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
         digest_material = dict(plan)
@@ -228,9 +235,9 @@ class Goal391ServerBoundCaseLoader:
         ]:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_user_mismatch")
         slots = [self._validated_slot(slot=slot, plan=plan) for slot in plan["slots"]]
-        if len({slot["slot_id"] for slot in slots}) != _EXACT_CASES_REQUIRED_TOTAL or len(
+        if len({slot["slot_id"] for slot in slots}) != cases_required_total or len(
             {slot["canonical_identity"]["document_id"] for slot in slots}
-        ) != _EXACT_CASES_REQUIRED_TOTAL:
+        ) != cases_required_total:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_duplicate_scope")
         return {**plan, "slots": slots}
 
@@ -363,7 +370,10 @@ class Pipe:
         # The lab is never a general-user model.  OpenWebUI remains the access
         # owner; this valve narrows it further to the designated ordinary user.
         ordinary_test_user_id: str = Field(default="")
-        cases_required_total: int = Field(default=2, ge=2, le=2)
+        # One sealed case is sufficient for a failure diagnosis; two remain
+        # available for the comparative qualification path.  The Function
+        # Valve pins the exact count before any source owner is read.
+        cases_required_total: int = Field(default=2, ge=1, le=2)
         # The Function owner supplies this sealed plan.  It contains only
         # opaque references, existing bindings and lab expectations; it never
         # carries a Canonical, source file, Prompt body or provider material.
