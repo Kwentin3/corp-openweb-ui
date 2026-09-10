@@ -268,6 +268,33 @@ def test_server_bound_loader_preserves_a_chat_only_source_scope(monkeypatch):
     assert request.context.chat_id == "historical-source-chat"
 
 
+def test_preflight_rejects_a_resealed_plan_that_omits_a_canonical_table(
+    monkeypatch,
+):
+    module = _load_source_module()
+    monkeypatch.setattr(module, "validate_canonical_artifact", lambda _value: {"passed": True})
+    case = {
+        "case_id": "opaque-case",
+        "canonical": {
+            "nodes": [
+                {"node_type": "TABLE", "node_id": "table-1"},
+                {"node_type": "TABLE", "node_id": "table-2"},
+            ]
+        },
+        "canonical_binding": {},
+        "confirmed_understandings": [],
+        "target_table_node_ids": ["table-1"],
+        "frozen_mappings": [],
+        "user_scope_sha256": "opaque",
+        "expected_assessment": _assessment("table-1"),
+    }
+    pipe = module.Pipe()
+    pipe.valves.cases_required_total = 1
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        pipe._preflight(cases=[case])
+    assert exc.value.code == "goal391_lab_target_table_scope_mismatch"
+
+
 def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     source = SOURCE.read_text(encoding="utf-8")
     assert "import sqlite3" not in source
@@ -549,6 +576,7 @@ def test_safe_record_accepts_valid_selected_instructional_evidence_subset():
         "case": {
             "case_id": "opaque-case",
             "canonical_binding": {"canonical_root_sha256": "opaque-root"},
+            "target_table_node_ids": ["instruction-1", "instruction-2"],
             "expected_assessment": expected,
         },
         "owner_envelopes": {
@@ -588,6 +616,7 @@ def test_safe_record_rejects_missing_instructional_evidence():
         "case": {
             "case_id": "opaque-case",
             "canonical_binding": {"canonical_root_sha256": "opaque-root"},
+            "target_table_node_ids": ["instruction-1"],
             "expected_assessment": _assessment("instruction-1"),
         },
         "owner_envelopes": {"instruction-1": [{"context_ref": "context"}]},
@@ -605,6 +634,61 @@ def test_safe_record_rejects_missing_instructional_evidence():
         ],
     }
 
+    assert module.Pipe()._safe_record(item=item, outcome=outcome)["outcome"] == "FAIL"
+
+
+def test_safe_record_preserves_currency_assertion_table_decisions():
+    module = _load_source_module()
+    item = {
+        "case": {
+            "case_id": "opaque-case",
+            "canonical_binding": {"canonical_root_sha256": "opaque-root"},
+            "target_table_node_ids": ["table-1"],
+            "expected_assessment": {
+                "expected_status": "CURRENCY_ASSERTION_REQUIRED",
+                "required_table_decisions": [
+                    {"table_node_id": "table-1", "disposition": "SECURITY_TRADES"}
+                ],
+                "unresolved_table_node_ids": [],
+                "forbidden_qualified_mapping_table_node_ids": [],
+            },
+        },
+        "owner_envelopes": {},
+    }
+    outcome = {
+        "status": "CURRENCY_ASSERTION_REQUIRED",
+        "qualification_receipts": [],
+        "table_resolutions": [],
+        "currency_mapping_plan": {
+            "response": {"table_decisions": [{"disposition": "SECURITY_TRADES"}]}
+        },
+    }
+    assert module.Pipe()._safe_record(item=item, outcome=outcome)["outcome"] == "PASS"
+
+
+def test_safe_record_requires_the_exact_unresolved_scope():
+    module = _load_source_module()
+    item = {
+        "case": {
+            "case_id": "opaque-case",
+            "canonical_binding": {"canonical_root_sha256": "opaque-root"},
+            "target_table_node_ids": ["table-1"],
+            "expected_assessment": {
+                "expected_status": "SPECIALIST_REVIEW_REQUIRED",
+                "required_table_decisions": [],
+                "unresolved_table_node_ids": ["table-1"],
+                "forbidden_qualified_mapping_table_node_ids": [],
+            },
+        },
+        "owner_envelopes": {},
+    }
+    outcome = {
+        "status": "SPECIALIST_REVIEW_REQUIRED",
+        "qualification_receipts": [],
+        "table_resolutions": [],
+    }
+    assert module.Pipe()._safe_record(item=item, outcome=outcome)["outcome"] == "PASS"
+    item["case"]["expected_assessment"]["unresolved_table_node_ids"] = []
     assert module.Pipe()._safe_record(item=item, outcome=outcome)["outcome"] == "FAIL"
 
 

@@ -18,10 +18,13 @@ def _module():
     return module
 
 
-def _assessment() -> dict:
+def _assessment(*table_node_ids: str) -> dict:
     return {
         "expected_status": "COMPLETE",
-        "required_table_decisions": [],
+        "required_table_decisions": [
+            {"table_node_id": table_node_id, "disposition": "SECURITY_TRADES"}
+            for table_node_id in table_node_ids
+        ],
         "unresolved_table_node_ids": [],
         "forbidden_qualified_mapping_table_node_ids": [],
     }
@@ -112,7 +115,7 @@ def test_prepare_uses_attested_source_binding_and_read_only_owners(monkeypatch):
             chat_id="historical-chat",
             file_id="openwebui-file",
             plan_ref="opaque-plan",
-            assessment=_assessment(),
+            assessment=_assessment("table-1", "table-2"),
             sqlite_path=Path("/private/artifacts.sqlite3"),
             payload_root=Path("/private/payloads"),
         )

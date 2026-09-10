@@ -95,4 +95,24 @@ def valid_expected_assessment(
         target_ids = set(target_table_node_ids)
         if not set(decision_ids + unresolved + forbidden).issubset(target_ids):
             return False
+        if set(decision_ids).intersection(unresolved):
+            return False
+        if set(decision_ids).union(unresolved) != target_ids:
+            return False
     return True
+
+
+def canonical_table_node_ids(canonical: Any) -> tuple[str, ...]:
+    """Return the immutable Canonical TABLE scope in physical order."""
+
+    nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
+    table_node_ids = tuple(
+        str(node.get("node_id") or "")
+        for node in nodes or []
+        if isinstance(node, Mapping)
+        and node.get("node_type") == "TABLE"
+        and str(node.get("node_id") or "")
+    )
+    if not table_node_ids or len(set(table_node_ids)) != len(table_node_ids):
+        raise ValueError("goal391_mapping_lab_tables_invalid")
+    return table_node_ids

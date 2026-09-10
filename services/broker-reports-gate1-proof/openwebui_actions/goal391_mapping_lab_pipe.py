@@ -62,6 +62,7 @@ from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
 )
 from broker_reports_gate1.goal391_mapping_lab_control_plan import (
     SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION,
+    canonical_table_node_ids,
     sha256_json,
     valid_expected_assessment,
 )
@@ -549,6 +550,18 @@ class Pipe:
             canonical = case["canonical"]
             if not isinstance(canonical, Mapping) or validate_canonical_artifact(canonical).get("passed") is not True:
                 raise Goal391MappingLabPipeError("goal391_lab_canonical_invalid")
+            try:
+                actual_target_table_node_ids = list(
+                    canonical_table_node_ids(canonical)
+                )
+            except ValueError as exc:
+                raise Goal391MappingLabPipeError(
+                    "goal391_lab_target_table_scope_invalid"
+                ) from exc
+            if actual_target_table_node_ids != case["target_table_node_ids"]:
+                raise Goal391MappingLabPipeError(
+                    "goal391_lab_target_table_scope_mismatch"
+                )
             assessment = case["expected_assessment"]
             if not valid_expected_assessment(
                 assessment,
@@ -701,14 +714,29 @@ class Pipe:
         case = item["case"]
         assessment = case["expected_assessment"]
         result = outcome
+        raw_resolutions = {
+            value.get("table_node_id"): value
+            for value in result.get("table_resolutions") or []
+            if isinstance(value, Mapping) and isinstance(value.get("table_node_id"), str)
+        }
+        if result.get("status") == "CURRENCY_ASSERTION_REQUIRED":
+            response = (result.get("currency_mapping_plan") or {}).get("response")
+            decisions = response.get("table_decisions") if isinstance(response, Mapping) else None
+            target_ids = case["target_table_node_ids"]
+            if isinstance(decisions, list) and len(decisions) == len(target_ids):
+                for table_node_id, decision in zip(target_ids, decisions, strict=True):
+                    if isinstance(decision, Mapping):
+                        raw_resolutions[table_node_id] = {
+                            "table_node_id": table_node_id,
+                            **dict(decision),
+                        }
         resolutions = {
             value.get("table_node_id"): {
                 key: value.get(key)
                 for key in ("table_node_id", "disposition", "no_consumer_kind")
                 if key in value
             }
-            for value in result.get("table_resolutions") or []
-            if isinstance(value, Mapping) and isinstance(value.get("table_node_id"), str)
+            for value in raw_resolutions.values()
         }
         required = {
             decision["table_node_id"]: dict(decision)
@@ -733,8 +761,7 @@ class Pipe:
             node_id: value.get("classification_evidence")
             for node_id, value in (
                 (value.get("table_node_id"), value)
-                for value in result.get("table_resolutions") or []
-                if isinstance(value, Mapping)
+                for value in raw_resolutions.values()
             )
             if node_id in expected_envelopes
         }
@@ -755,10 +782,16 @@ class Pipe:
             and bool(actual_envelopes[node_id])
             for node_id in instructional_ids
         )
+        unresolved = (
+            sorted(case["target_table_node_ids"])
+            if result.get("status") == "SPECIALIST_REVIEW_REQUIRED"
+            else []
+        )
         matches = (
             result.get("status") == assessment["expected_status"]
             and all(resolutions.get(node_id) == decision for node_id, decision in expected.items())
             and instructional_evidence_present
+            and unresolved == sorted(assessment["unresolved_table_node_ids"])
             and not set(qualified).intersection(assessment["forbidden_qualified_mapping_table_node_ids"])
         )
         return {

@@ -23,6 +23,7 @@ from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate3_ndfl_workflow import NDFL_WORKSPACE_MODEL_STABLE_ID
 from broker_reports_gate1.goal391_mapping_lab_control_plan import (
     SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION,
+    canonical_table_node_ids,
     sha256_json,
     valid_expected_assessment,
 )
@@ -156,7 +157,10 @@ async def _prepare(
     )
     canonical = getattr(envelope, "artifact", None)
     identity = _canonical_identity(envelope)
-    table_node_ids = _table_node_ids(canonical)
+    try:
+        table_node_ids = list(canonical_table_node_ids(canonical))
+    except ValueError as exc:
+        raise Goal391MappingLabPlanError("goal391_mapping_lab_tables_invalid") from exc
     if not valid_expected_assessment(
         assessment, target_table_node_ids=table_node_ids
     ):
@@ -257,20 +261,6 @@ def _canonical_identity(envelope: Any) -> dict[str, str]:
     if not all(identity.values()):
         raise Goal391MappingLabPlanError("goal391_mapping_lab_canonical_invalid")
     return identity
-
-
-def _table_node_ids(canonical: Any) -> list[str]:
-    nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
-    table_node_ids = [
-        str(node.get("node_id") or "")
-        for node in nodes or []
-        if isinstance(node, Mapping)
-        and node.get("node_type") == "TABLE"
-        and str(node.get("node_id") or "")
-    ]
-    if not table_node_ids or len(set(table_node_ids)) != len(table_node_ids):
-        raise Goal391MappingLabPlanError("goal391_mapping_lab_tables_invalid")
-    return table_node_ids
 
 
 def _read_assessment(path: Path) -> Mapping[str, Any]:
