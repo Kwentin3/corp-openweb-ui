@@ -833,6 +833,9 @@ def test_native_html_table_is_preserved_as_physical_header_and_headerless_units(
         (item.local_ref, item.sha256)
         for item in extraction.table_refs
     ]
+    assert {unit["source_checksum_sha256"] for unit in table_units} == {
+        extraction.source_pdf_sha256
+    }
     assert all("tbl-" not in str(unit.get("text") or "") for unit in built.units)
 
     projected = NormalizedTableProjectionFactory().create().build_for_document(

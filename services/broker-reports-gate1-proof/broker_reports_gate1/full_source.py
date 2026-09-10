@@ -1045,6 +1045,8 @@ class FullSourceArtifactBuilder:
         ):
             if key in descriptor:
                 unit[key] = copy.deepcopy(descriptor[key])
+        if "document_ai_native_table_ref" in descriptor:
+            unit["source_checksum_sha256"] = source_checksum_sha256
         payload["coverage_index"] = copy.deepcopy(unit.get("coverage") or {})
         payload["coverage_index"].update(
             {
