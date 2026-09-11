@@ -11,6 +11,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
     PROMPT_PLACEHOLDER,
     ordinary_trade_mapping_prompt_hash,
 )
@@ -20,6 +21,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_V14_PROFILE,
     ORDINARY_TRADE_MAPPING_V15_PROFILE,
     ORDINARY_TRADE_MAPPING_V16_PROFILE,
+    ORDINARY_TRADE_MAPPING_V17_PROFILE,
     PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     OrdinaryTradeMappingPromptPublication,
     OrdinaryTradeMappingPromptPublicationError,
@@ -174,6 +176,33 @@ def test_closed_v16_profile_publishes_the_document_opening_input_contract(
     assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION
     assert "DOCUMENT_OPENING" in asset
     assert owner["prompts"].inserted.meta["input_contract"] == profile.input_schema_version
+    assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_closed_v17_profile_is_separate_and_forbids_direction_from_numeric_sign(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V17_PROFILE
+    (tmp_path / profile.asset_filename).write_text(_CONTENT, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    asset = (_V14_PROMPT_ASSET.parent / profile.asset_filename).read_text(
+        encoding="utf-8"
+    )
+    assert profile.profile_id == "ordinary_trade_mapping_v17"
+    assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION
+    assert "Never infer\ndirection from a numeric sign" in asset
+    assert "SECURITY_TRADES_INCOMPLETE without a side column" in asset
     assert result.safe_pin()["prompt_command"] == profile.command
 
 

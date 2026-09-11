@@ -26,6 +26,7 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
         "ordinary_trade_mapping_v16",
+        "ordinary_trade_mapping_v17",
         "pdf_table_continuation_annotation_v3",
     }
 )

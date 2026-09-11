@@ -35,6 +35,11 @@ from .ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND,
@@ -211,6 +216,24 @@ ORDINARY_TRADE_MAPPING_V16_PROFILE = OrdinaryTradeMappingPromptPublicationProfil
     initial_access_grants=(("user", "*", "read"),),
 )
 
+ORDINARY_TRADE_MAPPING_V17_PROFILE = OrdinaryTradeMappingPromptPublicationProfile(
+    profile_id="ordinary_trade_mapping_v17",
+    command=ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND,
+    name="Broker Reports ordinary-trade semantic mapping v17",
+    asset_filename="broker_reports_ordinary_trade_mapping_prompt.v17.md",
+    asset_version="v17",
+    template_id=ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
+    template_kind=ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+    prompt_contract_id=PROMPT_CONTRACT_ID,
+    input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    output_schema_id=ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+    output_schema_version=ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+    required_tag=ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
+    placeholder=PROMPT_PLACEHOLDER,
+    is_production=True,
+    initial_access_grants=(("user", "*", "read"),),
+)
+
 # A distinct physical-source profile. It reuses only the native
 # Prompt/history/grant lifecycle below, not ordinary-trade meaning.
 PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE = (
@@ -243,6 +266,7 @@ _PUBLISHABLE_PROFILES = {
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE,
         ORDINARY_TRADE_MAPPING_V16_PROFILE,
+        ORDINARY_TRADE_MAPPING_V17_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     )
 }
@@ -690,6 +714,8 @@ def _default_commit_message(
         return "Publish Broker Reports ordinary-trade mapping Prompt v15"
     if profile is ORDINARY_TRADE_MAPPING_V16_PROFILE:
         return "Publish Broker Reports ordinary-trade mapping Prompt v16"
+    if profile is ORDINARY_TRADE_MAPPING_V17_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v17"
     raise OrdinaryTradeMappingPromptPublicationError(
         "ordinary_trade_mapping_prompt_profile_invalid"
     )
@@ -719,6 +745,7 @@ __all__ = [
     "ORDINARY_TRADE_MAPPING_V14_PROFILE",
     "ORDINARY_TRADE_MAPPING_V15_PROFILE",
     "ORDINARY_TRADE_MAPPING_V16_PROFILE",
+    "ORDINARY_TRADE_MAPPING_V17_PROFILE",
     "PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE",
     "PROMPT_ASSET_FILENAME",
     "PROMPT_ASSET_VERSION",

@@ -112,6 +112,24 @@ ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG = (
 ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION = (
     ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
 )
+# v17 changes the managed instruction only. It keeps the sealed document-opening
+# input and v15 compact wire response, while making the admission rule for a
+# side role explicit before any independent qualification run.
+ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v17"
+)
+ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v17"
+)
+ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v17"
+)
+ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 # A snapshot is an execution receipt, not a bag of independently optional
@@ -152,6 +170,15 @@ _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
         "output_schema_id": ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
         "output_schema_version": ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
         "required_tag": ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
         "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     },
 )

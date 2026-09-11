@@ -28,6 +28,7 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
         "ordinary_trade_mapping_v16",
+        "ordinary_trade_mapping_v17",
         "pdf_table_continuation_annotation_v3",
     }
 )
@@ -71,6 +72,7 @@ async def _run(
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE,
         ORDINARY_TRADE_MAPPING_V16_PROFILE,
+        ORDINARY_TRADE_MAPPING_V17_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         OrdinaryTradeMappingPromptPublication,
@@ -84,6 +86,7 @@ async def _run(
         ORDINARY_TRADE_MAPPING_V14_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V15_PROFILE,
         ORDINARY_TRADE_MAPPING_V16_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V16_PROFILE,
+        ORDINARY_TRADE_MAPPING_V17_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V17_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE.profile_id: PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     }
     profile = profiles.get(profile_id)
