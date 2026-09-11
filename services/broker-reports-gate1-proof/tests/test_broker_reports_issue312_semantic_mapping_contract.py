@@ -855,10 +855,12 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
         validator.validate(response)
 
     response["table_decisions"][0]["columns"] = []
+    validator.validate(response)
     response["table_decisions"][0]["classification_evidence"] = [
         {"context_ref": "context_1", "relation": "TABLE_TITLE"}
     ]
-    validator.validate(response)
+    with pytest.raises(ValidationError):
+        validator.validate(response)
 
 
 def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
@@ -885,23 +887,16 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
         "message": "The table is explanatory material.",
     }
 
+    validator.validate(response)
+    decision["classification_evidence"] = [
+        {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+    ]
     with pytest.raises(ValidationError):
         validator.validate(response)
-    decision["classification_evidence"] = [
-        {"context_ref": "context_1", "relation": "TABLE_TITLE"}
-    ]
-    validator.validate(response)
-    decision["classification_evidence"] = [
-        {"context_ref": "context_2", "relation": "FOREIGN"}
-    ]
-    validator.validate(response)
-    decision["classification_evidence"] = [
-        {"context_ref": "context_1", "relation": "TABLE_TITLE"}
-    ]
     del decision["classification_evidence"]
     decision["no_consumer_kind"] = "OTHER_NO_NAMED_CONSUMER"
     validator.validate(response)
-    decision["no_consumer_kind"] = "INSTRUCTIONAL_REFERENCE"
+    del decision["no_consumer_kind"]
     with pytest.raises(ValidationError):
         validator.validate(response)
 
@@ -1183,9 +1178,6 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "side_values": [],
             "row_dispositions": [],
             "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
-            "classification_evidence": [
-                {"context_ref": "context_1", "relation": "TABLE_TITLE"}
-            ],
         }
     )
 
@@ -1771,9 +1763,6 @@ def test_current_mapping_contract_binds_instructional_evidence_to_canonical(
         "side_values": [],
         "row_dispositions": [],
         "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
-        "classification_evidence": [
-            {"context_ref": "context_1", "relation": "TABLE_TITLE"},
-        ],
     }
     owner = OrdinaryTradeSemanticMappingFactory.create()
     result = owner.validate_mapping_response(
@@ -1789,28 +1778,36 @@ def test_current_mapping_contract_binds_instructional_evidence_to_canonical(
     assert result["table_resolutions"][0]["no_consumer_kind"] == (
         "INSTRUCTIONAL_REFERENCE"
     )
-    assert result["table_resolutions"][0]["classification_evidence"] == [
+    assert result["table_resolutions"][0]["classification_evidence"] == (
         owner.build_classification_evidence_envelopes(
             canonical=canonical,
             target_table_node_ids=[table["node_id"]],
-        )[table["node_id"]][0]
-    ]
+        )[table["node_id"]]
+    )
 
-    response["table_decisions"][0]["classification_evidence"] = [
-        {"context_ref": "context_99", "relation": "FOREIGN"},
-    ]
-    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
-        owner.validate_mapping_response(
-            response=response,
-            canonical=canonical,
-            canonical_binding=binding,
-            model_id="models/gemini-3.5-flash",
-            provider_profile_id="google_gemini",
-            execution_metadata=_metadata(),
-            confirmed_understandings=[],
-            user_scope_sha256="a" * 64,
+    # In v15 the model supplies its semantic conclusion only.  The Canonical
+    # owner binds the complete source envelope, so neither a plausible nor a
+    # foreign model-selected evidence subset is part of the current wire.
+    for model_selected_evidence in (
+        [{"context_ref": "context_1", "relation": "TABLE_TITLE"}],
+        [{"context_ref": "context_99", "relation": "FOREIGN"}],
+    ):
+        invalid_response = copy.deepcopy(response)
+        invalid_response["table_decisions"][0]["classification_evidence"] = (
+            model_selected_evidence
         )
-    assert exc.value.code == "ordinary_trade_semantic_mapping_classification_evidence_invalid"
+        with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+            owner.validate_mapping_response(
+                response=invalid_response,
+                canonical=canonical,
+                canonical_binding=binding,
+                model_id="models/gemini-3.5-flash",
+                provider_profile_id="google_gemini",
+                execution_metadata=_metadata(),
+                confirmed_understandings=[],
+                user_scope_sha256="a" * 64,
+            )
+        assert exc.value.code == "ordinary_trade_semantic_mapping_table_decision_invalid"
 
     compiler = OrdinaryTradeSemanticCompilerFactory.create()
     v7_projection = compiler.compile(
@@ -1835,40 +1832,6 @@ def test_current_mapping_contract_binds_instructional_evidence_to_canonical(
     assert v6_projection["qualified_table_resolutions"][0]["disposition"] == (
         "NO_NAMED_CONSUMER"
     )
-
-    for invalid_evidence in (
-        [],
-        [
-            {"context_ref": "context_1", "relation": "TABLE_TITLE"},
-            {"context_ref": "context_1", "relation": "TABLE_TITLE"},
-        ],
-        [{"context_ref": "context_9", "relation": "TABLE_TITLE"}],
-        [
-            {
-                "context_ref": "context_1",
-                "relation": "PRECEDING_SAME_CONTAINER",
-            }
-        ],
-    ):
-        invalid_response = copy.deepcopy(response)
-        invalid_response["table_decisions"][0]["classification_evidence"] = (
-            invalid_evidence
-        )
-        with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
-            owner.validate_mapping_response(
-                response=invalid_response,
-                canonical=canonical,
-                canonical_binding=binding,
-                model_id="models/gemini-3.5-flash",
-                provider_profile_id="google_gemini",
-                execution_metadata=_metadata(),
-                confirmed_understandings=[],
-                user_scope_sha256="a" * 64,
-            )
-        assert exc.value.code == (
-            "ordinary_trade_semantic_mapping_classification_evidence_invalid"
-        )
-
 
 def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:
     _context, canonical, binding, _table, _known = _canonical_case(tmp_path)
