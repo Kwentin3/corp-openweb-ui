@@ -331,6 +331,17 @@ def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
     }
 
 
+def _production_gate1_valves(pin: Mapping[str, str]) -> dict[str, str | bool]:
+    """Pin the supported mapping route and keep R&D table stitching off."""
+
+    return {
+        **_mapping_prompt_valves(pin),
+        # This clears a previously persisted enabled Valve. A Field default
+        # cannot turn off a value already stored on a live instance.
+        "pdf_table_continuation_annotation_enabled": False,
+    }
+
+
 def _pdf_table_continuation_annotation_prompt_valves(
     pin: Mapping[str, str],
 ) -> dict[str, str]:
@@ -450,7 +461,7 @@ def execute(
                 provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
                 loader_bytes=loader_bytes,
                 function_valve_overrides={
-                    "broker_reports_gate1_pipe": _mapping_prompt_valves(prompt_pin)
+                    "broker_reports_gate1_pipe": _production_gate1_valves(prompt_pin)
                 },
             )
             validate_manifest(manifest)

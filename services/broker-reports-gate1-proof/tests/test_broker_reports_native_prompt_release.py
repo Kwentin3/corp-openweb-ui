@@ -78,6 +78,17 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
 
 
+def test_production_gate1_valves_keep_table_stitching_research_off():
+    assert release._production_gate1_valves(_PIN) == {
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v16",
+        "ordinary_trade_mapping_prompt_id": "prompt-1",
+        "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
+        "ordinary_trade_mapping_prompt_version": "history-1",
+        "ordinary_trade_mapping_prompt_hash": "a" * 64,
+        "pdf_table_continuation_annotation_enabled": False,
+    }
+
+
 def test_physical_table_prompt_pin_projects_only_its_four_release_valves():
     pin = {**_PIN, "prompt_command": "broker_pdf_table_continuation_annotation_v3"}
 
