@@ -17,7 +17,7 @@ OpenWebUI остаётся владельцем чатов, пользовате
 
 2. Импортировать `deploy/openwebui-functions/officecli_auto_attach_filter.py` как Filter, но до проверки оставить valves пустыми. Это единственный разрешённый автоподключающий слой: он добавляет существующий `server:officecli` до штатного разрешения tools и не вызывает OfficeCLI сам. В списке **Functions** включить оба независимых флага этой функции: основной switch строки (**Active**) и switch **Global** через меню `…`. Без Global inlet не участвует в обычных чатах; без Active функция не исполняется вообще.
 
-3. В valves Filter указать только проверенные ID обычных моделей с уже включённым Native function calling (для ограниченного запуска: `claude-opus-5,gpt-5.4-mini`). Пустое `target_model_ids` выключает Filter. Не добавлять `Office Documents`, Broker/NDFL/STT/Mistral или task models.
+3. Для каждого профиля модели в **Advanced Parameters** явно выбрать **Function Calling: Native** и нажать **Save & Update**; не полагаться на значение `Default`. Затем в valves Filter указать только проверенные ID таких обычных моделей (для ограниченного запуска: `claude-opus-5,gpt-5.4-mini`). Пустое `target_model_ids` выключает Filter. Не добавлять `Office Documents`, Broker/NDFL/STT/Mistral или task models.
 
 4. Filter дописывает короткую идемпотентную инструкцию, не заменяя существующий system prompt. Штатное разрешение `tool_ids` затем сохраняет проверку доступа к global Tool Server; Filter не открывает чужие файлы и не обходит отключённый сервер.
 
