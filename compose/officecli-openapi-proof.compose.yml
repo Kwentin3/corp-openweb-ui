@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: services/officecli-openapi-proof/Dockerfile
     image: corp-openwebui/officecli-openapi-proof:issue-451
-    restart: "no"
+    restart: unless-stopped
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m
