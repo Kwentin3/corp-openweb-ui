@@ -27,10 +27,13 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v14"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v15"
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11 = (
     "broker_reports_ordinary_trade_semantic_mapping_response_v11"
+)
+_MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V14 = (
+    "broker_reports_ordinary_trade_semantic_mapping_response_v14"
 )
 _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
     {
@@ -41,6 +44,7 @@ _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
         "broker_reports_ordinary_trade_semantic_mapping_response_v10",
         _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11,
         "broker_reports_ordinary_trade_semantic_mapping_response_v13",
+        _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V14,
     }
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
@@ -48,7 +52,7 @@ _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
         "broker_reports_ordinary_trade_semantic_mapping_response_v9",
         "broker_reports_ordinary_trade_semantic_mapping_response_v10",
         _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11,
-        MAPPING_RESPONSE_SCHEMA_VERSION,
+        _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V14,
     }
 )
 _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS = frozenset(
@@ -63,7 +67,7 @@ _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS = frozenset(
 _MODEL_SPARSE_COLUMNS_SCHEMA_VERSIONS = frozenset(
     {
         _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11,
-        MAPPING_RESPONSE_SCHEMA_VERSION,
+        _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V14,
     }
 )
 _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
@@ -3426,19 +3430,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             ],
         },
     }
-    classification_evidence = {
-        "type": "array",
-        "minItems": 1,
-        "items": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["context_ref", "relation"],
-            "properties": {
-                "context_ref": {"type": "string", "minLength": 1},
-                "relation": {"type": "string", "minLength": 1},
-            },
-        },
-    }
     instructional_reference_table_decision = {
         "type": "object",
         "additionalProperties": False,
@@ -3451,7 +3442,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             "side_values",
             "row_dispositions",
             "no_consumer_kind",
-            "classification_evidence",
         ],
         "properties": {
             **table_decision_common,
@@ -3461,7 +3451,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             "side_values": {"type": "array", "maxItems": 0},
             "row_dispositions": {"type": "array", "maxItems": 0},
             "no_consumer_kind": {"const": "INSTRUCTIONAL_REFERENCE"},
-            "classification_evidence": classification_evidence,
         },
     }
     other_no_named_consumer_table_decision = {

@@ -1472,9 +1472,6 @@ async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> Non
         "side_values": [],
         "row_dispositions": [],
         "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
-        "classification_evidence": [
-            {"context_ref": "context_2", "relation": "PRECEDING_SAME_CONTAINER"},
-        ],
     }
     client = BoundaryModelClient([response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
@@ -1508,6 +1505,19 @@ async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> Non
     ]
     assert current["table_resolutions"][1]["no_consumer_kind"] == (
         "INSTRUCTIONAL_REFERENCE"
+    )
+    # The model classifies the table.  Canonical, rather than the model,
+    # binds the complete source context that supports that classification.
+    evidence = current["table_resolutions"][1]["classification_evidence"]
+    assert evidence
+    assert all(
+        set(item) == {
+            "context_ref",
+            "relation",
+            "canonical_node_id",
+            "literal_sha256",
+        }
+        for item in evidence
     )
 
 
