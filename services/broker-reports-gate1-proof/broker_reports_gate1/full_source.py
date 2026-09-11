@@ -315,8 +315,14 @@ class FullSourceArtifactBuilder:
         }
         payloads: list[dict[str, Any]] = []
         units: list[dict[str, Any]] = []
+        # Native table references are an optional structural enhancement.  A
+        # running OpenWebUI worker can still hold a pre-v5 extraction object
+        # while a Function bundle is being replaced.  Its Markdown pages are
+        # still source-bound and usable; do not turn that compatible object
+        # into a user-visible failure merely because it predates table refs.
+        table_refs = getattr(extraction, "table_refs", ())
         tables_by_page = {
-            page: [table for table in extraction.table_refs if table.page_number == page]
+            page: [table for table in table_refs if table.page_number == page]
             for page in extraction.page_numbers
         }
         for ordinal, (page, page_bytes, page_sha256) in enumerate(
