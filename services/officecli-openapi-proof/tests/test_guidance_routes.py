@@ -38,6 +38,9 @@ class RecordingOfficeCli:
     def run(self, *arguments: str, input_text: str | None = None) -> OfficeCliOutput:
         self.calls.append(arguments)
         self.inputs.append(input_text)
+        if arguments[0] == "create":
+            Path(arguments[1]).write_bytes(b"new DOCX bytes")
+            return office_output(*arguments, payload={"success": True, "data": {"operation": "create"}})
         if arguments[0] == "batch":
             Path(arguments[1]).write_bytes(b"changed DOCX bytes")
             return office_output(*arguments, payload={"success": self.batch_success, "data": {"edited": 1}})
@@ -127,6 +130,7 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "get_officecli_help",
         "inspect_office_document",
         "apply_office_batch",
+        "create_office_document",
     }
     assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
         "description"
@@ -155,6 +159,20 @@ def test_help_uses_only_a_whitelisted_official_topic() -> None:
     )
     assert rejected.status_code == 422
     assert executor.calls == [("help", "docx", "set", "paragraph")]
+
+
+def test_help_exposes_official_markdown_creation_guidance() -> None:
+    executor = RecordingOfficeCli()
+    client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
+
+    response = client.post(
+        "/v1/officecli/help",
+        headers={"Authorization": "Bearer user-session"},
+        json={"topic": "docx add markdown"},
+    )
+
+    assert response.status_code == 200
+    assert executor.calls == [("help", "docx", "add", "markdown")]
 
 
 def test_guidance_requires_the_forwarded_openwebui_session() -> None:
@@ -293,6 +311,70 @@ def test_apply_requires_native_chat_and_message_identifiers_before_side_effects(
         "/v1/officecli/documents/apply-batch",
         headers={"Authorization": "Bearer user-session"},
         json={"output_name": "document-updated.docx", "commands": [{"command": "set"}]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "native chat and message ids are required"
+    assert executor.calls == []
+    assert files.calls == []
+
+
+def test_create_uses_official_create_batch_validate_and_native_attachment() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={
+            "output_name": "commercial-proposal.docx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/body",
+                    "type": "markdown",
+                    "props": {"markdown": "# Commercial proposal\\n\\n- Scope"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["result_file_id"] == "result-file-id"
+    assert body["bounded_processes_completed"] is True
+    assert [call[0] for call in executor.calls] == ["create", "batch", "validate"]
+    assert executor.calls[0][2:] == ("--locale", "en-US", "--json")
+    assert executor.inputs[1] == json.dumps(
+        [
+            {
+                "command": "add",
+                "parent": "/body",
+                "type": "markdown",
+                "props": {"markdown": "# Commercial proposal\\n\\n- Scope"},
+            }
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    assert [call[0] for call in files.calls] == ["upload", "attach"]
+    assert files.uploaded_bytes == b"changed DOCX bytes"
+
+
+def test_create_requires_native_chat_and_message_identifiers_before_side_effects() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/create",
+        headers={"Authorization": "Bearer user-session"},
+        json={"output_name": "commercial-proposal.docx", "commands": [{"command": "add"}]},
     )
 
     assert response.status_code == 400
