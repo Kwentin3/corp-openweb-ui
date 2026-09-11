@@ -18,3 +18,8 @@ services/stage2-stt/*
 !services/stage2-stt/stage2_stt/**
 !services/stage2-stt/openwebui_actions/
 !services/stage2-stt/openwebui_actions/**
+!services/officecli-openapi-proof/
+!services/officecli-openapi-proof/Dockerfile
+!services/officecli-openapi-proof/pyproject.toml
+!services/officecli-openapi-proof/officecli_openapi_proof/
+!services/officecli-openapi-proof/officecli_openapi_proof/**
