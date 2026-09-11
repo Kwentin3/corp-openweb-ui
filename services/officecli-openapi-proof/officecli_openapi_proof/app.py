@@ -14,6 +14,7 @@ from .config import Settings, load_settings
 from .officecli import OfficeCliExecutor, OfficeCliFailure, OfficeCliOutput, SubprocessOfficeCliExecutor
 from .openwebui_client import (
     HttpOpenWebUiClient,
+    OpenWebUiAmbiguousAttachment,
     OpenWebUiClient,
     OpenWebUiFailure,
     OpenWebUiUnauthorized,
@@ -133,6 +134,8 @@ def _bearer(authorization: str | None) -> str:
 def _http_error(error: Exception) -> HTTPException:
     if isinstance(error, OpenWebUiUnauthorized):
         return HTTPException(status_code=401, detail="forwarded OpenWebUI session was rejected")
+    if isinstance(error, OpenWebUiAmbiguousAttachment):
+        return HTTPException(status_code=422, detail=str(error))
     return HTTPException(status_code=502, detail=str(error))
 
 
@@ -211,8 +214,9 @@ def create_app(
         response_model=InspectionResponse,
         operation_id="inspect_office_document",
         description=(
-            "Read the nearest DOCX attachment from the native current-message ancestry and return "
-            "official annotated OfficeCLI output. Use its exact paragraph path to plan an edit."
+            "Read the single nearest DOCX attachment from the native current-message ancestry and return "
+            "official annotated OfficeCLI output. When that message has multiple DOCX attachments, use an "
+            "explicit file_id rather than guessing. Use the exact paragraph path to plan an edit."
         ),
     )
     def inspect_office_document(
@@ -248,8 +252,9 @@ def create_app(
         operation_id="apply_office_batch",
         description=(
             "Complete a requested DOCX edit after inspection: apply official OfficeCLI batch items to "
-            "the nearest native DOCX attachment, validate it, and attach the resulting DOCX to this "
-            "assistant message. Omit file_id rather than guessing it. This is the final execution "
+            "the single nearest native DOCX attachment, validate it, and attach the resulting DOCX to this "
+            "assistant message. Omit file_id only when that attachment is unambiguous; otherwise use an "
+            "explicit file_id rather than guessing. This is the final execution "
             "operation; do not replace it with a textual explanation."
         ),
     )

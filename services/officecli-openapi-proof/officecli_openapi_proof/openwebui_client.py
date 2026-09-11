@@ -14,6 +14,10 @@ class OpenWebUiUnauthorized(OpenWebUiFailure):
     """The forwarded OpenWebUI session was rejected by its native owner."""
 
 
+class OpenWebUiAmbiguousAttachment(OpenWebUiFailure):
+    """The current native message has more than one possible DOCX source."""
+
+
 class OpenWebUiClient(Protocol):
     def verify_session(self, authorization: str) -> None: ...
 
@@ -92,13 +96,21 @@ class HttpOpenWebUiClient:
                 break
             files = message.get("files", [])
             if isinstance(files, list):
+                docx_file_ids: list[str] = []
                 for native_file in files:
                     if not isinstance(native_file, dict):
                         continue
                     name = native_file.get("name") or native_file.get("filename") or ""
                     file_id = native_file.get("id") or native_file.get("url")
                     if isinstance(name, str) and name.lower().endswith(".docx") and isinstance(file_id, str):
-                        return file_id
+                        if file_id not in docx_file_ids:
+                            docx_file_ids.append(file_id)
+                if len(docx_file_ids) == 1:
+                    return docx_file_ids[0]
+                if len(docx_file_ids) > 1:
+                    raise OpenWebUiAmbiguousAttachment(
+                        "multiple DOCX attachments exist in the nearest native message; use an explicit file_id"
+                    )
             parent_id = message.get("parentId")
             current_id = parent_id if isinstance(parent_id, str) else None
 

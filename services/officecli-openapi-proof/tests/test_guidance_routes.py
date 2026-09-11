@@ -12,7 +12,11 @@ import pytest
 from officecli_openapi_proof.app import create_app
 from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
-from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient, OpenWebUiUnauthorized
+from officecli_openapi_proof.openwebui_client import (
+    HttpOpenWebUiClient,
+    OpenWebUiAmbiguousAttachment,
+    OpenWebUiUnauthorized,
+)
 
 
 def office_output(*arguments: str, payload: object | None = None) -> OfficeCliOutput:
@@ -382,6 +386,65 @@ def test_http_client_resolves_docx_from_the_native_message_ancestry(monkeypatch)
     )
 
     assert result == "result-file-id"
+
+
+def test_http_client_rejects_multiple_docx_attachments_in_nearest_native_message(monkeypatch) -> None:
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "chat": {
+                    "history": {
+                        "messages": {
+                            "assistant-now": {
+                                "parentId": None,
+                                "files": [
+                                    {"id": "first-file-id", "name": "first.docx"},
+                                    {"id": "second-file-id", "name": "second.docx"},
+                                ],
+                            }
+                        }
+                    }
+                }
+            }
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "http://openwebui:8080/api/v1/chats/native-chat-id"
+        assert kwargs["headers"] == {"Authorization": "Bearer user-session"}
+        return Response()
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    with pytest.raises(OpenWebUiAmbiguousAttachment, match="multiple DOCX attachments"):
+        client.resolve_nearest_docx_attachment("native-chat-id", "assistant-now", "Bearer user-session")
+
+
+def test_inspect_returns_422_before_download_when_docx_source_is_ambiguous() -> None:
+    class AmbiguousFiles(RecordingOpenWebUi):
+        def resolve_nearest_docx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
+            self.calls.append(("resolve", (chat_id, message_id)))
+            raise OpenWebUiAmbiguousAttachment("multiple DOCX attachments exist in the nearest native message; use an explicit file_id")
+
+    files = AmbiguousFiles()
+    client = TestClient(create_app(RecordingOfficeCli(), files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/inspect",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"command_payload": {"command": "view", "mode": "annotated"}},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "multiple DOCX attachments exist in the nearest native message; use an explicit file_id"
+    assert files.calls == [("resolve", ("native-chat-id", "native-message-id"))]
 
 
 def test_http_client_uses_native_openwebui_session_endpoint_and_rejects_fake_bearer(monkeypatch) -> None:
