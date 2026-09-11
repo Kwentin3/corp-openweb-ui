@@ -26,7 +26,13 @@ class SkillRequest(BaseModel):
 
 
 class HelpRequest(BaseModel):
-    topic: Literal["docx", "docx paragraph", "docx set paragraph", "docx view"]
+    topic: Literal[
+        "docx",
+        "docx paragraph",
+        "docx set paragraph",
+        "docx add markdown",
+        "docx view",
+    ]
 
 
 class GuidanceResponse(BaseModel):
@@ -85,6 +91,25 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
         return value
 
 
+class CreateOfficeDocumentRequest(BaseModel):
+    output_name: str = Field(min_length=6, max_length=120)
+    commands: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=64,
+        description=(
+            "Official OfficeCLI batch items used to fill a newly created DOCX. Read the installed "
+            "OfficeCLI help before choosing element types and properties."
+        ),
+    )
+
+    @field_validator("output_name")
+    @classmethod
+    def output_name_is_a_plain_docx_name(cls, value: str) -> str:
+        if Path(value).name != value or not value.lower().endswith(".docx"):
+            raise ValueError("output_name must be a plain .docx filename")
+        return value
+
+
 class InspectionResponse(BaseModel):
     source: str
     file_id: str
@@ -107,10 +132,23 @@ class ApplyResponse(BaseModel):
     bounded_processes_completed: bool
 
 
+class CreateResponse(BaseModel):
+    source: str
+    result_file_id: str
+    result_file: dict[str, Any]
+    create_result: Any
+    batch_result: Any
+    validation_result: Any
+    result_sha256: str
+    auto_resident_disabled: bool
+    bounded_processes_completed: bool
+
+
 HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "docx": ("help", "docx"),
     "docx paragraph": ("help", "docx", "paragraph"),
     "docx set paragraph": ("help", "docx", "set", "paragraph"),
+    "docx add markdown": ("help", "docx", "add", "markdown"),
     "docx view": ("help", "docx", "view"),
 }
 
@@ -325,6 +363,72 @@ def create_app(
             source_bytes_preserved=True,
             auto_resident_disabled=batch_output.auto_resident_disabled
             and validation_output.auto_resident_disabled,
+            bounded_processes_completed=True,
+        )
+
+    @app.post(
+        "/v1/officecli/documents/create",
+        response_model=CreateResponse,
+        operation_id="create_office_document",
+        description=(
+            "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
+            "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
+            "user asks for a new document rather than an edit of an attached DOCX. Read OfficeCLI skill and "
+            "help first; this is the final execution operation, not a textual substitute."
+        ),
+    )
+    def create_office_document(
+        request: CreateOfficeDocumentRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+    ) -> CreateResponse:
+        bearer = authenticated_bearer(authorization)
+        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
+
+        native_file: dict[str, Any] | None = None
+        try:
+            with TemporaryDirectory(prefix="officecli-proof-") as directory:
+                result_path = Path(directory) / "created.docx"
+                create_output = officecli.run("create", str(result_path), "--locale", "en-US", "--json")
+                create_result = _officecli_json(create_output, "create")
+                batch_output = officecli.run(
+                    "batch",
+                    str(result_path),
+                    "--stop-on-error",
+                    "--json",
+                    input_text=json.dumps(request.commands, ensure_ascii=False, separators=(",", ":")),
+                )
+                batch_result = _officecli_json(batch_output, "batch")
+                validation_output = officecli.run("validate", str(result_path), "--json")
+                validation_result = _officecli_json(validation_output, "validate")
+
+                if not result_path.is_file() or result_path.stat().st_size == 0:
+                    raise OfficeCliFailure("officecli did not leave a DOCX result")
+                result_sha256 = sha256(result_path.read_bytes()).hexdigest()
+                native_file = openwebui.upload(result_path, request.output_name, bearer)
+                openwebui.attach(native_chat_id, native_message_id, native_file, bearer)
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            if native_file and isinstance(native_file.get("id"), str):
+                try:
+                    openwebui.delete(native_file["id"], bearer)
+                except OpenWebUiFailure:
+                    pass
+            raise _http_error(error) from error
+
+        return CreateResponse(
+            source=f"officecli v{active_settings.expected_version}",
+            result_file_id=native_file["id"],
+            result_file=native_file,
+            create_result=create_result,
+            batch_result=batch_result,
+            validation_result=validation_result,
+            result_sha256=result_sha256,
+            auto_resident_disabled=(
+                create_output.auto_resident_disabled
+                and batch_output.auto_resident_disabled
+                and validation_output.auto_resident_disabled
+            ),
             bounded_processes_completed=True,
         )
 

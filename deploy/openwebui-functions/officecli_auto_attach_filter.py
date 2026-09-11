@@ -17,9 +17,10 @@ from pydantic import BaseModel, Field
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v1]"
 OFFICECLI_INSTRUCTION = (
-    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for editing attached DOCX files. "
-    "When a user asks to edit a DOCX, use the available OfficeCLI guidance and tools; "
-    "do not report completion until the tool returns a result_file_id."
+    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX work. "
+    "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
+    "when they ask to create a new DOCX from the discussion, use the same official guidance and "
+    "create tool. Do not report completion until the execution tool returns a result_file_id."
 )
 
 
