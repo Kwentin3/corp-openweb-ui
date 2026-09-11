@@ -8,12 +8,18 @@ from types import SimpleNamespace
 import pytest
 
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     INPUT_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
     ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND,
@@ -338,6 +344,32 @@ def test_snapshot_validator_accepts_only_the_closed_v14_identity():
     mixed = dict(snapshot)
     mixed["output_schema_id"] = OUTPUT_SCHEMA_ID
     mixed["output_schema_version"] = OUTPUT_SCHEMA_VERSION
+    with pytest.raises(OrdinaryTradeMappingPromptError) as invalid:
+        validate_ordinary_trade_mapping_prompt_snapshot(mixed)
+    assert invalid.value.code == "ordinary_trade_mapping_prompt_snapshot_invalid"
+
+
+def test_snapshot_validator_accepts_only_the_closed_v16_document_opening_identity():
+    snapshot = OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="test-v16-prompt",
+        command=ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+        version="test-v16-version",
+        content="Map {{ordinary_trade_mapping_case_json}}.",
+        hash="c" * 64,
+        source="test",
+        template_id=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        tags=(ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,),
+        safe_metadata={},
+    ).snapshot()
+
+    assert validate_ordinary_trade_mapping_prompt_snapshot(snapshot) == snapshot
+    mixed = dict(snapshot)
+    mixed["input_schema_version"] = INPUT_SCHEMA_VERSION
     with pytest.raises(OrdinaryTradeMappingPromptError) as invalid:
         validate_ordinary_trade_mapping_prompt_snapshot(mixed)
     assert invalid.value.code == "ordinary_trade_mapping_prompt_snapshot_invalid"

@@ -84,6 +84,7 @@ from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    DOCUMENT_OPENING_INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
@@ -98,6 +99,11 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
@@ -207,6 +213,7 @@ class _OrdinaryTradeMappingRouteProfile:
         output_schema_id: str,
         output_schema_version: str,
         required_tag: str,
+        input_schema_version: str = ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
         grouped_v14_response: bool = False,
         grouped_v15_response: bool = False,
     ) -> None:
@@ -217,6 +224,7 @@ class _OrdinaryTradeMappingRouteProfile:
         self.output_schema_id = output_schema_id
         self.output_schema_version = output_schema_version
         self.required_tag = required_tag
+        self.input_schema_version = input_schema_version
         self.grouped_v14_response = grouped_v14_response
         self.grouped_v15_response = grouped_v15_response
 
@@ -260,6 +268,21 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
             ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION
         ),
         required_tag=ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+        grouped_v15_response=True,
+    ),
+    "ordinary_trade_mapping_v16": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v16",
+        prompt_command=ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
         grouped_v15_response=True,
     ),
 }
@@ -360,7 +383,7 @@ class Pipe:
             default="ordinary_trade_mapping_v13",
             description=(
                 "Sealed production mapping route profile. Only the released "
-                "v13, v14 and v15 profiles are admitted."
+                "v13, v14, v15 and v16 profiles are admitted."
             ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")
@@ -1944,6 +1967,11 @@ class Pipe:
                     if mapping_client is not None
                     else None
                 ),
+                mapping_input_schema_version=(
+                    mapping_route_profile.input_schema_version
+                    if mapping_client is not None
+                    else None
+                ),
             ).create()
             action_receipt = None
             result = await runtime.run_with_automatic_mapping(
@@ -3523,7 +3551,7 @@ class Pipe:
                     ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID
                 ),
                 required_input_schema_version=(
-                    ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION
+                    profile.input_schema_version
                 ),
                 required_output_schema_id=profile.output_schema_id,
                 required_output_schema_version=profile.output_schema_version,

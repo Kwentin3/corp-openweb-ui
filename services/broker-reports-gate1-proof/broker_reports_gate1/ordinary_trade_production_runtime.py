@@ -22,6 +22,7 @@ from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
 from .ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
+from .ordinary_trade_semantic_mapping import MAPPING_INPUT_SCHEMA_VERSION
 from .ordinary_trade_declaration_mvp import (
     OrdinaryTradeDeclarationMvpError,
     OrdinaryTradeDeclarationMvpRuntime,
@@ -68,6 +69,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         mapping_response_adapter: Any | None = None,
         mapping_model_id: str | None = None,
         mapping_provider_profile_id: str | None = None,
+        mapping_input_schema_version: str | None = MAPPING_INPUT_SCHEMA_VERSION,
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
@@ -83,6 +85,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         self._mapping_response_adapter = mapping_response_adapter
         self._mapping_model_id = mapping_model_id
         self._mapping_provider_profile_id = mapping_provider_profile_id
+        self._mapping_input_schema_version = mapping_input_schema_version
 
     def create(self) -> "OrdinaryTradeProductionRuntime":
         declaration = None
@@ -102,7 +105,10 @@ class OrdinaryTradeProductionRuntimeFactory:
             self._mapping_prompt_user_context_factory,
         )
         if any(item is not None for item in mapping_values):
-            if not all(item is not None for item in mapping_values):
+            if (
+                not all(item is not None for item in mapping_values)
+                or self._mapping_input_schema_version is None
+            ):
                 raise OrdinaryTradeProductionError(
                     "ordinary_trade_mapping_runtime_configuration_incomplete"
                 )
@@ -119,6 +125,7 @@ class OrdinaryTradeProductionRuntimeFactory:
                 mapping_response_adapter=self._mapping_response_adapter,
                 model_id=str(self._mapping_model_id),
                 provider_profile_id=str(self._mapping_provider_profile_id),
+                input_schema_version=str(self._mapping_input_schema_version),
             ).create()
         return OrdinaryTradeProductionRuntime(
             store=self._store,

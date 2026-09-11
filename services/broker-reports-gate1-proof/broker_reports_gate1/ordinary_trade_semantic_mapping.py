@@ -78,6 +78,16 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
 MAPPING_BATCH_PLAN_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_batch_plan_v1"
+MAPPING_BATCH_PLAN_DOCUMENT_OPENING_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_mapping_batch_plan_v2_document_opening"
+)
+# The input representation is independently versioned from both the managed
+# Prompt and the model response.  A release may never broaden old packages:
+# v3 is the only route allowed to expose bounded document-opening literals.
+MAPPING_INPUT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
+MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_mapping_case_v3_document_opening"
+)
 INSTRUCTIONAL_CLASSIFICATION_DESCRIPTOR_SCHEMA_VERSION = (
     "broker_reports_instructional_table_descriptor_v1"
 )
@@ -152,6 +162,7 @@ _MAX_CONTEXT_BYTES = 524_288
 _MAX_LOCAL_CONTEXT_ITEMS = 8
 _MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION = 4
 _MAX_LOCAL_CONTEXT_LITERAL_CHARS = 512
+_MAX_DOCUMENT_OPENING_CONTEXT_ITEMS = 2
 _MAX_DISTINCT_VALUES_PER_COLUMN = 64
 _MAX_EXCLUSION_CONFIRMATION_TABLES = 12
 _DECISION_KINDS = {
@@ -567,11 +578,14 @@ class OrdinaryTradeSemanticMapping:
         confirmed_understandings: list[dict[str, Any]],
         target_table_node_ids: Iterable[str] | None = None,
         physical_table_continuation_context: Mapping[str, Any] | None = None,
+        input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
     ) -> dict[str, Any]:
+        _validate_mapping_input_schema_version(input_schema_version)
         tables, refs_by_node_id = _model_table_surfaces(
             canonical,
             target_table_node_ids=target_table_node_ids,
             include_column_distinct_values=False,
+            input_schema_version=input_schema_version,
         )
         confirmed_decisions = []
         user_currency_assertions = []
@@ -677,6 +691,7 @@ class OrdinaryTradeSemanticMapping:
         confirmed_understandings: list[dict[str, Any]],
         target_table_node_ids: Iterable[str],
         physical_table_continuation_context: Mapping[str, Any] | None = None,
+        input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
     ) -> dict[str, Any]:
         """Split one explicit table scope into deterministic bounded packages.
 
@@ -686,6 +701,7 @@ class OrdinaryTradeSemanticMapping:
         order, so caller ordering cannot alter a model-visible package.
         """
 
+        _validate_mapping_input_schema_version(input_schema_version)
         target_ids = _ordered_target_table_node_ids(
             canonical=canonical,
             target_table_node_ids=target_table_node_ids,
@@ -704,6 +720,7 @@ class OrdinaryTradeSemanticMapping:
                     confirmed_understandings=confirmed_understandings,
                     target_table_node_ids=candidate,
                     physical_table_continuation_context=physical_table_continuation_context,
+                    input_schema_version=input_schema_version,
                 )
             except OrdinaryTradeSemanticMappingError as exc:
                 if exc.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -720,6 +737,7 @@ class OrdinaryTradeSemanticMapping:
                 confirmed_understandings=confirmed_understandings,
                 target_table_node_ids=pending,
                 physical_table_continuation_context=physical_table_continuation_context,
+                input_schema_version=input_schema_version,
             )
             batches.append(
                 {
@@ -733,6 +751,7 @@ class OrdinaryTradeSemanticMapping:
                 confirmed_understandings=confirmed_understandings,
                 target_table_node_ids=group,
                 physical_table_continuation_context=physical_table_continuation_context,
+                input_schema_version=input_schema_version,
             )
             pending = list(group)
         if not pending:
@@ -742,6 +761,7 @@ class OrdinaryTradeSemanticMapping:
             confirmed_understandings=confirmed_understandings,
             target_table_node_ids=pending,
             physical_table_continuation_context=physical_table_continuation_context,
+            input_schema_version=input_schema_version,
         )
         batches.append(
             {
@@ -751,15 +771,22 @@ class OrdinaryTradeSemanticMapping:
             }
         )
         plan = {
-            "schema_version": MAPPING_BATCH_PLAN_SCHEMA_VERSION,
+            "schema_version": (
+                MAPPING_BATCH_PLAN_DOCUMENT_OPENING_SCHEMA_VERSION
+                if input_schema_version == MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION
+                else MAPPING_BATCH_PLAN_SCHEMA_VERSION
+            ),
             "target_table_node_ids": target_ids,
             "batches": batches,
         }
+        if input_schema_version == MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION:
+            plan["input_schema_version"] = input_schema_version
         _validate_mapping_batch_plan(
             plan=plan,
             canonical=canonical,
             confirmed_understandings=confirmed_understandings,
             physical_table_continuation_context=physical_table_continuation_context,
+            input_schema_version=input_schema_version,
         )
         return plan
 
@@ -775,6 +802,7 @@ class OrdinaryTradeSemanticMapping:
         frozen_mappings: Iterable[Mapping[str, Any]] = (),
         transport_confirmed_understandings: list[dict[str, Any]] | None = None,
         physical_table_continuation_context: Mapping[str, Any] | None = None,
+        input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
     ) -> dict[str, Any]:
         """Validate a complete batch set, then replay the existing compiler once.
 
@@ -791,6 +819,7 @@ class OrdinaryTradeSemanticMapping:
                 else transport_confirmed_understandings
             ),
             physical_table_continuation_context=physical_table_continuation_context,
+            input_schema_version=input_schema_version,
         )
         submitted = list(batch_outcomes)
         expected_batches = plan["batches"]
@@ -1520,17 +1549,46 @@ def _ordered_target_table_node_ids(
     return canonical_order
 
 
+def _validate_mapping_input_schema_version(value: str) -> None:
+    if value not in {
+        MAPPING_INPUT_SCHEMA_VERSION,
+        MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    }:
+        _fail("ordinary_trade_mapping_input_schema_version_invalid")
+
+
 def _validate_mapping_batch_plan(
     *,
     plan: Mapping[str, Any],
     canonical: Mapping[str, Any],
     confirmed_understandings: list[dict[str, Any]],
     physical_table_continuation_context: Mapping[str, Any] | None = None,
+    input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
 ) -> dict[str, Any]:
+    _validate_mapping_input_schema_version(input_schema_version)
+    document_opening = (
+        input_schema_version == MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION
+    )
+    expected_schema_version = (
+        MAPPING_BATCH_PLAN_DOCUMENT_OPENING_SCHEMA_VERSION
+        if document_opening
+        else MAPPING_BATCH_PLAN_SCHEMA_VERSION
+    )
+    expected_keys = {
+        "schema_version",
+        "target_table_node_ids",
+        "batches",
+    }
+    if document_opening:
+        expected_keys.add("input_schema_version")
     if (
         not isinstance(plan, Mapping)
-        or set(plan) != {"schema_version", "target_table_node_ids", "batches"}
-        or plan.get("schema_version") != MAPPING_BATCH_PLAN_SCHEMA_VERSION
+        or set(plan) != expected_keys
+        or plan.get("schema_version") != expected_schema_version
+        or (
+            document_opening
+            and plan.get("input_schema_version") != input_schema_version
+        )
         or not isinstance(plan.get("target_table_node_ids"), list)
         or not isinstance(plan.get("batches"), list)
     ):
@@ -1566,21 +1624,27 @@ def _validate_mapping_batch_plan(
             confirmed_understandings=confirmed_understandings,
             target_table_node_ids=batch["target_table_node_ids"],
             physical_table_continuation_context=physical_table_continuation_context,
+            input_schema_version=input_schema_version,
         )
         if batch["mapping_package_sha256"] != _sha256_json(package):
             _fail("ordinary_trade_mapping_batch_plan_integrity_invalid")
-    return {
-        "schema_version": MAPPING_BATCH_PLAN_SCHEMA_VERSION,
+    validated = {
+        "schema_version": expected_schema_version,
         "target_table_node_ids": list(target_ids),
         "batches": [copy.deepcopy(dict(item)) for item in plan["batches"]],
     }
+    if document_opening:
+        validated["input_schema_version"] = input_schema_version
+    return validated
 
 
 def _table_surfaces(
     canonical: Mapping[str, Any],
     *,
     target_table_node_ids: Iterable[str] | None = None,
+    input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
 ) -> list[dict[str, Any]]:
+    _validate_mapping_input_schema_version(input_schema_version)
     nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
     if not isinstance(nodes, list):
         _fail("ordinary_trade_semantic_mapping_canonical_invalid")
@@ -1599,6 +1663,10 @@ def _table_surfaces(
         nodes=nodes,
         container_refs=set(preceding_sibling_by_container),
     )
+    document_opening = _document_opening_literals(
+        canonical=canonical,
+        literal_nodes_by_container=literal_nodes_by_container,
+    ) if input_schema_version == MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION else []
     tables = []
     cells_total = 0
     ordered_nodes = sorted(
@@ -1680,6 +1748,7 @@ def _table_surfaces(
                     container_ref=container_ref,
                     preceding_sibling_ref=preceding_sibling_by_container[container_ref],
                     literal_nodes_by_container=literal_nodes_by_container,
+                    document_opening=document_opening,
                 ),
             }
         )
@@ -1805,6 +1874,52 @@ def _literal_nodes_by_container(
     return by_container
 
 
+def _document_opening_literals(
+    *,
+    canonical: Mapping[str, Any],
+    literal_nodes_by_container: Mapping[str, list[tuple[int, str, str]]],
+) -> list[tuple[str, str]]:
+    """Return only the literal beginning of this one Canonical document.
+
+    This is a v3 representation rule, not a classifier: the Canonical tree
+    supplies the root and its first ordered child.  Old flat Canonicals have no
+    proved document opening and deliberately receive none.
+    """
+
+    containers = canonical.get("containers")
+    root_ref = canonical.get("root_container_ref")
+    if not isinstance(containers, list) or not isinstance(root_ref, str):
+        return []
+    roots = [
+        item for item in containers
+        if isinstance(item, Mapping)
+        and item.get("container_id") == root_ref
+        and item.get("parent_container_ref") is None
+    ]
+    if len(roots) != 1:
+        _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    children = [
+        item for item in containers
+        if isinstance(item, Mapping) and item.get("parent_container_ref") == root_ref
+    ]
+    children.sort(key=lambda item: item.get("order"))
+    if children and (
+        not isinstance(children[0].get("container_id"), str)
+        or children[0].get("order") != 0
+    ):
+        _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    opening_containers = [root_ref]
+    if children:
+        opening_containers.append(str(children[0]["container_id"]))
+    literals: list[tuple[str, str]] = []
+    for container_ref in opening_containers:
+        for _order, node_id, literal in literal_nodes_by_container.get(container_ref, []):
+            literals.append((node_id, literal))
+            if len(literals) == _MAX_DOCUMENT_OPENING_CONTEXT_ITEMS:
+                return literals
+    return literals
+
+
 def _source_context_for_table(
     *,
     table_node_id: str,
@@ -1813,6 +1928,7 @@ def _source_context_for_table(
     container_ref: str,
     preceding_sibling_ref: str | None,
     literal_nodes_by_container: Mapping[str, list[tuple[int, str, str]]],
+    document_opening: list[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Project bounded literal context with private Canonical provenance.
 
@@ -1847,11 +1963,16 @@ def _source_context_for_table(
         *local_context[:-_MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION],
     ]
     title_source_literal = title_value if isinstance(title_value, str) else ""
+    opening_context = [
+        ("DOCUMENT_OPENING", node_id, literal)
+        for node_id, literal in (document_opening or [])
+        if node_id not in {node_id for _relation, node_id, _literal in selected}
+    ]
     candidates = (
         [("TABLE_TITLE", table_node_id, title_source_literal)]
         if title_source_literal
         else []
-    ) + selected
+    ) + opening_context + selected
     entries = []
     private_entries = []
     for index, (relation, node_id, literal) in enumerate(candidates, start=1):
@@ -1924,6 +2045,7 @@ def _model_table_surfaces(
     *,
     target_table_node_ids: Iterable[str] | None = None,
     include_column_distinct_values: bool = True,
+    input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     """Expose one complete, bounded Canonical table scope to the mapper.
 
@@ -1937,6 +2059,7 @@ def _model_table_surfaces(
     tables = _selected_table_surfaces(
         canonical=canonical,
         target_table_node_ids=target_table_node_ids,
+        input_schema_version=input_schema_version,
     )
     refs_by_node_id = {
         table["table_node_id"]: f"table_{index}"
@@ -1988,13 +2111,17 @@ def _selected_table_surfaces(
     *,
     canonical: Mapping[str, Any],
     target_table_node_ids: Iterable[str] | None,
+    input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
 ) -> list[dict[str, Any]]:
     if target_table_node_ids is None:
-        return _table_surfaces(canonical)
+        return _table_surfaces(
+            canonical, input_schema_version=input_schema_version
+        )
     target_ids = list(target_table_node_ids)
     tables = _table_surfaces(
         canonical,
         target_table_node_ids=target_ids,
+        input_schema_version=input_schema_version,
     )
     by_id = {item["table_node_id"]: item for item in tables}
     return [by_id[item] for item in target_ids]

@@ -27,6 +27,7 @@ _PROFILE_IDS = frozenset(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
+        "ordinary_trade_mapping_v16",
         "pdf_table_continuation_annotation_v3",
     }
 )
@@ -69,6 +70,7 @@ async def _run(
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE,
+        ORDINARY_TRADE_MAPPING_V16_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         OrdinaryTradeMappingPromptPublication,
@@ -81,6 +83,7 @@ async def _run(
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE.profile_id: GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V14_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_V15_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V15_PROFILE,
+        ORDINARY_TRADE_MAPPING_V16_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V16_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE.profile_id: PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     }
     profile = profiles.get(profile_id)
@@ -124,7 +127,7 @@ def main() -> int:
     parser.add_argument("--source-archive", required=True)
     parser.add_argument("--verify-pin-json", default=None)
     parser.add_argument(
-        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v15"
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v16"
     )
     args = parser.parse_args()
     archive = Path(args.source_archive)

@@ -24,6 +24,8 @@ from .instructional_table_classification_prompt import (
     validate_instructional_classification_prompt_snapshot,
 )
 from .ordinary_trade_semantic_mapping import (
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    MAPPING_INPUT_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
@@ -70,6 +72,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         mapping_response_adapter: Any | None = None,
         model_id: str,
         provider_profile_id: str,
+        input_schema_version: str = MAPPING_INPUT_SCHEMA_VERSION,
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
@@ -81,6 +84,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         self._mapping_response_adapter = mapping_response_adapter
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
+        self._input_schema_version = input_schema_version
 
     def create(self) -> "OrdinaryTradeAutomaticMappingRuntime":
         if (
@@ -89,6 +93,10 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             or not self._model_id
             or not isinstance(self._provider_profile_id, str)
             or not self._provider_profile_id
+            or self._input_schema_version not in {
+                MAPPING_INPUT_SCHEMA_VERSION,
+                MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+            }
             or self._mapping_prompt_resolver is None
             or not callable(self._mapping_prompt_user_context_factory)
             or (
@@ -134,6 +142,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
                 self._mapping_prompt_user_context_factory
             ),
             mapping_response_adapter=self._mapping_response_adapter,
+            input_schema_version=self._input_schema_version,
         )
 
 
@@ -153,6 +162,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         instructional_prompt_resolver: Any | None,
         mapping_prompt_user_context_factory: Any,
         mapping_response_adapter: Any | None,
+        input_schema_version: str,
     ) -> None:
         self._cases = cases
         self._semantic = semantic
@@ -166,6 +176,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
         self._mapping_response_adapter = mapping_response_adapter
+        self._input_schema_version = input_schema_version
 
     async def resolve(
         self,
@@ -438,6 +449,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 physical_table_continuation_context=binding[
                     "physical_table_continuation_context"
                 ],
+                input_schema_version=self._input_schema_version,
             )
         except OrdinaryTradeSemanticMappingError as exc:
             if exc.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -449,6 +461,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     physical_table_continuation_context=binding[
                         "physical_table_continuation_context"
                     ],
+                    input_schema_version=self._input_schema_version,
                 )
             except OrdinaryTradeSemanticMappingError as plan_error:
                 if plan_error.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -787,6 +800,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 physical_table_continuation_context=binding[
                     "physical_table_continuation_context"
                 ],
+                input_schema_version=self._input_schema_version,
             )
             instructional_state = current[1].get(
                 "instructional_classification_state"
@@ -835,6 +849,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             physical_table_continuation_context=binding[
                 "physical_table_continuation_context"
             ],
+            input_schema_version=self._input_schema_version,
         )
         if _sha256_json(package) != next_batch["mapping_package_sha256"]:
             saved = self._cases.save_batch_state(

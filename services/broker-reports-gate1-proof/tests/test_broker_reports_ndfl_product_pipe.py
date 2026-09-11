@@ -2057,6 +2057,7 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
         "expected_command",
         "expected_template_id",
         "expected_schema",
+        "expected_input_schema",
         "expected_adapter_type",
     ),
     [
@@ -2066,6 +2067,7 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
             product_pipe.ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
             product_pipe.ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
             None,
         ),
         (
@@ -2074,6 +2076,7 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
             product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
             product_pipe.ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
             OrdinaryTradeGroupedMappingV14Adapter,
         ),
         (
@@ -2082,6 +2085,16 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
             product_pipe.ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
             product_pipe.ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV15Adapter,
+        ),
+        (
+            "ordinary_trade_mapping_v16",
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
             OrdinaryTradeGroupedMappingV15Adapter,
         ),
     ],
@@ -2093,6 +2106,7 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     expected_command: str,
     expected_template_id: str,
     expected_schema: str,
+    expected_input_schema: str,
     expected_adapter_type: type | None,
 ) -> None:
     """The Pipe composes a public resolver; mapping owns the actual read."""
@@ -2170,11 +2184,13 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     assert config.command is None
     assert config.required_command == expected_command
     assert config.required_template_id == expected_template_id
+    assert config.required_input_schema_version == expected_input_schema
     assert config.required_output_schema_id == expected_schema
     assert config.required_output_schema_version == expected_schema
     assert config.release_prompt_version == "history-1"
     assert config.release_prompt_hash == "a" * 64
     runtime_kwargs = captured["runtime_kwargs"]
+    assert runtime_kwargs["mapping_input_schema_version"] == expected_input_schema
     assert isinstance(runtime_kwargs["mapping_prompt_resolver"], Resolver)
     adapter = runtime_kwargs["mapping_response_adapter"]
     if expected_adapter_type is not None:

@@ -21,7 +21,11 @@ from .ordinary_trade_grouped_mapping_v14 import (
 from .ordinary_trade_grouped_mapping_v15 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION,
 )
-from .ordinary_trade_semantic_mapping import MAPPING_RESPONSE_SCHEMA_VERSION
+from .ordinary_trade_semantic_mapping import (
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    MAPPING_INPUT_SCHEMA_VERSION,
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+)
 
 
 FACTORY_REQUIRED = (
@@ -38,7 +42,8 @@ PROMPT_TEMPLATE_ID = "broker_reports.ordinary_trade_semantic_mapping.v1"
 PROMPT_TEMPLATE_KIND = "broker_reports_ordinary_trade_semantic_mapping"
 PROMPT_COMMAND = "broker_ordinary_trade_semantic_mapping_v1"
 PROMPT_REQUIRED_TAG = "broker-reports-ordinary-trade-mapping"
-INPUT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
+INPUT_SCHEMA_VERSION = MAPPING_INPUT_SCHEMA_VERSION
+DOCUMENT_OPENING_INPUT_SCHEMA_VERSION = MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION
 # The mapping owner is the sole owner of this wire-schema identity.  The Prompt
 # resolver consumes it so a native Workspace candidate cannot silently drift.
 OUTPUT_SCHEMA_ID = MAPPING_RESPONSE_SCHEMA_VERSION
@@ -90,6 +95,23 @@ ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG = (
 ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION = (
     ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
 )
+ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v16"
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v16"
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v16"
+)
+# v16 changes only the sealed input representation.  It deliberately reuses
+# the v15 compact response adapter, never a v14/v15 input package.
+ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 # A snapshot is an execution receipt, not a bag of independently optional
@@ -103,6 +125,7 @@ _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
         "output_schema_id": OUTPUT_SCHEMA_ID,
         "output_schema_version": OUTPUT_SCHEMA_VERSION,
         "required_tag": PROMPT_REQUIRED_TAG,
+        "input_schema_version": INPUT_SCHEMA_VERSION,
     },
     {
         "commands": frozenset({ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND}),
@@ -111,6 +134,7 @@ _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
         "output_schema_id": ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
         "output_schema_version": ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
         "required_tag": ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+        "input_schema_version": INPUT_SCHEMA_VERSION,
     },
     {
         "commands": frozenset({ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND}),
@@ -119,6 +143,16 @@ _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
         "output_schema_id": ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
         "output_schema_version": ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
         "required_tag": ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+        "input_schema_version": INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     },
 )
 
@@ -758,6 +792,7 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
         and value.get("template_kind") == identity["template_kind"]
         and value.get("output_schema_id") == identity["output_schema_id"]
         and value.get("output_schema_version") == identity["output_schema_version"]
+        and value.get("input_schema_version") == identity["input_schema_version"]
         and isinstance(value.get("tags"), list)
         and identity["required_tag"] in value["tags"]
         for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
@@ -772,7 +807,10 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
         or _SHA256.fullmatch(value["prompt_hash"]) is None
         or value.get("prompt_source") not in {"openwebui_prompt_history", "test"}
         or value.get("prompt_contract_id") != PROMPT_CONTRACT_ID
-        or value.get("input_schema_version") != INPUT_SCHEMA_VERSION
+        or value.get("input_schema_version") not in {
+            INPUT_SCHEMA_VERSION,
+            DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+        }
         or not isinstance(value.get("tags"), list)
         or any(not isinstance(tag, str) for tag in value["tags"])
         or not identity_matches
@@ -827,6 +865,7 @@ def _json_list(value: Any) -> list[str]:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "DOCUMENT_OPENING_INPUT_SCHEMA_VERSION",
     "INPUT_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND",
@@ -838,6 +877,11 @@ __all__ = [
     "ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG",
     "ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID",
     "ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND",
     "OUTPUT_SCHEMA_ID",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_COMMAND",

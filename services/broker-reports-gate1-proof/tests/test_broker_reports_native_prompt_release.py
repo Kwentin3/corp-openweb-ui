@@ -63,12 +63,12 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
         "docker", "exec", "-w", "/app/backend", "-e", "PYTHONPATH=/app/backend",
         "openwebui", "python", "/tmp/broker-reports-prompt-release/publish.py",
     ]
-    assert python_call[-2:] == ["--profile", "ordinary_trade_mapping_v15"]
+    assert python_call[-2:] == ["--profile", "ordinary_trade_mapping_v16"]
 
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v15",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v16",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -96,7 +96,7 @@ def test_physical_table_prompt_pin_projects_only_its_four_release_valves():
         release._pdf_table_continuation_annotation_prompt_valves(_PIN)
 
 
-def test_atomic_release_publishes_and_rechecks_the_production_v15_profile():
+def test_atomic_release_publishes_and_rechecks_the_production_v16_profile():
     calls: list[list[str]] = []
 
     def run(args, *, check=True, timeout=None):
@@ -120,7 +120,7 @@ def test_atomic_release_publishes_and_rechecks_the_production_v15_profile():
         "--staging-dir",
         "/safe/staging",
         "--profile",
-        "ordinary_trade_mapping_v15",
+        "ordinary_trade_mapping_v16",
     ]
 
 
@@ -144,7 +144,7 @@ def test_prompt_readback_keeps_json_pin_as_one_remote_shell_argument():
     ]
 
 
-def test_atomic_release_archives_the_same_v15_prompt_profile_it_pins(tmp_path: Path):
+def test_atomic_release_archives_the_same_v16_prompt_profile_it_pins(tmp_path: Path):
     archive = tmp_path / "source.zip"
     revision = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -160,6 +160,7 @@ def test_atomic_release_archives_the_same_v15_prompt_profile_it_pins(tmp_path: P
 
     with zipfile.ZipFile(archive) as payload:
         names = set(payload.namelist())
+    assert release.ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET in names
     assert release.ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET in names
     assert not any(name.endswith("broker_reports_ordinary_trade_mapping_prompt.v13.md") for name in names)
 
@@ -270,6 +271,7 @@ def test_post_remote_prompt_readback_cleans_fresh_staging_after_failure(
         "goal391_grouped_mapping_lab_v14",
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
+        "ordinary_trade_mapping_v16",
         "pdf_table_continuation_annotation_v3",
     ],
 )
@@ -325,6 +327,6 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     ).read_text(encoding="utf-8")
     assert "OrdinaryTradeMappingPromptPublisher" in container_source
     assert "from open_webui.models.prompt_history" not in container_source
-    assert '"ordinary_trade_mapping_v15"' in container_source
+    assert '"ordinary_trade_mapping_v16"' in container_source
     assert "pdf_table_continuation_annotation_v3" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in host._PROFILE_IDS

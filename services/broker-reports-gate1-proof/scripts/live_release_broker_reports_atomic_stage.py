@@ -29,10 +29,10 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
-ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v15"
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v16"
 ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
-    "broker_reports_ordinary_trade_mapping_prompt.v15.md"
+    "broker_reports_ordinary_trade_mapping_prompt.v16.md"
 )
 PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE = (
     "pdf_table_continuation_annotation_v3"

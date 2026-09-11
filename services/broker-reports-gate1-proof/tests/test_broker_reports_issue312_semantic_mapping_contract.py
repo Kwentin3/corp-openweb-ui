@@ -26,6 +26,7 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
@@ -283,6 +284,67 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
     assert [item["literal"] for item in tables[0]["source_context"]["entries"]] == [
         f"context {index}" for index in range(5, 9)
     ]
+
+
+def test_document_opening_is_a_v3_only_bounded_same_document_context() -> None:
+    canonical = {
+        "root_container_ref": "document",
+        "containers": [
+            {"container_id": "document", "parent_container_ref": None, "order": 0},
+            {"container_id": "page_1", "parent_container_ref": "document", "order": 0},
+            {"container_id": "page_2", "parent_container_ref": "document", "order": 1},
+            {"container_id": "page_3", "parent_container_ref": "document", "order": 2},
+        ],
+        "nodes": [
+            {
+                "node_id": "opening_sample_notice",
+                "container_ref": "page_1",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": "SAMPLE STATEMENT — for informational purposes only"},
+            },
+            {
+                "node_id": "page_2_note",
+                "container_ref": "page_2",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": "Unrelated page-local note"},
+            },
+            {
+                "node_id": "table_1",
+                "container_ref": "page_3",
+                "order": 0,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [{"row": 1, "column": 1, "displayed_value": "Amount"}],
+                },
+            },
+        ],
+    }
+
+    v2_table = _table_surfaces(canonical)[0]
+    v3_table = _table_surfaces(
+        canonical,
+        input_schema_version=MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    )[0]
+
+    assert "SAMPLE STATEMENT" not in str(v2_table["source_context"])
+    assert v3_table["source_context"]["entries"] == [
+        {
+            "context_ref": "context_1",
+            "relation": "DOCUMENT_OPENING",
+            "literal": "SAMPLE STATEMENT — for informational purposes only",
+        },
+        {
+            "context_ref": "context_2",
+            "relation": "PRECEDING_SIBLING_CONTAINER",
+            "literal": "Unrelated page-local note",
+        },
+    ]
+    assert v3_table["source_context_evidence"][0]["canonical_node_id"] == (
+        "opening_sample_notice"
+    )
+    assert v3_table["source_context_evidence"][0]["relation"] == "DOCUMENT_OPENING"
 
 
 def test_mapping_package_admits_one_complete_report_scope_above_old_cell_bound() -> None:
