@@ -9,6 +9,7 @@ from dataclasses import replace
 import pytest
 
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
@@ -20,6 +21,13 @@ import broker_reports_gate1.ordinary_trade_semantic_mapping as semantic_module
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseError
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+)
 
 
 def _prepared(tmp_path):
@@ -281,7 +289,7 @@ def test_started_batch_crash_is_never_retried(tmp_path, monkeypatch):
     assert resumed._cases.qualified_material(document_id=document_id, context=context) is None
 
 
-@pytest.mark.parametrize("changed_profile", [False, True, "prompt"])
+@pytest.mark.parametrize("changed_profile", [False, True, "prompt", "input_contract"])
 def test_resume_runs_only_unstarted_batch(tmp_path, monkeypatch, changed_profile):
     store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
     original = runtime._mapping_prompt_resolver
@@ -303,6 +311,23 @@ def test_resume_runs_only_unstarted_batch(tmp_path, monkeypatch, changed_profile
         resumed._mapping_prompt_resolver = runtime_fixtures.StaticOrdinaryTradeMappingPromptResolver(
             replace(runtime_fixtures._test_mapping_prompt(), version="changed-history")
         )
+    elif changed_profile == "input_contract":
+        resumed._input_schema_version = MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION
+        resumed._mapping_prompt_resolver = (
+            runtime_fixtures.StaticOrdinaryTradeMappingPromptResolver(
+                replace(
+                    runtime_fixtures._test_mapping_prompt(),
+                    command=ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+                    version="v16-history",
+                    template_id=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+                    template_kind=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+                    input_schema_version=MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+                    output_schema_id=ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+                    output_schema_version=ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+                    tags=(ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,),
+                )
+            )
+        )
     elif changed_profile:
         resumed._model_id = "changed-profile"
     result = asyncio.run(resumed.resolve(document_id=document_id, context=context))
@@ -311,7 +336,7 @@ def test_resume_runs_only_unstarted_batch(tmp_path, monkeypatch, changed_profile
     assert len(client.calls) == (1 if changed_profile else 2)
     if changed_profile:
         assert cases.qualified_material(document_id=document_id, context=context) is None
-    if changed_profile == "prompt":
+    if changed_profile in {"prompt", "input_contract"}:
         assert cases.current(document_id=document_id, context=context)[1]["reason_code"] == (
             "ordinary_trade_mapping_batch_prompt_snapshot_mismatch"
         )
