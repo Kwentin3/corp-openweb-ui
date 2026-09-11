@@ -66,6 +66,28 @@ def test_grouped_v15_expands_to_current_semantic_owner(tmp_path) -> None:
     assert saved["status"] == "COMPLETE"
 
 
+def test_grouped_v15_discards_only_canonical_header_row_exception(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _grouped_response(table=table, mapping=mapping)
+    response["table_decisions"][0]["row_policy"]["exception_rows"] = [
+        {"row": 1, "disposition": "NO_NAMED_CONSUMER"},
+    ]
+    result = asyncio.run(
+        _runtime(
+            store=store,
+            client=runtime_fixtures.BoundaryModelClient([response]),
+        ).resolve(document_id=document_id, context=context)
+    )
+
+    assert result["status"] == "COMPLETE"
+    saved = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert saved["table_resolutions"][0]["security_trade_rows"] == [2, 3]
+
+
 def test_grouped_v15_rejects_a_v14_wire_response(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)

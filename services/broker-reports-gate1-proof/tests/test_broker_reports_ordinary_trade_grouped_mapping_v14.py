@@ -106,6 +106,31 @@ def test_grouped_v14_binds_header_before_row_policy_expansion(tmp_path) -> None:
     assert resolution["security_trade_rows"][0] == 2
 
 
+def test_grouped_v14_discards_only_canonical_header_row_exception(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _grouped_response(table=table, mapping=mapping)
+    response["table_decisions"][0]["row_policy"]["exception_rows"] = [
+        {"row": 1, "disposition": "NO_NAMED_CONSUMER"},
+    ]
+    result = asyncio.run(
+        _runtime(
+            store=store,
+            client=runtime_fixtures.BoundaryModelClient([response]),
+            mapping_response_adapter=(
+                OrdinaryTradeGroupedMappingV14AdapterFactory.create()
+            ),
+        ).resolve(document_id=document_id, context=context)
+    )
+
+    assert result["status"] == "COMPLETE"
+    saved = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert saved["table_resolutions"][0]["security_trade_rows"] == [2, 3]
+
+
 def test_malformed_grouped_v14_stops_before_projection_or_fact_persistence(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)

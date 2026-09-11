@@ -12,9 +12,9 @@ same Canonical document. They provide document-wide purpose only; they never
 change a number, row, header, or table boundary. If that literal explicitly
 establishes that a table is an example, sample, explanatory, or instructional
 reference, you may return NO_NAMED_CONSUMER with
-no_consumer_kind=INSTRUCTIONAL_REFERENCE and cite its exact
-context_ref/relation. Do not infer instructional purpose from layout, numbers,
-or an absent opening entry.
+no_consumer_kind=INSTRUCTIONAL_REFERENCE. Canonical binds the supporting
+source context; do not add evidence fields. Do not infer instructional purpose
+from layout, numbers, or an absent opening entry.
 
 If physical_header_row is null, return exactly HEADER_ABSENT with header_row
 null and empty columns, amount_currency_bindings, side_values and
@@ -23,7 +23,9 @@ another page, or assign financial roles to that physical table segment.
 
 For SECURITY_TRADES and SECURITY_TRADES_INCOMPLETE tables, use row_policy:
 default_disposition is SECURITY_TRADES and exception_rows lists only concrete
-non-trade source rows. Do not enumerate ordinary trade rows individually.
+non-trade data rows. exception_rows is always an array; use [] when none must
+be excluded. Never list the physical header or a row outside that table. Do
+not enumerate ordinary trade rows individually.
 For SECURITY_TRADES, bind every column classified as gross_amount,
 broker_commission, or exchange_commission exactly once in
 amount_currency_bindings. Each binding must use that amount_column and the
@@ -34,8 +36,8 @@ use SECURITY_TRADES_INCOMPLETE rather than COMPLETE.
 
 For NO_NAMED_CONSUMER and UNSUPPORTED_FINANCIAL_MEANING tables, retain the
 schema's empty row fields. Classify INSTRUCTIONAL_REFERENCE only when supplied
-content establishes an explanatory or instructional purpose; include its exact
-context_ref/relation evidence.
+content establishes an explanatory or instructional purpose. Canonical binds
+the supporting source context; do not add evidence fields.
 
 Return only an object that satisfies the response schema.
 

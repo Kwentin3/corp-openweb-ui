@@ -118,6 +118,10 @@ def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dic
         if not isinstance(table_ref, str) or not isinstance(header_row, int):
             _fail("ordinary_trade_grouped_mapping_v14_response_invalid")
         policy = decision.pop("row_policy", None)
+        policy = _without_source_header_exceptions(
+            policy=policy,
+            physical_header_row=header_row,
+        )
         expected_rows = [
             row["row"]
             for row in rows_by_ref.get(table_ref, [])
@@ -273,6 +277,36 @@ def _validated_exceptions(*, policy: Any, expected_rows: list[int]) -> dict[int,
     if rows != sorted(set(rows)) or not set(rows) <= set(expected_rows):
         _fail("ordinary_trade_grouped_mapping_v14_row_policy_invalid")
     return exceptions
+
+
+def _without_source_header_exceptions(
+    *, policy: Any, physical_header_row: int
+) -> Any:
+    """Discard only compact exceptions that name Canonical-owned header rows.
+
+    A compact row policy is a wire optimisation. The physical header already
+    belongs to Canonical and cannot be a financial operation, so a model echo
+    that excludes that row must not invalidate the whole table. Malformed
+    policies and every row after the header still reach the fail-closed
+    validator unchanged.
+    """
+
+    if not isinstance(policy, Mapping):
+        return policy
+    exceptions = policy.get("exception_rows")
+    if not isinstance(exceptions, list):
+        return policy
+    normalized = copy.deepcopy(dict(policy))
+    normalized["exception_rows"] = [
+        item
+        for item in exceptions
+        if not (
+            isinstance(item, Mapping)
+            and isinstance(item.get("row"), int)
+            and item["row"] <= physical_header_row
+        )
+    ]
+    return normalized
 
 
 def _fail(code: str) -> None:
