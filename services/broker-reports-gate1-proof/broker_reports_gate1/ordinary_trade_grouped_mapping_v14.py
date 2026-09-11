@@ -303,7 +303,7 @@ def _without_source_header_exceptions(
         if not (
             isinstance(item, Mapping)
             and isinstance(item.get("row"), int)
-            and item["row"] <= physical_header_row
+            and item["row"] == physical_header_row
         )
     ]
     return normalized

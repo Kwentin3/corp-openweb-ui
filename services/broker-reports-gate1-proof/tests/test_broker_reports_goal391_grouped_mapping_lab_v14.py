@@ -119,7 +119,7 @@ def test_grouped_response_expands_default_and_explicit_exceptions() -> None:
         },
         {
             "default_disposition": "SECURITY_TRADES",
-            "exception_rows": [{"row": 1, "disposition": "NO_NAMED_CONSUMER"}],
+            "exception_rows": [{"row": 0, "disposition": "NO_NAMED_CONSUMER"}],
         },
         {
             "default_disposition": "SECURITY_TRADES",
@@ -130,6 +130,27 @@ def test_grouped_response_expands_default_and_explicit_exceptions() -> None:
 def test_grouped_response_rejects_non_exact_exception_scope(policy: dict) -> None:
     with pytest.raises(Goal391GroupedMappingLabError):
         expand_grouped_response(response=_response(policy=policy), package=_package())
+
+
+def test_grouped_response_discards_only_canonical_header_row_exception() -> None:
+    value = expand_grouped_response(
+        response=_response(
+            policy={
+                "default_disposition": "SECURITY_TRADES",
+                "exception_rows": [
+                    {"row": 1, "disposition": "NO_NAMED_CONSUMER"}
+                ],
+            }
+        ),
+        package=_package(),
+    )
+
+    assert value["table_decisions"][0]["row_dispositions"] == [
+        {"row": 2, "disposition": "SECURITY_TRADES"},
+        {"row": 3, "disposition": "SECURITY_TRADES"},
+        {"row": 4, "disposition": "SECURITY_TRADES"},
+        {"row": 5, "disposition": "SECURITY_TRADES"},
+    ]
 
 
 def test_grouped_response_is_sublinear_for_large_uniform_table() -> None:
