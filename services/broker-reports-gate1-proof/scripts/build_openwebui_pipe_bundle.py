@@ -231,9 +231,11 @@ GATE1_MODULE_ORDER = [
 GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_semantic_compiler",
     "ordinary_trade_qualified_mappings",
+    "ordinary_trade_explicit_header_source_response",
     "ordinary_trade_semantic_mapping",
     "ordinary_trade_grouped_mapping_v14",
     "ordinary_trade_grouped_mapping_v15",
+    "ordinary_trade_grouped_mapping_v17",
     "ordinary_trade_mapping_prompt",
     "pdf_table_continuation_annotation_prompt",
     "instructional_table_classification_prompt",

@@ -46,6 +46,28 @@ from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
 
 
+def test_persisted_ordinary_trade_xml_is_rechecked_before_native_delivery(tmp_path) -> None:
+    runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path, proceeds="60.00", include_store=True
+    )
+    declaration = declaration_fixtures._run(runtime, context)
+
+    delivery = Pipe._read_persisted_ordinary_trade_xml(
+        store=store, context=context, declaration=declaration
+    )
+    assert delivery["xml_bytes"] == declaration["xml_bytes"]
+    assert delivery["xml_sha256"] == declaration["xml_sha256"]
+
+    record = store.get_record_unchecked(declaration["xml_artifact_ref"])
+    assert record is not None and record.payload_ref
+    (store.payload_root / record.payload_ref).write_bytes(b"{}")
+    with pytest.raises(NdflWorkflowError) as rejected:
+        Pipe._read_persisted_ordinary_trade_xml(
+            store=store, context=context, declaration=declaration
+        )
+    assert rejected.value.code == "ordinary_trade_declaration_persisted_xml_binding_invalid"
+
+
 class _OwnedFixtureFileResolver:
     def __init__(
         self,

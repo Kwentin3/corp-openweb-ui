@@ -26,6 +26,9 @@ ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
 USER_CURRENCY_ASSERTION_SCHEMA_VERSION = (
     "broker_reports_user_currency_assertion_v1"
 )
+ORDINARY_TRADE_EXPLICIT_HEADER_SOURCE_CONTINUATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_explicit_header_source_continuation_v1"
+)
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticCompilerFactory.create is the only production-candidate "
@@ -129,6 +132,8 @@ class OrdinaryTradeSemanticCompiler:
         canonical_binding: Mapping[str, str],
         mappings: Iterable[Mapping[str, Any]],
         scoped_mappings: Iterable[Mapping[str, Any]] = (),
+        explicit_header_source_continuations: Iterable[Mapping[str, Any]] = (),
+        physical_table_continuation_context: Mapping[str, Any] | None = None,
         table_resolutions: Iterable[Mapping[str, Any]] = (),
         semantic_mapping_case_ref: str | None = None,
     ) -> dict[str, Any]:
@@ -142,6 +147,33 @@ class OrdinaryTradeSemanticCompiler:
         accepted_scoped = tuple(
             _validated_scoped_mapping(item) for item in scoped_mappings
         )
+        accepted_continuations = tuple(
+            _validated_explicit_header_source_continuation(
+                canonical=canonical,
+                canonical_binding=binding,
+                value=item,
+            )
+            for item in explicit_header_source_continuations
+        )
+        accepted_physical_context = _validated_physical_table_continuation_context(
+            canonical_binding=binding,
+            value=physical_table_continuation_context,
+            required=bool(accepted_continuations),
+        )
+        if accepted_physical_context is not None:
+            links = {
+                (item["parent_table_node_id"], item["child_table_node_id"])
+                for item in accepted_physical_context["links"]
+            }
+            if any(
+                (
+                    item["header_source_table_node_id"],
+                    item["target_table_node_id"],
+                )
+                not in links
+                for item in accepted_continuations
+            ):
+                _fail("ordinary_trade_explicit_header_source_link_unverified")
         accepted_resolutions = tuple(
             _validated_table_resolution(item) for item in table_resolutions
         )
@@ -151,15 +183,32 @@ class OrdinaryTradeSemanticCompiler:
         scoped_nodes = [item["table_node_id"] for item in accepted_scoped]
         if len(scoped_nodes) != len(set(scoped_nodes)):
             _fail("ordinary_trade_case_mapping_scope_duplicate")
+        continuation_nodes = [
+            item["target_table_node_id"] for item in accepted_continuations
+        ]
+        if len(continuation_nodes) != len(set(continuation_nodes)):
+            _fail("ordinary_trade_explicit_header_source_target_duplicate")
         resolution_nodes = [item["table_node_id"] for item in accepted_resolutions]
         if len(resolution_nodes) != len(set(resolution_nodes)):
             _fail("ordinary_trade_table_resolution_duplicate")
 
         observations: list[dict[str, Any]] = []
         runtime_records: list[dict[str, Any]] = []
-        all_mappings = (*accepted, *(item["mapping"] for item in accepted_scoped))
+        all_mappings = _unique_mapping_authorities(
+            (
+                *accepted,
+                *(item["mapping"] for item in accepted_scoped),
+                *(item["mapping"] for item in accepted_continuations),
+            )
+        )
         mapping_matches: dict[str, int] = {
             item["mapping_id"]: 0 for item in all_mappings
+        }
+        scoped_match_counts = {
+            item["table_node_id"]: 0 for item in accepted_scoped
+        }
+        continuation_match_counts = {
+            item["target_table_node_id"]: 0 for item in accepted_continuations
         }
         table_nodes = [
             item
@@ -186,10 +235,38 @@ class OrdinaryTradeSemanticCompiler:
             )
             if len(scoped_matches) > 1:
                 _fail("ordinary_trade_case_mapping_scope_ambiguous")
-            if global_matches and scoped_matches:
+            continuation_matches = _matching_explicit_header_source_continuations(
+                canonical=canonical,
+                table=table,
+                rows=rows,
+                continuations=accepted_continuations,
+            )
+            if len(continuation_matches) > 1:
+                _fail("ordinary_trade_explicit_header_source_ambiguous")
+            header_source_mappings = {
+                item["mapping"]["mapping_id"]
+                for item in accepted_continuations
+                if item["header_source_table_node_id"] == table.get("node_id")
+            }
+            if header_source_mappings:
+                # A source-bound continuation makes its parent mapping a fresh
+                # scoped fact. A registry match must not outrank it, but other
+                # tables may retain their frozen mapping normally.
+                if (
+                    len(header_source_mappings) != 1
+                    or len(scoped_matches) != 1
+                    or scoped_matches[0][0]["mapping_id"]
+                    not in header_source_mappings
+                ):
+                    _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+                global_matches = []
+            if sum(
+                bool(item)
+                for item in (global_matches, scoped_matches, continuation_matches)
+            ) > 1:
                 _fail("ordinary_trade_table_mapping_authority_conflict")
             matches = global_matches or scoped_matches
-            if not matches:
+            if not matches and not continuation_matches:
                 if resolution is not None:
                     recognized_incomplete = (
                         resolution["disposition"]
@@ -239,15 +316,26 @@ class OrdinaryTradeSemanticCompiler:
                     )
                 )
                 continue
-            mapping, header_row = matches[0]
-            if resolution is not None and (
-                resolution["disposition"] != "SECURITY_TRADES"
-                or resolution["header_row"] != header_row
-            ):
-                _fail("ordinary_trade_table_resolution_mapping_conflict")
+            continuation = continuation_matches[0] if continuation_matches else None
+            if continuation is not None:
+                mapping = continuation["mapping"]
+                header_row = 0
+                if resolution is not None and resolution["disposition"] != "HEADER_ABSENT":
+                    _fail("ordinary_trade_table_resolution_mapping_conflict")
+            else:
+                mapping, header_row = matches[0]
+                if resolution is not None and (
+                    resolution["disposition"] != "SECURITY_TRADES"
+                    or resolution["header_row"] != header_row
+                ):
+                    _fail("ordinary_trade_table_resolution_mapping_conflict")
             if resolution is None and scoped_matches:
                 _fail("ordinary_trade_table_resolution_mapping_missing")
             mapping_matches[mapping["mapping_id"]] += 1
+            if scoped_matches:
+                scoped_match_counts[table["node_id"]] += 1
+            if continuation is not None:
+                continuation_match_counts[table["node_id"]] += 1
             numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
             # A current mapping case explicitly scopes every provider-selected
             # row.  A selected row that still lacks the closed record contract
@@ -264,11 +352,14 @@ class OrdinaryTradeSemanticCompiler:
                 cells = rows[row_number]
                 if not any(_literal(cell) for cell in cells.values()):
                     continue
-                if (
-                    resolution is not None
-                    and resolution["security_trade_rows"] is not None
-                    and row_number not in resolution["security_trade_rows"]
-                ):
+                selected_trade_rows = (
+                    continuation["security_trade_rows"]
+                    if continuation is not None
+                    else resolution["security_trade_rows"]
+                    if resolution is not None
+                    else None
+                )
+                if selected_trade_rows is not None and row_number not in selected_trade_rows:
                     observations.extend(
                         _unmapped_table_rows(
                             binding=binding,
@@ -295,8 +386,11 @@ class OrdinaryTradeSemanticCompiler:
                     )
 
         for scoped in accepted_scoped:
-            if mapping_matches[scoped["mapping"]["mapping_id"]] != 1:
+            if scoped_match_counts[scoped["table_node_id"]] != 1:
                 _fail("ordinary_trade_case_mapping_scope_stale")
+        for continuation in accepted_continuations:
+            if continuation_match_counts[continuation["target_table_node_id"]] != 1:
+                _fail("ordinary_trade_explicit_header_source_stale")
         _validate_projection_lineage(
             observations=observations,
             runtime_records=runtime_records,
@@ -663,6 +757,135 @@ def _validated_scoped_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _unique_mapping_authorities(
+    mappings: Iterable[dict[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    """Allow one exact mapping authority across explicitly separate scopes."""
+
+    result: dict[str, dict[str, Any]] = {}
+    for mapping in mappings:
+        existing = result.get(mapping["mapping_id"])
+        if existing is not None and existing != mapping:
+            _fail("ordinary_trade_mapping_id_conflict")
+        result[mapping["mapping_id"]] = mapping
+    return tuple(result.values())
+
+def _validated_explicit_header_source_continuation(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    value: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Accept one already-bound, source-owned cross-table header relation."""
+
+    required = {
+        "schema_version", "canonical_binding", "target_table_node_id",
+        "header_source_table_node_id", "header_source_row", "security_trade_rows",
+        "mapping",
+    }
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != required
+        or value.get("schema_version")
+        != ORDINARY_TRADE_EXPLICIT_HEADER_SOURCE_CONTINUATION_SCHEMA_VERSION
+        or value.get("canonical_binding") != canonical_binding
+        or any(
+            not isinstance(value.get(key), str) or not value[key]
+            for key in ("target_table_node_id", "header_source_table_node_id")
+        )
+        or value["target_table_node_id"] == value["header_source_table_node_id"]
+        or not isinstance(value.get("header_source_row"), int)
+        or value["header_source_row"] < 1
+        or not isinstance(value.get("security_trade_rows"), list)
+        or not value["security_trade_rows"]
+        or value["security_trade_rows"] != sorted(set(value["security_trade_rows"]))
+        or any(not isinstance(row, int) or row < 1 for row in value["security_trade_rows"])
+    ):
+        _fail("ordinary_trade_explicit_header_source_invalid")
+    table_ids = {
+        item.get("node_id")
+        for item in canonical.get("nodes", [])
+        if isinstance(item, Mapping) and item.get("node_type") == "TABLE"
+    }
+    if not {
+        value["target_table_node_id"], value["header_source_table_node_id"]
+    }.issubset(table_ids):
+        _fail("ordinary_trade_explicit_header_source_invalid")
+    return {
+        "schema_version": value["schema_version"],
+        "canonical_binding": copy.deepcopy(value["canonical_binding"]),
+        "target_table_node_id": value["target_table_node_id"],
+        "header_source_table_node_id": value["header_source_table_node_id"],
+        "header_source_row": value["header_source_row"],
+        "security_trade_rows": list(value["security_trade_rows"]),
+        "mapping": _validated_mapping(value.get("mapping")),
+    }
+
+
+def _validated_physical_table_continuation_context(
+    *,
+    canonical_binding: Mapping[str, str],
+    value: Mapping[str, Any] | None,
+    required: bool,
+) -> dict[str, Any] | None:
+    """Accept a physical-source sidecar, never inferred table adjacency."""
+
+    if value is None:
+        if required:
+            _fail("ordinary_trade_explicit_header_source_context_missing")
+        return None
+    required_keys = {
+        "schema_version", "sidecar_artifact_ref", "sidecar_id", "source_binding", "links"
+    }
+    source_binding = value.get("source_binding") if isinstance(value, Mapping) else None
+    expected = {
+        key: canonical_binding[key]
+        for key in (
+            "document_id", "source_artifact_ref", "source_sha256",
+            "canonical_version_id", "canonical_root_sha256",
+        )
+    }
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != required_keys
+        or value.get("schema_version")
+        != "broker_reports_physical_table_continuation_context_v1"
+        or not isinstance(value.get("sidecar_artifact_ref"), str)
+        or not value["sidecar_artifact_ref"]
+        or not isinstance(value.get("sidecar_id"), str)
+        or not value["sidecar_id"]
+        or not isinstance(source_binding, Mapping)
+        or any(source_binding.get(key) != expected_value for key, expected_value in expected.items())
+        or not isinstance(source_binding.get("normalization_run_id"), str)
+        or not source_binding["normalization_run_id"]
+        or not isinstance(value.get("links"), list)
+        or not value["links"]
+    ):
+        _fail("ordinary_trade_explicit_header_source_context_invalid")
+    links: list[dict[str, str]] = []
+    for link in value["links"]:
+        if (
+            not isinstance(link, Mapping)
+            or set(link) != {"parent_table_node_id", "child_table_node_id"}
+            or any(
+                not isinstance(link.get(key), str) or not link[key]
+                for key in ("parent_table_node_id", "child_table_node_id")
+            )
+            or link["parent_table_node_id"] == link["child_table_node_id"]
+        ):
+            _fail("ordinary_trade_explicit_header_source_context_invalid")
+        links.append(dict(link))
+    if len(links) != len({(item["parent_table_node_id"], item["child_table_node_id"]) for item in links}):
+        _fail("ordinary_trade_explicit_header_source_context_invalid")
+    return {
+        "schema_version": value["schema_version"],
+        "sidecar_artifact_ref": value["sidecar_artifact_ref"],
+        "sidecar_id": value["sidecar_id"],
+        "source_binding": copy.deepcopy(dict(source_binding)),
+        "links": links,
+    }
+
+
 def _validated_amount_currency_bindings(
     *,
     value: Mapping[str, Any],
@@ -821,6 +1044,58 @@ def _matching_scoped_mappings(
         if item["table_node_id"] == table.get("node_id")
     )
     return _matching_mappings(rows=rows, mappings=scoped)
+
+
+def _matching_explicit_header_source_continuations(
+    *,
+    canonical: Mapping[str, Any],
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    continuations: tuple[dict[str, Any], ...],
+) -> list[dict[str, Any]]:
+    """Match only a pre-bound header; do not discover a continuation."""
+
+    target_id = table.get("node_id")
+    table_nodes = {
+        item.get("node_id"): item
+        for item in canonical.get("nodes", [])
+        if isinstance(item, Mapping) and item.get("node_type") == "TABLE"
+    }
+    result: list[dict[str, Any]] = []
+    for continuation in continuations:
+        if continuation["target_table_node_id"] != target_id:
+            continue
+        content = table.get("content") or {}
+        metadata = content.get("metadata")
+        if (
+            content.get("header") != []
+            or not isinstance(metadata, Mapping)
+            or metadata.get("physical_header_state") != "ABSENT"
+        ):
+            _fail("ordinary_trade_explicit_header_source_target_not_headerless")
+        source = table_nodes.get(continuation["header_source_table_node_id"])
+        if source is None:
+            _fail("ordinary_trade_explicit_header_source_missing")
+        source_rows = _table_rows(source)
+        header = source_rows.get(continuation["header_source_row"])
+        expected = {
+            item["column"]: item["header_literal"]
+            for item in continuation["mapping"]["columns"]
+        }
+        if (
+            header is None
+            or set(header) != set(expected)
+            or any(_literal(header[column]) != literal for column, literal in expected.items())
+            or any(row not in rows for row in continuation["security_trade_rows"])
+        ):
+            _fail("ordinary_trade_explicit_header_source_binding_invalid")
+        if any(
+            set(rows[row]) != set(expected)
+            for row in continuation["security_trade_rows"]
+        ):
+            _fail("ordinary_trade_explicit_header_source_column_coverage_invalid")
+        result.append(continuation)
+    return result
 
 
 def _table_numeric_convention(
@@ -1705,6 +1980,7 @@ def _fail(code: str) -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "ORDINARY_TRADE_EXPLICIT_HEADER_SOURCE_CONTINUATION_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_SCHEMA_VERSION",
     "ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION",
     "OrdinaryTradeSemanticCompiler",

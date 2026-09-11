@@ -407,10 +407,16 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=retired, context=context, provider_calls_this_turn=0
             )
-        target_table_node_ids = self._compiler.unmapped_table_node_ids(
+        unmapped_table_node_ids = self._compiler.unmapped_table_node_ids(
             canonical=binding["canonical"],
             mappings=self._frozen_mappings,
         )
+        frozen_table_node_ids = [
+            node["node_id"] for node in binding["canonical"].get("nodes", [])
+            if isinstance(node, dict) and node.get("node_type") == "TABLE"
+            and isinstance(node.get("node_id"), str)
+            and node["node_id"] not in unmapped_table_node_ids
+        ]
         confirmed_exclusion_ids = {
             str((item.get("decision") or {}).get("table_node_id") or "")
             for item in confirmed
@@ -421,8 +427,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
         }
         target_table_node_ids = [
             table_node_id
-            for table_node_id in target_table_node_ids
+            for table_node_id in unmapped_table_node_ids
             if table_node_id not in confirmed_exclusion_ids
+        ]
+        unmapped_target_table_node_ids = list(target_table_node_ids)
+        target_table_node_ids = self._semantic.expand_target_scope_for_source_bound_header_continuations(
+            canonical=binding["canonical"],
+            target_table_node_ids=target_table_node_ids,
+            frozen_table_node_ids=frozen_table_node_ids,
+            physical_table_continuation_context=binding["physical_table_continuation_context"],
+        )
+        frozen_requalification_table_node_ids = [
+            table_node_id for table_node_id in target_table_node_ids
+            if table_node_id not in unmapped_target_table_node_ids
         ]
         if not target_table_node_ids:
             saved = self._cases.save_deterministic_terminal(
@@ -542,6 +559,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 response=response,
                 package=package,
             )
+            explicit_header_source_response = self._explicit_header_source_response(
+                response=response
+            )
             contract_failure = self._semantic.mapping_response_contract_failure_code(
                 response_for_validation
             )
@@ -562,6 +582,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=target_table_node_ids,
                 frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=frozen_requalification_table_node_ids,
+                explicit_header_source_response=explicit_header_source_response,
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
             )
         except Exception as exc:
             code = getattr(
@@ -658,6 +681,17 @@ class OrdinaryTradeAutomaticMappingRuntime:
             response=response,
             package=package,
         )
+
+    def _explicit_header_source_response(self, *, response: Any) -> dict[str, Any] | None:
+        extractor = getattr(self._mapping_response_adapter, "explicit_header_source_claims", None)
+        if extractor is None:
+            return None
+        if not callable(extractor):
+            raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
+        value = extractor(response=response)
+        if not isinstance(value, dict):
+            raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
+        return value
 
     async def _run_batch_plan(
         self,

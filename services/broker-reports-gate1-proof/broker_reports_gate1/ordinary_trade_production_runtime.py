@@ -283,11 +283,13 @@ class OrdinaryTradeProductionRuntime:
                     else ref
                     for ref in refs
                 ]
-            if not refs:
-                self._projections.compile_and_save(
-                    document_id=document_id,
-                    context=context,
-                )
+            # MappingCase owns the exact current mapping. Materialize it before
+            # the existing root reads the projection; the projection artifact is
+            # content-addressed, so the root's normal pass remains idempotent.
+            self._projections.compile_and_save(
+                document_id=document_id,
+                context=context,
+            )
             result = self.run(canonical_artifact_refs=refs, context=context)
         result["provider_calls_total"] = provider_calls
         if mapping_turn is not None:

@@ -173,6 +173,7 @@ ARTIFACT_TYPES = {
     "broker_reports_ordinary_trade_mapping_case_v4",
     "broker_reports_ordinary_trade_mapping_case_v5",
     "broker_reports_ordinary_trade_mapping_case_v6",
+    "broker_reports_ordinary_trade_mapping_case_v7",
     "broker_reports_gate5_supplemental_fact_v0",
     "broker_reports_gate5_gap_request_v1",
     "broker_reports_gate5_gap_request_publication_v1",

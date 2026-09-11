@@ -100,6 +100,8 @@ class OrdinaryTradeProjectionRuntime:
             "mapping_case_artifact_id": None,
             "qualified_mappings": [],
             "qualification_receipts": [],
+            "explicit_header_source_continuations": [],
+            "physical_table_continuation_context": None,
             "table_resolutions": [],
         }
         receipts_by_id = {
@@ -125,6 +127,12 @@ class OrdinaryTradeProjectionRuntime:
             canonical_binding=binding,
             mappings=self._mappings,
             scoped_mappings=scoped_mappings,
+            explicit_header_source_continuations=case_material[
+                "explicit_header_source_continuations"
+            ],
+            physical_table_continuation_context=case_material[
+                "physical_table_continuation_context"
+            ],
             table_resolutions=case_material["table_resolutions"],
             semantic_mapping_case_ref=case_material[
                 "mapping_case_artifact_id"
