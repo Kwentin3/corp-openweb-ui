@@ -917,6 +917,22 @@ def test_invalid_mapping_does_not_present_absent_calculation_as_zero() -> None:
     assert "безопасный расчёт не был завершён" in visible
 
 
+def test_invalid_mapping_has_a_plain_safe_explanation() -> None:
+    product = _product(status="PREPARATION_INCOMPLETE")
+    product["terminal"] = "ordinary_trade_mapping_output_invalid"
+    product["gate5"] = {
+        "blocker_reason_codes": ["ordinary_trade_mapping_output_invalid"]
+    }
+
+    visible = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=product)
+    )
+
+    assert "\u043d\u0435\u043b\u044c\u0437\u044f \u0431\u044b\u043b\u043e \u043e\u0434\u043d\u043e\u0437\u043d\u0430\u0447\u043d\u043e \u0441\u0432\u044f\u0437\u0430\u0442\u044c" in visible
+    assert "\u043d\u0438\u0447\u0435\u0433\u043e \u0447\u0430\u0441\u0442\u0438\u0447\u043d\u043e \u043d\u0435 \u043f\u043e\u043f\u0430\u043b\u043e" in visible
+    assert "XML" in visible
+
+
 def test_public_message_rejects_leaks_and_false_filing_claims() -> None:
     context = build_public_dialogue_context(product=_product())
     fallback = render_public_dialogue_fallback(context)

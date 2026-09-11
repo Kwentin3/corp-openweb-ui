@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import asyncio
 import hashlib
 import inspect
 import json
@@ -56,6 +57,10 @@ MAX_MODEL_STRING_BYTES = 131_072
 _ADAPTER_EXTRACTED_OUTPUT_UNAVAILABLE = object()
 GATE3_OPERATIONAL_RETRY_POLICY_ID = "gate3_operational_no_response_v1"
 GATE3_OPERATIONAL_RETRY_LIMIT = 1
+# The native OpenWebUI completion path is asynchronous.  It must have the
+# same bounded failure behaviour as direct transports: a provider that never
+# answers cannot leave a user chat permanently active.
+OPENWEBUI_COMPLETION_TIMEOUT_SECONDS = 180
 
 
 @dataclass(frozen=True)
@@ -685,7 +690,10 @@ class Gate2OpenWebUIStructuredModelClient:
                     user_model=user_model,
                 )
             if inspect.isawaitable(response):
-                response = await response
+                response = await asyncio.wait_for(
+                    response,
+                    timeout=OPENWEBUI_COMPLETION_TIMEOUT_SECONDS,
+                )
             self._qualification_provider_responses_total += 1
             response_recorded = True
             response_payload = self._response_payload(response)

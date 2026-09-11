@@ -735,6 +735,7 @@ from .file_processing_outcomes import (
 )
 from .pdf_document_ai import (
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
+    PDF_DOCUMENT_AI_PAYMENT_REQUIRED,
     PDF_DOCUMENT_AI_POLICY_VERSION,
     PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
     PdfDocumentExtraction,
@@ -1311,6 +1312,7 @@ from .gate2_table_packages import (
 
 __all__ = [
     "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+    "PDF_DOCUMENT_AI_PAYMENT_REQUIRED",
     "PDF_DOCUMENT_AI_POLICY_VERSION",
     "PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION",
     "PdfDocumentExtraction",

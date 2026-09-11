@@ -15,6 +15,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from .ordinary_trade_grouped_mapping_v14 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION,
+)
+from .ordinary_trade_grouped_mapping_v15 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION,
+)
+from .ordinary_trade_semantic_mapping import (
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    MAPPING_INPUT_SCHEMA_VERSION,
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+)
+
 
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingPromptResolverFactory.create is the only production "
@@ -30,12 +42,146 @@ PROMPT_TEMPLATE_ID = "broker_reports.ordinary_trade_semantic_mapping.v1"
 PROMPT_TEMPLATE_KIND = "broker_reports_ordinary_trade_semantic_mapping"
 PROMPT_COMMAND = "broker_ordinary_trade_semantic_mapping_v1"
 PROMPT_REQUIRED_TAG = "broker-reports-ordinary-trade-mapping"
-INPUT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-OUTPUT_SCHEMA_ID = "broker_reports_ordinary_trade_semantic_mapping_response_v6"
+INPUT_SCHEMA_VERSION = MAPPING_INPUT_SCHEMA_VERSION
+DOCUMENT_OPENING_INPUT_SCHEMA_VERSION = MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION
+# The mapping owner is the sole owner of this wire-schema identity.  The Prompt
+# resolver consumes it so a native Workspace candidate cannot silently drift.
+OUTPUT_SCHEMA_ID = MAPPING_RESPONSE_SCHEMA_VERSION
 OUTPUT_SCHEMA_VERSION = OUTPUT_SCHEMA_ID
 PROMPT_PLACEHOLDER = "{{ordinary_trade_mapping_case_json}}"
 PROMPT_SNAPSHOT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_prompt_snapshot_v1"
+# These identifiers describe an isolated Prompt publication profile.  They
+# live beside the shared native Prompt owner so product bundles never import a
+# laboratory module merely to resolve a released Prompt dependency.
+GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION
+)
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_COMMAND = "goal391_grouped_mapping_lab_v14"
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID = "goal391_grouped_mapping_lab_v14"
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND = (
+    "goal391_grouped_ordinary_trade_mapping"
+)
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG = "goal391-grouped-mapping-lab"
+# Production v14 reuses the shared compact representation contract.  Its
+# native Prompt identity is separate from the lab so a release cannot silently
+# repoint either route to the other Prompt/history row.
+ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v14"
+)
+ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v14"
+)
+ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v14"
+)
+ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION
+)
+ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v15"
+)
+ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v15"
+)
+ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v15"
+)
+ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v16"
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v16"
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v16"
+)
+# v16 changes only the sealed input representation.  It deliberately reuses
+# the v15 compact response adapter, never a v14/v15 input package.
+ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
+)
+# v17 changes the managed instruction only. It keeps the sealed document-opening
+# input and v15 compact wire response, while making the admission rule for a
+# side role explicit before any independent qualification run.
+ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v17"
+)
+ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v17"
+)
+ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v17"
+)
+ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+# A snapshot is an execution receipt, not a bag of independently optional
+# fields.  Keep the released identities closed so a v14 command cannot be
+# paired with the v13 schema (or with the laboratory identity) by accident.
+_ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
+    {
+        "commands": frozenset({PROMPT_COMMAND, None}),
+        "template_id": PROMPT_TEMPLATE_ID,
+        "template_kind": PROMPT_TEMPLATE_KIND,
+        "output_schema_id": OUTPUT_SCHEMA_ID,
+        "output_schema_version": OUTPUT_SCHEMA_VERSION,
+        "required_tag": PROMPT_REQUIRED_TAG,
+        "input_schema_version": INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+        "input_schema_version": INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+        "input_schema_version": INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
+)
 
 
 class OrdinaryTradeMappingPromptError(RuntimeError):
@@ -58,6 +204,10 @@ class OrdinaryTradeMappingPromptConfig:
     db_path: Path | None = None
     prompt_id: str | None = None
     command: str | None = PROMPT_COMMAND
+    # Each released route pins its own command. An isolated qualification
+    # runner may opt into a separately named managed Prompt without changing
+    # a production Prompt row or its active history version.
+    required_command: str = PROMPT_COMMAND
     required_template_id: str = PROMPT_TEMPLATE_ID
     required_template_kind: str = PROMPT_TEMPLATE_KIND
     required_prompt_contract_id: str = PROMPT_CONTRACT_ID
@@ -116,6 +266,12 @@ class OrdinaryTradeMappingPromptResolver(Protocol):
     ) -> OrdinaryTradeMappingManagedPrompt: ...
 
 
+class AsyncOrdinaryTradeMappingPromptResolver(Protocol):
+    async def resolve(
+        self, user_context: OrdinaryTradeMappingPromptUserContext
+    ) -> OrdinaryTradeMappingManagedPrompt: ...
+
+
 class OrdinaryTradeMappingPromptResolverFactory:
     def __init__(self, config: OrdinaryTradeMappingPromptConfig) -> None:
         self.config = config
@@ -138,6 +294,25 @@ class OrdinaryTradeMappingPromptResolverFactory:
             "ordinary_trade_mapping_prompt_unavailable",
             "Unsupported ordinary-trade mapping prompt source",
         )
+
+    def create_async(self) -> AsyncOrdinaryTradeMappingPromptResolver:
+        """Return the native in-process resolver used by an OpenWebUI Function.
+
+        This is deliberately a separate mode, rather than an async wrapper around
+        the SQLite reader.  A running Function already has OpenWebUI's async
+        database context and resource owners; opening the database again would
+        create a parallel ownership path.
+        """
+        if self.config.source != "openwebui_server":
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_unavailable",
+                "Async ordinary-trade mapping prompt source is unavailable",
+            )
+        _validate_release_pin(
+            version=self.config.release_prompt_version,
+            prompt_hash=self.config.release_prompt_hash,
+        )
+        return OpenWebUIServerOrdinaryTradeMappingPromptResolver(self.config)
 
 
 class DisabledOrdinaryTradeMappingPromptResolver:
@@ -193,9 +368,21 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                     "ordinary_trade_mapping_prompt_access_denied",
                     "Ordinary-trade mapping Workspace Prompt is not readable",
                 )
-            snapshot = self._version_snapshot(conn, row)
-            self._require_current_row_matches_version(row, snapshot)
-            prompt = self._row_to_prompt(row)
+            snapshot = self._version_snapshot(
+                conn,
+                prompt_id=str(row["id"]),
+                version_id=str(self.config.release_prompt_version or ""),
+            )
+            if not self._matches_contract(snapshot):
+                raise OrdinaryTradeMappingPromptError(
+                    "ordinary_trade_mapping_prompt_version_invalid",
+                    "Ordinary-trade mapping Workspace Prompt version violates its contract",
+                )
+            prompt = self._snapshot_to_prompt(
+                row,
+                snapshot,
+                version=str(self.config.release_prompt_version),
+            )
             self._require_release_pin(prompt)
             return prompt
         finally:
@@ -251,14 +438,25 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                 "ordinary_trade_mapping_prompt_unavailable",
                 "OpenWebUI prompt database schema is unavailable",
             ) from exc
-        return row if row is not None and self._matches_contract(row) else None
+        return row if row is not None and self._matches_stable_prompt_identity(row) else None
 
-    def _matches_contract(self, row: sqlite3.Row) -> bool:
+    def _matches_stable_prompt_identity(self, row: Any) -> bool:
+        """Check the live prompt only for revocation-safe stable identity.
+
+        The release pin names an immutable Prompt history revision.  The active
+        Prompt row remains the authority for activation, command identity and
+        grants, but it is not the authority for the released body or schema.
+        This lets an older, still-deployed Pipe remain coherent while a newer
+        revision is published for the next release.
+        """
+        return str(row["command"] or "") == self.config.required_command
+
+    def _matches_contract(self, row: Any) -> bool:
         meta = _json_dict(row["meta"])
         tags = _json_list(row["tags"])
         content = str(row["content"] or "")
         return (
-            str(row["command"] or "") == PROMPT_COMMAND
+            str(row["command"] or "") == self.config.required_command
             and str(meta.get("template_id") or "") == self.config.required_template_id
             and str(meta.get("template_kind") or "")
             == self.config.required_template_kind
@@ -277,10 +475,15 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
         )
 
     def _version_snapshot(
-        self, conn: sqlite3.Connection, row: sqlite3.Row
+        self,
+        conn: sqlite3.Connection,
+        *,
+        prompt_id: str,
+        version_id: str,
     ) -> dict[str, Any]:
-        version_id = str(row["version_id"] or "").strip()
-        if not version_id:
+        version_id = str(version_id or "").strip()
+        prompt_id = str(prompt_id or "").strip()
+        if not version_id or not prompt_id:
             raise OrdinaryTradeMappingPromptError(
                 "ordinary_trade_mapping_prompt_version_invalid",
                 "Ordinary-trade mapping Workspace Prompt has no active version",
@@ -291,7 +494,7 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                 SELECT snapshot FROM prompt_history
                 WHERE id = ? AND prompt_id = ?
                 """,
-                (version_id, row["id"]),
+                (version_id, prompt_id),
             ).fetchone()
         except sqlite3.Error as exc:
             raise OrdinaryTradeMappingPromptError(
@@ -306,37 +509,24 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
             )
         return snapshot
 
-    def _require_current_row_matches_version(
-        self, row: sqlite3.Row, snapshot: dict[str, Any]
-    ) -> None:
-        current = {
-            "command": str(row["command"] or ""),
-            "content": str(row["content"] or ""),
-            "meta": _json_dict(row["meta"]),
-            "tags": _json_list(row["tags"]),
-        }
-        versioned = {
-            "command": str(snapshot.get("command") or ""),
-            "content": str(snapshot.get("content") or ""),
-            "meta": _json_dict(snapshot.get("meta")),
-            "tags": _json_list(snapshot.get("tags")),
-        }
-        if current != versioned:
-            raise OrdinaryTradeMappingPromptError(
-                "ordinary_trade_mapping_prompt_version_drift",
-                "Ordinary-trade mapping Workspace Prompt differs from its active version",
-            )
-
-    def _row_to_prompt(self, row: sqlite3.Row) -> OrdinaryTradeMappingManagedPrompt:
-        content = str(row["content"] or "")
-        meta = _json_dict(row["meta"])
-        tags = tuple(_json_list(row["tags"]))
+    def _snapshot_to_prompt(
+        self, row: Any, snapshot: dict[str, Any], *, version: str
+    ) -> OrdinaryTradeMappingManagedPrompt:
+        content = str(snapshot.get("content") or "")
+        meta = _json_dict(snapshot.get("meta"))
+        tags = tuple(_json_list(snapshot.get("tags")))
         return OrdinaryTradeMappingManagedPrompt(
-            prompt_ref=str(row["id"]),
-            command=str(row["command"] or "") or None,
-            version=str(row["version_id"]),
+            prompt_ref=str(row["id"] if isinstance(row, sqlite3.Row) else row.get("id") or ""),
+            command=str(snapshot.get("command") or "") or None,
+            version=version,
             content=content,
-            hash=ordinary_trade_mapping_prompt_hash(content),
+            hash=ordinary_trade_mapping_prompt_hash(
+                content,
+                prompt_contract_id=self.config.required_prompt_contract_id,
+                input_schema_version=self.config.required_input_schema_version,
+                output_schema_id=self.config.required_output_schema_id,
+                output_schema_version=self.config.required_output_schema_version,
+            ),
             source="openwebui_prompt_history",
             template_id=str(meta["template_id"]),
             template_kind=str(meta["template_kind"]),
@@ -346,7 +536,7 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
             output_schema_version=str(meta["output_schema_version"]),
             tags=tags,
             safe_metadata={
-                "name": str(row["name"] or row["command"] or ""),
+                "name": str(snapshot.get("name") or (row["name"] if isinstance(row, sqlite3.Row) else row.get("name")) or ""),
                 "mapping_domain": str(meta.get("mapping_domain") or "ordinary_trade"),
             },
         )
@@ -407,17 +597,196 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
         )
 
 
-def ordinary_trade_mapping_prompt_hash(prompt_content: str) -> str:
+class OpenWebUIServerOrdinaryTradeMappingPromptResolver(
+    OpenWebUISqliteOrdinaryTradeMappingPromptResolver
+):
+    """Resolve a release-pinned Prompt through native OpenWebUI owners only.
+
+    The runtime Function calls this inside the OpenWebUI server process.  The
+    dynamic import is intentional: source-only and hermetic tests do not ship
+    OpenWebUI, while a Function without those in-process owners must fail closed
+    instead of falling back to SQLite or HTTP.
+    """
+
+    async def resolve(
+        self, user_context: OrdinaryTradeMappingPromptUserContext
+    ) -> OrdinaryTradeMappingManagedPrompt:
+        if not str(user_context.user_id or "").strip():
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_access_denied",
+                "Authenticated user is required",
+            )
+        owners = self._native_owners()
+        try:
+            async with owners["get_async_db_context"]() as session:
+                prompt_model = await self._native_prompt(
+                    owners=owners, session=session
+                )
+                if prompt_model is None:
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_not_found",
+                        "Ordinary-trade mapping Workspace Prompt was not found",
+                    )
+                row = self._native_prompt_row(prompt_model)
+                if not bool(row.get("is_active")) or not self._matches_stable_prompt_identity(row):
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_not_found",
+                        "Ordinary-trade mapping Workspace Prompt was not found",
+                    )
+                if not await self._native_has_read_access(
+                    owners=owners,
+                    row=row,
+                    user_context=user_context,
+                    session=session,
+                ):
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_access_denied",
+                        "Ordinary-trade mapping Workspace Prompt is not readable",
+                    )
+                snapshot = await self._native_version_snapshot(
+                    owners=owners,
+                    prompt_id=str(row.get("id") or ""),
+                    version_id=str(self.config.release_prompt_version or ""),
+                    session=session,
+                )
+                if not self._matches_contract(snapshot):
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_version_invalid",
+                        "Ordinary-trade mapping Workspace Prompt version violates its contract",
+                    )
+                prompt = self._snapshot_to_prompt(
+                    row,
+                    snapshot,
+                    version=str(self.config.release_prompt_version),
+                )
+                self._require_release_pin(prompt)
+                return prompt
+        except OrdinaryTradeMappingPromptError:
+            raise
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_unavailable",
+                "OpenWebUI native Prompt owners are unavailable",
+            ) from exc
+
+    @staticmethod
+    def _native_owners() -> dict[str, Any]:
+        try:
+            from open_webui.internal.db import get_async_db_context
+            from open_webui.models.access_grants import AccessGrants
+            from open_webui.models.prompt_history import PromptHistories
+            from open_webui.models.prompts import Prompts
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_unavailable",
+                "OpenWebUI native Prompt owners are unavailable",
+            ) from exc
+        return {
+            "get_async_db_context": get_async_db_context,
+            "prompts": Prompts,
+            "prompt_histories": PromptHistories,
+            "access_grants": AccessGrants,
+        }
+
+    async def _native_prompt(self, *, owners: dict[str, Any], session: Any) -> Any:
+        if self.config.prompt_id:
+            return await owners["prompts"].get_prompt_by_id(
+                self.config.prompt_id, db=session
+            )
+        if self.config.command:
+            return await owners["prompts"].get_prompt_by_command(
+                self.config.command, db=session
+            )
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_not_found",
+            "Prompt id or command is required",
+        )
+
+    @staticmethod
+    def _native_prompt_row(prompt_model: Any) -> dict[str, Any]:
+        if hasattr(prompt_model, "model_dump"):
+            value = prompt_model.model_dump()
+        elif isinstance(prompt_model, dict):
+            value = prompt_model
+        else:
+            return {}
+        return copy.deepcopy(value) if isinstance(value, dict) else {}
+
+    async def _native_has_read_access(
+        self,
+        *,
+        owners: dict[str, Any],
+        row: dict[str, Any],
+        user_context: OrdinaryTradeMappingPromptUserContext,
+        session: Any,
+    ) -> bool:
+        role = str(user_context.user_role or "").lower()
+        user_id = str(user_context.user_id or "")
+        if role == "admin" or user_id == str(row.get("user_id") or ""):
+            return True
+        return bool(
+            await owners["access_grants"].has_access(
+                user_id,
+                "prompt",
+                str(row.get("id") or ""),
+                permission="read",
+                db=session,
+            )
+        )
+
+    async def _native_version_snapshot(
+        self,
+        *,
+        owners: dict[str, Any],
+        prompt_id: str,
+        version_id: str,
+        session: Any,
+    ) -> dict[str, Any]:
+        version_id = str(version_id or "").strip()
+        prompt_id = str(prompt_id or "").strip()
+        if not version_id or not prompt_id:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_version_invalid",
+                "Ordinary-trade mapping Workspace Prompt has no active version",
+            )
+        history = await owners["prompt_histories"].get_history_entry_by_id(
+            version_id, db=session
+        )
+        history_prompt_id = str(getattr(history, "prompt_id", "") or "")
+        snapshot = _json_dict(getattr(history, "snapshot", None))
+        if history_prompt_id != prompt_id or not snapshot:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_version_invalid",
+                "Ordinary-trade mapping Workspace Prompt active version is unavailable",
+            )
+        return snapshot
+
+
+def ordinary_trade_mapping_prompt_hash(
+    prompt_content: str,
+    *,
+    prompt_contract_id: str = PROMPT_CONTRACT_ID,
+    input_schema_version: str = INPUT_SCHEMA_VERSION,
+    output_schema_id: str = OUTPUT_SCHEMA_ID,
+    output_schema_version: str = OUTPUT_SCHEMA_VERSION,
+) -> str:
+    """Hash the Prompt body together with its declared typed contract.
+
+    Defaults preserve the released v13 identity exactly.  A bounded isolated
+    laboratory Prompt can use its own declared output schema without making a
+    production v13 pin appear interchangeable.
+    """
+
     material = (
         prompt_content.replace("\r\n", "\n").strip()
         + "\nprompt_contract:"
-        + PROMPT_CONTRACT_ID
+        + prompt_contract_id
         + "\ninput_schema:"
-        + INPUT_SCHEMA_VERSION
+        + input_schema_version
         + "\noutput_schema_id:"
-        + OUTPUT_SCHEMA_ID
+        + output_schema_id
         + "\noutput_schema_version:"
-        + OUTPUT_SCHEMA_VERSION
+        + output_schema_version
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
@@ -444,25 +813,34 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
             "ordinary_trade_mapping_prompt_snapshot_invalid",
             "Ordinary-trade mapping prompt snapshot shape is invalid",
         )
+    identity_matches = any(
+        value.get("prompt_command") in identity["commands"]
+        and value.get("template_id") == identity["template_id"]
+        and value.get("template_kind") == identity["template_kind"]
+        and value.get("output_schema_id") == identity["output_schema_id"]
+        and value.get("output_schema_version") == identity["output_schema_version"]
+        and value.get("input_schema_version") == identity["input_schema_version"]
+        and isinstance(value.get("tags"), list)
+        and identity["required_tag"] in value["tags"]
+        for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+    )
     if (
         value.get("schema_version") != PROMPT_SNAPSHOT_SCHEMA_VERSION
         or not isinstance(value.get("prompt_ref"), str)
         or not value["prompt_ref"].strip()
-        or value.get("prompt_command") not in {PROMPT_COMMAND, None}
         or not isinstance(value.get("prompt_version"), str)
         or not value["prompt_version"].strip()
         or not isinstance(value.get("prompt_hash"), str)
         or _SHA256.fullmatch(value["prompt_hash"]) is None
         or value.get("prompt_source") not in {"openwebui_prompt_history", "test"}
         or value.get("prompt_contract_id") != PROMPT_CONTRACT_ID
-        or value.get("template_id") != PROMPT_TEMPLATE_ID
-        or value.get("template_kind") != PROMPT_TEMPLATE_KIND
-        or value.get("input_schema_version") != INPUT_SCHEMA_VERSION
-        or value.get("output_schema_id") != OUTPUT_SCHEMA_ID
-        or value.get("output_schema_version") != OUTPUT_SCHEMA_VERSION
+        or value.get("input_schema_version") not in {
+            INPUT_SCHEMA_VERSION,
+            DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+        }
         or not isinstance(value.get("tags"), list)
         or any(not isinstance(tag, str) for tag in value["tags"])
-        or PROMPT_REQUIRED_TAG not in value["tags"]
+        or not identity_matches
         or not isinstance(value.get("safe_metadata"), dict)
         or set(value["safe_metadata"]) - {"name", "mapping_domain"}
     ):
@@ -514,7 +892,23 @@ def _json_list(value: Any) -> list[str]:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "DOCUMENT_OPENING_INPUT_SCHEMA_VERSION",
     "INPUT_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND",
     "OUTPUT_SCHEMA_ID",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_COMMAND",
@@ -524,7 +918,9 @@ __all__ = [
     "PROMPT_SNAPSHOT_SCHEMA_VERSION",
     "PROMPT_TEMPLATE_ID",
     "PROMPT_TEMPLATE_KIND",
+    "AsyncOrdinaryTradeMappingPromptResolver",
     "DisabledOrdinaryTradeMappingPromptResolver",
+    "OpenWebUIServerOrdinaryTradeMappingPromptResolver",
     "OpenWebUISqliteOrdinaryTradeMappingPromptResolver",
     "OrdinaryTradeMappingManagedPrompt",
     "OrdinaryTradeMappingPromptConfig",

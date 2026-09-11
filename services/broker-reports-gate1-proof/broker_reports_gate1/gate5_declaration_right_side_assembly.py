@@ -18,6 +18,7 @@ from .gate5_declaration_filing_context import (
 from .gate5_declaration_financial_investment_results import (
     GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION,
     GATE5_FINANCIAL_INVESTMENT_RESULTS_INPUT_SCHEMA_VERSION,
+    GATE5_FINANCIAL_INVESTMENT_RESULTS_OPERATION_SET_INPUT_SCHEMA_VERSION,
     Gate5DeclarationFinancialInvestmentResultsRuntimeFactory,
 )
 from .gate5_declaration_income_sources import (
@@ -377,30 +378,37 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                 ),
                 "scope_binding": copy.deepcopy(scope_binding),
                 "category_tax_models": [copy.deepcopy(category)],
-                "completeness_evidence": {
-                    "schema_version": (
-                        GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION
-                    ),
-                    "status": "asserted_complete_for_supplied_case",
-                    "coverage_kind": (
-                        "all_financial_investment_evidence_supplied_to_case"
-                    ),
-                    "scope_binding_sha256": scope_binding["scope_binding_sha256"],
-                    "category_model_sha256s": [_sha(category)],
-                    "activated_obligation_refs": copy.deepcopy(
-                        _required(facts, "activated_obligation_refs")
-                    ),
-                    "not_activated_obligation_refs": copy.deepcopy(
-                        _required(facts, "not_activated_obligation_refs")
-                    ),
-                    "real_world_taxpayer_absence_asserted": False,
-                    "provenance": _owned_or_synthetic_provenance(
-                        facts,
-                        "completeness_provenance",
-                        _required(facts, "completeness_source_ref"),
-                        "financial_investment_supplied_case_completeness",
-                    ),
-                },
+                "completeness_evidence": _financial_completeness_evidence(
+                    facts=facts,
+                    scope_binding=scope_binding,
+                    category=category,
+                ),
+            }
+        )
+
+    def financial_operation_set_component(
+        self,
+        *,
+        inputs: dict[str, Any],
+        scope_binding: dict[str, Any],
+        operation_set_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build the existing financial root through the proven operation-set input."""
+
+        facts = _required(inputs, "financial_investment")
+        category = _operation_set_category_for_completeness(operation_set_result)
+        return Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
+            component_input={
+                "schema_version": (
+                    GATE5_FINANCIAL_INVESTMENT_RESULTS_OPERATION_SET_INPUT_SCHEMA_VERSION
+                ),
+                "scope_binding": copy.deepcopy(scope_binding),
+                "operation_set_result": copy.deepcopy(operation_set_result),
+                "completeness_evidence": _financial_completeness_evidence(
+                    facts=facts,
+                    scope_binding=scope_binding,
+                    category=category,
+                ),
             }
         )
 
@@ -409,6 +417,46 @@ def _required(value: Any, key: str) -> Any:
     if not isinstance(value, dict) or key not in value or value[key] is None:
         _fail("gate5_declaration_right_side_fact_missing", key)
     return value[key]
+
+
+def _financial_completeness_evidence(
+    *, facts: dict[str, Any], scope_binding: dict[str, Any], category: Any
+) -> dict[str, Any]:
+    return {
+        "schema_version": GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION,
+        "status": "asserted_complete_for_supplied_case",
+        "coverage_kind": "all_financial_investment_evidence_supplied_to_case",
+        "scope_binding_sha256": scope_binding["scope_binding_sha256"],
+        "category_model_sha256s": [_sha(category)],
+        "activated_obligation_refs": copy.deepcopy(
+            _required(facts, "activated_obligation_refs")
+        ),
+        "not_activated_obligation_refs": copy.deepcopy(
+            _required(facts, "not_activated_obligation_refs")
+        ),
+        "real_world_taxpayer_absence_asserted": False,
+        "provenance": _owned_or_synthetic_provenance(
+            facts,
+            "completeness_provenance",
+            _required(facts, "completeness_source_ref"),
+            "financial_investment_supplied_case_completeness",
+        ),
+    }
+
+
+def _operation_set_category_for_completeness(value: Any) -> Any:
+    """Read only the category shape needed by the existing completeness owner.
+
+    The FinancialInvestment owner remains responsible for proving that the
+    operation-set receipt and category are valid and mutually bound.
+    """
+
+    if not isinstance(value, dict):
+        return None
+    category_result = value.get("category_result")
+    if not isinstance(category_result, dict):
+        return None
+    return copy.deepcopy(category_result.get("category_tax_model"))
 
 
 def _synthetic(source_ref: str, input_channel: str) -> dict[str, Any]:

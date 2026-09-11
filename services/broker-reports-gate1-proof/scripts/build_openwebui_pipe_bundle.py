@@ -31,6 +31,12 @@ GATE2_DOMAIN_BUNDLE_PATH = (
     / "openwebui_actions"
     / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
 )
+GOAL391_LAB_PIPE_SOURCE = (
+    SERVICE_ROOT / "openwebui_actions" / "goal391_mapping_lab_pipe.py"
+)
+GOAL391_LAB_BUNDLE_PATH = (
+    SERVICE_ROOT / "openwebui_actions" / "goal391_mapping_lab_pipe_bundled.py"
+)
 
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 GATE1_RESOURCE_NAMES = (
@@ -79,6 +85,7 @@ MODULE_ORDER = [
     "table_projection",
     "blockers",
     "pdf_document_ai",
+    "pdf_table_continuation_annotation_contract",
     "file_processing_outcomes",
     "inputs",
     "archive_intake",
@@ -98,6 +105,8 @@ MODULE_ORDER = [
     "artifact_lifecycle",
     "artifact_retention",
     "artifact_store",
+    "physical_table_continuation",
+    "physical_table_continuation_context",
     "bounded_graph",
     "taxonomy",
     "criticality",
@@ -116,6 +125,7 @@ MODULE_ORDER = [
     "gate2_table_packages",
     "gate2_input_readiness",
     "gate2_model_contracts",
+    "instructional_table_classification",
     "gate2_model_requests",
     "gate2_economy_model_policy",
     "gate2_economy_workload_policy",
@@ -186,6 +196,7 @@ GATE1_GATE5_MODULES = [
     "gate5_trusted_methodology",
     "gate5_residency_evidence",
     "gate5_deterministic_source_fact_consumption",
+    "gate5_operation_set_demand_derivation",
     "gate5_securities_disposal_tax_model",
     "gate5_tax_period_category_aggregation",
     "gate5_income_group_tax_base",
@@ -221,7 +232,11 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_semantic_compiler",
     "ordinary_trade_qualified_mappings",
     "ordinary_trade_semantic_mapping",
+    "ordinary_trade_grouped_mapping_v14",
+    "ordinary_trade_grouped_mapping_v15",
     "ordinary_trade_mapping_prompt",
+    "pdf_table_continuation_annotation_prompt",
+    "instructional_table_classification_prompt",
     "ordinary_trade_mapping_case",
     "canonical_finalization",
     "ordinary_trade_projection",
@@ -244,6 +259,18 @@ GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_ORDINARY_TRADE_INSERT_AT],
     *GATE1_ORDINARY_TRADE_MODULES,
     *GATE1_MODULE_ORDER[_GATE1_ORDINARY_TRADE_INSERT_AT:],
+]
+GOAL391_LAB_MODULES = [
+    "goal391_private_corpus_export",
+    "goal391_private_selection_binding",
+    "goal391_mapping_lab_control_plan",
+    "goal391_grouped_mapping_lab_v14",
+]
+_GOAL391_LAB_INSERT_AT = GATE1_MODULE_ORDER.index("__init__")
+GOAL391_LAB_MODULE_ORDER = [
+    *GATE1_MODULE_ORDER[:_GOAL391_LAB_INSERT_AT],
+    *GOAL391_LAB_MODULES,
+    *GATE1_MODULE_ORDER[_GOAL391_LAB_INSERT_AT:],
 ]
 GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
@@ -301,7 +328,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--target",
-        choices=("all", "gate1", "gate2", "gate2-domain"),
+        choices=("all", "gate1", "gate2", "gate2-domain", "goal391-lab"),
         default="all",
     )
     target = parser.parse_args().target
@@ -313,6 +340,7 @@ def main() -> None:
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
             | set(GATE1_ORDINARY_TRADE_MODULES)
+            | set(GOAL391_LAB_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
             | set(GATE2_SUCCESSOR_MODULES)
@@ -387,6 +415,38 @@ def main() -> None:
             gate2_domain_bundle, encoding="utf-8", newline="\n"
         )
         print(str(GATE2_DOMAIN_BUNDLE_PATH))
+    if target in {"all", "goal391-lab"}:
+        goal391_lab_pipe_source = _strip_openwebui_metadata(
+            GOAL391_LAB_PIPE_SOURCE.read_text(encoding="utf-8")
+        )
+        # The laboratory adapter only composes the already-current mapping
+        # owners.  Reuse the closed Gate 1 package projection rather than
+        # producing a second domain package for a temporary Pipe.
+        goal391_lab_modules = {
+            name: modules[name] for name in GOAL391_LAB_MODULE_ORDER
+        }
+        goal391_lab_modules["__init__"] = _project_package_init(
+            goal391_lab_modules["__init__"], included_modules=set(goal391_lab_modules)
+        )
+        goal391_lab_bundle = _render_bundle(
+            modules=goal391_lab_modules,
+            resources={
+                name: base64.b64encode(
+                    _canonical_resource_bytes(PACKAGE_ROOT / name)
+                ).decode("ascii")
+                for name in GATE1_RESOURCE_NAMES
+            },
+            pipe_source=goal391_lab_pipe_source,
+            title="Goal 391 Mapping Lab",
+            version="0.1.0-native-lab-bundled",
+            package_version="goal391_native_mapping_lab_v1",
+            source_label="openwebui_actions/goal391_mapping_lab_pipe.py",
+            requirements="pydantic,pypdf==6.7.5,lxml==6.1.1",
+        )
+        GOAL391_LAB_BUNDLE_PATH.write_text(
+            goal391_lab_bundle, encoding="utf-8", newline="\n"
+        )
+        print(str(GOAL391_LAB_BUNDLE_PATH))
 
 
 def _strip_openwebui_metadata(source: str) -> str:

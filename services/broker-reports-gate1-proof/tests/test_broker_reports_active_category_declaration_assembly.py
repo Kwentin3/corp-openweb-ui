@@ -689,6 +689,193 @@ def test_historical_gate3_sql_and_legacy_projection_fallbacks_are_trapped(
         assert duplicate not in g535_source
 
 
+def _operation_set_case(root: Path, *, demands: bool = False):
+    rows = list(bridge_fixtures._two_disposal_rows())
+    if not demands:
+        for index in (1, 3):
+            rows[index] = bridge_fixtures._with_roles(
+                rows[index], broker_commission="", exchange_commission=""
+            )
+    store, context, _ = bridge_fixtures._case(root, rows=tuple(rows))
+    runtime = _runtime(store)
+    right_side = _right_side(context.user_id)
+    resolved = bridge_fixtures._resolved_inputs()
+    residency = runtime._right_side.residency_classification(right_side)
+    resolved["tax_context"]["residency"] = gate5_residency_methodology_input(
+        residency, input_channel="minimal_tax_context"
+    )
+    inputs = {
+        "operation_methodology_ref": bridge_fixtures._operation_methodology_ref(),
+        "source_fact_methodology_ref": bridge_fixtures._source_methodology_ref(),
+        "resolved_inputs": resolved,
+        "category_scope": bridge_fixtures._category_scope(),
+        "taxpayer_binding": bridge_fixtures._taxpayer_binding(),
+    }
+    preflight = runtime._bridge.run_current_case_operation_set(
+        **inputs, completeness_evidence=None, context=context
+    )
+    inputs["category_completeness_evidence"] = bridge_fixtures._completeness(
+        preflight["operation_set"]["scope_binding"]["scope_binding_sha256"]
+    )
+    return runtime, context, inputs, right_side
+
+
+def test_operation_set_v1_reaches_xsd_with_every_operation_and_replays(tmp_path):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path)
+    first = runtime.run_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+    assert first["status"] == "proven", first.get("blockers")
+    second = runtime.run_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+    assert first == second
+    assert (
+        first["schema_version"]
+        == assembly_module.ACTIVE_CATEGORY_OPERATION_SET_ASSEMBLY_SCHEMA_VERSION
+    )
+    artifacts = first["owner_artifacts"]
+    rows = artifacts["operation_set_result"]["operation_results"]
+    assert len(rows) == 2
+    assert len(artifacts["category_tax_model"]["member_operations"]) == 2
+    assert first["target_accounting"]["xsd_conformance"]["xsd_valid"] is True
+    assert first["blockers"] == first["demands"] == []
+    assert runtime.validate_operation_set_receipt_v1(first, context=context) == first
+    with pytest.raises(ActiveCategoryDeclarationAssemblyError):
+        runtime.validate_receipt(first, context=context)
+
+
+def test_operation_set_preview_v1_uses_every_operation_without_release(tmp_path):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path)
+
+    first = runtime.preview_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+    second = runtime.preview_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+
+    assert first == second
+    assert first["schema_version"] == (
+        "broker_reports_active_category_declaration_preview_v1"
+    )
+    assert first["status"] == "calculated"
+    assert first["xml_created"] is False
+    assert "released_values" not in first
+    assert "target_receipt" not in first
+    assert "operation_set_result" not in first
+    assert len(first["category_tax_model"]["member_operations"]) == 2
+    assert first["preview_sha256"] == _sha(
+        {key: value for key, value in first.items() if key != "preview_sha256"}
+    )
+
+
+def test_operation_set_v1_demands_stop_before_scope_package_and_release(tmp_path):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path, demands=True)
+
+    class ForbiddenDownstream:
+        def resolve(self, **kwargs):
+            pytest.fail("Scope must not run after an unresolved demand")
+
+        def assemble(self, **kwargs):
+            pytest.fail("Package must not run after an unresolved demand")
+
+    runtime._scope = runtime._package = ForbiddenDownstream()
+    result = runtime.run_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+    assert result["status"] == "blocked"
+    assert result["demands"]
+    assert result["released_values"] is result["target_receipt"] is None
+
+
+def test_operation_set_preview_v1_demands_stop_before_scope_package_release_or_xml(
+    tmp_path, monkeypatch
+):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path, demands=True)
+
+    class ForbiddenDownstream:
+        def resolve(self, **kwargs):
+            pytest.fail("Scope must not run after an unresolved demand")
+
+        def assemble(self, **kwargs):
+            pytest.fail("Package must not run after an unresolved demand")
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Release or XML projection must not run after an unresolved demand")
+
+    runtime._scope = runtime._package = ForbiddenDownstream()
+    monkeypatch.setattr(
+        assembly_module.Gate5DeclarationSemanticInputRuntimeFactory,
+        "create",
+        forbidden,
+    )
+    monkeypatch.setattr(
+        assembly_module.Gate5FullTargetXmlProjectionRuntimeFactory,
+        "create",
+        forbidden,
+    )
+
+    result = runtime.preview_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+
+    assert result == {
+        "schema_version": "broker_reports_active_category_declaration_preview_v1",
+        "status": "blocked",
+        "reason_code": "partial_acquisition_commission_allocation",
+        "xml_created": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "mutation", ["bridge_omission", "package_omission", "bridge_order"]
+)
+def test_operation_set_v1_replay_rejects_rehashed_cross_artifact_drift(
+    tmp_path, mutation
+):
+    runtime, context, inputs, right_side = _operation_set_case(tmp_path)
+    receipt = runtime.run_operation_set_v1(
+        **inputs, right_side_inputs=right_side, context=context
+    )
+    assert receipt["status"] == "proven", receipt.get("blockers")
+    changed = copy.deepcopy(receipt)
+    artifacts = changed["owner_artifacts"]
+    if mutation == "bridge_omission":
+        artifacts["operation_set_result"]["operation_results"].pop()
+    elif mutation == "bridge_order":
+        artifacts["operation_set_result"]["operation_results"].reverse()
+    else:
+        artifacts["package"]["component_snapshots"] = [
+            item
+            for item in artifacts["package"]["component_snapshots"]
+            if item["content_sha256"]
+            != _sha(
+                artifacts["operation_set_result"]["operation_results"][0][
+                    "operation_result"
+                ]["tax_model"]
+            )
+        ]
+        package = artifacts["package"]
+        package["package_sha256"] = _sha(
+            {key: value for key, value in package.items() if key != "package_sha256"}
+        )
+        changed["stage_hashes"]["package_sha256"] = package["package_sha256"]
+    changed["stage_hashes"]["operation_set_result_sha256"] = _sha(
+        artifacts["operation_set_result"]
+    )
+    _reseal_outer_receipt(changed)
+    with pytest.raises(
+        (ActiveCategoryDeclarationAssemblyError, Gate5ResolvedDeclarationPackageError)
+    ) as error:
+        runtime.validate_operation_set_receipt_v1(changed, context=context)
+    assert error.value.code == (
+        "gate5_resolved_package_scope_component_snapshot_missing"
+        if mutation == "package_omission"
+        else "gate5_active_assembly_operation_set_adjacency_invalid"
+    )
+
+
 def _case(root: Path, *, proceeds: str, purchase_charges: bool = False):
     rows = (
         bridge_fixtures._HEADERS,

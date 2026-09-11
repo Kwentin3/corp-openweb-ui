@@ -10,7 +10,7 @@ from __future__ import annotations
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v32"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v35"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -210,7 +210,7 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
     "ordinary_trade_semantic_mapping": (
         "SOURCE_ADAPTER",
         "external_table_semantics_and_column_roles",
-        "broker_reports_ordinary_trade_semantic_mapping_response_v6",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v15",
     ),
     "ordinary_trade_mapping_answer": (
         "HUMAN_ADAPTER",
@@ -235,7 +235,7 @@ PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT = "PdfDocumentExtractorFactory.create"
 PDF_DOCUMENT_EXTRACTION_DEFAULT = "UnconfiguredPdfDocumentExtractor"
 PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
 PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE = "mistral_ocr"
-PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "mistral_serverless_ocr_adapter_v2"
+PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "mistral_serverless_ocr_adapter_v3"
 PDF_DOCUMENT_EXTRACTION_STATIC_READY = True
 PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE = (
     "existing_artifact_store_atomic_private_graph"

@@ -84,10 +84,52 @@ from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    DOCUMENT_OPENING_INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
+    ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+    OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID as ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER as ORDINARY_TRADE_MAPPING_PROMPT_PLACEHOLDER,
+    PROMPT_REQUIRED_TAG as ORDINARY_TRADE_MAPPING_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
+)
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
+    PROMPT_COMMAND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
+    PdfTableContinuationAnnotationExecution,
+    PdfTableContinuationAnnotationPromptConfig,
+    PdfTableContinuationAnnotationPromptResolverFactory,
+    execution_from_managed_prompt,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
+    OrdinaryTradeGroupedMappingV14AdapterFactory,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
+    OrdinaryTradeGroupedMappingV15AdapterFactory,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
@@ -161,6 +203,109 @@ NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
 FULL_SOURCE_PROJECTION_SCHEMA_VERSION = "broker_reports_full_source_projection_v1"
 FULL_SOURCE_ZIP_FILENAME = "full-source.zip"
+
+
+class _OrdinaryTradeMappingRouteProfile:
+    """Closed production route configuration; never a user-provided Prompt map."""
+
+    def __init__(
+        self,
+        *,
+        profile_id: str,
+        prompt_command: str,
+        template_id: str,
+        template_kind: str,
+        output_schema_id: str,
+        output_schema_version: str,
+        required_tag: str,
+        input_schema_version: str = ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
+        grouped_v14_response: bool = False,
+        grouped_v15_response: bool = False,
+    ) -> None:
+        self.profile_id = profile_id
+        self.prompt_command = prompt_command
+        self.template_id = template_id
+        self.template_kind = template_kind
+        self.output_schema_id = output_schema_id
+        self.output_schema_version = output_schema_version
+        self.required_tag = required_tag
+        self.input_schema_version = input_schema_version
+        self.grouped_v14_response = grouped_v14_response
+        self.grouped_v15_response = grouped_v15_response
+
+    def mapping_response_adapter(self) -> Any | None:
+        if self.grouped_v14_response:
+            return OrdinaryTradeGroupedMappingV14AdapterFactory.create()
+        if self.grouped_v15_response:
+            return OrdinaryTradeGroupedMappingV15AdapterFactory.create()
+        return None
+
+
+_ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
+    "ordinary_trade_mapping_v13": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v13",
+        prompt_command=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+        output_schema_version=ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
+        required_tag=ORDINARY_TRADE_MAPPING_PROMPT_REQUIRED_TAG,
+    ),
+    "ordinary_trade_mapping_v14": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v14",
+        prompt_command=ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+        grouped_v14_response=True,
+    ),
+    "ordinary_trade_mapping_v15": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v15",
+        prompt_command=ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
+        grouped_v15_response=True,
+    ),
+    "ordinary_trade_mapping_v16": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v16",
+        prompt_command=ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+        grouped_v15_response=True,
+    ),
+    "ordinary_trade_mapping_v17": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v17",
+        prompt_command=ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+        grouped_v15_response=True,
+    ),
+}
 
 
 class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -252,10 +397,14 @@ class Pipe:
             default=NDFL_PROVIDER_MODEL_ID
         )
         # The Pipe owns only the pinned configuration and authenticated caller
-        # context.  Prompt content, version and access remain owned by the
-        # OpenWebUI Prompt resolver passed to the mapping runtime.
-        ordinary_trade_mapping_prompt_db_path: str = Field(
-            default="/app/backend/data/webui.db"
+        # context. Prompt content, history and access remain with OpenWebUI's
+        # native server owners. There is intentionally no database-path Valve.
+        ordinary_trade_mapping_profile_id: str = Field(
+            default="ordinary_trade_mapping_v13",
+            description=(
+                "Sealed production mapping route profile. Only the released "
+                "v13, v14, v15 and v16 profiles are admitted."
+            ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")
         ordinary_trade_mapping_prompt_command: str = Field(
@@ -273,6 +422,20 @@ class Pipe:
             description=(
                 "Release-pinned SHA-256 identity of the managed mapping Prompt."
             ),
+        )
+        # Disabled until a native Workspace Prompt, its public read grant and
+        # its release pin are configured. The pipe owns only that selector;
+        # Prompt content and history remain owned by OpenWebUI.
+        pdf_table_continuation_annotation_enabled: bool = Field(default=False)
+        pdf_table_continuation_annotation_prompt_id: str = Field(default="")
+        pdf_table_continuation_annotation_prompt_command: str = Field(
+            default=PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND
+        )
+        pdf_table_continuation_annotation_prompt_version: str = Field(
+            default="release-pin-required"
+        )
+        pdf_table_continuation_annotation_prompt_hash: str = Field(
+            default="0000000000000000000000000000000000000000000000000000000000000000"
         )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
@@ -694,6 +857,21 @@ class Pipe:
             safe_body, safe_metadata
         )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
+        pdf_table_continuation_annotation_execution = None
+        if any(
+            extension_from_name(
+                item.original_filename_private,
+                item.mime_type,
+            )
+            == "pdf"
+            for item in file_inputs
+        ):
+            pdf_table_continuation_annotation_execution = (
+                await self._pdf_table_continuation_annotation_execution(
+                    user=__user__,
+                    metadata=safe_metadata,
+                )
+            )
         retention_policy = self._retention_policy(safe_body, safe_metadata)
         normalizer = Gate1Normalizer(
             _server_request=__request__,
@@ -741,6 +919,9 @@ class Pipe:
             },
             extra_private_markers=self._private_markers(file_refs),
             bounded_graph=bounded_graph,
+            pdf_table_continuation_annotation_execution=(
+                pdf_table_continuation_annotation_execution
+            ),
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
         )
@@ -986,9 +1167,15 @@ class Pipe:
             not self.valves.ordinary_trade_candidate_enabled
             or not self.valves.canonical_gate2_write_enabled
             or not self.valves.canonical_gate2_read_enabled
-            or metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID
+            # OpenWebUI 0.9.6 invokes the base Function without ``__model__``.
+            # ``metadata`` has therefore been recovered above from the exact
+            # authenticated current chat turn.  Treating that turn as a new
+            # upload would re-read an already persisted PDF instead of using
+            # its Canonical package.
+            or self._workspace_model_id(
+                metadata, kwargs.get("__model__")
+            ) != NDFL_WORKSPACE_MODEL_STABLE_ID
             or not interaction_message
-            or self._current_turn_has_files(body)
         ):
             return None
         context = self._artifact_context(
@@ -1012,10 +1199,31 @@ class Pipe:
             store=store,
             context=context,
         )
+        canonical_artifact_refs = self._current_declaration_canonical_refs(
+            store=store,
+            context=context,
+        )
+        if not canonical_artifact_refs:
+            # A newly created chat has no current Canonical yet.  Let the
+            # existing intake owner bind the uploaded file; a continuation
+            # can only resume after that owner has created the active scope.
+            return None
+        if self._has_additional_file_inputs(
+            body=body,
+            metadata=metadata,
+            files_arg=kwargs.get("__files__"),
+            canonical_artifact_refs=canonical_artifact_refs,
+        ):
+            # OpenWebUI 0.9.6 keeps every chat attachment in top-level files
+            # and does not mark the current user message. A scope increase is
+            # the native signal for a new source, so do not ignore it during
+            # a declaration continuation.
+            return None
         result = await self._maybe_run_ndfl_gate3(
             store=store,
             context=context,
             artifact_manifest={},
+            canonical_artifact_refs=canonical_artifact_refs,
             user=user,
             request=request,
             event_emitter=event_emitter,
@@ -1024,11 +1232,11 @@ class Pipe:
             event_call=event_call,
         )
         product = result.get("product")
-        if (
-            not isinstance(product, dict)
-            or product.get("terminal") == "ordinary_trade_canonical_evidence_missing"
-        ):
-            return None
+        if not isinstance(product, dict):
+            return (
+                "Набор данных не удалось подготовить для продолжения. "
+                "Повторная обработка файла не запускалась."
+            )
         declaration = result.get("declaration")
         if (
             product.get("status") == "DECLARATION_XML_READY"
@@ -1086,6 +1294,30 @@ class Pipe:
         )
 
     @staticmethod
+    def _current_declaration_canonical_refs(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+    ) -> list[str]:
+        """Return only active Canonical refs owned by this exact case."""
+
+        coverage = OrdinaryTradeProjectionFactory(
+            store=store,
+            read_enabled=True,
+        ).create().current_case_coverage(context=context)
+        scope = coverage.get("document_scope")
+        if not isinstance(scope, list):
+            raise NdflWorkflowError("ordinary_trade_current_canonical_scope_invalid")
+        refs = [
+            str(item.get("manifest_ref") or "")
+            for item in scope
+            if isinstance(item, dict) and str(item.get("manifest_ref") or "")
+        ]
+        if len(refs) != len(scope) or len(refs) != len(set(refs)):
+            raise NdflWorkflowError("ordinary_trade_current_canonical_scope_invalid")
+        return sorted(refs)
+
+    @staticmethod
     def _current_turn_has_files(body: dict[str, Any]) -> bool:
         # OpenWebUI keeps every chat file in top-level ``files`` on later
         # turns.  That collection is case context, not proof that the current
@@ -1114,6 +1346,23 @@ class Pipe:
             and isinstance(latest_user.get("files"), list)
             and latest_user["files"]
         )
+
+    def _has_additional_file_inputs(
+        self,
+        *,
+        body: dict[str, Any],
+        metadata: dict[str, Any],
+        files_arg: Any,
+        canonical_artifact_refs: list[str],
+    ) -> bool:
+        """Whether native chat scope has grown beyond its active Canonical set."""
+
+        attached = self._collect_file_refs(
+            body,
+            metadata,
+            files_arg,
+        )
+        return len(attached) > len(canonical_artifact_refs)
 
     async def _adapt_ndfl_public_answer(
         self,
@@ -1628,6 +1877,7 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
         artifact_manifest: Any,
+        canonical_artifact_refs: list[str] | None = None,
         user: Any,
         request: Any,
         event_emitter: Any,
@@ -1651,12 +1901,18 @@ class Pipe:
             or not self.valves.canonical_gate2_read_enabled
         ):
             raise NdflWorkflowError("ndfl_gate2_canonical_lifecycle_disabled")
-        refs_by_type = getattr(artifact_manifest, "artifact_refs_by_type", None)
-        canonical_refs = (
-            list(refs_by_type.get("broker_reports_canonical_artifact_v1") or [])
-            if isinstance(refs_by_type, dict)
-            else []
-        )
+        if canonical_artifact_refs is not None:
+            # A continuation has no current upload.  Its refs are derived by
+            # the current-case projection owner above, never from browser or
+            # persisted chat state.
+            canonical_refs = list(canonical_artifact_refs)
+        else:
+            refs_by_type = getattr(artifact_manifest, "artifact_refs_by_type", None)
+            canonical_refs = (
+                list(refs_by_type.get("broker_reports_canonical_artifact_v1") or [])
+                if isinstance(refs_by_type, dict)
+                else []
+            )
         if len(canonical_refs) != len(set(canonical_refs)):
             raise NdflWorkflowError("ndfl_gate2_canonical_artifact_duplicate")
         if candidate_enabled:
@@ -1670,6 +1926,7 @@ class Pipe:
             mapping_prompt_resolver = None
             mapping_prompt_user_context_factory = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
+                mapping_route_profile = self._ordinary_trade_mapping_route_profile()
                 mapping_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
                         request_profile=(
@@ -1722,6 +1979,16 @@ class Pipe:
                 ),
                 mapping_provider_profile_id=(
                     self.valves.ordinary_trade_mapping_provider_profile_id
+                    if mapping_client is not None
+                    else None
+                ),
+                mapping_response_adapter=(
+                    mapping_route_profile.mapping_response_adapter()
+                    if mapping_client is not None
+                    else None
+                ),
+                mapping_input_schema_version=(
+                    mapping_route_profile.input_schema_version
                     if mapping_client is not None
                     else None
                 ),
@@ -3268,7 +3535,7 @@ class Pipe:
     ) -> tuple[Any, Any]:
         """Compose the mapping Prompt adapter; never read Prompt tables here."""
 
-        db_path = str(self.valves.ordinary_trade_mapping_prompt_db_path or "").strip()
+        profile = self._ordinary_trade_mapping_route_profile()
         prompt_id = str(self.valves.ordinary_trade_mapping_prompt_id or "").strip()
         command = str(
             self.valves.ordinary_trade_mapping_prompt_command or ""
@@ -3279,25 +3546,41 @@ class Pipe:
         release_hash = str(
             self.valves.ordinary_trade_mapping_prompt_hash or ""
         ).strip()
-        if (
-            not db_path
-            or (not prompt_id and not command)
-        ):
+        if not prompt_id and not command:
             raise NdflWorkflowError(
                 "ordinary_trade_mapping_prompt_configuration_invalid"
+            )
+        # The command remains a release pin for compatibility with deployed
+        # Function Valves.  It cannot select another Prompt route: the sealed
+        # profile above is the only selector.
+        if command != profile.prompt_command:
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_prompt_command_profile_mismatch"
             )
         user_id = self._authenticated_user_id(user)
         user_role = self._user_role(user, metadata)
         resolver = OrdinaryTradeMappingPromptResolverFactory(
             OrdinaryTradeMappingPromptConfig(
-                source="openwebui_sqlite",
-                db_path=Path(db_path),
+                source="openwebui_server",
                 prompt_id=prompt_id or None,
-                command=command or None,
+                command=None if prompt_id else profile.prompt_command,
+                required_command=profile.prompt_command,
+                required_template_id=profile.template_id,
+                required_template_kind=profile.template_kind,
+                required_prompt_contract_id=(
+                    ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID
+                ),
+                required_input_schema_version=(
+                    profile.input_schema_version
+                ),
+                required_output_schema_id=profile.output_schema_id,
+                required_output_schema_version=profile.output_schema_version,
+                required_tag=profile.required_tag,
+                required_placeholder=ORDINARY_TRADE_MAPPING_PROMPT_PLACEHOLDER,
                 release_prompt_version=release_version,
                 release_prompt_hash=release_hash,
             )
-        ).create()
+        ).create_async()
 
         def user_context_factory(
             context: ArtifactAccessContext,
@@ -3315,6 +3598,64 @@ class Pipe:
             )
 
         return resolver, user_context_factory
+
+    async def _pdf_table_continuation_annotation_execution(
+        self, *, user: Any, metadata: dict[str, Any]
+    ) -> PdfTableContinuationAnnotationExecution | None:
+        """Resolve one ordinary user's released OCR annotation instruction.
+
+        This is the sole OpenWebUI composition point for the optional Prompt.
+        The normalizer only receives the frozen execution object and cannot
+        read Valves, Prompt rows, history or access grants itself.
+        """
+
+        if not self.valves.pdf_table_continuation_annotation_enabled:
+            return None
+        prompt_id = str(
+            self.valves.pdf_table_continuation_annotation_prompt_id or ""
+        ).strip()
+        command = str(
+            self.valves.pdf_table_continuation_annotation_prompt_command or ""
+        ).strip()
+        if command != PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND:
+            raise NdflWorkflowError(
+                "pdf_table_continuation_annotation_prompt_command_invalid"
+            )
+        resolver = PdfTableContinuationAnnotationPromptResolverFactory(
+            PdfTableContinuationAnnotationPromptConfig(
+                source="openwebui_server",
+                prompt_id=prompt_id or None,
+                command=None if prompt_id else command,
+                release_prompt_version=str(
+                    self.valves.pdf_table_continuation_annotation_prompt_version
+                    or ""
+                ).strip(),
+                release_prompt_hash=str(
+                    self.valves.pdf_table_continuation_annotation_prompt_hash
+                    or ""
+                ).strip(),
+            )
+        ).create_async()
+        prompt = await resolver.resolve(
+            OrdinaryTradeMappingPromptUserContext(
+                user_id=self._authenticated_user_id(user),
+                user_role=self._user_role(user, metadata),
+                # Prompt group membership comes only from OpenWebUI owners.
+                user_groups=(),
+            )
+        )
+        return execution_from_managed_prompt(prompt)
+
+    def _ordinary_trade_mapping_route_profile(
+        self,
+    ) -> _OrdinaryTradeMappingRouteProfile:
+        profile_id = str(
+            self.valves.ordinary_trade_mapping_profile_id or ""
+        ).strip()
+        profile = _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES.get(profile_id)
+        if profile is None:
+            raise NdflWorkflowError("ordinary_trade_mapping_profile_invalid")
+        return profile
 
     async def _openwebui_passport_completion(
         self,
@@ -4730,6 +5071,17 @@ class Pipe:
         """Recover a native chat scope only after an owner-bound DB lookup."""
 
         result = dict(metadata)
+        selected_model = result.get("model")
+        if (
+            isinstance(selected_model, dict)
+            and selected_model.get("id") == NDFL_WORKSPACE_MODEL_STABLE_ID
+        ):
+            # In OpenWebUI 0.9.6 this is server-injected metadata from the
+            # authenticated model-selection route.  Functions receive the
+            # base Pipe as ``body.model`` and no ``__model__`` argument, so
+            # this is the primary native identity source.  It is not client
+            # body metadata and does not grant any additional authority.
+            result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
         if result.get("chat_id") and result.get("model_id"):
             return result
         if request is None or not callable(getattr(request, "json", None)):
@@ -4767,6 +5119,33 @@ class Pipe:
             return result
         result["chat_id"] = chat_id
         chat_payload = chat.chat if isinstance(chat.chat, dict) else {}
+        history = (
+            chat_payload.get("history", {}).get("messages", {})
+            if isinstance(chat_payload, dict)
+            else {}
+        )
+        current_message = (
+            history.get(str(result.get("message_id") or ""))
+            if isinstance(history, dict)
+            else None
+        )
+        current_models = (
+            current_message.get("models")
+            if isinstance(current_message, dict)
+            else None
+        )
+        # OpenWebUI resolves a Workspace Model to its base Function before
+        # invoking ``pipe`` and, in 0.9.6, does not pass ``__model__`` to a
+        # Function.  The exact current message is already persisted by the
+        # authenticated chat owner, so it is the narrow server-owned record
+        # of the user's selected Workspace Model.  Do not infer it from the
+        # client request body or scan historic messages.
+        if (
+            isinstance(current_models, list)
+            and NDFL_WORKSPACE_MODEL_STABLE_ID in current_models
+        ):
+            result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
+            return result
         models = chat_payload.get("models")
         if isinstance(models, list) and NDFL_WORKSPACE_MODEL_STABLE_ID in models:
             result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID

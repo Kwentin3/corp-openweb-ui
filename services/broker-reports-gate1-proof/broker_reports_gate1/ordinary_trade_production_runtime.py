@@ -22,6 +22,7 @@ from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
 from .ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
+from .ordinary_trade_semantic_mapping import MAPPING_INPUT_SCHEMA_VERSION
 from .ordinary_trade_declaration_mvp import (
     OrdinaryTradeDeclarationMvpError,
     OrdinaryTradeDeclarationMvpRuntime,
@@ -63,9 +64,12 @@ class OrdinaryTradeProductionRuntimeFactory:
         mapping_model_client: Any | None = None,
         mapping_answer_model_client: Any | None = None,
         mapping_prompt_resolver: Any | None = None,
+        instructional_prompt_resolver: Any | None = None,
         mapping_prompt_user_context_factory: Any | None = None,
+        mapping_response_adapter: Any | None = None,
         mapping_model_id: str | None = None,
         mapping_provider_profile_id: str | None = None,
+        mapping_input_schema_version: str | None = MAPPING_INPUT_SCHEMA_VERSION,
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
@@ -73,9 +77,15 @@ class OrdinaryTradeProductionRuntimeFactory:
         self._mapping_model_client = mapping_model_client
         self._mapping_answer_model_client = mapping_answer_model_client
         self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
+        # This is a representation-only boundary adapter.  It may compact a
+        # released wire response, but the established semantic owner still
+        # receives the exact v13 representation after expansion.
+        self._mapping_response_adapter = mapping_response_adapter
         self._mapping_model_id = mapping_model_id
         self._mapping_provider_profile_id = mapping_provider_profile_id
+        self._mapping_input_schema_version = mapping_input_schema_version
 
     def create(self) -> "OrdinaryTradeProductionRuntime":
         declaration = None
@@ -95,7 +105,10 @@ class OrdinaryTradeProductionRuntimeFactory:
             self._mapping_prompt_user_context_factory,
         )
         if any(item is not None for item in mapping_values):
-            if not all(item is not None for item in mapping_values):
+            if (
+                not all(item is not None for item in mapping_values)
+                or self._mapping_input_schema_version is None
+            ):
                 raise OrdinaryTradeProductionError(
                     "ordinary_trade_mapping_runtime_configuration_incomplete"
                 )
@@ -105,11 +118,14 @@ class OrdinaryTradeProductionRuntimeFactory:
                 model_client=self._mapping_model_client,
                 answer_model_client=self._mapping_answer_model_client,
                 mapping_prompt_resolver=self._mapping_prompt_resolver,
+                instructional_prompt_resolver=self._instructional_prompt_resolver,
                 mapping_prompt_user_context_factory=(
                     self._mapping_prompt_user_context_factory
                 ),
+                mapping_response_adapter=self._mapping_response_adapter,
                 model_id=str(self._mapping_model_id),
                 provider_profile_id=str(self._mapping_provider_profile_id),
+                input_schema_version=str(self._mapping_input_schema_version),
             ).create()
         return OrdinaryTradeProductionRuntime(
             store=self._store,
@@ -210,7 +226,20 @@ class OrdinaryTradeProductionRuntime:
             return result
         provider_calls = 0
         mapping_turn = None
-        maximum_steps = max(1, len(result.get("documents") or []))
+        documents = result.get("documents") or []
+        # A document normally needs one mapping call.  With the narrow
+        # instructional phase, each currently unmapped table may need one
+        # bounded classifier call before that mapping call.  This is a strict
+        # upper bound derived from the existing projection, not a retry loop.
+        maximum_steps = max(
+            1,
+            len(documents)
+            + sum(
+                int(item.get("relevant_unmapped_observations") or 0)
+                for item in documents
+                if isinstance(item, dict)
+            ),
+        )
         for _step in range(maximum_steps):
             unresolved = [
                 item
@@ -235,8 +264,12 @@ class OrdinaryTradeProductionRuntime:
             user_message = ""
             confirmation = None
             expected_confirmation_artifact_id = None
-            if mapping_turn["status"] != "COMPLETE":
+            if mapping_turn["status"] != "COMPLETE" and not bool(
+                mapping_turn.get("automatic_continuation_required")
+            ):
                 break
+            if mapping_turn["status"] != "COMPLETE":
+                continue
             if self._declaration is not None:
                 finalized = self._finalizer.finalize(
                     document_id=document_id,

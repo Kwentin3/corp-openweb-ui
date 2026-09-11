@@ -192,21 +192,29 @@ class OrdinaryTradeSemanticCompiler:
             if not matches:
                 if resolution is not None:
                     recognized_incomplete = (
-                        resolution["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+                        resolution["disposition"]
+                        in {"SECURITY_TRADES_INCOMPLETE", "HEADER_ABSENT"}
+                    )
+                    retained_rows = (
+                        rows
+                        if resolution["disposition"] == "HEADER_ABSENT"
+                        else {
+                            row: cells
+                            for row, cells in rows.items()
+                            if row > resolution["header_row"]
+                        }
                     )
                     observations.extend(
                         _unmapped_table_rows(
                             binding=binding,
                             table=table,
-                            rows={
-                                row: cells
-                                for row, cells in rows.items()
-                                if row > resolution["header_row"]
-                            },
+                            rows=retained_rows,
                             reason=(
                                 "NO_NAMED_ORDINARY_TRADE_CONSUMER"
                                 if resolution["disposition"]
                                 == "NO_NAMED_CONSUMER"
+                                else "ORDINARY_TRADE_SOURCE_HEADER_ABSENT"
+                                if resolution["disposition"] == "HEADER_ABSENT"
                                 else "ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE"
                                 if recognized_incomplete
                                 else "UNKNOWN_STRUCTURAL_FINGERPRINT"
@@ -247,7 +255,7 @@ class OrdinaryTradeSemanticCompiler:
             # record or a guessed retry.  Legacy mappings keep their original
             # fail-closed treatment.
             incomplete_row_disposition = (
-                "SOURCE_RETAINED_NO_CONSUMER"
+                "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
                 if resolution is not None
                 and resolution["security_trade_rows"] is not None
                 else "RELEVANT_UNMAPPED"
@@ -974,7 +982,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     }
     # The base and kind-only forms are persisted pre-v6 resolutions.  The
     # compiler must continue to read them so historical immutable sidecars are
-    # replayable; new v6 model promotion is rejected upstream unless it carries
+    # replayable; new v7 model promotion is rejected upstream unless it carries
     # classification_evidence.  This module never creates a resolution.
     no_consumer_fields = base_fields | {"no_consumer_kind"}
     evidenced_no_consumer_fields = no_consumer_fields | {"classification_evidence"}
@@ -996,15 +1004,25 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         )
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
-        or not isinstance(value.get("header_row"), int)
-        or value["header_row"] < 1
+        or not (
+            isinstance(value.get("header_row"), int)
+            or value.get("header_row") is None
+        )
         or value.get("disposition")
         not in {
             "SECURITY_TRADES",
             "SECURITY_TRADES_INCOMPLETE",
             "NO_NAMED_CONSUMER",
             "UNSUPPORTED_FINANCIAL_MEANING",
+            "HEADER_ABSENT",
         }
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    header_absent = value["disposition"] == "HEADER_ABSENT"
+    if header_absent != (value.get("header_row") is None):
+        _fail("ordinary_trade_table_resolution_invalid")
+    if not header_absent and (
+        not isinstance(value.get("header_row"), int) or value["header_row"] < 1
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     incomplete = value["disposition"] == "SECURITY_TRADES_INCOMPLETE"
@@ -1023,20 +1041,50 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     classification_evidence = value.get("classification_evidence")
-    if classification_evidence is not None and (
-        value["disposition"] != "NO_NAMED_CONSUMER"
-        or not isinstance(classification_evidence, Mapping)
-        or set(classification_evidence)
-        != {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
-        or any(
-            not isinstance(classification_evidence.get(key), str)
-            or not classification_evidence[key]
-            for key in ("context_ref", "relation", "canonical_node_id", "literal_sha256")
+    if classification_evidence is not None:
+        # V6 wrote one resolved object; V7 writes the ordered nonempty list.
+        # Both are immutable inputs here, and the compiler owns neither their
+        # classification nor their Canonical binding.
+        evidence_entries = (
+            [classification_evidence]
+            if isinstance(classification_evidence, Mapping)
+            else classification_evidence
         )
-        or re.fullmatch(r"[0-9a-f]{64}", classification_evidence["literal_sha256"])
-        is None
-    ):
-        _fail("ordinary_trade_table_resolution_invalid")
+        if (
+            value["disposition"] != "NO_NAMED_CONSUMER"
+            or not isinstance(evidence_entries, list)
+            or not evidence_entries
+            or len(evidence_entries) != len(
+                {
+                    (
+                        item.get("context_ref"),
+                        item.get("relation"),
+                        item.get("canonical_node_id"),
+                        item.get("literal_sha256"),
+                    )
+                    for item in evidence_entries
+                    if isinstance(item, Mapping)
+                }
+            )
+            or any(
+                not isinstance(item, Mapping)
+                or set(item)
+                != {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
+                or any(
+                    not isinstance(item.get(key), str) or not item[key]
+                    for key in (
+                        "context_ref",
+                        "relation",
+                        "canonical_node_id",
+                        "literal_sha256",
+                    )
+                )
+                or re.fullmatch(r"[0-9a-f]{64}", item["literal_sha256"])
+                is None
+                for item in evidence_entries
+            )
+        ):
+            _fail("ordinary_trade_table_resolution_invalid")
     if incomplete and (
         not isinstance(value.get("columns"), list)
         or not isinstance(value.get("side_values"), list)
@@ -1075,7 +1123,8 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         or set(surface) != {"title_literal", "headers"}
         or surface.get("title_literal") is not None
         or not isinstance(surface.get("headers"), list)
-        or not surface["headers"]
+        or (not header_absent and not surface["headers"])
+        or (header_absent and surface["headers"])
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     headers = surface["headers"]
@@ -1116,6 +1165,18 @@ def _matching_table_resolutions(
     result = []
     for resolution in resolutions:
         if resolution["table_node_id"] != table.get("node_id"):
+            continue
+        if resolution["disposition"] == "HEADER_ABSENT":
+            content = table.get("content") or {}
+            header = content.get("header")
+            metadata = content.get("metadata")
+            if (
+                header != []
+                or not isinstance(metadata, Mapping)
+                or metadata.get("physical_header_state") != "ABSENT"
+            ):
+                _fail("ordinary_trade_table_resolution_surface_stale")
+            result.append(resolution)
             continue
         cells = rows.get(resolution["header_row"])
         expected = {

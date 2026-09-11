@@ -109,6 +109,34 @@ class Gate2StructuredModelResult:
     economy_budget_receipt: dict[str, Any] | None = None
 
 
+def require_strict_json_schema_response(
+    response: Any,
+    *,
+    error_code: str,
+    error_message: str,
+) -> None:
+    """Reject a response that was not one un-repaired strict JSON-schema call.
+
+    This is a transport-contract check only.  Domain owners still validate the
+    response body and its binding to their own Canonical package afterwards.
+    Callers own their public terminal code, so this helper cannot accidentally
+    turn a product terminal into a generic Gate 2 terminal.
+    """
+
+    if (
+        response is None
+        or getattr(response, "structured_output_mode", None)
+        != "openwebui_response_format_json_schema"
+        or getattr(response, "response_format_type", None) != "json_schema"
+        or getattr(response, "response_format_schema_mode", None)
+        != "strict_json_schema"
+        or getattr(response, "fallback_used", None) is not False
+        or getattr(response, "repair_attempt_count", None) != 0
+        or getattr(response, "execution_metadata", None) is None
+    ):
+        raise Gate2SourceFactRuntimeError(error_code, error_message)
+
+
 class Gate2StructuredModelClient(Protocol):
     def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
         ...

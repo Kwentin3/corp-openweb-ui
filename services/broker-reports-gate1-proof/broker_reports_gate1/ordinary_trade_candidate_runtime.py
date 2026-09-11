@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .artifact_models import ArtifactStorePort
 from .gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntime,
     Gate4OrdinaryTradeCandidateRuntimeFactory,
 )
 from .gate5_deterministic_source_fact_consumption import (
@@ -35,11 +36,18 @@ class OrdinaryTradeCandidateRuntimeFactory:
         self._read_enabled = read_enabled
 
     def create(self) -> Gate5DeterministicSourceFactConsumptionRuntime:
-        return Gate5DeterministicSourceFactConsumptionRuntime(
-            financial_case=Gate4OrdinaryTradeCandidateRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
-            ).create(),
+        return self.create_with_current_fact_set()[1]
+
+    def create_with_current_fact_set(self) -> tuple[
+        Gate4OrdinaryTradeCandidateRuntime, Gate5DeterministicSourceFactConsumptionRuntime
+    ]:
+        """Expose readiness and consumption from the same active fact owner."""
+        financial_case = Gate4OrdinaryTradeCandidateRuntimeFactory(
+            store=self._store,
+            read_enabled=self._read_enabled,
+        ).create()
+        return financial_case, Gate5DeterministicSourceFactConsumptionRuntime(
+            financial_case=financial_case,
             authority=Gate5TrustedMethodologyAuthorityFactory.create(),
         )
 

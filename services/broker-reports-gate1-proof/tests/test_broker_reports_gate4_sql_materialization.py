@@ -1255,6 +1255,7 @@ def _activate_canonical(
     source_rows: tuple[str, ...] = _SOURCE_ROWS,
     table_rows: tuple[tuple[str, ...], ...] | None = None,
     table_row_sets: tuple[tuple[tuple[str, ...], ...], ...] | None = None,
+    table_context_by_page: tuple[str, ...] | None = None,
 ):
     retention = build_retention_policy(mode="api_smoke")
     source_ref = f"g4-runtime-source-{document_id}-{artifact_version}"
@@ -1313,6 +1314,10 @@ def _activate_canonical(
     if table_rows is not None:
         table_row_sets = (table_rows,)
     if table_row_sets is not None:
+        if table_context_by_page is not None and len(table_context_by_page) != len(
+            table_row_sets
+        ):
+            raise ValueError("table_context_by_page_scope_invalid")
         container_format = "pdf"
         declared_mime_type = "application/pdf"
         source_payloads = [
@@ -1331,6 +1336,22 @@ def _activate_canonical(
         source_units = []
         table_projections = []
         for table_index, current_rows in enumerate(table_row_sets, start=1):
+            context_text = (
+                table_context_by_page[table_index - 1]
+                if table_context_by_page is not None
+                else ""
+            )
+            if context_text:
+                source_units.append(
+                    {
+                        "unit_ref": f"g4-test-context-unit-{table_index}",
+                        "source_location": {
+                            "page": table_index,
+                            "line_start": 0,
+                        },
+                        "text": context_text,
+                    }
+                )
             unit_ref = f"g4-test-table-unit-{table_index}"
             source_units.append(
                 {

@@ -200,7 +200,7 @@ def evaluate_route_activation(
             and document_ai.get("adapter_status") == "static_ready"
             and document_ai.get("selected_engine") == "mistral_ocr"
             and document_ai.get("selected_adapter")
-            == "mistral_serverless_ocr_adapter_v2"
+            == "mistral_serverless_ocr_adapter_v3"
             and document_ai.get("static_ready") is True
             and document_ai.get("composition_owner") == "PdfDocumentExtractorFactory"
             and document_ai.get("terminal_blockers")

@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
+from .instructional_table_classification import (
+    INPUT_SCHEMA_VERSION as INSTRUCTIONAL_CLASSIFICATION_INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_VERSION as INSTRUCTIONAL_CLASSIFICATION_OUTPUT_SCHEMA_VERSION,
+    PROMPT_CONTRACT_ID as INSTRUCTIONAL_CLASSIFICATION_PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER as INSTRUCTIONAL_CLASSIFICATION_PROMPT_PLACEHOLDER,
+)
 from .gate2_source_fact_contracts import Gate2PromptError
 
 
@@ -55,6 +61,9 @@ ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
 # adapter.  A focused contract test pins it to the adapter's stored-prompt
 # marker without pulling that mapping domain into Gate 2-only bundles.
 ORDINARY_TRADE_MAPPING_PACKAGE_MARKER = "{{ordinary_trade_mapping_case_json}}"
+ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID = (
+    "broker_reports_ordinary_trade_mapping_prompt_v1"
+)
 FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_lint_receipt_v1"
 )
@@ -386,13 +395,29 @@ class Gate2OpenWebUIRequestBuilder:
             if isinstance(response_format, dict)
             else None
         )
+        if (
+            self.request_profile == ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+            and getattr(prompt, "prompt_contract_id", None)
+            == INSTRUCTIONAL_CLASSIFICATION_PROMPT_CONTRACT_ID
+        ):
+            return self._build_instructional_classification_request(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
         expected_phase = (
             "map"
             if self.request_profile == ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
             else "interpret_answer"
         )
         if (
-            not isinstance(package, dict)
+            (
+                self.request_profile == ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+                and getattr(prompt, "prompt_contract_id", None)
+                != ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID
+            )
+            or not isinstance(package, dict)
             or package.get("phase") != expected_phase
             or not isinstance(package.get("case"), dict)
             or not isinstance(getattr(prompt, "content", None), str)
@@ -473,6 +498,106 @@ class Gate2OpenWebUIRequestBuilder:
             # one decision per table rather than an invalid partial JSON result.
             request["max_tokens"] = ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS
         return request
+
+    def _build_instructional_classification_request(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        json_schema = (
+            response_format.get("json_schema")
+            if isinstance(response_format, dict)
+            else None
+        )
+        if (
+            not isinstance(package, dict)
+            or set(package) != {"schema_version", "table"}
+            or package.get("schema_version")
+            != INSTRUCTIONAL_CLASSIFICATION_INPUT_SCHEMA_VERSION
+            or not isinstance(package.get("table"), dict)
+            or getattr(prompt, "prompt_contract_id", None)
+            != INSTRUCTIONAL_CLASSIFICATION_PROMPT_CONTRACT_ID
+            or getattr(prompt, "input_schema_version", None)
+            != INSTRUCTIONAL_CLASSIFICATION_INPUT_SCHEMA_VERSION
+            or getattr(prompt, "output_schema_id", None)
+            != INSTRUCTIONAL_CLASSIFICATION_OUTPUT_SCHEMA_VERSION
+            or getattr(prompt, "output_schema_version", None)
+            != INSTRUCTIONAL_CLASSIFICATION_OUTPUT_SCHEMA_VERSION
+            or not isinstance(getattr(prompt, "content", None), str)
+            or not prompt.content
+            or not isinstance(model_id, str)
+            or not model_id
+            or not isinstance(json_schema, dict)
+            or response_format.get("type") != "json_schema"
+            or set(json_schema) != {"name", "strict", "schema"}
+            or json_schema.get("name")
+            != INSTRUCTIONAL_CLASSIFICATION_OUTPUT_SCHEMA_VERSION
+            or json_schema.get("strict") is not True
+            or not isinstance(json_schema.get("schema"), dict)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "instructional_classification_model_request_invalid",
+                "Instructional classification request is not closed and strict",
+            )
+        package_json = json.dumps(
+            package,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        if (
+            prompt.content.count(INSTRUCTIONAL_CLASSIFICATION_PROMPT_PLACEHOLDER)
+            != 1
+            or INSTRUCTIONAL_CLASSIFICATION_PROMPT_PLACEHOLDER in package_json
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "instructional_classification_prompt_contract_mismatch",
+                "Instructional classification Prompt and package contract is invalid",
+            )
+        system_content = prompt.content.replace(
+            INSTRUCTIONAL_CLASSIFICATION_PROMPT_PLACEHOLDER, package_json
+        )
+        if INSTRUCTIONAL_CLASSIFICATION_PROMPT_PLACEHOLDER in system_content:
+            raise Gate2SourceFactRuntimeError(
+                "instructional_classification_prompt_contract_mismatch",
+                "Instructional package marker reached the provider request",
+            )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {
+                            "task": "classify_instructional_reference_table",
+                            "input": "embedded_in_system_prompt",
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": copy.deepcopy(response_format),
+            "metadata": {
+                "broker_reports_ordinary_trade": {
+                    "instructional_classification": True,
+                    "case_scope": "authenticated_private_case",
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": getattr(prompt, "prompt_ref", None),
+                    "prompt_hash": getattr(prompt, "hash", None),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
 
     def _build_gate5_single_input_hitl(
         self,

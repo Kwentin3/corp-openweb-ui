@@ -27,6 +27,7 @@ DOCUMENT_CLASS_LABELS = {
 
 BLOCKER_LABELS = {
     "PDF_DOCUMENT_AI_NOT_CONFIGURED": "PDF_DOCUMENT_AI_NOT_CONFIGURED: PDF Document AI is not configured.",
+    "PDF_DOCUMENT_AI_PAYMENT_REQUIRED": "PDF получен, но обработка остановлена из-за оплаты сервиса распознавания. Файл не повреждён; обратитесь к оператору.",
     "no_files": "Файлы не найдены. Прикрепите документы к сообщению.",
     "bytes_unavailable": "Не удалось прочитать содержимое загруженного файла.",
     "unsupported_format": "Формат файла пока не поддерживается для следующего шага.",
@@ -333,6 +334,8 @@ def _next_step(report: dict) -> str:
     next_step = report.get("recommended_next_step") or report.get("next_step")
     if next_step == "configure_pdf_document_ai":
         return "Contact the administrator to configure and qualify PDF Document AI."
+    if next_step == "contact_pdf_document_ai_operator":
+        return "Обработка не может продолжиться, пока не будет восстановлена оплата сервиса распознавания PDF. Обратитесь к оператору."
     if next_step == "attach_synthetic_files_and_retry":
         return "Прикрепите файлы брокерского отчета и отправьте сообщение еще раз."
     if next_step == "verify_pipe_byte_access_boundary":

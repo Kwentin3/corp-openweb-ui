@@ -56,6 +56,9 @@ from .ordinary_trade_declaration_case_inputs import (
 ORDINARY_TRADE_DECLARATION_MVP_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_declaration_mvp_receipt_v1"
 )
+ORDINARY_TRADE_DECLARATION_MVP_OPERATION_SET_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_declaration_mvp_receipt_v2"
+)
 ORDINARY_TRADE_DECLARATION_XML_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_declaration_xml_v1"
 )
@@ -186,11 +189,17 @@ class OrdinaryTradeDeclarationMvpRuntime:
             user=user,
         )
         facts = tuple(self._facts.list_facts(context=context))
-        disposal = _single(
-            tuple(item for item in facts if item.get("financial_type") == "SECURITY_DISPOSAL"),
-            "disposal",
+        disposals = tuple(
+            item for item in facts if item.get("financial_type") == "SECURITY_DISPOSAL"
         )
-        _validate_supported_fact_set(facts=facts, disposal=disposal)
+        disposal = _single(disposals, "disposal") if len(disposals) <= 1 else None
+        if disposal is not None:
+            _validate_supported_fact_set(facts=facts, disposal=disposal)
+        else:
+            _validate_supported_operation_set_fact_set(
+                facts=facts,
+                disposals=disposals,
+            )
         subject_ref = "security-disposal-1"
         compatibility_binding = {
             "schema_version": "broker_reports_ordinary_trade_taxpayer_binding_v0",
@@ -231,6 +240,22 @@ class OrdinaryTradeDeclarationMvpRuntime:
             residency,
             input_channel="minimal_tax_context",
         )
+        if len(disposals) > 1:
+            return self._run_operation_set(
+                context=context,
+                canonical_coverage=coverage,
+                case_inputs=case_inputs,
+                owner_facts=owner_facts,
+                facts=facts,
+                taxpayer_scope_ref=taxpayer_ref,
+                binding=binding,
+                resolved_inputs=resolved_inputs,
+                category_scope=category_scope,
+                taxpayer_binding=compatibility_binding,
+                right_side=right_side,
+            )
+        if disposal is None:
+            _fail("ordinary_trade_declaration_disposal_binding_required")
         incomplete = self._bridge.run(
             operation_methodology_ref=_operation_methodology_ref(),
             source_fact_methodology_ref=_source_methodology_ref(),
@@ -275,6 +300,96 @@ class OrdinaryTradeDeclarationMvpRuntime:
                 "reason_code", "ordinary_trade_declaration_mvp_blocked"
             )
             raise OrdinaryTradeDeclarationMvpError(str(blocker))
+        return self._release_assembly(
+            assembly=assembly,
+            context=context,
+            canonical_coverage=coverage,
+            case_inputs=case_inputs,
+            owner_facts=owner_facts,
+            facts=facts,
+            taxpayer_scope_ref=taxpayer_ref,
+            binding=binding,
+            disposal_fact_ids=[disposal["fact_id"]],
+        )
+
+    def _run_operation_set(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
+        case_inputs: dict[str, Any],
+        owner_facts: list[dict[str, Any]],
+        facts: tuple[dict[str, Any], ...],
+        taxpayer_scope_ref: str,
+        binding: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        category_scope: dict[str, Any],
+        taxpayer_binding: dict[str, Any],
+        right_side: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Release the exact current disposal set through its existing owners."""
+
+        preflight = self._bridge.run_current_case_operation_set(
+            operation_methodology_ref=_operation_methodology_ref(),
+            source_fact_methodology_ref=_source_methodology_ref(),
+            resolved_inputs=resolved_inputs,
+            category_scope=category_scope,
+            taxpayer_binding=taxpayer_binding,
+            completeness_evidence=None,
+            context=context,
+        )
+        scope_hash = _operation_set_scope_hash(preflight)
+        completeness = _category_completeness_evidence(
+            scope_hash=scope_hash,
+            canonical_coverage=canonical_coverage,
+        )
+        assembly = self._assembly.run_operation_set_v1(
+            operation_methodology_ref=_operation_methodology_ref(),
+            source_fact_methodology_ref=_source_methodology_ref(),
+            resolved_inputs=resolved_inputs,
+            category_scope=category_scope,
+            taxpayer_binding=taxpayer_binding,
+            category_completeness_evidence=completeness,
+            right_side_inputs=right_side,
+            context=context,
+        )
+        if assembly.get("terminal") != ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN:
+            blocker = (assembly.get("blockers") or assembly.get("demands") or [{}])[0]
+            _fail(
+                str(
+                    blocker.get("reason_code")
+                    or blocker.get("required_input")
+                    or "ordinary_trade_declaration_mvp_blocked"
+                )
+            )
+        disposal_fact_ids = _sealed_operation_set_disposal_fact_ids(assembly)
+        return self._release_assembly(
+            assembly=assembly,
+            context=context,
+            canonical_coverage=canonical_coverage,
+            case_inputs=case_inputs,
+            owner_facts=owner_facts,
+            facts=facts,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            binding=binding,
+            disposal_fact_ids=disposal_fact_ids,
+        )
+
+    def _release_assembly(
+        self,
+        *,
+        assembly: dict[str, Any],
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
+        case_inputs: dict[str, Any],
+        owner_facts: list[dict[str, Any]],
+        facts: tuple[dict[str, Any], ...],
+        taxpayer_scope_ref: str,
+        binding: dict[str, Any],
+        disposal_fact_ids: list[str],
+    ) -> dict[str, Any]:
+        """Project and persist an owner-proven assembly without changing it."""
+
         projection = self._projector.project_released(
             released_values=assembly["owner_artifacts"]["projection_input"],
             target_mechanics=assembly["owner_artifacts"]["target_mechanics"],
@@ -301,20 +416,26 @@ class OrdinaryTradeDeclarationMvpRuntime:
             "product_methodology_binding": copy.deepcopy(
                 case_inputs["methodology_inputs"]["authority_binding"]
             ),
-            "canonical_coverage_ref": coverage["coverage_ref"],
-            "canonical_coverage_sha256": coverage["coverage_sha256"],
+            "canonical_coverage_ref": canonical_coverage["coverage_ref"],
+            "canonical_coverage_sha256": canonical_coverage["coverage_sha256"],
             "fact_set_sha256": _sha(facts),
             "assembly_receipt_sha256": assembly["receipt_sha256"],
             "projection_receipt_sha256": projection["receipt"]["receipt_sha256"],
         }
+        exact_ids = sorted(disposal_fact_ids)
+        if len(exact_ids) != len(set(exact_ids)) or not exact_ids:
+            _fail("ordinary_trade_declaration_operation_set_evidence_invalid")
         receipt_base = {
-            "schema_version": ORDINARY_TRADE_DECLARATION_MVP_RECEIPT_SCHEMA_VERSION,
+            "schema_version": (
+                ORDINARY_TRADE_DECLARATION_MVP_RECEIPT_SCHEMA_VERSION
+                if len(exact_ids) == 1
+                else ORDINARY_TRADE_DECLARATION_MVP_OPERATION_SET_RECEIPT_SCHEMA_VERSION
+            ),
             "status": "produced",
             "terminal": ORDINARY_TRADE_DECLARATION_MVP_TERMINAL,
             "case_id": context.case_id,
             "tax_period": "2025",
-            "taxpayer_scope_ref": taxpayer_ref,
-            "disposal_fact_id": disposal["fact_id"],
+            "taxpayer_scope_ref": taxpayer_scope_ref,
             "authority_bindings": bindings,
             "xml_sha256": hashlib.sha256(xml_bytes).hexdigest(),
             "xml_size_bytes": len(xml_bytes),
@@ -325,6 +446,10 @@ class OrdinaryTradeDeclarationMvpRuntime:
             "semantic_reconciliation": semantic_reconciliation,
             "provider_calls_total": 0,
         }
+        if len(exact_ids) == 1:
+            receipt_base["disposal_fact_id"] = exact_ids[0]
+        else:
+            receipt_base["disposal_fact_ids"] = exact_ids
         receipt = {**receipt_base, "receipt_sha256": _sha(receipt_base)}
         receipt_ref = "mvp_receipt_" + receipt["receipt_sha256"][:32]
         xml_ref = "mvp_xml_" + receipt["xml_sha256"][:32] + "_" + _sha(bindings)[:12]
@@ -341,7 +466,7 @@ class OrdinaryTradeDeclarationMvpRuntime:
         )
         self._persist(
             artifact_ref=receipt_ref,
-            artifact_type=ORDINARY_TRADE_DECLARATION_MVP_RECEIPT_SCHEMA_VERSION,
+            artifact_type=receipt["schema_version"],
             payload=receipt,
             context=context,
         )
@@ -639,15 +764,17 @@ class OrdinaryTradeDeclarationMvpRuntime:
         )
         external = _owner_composed_source_data(case_inputs=case_inputs)
         facts = tuple(self._facts.list_facts(context=context))
-        disposal = _single(
-            tuple(
-                item
-                for item in facts
-                if item.get("financial_type") == "SECURITY_DISPOSAL"
-            ),
-            "disposal",
+        disposals = tuple(
+            item for item in facts if item.get("financial_type") == "SECURITY_DISPOSAL"
         )
-        _validate_supported_fact_set(facts=facts, disposal=disposal)
+        disposal = _single(disposals, "disposal") if len(disposals) <= 1 else None
+        if disposal is not None:
+            _validate_supported_fact_set(facts=facts, disposal=disposal)
+        else:
+            _validate_supported_operation_set_fact_set(
+                facts=facts,
+                disposals=disposals,
+            )
         subject_ref = "security-disposal-1"
         taxpayer_ref = case_inputs["taxpayer_scope_ref"]
         compatibility_binding = _operation_taxpayer_slot_binding(
@@ -684,6 +811,40 @@ class OrdinaryTradeDeclarationMvpRuntime:
                 input_channel="minimal_tax_context",
             )
         )
+        if len(disposals) > 1:
+            preflight = self._bridge.run_current_case_operation_set(
+                operation_methodology_ref=_operation_methodology_ref(),
+                source_fact_methodology_ref=_source_methodology_ref(),
+                resolved_inputs=resolved_inputs,
+                category_scope=category_scope,
+                taxpayer_binding=compatibility_binding,
+                completeness_evidence=None,
+                context=context,
+            )
+            try:
+                completeness = _category_completeness_evidence(
+                    scope_hash=_operation_set_scope_hash(preflight),
+                    canonical_coverage=canonical_coverage,
+                )
+            except OrdinaryTradeDeclarationMvpError as exc:
+                return {
+                    "schema_version": "broker_reports_active_category_declaration_preview_v1",
+                    "status": "blocked",
+                    "reason_code": exc.code,
+                    "xml_created": False,
+                }
+            return self._assembly.preview_operation_set_v1(
+                operation_methodology_ref=_operation_methodology_ref(),
+                source_fact_methodology_ref=_source_methodology_ref(),
+                resolved_inputs=resolved_inputs,
+                category_scope=category_scope,
+                taxpayer_binding=compatibility_binding,
+                category_completeness_evidence=completeness,
+                right_side_inputs=right_side,
+                context=context,
+            )
+        if disposal is None:
+            _fail("ordinary_trade_declaration_disposal_binding_required")
         incomplete = self._bridge.run(
             operation_methodology_ref=_operation_methodology_ref(),
             source_fact_methodology_ref=_source_methodology_ref(),
@@ -1756,6 +1917,96 @@ def _user_attested_taxpayer_binding(
         **base,
         "binding_ref": "user_attested_taxpayer_" + _sha(base)[:32],
     }
+
+
+def _operation_set_scope_hash(preflight: Any) -> str:
+    try:
+        value = preflight["operation_set"]["scope_binding"]["scope_binding_sha256"]
+    except (KeyError, TypeError):
+        value = None
+    if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+        blocker = (
+            (preflight.get("blockers") or preflight.get("demands") or [{}])[0]
+            if isinstance(preflight, dict)
+            else {}
+        )
+        _fail(
+            str(
+                blocker.get("reason_code")
+                or blocker.get("required_input")
+                or "ordinary_trade_declaration_operation_set_preflight_invalid"
+            )
+        )
+    return value
+
+
+def _category_completeness_evidence(
+    *, scope_hash: str, canonical_coverage: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "schema_version": GATE5_TAX_PERIOD_COMPLETENESS_EVIDENCE_SCHEMA_VERSION,
+        "status": "asserted_complete",
+        "coverage_kind": "all_operations_in_taxpayer_category_period_scope",
+        "scope_binding_sha256": scope_hash,
+        "provenance": {
+            "source_kind": "current_canonical_coverage",
+            "source_ref": canonical_coverage["coverage_ref"],
+            "input_channel": "tax_period_scope_completeness",
+        },
+    }
+
+
+def _sealed_operation_set_disposal_fact_ids(assembly: Any) -> list[str]:
+    try:
+        operation_set = assembly["owner_artifacts"]["operation_set_result"][
+            "operation_set"
+        ]
+        ids = operation_set["disposal_fact_ids"]
+        operation_results = assembly["owner_artifacts"]["operation_set_result"][
+            "operation_results"
+        ]
+    except (KeyError, TypeError):
+        _fail("ordinary_trade_declaration_operation_set_evidence_invalid")
+    if (
+        not isinstance(ids, list)
+        or len(ids) < 2
+        or ids != sorted(ids)
+        or len(ids) != len(set(ids))
+        or not all(_identifier(item) for item in ids)
+        or not isinstance(operation_results, list)
+        or sorted(item.get("disposal_fact_id") for item in operation_results)
+        != ids
+    ):
+        _fail("ordinary_trade_declaration_operation_set_evidence_invalid")
+    return copy.deepcopy(ids)
+
+
+def _validate_supported_operation_set_fact_set(
+    *, facts: tuple[dict[str, Any], ...], disposals: tuple[dict[str, Any], ...]
+) -> None:
+    """Keep the MVP's declared input perimeter before multi-op coordination.
+
+    The operation-set bridge remains the owner of operation selection and tax
+    meaning.  This adapter only retains the pre-existing MVP perimeter: its
+    current facts must be security-trade inputs in RUB for the supported 2025
+    profile.  It deliberately performs no transaction matching or money work.
+    """
+
+    allowed_types = {"SECURITY_PURCHASE", "SECURITY_DISPOSAL", "TRANSACTION_CHARGE"}
+    disposal_roles = [
+        {item.get("role"): item.get("value") for item in disposal.get("roles", [])}
+        for disposal in disposals
+    ]
+    if (
+        len(disposals) < 2
+        or any(item.get("financial_type") not in allowed_types for item in facts)
+        or any(
+            roles.get("currency") != "RUB"
+            or not str(roles.get("date", "")).startswith("2025-")
+            for roles in disposal_roles
+        )
+    ):
+        _fail("ordinary_trade_declaration_scenario_unsupported")
 
 
 def _validate_supported_fact_set(

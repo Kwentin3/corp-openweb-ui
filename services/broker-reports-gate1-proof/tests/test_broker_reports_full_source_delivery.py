@@ -144,6 +144,42 @@ def _full_source_graph(tmp_path: Path):
     return store, context, manifest, expected
 
 
+def test_paged_legacy_pdf_extraction_without_table_refs_remains_readable() -> None:
+    """Table identity is optional; exact page Markdown remains the authority."""
+    markdown = b"# Legacy PDF page\n\n| Date | Amount |\n| --- | --- |\n| 2025-01-01 | 10 |"
+    legacy_extraction = SimpleNamespace(
+        source_pdf_sha256=hashlib.sha256(b"legacy-pdf").hexdigest(),
+        page_numbers=(1,),
+        markdown_bytes=markdown,
+        markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+        image_refs=(),
+        provider_id="fixture-provider",
+        requested_model_id="fixture-model",
+        model_id="fixture-model",
+        adapter_id="fixture-adapter",
+        request_contract_version="fixture-request-v1",
+        request_parameters=(),
+        request_parameters_sha256=hashlib.sha256(b"{}").hexdigest(),
+        page_markdown_sha256=(hashlib.sha256(markdown).hexdigest(),),
+        qualification_status="offline_fixture",
+        usage_page_count=1,
+        page_markdown_bytes=(markdown,),
+        page_content_dispositions=("markdown_materialized",),
+        schema_version="broker_reports_pdf_document_extraction_v4",
+    )
+
+    result = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id="legacy-run",
+        document_id="legacy-document",
+        profile_id="legacy-profile",
+        extraction=legacy_extraction,
+    )
+
+    assert len(result.payloads) == 1
+    assert len(result.units) == 1
+    assert result.summary["full_coverage_available"] is True
+
+
 def _install_openwebui_file_boundary(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -1,0 +1,877 @@
+"""
+title: Goal 391 Mapping Lab
+author: Alpha Soft
+version: 0.1.0-native-lab
+required_open_webui_version: 0.9.6
+requirements: pydantic
+
+Native, non-product qualification adapter for the Goal #391 mapping seam.
+
+This Pipe deliberately owns no corpus, mapping rule, prompt body, storage or
+provider credential.  Its Function Valves contain a sealed, pre-authorized
+historical source plan.  The selected OpenWebUI Pipe supplies only the native
+invocation and ordinary-user identity; it is never bound to that historical
+source scope.  The Pipe only composes the established Prompt, mapping and
+native OpenWebUI completion owners into one stateless, bounded attempt and
+returns a value-free receipt.
+"""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import inspect
+import json
+from pathlib import Path
+from typing import Any, Mapping
+
+from pydantic import BaseModel, Field
+
+from broker_reports_gate1.artifact_models import ArtifactAccessContext
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.gate2_model_clients import Gate2StructuredModelClientFactory
+from broker_reports_gate1.gate2_model_contracts import (
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClientConfig,
+    require_strict_json_schema_response,
+)
+from broker_reports_gate1.gate2_model_requests import (
+    ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+)
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    OrdinaryTradeMappingPromptConfig,
+    OrdinaryTradeMappingPromptResolverFactory,
+    OrdinaryTradeMappingPromptUserContext,
+)
+from broker_reports_gate1.goal391_private_selection_binding import (
+    Goal391PrivateSelectionBindingIssuer,
+    Goal391PrivateSourceFileSelectionRequest,
+)
+from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
+    GROUPED_MAPPING_LAB_PROMPT_COMMAND,
+    GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
+    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
+    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
+    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+    Goal391GroupedMappingLabError,
+    expand_grouped_response,
+    grouped_mapping_response_format,
+)
+from broker_reports_gate1.goal391_mapping_lab_control_plan import (
+    SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION,
+    canonical_table_node_ids,
+    sha256_json,
+    valid_expected_assessment,
+)
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingError,
+    OrdinaryTradeSemanticMappingFactory,
+)
+from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerError,
+)
+
+
+PROVIDER_PROFILE_ID = "google_gemini"
+MODEL_ID = "models/gemini-3.5-flash"
+SAFE_RECEIPT_SCHEMA_VERSION = "goal391_native_mapping_lab_pipe_receipt_v1"
+_MIN_CASES_REQUIRED_TOTAL = 1
+_MAX_CASES_REQUIRED_TOTAL = 2
+_CANONICAL_BINDING_FIELDS = (
+    "document_id",
+    "canonical_version_id",
+    "canonical_root_sha256",
+    "source_artifact_ref",
+    "source_sha256",
+)
+_CANONICAL_IDENTITY_FIELDS = (
+    "document_id",
+    "canonical_root_sha256",
+    "source_sha256",
+)
+_FORBIDDEN_CHAT_KEYS = frozenset({"chat_id", "parent_id", "message_id"})
+_FORBIDDEN_LAB_BODY_KEYS = frozenset(
+    {
+        "canonical",
+        "cases",
+        "expected_assessment",
+        "frozen_mappings",
+        "goal391_lab",
+        "prompt",
+        "prompt_id",
+        "prompt_hash",
+        "prompt_version",
+    }
+)
+
+
+class Goal391MappingLabPipeError(RuntimeError):
+    """Value-free terminal code for this adapter boundary."""
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        super().__init__(code)
+
+
+class Goal391ServerBoundCaseLoader:
+    """Read exactly two sealed source-file selections for this lab Pipe.
+
+    This deliberately is not a corpus registry.  Each Function Valve slot
+    contains the real storage scope and one OpenWebUI file identity.  The
+    existing ArtifactResolver derives the run/document binding from that exact
+    file, then ArtifactStore and CanonicalReader remain the only Canonical
+    owners.  The loader returns in-memory packages only and never publishes,
+    discovers, or repairs anything.
+    """
+
+    def __init__(self, *, valves: Any) -> None:
+        self._valves = valves
+
+    def load(self, *, user: Any) -> list[dict[str, Any]]:
+        plan = self._read_plan()
+        user_id = self._ordinary_user_id(user=user, plan=plan)
+        store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=Path(str(self._valves.artifact_store_path)),
+                payload_root=Path(str(self._valves.artifact_payload_root)),
+            )
+        ).create_read_only()
+        reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+        selection = Goal391PrivateSelectionBindingIssuer(
+            store=store, reader=reader, resolver=ArtifactResolver(store)
+        ).issue_from_source_files(
+            corpus_id=plan["plan_ref"],
+            requests=tuple(
+                Goal391PrivateSourceFileSelectionRequest(
+                    slot_id=slot["slot_id"],
+                    openwebui_file_id=slot["source_openwebui_file_id"],
+                    context=self._source_scope_context(slot=slot, user_id=user_id),
+                )
+                for slot in plan["slots"]
+            ),
+        )
+        selections = {item.slot_id: item for item in selection.selections}
+        if set(selections) != {slot["slot_id"] for slot in plan["slots"]}:
+            raise Goal391MappingLabPipeError("goal391_lab_source_selection_invalid")
+        loaded: list[dict[str, Any]] = []
+        for slot in plan["slots"]:
+            selected = selections[slot["slot_id"]]
+            context = selected.access_context(require_source_available=True)
+            envelope = reader.read_envelope(
+                selected.manifest_ref,
+                context,
+                expected_normalization_run_id=selected.normalization_run_id,
+            )
+            binding = self._binding_from_envelope(envelope)
+            if self._canonical_identity(binding) != slot["canonical_identity"]:
+                raise Goal391MappingLabPipeError(
+                    "goal391_lab_canonical_binding_mismatch"
+                )
+            loaded.append(
+                {
+                    "case_id": slot["slot_id"],
+                    "canonical": copy.deepcopy(envelope.artifact),
+                    "canonical_binding": binding,
+                    "confirmed_understandings": copy.deepcopy(
+                        slot["confirmed_understandings"]
+                    ),
+                    "target_table_node_ids": list(slot["target_table_node_ids"]),
+                    "frozen_mappings": copy.deepcopy(slot["frozen_mappings"]),
+                    "user_scope_sha256": self._sha256(
+                        {
+                            "user_id": context.user_id,
+                            "case_id": context.case_id,
+                            "source_chat_id": context.chat_id,
+                            "workspace_model_id": context.workspace_model_id,
+                        }
+                    ),
+                    "expected_assessment": copy.deepcopy(
+                        slot["expected_assessment"]
+                    ),
+                }
+            )
+        return loaded
+
+    def _read_plan(self) -> dict[str, Any]:
+        encoded = str(getattr(self._valves, "case_control_plan_json", "") or "")
+        if not encoded.strip():
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_required")
+        try:
+            plan = json.loads(encoded)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid") from exc
+        if not isinstance(plan, dict) or set(plan) != {
+            "schema_version",
+            "plan_ref",
+            "plan_digest",
+            "ordinary_test_user_id",
+            "slots",
+        }:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
+        cases_required_total = int(getattr(self._valves, "cases_required_total", 0))
+        if (
+            plan["schema_version"] != SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION
+            or not isinstance(plan["plan_ref"], str)
+            or not plan["plan_ref"].strip()
+            or not isinstance(plan["plan_digest"], str)
+            or len(plan["plan_digest"]) != 64
+            or not isinstance(plan["ordinary_test_user_id"], str)
+            or not plan["ordinary_test_user_id"].strip()
+            or not isinstance(plan["slots"], list)
+            or not (
+                _MIN_CASES_REQUIRED_TOTAL
+                <= cases_required_total
+                <= _MAX_CASES_REQUIRED_TOTAL
+            )
+            or len(plan["slots"]) != cases_required_total
+        ):
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
+        digest_material = dict(plan)
+        claimed_digest = digest_material.pop("plan_digest")
+        if claimed_digest != self._sha256(digest_material):
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_digest_invalid")
+        if str(getattr(self._valves, "ordinary_test_user_id", "") or "").strip() != plan[
+            "ordinary_test_user_id"
+        ]:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_user_mismatch")
+        slots = [self._validated_slot(slot=slot, plan=plan) for slot in plan["slots"]]
+        if len({slot["slot_id"] for slot in slots}) != cases_required_total or len(
+            {slot["canonical_identity"]["document_id"] for slot in slots}
+        ) != cases_required_total:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_duplicate_scope")
+        return {**plan, "slots": slots}
+
+    @staticmethod
+    def _validated_slot(*, slot: Any, plan: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "slot_id",
+            "historical_source_scope",
+            "source_openwebui_file_id",
+            "canonical_identity",
+            "target_table_node_ids",
+            "confirmed_understandings",
+            "frozen_mappings",
+            "expected_assessment",
+        }
+        if not isinstance(slot, Mapping) or set(slot) != required:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
+        scope = slot["historical_source_scope"]
+        if not isinstance(scope, Mapping) or set(scope) != {
+            "case_id",
+            "chat_id",
+            "workspace_model_id",
+        }:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
+        identity = slot["canonical_identity"]
+        if (
+            not isinstance(identity, Mapping)
+            or set(identity) != set(_CANONICAL_IDENTITY_FIELDS)
+            or any(
+                not isinstance(identity.get(key), str) or not identity[key]
+                for key in _CANONICAL_IDENTITY_FIELDS
+            )
+            or (scope.get("case_id") is None) == (scope.get("chat_id") is None)
+            or any(
+                not isinstance(scope.get(key), str) or not scope[key]
+                for key in ("workspace_model_id",)
+            )
+            or any(
+                scope.get(key) is not None
+                and (not isinstance(scope.get(key), str) or not scope[key])
+                for key in ("case_id", "chat_id")
+            )
+            or not isinstance(slot["slot_id"], str)
+            or not slot["slot_id"].strip()
+            or not isinstance(slot["source_openwebui_file_id"], str)
+            or not slot["source_openwebui_file_id"].strip()
+            or not isinstance(slot["target_table_node_ids"], list)
+            or not slot["target_table_node_ids"]
+            or any(not isinstance(value, str) or not value for value in slot["target_table_node_ids"])
+            or len(set(slot["target_table_node_ids"])) != len(slot["target_table_node_ids"])
+            or not isinstance(slot["confirmed_understandings"], list)
+            or not isinstance(slot["frozen_mappings"], list)
+            or not valid_expected_assessment(
+                slot["expected_assessment"],
+                target_table_node_ids=slot["target_table_node_ids"],
+            )
+        ):
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
+        return copy.deepcopy(dict(slot))
+
+    @staticmethod
+    def _ordinary_user_id(*, user: Any, plan: Mapping[str, Any]) -> str:
+        user_id = str(
+            user.get("id") if isinstance(user, Mapping) else getattr(user, "id", "")
+        ).strip()
+        role = str(
+            user.get("role") if isinstance(user, Mapping) else getattr(user, "role", "")
+        ).strip()
+        if not user_id or role != "user" or user_id != plan["ordinary_test_user_id"]:
+            raise Goal391MappingLabPipeError("goal391_lab_access_denied")
+        return user_id
+
+    @staticmethod
+    def _source_scope_context(*, slot: Mapping[str, Any], user_id: str) -> ArtifactAccessContext:
+        # This translates the sealed historical source scope to the existing
+        # storage-owner contract.  The source scope is deliberately separate
+        # from the browser transport used to invoke this Pipe.
+        scope = slot["historical_source_scope"]
+        scope_identity = (
+            {"case_id": scope["case_id"]}
+            if scope["case_id"] is not None
+            else {"chat_id": scope["chat_id"]}
+        )
+        return ArtifactAccessContext(
+            user_id=user_id,
+            normalization_run_id="goal391-source-file-selection",
+            workspace_model_id=scope["workspace_model_id"],
+            allow_private=True,
+            **scope_identity,
+        )
+
+    @staticmethod
+    def _binding_from_envelope(envelope: Any) -> dict[str, str]:
+        source = envelope.artifact.get("source") or {}
+        finalization = envelope.artifact.get("finalization") or {}
+        binding = {
+            "document_id": str(envelope.document_id or ""),
+            "canonical_version_id": str(
+                finalization.get("base_canonical_version_id")
+                or envelope.canonical_version_id
+                or ""
+            ),
+            "canonical_root_sha256": str(
+                finalization.get("base_canonical_root_sha256")
+                or envelope.canonical_root_sha256
+                or ""
+            ),
+            "source_artifact_ref": str(source.get("source_artifact_ref") or ""),
+            "source_sha256": str(source.get("source_sha256") or ""),
+        }
+        if not all(binding.values()):
+            raise Goal391MappingLabPipeError("goal391_lab_canonical_binding_invalid")
+        return binding
+
+    @staticmethod
+    def _canonical_identity(binding: Mapping[str, str]) -> dict[str, str]:
+        identity = {key: str(binding.get(key) or "") for key in _CANONICAL_IDENTITY_FIELDS}
+        if not all(identity.values()):
+            raise Goal391MappingLabPipeError("goal391_lab_canonical_binding_invalid")
+        return identity
+
+    @staticmethod
+    def _sha256(value: Any) -> str:
+        return sha256_json(value)
+
+
+class Pipe:
+    class Valves(BaseModel):
+        # The lab is never a general-user model.  OpenWebUI remains the access
+        # owner; this valve narrows it further to the designated ordinary user.
+        ordinary_test_user_id: str = Field(default="")
+        # One sealed case is sufficient for a failure diagnosis; two remain
+        # available for the comparative qualification path.  The Function
+        # Valve pins the exact count before any source owner is read.
+        cases_required_total: int = Field(default=2, ge=1, le=2)
+        # The Function owner supplies this sealed plan.  It contains only
+        # opaque references, existing bindings and lab expectations; it never
+        # carries a Canonical, source file, Prompt body or provider material.
+        case_control_plan_json: str = Field(default="")
+        artifact_store_path: str = Field(
+            default="/app/backend/data/broker_reports_gate1/artifacts.sqlite3"
+        )
+        artifact_payload_root: str = Field(
+            default="/app/backend/data/broker_reports_gate1/payloads"
+        )
+        model_id: str = Field(default=MODEL_ID)
+        provider_profile_id: str = Field(default=PROVIDER_PROFILE_ID)
+        prompt_id: str = Field(default="")
+        prompt_version: str = Field(default="")
+        prompt_hash: str = Field(default="")
+        # v14 is deliberately lab-only.  It changes only model response
+        # compression; the existing semantic owner still validates the fully
+        # expanded v13 decision before this Pipe emits its receipt.
+        grouped_response_v14: bool = Field(default=False)
+        # A one-shot source/CANONICAL admission check for the temporary lab.
+        # It is explicit so the normal qualification path cannot silently skip
+        # its provider attempt.
+        preflight_only: bool = Field(default=False)
+
+    def __init__(self) -> None:
+        self.valves = self.Valves()
+        self.last_safe_receipt: dict[str, Any] | None = None
+
+    async def pipe(
+        self,
+        body: dict[str, Any],
+        __user__: Any = None,
+        __request__: Any = None,
+        __task__: Any = None,
+        **kwargs: Any,
+    ) -> str:
+        """Run through the normal selected-model Pipe invocation."""
+
+        self.last_safe_receipt = None
+        try:
+            if str(__task__ or "").strip():
+                raise Goal391MappingLabPipeError("goal391_lab_auxiliary_task_forbidden")
+            self._ordinary_user_id(__user__)
+            self._require_request(__request__)
+            # A normal OpenWebUI chat body is accepted and deliberately ignored.
+            # It never selects scope or enters the provider prompt.  Only a
+            # caller trying to smuggle laboratory control data is rejected.
+            self._require_normal_body(body)
+            loader = Goal391ServerBoundCaseLoader(valves=self.valves)
+            cases = await self._load_cases(loader=loader, user=__user__)
+            prepared = self._preflight(cases=cases)
+            if self.valves.preflight_only:
+                receipt = self._preflight_receipt(prepared)
+            else:
+                prompt = await self._resolve_prompt(__user__)
+                receipt = await self._execute(
+                    cases=prepared,
+                    prompt=prompt,
+                    request=__request__,
+                    user=__user__,
+                )
+        except Goal391MappingLabPipeError as exc:
+            receipt = self._blocked_receipt(exc.code)
+        except Exception as exc:  # Never return provider/source/Python details.
+            receipt = self._blocked_receipt(self._safe_error_code(exc))
+        self.last_safe_receipt = receipt
+        return json.dumps(receipt, ensure_ascii=False, sort_keys=True)
+
+    def _ordinary_user_id(self, user: Any) -> str:
+        user_id = str(
+            user.get("id") if isinstance(user, Mapping) else getattr(user, "id", "")
+        ).strip()
+        role = str(
+            user.get("role") if isinstance(user, Mapping) else getattr(user, "role", "")
+        ).strip()
+        configured = str(self.valves.ordinary_test_user_id or "").strip()
+        if not user_id or role != "user" or not configured or user_id != configured:
+            raise Goal391MappingLabPipeError("goal391_lab_access_denied")
+        return user_id
+
+    @staticmethod
+    def _require_request(request: Any) -> None:
+        if request is None:
+            raise Goal391MappingLabPipeError("goal391_lab_request_required")
+
+    @staticmethod
+    def _require_normal_body(body: Any) -> None:
+        if not isinstance(body, Mapping):
+            raise Goal391MappingLabPipeError("goal391_lab_body_invalid")
+        if _FORBIDDEN_LAB_BODY_KEYS.intersection(body):
+            raise Goal391MappingLabPipeError("goal391_lab_body_input_forbidden")
+
+    async def _resolve_prompt(self, user: Any):
+        prompt_id = str(self.valves.prompt_id or "").strip()
+        prompt_version = str(self.valves.prompt_version or "").strip()
+        prompt_hash = str(self.valves.prompt_hash or "").strip()
+        if not prompt_id or not prompt_version or not prompt_hash:
+            raise Goal391MappingLabPipeError("goal391_lab_prompt_pin_required")
+        user_id = self._ordinary_user_id(user)
+        # The Pipe never opens Prompt tables. The existing resolver delegates
+        # to in-process OpenWebUI Prompt, history and access-grant owners.
+        return await OrdinaryTradeMappingPromptResolverFactory(
+            OrdinaryTradeMappingPromptConfig(
+                source="openwebui_server",
+                prompt_id=prompt_id,
+                command=None,
+                required_command=(
+                    GROUPED_MAPPING_LAB_PROMPT_COMMAND
+                    if self.valves.grouped_response_v14
+                    else "broker_ordinary_trade_semantic_mapping_v1"
+                ),
+                required_template_id=(
+                    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID
+                    if self.valves.grouped_response_v14
+                    else "broker_reports.ordinary_trade_semantic_mapping.v1"
+                ),
+                required_template_kind=(
+                    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND
+                    if self.valves.grouped_response_v14
+                    else "broker_reports_ordinary_trade_semantic_mapping"
+                ),
+                required_tag=(
+                    GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG
+                    if self.valves.grouped_response_v14
+                    else "broker-reports-ordinary-trade-mapping"
+                ),
+                release_prompt_version=prompt_version,
+                release_prompt_hash=prompt_hash,
+                required_output_schema_id=(
+                    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION
+                    if self.valves.grouped_response_v14
+                    else MAPPING_RESPONSE_SCHEMA_VERSION
+                ),
+                required_output_schema_version=(
+                    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION
+                    if self.valves.grouped_response_v14
+                    else MAPPING_RESPONSE_SCHEMA_VERSION
+                ),
+            )
+        ).create_async().resolve(
+            OrdinaryTradeMappingPromptUserContext(user_id=user_id, user_role="user")
+        )
+
+    async def _load_cases(self, *, loader: Goal391ServerBoundCaseLoader, user: Any) -> list[dict[str, Any]]:
+        value = loader.load(user=user)
+        if inspect.isawaitable(value):
+            value = await value
+        if not isinstance(value, list):
+            raise Goal391MappingLabPipeError("goal391_lab_cases_invalid")
+        return value
+
+    def _preflight(self, *, cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if len(cases) != self.valves.cases_required_total:
+            raise Goal391MappingLabPipeError("goal391_lab_case_count_invalid")
+        semantic = OrdinaryTradeSemanticMappingFactory.create()
+        prepared: list[dict[str, Any]] = []
+        for case in cases:
+            required = {
+                "case_id",
+                "canonical",
+                "canonical_binding",
+                "confirmed_understandings",
+                "target_table_node_ids",
+                "frozen_mappings",
+                "user_scope_sha256",
+                "expected_assessment",
+            }
+            if not isinstance(case, Mapping) or set(case) != required:
+                raise Goal391MappingLabPipeError("goal391_lab_case_invalid")
+            canonical = case["canonical"]
+            if not isinstance(canonical, Mapping) or validate_canonical_artifact(canonical).get("passed") is not True:
+                raise Goal391MappingLabPipeError("goal391_lab_canonical_invalid")
+            try:
+                actual_target_table_node_ids = list(
+                    canonical_table_node_ids(canonical)
+                )
+            except ValueError as exc:
+                raise Goal391MappingLabPipeError(
+                    "goal391_lab_target_table_scope_invalid"
+                ) from exc
+            if actual_target_table_node_ids != case["target_table_node_ids"]:
+                raise Goal391MappingLabPipeError(
+                    "goal391_lab_target_table_scope_mismatch"
+                )
+            assessment = case["expected_assessment"]
+            if not valid_expected_assessment(
+                assessment,
+                target_table_node_ids=case["target_table_node_ids"],
+            ):
+                raise Goal391MappingLabPipeError("goal391_lab_assessment_invalid")
+            package = semantic.build_mapping_package(
+                canonical=canonical,
+                confirmed_understandings=case["confirmed_understandings"],
+                target_table_node_ids=case["target_table_node_ids"],
+            )
+            required_exclusions = [
+                decision["table_node_id"]
+                for decision in assessment["required_table_decisions"]
+                if decision["disposition"] == "NO_NAMED_CONSUMER"
+            ]
+            envelopes = (
+                semantic.build_classification_evidence_envelopes(
+                    canonical=canonical, target_table_node_ids=required_exclusions
+                )
+                if required_exclusions
+                else {}
+            )
+            prepared.append(
+                {
+                    "case": dict(case),
+                    "package": package,
+                    "owner_envelopes": envelopes,
+                }
+            )
+        if len({str(item["case"]["case_id"]) for item in prepared}) != len(prepared):
+            raise Goal391MappingLabPipeError("goal391_lab_case_duplicate")
+        return prepared
+
+    def _preflight_receipt(self, prepared: list[dict[str, Any]]) -> dict[str, Any]:
+        """Confirm both owner-bound inputs before a separately enabled run."""
+
+        return {
+            "schema_version": SAFE_RECEIPT_SCHEMA_VERSION,
+            "status": "PREFLIGHT_READY",
+            "corpus": {
+                "cases_total": len(prepared),
+                "provider_calls_started_total": 0,
+                "provider_calls_returned_total": 0,
+                "records": [],
+            },
+            "constraints": self._constraints(),
+            "terminal_error": None,
+        }
+
+    async def _execute(self, *, cases, prompt, request: Any, user: Any) -> dict[str, Any]:
+        client = Gate2StructuredModelClientFactory(
+            config=Gate2StructuredModelClientConfig(
+                request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+                provider_profile_id=str(self.valves.provider_profile_id),
+                capability_probe=False,
+                economy_budget_enforcement=False,
+            ),
+            user=user,
+            request=request,
+        ).create()
+        semantic = OrdinaryTradeSemanticMappingFactory.create()
+        records: list[dict[str, Any]] = []
+        terminal_error = None
+        for item in cases:
+            try:
+                response_format = (
+                    grouped_mapping_response_format(
+                        v13_response_format=semantic.mapping_response_format()
+                    )
+                    if self.valves.grouped_response_v14
+                    else semantic.mapping_response_format()
+                )
+                response = await client.extract(
+                    prompt=prompt,
+                    package=item["package"],
+                    model_id=str(self.valves.model_id),
+                    response_format=response_format,
+                )
+                require_strict_json_schema_response(
+                    response,
+                    error_code="ordinary_trade_mapping_strict_output_required",
+                    error_message="Semantic mapping requires one strict output without repair",
+                )
+                response_value = (
+                    expand_grouped_response(response=response, package=item["package"])
+                    if self.valves.grouped_response_v14
+                    else response
+                )
+                failure_code = semantic.mapping_response_contract_failure_code(
+                    response_value
+                )
+                if failure_code is not None:
+                    # The owner returns a value-free contract code.  Keeping it
+                    # in the laboratory receipt makes a post-response failure
+                    # actionable without exposing model or source content.
+                    raise Goal391MappingLabPipeError(f"goal391_lab_{failure_code}")
+                outcome = semantic.validate_mapping_response(
+                    response=response_value,
+                    canonical=item["case"]["canonical"],
+                    canonical_binding=item["case"]["canonical_binding"],
+                    model_id=str(self.valves.model_id),
+                    provider_profile_id=str(self.valves.provider_profile_id),
+                    execution_metadata=response.execution_metadata,
+                    confirmed_understandings=item["case"]["confirmed_understandings"],
+                    user_scope_sha256=item["case"]["user_scope_sha256"],
+                    target_table_node_ids=item["case"]["target_table_node_ids"],
+                    frozen_mappings=item["case"]["frozen_mappings"],
+                )
+                records.append(self._safe_record(item=item, outcome=outcome))
+            except Exception as exc:
+                terminal_error = self._safe_error_code(exc)
+                break
+        lifecycle = client.qualification_lifecycle_snapshot()
+        expected = len(cases)
+        passed = (
+            terminal_error is None
+            and lifecycle["provider_submissions_total"] == expected
+            and lifecycle == {
+                "local_invocations_total": expected,
+                "provider_submissions_total": expected,
+                "provider_responses_total": expected,
+            }
+            and all(record["outcome"] == "PASS" for record in records)
+        )
+        return {
+            "schema_version": SAFE_RECEIPT_SCHEMA_VERSION,
+            "status": "PASSED" if passed else "FAILED",
+            "corpus": {
+                "cases_total": expected,
+                "provider_calls_started_total": lifecycle["provider_submissions_total"],
+                "provider_calls_returned_total": lifecycle["provider_responses_total"],
+                "records": records,
+            },
+            "constraints": self._constraints(),
+            "terminal_error": terminal_error,
+        }
+
+    @staticmethod
+    def _require_stateless_form(form_data: Mapping[str, Any]) -> None:
+        if not isinstance(form_data, Mapping):
+            raise Goal391MappingLabPipeError("goal391_lab_form_invalid")
+        if any(key in form_data for key in _FORBIDDEN_CHAT_KEYS):
+            raise Goal391MappingLabPipeError("goal391_lab_chat_identifier_forbidden")
+        metadata = form_data.get("metadata")
+        if isinstance(metadata, Mapping) and any(key in metadata for key in _FORBIDDEN_CHAT_KEYS):
+            raise Goal391MappingLabPipeError("goal391_lab_chat_identifier_forbidden")
+
+    def _safe_record(self, *, item: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict[str, Any]:
+        case = item["case"]
+        assessment = case["expected_assessment"]
+        result = outcome
+        raw_resolutions = {
+            value.get("table_node_id"): value
+            for value in result.get("table_resolutions") or []
+            if isinstance(value, Mapping) and isinstance(value.get("table_node_id"), str)
+        }
+        if result.get("status") == "CURRENCY_ASSERTION_REQUIRED":
+            response = (result.get("currency_mapping_plan") or {}).get("response")
+            decisions = response.get("table_decisions") if isinstance(response, Mapping) else None
+            target_ids = case["target_table_node_ids"]
+            if isinstance(decisions, list) and len(decisions) == len(target_ids):
+                for table_node_id, decision in zip(target_ids, decisions, strict=True):
+                    if isinstance(decision, Mapping):
+                        raw_resolutions[table_node_id] = {
+                            "table_node_id": table_node_id,
+                            **dict(decision),
+                        }
+        resolutions = {
+            value.get("table_node_id"): {
+                key: value.get(key)
+                for key in ("table_node_id", "disposition", "no_consumer_kind")
+                if key in value
+            }
+            for value in raw_resolutions.values()
+        }
+        required = {
+            decision["table_node_id"]: dict(decision)
+            for decision in assessment["required_table_decisions"]
+        }
+        expected = {
+            node_id: {
+                key: value for key, value in decision.items()
+                if key in {"table_node_id", "disposition", "no_consumer_kind"}
+            }
+            for node_id, decision in required.items()
+        }
+        qualified = sorted(
+            str(value["case_scope"]["table_node_id"])
+            for value in result.get("qualification_receipts") or []
+            if isinstance(value, Mapping)
+            and isinstance(value.get("case_scope"), Mapping)
+            and isinstance(value["case_scope"].get("table_node_id"), str)
+        )
+        expected_envelopes = item["owner_envelopes"]
+        actual_envelopes = {
+            node_id: value.get("classification_evidence")
+            for node_id, value in (
+                (value.get("table_node_id"), value)
+                for value in raw_resolutions.values()
+            )
+            if node_id in expected_envelopes
+        }
+        instructional_ids = {
+            str(decision["table_node_id"])
+            for decision in assessment["required_table_decisions"]
+            if decision.get("disposition") == "NO_NAMED_CONSUMER"
+            and decision.get("no_consumer_kind") == "INSTRUCTIONAL_REFERENCE"
+        }
+        # The semantic owner has already validated that each model-selected
+        # entry belongs to this table's Canonical source-context envelope.  The
+        # model is intentionally allowed to select a sufficient nonempty subset
+        # rather than repeat the complete owner envelope into its response.
+        # Requiring equality here would introduce a second, contradictory
+        # provenance contract in the laboratory adapter.
+        instructional_evidence_present = all(
+            isinstance(actual_envelopes.get(node_id), list)
+            and bool(actual_envelopes[node_id])
+            for node_id in instructional_ids
+        )
+        unresolved = (
+            sorted(case["target_table_node_ids"])
+            if result.get("status") == "SPECIALIST_REVIEW_REQUIRED"
+            else []
+        )
+        matches = (
+            result.get("status") == assessment["expected_status"]
+            and all(resolutions.get(node_id) == decision for node_id, decision in expected.items())
+            and instructional_evidence_present
+            and unresolved == sorted(assessment["unresolved_table_node_ids"])
+            and not set(qualified).intersection(assessment["forbidden_qualified_mapping_table_node_ids"])
+        )
+        return {
+            "case_sha256": self._sha256(case["case_id"]),
+            "canonical_root_sha256": str(case["canonical_binding"].get("canonical_root_sha256") or ""),
+            "expected_assessment_sha256": self._sha256(assessment),
+            "actual_table_decisions_sha256": self._sha256(resolutions),
+            "owner_classification_envelope_sha256": self._sha256(expected_envelopes),
+            "actual_owner_classification_envelope_sha256": self._sha256(actual_envelopes),
+            "owner_classification_envelope_total": sum(len(value) for value in expected_envelopes.values()),
+            "actual_classification_envelope_total": sum(
+                len(value) for value in actual_envelopes.values() if isinstance(value, list)
+            ),
+            "qualified_mapping_total": len(qualified),
+            "actual_status": str(result.get("status") or ""),
+            "outcome": "PASS" if matches else "FAIL",
+        }
+
+    def _blocked_receipt(self, code: str) -> dict[str, Any]:
+        return {
+            "schema_version": SAFE_RECEIPT_SCHEMA_VERSION,
+            "status": "BLOCKED",
+            "corpus": {
+                "cases_total": 0,
+                "provider_calls_started_total": 0,
+                "provider_calls_returned_total": 0,
+                "records": [],
+            },
+            "constraints": self._constraints(),
+            "terminal_error": code,
+        }
+
+    @staticmethod
+    def _constraints() -> dict[str, Any]:
+        return {
+            "retries": 0,
+            "best_of_n": False,
+            "manual_output_repair": False,
+            "inner_provider_chat_id": "forbidden",
+            "inner_provider_parent_id": "forbidden",
+            "inner_chat_created": False,
+            "artifact_store_mutation": False,
+            "canonical_mutation": False,
+            "right_bank_mutation": False,
+            "xml_mutation": False,
+        }
+
+    @staticmethod
+    def _safe_error_code(exc: Exception) -> str:
+        if isinstance(exc, Goal391MappingLabPipeError):
+            return exc.code
+        if isinstance(
+            exc,
+            (
+                Gate2SourceFactRuntimeError,
+                Goal391GroupedMappingLabError,
+                OrdinaryTradeSemanticCompilerError,
+            ),
+        ):
+            # These existing owners expose fixed contract identifiers only.
+            # They contain neither source text nor provider output, so they are
+            # safe for the isolated laboratory receipt.
+            return f"goal391_lab_{exc.code}"
+        if isinstance(exc, OrdinaryTradeSemanticMappingError):
+            diagnostic_code = getattr(exc, "diagnostic_code", None)
+            if isinstance(diagnostic_code, str) and diagnostic_code.startswith(
+                "ordinary_trade_mapping_decision_"
+            ):
+                return f"goal391_lab_{diagnostic_code}"
+            return f"goal391_lab_{exc.code}"
+        # Existing owners may carry source, provider or Prompt context in their
+        # exception classes.  The chat-visible laboratory receipt deliberately
+        # does not distinguish those failures.
+        return "goal391_lab_internal_failure"
+
+    @staticmethod
+    def _sha256(value: Any) -> str:
+        return hashlib.sha256(
+            json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+        ).hexdigest()
+
+
+__all__ = ["Goal391ServerBoundCaseLoader", "Pipe"]

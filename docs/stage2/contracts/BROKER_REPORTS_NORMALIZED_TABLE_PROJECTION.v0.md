@@ -96,7 +96,7 @@ Uncertain boundaries are candidates. A builder must not invent empty/fake PDF ce
 
 ## Native table mapping
 
-CSV, HTML and XLSX builders map parser-native logical table units into this contract:
+CSV, HTML, XLSX and provider-native PDF HTML builders map parser-native logical table units into this contract:
 
 - original table/row/cell/source-value refs remain authoritative;
 - parser order remains row and column order;
@@ -108,10 +108,11 @@ XLSX is supported only through the existing stdlib ZIP/XML parser path. No new s
 
 ## PDF mapping
 
-Issue #372 removes this contract from PDF ownership. It survives only for
-provider-neutral non-PDF table consumers. `PdfDocumentExtraction` is not
-projected here, and this contract must never become a Markdown-to-Canonical
-parser or an engine fallback. See the
+Only the v5 `PdfDocumentExtraction` native-HTML table unit may use this contract
+for PDF. It keeps each provider physical table separate; its header roles come
+only from native `<thead>`/`<th>` structure. It must never become a
+Markdown-to-Canonical parser, an engine fallback, or a cross-page table joiner.
+Other PDF representations remain outside this contract. See the
 [current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 ## Coverage

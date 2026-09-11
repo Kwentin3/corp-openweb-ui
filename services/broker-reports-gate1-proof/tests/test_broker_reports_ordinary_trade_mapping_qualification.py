@@ -11,6 +11,7 @@ from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResul
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
+    _table_surfaces,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationError,
@@ -18,6 +19,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationRunner,
     load_frozen_fixture,
     safe_role_map_sha256,
+    _require_one_strict_result,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     INPUT_SCHEMA_VERSION,
@@ -47,6 +49,15 @@ class InjectedClient:
             content=self._response,
             execution_metadata=case_fixtures._metadata(),
         )
+
+
+def test_shared_strict_check_preserves_qualification_error_code() -> None:
+    with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
+        _require_one_strict_result(Gate2StructuredModelResult(
+            content={}, response_format_schema_mode=None,
+            execution_metadata=case_fixtures._metadata(),
+        ))
+    assert exc.value.code == "ordinary_trade_mapping_qualification_strict_output_required"
 
 
 class NoFallbackSemantic:
@@ -489,10 +500,10 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
 
     source_context = package["case"]["tables"][0]["source_context"]
     assert [item["literal"] for item in source_context["entries"]] == [
+        "sibling-2",
         "sibling-3",
         "sibling-4",
         "sibling-5",
-        "local-0",
         "local-1",
         "local-2",
         "local-3",
@@ -502,13 +513,25 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
         "PRECEDING_SIBLING_CONTAINER",
         "PRECEDING_SIBLING_CONTAINER",
         "PRECEDING_SIBLING_CONTAINER",
-        "PRECEDING_SAME_CONTAINER",
+        "PRECEDING_SIBLING_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
     ]
     assert "leak" not in str(source_context)
+    assert _table_surfaces(
+        canonical,
+        target_table_node_ids=[table["node_id"]],
+    )[0]["source_context_audit"] == {
+        "eligible_context_entries_total": 11,
+        "omitted_context_entries_total": 3,
+        "truncated_context_entries_total": 0,
+        "eligible_preceding_sibling_container_total": 6,
+        "eligible_preceding_same_container_total": 5,
+        "omitted_preceding_sibling_container_total": 2,
+        "omitted_preceding_same_container_total": 1,
+    }
 
 
 def test_mapping_package_fails_closed_for_ambiguous_sibling_container_order(tmp_path):

@@ -13,6 +13,9 @@ from typing import Any, Protocol
 ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
 PRIVATE_BINARY_ARTIFACT_TYPE = "private_binary_artifact_v1"
 PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION = PRIVATE_BINARY_ARTIFACT_TYPE
+PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE = (
+    "broker_reports_physical_table_continuation_v1"
+)
 ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = "broker_reports_artifact_lifecycle_result_v1"
 CANONICAL_VERSION_SCHEMA_VERSION = "broker_reports_canonical_version_v1"
 CANONICAL_ACTIVATION_RECEIPT_SCHEMA_VERSION = (
@@ -113,6 +116,7 @@ ARTIFACT_TYPES = {
     "private_normalized_source_payload_v0",
     "private_normalized_source_unit_v0",
     PRIVATE_BINARY_ARTIFACT_TYPE,
+    PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE,
     "broker_reports_normalized_table_projection_v0",
     "broker_reports_canonical_artifact_v1",
     "broker_reports_canonical_legacy_compare_receipt_v1",
@@ -166,6 +170,9 @@ ARTIFACT_TYPES = {
     "broker_reports_ordinary_trade_mapping_case_v1",
     "broker_reports_ordinary_trade_mapping_case_v2",
     "broker_reports_ordinary_trade_mapping_case_v3",
+    "broker_reports_ordinary_trade_mapping_case_v4",
+    "broker_reports_ordinary_trade_mapping_case_v5",
+    "broker_reports_ordinary_trade_mapping_case_v6",
     "broker_reports_gate5_supplemental_fact_v0",
     "broker_reports_gate5_gap_request_v1",
     "broker_reports_gate5_gap_request_publication_v1",
@@ -173,6 +180,7 @@ ARTIFACT_TYPES = {
     "broker_reports_authenticated_case_taxpayer_binding_v1",
     "broker_reports_declaration_external_authority_v1",
     "broker_reports_ordinary_trade_declaration_mvp_receipt_v1",
+    "broker_reports_ordinary_trade_declaration_mvp_receipt_v2",
     "broker_reports_ordinary_trade_declaration_xml_v1",
     "broker_reports_gate5_declaration_scope_assertion_v0",
     "broker_reports_gate5_openwebui_case_fact_submission_v0",

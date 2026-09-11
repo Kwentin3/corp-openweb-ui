@@ -2,10 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
+import json
+from dataclasses import replace
 
 import pytest
 
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.artifact_retention import build_retention_policy
+from broker_reports_gate1.artifact_models import ArtifactRecord
+from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
+from broker_reports_gate1.gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
+from broker_reports_gate1.ordinary_trade_declaration_case_bundle import (
+    OrdinaryTradeDeclarationCaseBundleError,
+)
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
@@ -25,6 +37,20 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
 )
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
+)
+from broker_reports_gate1.instructional_table_classification import (
+    INPUT_SCHEMA_VERSION as INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_VERSION as INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+    PROMPT_CONTRACT_ID as INSTRUCTIONAL_PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER as INSTRUCTIONAL_PROMPT_PLACEHOLDER,
+    prompt_hash as instructional_prompt_hash,
+)
+from broker_reports_gate1.instructional_table_classification_prompt import (
+    PROMPT_COMMAND as INSTRUCTIONAL_PROMPT_COMMAND,
+    PROMPT_REQUIRED_TAG as INSTRUCTIONAL_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as INSTRUCTIONAL_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as INSTRUCTIONAL_PROMPT_TEMPLATE_KIND,
+    InstructionalClassificationManagedPrompt,
 )
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
@@ -51,6 +77,7 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -107,6 +134,31 @@ def _mapping_prompt_dependencies() -> dict[str, object]:
     }
 
 
+def _test_instructional_prompt() -> InstructionalClassificationManagedPrompt:
+    content = "Classify " + INSTRUCTIONAL_PROMPT_PLACEHOLDER + " as strict JSON."
+    return InstructionalClassificationManagedPrompt(
+        prompt_ref="test-instructional-prompt",
+        command=INSTRUCTIONAL_PROMPT_COMMAND,
+        version="test-v1",
+        content=content,
+        hash=instructional_prompt_hash(content),
+        source="test",
+        template_id=INSTRUCTIONAL_PROMPT_TEMPLATE_ID,
+        template_kind=INSTRUCTIONAL_PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=INSTRUCTIONAL_PROMPT_CONTRACT_ID,
+        input_schema_version=INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+        output_schema_id=INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+        output_schema_version=INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+        tags=(INSTRUCTIONAL_PROMPT_REQUIRED_TAG,),
+        safe_metadata={"name": "test", "mapping_domain": "ordinary_trade"},
+    )
+
+
+class StaticInstructionalPromptResolver:
+    def resolve(self, _user_context):
+        return _test_instructional_prompt()
+
+
 def _runtime(store, client):
     return OrdinaryTradeAutomaticMappingRuntimeFactory(
         store=store,
@@ -118,7 +170,40 @@ def _runtime(store, client):
     ).create()
 
 
-def _multi_table_case(tmp_path, *, table_row_sets):
+def _runtime_with_instructional_classifier(store, client):
+    dependencies = _mapping_prompt_dependencies()
+    dependencies["instructional_prompt_resolver"] = (
+        StaticInstructionalPromptResolver()
+    )
+    return OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        **dependencies,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+    ).create()
+
+
+class AsyncMappingPromptResolver:
+    async def resolve(self, _user_context):
+        return _test_mapping_prompt()
+
+
+def _runtime_with_native_prompt_owner(store, client):
+    dependencies = _mapping_prompt_dependencies()
+    dependencies["mapping_prompt_resolver"] = AsyncMappingPromptResolver()
+    return OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        **dependencies,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+    ).create()
+
+
+def _multi_table_case(tmp_path, *, table_row_sets, table_context_by_page=None):
     store, context = gate4_fixtures._store_context(tmp_path)
     document_id = "issue312-multi-table-document"
     gate4_fixtures._activate_canonical(
@@ -128,6 +213,7 @@ def _multi_table_case(tmp_path, *, table_row_sets):
         artifact_version=1,
         expected_previous_version_id=None,
         table_row_sets=tuple(table_row_sets),
+        table_context_by_page=table_context_by_page,
     )
     envelope = (
         CanonicalReaderFactory(store=store, read_enabled=True)
@@ -160,6 +246,54 @@ def _response_for_tables(*, table_count, mapping):
     return response
 
 
+class _ForcedTwoBatchSemantic:
+    """Test double: only the initial all-table package is too large."""
+
+    def __init__(self, canonical, target_table_node_ids):
+        self._real = OrdinaryTradeSemanticMappingFactory.create()
+        self._canonical = canonical
+        self._target_table_node_ids = list(target_table_node_ids)
+
+    def build_mapping_package(self, **kwargs):
+        target_ids = kwargs.get("target_table_node_ids")
+        if target_ids is None or list(target_ids) == self._target_table_node_ids:
+            raise OrdinaryTradeSemanticMappingError(
+                "ordinary_trade_semantic_mapping_context_limit"
+            )
+        return self._real.build_mapping_package(**kwargs)
+
+    def build_mapping_batch_plan(self, **kwargs):
+        batches = []
+        for index, table_node_id in enumerate(self._target_table_node_ids, start=1):
+            package = self._real.build_mapping_package(
+                canonical=self._canonical,
+                confirmed_understandings=kwargs["confirmed_understandings"],
+                target_table_node_ids=[table_node_id],
+            )
+            batches.append(
+                {
+                    "batch_id": f"batch_{index:04d}",
+                    "target_table_node_ids": [table_node_id],
+                    "mapping_package_sha256": hashlib.sha256(
+                        json.dumps(
+                            package,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+        return {
+            "schema_version": "broker_reports_ordinary_trade_mapping_batch_plan_v1",
+            "target_table_node_ids": list(self._target_table_node_ids),
+            "batches": batches,
+        }
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
 def _row_with_roles(**values):
     return tuple(values.get(role, "") for role in case_fixtures.candidate._ROLES)
 
@@ -187,6 +321,146 @@ async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
         "test-ordinary-trade-mapping-prompt"
     )
     assert "content" not in saved["mapping_prompt_snapshot"]
+
+
+async def _one_strict_mapping_call_accepts_complete_scope_above_old_cell_bound(
+    tmp_path,
+) -> None:
+    # The real semantic owner, not a forced exception, must admit a complete
+    # 14,080-cell Canonical scope to exactly one model boundary call.
+    columns = 55
+    headers = (
+        "asset",
+        "trade_date",
+        "side",
+        "quantity",
+        "unit_price",
+        "currency",
+        "gross_amount",
+        *(f"extra_{index}" for index in range(8, columns + 1)),
+    )
+    data_row = (
+        "ABC",
+        "2025-01-01",
+        "BUY",
+        "1",
+        "10",
+        "USD",
+        "10",
+        *("x" for _ in range(8, columns + 1)),
+    )
+    rows = (headers, *(data_row for _ in range(255)))
+    store, context, document_id, _tables, _canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(rows,),
+    )
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "header_row": 1,
+                "disposition": "SECURITY_TRADES",
+                "columns": [
+                    {"column": 1, "semantic_role": "asset_name"},
+                    {"column": 2, "semantic_role": "trade_date"},
+                    {"column": 3, "semantic_role": "side"},
+                    {"column": 4, "semantic_role": "quantity"},
+                    {"column": 5, "semantic_role": "unit_price"},
+                    {"column": 6, "semantic_role": "currency"},
+                    {"column": 7, "semantic_role": "gross_amount"},
+                ],
+                "amount_currency_bindings": [
+                    {"amount_column": 5, "currency_column": 6},
+                    {"amount_column": 7, "currency_column": 6},
+                ],
+                "side_values": [
+                    {"source_literal": "BUY", "normalized_value": "PURCHASE"}
+                ],
+                "row_dispositions": [
+                    {"row": row, "disposition": "SECURITY_TRADES"}
+                    for row in range(2, 257)
+                ],
+            }
+        ],
+        "clarification": None,
+        "message": "Структура таблицы определена.",
+    }
+    client = BoundaryModelClient([response])
+
+    result = await _runtime(store, client).resolve(
+        document_id=document_id,
+        context=context,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
+    assert len(client.calls) == 1
+    model_table = client.calls[0]["package"]["case"]["tables"][0]
+    assert sum(len(item["cells"]) for item in model_table["rows"]) == 14_080
+    assert "column_distinct_values" not in model_table
+
+
+async def _native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+
+    result = await _runtime_with_native_prompt_owner(store, client).resolve(
+        document_id=document_id,
+        context=context,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
+    assert len(client.calls) == 1
+
+
+async def _model_header_echo_is_bound_to_canonical_before_mapping(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = case_fixtures._complete(table, mapping)
+    response["table_decisions"][0]["header_row"] = 2
+    client = BoundaryModelClient([response])
+
+    result = await _runtime(store, client).resolve(
+        document_id=document_id,
+        context=context,
+    )
+
+    assert result["status"] == "COMPLETE"
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    resolution = saved["table_resolutions"][0]
+    assert resolution["header_row"] == 1
+    assert resolution["security_trade_rows"][0] == 2
+
+
+async def _single_mapping_call_replaces_instructional_preclassification(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+    runtime = _runtime_with_instructional_classifier(store, client)
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
+    assert [item["prompt"].prompt_ref for item in client.calls] == [
+        "test-ordinary-trade-mapping-prompt"
+    ]
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert saved["instructional_prompt_snapshot"] is None
+    assert saved["table_resolutions"][0]["disposition"] == "SECURITY_TRADES"
 
 
 async def _interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
@@ -679,6 +953,34 @@ async def _invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path) 
     assert current["qualified_mappings"] == []
 
 
+async def _complete_mapping_above_legacy_row_sample_is_possible(tmp_path) -> None:
+    purchase = case_fixtures.candidate._ROWS[1]
+    disposal = case_fixtures.candidate._ROWS[2]
+    headers = list(case_fixtures.candidate._ROWS[0])
+    headers[0] = headers[0] + " (complete scope above legacy sample)"
+    rows = (tuple(headers), *([purchase] * 24), disposal)
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=rows
+    )
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+    runtime = _runtime(store, client)
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "COMPLETE"
+    package_table = client.calls[0]["package"]["case"]["tables"][0]
+    assert package_table["rows_truncated"] is False
+    assert len(package_table["rows"]) == len(rows)
+
+
 async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> None:
     purchase = case_fixtures.candidate._ROWS[1]
     disposal = case_fixtures.candidate._ROWS[2]
@@ -710,19 +1012,22 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     assert result["status"] == "MAPPING_OUTPUT_INVALID"
     assert "не покрывает все значения" in result["public_state"]["message"]
     package_table = client.calls[0]["package"]["case"]["tables"][0]
-    assert package_table["rows_truncated"] is True
+    assert package_table["rows_truncated"] is False
+    assert len(package_table["rows"]) == len(rows)
     side_column = next(
         item["column"] for item in mapping["columns"] if item["semantic_role"] == "side"
     )
-    side_surface = next(
-        item
-        for item in package_table["column_distinct_values"]
-        if item["column"] == side_column
-    )
+    side_literals = {
+        cell["literal"]
+        for row in package_table["rows"]
+        for cell in row["cells"]
+        if cell["column"] == side_column
+    }
     assert {
         case_fixtures.candidate._ROWS[1][side_column - 1],
         case_fixtures.candidate._ROWS[2][side_column - 1],
-    } <= set(side_surface["values"])
+    } <= side_literals
+    assert "column_distinct_values" not in package_table
     current = (
         OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)
         .create()
@@ -732,7 +1037,9 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     assert current["table_resolutions"] == []
 
 
-async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
+async def _complete_mapping_retains_incomplete_scoped_rows(
+    tmp_path, gross_value, legacy_projection=False
+) -> None:
     purchase = case_fixtures.candidate._ROWS[1]
     disposal = list(case_fixtures.candidate._ROWS[2])
     mapping_template = case_fixtures.candidate._QUALIFIED_MAPPING
@@ -741,7 +1048,7 @@ async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
         for item in mapping_template["columns"]
         if item["semantic_role"] == "gross_amount"
     )
-    disposal[gross_column - 1] = ""
+    disposal[gross_column - 1] = gross_value
     headers = list(case_fixtures.candidate._ROWS[0])
     headers[0] = headers[0] + " (dry-run incomplete)"
     rows = (tuple(headers), purchase, tuple(disposal))
@@ -796,7 +1103,67 @@ async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
         if item["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
     ]
     assert len(retained) == 1
-    assert retained[0]["disposition"] == "SOURCE_RETAINED_NO_CONSUMER"
+    assert retained[0]["disposition"] == "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
+    assert any(field["semantic_role"] == "side" for field in retained[0]["fields"])
+    assert all(field["canonical_cell"]["provenance_refs"] for field in retained[0]["fields"])
+    assert projection["runtime_records"]
+
+    projections = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create()
+    if legacy_projection:
+        # Persist the historical payload shape directly; the continuation below
+        # must read it unchanged rather than compiling a replacement.
+        for observation in projection["source_observations"]:
+            if observation["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE":
+                observation["disposition"] = "SOURCE_RETAINED_NO_CONSUMER"
+        projection["semantic_mapping_case_ref"] = (
+            OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)
+            .create().current(document_id=document_id, context=context)[0].artifact_id
+        )
+        projection.pop("projection_sha256")
+        projection["projection_sha256"] = hashlib.sha256(
+            json.dumps(projection, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        saved = store.put_record(ArtifactRecord(
+            artifact_id="art_otproj_" + projection["projection_sha256"][:40],
+            artifact_type=ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
+            case_id=context.case_id, chat_id=context.chat_id, user_id=context.user_id,
+            workspace_model_id=context.workspace_model_id,
+            normalization_run_id=context.normalization_run_id,
+            document_id=document_id, source_file_ref=None,
+            visibility="private_case", storage_backend="project_artifact_payload",
+            retention_policy=build_retention_policy(mode="api_smoke"),
+            access_policy={"requires_user_id": True, "requires_case_or_chat": True},
+            validation_status="validated",
+            lifecycle_status=lifecycle_for_visibility(
+                visibility="private_case", validation_status="validated"
+            ),
+            payload_kind="json_file", payload=projection,
+        ))
+    else:
+        saved = projections.compile_and_save(document_id=document_id, context=context)
+    restored = projections.read(artifact_id=saved.artifact_id, context=context)
+    assert restored["source_observations"] == projection["source_observations"]
+    assert projections.current_case_coverage(context=context)["status"] == "complete"
+    fact_set = Gate4OrdinaryTradeCandidateRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().current_fact_set(context=context)
+    assert fact_set["status"] == "SOURCE_ROLE_INCOMPLETE"
+    assert fact_set["facts"]
+    assert fact_set["blockers"][0]["blocking_scope"] == "recognized_security_trade_source_row"
+
+    product_runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    ).create()
+    product = product_runtime.run(canonical_artifact_refs=[], context=context)["product"]
+    assert product["terminal"] == "gate4_ordinary_trade_source_role_incomplete"
+    assert product["xml_created"] is False
+    with pytest.raises(OrdinaryTradeDeclarationCaseBundleError) as exc:
+        product_runtime.stabilize_declaration_case(context=context, tax_period="2025")
+    assert exc.value.code == "ordinary_trade_declaration_bundle_facts_incomplete"
+    if legacy_projection:
+        assert len(projections.current_case(context=context)) == 1
+        assert projections.read(artifact_id=saved.artifact_id, context=context) == restored
 
 
 async def _provider_failure_and_invalid_output_are_distinct_terminals(
@@ -856,6 +1223,78 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
     )
     assert len(mapping_client.calls) == 1
     assert answer_client.calls == []
+
+
+def test_product_rejects_non_strict_response_before_semantic_validation(tmp_path, monkeypatch) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+
+    class NonStrictClient(BoundaryModelClient):
+        async def extract(self, **kwargs):
+            return replace(await super().extract(**kwargs), response_format_schema_mode=None)
+
+    validations = []
+    semantic = type(OrdinaryTradeSemanticMappingFactory.create())
+    original = semantic.validate_mapping_response
+
+    def observe_validation(self, **kwargs):
+        validations.append(True)
+        return original(self, **kwargs)
+
+    monkeypatch.setattr(semantic, "validate_mapping_response", observe_validation)
+    client = NonStrictClient([case_fixtures._complete(table, mapping)])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True,
+        mapping_model_client=client, mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash", mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
+    ).create()
+    canonical_ref = store.get_active_canonical_version(context=context, document_id=document_id).manifest_ref
+    result = asyncio.run(runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context,
+    ))
+    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["product"]["terminal"] == "ordinary_trade_mapping_output_invalid"
+    assert result["product"]["xml_created"] is False
+    assert validations == []
+    assert len(client.calls) == 1
+
+
+async def _production_composition_uses_one_mapping_call_without_instructional_step(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    mapping_client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+    dependencies = _mapping_prompt_dependencies()
+    dependencies["instructional_prompt_resolver"] = (
+        StaticInstructionalPromptResolver()
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=mapping_client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+        **dependencies,
+    ).create()
+    canonical_ref = store.get_active_canonical_version(
+        context=context, document_id=document_id
+    ).manifest_ref
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert [item["prompt"].prompt_ref for item in mapping_client.calls] == [
+        "test-ordinary-trade-mapping-prompt",
+    ]
+    assert result["product"]["gate4"]["security_facts_total"] == 2
 
 
 async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
@@ -1008,6 +1447,107 @@ async def _identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> Non
             context=context,
         )["mapping_matches"]
     )
+
+
+async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> None:
+    """One strict response may exclude teaching material without publishing it."""
+    trade_rows = _unknown_rows(suffix="operational trades")
+    instructional_rows = _unknown_rows(suffix="worked example")
+    mapping = case_fixtures.candidate._mapping_from_headers(trade_rows[0])
+    store, context, document_id, _tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(trade_rows, instructional_rows),
+        table_context_by_page=(
+            "Operational securities transactions.",
+            "This is an instructional worked example; it is not an account record.",
+        ),
+    )
+    response = _response_for_tables(table_count=2, mapping=mapping)
+    response["table_decisions"][1] = {
+        "table_ref": "table_2",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+    }
+    client = BoundaryModelClient([response])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
+    ).create()
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert len(client.calls) == 1
+    assert [
+        table["table_ref"] for table in client.calls[0]["package"]["case"]["tables"]
+    ] == ["table_1", "table_2"]
+    assert result["product"]["gate4"]["security_facts_total"] == 2
+    assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
+    assert [item["disposition"] for item in current["table_resolutions"]] == [
+        "SECURITY_TRADES",
+        "NO_NAMED_CONSUMER",
+    ]
+    assert current["table_resolutions"][1]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+    # The model classifies the table.  Canonical, rather than the model,
+    # binds the complete source context that supports that classification.
+    evidence = current["table_resolutions"][1]["classification_evidence"]
+    assert evidence
+    assert all(
+        set(item) == {
+            "context_ref",
+            "relation",
+            "canonical_node_id",
+            "literal_sha256",
+        }
+        for item in evidence
+    )
+
+
+async def _overflowed_scope_uses_bounded_batches(tmp_path) -> None:
+    unknown_rows = _unknown_rows(suffix="bounded batch")
+    store, context, document_id, tables, _canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(unknown_rows, unknown_rows),
+    )
+    mapping = case_fixtures.candidate._mapping_from_headers(unknown_rows[0])
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping) for table in tables])
+    runtime = _runtime(store, client)
+    canonical = CanonicalReaderFactory(store=store, read_enabled=True).create().read_active_envelope(
+        document_id, context
+    ).artifact
+    runtime._semantic = _ForcedTwoBatchSemantic(
+        canonical,
+        [item["node_id"] for item in tables],
+    )
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 2
+    assert len(client.calls) == 2
+    current = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert current.get("mapping_batch_state") is None
+    assert current["provider_calls_total"] == 2
 
 
 async def _identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:
@@ -1505,6 +2045,20 @@ def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_one_strict_mapping_call_completes_unknown_schema(tmp_path))
 
 
+def test_native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
+    asyncio.run(_native_prompt_owner_completes_unknown_schema(tmp_path))
+
+
+def test_model_header_echo_is_bound_to_canonical_before_mapping(tmp_path) -> None:
+    asyncio.run(_model_header_echo_is_bound_to_canonical_before_mapping(tmp_path))
+
+
+def test_single_mapping_call_replaces_instructional_preclassification(
+    tmp_path,
+) -> None:
+    asyncio.run(_single_mapping_call_replaces_instructional_preclassification(tmp_path))
+
+
 def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
     asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
 
@@ -1566,8 +2120,14 @@ def test_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> Non
     asyncio.run(_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path))
 
 
-def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
-    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path))
+def test_complete_mapping_above_legacy_row_sample_is_possible(tmp_path) -> None:
+    asyncio.run(_complete_mapping_above_legacy_row_sample_is_possible(tmp_path))
+
+
+@pytest.mark.parametrize("gross_value", ["", "not-a-number"])
+@pytest.mark.parametrize("legacy_projection", [False, True])
+def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value, legacy_projection) -> None:
+    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value, legacy_projection))
 
 
 def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) -> None:
@@ -1576,6 +2136,16 @@ def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) ->
 
 def test_production_composition_maps_unknown_then_publishes_facts(tmp_path) -> None:
     asyncio.run(_production_composition_maps_unknown_then_publishes_facts(tmp_path))
+
+
+def test_production_composition_uses_one_mapping_call_without_instructional_step(
+    tmp_path,
+) -> None:
+    asyncio.run(
+        _production_composition_uses_one_mapping_call_without_instructional_step(
+            tmp_path
+        )
+    )
 
 
 def test_sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
@@ -1592,6 +2162,14 @@ def test_mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
 
 def test_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> None:
     asyncio.run(_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path))
+
+
+def test_instructional_table_and_trade_share_one_mapping_call(tmp_path) -> None:
+    asyncio.run(_instructional_table_and_trade_share_one_mapping_call(tmp_path))
+
+
+def test_overflowed_scope_uses_bounded_batches(tmp_path) -> None:
+    asyncio.run(_overflowed_scope_uses_bounded_batches(tmp_path))
 
 
 def test_identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:

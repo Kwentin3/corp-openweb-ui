@@ -33,6 +33,12 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_surrogate_preview,
     render_public_dialogue_fallback,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
+    OrdinaryTradeGroupedMappingV14Adapter,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
+    OrdinaryTradeGroupedMappingV15Adapter,
+)
 from broker_reports_gate1.openwebui_file_bytes import OpenWebUIOwnedFile
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -123,6 +129,73 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
         "chat_id": "owned-chat",
         "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
     }
+
+
+def test_native_workspace_model_is_recovered_from_the_exact_owned_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeChats:
+        @staticmethod
+        async def get_chat_by_id_and_user_id(chat_id: str, user_id: str):
+            assert (chat_id, user_id) == ("owned-chat", "user-a")
+            return SimpleNamespace(
+                chat={
+                    "models": ["broker_reports_gate1_pipe"],
+                    "history": {
+                        "messages": {
+                            "owned-turn": {
+                                "role": "user",
+                                "models": [NDFL_WORKSPACE_MODEL_STABLE_ID],
+                            },
+                            "other-turn": {
+                                "role": "user",
+                                "models": ["broker_reports_gate1_pipe"],
+                            },
+                        }
+                    },
+                }
+            )
+
+    class FakeRequest:
+        async def json(self):
+            return {"metadata": {"chat_id": "owned-chat"}}
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    chats = ModuleType("open_webui.models.chats")
+    chats.Chats = FakeChats
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.chats", chats)
+
+    metadata = asyncio.run(
+        Pipe()._server_attested_runtime_metadata(
+            request=FakeRequest(),
+            metadata={"chat_id": "owned-chat", "message_id": "owned-turn"},
+            user={"id": "user-a"},
+        )
+    )
+
+    assert metadata["model_id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
+
+
+def test_server_injected_workspace_model_is_primary_identity_source() -> None:
+    class UnexpectedRequest:
+        async def json(self):
+            raise AssertionError("native model metadata must avoid a body fallback")
+
+    metadata = asyncio.run(
+        Pipe()._server_attested_runtime_metadata(
+            request=UnexpectedRequest(),
+            metadata={
+                "chat_id": "owned-chat",
+                "model": {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
+            },
+            user={"id": "user-a"},
+        )
+    )
+
+    assert metadata["model_id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
 
 
 def test_completed_host_owned_current_turn_is_replayed_without_reexecution(
@@ -1046,7 +1119,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     maintained = pipe.last_artifact_manifest["ndfl_gate3"]
 
     assert maintained["product"]["status"] == "NON_FILING_SURROGATE_READY"
-    assert pipe.last_artifact_manifest.get("resumed_case") is None
+    assert pipe.last_artifact_manifest.get("resumed_case") is True
     assert "ru_3ndfl_2025_full_target_supplied_case" not in chat
     assert "\u043d\u0435 \u043f\u043e\u0434\u043b\u0435\u0436\u0438\u0442 \u043f\u043e\u0434\u0430\u0447\u0435" in chat
     assert "owner" not in chat.lower()
@@ -1055,7 +1128,13 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     assert maintained["product"]["xml_created"] is False
     assert maintained["declaration"] is None
     assert maintained["provider_calls_total"] == 0
-    assert presentation_calls == ["2022", "Неподаваемый черновик"]
+    # A same-scope repeat is a resumed normal chat turn. It must not re-run
+    # the financial-role provider or create an XML declaration.
+    assert presentation_calls == [
+        "2022",
+        "Неподаваемый черновик",
+        "Repeat file processing",
+    ]
 
     public_turn("Изменить налоговый период: 2025")
     supported = pipe.last_artifact_manifest["ndfl_gate3"]
@@ -1085,6 +1164,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     assert presentation_calls == [
         "2022",
         "Неподаваемый черновик",
+        "Repeat file processing",
         "Изменить налоговый период: 2025",
         "Изменить налоговый период: 2022",
     ]
@@ -1796,6 +1876,35 @@ def test_current_turn_file_detection_ignores_persisted_chat_files() -> None:
     ) is True
 
 
+def test_native_workspace_model_context_survives_missing_turn_metadata() -> None:
+    assert Pipe._workspace_model_id(
+        {}, {"id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+    ) == NDFL_WORKSPACE_MODEL_STABLE_ID
+
+
+def test_resume_detects_new_file_from_native_chat_scope_growth() -> None:
+    pipe = Pipe()
+    historical = {"id": "already-bound-source", "filename": "first.pdf"}
+
+    assert pipe._has_additional_file_inputs(
+        body={"files": [historical]},
+        metadata={},
+        files_arg=None,
+        canonical_artifact_refs=["canonical-first"],
+    ) is False
+    assert pipe._has_additional_file_inputs(
+        body={
+            "files": [
+                historical,
+                {"id": "new-source", "filename": "second.pdf"},
+            ]
+        },
+        metadata={},
+        files_arg=None,
+        canonical_artifact_refs=["canonical-first"],
+    ) is True
+
+
 def test_chat_transport_runs_bind_to_one_current_source_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1837,6 +1946,32 @@ def test_chat_transport_runs_bind_to_one_current_source_execution(
     assert first_result["declaration"]["receipt_sha256"] == second_result[
         "declaration"
     ]["receipt_sha256"]
+
+
+def test_chat_continuation_uses_current_case_canonical_refs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        include_store=True,
+    )
+
+    refs = Pipe._current_declaration_canonical_refs(
+        store=store,
+        context=context,
+    )
+
+    assert refs
+    assert refs == sorted(set(refs))
+    coverage = product_pipe.OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().current_case_coverage(context=context)
+    assert refs == sorted(
+        row["manifest_ref"] for row in coverage["document_scope"]
+    )
 
 
 def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
@@ -1915,8 +2050,64 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     assert result["provider_calls_total"] == 0
 
 
+@pytest.mark.parametrize(
+    (
+        "profile_id",
+        "prompt_command",
+        "expected_command",
+        "expected_template_id",
+        "expected_schema",
+        "expected_input_schema",
+        "expected_adapter_type",
+    ),
+    [
+        (
+            "ordinary_trade_mapping_v13",
+            product_pipe.ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
+            None,
+        ),
+        (
+            "ordinary_trade_mapping_v14",
+            product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV14Adapter,
+        ),
+        (
+            "ordinary_trade_mapping_v15",
+            product_pipe.ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V15_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V15_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV15Adapter,
+        ),
+        (
+            "ordinary_trade_mapping_v16",
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV15Adapter,
+        ),
+    ],
+)
 def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     monkeypatch: pytest.MonkeyPatch,
+    profile_id: str,
+    prompt_command: str,
+    expected_command: str,
+    expected_template_id: str,
+    expected_schema: str,
+    expected_input_schema: str,
+    expected_adapter_type: type | None,
 ) -> None:
     """The Pipe composes a public resolver; mapping owns the actual read."""
 
@@ -1924,9 +2115,9 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
-    pipe.valves.ordinary_trade_mapping_prompt_db_path = "/private/prompt.db"
+    pipe.valves.ordinary_trade_mapping_profile_id = profile_id
     pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
-    pipe.valves.ordinary_trade_mapping_prompt_command = ""
+    pipe.valves.ordinary_trade_mapping_prompt_command = prompt_command
     pipe.valves.ordinary_trade_mapping_prompt_version = "history-1"
     pipe.valves.ordinary_trade_mapping_prompt_hash = "a" * 64
     captured: dict[str, object] = {}
@@ -1940,7 +2131,7 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
             captured["config"] = config
 
         @staticmethod
-        def create():
+        def create_async():
             return Resolver()
 
     class ModelClientFactory:
@@ -1987,14 +2178,26 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     )
 
     config = captured["config"]
-    assert config.source == "openwebui_sqlite"
-    assert config.db_path == Path("/private/prompt.db")
+    assert config.source == "openwebui_server"
+    assert config.db_path is None
     assert config.prompt_id == "pinned-mapping-prompt"
     assert config.command is None
+    assert config.required_command == expected_command
+    assert config.required_template_id == expected_template_id
+    assert config.required_input_schema_version == expected_input_schema
+    assert config.required_output_schema_id == expected_schema
+    assert config.required_output_schema_version == expected_schema
     assert config.release_prompt_version == "history-1"
     assert config.release_prompt_hash == "a" * 64
     runtime_kwargs = captured["runtime_kwargs"]
+    assert runtime_kwargs["mapping_input_schema_version"] == expected_input_schema
     assert isinstance(runtime_kwargs["mapping_prompt_resolver"], Resolver)
+    adapter = runtime_kwargs["mapping_response_adapter"]
+    if expected_adapter_type is not None:
+        assert isinstance(adapter, expected_adapter_type)
+    else:
+        assert adapter is None
+    assert "instructional_prompt_resolver" not in runtime_kwargs
     user_context_factory = runtime_kwargs["mapping_prompt_user_context_factory"]
     user_context = user_context_factory(context)
     assert user_context.user_id == context.user_id
@@ -2005,9 +2208,53 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     assert foreign_scope.value.code == "ordinary_trade_mapping_prompt_user_scope_invalid"
 
 
+@pytest.mark.parametrize(
+    "profile_id",
+    [
+        "goal391_grouped_mapping_lab_v14",
+        "broker_ordinary_trade_semantic_mapping_v14",
+        "untrusted-profile",
+    ],
+)
+def test_mapping_route_profile_rejects_lab_or_arbitrary_selector(profile_id: str) -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_mapping_profile_id = profile_id
+
+    with pytest.raises(NdflWorkflowError) as rejected:
+        pipe._ordinary_trade_mapping_prompt_dependencies(
+            user={"id": "ordinary-user", "role": "user"}, metadata={}
+        )
+
+    assert rejected.value.code == "ordinary_trade_mapping_profile_invalid"
+
+
+def test_mapping_route_profile_rejects_command_not_pinned_to_profile() -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_mapping_profile_id = "ordinary_trade_mapping_v13"
+    pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
+    pipe.valves.ordinary_trade_mapping_prompt_command = (
+        product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND
+    )
+
+    with pytest.raises(NdflWorkflowError) as rejected:
+        pipe._ordinary_trade_mapping_prompt_dependencies(
+            user={"id": "ordinary-user", "role": "user"}, metadata={}
+        )
+
+    assert rejected.value.code == (
+        "ordinary_trade_mapping_prompt_command_profile_mismatch"
+    )
+
+
+def test_pipe_does_not_expose_retired_instructional_prompt_valves() -> None:
+    pipe = Pipe()
+    assert "ordinary_trade_instructional_classification_enabled" not in Pipe.Valves.model_fields
+    assert "ordinary_trade_instructional_prompt_id" not in Pipe.Valves.model_fields
+    assert not hasattr(pipe, "_ordinary_trade_instructional_prompt_resolver")
+
+
 def test_mapping_prompt_dependencies_fail_closed_without_a_valve_binding() -> None:
     pipe = Pipe()
-    pipe.valves.ordinary_trade_mapping_prompt_db_path = ""
     pipe.valves.ordinary_trade_mapping_prompt_id = ""
     pipe.valves.ordinary_trade_mapping_prompt_command = ""
 

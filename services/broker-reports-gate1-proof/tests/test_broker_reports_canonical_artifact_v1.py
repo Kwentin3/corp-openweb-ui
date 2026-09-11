@@ -24,6 +24,7 @@ from broker_reports_gate1 import (
     build_retention_policy,
     persist_gate1_result,
 )
+from broker_reports_gate1.canonical_artifact import CanonicalArtifactError
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -403,6 +404,157 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
             [1, 1, 1, 1],
         )
 
+    def test_document_ai_headerless_page_continuation_is_one_provenance_bound_table(
+        self,
+    ):
+        artifact = self._document_ai_pdf_artifact(
+            "# Trades\n\n| Date | Amount |\n|---|---:|\n| 2024-01-01 | 10 |\n",
+            "\n| 2024-01-02 | 20 |\n| 2024-01-03 | 30 |\n",
+        )
+
+        tables = [node for node in artifact["nodes"] if node["node_type"] == "TABLE"]
+        self.assertEqual(len(tables), 1)
+        table = tables[0]
+        self.assertEqual(table["content"]["header"], ["Date", "Amount"])
+        self.assertEqual(
+            table["content"]["rows"],
+            [["2024-01-01", "10"], ["2024-01-02", "20"], ["2024-01-03", "30"]],
+        )
+        self.assertEqual(
+            table["content"]["metadata"]["document_ai_continuation"]["modes"],
+            ["headerless_rows"],
+        )
+        provenance_by_id = {
+            item["provenance_id"]: item for item in artifact["provenance"]
+        }
+        node_pages = {
+            provenance_by_id[ref]["source_locator"]["page"]
+            for ref in table["source_refs"]
+        }
+        self.assertEqual(node_pages, {1, 2})
+        cell_pages = [
+            provenance_by_id[cell["source_refs"][0]]["source_locator"]["page"]
+            for cell in table["content"]["cells"]
+        ]
+        self.assertEqual(cell_pages, [1, 1, 1, 1, 2, 2, 2, 2])
+        self.assertEqual(
+            [cell["source_coordinate"] for cell in table["content"]["cells"]],
+            ["R1C1", "R1C2", "R2C1", "R2C2", "R1C1", "R1C2", "R2C1", "R2C2"],
+        )
+
+    def test_document_ai_repeated_header_continuation_is_one_table_deterministically(
+        self,
+    ):
+        pages = (
+            "| Date | Amount |\n|---|---:|\n| 2024-01-01 | 10 |\n",
+            "| Date | Amount |\n|---|---:|\n| 2024-01-02 | 20 |\n",
+        )
+        artifacts = [self._document_ai_pdf_artifact(*pages) for _ in range(3)]
+        self.assertEqual(
+            len({artifact["canonical_root_hash"] for artifact in artifacts}), 1
+        )
+        tables = [
+            node for node in artifacts[0]["nodes"] if node["node_type"] == "TABLE"
+        ]
+        self.assertEqual(len(tables), 1)
+        self.assertEqual(
+            tables[0]["content"]["rows"],
+            [["2024-01-01", "10"], ["2024-01-02", "20"]],
+        )
+        self.assertEqual(
+            tables[0]["content"]["metadata"]["document_ai_continuation"]["modes"],
+            ["repeated_header"],
+        )
+
+    def test_document_ai_explicit_provider_empty_page_is_evidence_only(self):
+        artifact = self._document_ai_pdf_artifact(
+            "# Transactions\n",
+            "",
+            page_content_dispositions=(
+                "markdown_materialized",
+                "provider_empty_page",
+            ),
+        )
+
+        receipt = next(
+            item
+            for item in artifact["containers"]
+            if item["container_type"] == "DOCUMENT"
+        )["metadata"]["pdf_completeness"]
+        self.assertEqual(receipt["source_atom_accounting_percent"], 100.0)
+        self.assertEqual(receipt["unresolved_source_atoms_total"], 0)
+        self.assertEqual(receipt["categories"]["EVIDENCE_ONLY"], 1)
+        self.assertTrue(
+            any(
+                issue["summary"] == "pdf_provider_empty_page_evidence_only"
+                for issue in artifact["issues"]
+            )
+        )
+
+    def test_document_ai_unmarked_empty_page_still_fails_closed(self):
+        with self.assertRaisesRegex(
+            CanonicalArtifactError,
+            "canonical_pdf_source_atom_accounting_incomplete",
+        ):
+            self._document_ai_pdf_artifact("# Transactions\n", "")
+
+    def test_document_ai_continuation_refuses_nonexact_boundaries(self):
+        cases = (
+            (
+                "page_gap",
+                (
+                    1,
+                    "| Date | Amount |\n|---|---:|\n| 2024-01-01 | 10 |\n",
+                    3,
+                    "| Date | Amount |\n|---|---:|\n| 2024-01-02 | 20 |\n",
+                ),
+            ),
+            (
+                "tail_text",
+                (
+                    1,
+                    "| Date | Amount |\n|---|---:|\n| 2024-01-01 | 10 |\n\nFooter\n",
+                    2,
+                    "| Date | Amount |\n|---|---:|\n| 2024-01-02 | 20 |\n",
+                ),
+            ),
+            (
+                "header_changed",
+                (
+                    1,
+                    "| Date | Amount |\n|---|---:|\n| 2024-01-01 | 10 |\n",
+                    2,
+                    "| Date | Currency |\n|---|---|\n| 2024-01-02 | RUB |\n",
+                ),
+            ),
+            (
+                "width_changed",
+                (
+                    1,
+                    "| Date | Amount |\n|---|---:|\n| 2024-01-01 | 10 |\n",
+                    2,
+                    "| Date | Amount | Fee |\n|---|---:|---:|\n| 2024-01-02 | 20 | 1 |\n",
+                ),
+            ),
+        )
+        for name, (left_page, left, right_page, right) in cases:
+            with self.subTest(name=name):
+                artifact = self._document_ai_pdf_artifact(
+                    left,
+                    right,
+                    page_numbers=(left_page, right_page),
+                )
+                tables = [
+                    node for node in artifact["nodes"] if node["node_type"] == "TABLE"
+                ]
+                self.assertEqual(len(tables), 2)
+                self.assertFalse(
+                    any(
+                        "document_ai_continuation" in node["content"]["metadata"]
+                        for node in tables
+                    )
+                )
+
     def test_source_bound_visual_projection_survives_without_parser_unit_alias(self):
         projection = {
             "projection_status": "ready",
@@ -496,6 +648,68 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
         canonical = built.payloads[0]["canonical_projection"]
         self.assertTrue(canonical["duplicate_headers"])
         self.assertEqual(canonical["rows"][0], ["Amount", "Amount"])
+
+    @staticmethod
+    def _document_ai_pdf_artifact(
+        *pages: str,
+        page_numbers: tuple[int, ...] | None = None,
+        page_content_dispositions: tuple[str, ...] | None = None,
+    ) -> dict:
+        page_numbers = page_numbers or tuple(range(1, len(pages) + 1))
+        if len(page_numbers) != len(pages):
+            raise AssertionError("fixture page count mismatch")
+        if page_content_dispositions is not None and len(page_content_dispositions) != len(pages):
+            raise AssertionError("fixture disposition count mismatch")
+        units = [
+            {
+                "unit_ref": f"document-ai-page-{page}",
+                "parent_payload_ref": f"payload-{page}",
+                "source_location": {
+                    "kind": "document_ai_page_markdown",
+                    "page": page,
+                    "line_start": 1,
+                    "line_end": len(markdown.splitlines()),
+                    **(
+                        {"page_content_disposition": disposition}
+                        if disposition is not None
+                        else {}
+                    ),
+                },
+                "text": markdown,
+            }
+            for page, markdown, disposition in zip(
+                page_numbers,
+                pages,
+                page_content_dispositions or (None,) * len(pages),
+                strict=True,
+            )
+        ]
+        return CanonicalNormalizerFactory(
+            CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")
+        ).create().build(
+            tenant_id="tenant",
+            artifact_version=1,
+            document={
+                "container_format": "pdf",
+                "sha256": "f" * 64,
+                "declared_mime_type": "application/pdf",
+            },
+            source_artifact_ref="source-document-ai",
+            source_payloads=[
+                {
+                    "parser_completeness_status": "complete",
+                    "parser_completeness_reason_codes": [],
+                    "pdf_text_layer_projection": {
+                        "page_inventory": [
+                            {"page_number": page} for page in page_numbers
+                        ],
+                        "line_inventory": [],
+                    },
+                }
+            ],
+            source_units=units,
+            table_projections=[],
+        )
 
     @staticmethod
     def _xlsx_bytes() -> bytes:

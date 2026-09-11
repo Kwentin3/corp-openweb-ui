@@ -245,10 +245,14 @@ def build_manifest(
     prompt_contracts: Mapping[str, Mapping[str, Any]],
     provider_policy: Mapping[str, Any],
     loader_bytes: bytes,
+    function_valve_overrides: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     assert_revision(source_revision)
     if not isinstance(loader_bytes, bytes) or not loader_bytes:
         raise ValueError("stage_release_loader_bytes_invalid")
+    overrides = dict(function_valve_overrides or {})
+    if set(overrides) - {contract.function_id for contract in FUNCTION_CONTRACTS}:
+        raise ValueError("stage_release_function_valve_override_invalid")
     functions = []
     for contract in FUNCTION_CONTRACTS:
         content = normalized_text(contract.bundle_path)
@@ -269,7 +273,7 @@ def build_manifest(
                 "activation_policy": "preserve_existing",
                 "content_sha256": sha256_text(content),
                 "required_markers": list(contract.required_markers),
-                "valves": dict(contract.valves),
+                "valves": {**dict(contract.valves), **dict(overrides.get(contract.function_id) or {})},
                 "retired_valve_keys": list(contract.retired_valve_keys),
             }
         )

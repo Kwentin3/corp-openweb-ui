@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 from types import SimpleNamespace
 
 from broker_reports_gate1.canonical_finalization import CanonicalFinalizationFactory
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseFactory
-from broker_reports_gate1.ordinary_trade_projection import OrdinaryTradeProjectionFactory
+from broker_reports_gate1.ordinary_trade_projection import (
+    OrdinaryTradeProjectionFactory,
+    _projection_persistence_artifact_id,
+)
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
@@ -19,6 +23,72 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
 from broker_reports_gate1.artifact_retention import build_retention_policy
 
 import test_broker_reports_issue312_mapping_case as fixtures
+
+
+def test_projection_persistence_identity_is_scope_bound_and_retry_safe(tmp_path):
+    """One exact case retries idempotently; another chat never overwrites it."""
+
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        fixtures._unknown_case(tmp_path)
+    )
+    projection = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create()
+
+    first = projection.compile_and_save(document_id=document_id, context=context)
+    repeated = projection.compile_and_save(document_id=document_id, context=context)
+    assert repeated.artifact_id == first.artifact_id
+
+    other_chat_context = replace(context, chat_id="projection-scope-other-chat")
+    other_chat = projection.compile_and_save(
+        document_id=document_id,
+        context=other_chat_context,
+    )
+    assert other_chat.artifact_id != first.artifact_id
+    assert [record.artifact_id for record, _payload in projection.current_case(
+        context=other_chat_context
+    )] == [other_chat.artifact_id]
+    assert projection.read(
+        artifact_id=first.artifact_id,
+        context=context,
+    )["projection_sha256"] == projection.read(
+        artifact_id=other_chat.artifact_id,
+        context=other_chat_context,
+    )["projection_sha256"]
+
+    first_payload = projection.read(artifact_id=first.artifact_id, context=context)
+    other_user_artifact_id = _projection_persistence_artifact_id(
+        projection_sha256=first_payload["projection_sha256"],
+        context=replace(context, user_id="projection-scope-other-user"),
+        document_id=document_id,
+        source_file_ref=first.source_file_ref,
+        retention_policy=first.retention_policy,
+        access_policy=first.access_policy,
+    )
+    assert other_user_artifact_id not in {
+        first.artifact_id,
+        other_chat.artifact_id,
+    }
+
+
+def test_projection_reader_accepts_legacy_content_only_artifact_id(tmp_path):
+    """Changing new-write identity does not strand an already stored v6 payload."""
+
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        fixtures._unknown_case(tmp_path)
+    )
+    projection = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create()
+    current = projection.compile_and_save(document_id=document_id, context=context)
+    payload = projection.read(artifact_id=current.artifact_id, context=context)
+    legacy_id = "art_otproj_" + payload["projection_sha256"][:40]
+    store.put_record(
+        replace(
+            current,
+            artifact_id=legacy_id,
+            payload=payload,
+            payload_ref=None,
+        )
+    )
+
+    assert projection.read(artifact_id=legacy_id, context=context) == payload
 
 
 def test_confirmed_user_choice_is_sealed_into_final_canonical_and_reused(

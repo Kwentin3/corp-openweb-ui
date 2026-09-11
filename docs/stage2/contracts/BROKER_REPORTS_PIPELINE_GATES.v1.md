@@ -322,12 +322,15 @@ broker-neutral visual region
 
 `PdfDocumentExtraction` preserves exact UTF-8 Markdown bytes, source and
 Markdown hashes, ordered pages, opaque ArtifactStore image references with hashes,
+opaque provider-native HTML table references with hashes and exact page Markdown anchors,
 provider/model/adapter provenance, qualification status, page usage, and a
 text-free safe technical summary. It does not reconstruct tables, repair
 content, choose financial meaning, or publish Canonical. For every provider
 image, the adapter preserves one ordered association:
 `page_number + markdown_target -> local_ref + sha256`; positional
-reconstruction is forbidden. An absent or unselected engine terminates with
+reconstruction is forbidden. Native tables remain physical page segments:
+Canonical derives header presence only from their native HTML structure and never
+joins page segments or copies a header into a headerless segment. An absent or unselected engine terminates with
 `PDF_DOCUMENT_AI_NOT_CONFIGURED`; a configured Mistral engine is available to
 the ordinary authenticated Pipe route. There is no admin qualification or
 custom intake/action. Native file identity and exact owner reads belong to
@@ -335,6 +338,13 @@ OpenWebUI `Files`/`Storage`; the atomic Markdown/image graph belongs only to
 ArtifactStore. No local parser, OpenWebUI extractor, VLM, retry, or
 alternative engine may run as fallback. Exact rules are in
 [the current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
+
+For a `provider_native_table_html` segment, Canonical records only the native
+`physical_header_state` (`PRESENT` or `ABSENT`). `ABSENT` permits exactly the
+mapping terminal `HEADER_ABSENT`: the physical rows remain source observations
+with their provenance, but create no financial runtime record. Supplying a
+neighbouring-page header, joining segments, or assigning financial roles to
+that headerless segment is forbidden.
 
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |

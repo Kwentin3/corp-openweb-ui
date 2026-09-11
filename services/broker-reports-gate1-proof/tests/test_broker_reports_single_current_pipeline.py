@@ -57,12 +57,14 @@ def test_current_gate1_contract_does_not_advertise_retired_table_routes() -> Non
         for contract in SUPPORTED_CONTRACTS
         for fragment in retired_fragments
     )
-    assert "broker_reports_pdf_document_extraction_v3" in SUPPORTED_CONTRACTS
+    assert "broker_reports_pdf_document_extraction_v4" in SUPPORTED_CONTRACTS
     assert {
         contract
         for contract in SUPPORTED_CONTRACTS
         if contract.startswith("broker_reports_pdf_")
     } == {
         "broker_reports_pdf_document_ai_v2",
-        "broker_reports_pdf_document_extraction_v3",
+        "broker_reports_pdf_document_ai_v5",
+        "broker_reports_pdf_document_extraction_v4",
+        "broker_reports_pdf_document_extraction_v5",
     }

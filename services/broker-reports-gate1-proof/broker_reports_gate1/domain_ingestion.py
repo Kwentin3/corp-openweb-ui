@@ -4,7 +4,12 @@ import copy
 from collections import Counter, defaultdict
 from typing import Any
 
-from .contracts import METHODOLOGY_OR_OUTPUT_CLASSES, SOURCE_DOCUMENT_CLASSES, stable_digest
+from .contracts import (
+    METHODOLOGY_OR_OUTPUT_CLASSES,
+    SOURCE_DOCUMENT_CLASSES,
+    ready_gate2_handoff_document_ids,
+    stable_digest,
+)
 from .document_memory import (
     DOCUMENT_MEMORY_SCHEMA_VERSION,
     SUPPORTED_PROFILE_ASSESSMENT_SCHEMA_VERSION,
@@ -210,6 +215,10 @@ def build_document_usage_classification(
         for item in _object(document_memory_manifest).get("documents") or []
         if isinstance(item, dict) and item.get("source_file_ref")
     }
+    handoff_ready_document_ids = ready_gate2_handoff_document_ids(
+        normalization_run=_object(package.get("normalization_run")),
+        handoff=_object(package.get("gate2_handoff")),
+    )
     entries = []
     for document in _documents(package):
         document_id = str(document.get("document_id") or "")
@@ -222,6 +231,7 @@ def build_document_usage_classification(
             eligibility,
             doc_issues,
             memory_entry=memory_by_document.get(document_id),
+            handoff_source_ready=document_id in handoff_ready_document_ids,
         )
         entries.append(entry)
     summary = _usage_summary(entries)
@@ -631,6 +641,7 @@ def _usage_entry(
     doc_issues: list[dict[str, Any]],
     *,
     memory_entry: dict[str, Any] | None = None,
+    handoff_source_ready: bool = False,
 ) -> dict[str, Any]:
     document_ref = str(document.get("document_id") or "")
     issue_refs = [str(issue.get("issue_id")) for issue in doc_issues if issue.get("issue_id")]
@@ -668,11 +679,17 @@ def _usage_entry(
     extraction_blocked = bool(issue_types & {"readability_blocker", "no_files"})
     if not readable:
         extraction_blocked = True
+    # Gate 1 owns Full/Reduced Source selection.  A matching ready handoff is
+    # therefore stronger than a stale readability inventory for this exact
+    # document, but does not suppress its carried-forward issue context.
     source_ready = bool(
-        source_candidate
-        and not extraction_blocked
-        and not lineage_only
-        and not visual_review_only
+        handoff_source_ready
+        or (
+            source_candidate
+            and not extraction_blocked
+            and not lineage_only
+            and not visual_review_only
+        )
     )
     source_ready_with_issues = bool(source_ready and issue_refs)
     cross_check_ready = bool(
@@ -751,7 +768,9 @@ def _usage_entry(
         ],
         "issue_refs_by_stage": issue_refs_by_stage,
         "readiness_by_stage": readiness_by_stage,
-        "private_payload_access": "resolver_required" if readable else "not_available",
+        "private_payload_access": (
+            "resolver_required" if readable or handoff_source_ready else "not_available"
+        ),
         "raw_private_payload_in_classification": False,
         "deterministic_basis": {
             "container_format": document.get("container_format"),
@@ -762,6 +781,7 @@ def _usage_entry(
             "document_memory_status": memory_status or "not_available",
             "machine_source_scope_ready": machine_source_scope_ready,
             "visual_review_only": visual_review_only,
+            "gate1_handoff_source_ready": handoff_source_ready,
         },
     }
 

@@ -1,9 +1,16 @@
 """Issue a closed Goal #391 R&D selection from one authenticated scope.
 
-This coordinator has no catalogue, persistence or product route.  It binds a
-caller-named document to the store's single active Canonical pointer and to
-the source record in the same normalization run.  Finalized Canonicals use a
-different run by design and are rejected rather than silently mixing runs.
+This coordinator has no catalogue, persistence or product route.  It offers
+two deliberately narrow selection modes:
+
+* an already named document may use the store's active Canonical pointer;
+* an already authenticated OpenWebUI source file may resolve the exact
+  document/run/source binding, then one Canonical from that same run.
+
+The second mode exists for source-review R&D: a later active Canonical is not
+silently substituted for the Canonical that produced the reviewed Full
+Source.  Neither mode discovers documents outside the caller's authenticated
+scope.
 """
 
 from __future__ import annotations
@@ -34,6 +41,20 @@ class Goal391PrivateSelectionRequest:
     context: ArtifactAccessContext
 
 
+@dataclass(frozen=True)
+class Goal391PrivateSourceFileSelectionRequest:
+    """Name one source file inside an already server-attested scope.
+
+    ``context.normalization_run_id`` is deliberately not used as authority by
+    this request.  The resolver derives the run from the authenticated source
+    record before any Canonical is selected.
+    """
+
+    slot_id: str
+    openwebui_file_id: str
+    context: ArtifactAccessContext
+
+
 class Goal391PrivateSelectionBindingIssuer:
     """Return existing selection data only after exact owner-backed binding."""
 
@@ -42,11 +63,20 @@ class Goal391PrivateSelectionBindingIssuer:
             raise Goal391PrivateSelectionBindingError(
                 "goal391_selection_binding_store_required"
             )
+        if not callable(getattr(store, "list_canonical_versions", None)):
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_store_required"
+            )
         if not callable(getattr(reader, "read_envelope", None)):
             raise Goal391PrivateSelectionBindingError(
                 "goal391_selection_binding_reader_required"
             )
-        if not callable(getattr(resolver, "resolve_record", None)):
+        if (
+            not callable(getattr(resolver, "resolve_record", None))
+            or not callable(
+                getattr(resolver, "resolve_authenticated_source_file_binding", None)
+            )
+        ):
             raise Goal391PrivateSelectionBindingError(
                 "goal391_selection_binding_resolver_required"
             )
@@ -70,6 +100,31 @@ class Goal391PrivateSelectionBindingIssuer:
             )
         self._validate_request_shape(corpus_id=corpus_id, requests=requests)
         selections = tuple(self._issue_one(request) for request in requests)
+        return self._parse_manifest(corpus_id=corpus_id, selections=selections)
+
+    def issue_from_source_files(
+        self,
+        *,
+        corpus_id: str,
+        requests: Iterable[Goal391PrivateSourceFileSelectionRequest],
+    ) -> PrivateCorpusSelectionManifest:
+        """Issue one selection per exact authenticated source-file binding.
+
+        This is a representation-only bridge.  ArtifactResolver owns
+        source-file identity and lifecycle validation; ArtifactStore owns
+        Canonical history; CanonicalReader owns immutable envelope validation.
+        """
+
+        requests = list(requests)
+        if not requests or any(
+            not isinstance(request, Goal391PrivateSourceFileSelectionRequest)
+            for request in requests
+        ):
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_request_invalid"
+            )
+        self._validate_source_file_request_shape(corpus_id=corpus_id, requests=requests)
+        selections = tuple(self._issue_one_source_file(request) for request in requests)
         return self._parse_manifest(corpus_id=corpus_id, selections=selections)
 
     def _issue_one(
@@ -144,6 +199,78 @@ class Goal391PrivateSelectionBindingIssuer:
             workspace_model_id=context.workspace_model_id,
         )
 
+    def _issue_one_source_file(
+        self, request: Goal391PrivateSourceFileSelectionRequest
+    ) -> PrivateCorpusSelection:
+        scope_context = request.context
+        if not _private_scope_context(scope_context):
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_request_invalid"
+            )
+        binding = self._resolver.resolve_authenticated_source_file_binding(
+            context=replace(scope_context, require_source_available=True),
+            openwebui_file_id=request.openwebui_file_id,
+        )
+        exact_context = replace(
+            scope_context,
+            normalization_run_id=binding.normalization_run_id,
+            require_source_available=True,
+            source_file_id=request.openwebui_file_id,
+        )
+        matches = [
+            version
+            for version in self._store.list_canonical_versions(
+                context=exact_context, document_id=binding.document_id
+            )
+            if getattr(version, "normalization_run_id", None)
+            == binding.normalization_run_id
+            and getattr(version, "source_artifact_ref", None)
+            == binding.source_artifact_id
+            and getattr(version, "source_sha256", None) == binding.file_hash_sha256
+            and bool(str(getattr(version, "manifest_ref", "") or ""))
+        ]
+        if len(matches) != 1:
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_exact_canonical_ambiguous"
+                if len(matches) > 1
+                else "goal391_selection_binding_exact_canonical_missing"
+            )
+        version = matches[0]
+        manifest_ref = str(getattr(version, "manifest_ref", "") or "")
+        envelope = self._reader.read_envelope(
+            manifest_ref,
+            exact_context,
+            expected_normalization_run_id=binding.normalization_run_id,
+        )
+        source = (
+            getattr(envelope, "artifact", {}).get("source")
+            if isinstance(getattr(envelope, "artifact", None), dict)
+            else None
+        )
+        if (
+            getattr(envelope, "document_id", None) != binding.document_id
+            or getattr(envelope, "canonical_version_id", None)
+            != getattr(version, "canonical_version_id", None)
+            or getattr(envelope, "canonical_root_sha256", None)
+            != getattr(version, "canonical_root_sha256", None)
+            or not isinstance(source, dict)
+            or str(source.get("source_artifact_ref") or "")
+            != binding.source_artifact_id
+            or str(source.get("source_sha256") or "") != binding.file_hash_sha256
+        ):
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_canonical_invalid"
+            )
+        return PrivateCorpusSelection(
+            slot_id=request.slot_id,
+            manifest_ref=manifest_ref,
+            user_id=scope_context.user_id,
+            normalization_run_id=binding.normalization_run_id,
+            case_id=scope_context.case_id,
+            chat_id=None if scope_context.case_id else scope_context.chat_id,
+            workspace_model_id=scope_context.workspace_model_id,
+        )
+
     @staticmethod
     def _validate_request_shape(
         *, corpus_id: str, requests: list[Goal391PrivateSelectionRequest]
@@ -188,6 +315,36 @@ class Goal391PrivateSelectionBindingIssuer:
             ) from exc
 
     @staticmethod
+    def _validate_source_file_request_shape(
+        *,
+        corpus_id: str,
+        requests: list[Goal391PrivateSourceFileSelectionRequest],
+    ) -> None:
+        if any(
+            not _private_scope_context(request.context)
+            or not str(request.openwebui_file_id or "").strip()
+            for request in requests
+        ):
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_request_invalid"
+            )
+        if len({str(request.openwebui_file_id) for request in requests}) != len(requests):
+            raise Goal391PrivateSelectionBindingError(
+                "goal391_selection_binding_request_invalid"
+            )
+        Goal391PrivateSelectionBindingIssuer._validate_request_shape(
+            corpus_id=corpus_id,
+            requests=[
+                Goal391PrivateSelectionRequest(
+                    slot_id=request.slot_id,
+                    document_id="source-file-selection",
+                    context=replace(request.context, normalization_run_id="pending"),
+                )
+                for request in requests
+            ],
+        )
+
+    @staticmethod
     def _parse_manifest(
         *, corpus_id: str, selections: tuple[PrivateCorpusSelection, ...]
     ) -> PrivateCorpusSelectionManifest:
@@ -226,8 +383,18 @@ def _private_context(context: Any) -> bool:
     )
 
 
+def _private_scope_context(context: Any) -> bool:
+    return (
+        isinstance(context, ArtifactAccessContext)
+        and bool(context.allow_private)
+        and bool(str(context.user_id or "").strip())
+        and bool(context.case_id or context.chat_id)
+    )
+
+
 __all__ = [
     "Goal391PrivateSelectionBindingError",
     "Goal391PrivateSelectionBindingIssuer",
     "Goal391PrivateSelectionRequest",
+    "Goal391PrivateSourceFileSelectionRequest",
 ]

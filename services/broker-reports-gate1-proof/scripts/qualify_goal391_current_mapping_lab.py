@@ -33,7 +33,6 @@ from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (  # noqa: E402
-    PROMPT_COMMAND,
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
@@ -50,7 +49,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
 
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
-SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v2"
+SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v7"
 
 
 class Goal391CurrentMappingLabError(RuntimeError):
@@ -68,9 +67,10 @@ def main() -> int:
     parser.add_argument("--expected-git-head", required=True)
     parser.add_argument("--ordinary-user-id", required=True)
     parser.add_argument("--prompt-db-path", type=Path, required=True)
-    prompt_selector = parser.add_mutually_exclusive_group(required=True)
-    prompt_selector.add_argument("--prompt-id")
-    prompt_selector.add_argument("--prompt-command")
+    parser.add_argument("--prompt-id", required=True)
+    parser.add_argument("--prompt-command", required=True)
+    parser.add_argument("--prompt-version", required=True)
+    parser.add_argument("--prompt-hash", required=True)
     parser.add_argument("--server-runtime", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()
@@ -85,6 +85,8 @@ def main() -> int:
         db_path=args.prompt_db_path,
         prompt_id=args.prompt_id,
         prompt_command=args.prompt_command,
+        prompt_version=args.prompt_version,
+        prompt_hash=args.prompt_hash,
         ordinary_user_id=ordinary_user_id,
     )
 
@@ -119,12 +121,32 @@ def main() -> int:
 
     if not args.server_runtime:
         raise SystemExit("goal391_server_runtime_required")
-    request, user, chat_count = _server_runtime_context(
-        ordinary_user_id=ordinary_user_id
+    receipt = asyncio.run(
+        _run_live_qualification(
+            semantic=semantic,
+            prompt=prompt,
+            candidate=candidate,
+            cases=cases,
+            ordinary_user_id=ordinary_user_id,
+            progress_path=progress_path,
+        )
     )
-    chats_before = chat_count()
-    if chats_before < 0:
-        raise SystemExit("goal391_chat_count_unavailable")
+    _write_json(receipt_path, receipt)
+    print(json.dumps(_public_summary(receipt), ensure_ascii=False, sort_keys=True))
+    if receipt["status"] != "PASSED":
+        raise SystemExit("goal391_current_mapping_lab_failed")
+    return 0
+
+
+async def _run_live_qualification(
+    *,
+    semantic: Any,
+    prompt: Any,
+    candidate: Mapping[str, Any],
+    cases: list[Mapping[str, Any]],
+    ordinary_user_id: str,
+    progress_path: Path | None,
+) -> dict[str, Any]:
     submissions = {"count": 0}
 
     def progress(state: str, case: Mapping[str, Any] | None = None) -> None:
@@ -138,6 +160,24 @@ def main() -> int:
         if case is not None:
             value["case_sha256"] = _sha256(case["case_id"])
         _write_json(progress_path, value, atomic=True)
+
+    # This reaches only the in-process OpenWebUI boundary.  The last value is
+    # intentionally a closed, value-free state: its receipt must help locate a
+    # blocked boundary without leaking an exception, an identity, or model data.
+    progress("RUNTIME_CONTEXT_STARTED")
+    try:
+        request, user, chat_count = await _server_runtime_context(
+            ordinary_user_id=ordinary_user_id,
+            progress=progress,
+        )
+        progress("CHAT_COUNT_STARTED")
+        chats_before = await chat_count()
+        if chats_before < 0:
+            raise SystemExit("goal391_chat_count_unavailable")
+        progress("CHAT_COUNT_OBSERVED")
+    except SystemExit as exc:
+        progress(_safe_runtime_context_terminal_stage(exc))
+        raise
 
     progress("READY")
 
@@ -162,20 +202,18 @@ def main() -> int:
         ),
     ).create()
 
-    records, terminal_error = asyncio.run(
-        _run_all_cases(
-            semantic=semantic,
-            prompt=prompt,
-            client=client,
-            cases=cases,
-            submissions=submissions,
-            progress=progress,
-        )
+    records, terminal_error = await _run_all_cases(
+        semantic=semantic,
+        prompt=prompt,
+        client=client,
+        cases=cases,
+        submissions=submissions,
+        progress=progress,
     )
 
     lifecycle = client.qualification_lifecycle_snapshot()
     expected_calls = len(cases)
-    chats_after = chat_count()
+    chats_after = await chat_count()
     passed = (
         submissions["count"] == expected_calls
         and lifecycle == {
@@ -188,7 +226,7 @@ def main() -> int:
         and chats_after >= 0
         and chats_after == chats_before
     )
-    receipt = {
+    return {
         "schema_version": SAFE_RECEIPT_SCHEMA_VERSION,
         "status": "PASSED" if passed else "FAILED",
         "candidate": candidate,
@@ -209,71 +247,129 @@ def main() -> int:
         },
         "terminal_error": terminal_error,
     }
-    _write_json(receipt_path, receipt)
-    print(json.dumps(_public_summary(receipt), ensure_ascii=False, sort_keys=True))
-    if not passed:
-        raise SystemExit("goal391_current_mapping_lab_failed")
-    return 0
 
 
-def _server_runtime_context(*, ordinary_user_id: str):
+def _safe_runtime_context_terminal_stage(exc: SystemExit) -> str:
+    """Map known fail-closed context exits to value-free receipt stages."""
+
+    return {
+        "goal391_ordinary_user_unavailable": (
+            "RUNTIME_CONTEXT_BLOCKED_ORDINARY_USER_UNAVAILABLE"
+        ),
+        "goal391_released_model_not_available": (
+            "RUNTIME_CONTEXT_BLOCKED_RELEASED_MODEL_UNAVAILABLE"
+        ),
+        "goal391_chat_count_unavailable": (
+            "RUNTIME_CONTEXT_BLOCKED_CHAT_COUNT_UNAVAILABLE"
+        ),
+    }.get(str(exc), "RUNTIME_CONTEXT_BLOCKED")
+
+
+async def _server_runtime_context(
+    *,
+    ordinary_user_id: str,
+    progress=None,
+    user_loader=None,
+    request_factory=None,
+    model_checker=None,
+    chat_loader=None,
+):
     """Use OpenWebUI's in-process completion owner; never read provider keys."""
-
-    from starlette.requests import Request
-    from open_webui.main import app
-    from open_webui.models.chats import Chats
-    from open_webui.models.users import Users
 
     if not isinstance(ordinary_user_id, str) or not ordinary_user_id:
         raise SystemExit("goal391_ordinary_user_id_invalid")
+    if progress is not None:
+        progress("ORDINARY_USER_RESOLUTION_STARTED")
+    if user_loader is None:
+        from open_webui.models.users import Users
 
-    async def select_user():
-        result = await Users.get_users()
-        users = result.get("users", []) if isinstance(result, dict) else []
-        return next(
-            (
-                item
-                for item in users
-                if getattr(item, "id", None) == ordinary_user_id
-                and getattr(item, "role", None) == "user"
-            ),
-            None,
-        )
+        user_loader = Users.get_users
 
-    user = asyncio.run(select_user())
+    result = await user_loader()
+    users = result.get("users", []) if isinstance(result, dict) else []
+    user = next(
+        (
+            item
+            for item in users
+            if getattr(item, "id", None) == ordinary_user_id
+            and getattr(item, "role", None) == "user"
+        ),
+        None,
+    )
     if user is None or not getattr(user, "id", None):
         raise SystemExit("goal391_ordinary_user_unavailable")
-    request = Request(
-        {
-            "type": "http",
-            "http_version": "1.1",
-            "method": "POST",
-            "scheme": "http",
-            "path": "/api/chat/completions",
-            "raw_path": b"/api/chat/completions",
-            "query_string": b"",
-            "headers": [],
-            "client": ("127.0.0.1", 0),
-            "server": ("127.0.0.1", 80),
-            "app": app,
-        }
+    if request_factory is None:
+        from starlette.requests import Request
+        from open_webui.main import app
+
+        request_factory = lambda: Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/api/chat/completions",
+                "raw_path": b"/api/chat/completions",
+                "query_string": b"",
+                "headers": [],
+                "client": ("127.0.0.1", 0),
+                "server": ("127.0.0.1", 80),
+                "app": app,
+            }
+        )
+    request = request_factory()
+    if progress is not None:
+        progress("RUNTIME_REQUEST_CREATED")
+        progress("RELEASED_MODEL_CHECK_STARTED")
+    if model_checker is None:
+        model_checker = _ensure_server_model_available
+    await model_checker(
+        request=request,
+        user=user,
+        model_id=MODEL_ID,
     )
+    if progress is not None:
+        progress("RELEASED_MODEL_AVAILABLE")
+    if chat_loader is None:
+        from open_webui.models.chats import Chats
 
-    def chat_count() -> int:
-        async def count():
-            value = await Chats.get_chats_by_user_id(user.id)
-            items = getattr(value, "chats", None)
-            if items is None:
-                items = getattr(value, "items", None)
-            if items is None and isinstance(value, dict):
-                items = value.get("chats")
-            if items is None and isinstance(value, list):
-                items = value
-            return len(items) if isinstance(items, list) else -1
+        chat_loader = Chats.get_chats_by_user_id
 
-        return asyncio.run(count())
+    async def chat_count() -> int:
+        value = await chat_loader(user.id)
+        items = getattr(value, "chats", None)
+        if items is None:
+            items = getattr(value, "items", None)
+        if items is None and isinstance(value, dict):
+            items = value.get("chats")
+        if items is None and isinstance(value, list):
+            items = value
+        return len(items) if isinstance(items, list) else -1
 
     return request, user, chat_count
+
+
+async def _ensure_server_model_available(
+    *,
+    request: Any,
+    user: Any,
+    model_id: str,
+    model_loader=None,
+) -> None:
+    """Load the native catalog once, then require the released exact model ID."""
+
+    if model_loader is None:
+        from open_webui.utils.models import get_all_models
+
+        model_loader = get_all_models
+    models = await model_loader(request, user=user)
+    available_ids = {
+        item.get("id")
+        for item in models
+        if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+    }
+    if model_id not in available_ids:
+        raise SystemExit("goal391_released_model_not_available")
 
 
 def _preflight(
@@ -288,7 +384,7 @@ def _preflight(
     if (
         set(expectations) != {"schema_version", "candidate", "cases"}
         or expectations.get("schema_version")
-        != "broker_reports_role_mapping_lab_disposition_expectations_v2"
+        != "broker_reports_role_mapping_lab_disposition_expectations_v3"
         or expectations.get("candidate") != candidate
         or not isinstance(expectations.get("cases"), list)
         # The frozen manifest, not this runner, defines the closed qualification
@@ -299,6 +395,10 @@ def _preflight(
     ):
         raise SystemExit("goal391_expectations_invalid")
     cases = []
+    requires_model_selected_evidence = (
+        candidate.get("prompt_output_schema_version")
+        == MAPPING_RESPONSE_SCHEMA_VERSION
+    )
     for expected in expectations["cases"]:
         snapshot_id = expected.get("snapshot_id")
         if not isinstance(snapshot_id, str) or not snapshot_id:
@@ -307,13 +407,24 @@ def _preflight(
         if not snapshot_path.is_file():
             snapshot_path = corpus_root / "canonical" / f"{snapshot_id}.json"
         canonical = _read_json(snapshot_path)
-        cases.append(_fixture(canonical=canonical, expected=expected))
+        cases.append(
+            _fixture(
+                canonical=canonical,
+                expected=expected,
+                requires_model_selected_evidence=requires_model_selected_evidence,
+            )
+        )
     if len({case["case_id"] for case in cases}) != len(cases):
         raise SystemExit("goal391_case_id_duplicate")
     return cases
 
 
-def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[str, Any]:
+def _fixture(
+    *,
+    canonical: dict[str, Any],
+    expected: Mapping[str, Any],
+    requires_model_selected_evidence: bool = False,
+) -> dict[str, Any]:
     required = {
         "case_id",
         "confirmed_understandings",
@@ -327,7 +438,10 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
     }
     if set(expected) != required:
         raise SystemExit("goal391_expectation_case_invalid")
-    _validate_expected_assessment(expected["expected_assessment"])
+    _validate_expected_assessment(
+        expected["expected_assessment"],
+        requires_model_selected_evidence=requires_model_selected_evidence,
+    )
     source = canonical.get("source") or {}
     if validate_canonical_artifact(canonical).get("passed") is not True:
         raise SystemExit("goal391_canonical_invalid")
@@ -340,6 +454,7 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
     }
     if not all(binding.values()):
         raise SystemExit("goal391_canonical_binding_invalid")
+    expected_assessment = dict(expected["expected_assessment"])
     return {
         "case_id": expected["case_id"],
         "canonical": canonical,
@@ -348,8 +463,51 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
         "target_table_node_ids": expected["target_table_node_ids"],
         "frozen_mappings": expected["frozen_mappings"],
         "user_scope_sha256": expected["user_scope_sha256"],
-        "expected_assessment": dict(expected["expected_assessment"]),
+        "expected_assessment": expected_assessment,
+        # The mapping owner, not a human manifest or the model, owns the full
+        # bounded source envelope for an exclusion. It remains private here;
+        # receipts contain only deterministic hashes and counts.
+        "owner_classification_envelopes": _owner_classification_envelopes(
+            canonical=canonical,
+            target_table_node_ids=expected["target_table_node_ids"],
+            required_table_decisions=expected_assessment[
+                "required_table_decisions"
+            ],
+        ),
     }
+
+
+def _owner_classification_envelopes(
+    *,
+    canonical: Mapping[str, Any],
+    target_table_node_ids: list[str] | None,
+    required_table_decisions: list[dict[str, Any]],
+) -> dict[str, list[dict[str, str]]]:
+    """Return full deterministic owner envelopes for new exclusion expectations.
+
+    The frozen expectation supplies only semantic disposition and kind. This
+    calls the existing mapping owner to project Canonical context; it does not
+    select evidence or assign meaning.
+    """
+
+    required_ids = [
+        decision["table_node_id"]
+        for decision in required_table_decisions
+        if decision["disposition"] == "NO_NAMED_CONSUMER"
+        # Older immutable manifests may retain a model-selected subset. Read
+        # compatibility is preserved below, but new expectations never use it.
+        and "classification_evidence" not in decision
+    ]
+    if not required_ids:
+        return {}
+    if target_table_node_ids is not None and not set(required_ids).issubset(
+        set(target_table_node_ids)
+    ):
+        raise SystemExit("goal391_owner_classification_envelope_invalid")
+    return OrdinaryTradeSemanticMappingFactory.create().build_classification_evidence_envelopes(
+        canonical=canonical,
+        target_table_node_ids=required_ids,
+    )
 
 
 async def _run_case(
@@ -439,6 +597,11 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
     assessment = case["expected_assessment"]
     result = outcome["outcome"]
     actual_status = result.get("status")
+    raw_actual_resolutions = {
+        item.get("table_node_id"): item
+        for item in result.get("table_resolutions") or []
+        if isinstance(item, Mapping) and isinstance(item.get("table_node_id"), str)
+    }
     actual_resolutions = {
         item.get("table_node_id"): {
             key: item.get(key)
@@ -463,9 +626,39 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
                         if key in decision
                     },
                 }
+                raw_actual_resolutions[targets[0]] = decision
     required = {
         item["table_node_id"]: item
         for item in assessment["required_table_decisions"]
+    }
+    expected_classification_evidence_signatures = {
+        node_id: _classification_evidence_list_signature(
+            decision["classification_evidence"]
+        )
+        for node_id, decision in required.items()
+        if "classification_evidence" in decision
+    }
+    expected_owner_classification_envelope_signatures = {
+        node_id: _owner_classification_envelope_signature(envelope)
+        for node_id, envelope in (
+            case.get("owner_classification_envelopes") or {}
+        ).items()
+    }
+    actual_classification_evidence_signatures = {
+        node_id: _classification_evidence_list_signature(
+            resolution["classification_evidence"]
+        )
+        for node_id, resolution in raw_actual_resolutions.items()
+        if node_id in expected_classification_evidence_signatures
+        and "classification_evidence" in resolution
+    }
+    actual_owner_classification_envelope_signatures = {
+        node_id: _owner_classification_envelope_signature(
+            resolution["classification_evidence"]
+        )
+        for node_id, resolution in raw_actual_resolutions.items()
+        if node_id in expected_owner_classification_envelope_signatures
+        and "classification_evidence" in resolution
     }
     qualified_table_node_ids = sorted(
         str(item["case_scope"]["table_node_id"])
@@ -479,14 +672,65 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         if actual_status == "SPECIALIST_REVIEW_REQUIRED"
         else []
     )
-    matches = (
-        actual_status == assessment.get("expected_status")
-        and all(actual_resolutions.get(node_id) == decision for node_id, decision in required.items())
-        and unresolved == sorted(assessment["unresolved_table_node_ids"])
-        and not set(qualified_table_node_ids).intersection(
-            assessment["forbidden_qualified_mapping_table_node_ids"]
-        )
+    required_decisions_match = all(
+        actual_resolutions.get(node_id)
+        == {
+            key: value
+            for key, value in decision.items()
+            if key != "classification_evidence"
+        }
+        for node_id, decision in required.items()
     )
+    classification_evidence_matches = (
+        actual_classification_evidence_signatures
+        == expected_classification_evidence_signatures
+    )
+    owner_classification_envelope_matches = (
+        actual_owner_classification_envelope_signatures
+        == expected_owner_classification_envelope_signatures
+    )
+    expected_exclusion_path_required = any(
+        decision["disposition"] == "NO_NAMED_CONSUMER"
+        for decision in required.values()
+    )
+    actual_exclusion_path_present = any(
+        resolution.get("disposition") == "NO_NAMED_CONSUMER"
+        for resolution in actual_resolutions.values()
+    )
+    complete_without_required_exclusion_path = (
+        actual_status == "COMPLETE"
+        and expected_exclusion_path_required
+        and not actual_exclusion_path_present
+    )
+    unresolved_table_set_match = (
+        unresolved == sorted(assessment["unresolved_table_node_ids"])
+    )
+    forbidden_qualified_mapping_clear = not set(qualified_table_node_ids).intersection(
+        assessment["forbidden_qualified_mapping_table_node_ids"]
+    )
+    status_matches = actual_status == assessment.get("expected_status")
+    matches = (
+        status_matches
+        and required_decisions_match
+        and classification_evidence_matches
+        and owner_classification_envelope_matches
+        and unresolved_table_set_match
+        and forbidden_qualified_mapping_clear
+        and not complete_without_required_exclusion_path
+    )
+    actual_disposition_counts: dict[str, int] = {}
+    actual_no_consumer_kind_counts: dict[str, int] = {}
+    for resolution in actual_resolutions.values():
+        disposition = resolution.get("disposition")
+        if isinstance(disposition, str):
+            actual_disposition_counts[disposition] = (
+                actual_disposition_counts.get(disposition, 0) + 1
+            )
+        no_consumer_kind = resolution.get("no_consumer_kind")
+        if isinstance(no_consumer_kind, str):
+            actual_no_consumer_kind_counts[no_consumer_kind] = (
+                actual_no_consumer_kind_counts.get(no_consumer_kind, 0) + 1
+            )
     return {
         "case_sha256": _sha256(case["case_id"]),
         "canonical_root_sha256": case["canonical_binding"]["canonical_root_sha256"],
@@ -494,7 +738,61 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         "actual_table_decisions_sha256": _sha256(actual_resolutions),
         "qualified_table_node_ids_sha256": _sha256(qualified_table_node_ids),
         "qualified_mapping_total": len(qualified_table_node_ids),
+        "actual_table_decision_count": len(actual_resolutions),
+        "actual_disposition_counts": dict(sorted(actual_disposition_counts.items())),
+        "actual_no_consumer_kind_counts": dict(
+            sorted(actual_no_consumer_kind_counts.items())
+        ),
+        "expected_classification_evidence_sha256": _sha256(
+            expected_classification_evidence_signatures
+        ),
+        "actual_classification_evidence_sha256": _sha256(
+            actual_classification_evidence_signatures
+        ),
+        "expected_owner_classification_envelope_sha256": _sha256(
+            expected_owner_classification_envelope_signatures
+        ),
+        "actual_owner_classification_envelope_sha256": _sha256(
+            actual_owner_classification_envelope_signatures
+        ),
+        "classification_evidence_required_total": sum(
+            _classification_evidence_list_count(
+                decision.get("classification_evidence")
+            )
+            for decision in required.values()
+            if "classification_evidence" in decision
+        ),
+        "actual_classification_evidence_total": sum(
+            _classification_evidence_list_count(
+                resolution.get("classification_evidence")
+            )
+            for node_id, resolution in raw_actual_resolutions.items()
+            if node_id in expected_classification_evidence_signatures
+            and "classification_evidence" in resolution
+        ),
+        "classification_evidence_matches": classification_evidence_matches,
+        "owner_classification_envelope_required_total": sum(
+            _owner_classification_envelope_count(envelope)
+            for envelope in (case.get("owner_classification_envelopes") or {}).values()
+        ),
+        "actual_owner_classification_envelope_total": sum(
+            _owner_classification_envelope_count(
+                resolution.get("classification_evidence")
+            )
+            for node_id, resolution in raw_actual_resolutions.items()
+            if node_id in expected_owner_classification_envelope_signatures
+        ),
+        "owner_classification_envelope_matches": (
+            owner_classification_envelope_matches
+        ),
+        "complete_without_required_exclusion_path": (
+            complete_without_required_exclusion_path
+        ),
         "actual_status": actual_status,
+        "status_matches": status_matches,
+        "required_decisions_match": required_decisions_match,
+        "unresolved_table_set_match": unresolved_table_set_match,
+        "forbidden_qualified_mapping_clear": forbidden_qualified_mapping_clear,
         "outcome": "PASS" if matches else "FAIL",
         "provider_calls_started_total": 1,
         "provider_calls_returned_total": 1,
@@ -577,6 +875,7 @@ def _current_candidate(*, semantic: Any, prompt: Any, expected_git_head: str) ->
         "model_id": MODEL_ID,
         "provider_profile_id": PROVIDER_PROFILE_ID,
         "prompt_ref": prompt.prompt_ref,
+        "prompt_command": prompt.command or "",
         "prompt_version": prompt.version,
         "prompt_sha256": prompt.hash,
         "prompt_contract_id": prompt.prompt_contract_id,
@@ -591,24 +890,26 @@ def _current_candidate(*, semantic: Any, prompt: Any, expected_git_head: str) ->
 def _resolve_mapping_prompt(
     *,
     db_path: Path,
-    prompt_id: str | None,
-    prompt_command: str | None,
+    prompt_id: str,
+    prompt_command: str,
+    prompt_version: str,
+    prompt_hash: str,
     ordinary_user_id: str,
 ):
     """Resolve the version-pinned Workspace Prompt without exposing its body."""
 
     selector_id = str(prompt_id or "").strip()
-    selector_command = str(prompt_command or "").strip()
-    if bool(selector_id) == bool(selector_command):
+    if not selector_id:
         raise SystemExit("goal391_mapping_prompt_selector_invalid")
-    if selector_command and selector_command != PROMPT_COMMAND:
-        raise SystemExit("goal391_mapping_prompt_command_invalid")
     return OrdinaryTradeMappingPromptResolverFactory(
         OrdinaryTradeMappingPromptConfig(
             source="openwebui_sqlite",
             db_path=db_path,
-            prompt_id=selector_id or None,
-            command=selector_command or None,
+            prompt_id=selector_id,
+            command=None,
+            required_command=str(prompt_command or "").strip(),
+            release_prompt_version=str(prompt_version or "").strip() or None,
+            release_prompt_hash=str(prompt_hash or "").strip() or None,
         )
     ).create().resolve(
         OrdinaryTradeMappingPromptUserContext(
@@ -618,7 +919,9 @@ def _resolve_mapping_prompt(
     )
 
 
-def _validate_expected_assessment(value: Any) -> None:
+def _validate_expected_assessment(
+    value: Any, *, requires_model_selected_evidence: bool = False
+) -> None:
     required = {
         "expected_status",
         "required_table_decisions",
@@ -643,6 +946,8 @@ def _validate_expected_assessment(value: Any) -> None:
         expected_keys = {"table_node_id", "disposition"}
         if disposition == "NO_NAMED_CONSUMER":
             expected_keys.add("no_consumer_kind")
+        if "classification_evidence" in decision:
+            expected_keys.add("classification_evidence")
         if (
             set(decision) != expected_keys
             or not isinstance(decision.get("table_node_id"), str)
@@ -654,6 +959,21 @@ def _validate_expected_assessment(value: Any) -> None:
                 disposition == "NO_NAMED_CONSUMER"
                 and decision.get("no_consumer_kind")
                 not in {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
+            )
+            or (
+                "classification_evidence" in decision
+                and (
+                    disposition != "NO_NAMED_CONSUMER"
+                    or _classification_evidence_list_signature(
+                        decision["classification_evidence"], strict=True
+                    )
+                    is None
+                )
+            )
+            or (
+                requires_model_selected_evidence
+                and disposition == "NO_NAMED_CONSUMER"
+                and "classification_evidence" not in decision
             )
         ):
             raise SystemExit("goal391_expected_assessment_invalid")
@@ -667,6 +987,127 @@ def _validate_expected_assessment(value: Any) -> None:
             or len(value[key]) != len(set(value[key]))
         ):
             raise SystemExit("goal391_expected_assessment_invalid")
+
+
+def _classification_evidence_list_signature(
+    value: Any, *, strict: bool = False
+) -> str | None:
+    """Return a value-free fingerprint of one ordered exact evidence list."""
+
+    if not isinstance(value, list) or not value:
+        return None
+    canonical: list[dict[str, str]] = []
+    for item in value:
+        if (
+            not isinstance(item, Mapping)
+            or (strict and set(item) != {"context_ref", "relation"})
+            or not isinstance(item.get("context_ref"), str)
+            or not item["context_ref"]
+            or not isinstance(item.get("relation"), str)
+            or not item["relation"]
+        ):
+            return None
+        canonical.append(
+            {"context_ref": item["context_ref"], "relation": item["relation"]}
+        )
+    if len(canonical) != len(
+        {(item["context_ref"], item["relation"]) for item in canonical}
+    ):
+        return None
+    return _sha256(canonical)
+
+
+def _classification_evidence_list_count(value: Any) -> int:
+    """Return only a list length; receipt code never returns the list itself."""
+
+    return len(value) if isinstance(value, list) else 0
+
+
+def _owner_classification_envelope(value: Any) -> list[dict[str, str]]:
+    """Reduce the owner's private projection to its immutable response shape."""
+
+    if not isinstance(value, list) or not value:
+        raise SystemExit("goal391_owner_classification_envelope_invalid")
+    envelope: list[dict[str, str]] = []
+    for entry in value:
+        if (
+            not isinstance(entry, Mapping)
+            or not all(
+                isinstance(entry.get(key), str) and entry[key]
+                for key in (
+                    "context_ref",
+                    "relation",
+                    "canonical_node_id",
+                    "literal_sha256",
+                )
+            )
+            or re.fullmatch(r"[0-9a-f]{64}", entry["literal_sha256"]) is None
+        ):
+            raise SystemExit("goal391_owner_classification_envelope_invalid")
+        envelope.append(
+            {
+                key: entry[key]
+                for key in (
+                    "context_ref",
+                    "relation",
+                    "canonical_node_id",
+                    "literal_sha256",
+                )
+            }
+        )
+    if len(envelope) != len(
+        {
+            (entry["context_ref"], entry["relation"])
+            for entry in envelope
+        }
+    ):
+        raise SystemExit("goal391_owner_classification_envelope_invalid")
+    return envelope
+
+
+def _owner_classification_envelope_signature(value: Any) -> str | None:
+    """Fingerprint one exact full owner envelope without emitting its values."""
+
+    if not isinstance(value, list) or not value:
+        return None
+    normalized: list[dict[str, str]] = []
+    for entry in value:
+        if (
+            not isinstance(entry, Mapping)
+            or set(entry)
+            != {
+                "context_ref",
+                "relation",
+                "canonical_node_id",
+                "literal_sha256",
+            }
+            or not all(
+                isinstance(entry.get(key), str) and entry[key]
+                for key in (
+                    "context_ref",
+                    "relation",
+                    "canonical_node_id",
+                    "literal_sha256",
+                )
+            )
+            or re.fullmatch(r"[0-9a-f]{64}", entry["literal_sha256"]) is None
+        ):
+            return None
+        normalized.append({key: entry[key] for key in sorted(entry)})
+    if len(normalized) != len(
+        {
+            (entry["context_ref"], entry["relation"])
+            for entry in normalized
+        }
+    ):
+        return None
+    return _sha256(normalized)
+
+
+def _owner_classification_envelope_count(value: Any) -> int:
+    """Return a count only after strict full-envelope validation."""
+
+    return len(value) if _owner_classification_envelope_signature(value) else 0
 
 
 def _read_json(path: Path) -> dict[str, Any]:

@@ -495,6 +495,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_grouped_mapping_v14.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "canonical_finalization.py"
         ),
         (
@@ -835,6 +839,26 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_support_modules = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_operation_set_demand_derivation.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_mapping_prompt_publication.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_grouped_mapping_v15.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "instructional_table_classification.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "instructional_table_classification_prompt.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_declaration_chat_adapter.py"
         ),
         (
@@ -844,6 +868,22 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "mistral_pdf_document_ai.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "physical_table_continuation.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "physical_table_continuation_context.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_table_continuation_annotation_prompt.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_table_continuation_annotation_contract.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
@@ -874,6 +914,14 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_semantic_mapping_live_qualification.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "goal391_grouped_mapping_lab_v14.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "goal391_mapping_lab_control_plan.py"
         ),
     }
     allowed_private_corpus_export_modules = {
@@ -1234,11 +1282,16 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     ):
         assert gate3_suite in workflow
     for qualification_suite in (
+        "tests/test_goal391_instructional_case_state.py",
+        "tests/test_goal391_instructional_prompt.py",
+        "tests/test_goal391_instructional_admission.py",
         "tests/test_broker_reports_goal391_role_mapping_sandbox_corpus.py",
         "tests/test_broker_reports_ordinary_trade_mapping_qualification.py",
         "tests/test_broker_reports_goal391_live_mapping_qualification.py",
         "tests/test_broker_reports_goal391_private_corpus_export.py",
         "tests/test_broker_reports_goal391_private_selection_binding.py",
+        "tests/test_broker_reports_goal391_grouped_mapping_lab_v14.py",
+        "tests/test_broker_reports_goal391_native_lab_pipe.py",
     ):
         assert qualification_suite in workflow
     assert DOMAIN_MAP.is_file()

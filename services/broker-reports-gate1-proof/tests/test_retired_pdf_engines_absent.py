@@ -51,6 +51,17 @@ RETIRED_MODULE_PREFIXES = (
     "visual_pdfplumber_",
     "visual_table_review_",
 )
+GENERATED_PIPE_BUNDLES = frozenset(
+    {
+        "broker_reports_gate1_pipe_bundled.py",
+        "broker_reports_gate2_source_fact_pipe_bundled.py",
+        "broker_reports_gate2_domain_source_fact_pipe_bundled.py",
+        # Goal #391's non-product Pipe is still a generated closed-world
+        # artifact and must receive the same retired-engine scan as product
+        # bundles.  An explicit inventory is stronger than a stale count.
+        "goal391_mapping_lab_pipe_bundled.py",
+    }
+)
 
 
 def _maintained_files() -> list[Path]:
@@ -111,7 +122,7 @@ def test_retired_module_families_are_absent_from_package_and_imports() -> None:
 
 def test_generated_bundles_do_not_embed_retired_modules() -> None:
     bundles = sorted((SERVICE_ROOT / "openwebui_actions").glob("*_bundled.py"))
-    assert len(bundles) == 3
+    assert {path.name for path in bundles} == GENERATED_PIPE_BUNDLES
     violations: list[str] = []
     for path in bundles:
         text = path.read_text(encoding="utf-8").casefold()

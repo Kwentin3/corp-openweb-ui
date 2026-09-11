@@ -148,7 +148,7 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
         document_ai.get("configured") is not True
         or document_ai.get("adapter_status") != "static_ready"
         or document_ai.get("selected_engine") != "mistral_ocr"
-        or document_ai.get("selected_adapter") != "mistral_serverless_ocr_adapter_v2"
+        or document_ai.get("selected_adapter") != "mistral_serverless_ocr_adapter_v3"
         or document_ai.get("static_ready") is not True
         or document_ai.get("composition_owner") != "PdfDocumentExtractorFactory"
         or document_ai.get("automatic_fallback") is not False

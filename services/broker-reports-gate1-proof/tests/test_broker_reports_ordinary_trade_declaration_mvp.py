@@ -661,17 +661,137 @@ def test_taxpayer_slot_is_scope_not_identity(tmp_path: Path) -> None:
     ]["source_kind"] == "USER_ATTESTED_CASE_FACT"
 
 
-def test_multiple_disposals_are_not_silently_duplicated_or_dropped(
+def test_multiple_disposals_reach_xsd_as_one_exact_operation_set_and_replay(
     tmp_path: Path,
 ) -> None:
     runtime, context, _providers = _case(
-        tmp_path, proceeds="60.00", duplicate_disposal=True
+        tmp_path,
+        proceeds="60.00",
+        financial_rows=_two_complete_disposal_rows(),
     )
 
-    with pytest.raises(OrdinaryTradeDeclarationMvpError) as blocked:
-        _run(runtime, context)
+    result = _run(runtime, context)
 
-    assert blocked.value.code == "ordinary_trade_declaration_disposal_binding_required"
+    expected_ids = sorted(
+        item["fact_id"]
+        for item in runtime._gate4.current_fact_set(context=context)["facts"]
+        if item["financial_type"] == "SECURITY_DISPOSAL"
+    )
+    assert result["schema_version"] == (
+        "broker_reports_ordinary_trade_declaration_mvp_receipt_v2"
+    )
+    assert result["disposal_fact_ids"] == expected_ids
+    assert "disposal_fact_id" not in result
+    assert result["xsd_conformance"]["xsd_valid"] is True
+    assert runtime.validate_current_declaration(result=result, context=context) == result
+
+
+def test_multiple_disposals_preview_is_calculated_without_xml(tmp_path: Path) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        financial_rows=_two_complete_disposal_rows(),
+        publish_human_facts=False,
+    )
+    initial = runtime.run(canonical_artifact_refs=[], context=context)
+    actions = {
+        item["fact_key"]: item
+        for item in initial["product"]["preparation"]["user_actions"]
+    }
+    for key in (
+        "taxpayer_capacity",
+        "residency_evidence",
+        "ordinary_trade_declaration_zero_scope_confirmed",
+    ):
+        runtime.normalize_declaration_action(
+            request_publication_ref=actions[key]["request_publication_ref"],
+            answer=_product_answer(key),
+            context=context,
+        )
+
+    draft = runtime.run(canonical_artifact_refs=[], context=context)
+
+    preview = draft["product"]["preparation"]["calculation_preview"]
+    assert draft["product"]["status"] == "DRAFT_READY"
+    assert draft["product"]["xml_created"] is False
+    assert preview["status"] == "calculated"
+    assert preview["xml_created"] is False
+    assert len(preview["category_tax_model"]["member_operations"]) == 2
+    assert "released_values" not in preview
+
+
+def test_multiple_disposals_with_real_demand_stop_before_xml(tmp_path: Path) -> None:
+    bridge = assembly_fixtures.bridge_fixtures
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        financial_rows=bridge._two_disposal_rows(),
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+
+    assert result["declaration"] is None
+    assert result["product"]["xml_created"] is False
+    assert result["product"]["terminal"] == "partial_acquisition_commission_allocation"
+
+
+def test_multi_operation_non_rub_disposal_is_rejected_before_xml(tmp_path: Path) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        financial_rows=_two_complete_disposal_rows(),
+    )
+    declaration = runtime._declaration
+    current_facts = copy.deepcopy(declaration._facts.list_facts(context=context))
+    disposal = next(
+        item
+        for item in current_facts
+        if item["financial_type"] == "SECURITY_DISPOSAL"
+    )
+    next(item for item in disposal["roles"] if item["role"] == "currency")[
+        "value"
+    ] = "USD"
+    original = declaration._facts.list_facts
+    declaration._facts.list_facts = lambda *, context: copy.deepcopy(current_facts)
+
+    try:
+        result = runtime.run(canonical_artifact_refs=[], context=context)
+    finally:
+        declaration._facts.list_facts = original
+
+    assert result["declaration"] is None
+    assert result["product"]["xml_created"] is False
+    assert result["product"]["terminal"] == (
+        "ordinary_trade_declaration_scenario_unsupported"
+    )
+
+
+def test_multi_operation_unsupported_current_fact_is_rejected_before_preview(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        financial_rows=_two_complete_disposal_rows(),
+    )
+    declaration = runtime._declaration
+    current_facts = tuple(declaration._facts.list_facts(context=context))
+    monkeypatch.setattr(
+        declaration._facts,
+        "list_facts",
+        lambda *, context: [
+            *copy.deepcopy(current_facts),
+            {"fact_id": "unsupported-current-fact", "financial_type": "DIVIDEND"},
+        ],
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+
+    assert result["declaration"] is None
+    assert result["product"]["xml_created"] is False
+    assert result["product"]["terminal"] == (
+        "ordinary_trade_declaration_scenario_unsupported"
+    )
 
 
 def test_whole_active_canonical_document_without_projection_blocks_before_xml(
@@ -712,7 +832,7 @@ def test_whole_active_canonical_document_without_projection_blocks_before_xml(
     assert complete["declaration"] is None
     assert complete["product"]["xml_created"] is False
     assert complete["product"]["terminal"] == (
-        "ordinary_trade_declaration_disposal_binding_required"
+        "ordinary_trade_declaration_bundle_stale"
     )
 
 
@@ -1488,6 +1608,16 @@ def test_same_case_operation_year_successor_stales_old_period_choice(
         )
     assert getattr(stale.value, "code", "") == "gate5_gap_request_stale"
     assert changed["product"]["xml_created"] is False
+
+
+def _two_complete_disposal_rows() -> tuple:
+    bridge = assembly_fixtures.bridge_fixtures
+    rows = list(bridge._two_disposal_rows())
+    for index in (1, 3):
+        rows[index] = bridge._with_roles(
+            rows[index], broker_commission="", exchange_commission=""
+        )
+    return tuple(rows)
 
 
 def _case(

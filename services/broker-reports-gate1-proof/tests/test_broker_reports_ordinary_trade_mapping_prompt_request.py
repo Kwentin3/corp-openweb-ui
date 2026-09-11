@@ -9,8 +9,16 @@ from broker_reports_gate1.gate2_model_contracts import Gate2SourceFactRuntimeErr
 from broker_reports_gate1.gate2_model_requests import (
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_PACKAGE_MARKER,
+    ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
+)
+from broker_reports_gate1.instructional_table_classification import (
+    INPUT_SCHEMA_VERSION as INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_VERSION as INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+    PROMPT_CONTRACT_ID as INSTRUCTIONAL_PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER as INSTRUCTIONAL_PROMPT_PLACEHOLDER,
+    response_format as instructional_response_format,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import PROMPT_PLACEHOLDER
 
@@ -31,6 +39,19 @@ def _prompt(content: str) -> SimpleNamespace:
         content=content,
         prompt_ref="prompt-ordinary-trade",
         hash="a" * 64,
+        prompt_contract_id=ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID,
+    )
+
+
+def _instructional_prompt(content: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        content=content,
+        prompt_ref="prompt-instructional",
+        hash="b" * 64,
+        prompt_contract_id=INSTRUCTIONAL_PROMPT_CONTRACT_ID,
+        input_schema_version=INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+        output_schema_id=INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+        output_schema_version=INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
     )
 
 
@@ -115,3 +136,47 @@ def test_answer_request_does_not_require_or_expand_mapping_marker() -> None:
 
     assert request["messages"][0]["content"] == "Interpret one answer."
     assert json.loads(request["messages"][1]["content"]) == package
+
+
+def test_instructional_request_uses_same_mapping_client_profile_but_own_contract() -> None:
+    package = {
+        "schema_version": INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+        "table": {"table_ref": "table_1"},
+    }
+    request = Gate2OpenWebUIRequestBuilder(
+        request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+    ).build(
+        prompt=_instructional_prompt(
+            "Classify " + INSTRUCTIONAL_PROMPT_PLACEHOLDER + " strictly."
+        ),
+        package=package,
+        model_id="models/gemini-3.5-flash",
+        response_format=instructional_response_format(),
+    )
+
+    assert INSTRUCTIONAL_PROMPT_PLACEHOLDER not in json.dumps(request)
+    assert json.dumps(
+        package, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ) in request["messages"][0]["content"]
+    assert json.loads(request["messages"][1]["content"]) == {
+        "input": "embedded_in_system_prompt",
+        "task": "classify_instructional_reference_table",
+    }
+    assert request["metadata"]["broker_reports_ordinary_trade"][
+        "instructional_classification"
+    ] is True
+
+
+def test_instructional_request_rejects_mapping_contract_shape() -> None:
+    with pytest.raises(Gate2SourceFactRuntimeError) as raised:
+        Gate2OpenWebUIRequestBuilder(
+            request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+        ).build(
+            prompt=_instructional_prompt(
+                "Classify " + INSTRUCTIONAL_PROMPT_PLACEHOLDER + "."
+            ),
+            package=_mapping_package(),
+            model_id="models/gemini-3.5-flash",
+            response_format=instructional_response_format(),
+        )
+    assert raised.value.code == "instructional_classification_model_request_invalid"

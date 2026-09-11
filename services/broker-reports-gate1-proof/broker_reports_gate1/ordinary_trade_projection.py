@@ -144,7 +144,22 @@ class OrdinaryTradeProjectionRuntime:
             active.manifest_ref,
             replace(context, normalization_run_id=active.normalization_run_id),
         )
-        artifact_id = "art_otproj_" + projection["projection_sha256"][:40]
+        access_policy = {
+            "requires_user_id": True,
+            "requires_case_or_chat": True,
+            "requires_workspace_model_id_when_present": bool(
+                context.workspace_model_id
+            ),
+            "ordinary_trade_projection_sidecar_only": True,
+        }
+        artifact_id = _projection_persistence_artifact_id(
+            projection_sha256=projection["projection_sha256"],
+            context=context,
+            document_id=document_id,
+            source_file_ref=manifest.source_file_ref,
+            retention_policy=manifest.retention_policy,
+            access_policy=access_policy,
+        )
         record = ArtifactRecord(
             artifact_id=artifact_id,
             artifact_type=ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
@@ -158,14 +173,7 @@ class OrdinaryTradeProjectionRuntime:
             visibility="private_case",
             storage_backend="project_artifact_payload",
             retention_policy=manifest.retention_policy,
-            access_policy={
-                "requires_user_id": True,
-                "requires_case_or_chat": True,
-                "requires_workspace_model_id_when_present": bool(
-                    context.workspace_model_id
-                ),
-                "ordinary_trade_projection_sidecar_only": True,
-            },
+            access_policy=access_policy,
             validation_status="validated",
             lifecycle_status=lifecycle_for_visibility(
                 visibility="private_case", validation_status="validated"
@@ -222,6 +230,18 @@ class OrdinaryTradeProjectionRuntime:
             for item in catalog
             if item.artifact_type == ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE
         ]
+        request_scope_records = [
+            item
+            for item in records
+            if _projection_record_has_request_scope(record=item, context=context)
+        ]
+        # Older content-only IDs can remain readable under a compatible case
+        # scope.  Once this request has its own exact private projection,
+        # however, that projection is the only current one for this scope.
+        # Otherwise an upgrade would turn a legacy record plus its scoped
+        # successor into a false "ambiguous" current document.
+        if request_scope_records:
+            records = request_scope_records
         mapping_case_documents = {
             item.document_id
             for item in catalog
@@ -386,6 +406,67 @@ class OrdinaryTradeProjectionRuntime:
             "coverage_ref": "ordinary_trade_coverage_" + coverage_sha256[:32],
             "coverage_sha256": coverage_sha256,
         }
+
+
+def _projection_persistence_artifact_id(
+    *,
+    projection_sha256: str,
+    context: ArtifactAccessContext,
+    document_id: str,
+    source_file_ref: Any,
+    retention_policy: Any,
+    access_policy: dict[str, Any],
+) -> str:
+    """Bind content-addressed projection bytes to their immutable private scope.
+
+    ArtifactStore deliberately compares a record's access scope as well as its
+    payload.  A projection payload hash alone is therefore not a sufficient
+    storage identity: the same Canonical may be processed in another private
+    case, chat, or user scope without permitting either record to overwrite
+    the other.
+    """
+
+    if not isinstance(projection_sha256, str) or len(projection_sha256) != 64:
+        raise OrdinaryTradeProjectionError(
+            "ordinary_trade_projection_identity_invalid"
+        )
+    identity = {
+        "projection_sha256": projection_sha256,
+        "scope": {
+            "user_id": context.user_id,
+            "case_id": context.case_id,
+            "chat_id": context.chat_id,
+            "workspace_model_id": context.workspace_model_id,
+            "normalization_run_id": context.normalization_run_id,
+        },
+        "document_id": document_id,
+        "source_file_ref": source_file_ref,
+        "retention_policy": retention_policy.to_dict(),
+        "access_policy": access_policy,
+    }
+    identity_sha256 = hashlib.sha256(
+        json.dumps(
+            identity,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return "art_otproj_" + identity_sha256[:40]
+
+
+def _projection_record_has_request_scope(
+    *, record: ArtifactRecord, context: ArtifactAccessContext
+) -> bool:
+    """Match the stable authenticated request scope before its owner run is known."""
+
+    return (
+        record.user_id == context.user_id
+        and record.case_id == context.case_id
+        and record.chat_id == context.chat_id
+        and record.workspace_model_id == context.workspace_model_id
+    )
 
 
 def _private_case(context: ArtifactAccessContext) -> None:

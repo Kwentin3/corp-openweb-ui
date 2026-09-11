@@ -278,8 +278,12 @@ class CanonicalNormalizer:
                     or 1
                 ),
                 int(_location(item).get("line_start") or 0),
+                int(_location(item).get("content_order") or 0),
                 str(item.get("unit_ref") or ""),
             ),
+        )
+        document_ai_markdown_plan = _document_ai_markdown_continuation_plan(
+            ordered
         )
         source_unit_refs = {
             str(unit.get("unit_ref") or "") for unit in ordered if unit.get("unit_ref")
@@ -394,6 +398,20 @@ class CanonicalNormalizer:
                         "parser_duplicate_text_suppressed": True,
                         **(
                             {
+                                "physical_header_state": (
+                                    "PRESENT"
+                                    if (projection.get("header_model") or {}).get(
+                                        "header_row_refs"
+                                    )
+                                    else "ABSENT"
+                                )
+                            }
+                            if projection.get("reconstruction_strategy")
+                            == "provider_native_table_html"
+                            else {}
+                        ),
+                        **(
+                            {
                                 "logical_table_id": projection.get(
                                     "logical_table_id"
                                 ),
@@ -439,8 +457,55 @@ class CanonicalNormalizer:
             text = str(unit.get("text") or "")
             if text:
                 if _location(unit).get("kind") == "document_ai_page_markdown":
-                    for node_type, content in _document_ai_markdown_nodes(text):
+                    plan_nodes = document_ai_markdown_plan["nodes_by_unit"].get(
+                        unit_ref,
+                        _document_ai_markdown_nodes(text),
+                    )
+                    suppressed_table_indices = document_ai_markdown_plan[
+                        "suppressed_table_indices"
+                    ].get(unit_ref, set())
+                    merged_table = document_ai_markdown_plan["merged_by_owner"].get(
+                        unit_ref
+                    )
+                    for node_index, (node_type, content) in enumerate(plan_nodes):
+                        if (
+                            node_type == "TABLE"
+                            and node_index in suppressed_table_indices
+                        ):
+                            continue
                         if node_type == "TABLE":
+                            if (
+                                merged_table is not None
+                                and node_index == merged_table["table_index"]
+                            ):
+                                builder.add_table(
+                                    container,
+                                    merged_table["rows"],
+                                    location,
+                                    metadata={
+                                        "source_format": "pdf",
+                                        "representation": "document_ai_markdown",
+                                        "document_ai_continuation": {
+                                            "page_numbers": list(
+                                                merged_table["page_numbers"]
+                                            ),
+                                            "source_unit_refs": list(
+                                                merged_table["source_unit_refs"]
+                                            ),
+                                            "modes": list(merged_table["modes"]),
+                                        },
+                                    },
+                                    canonical_cells=(
+                                        _document_ai_continuation_cells(
+                                            builder,
+                                            merged_table["segments"],
+                                        )
+                                    ),
+                                    canonical_cell_source_refs_resolved=True,
+                                    header_present=True,
+                                    source_locators=merged_table["source_locators"],
+                                )
+                                continue
                             builder.add_table(
                                 container,
                                 content["rows"],
@@ -477,6 +542,14 @@ class CanonicalNormalizer:
                     location,
                 )
                 continue
+            if _is_explicit_provider_empty_pdf_page(unit):
+                builder.add_issue(
+                    "UNSUPPORTED",
+                    "info",
+                    "pdf_provider_empty_page_evidence_only",
+                    location,
+                )
+                continue
             builder.add_issue(
                 "PARTIAL",
                 "blocking",
@@ -509,6 +582,20 @@ class CanonicalNormalizer:
                     ),
                     "standalone_source_bound_projection": True,
                     "parser_duplicate_text_suppressed": False,
+                    **(
+                        {
+                            "physical_header_state": (
+                                "PRESENT"
+                                if (projection.get("header_model") or {}).get(
+                                    "header_row_refs"
+                                )
+                                else "ABSENT"
+                            )
+                        }
+                        if projection.get("reconstruction_strategy")
+                        == "provider_native_table_html"
+                        else {}
+                    ),
                     **(
                         {
                             "logical_table_id": projection.get("logical_table_id"),
@@ -765,10 +852,15 @@ class _LogicalBuilder:
         source_locator: dict[str, Any],
         *,
         issue_refs: list[str] | None = None,
+        source_locators: list[dict[str, Any]] | None = None,
     ) -> str:
         order = self._node_orders.get(container_ref, 0)
         self._node_orders[container_ref] = order + 1
-        provenance_ref = self._provenance_ref(source_locator)
+        source_refs = []
+        for locator in source_locators or [source_locator]:
+            provenance_ref = self._provenance_ref(locator)
+            if provenance_ref not in source_refs:
+                source_refs.append(provenance_ref)
         node_id = f"node_{_sha256([self.source_sha256, container_ref, order, node_type, content])[:24]}"
         self.nodes.append(
             {
@@ -776,7 +868,7 @@ class _LogicalBuilder:
                 "container_ref": container_ref,
                 "order": order,
                 "node_type": node_type,
-                "source_refs": [provenance_ref],
+                "source_refs": source_refs,
                 "evidence_refs": [],
                 "issue_refs": list(issue_refs or []),
                 "content": content,
@@ -797,6 +889,7 @@ class _LogicalBuilder:
         title: Any = None,
         notes: list[Any] | None = None,
         issue_refs: list[str] | None = None,
+        source_locators: list[dict[str, Any]] | None = None,
     ) -> str:
         normalized_rows = [
             list(row) if isinstance(row, list) else [row] for row in rows
@@ -830,6 +923,7 @@ class _LogicalBuilder:
             },
             source_locator,
             issue_refs=issue_refs,
+            source_locators=source_locators,
         )
 
     def add_issue(
@@ -1030,6 +1124,213 @@ def _markdown_table_row(line: str) -> list[str] | None:
     return [cell.strip().replace("\\|", "|") for cell in cells]
 
 
+def _document_ai_markdown_continuation_plan(
+    ordered_units: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Join only syntactically proved table continuations across pages.
+
+    A Document AI page remains the source authority.  This helper does not
+    infer document meaning: it joins the last standard Markdown table on one
+    page to the first compatible table-shaped block on the immediately next
+    page, and only when no substantive Markdown intervenes at that boundary.
+    A headerless continuation is recognized by the absence of a Markdown
+    divider, not by a financial or language-specific heuristic.
+    """
+
+    nodes_by_unit = {
+        str(unit.get("unit_ref") or ""): _document_ai_markdown_nodes(
+            str(unit.get("text") or "")
+        )
+        for unit in ordered_units
+        if str(_location(unit).get("kind") or "")
+        == "document_ai_page_markdown"
+        if str(unit.get("unit_ref") or "")
+    }
+    suppressed_table_indices: dict[str, set[int]] = {}
+    merged_by_owner: dict[str, dict[str, Any]] = {}
+    used_units: set[str] = set()
+
+    for unit, candidate_unit in zip(ordered_units, ordered_units[1:]):
+        if not _consecutive_document_ai_pages(unit, candidate_unit):
+            continue
+        owner_ref = str(unit.get("unit_ref") or "")
+        candidate_ref = str(candidate_unit.get("unit_ref") or "")
+        if not owner_ref or not candidate_ref or {owner_ref, candidate_ref} & used_units:
+            continue
+        owner_nodes = nodes_by_unit.get(owner_ref) or []
+        if not owner_nodes or owner_nodes[-1][0] != "TABLE":
+            continue
+        owner_table_index = len(owner_nodes) - 1
+        owner_rows = copy.deepcopy(owner_nodes[owner_table_index][1]["rows"])
+        if not _standard_markdown_table_rows(owner_rows):
+            continue
+
+        candidate_nodes = nodes_by_unit.get(candidate_ref) or []
+        candidate_rows: list[list[Any]] | None = None
+        candidate_mode = ""
+        candidate_table_index: int | None = None
+        source_row_start = 1
+        raw_candidate = _leading_headerless_markdown_rows(
+            str(candidate_unit.get("text") or "")
+        )
+        if (
+            candidate_nodes
+            and candidate_nodes[0][0] == "TABLE"
+            and _standard_markdown_table_rows(candidate_nodes[0][1]["rows"])
+            and _same_markdown_header(
+                owner_rows[0], candidate_nodes[0][1]["rows"][0]
+            )
+        ):
+            candidate_rows = copy.deepcopy(candidate_nodes[0][1]["rows"])[1:]
+            candidate_mode = "repeated_header"
+            candidate_table_index = 0
+            source_row_start = 2
+        elif (
+            raw_candidate is not None
+            and _rectangular_rows(raw_candidate["rows"], len(owner_rows[0]))
+            and not _same_markdown_header(owner_rows[0], raw_candidate["rows"][0])
+        ):
+            candidate_rows = copy.deepcopy(raw_candidate["rows"])
+            candidate_mode = "headerless_rows"
+            lines = str(candidate_unit.get("text") or "").splitlines()
+            nodes_by_unit[candidate_ref] = _document_ai_markdown_nodes(
+                "\n".join(lines[raw_candidate["end_line_index"]:])
+            )
+        if not candidate_rows or not _rectangular_rows(
+            candidate_rows, len(owner_rows[0])
+        ):
+            continue
+
+        segments = [
+            _document_ai_continuation_segment(
+                unit=unit,
+                rows=owner_rows,
+                source_row_start=1,
+                table_index=owner_table_index,
+            ),
+            _document_ai_continuation_segment(
+                unit=candidate_unit,
+                rows=candidate_rows,
+                source_row_start=source_row_start,
+                table_index=candidate_table_index,
+            ),
+        ]
+        source_locators = [segment["source_locator"] for segment in segments]
+        merged_by_owner[owner_ref] = {
+            "table_index": owner_table_index,
+            "rows": owner_rows + candidate_rows,
+            "segments": segments,
+            "source_locators": source_locators,
+            "source_unit_refs": [
+                str(segment["source_locator"].get("source_unit_ref") or "")
+                for segment in segments
+            ],
+            "page_numbers": [
+                int(segment["source_locator"].get("page") or 0)
+                for segment in segments
+            ],
+            "modes": [candidate_mode],
+        }
+        used_units.update({owner_ref, candidate_ref})
+        if candidate_table_index is not None:
+            suppressed_table_indices[candidate_ref] = {candidate_table_index}
+
+    return {
+        "nodes_by_unit": nodes_by_unit,
+        "suppressed_table_indices": suppressed_table_indices,
+        "merged_by_owner": merged_by_owner,
+    }
+
+
+def _leading_headerless_markdown_rows(text: str) -> dict[str, Any] | None:
+    """Return only a leading, divider-free rectangular pipe-row run."""
+
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines) and not lines[index].strip():
+        index += 1
+    first = _markdown_table_row(lines[index]) if index < len(lines) else None
+    if first is None or not any(str(cell).strip() for cell in first):
+        return None
+    if index + 1 < len(lines):
+        divider = _markdown_table_row(lines[index + 1])
+        if divider is not None and len(divider) == len(first) and all(
+            _MARKDOWN_TABLE_DIVIDER.fullmatch(cell) for cell in divider
+        ):
+            return None
+    rows: list[list[str]] = []
+    while index < len(lines):
+        row = _markdown_table_row(lines[index])
+        if row is None or len(row) != len(first):
+            break
+        rows.append(row)
+        index += 1
+    if not rows:
+        return None
+    return {
+        "rows": rows,
+        "end_line_index": index,
+    }
+
+
+def _standard_markdown_table_rows(rows: list[list[Any]]) -> bool:
+    return (
+        len(rows) >= 2
+        and bool(rows[0])
+        and _rectangular_rows(rows, len(rows[0]))
+        and any(any(str(cell).strip() for cell in row) for row in rows[1:])
+    )
+
+
+def _rectangular_rows(rows: list[list[Any]], width: int) -> bool:
+    return bool(rows) and width > 0 and all(len(row) == width for row in rows)
+
+
+def _same_markdown_header(left: list[Any], right: list[Any]) -> bool:
+    return len(left) == len(right) and all(
+        _normalized_markdown_header_cell(first)
+        == _normalized_markdown_header_cell(second)
+        for first, second in zip(left, right, strict=True)
+    )
+
+
+def _normalized_markdown_header_cell(value: Any) -> str:
+    return " ".join(str(value).split()).casefold()
+
+
+def _consecutive_document_ai_pages(
+    left: dict[str, Any], right: dict[str, Any]
+) -> bool:
+    left_location = _location(left)
+    right_location = _location(right)
+    return (
+        str(left_location.get("kind") or "") == "document_ai_page_markdown"
+        and str(right_location.get("kind") or "") == "document_ai_page_markdown"
+        and int(right_location.get("page") or 0)
+        == int(left_location.get("page") or 0) + 1
+    )
+
+
+def _document_ai_continuation_segment(
+    *,
+    unit: dict[str, Any],
+    rows: list[list[Any]],
+    source_row_start: int,
+    table_index: int | None,
+) -> dict[str, Any]:
+    location = _location(unit)
+    return {
+        "rows": copy.deepcopy(rows),
+        "source_row_start": source_row_start,
+        "table_index": table_index,
+        "source_locator": {
+            **location,
+            "source_unit_ref": str(unit.get("unit_ref") or ""),
+            "parent_payload_ref": str(unit.get("parent_payload_ref") or ""),
+        },
+    }
+
+
 def _proved_empty_pdf(source_payloads: list[dict[str, Any]]) -> bool:
     if len(source_payloads) != 1:
         return False
@@ -1147,7 +1448,10 @@ def pdf_source_atom_accounting(
             else:
                 category = "UNRESOLVED"
                 reason_codes.add("pdf_terminal_table_projection_without_fallback")
-        elif unit.get("pdf_unit_type") == "pdf_visual_page_unit":
+        elif (
+            unit.get("pdf_unit_type") == "pdf_visual_page_unit"
+            or _is_explicit_provider_empty_pdf_page(unit)
+        ):
             category = "EVIDENCE_ONLY"
         elif declared in {"HEADING", "NOTE", "LIST"} and text:
             category = "HEADING_OR_NOTE_NODE"
@@ -1218,7 +1522,11 @@ def pdf_source_atom_accounting(
             int(_location(unit).get("page") or 0)
             for unit in source_units
             if str(_location(unit).get("kind") or "")
-            == "document_ai_page_markdown"
+            in {
+                "document_ai_page_markdown",
+                "document_ai_page_markdown_body",
+                "document_ai_native_table_html",
+            }
             and int(_location(unit).get("page") or 0) > 0
         }
         if document_ai_pages:
@@ -1227,7 +1535,10 @@ def pdf_source_atom_accounting(
                 max(0, int(_location(unit).get("line_end") or 0))
                 for unit in source_units
                 if str(_location(unit).get("kind") or "")
-                == "document_ai_page_markdown"
+                in {
+                    "document_ai_page_markdown",
+                    "document_ai_page_markdown_body",
+                }
             )
     page_containers_total = sum(
         item.get("container_type") == "PAGE" for item in containers
@@ -1717,6 +2028,58 @@ def _cells_from_rows(rows: list[list[Any]], source_ref: str) -> list[dict[str, A
     return cells
 
 
+def _document_ai_continuation_cells(
+    builder: "_LogicalBuilder", segments: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Keep each merged Canonical cell bound to its original page row."""
+
+    cells: list[dict[str, Any]] = []
+    logical_row = 1
+    for segment in segments:
+        location = dict(segment["source_locator"])
+        for local_row, row in enumerate(
+            segment["rows"], start=int(segment["source_row_start"])
+        ):
+            for column, value in enumerate(row, start=1):
+                cell_type = (
+                    "blank"
+                    if value is None or value == ""
+                    else "boolean"
+                    if isinstance(value, bool)
+                    else "number"
+                    if isinstance(value, (int, float))
+                    else "string"
+                )
+                cells.append(
+                    {
+                        "row": logical_row,
+                        "column": column,
+                        "value": value,
+                        "raw_value": value,
+                        "displayed_value": None if value is None else str(value),
+                        "cell_type": cell_type,
+                        "formula": None,
+                        "merged_range": None,
+                        "source_coordinate": f"R{local_row}C{column}",
+                        "hidden": False,
+                        "number_format_ref": None,
+                        "source_refs": [
+                            builder._provenance_ref(
+                                {
+                                    **location,
+                                    "kind": "document_ai_markdown_table_cell",
+                                    "table_block_index": segment["table_index"],
+                                    "row": local_row,
+                                    "column": column,
+                                }
+                            )
+                        ],
+                    }
+                )
+            logical_row += 1
+    return cells
+
+
 def _normalize_canonical_cells(
     cells: list[dict[str, Any]],
     source_ref: str,
@@ -1874,6 +2237,19 @@ def _projection_location(projection: dict[str, Any]) -> dict[str, Any]:
 def _location(value: dict[str, Any]) -> dict[str, Any]:
     location = value.get("source_location") or value.get("location") or {}
     return dict(location) if isinstance(location, dict) else {}
+
+
+def _is_explicit_provider_empty_pdf_page(unit: dict[str, Any]) -> bool:
+    """Admit only an adapter-declared empty PDF page as evidence, never fact."""
+
+    location = _location(unit)
+    return (
+        location.get("kind")
+        in {"document_ai_page_markdown", "document_ai_page_markdown_body"}
+        and location.get("page_content_disposition") == "provider_empty_page"
+        and str(unit.get("text") or "") == ""
+        and not (unit.get("rows") or unit.get("cells"))
+    )
 
 
 def _walk_keys(value: Any):

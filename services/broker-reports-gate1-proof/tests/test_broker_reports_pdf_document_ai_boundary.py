@@ -41,9 +41,27 @@ from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentExtraction,
     PdfDocumentExtractorFactory,
     PdfDocumentImageRef,
+    PdfDocumentSelectedPageBinding,
+    PdfDocumentTableContinuationAssessment,
+    PdfDocumentTableContinuationLink,
+    PdfDocumentTableContinuationRAndDResult,
+    PdfDocumentTableRef,
     PdfSourceContext,
     UnconfiguredPdfDocumentExtractor,
     is_terminal_pdf_document_ai_request,
+    pdf_document_selected_page_bindings_sha256,
+    pdf_document_table_refs_sha256,
+)
+from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    PdfTableContinuationAnnotationExecution,
+    PdfTableContinuationAnnotationManagedPrompt,
+    execution_from_managed_prompt,
+    pdf_table_continuation_annotation_prompt_hash,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 
@@ -116,6 +134,184 @@ class _SecondOfflineFixtureExtractor(_OfflineFixtureExtractor):
     pass
 
 
+class _AnnotatedOfflineFixtureExtractor(_OfflineFixtureExtractor):
+    def __init__(self) -> None:
+        self.annotation_calls: list[tuple[tuple[int, ...], str]] = []
+
+    def extract(self, *_args, **_kwargs):
+        raise AssertionError("annotation execution must use one annotated OCR call")
+
+    def extract_with_table_continuation_assessment(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+        *,
+        source_page_numbers: tuple[int, ...],
+        document_annotation_prompt: str,
+    ) -> PdfDocumentTableContinuationRAndDResult:
+        self.annotation_calls.append((source_page_numbers, document_annotation_prompt))
+        extraction = super().extract(pdf_bytes, source_context)
+        table_one = b"<table><tr><th>date</th></tr><tr><td>1</td></tr></table>"
+        table_two = b"<table><tr><td>2</td></tr></table>"
+        pages = tuple(
+            (
+                b"# Exact offline fixture\n[first](table-1.html)"
+                if page_number == 1
+                else b"# Exact offline fixture\n[second](table-2.html)"
+                if page_number == 2
+                else b"# Exact offline fixture"
+            )
+            for page_number in extraction.page_numbers
+        )
+        markdown = b"\n\n".join(pages)
+        extraction = replace(
+            extraction,
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            page_markdown_bytes=pages,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            safe_technical_summary=(
+                ("markdown_bytes", len(markdown)),
+                ("pages_count", len(pages)),
+            ),
+            table_refs=(
+                PdfDocumentTableRef(
+                    page_number=1,
+                    markdown_target="table-1.html",
+                    local_ref="pdftable_normalizer_1",
+                    sha256=hashlib.sha256(table_one).hexdigest(),
+                    html_bytes=table_one,
+                ),
+                PdfDocumentTableRef(
+                    page_number=2,
+                    markdown_target="table-2.html",
+                    local_ref="pdftable_normalizer_2",
+                    sha256=hashlib.sha256(table_two).hexdigest(),
+                    html_bytes=table_two,
+                ),
+            ),
+        )
+        bindings = tuple(
+            PdfDocumentSelectedPageBinding(
+                local_page_number=index + 1,
+                source_page_number=page_number,
+            )
+            for index, page_number in enumerate(source_page_numbers)
+        )
+        assessment = PdfDocumentTableContinuationAssessment(
+            source_pdf_sha256=extraction.source_pdf_sha256,
+            table_refs_sha256=pdf_document_table_refs_sha256(extraction.table_refs),
+            raw_annotation_sha256="a" * 64,
+            request_parameters_sha256="b" * 64,
+            annotation_prompt_sha256=hashlib.sha256(
+                document_annotation_prompt.encode("utf-8")
+            ).hexdigest(),
+            annotation_schema_sha256="c" * 64,
+            selected_page_bindings_sha256=pdf_document_selected_page_bindings_sha256(
+                bindings
+            ),
+            source_page_numbers=source_page_numbers,
+            selected_page_bindings=bindings,
+            links=(
+                PdfDocumentTableContinuationLink(
+                    parent_table_ref="pdftable_normalizer_1",
+                    child_table_ref="pdftable_normalizer_2",
+                ),
+            ),
+        )
+        return PdfDocumentTableContinuationRAndDResult(
+            extraction=extraction,
+            assessment=assessment,
+            source_context=source_context,
+        )
+
+
+class _NoLinkAnnotatedOfflineFixtureExtractor(_AnnotatedOfflineFixtureExtractor):
+    def extract_with_table_continuation_assessment(self, *args, **kwargs):
+        result = super().extract_with_table_continuation_assessment(*args, **kwargs)
+        return replace(result, assessment=replace(result.assessment, links=()))
+
+
+def _annotation_execution() -> PdfTableContinuationAnnotationExecution:
+    content = "Assess direct physical table continuation only."
+    prompt = PdfTableContinuationAnnotationManagedPrompt(
+        prompt_ref="test-prompt",
+        command=PROMPT_COMMAND,
+        version="test-history",
+        content=content,
+        hash=pdf_table_continuation_annotation_prompt_hash(content),
+        source="test",
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version="broker_reports_pdf_document_annotation_input_v1",
+        output_schema_id="mistral_ocr_table_continuation_annotation_v4",
+        output_schema_version="mistral_ocr_table_continuation_annotation_v4",
+        tags=(PROMPT_REQUIRED_TAG,),
+        safe_metadata={"name": "test"},
+    )
+    return execution_from_managed_prompt(prompt)
+
+
+def test_pipe_leaves_annotation_unresolved_when_feature_is_disabled() -> None:
+    pipe = Pipe()
+
+    assert (
+        asyncio.run(
+            pipe._pdf_table_continuation_annotation_execution(
+                user=None,
+                metadata={},
+            )
+        )
+        is None
+    )
+
+
+class _ProviderEmptyPageFixtureExtractor(_OfflineFixtureExtractor):
+    """A successful provider envelope with one explicitly empty PDF page."""
+
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        pages = tuple(
+            b"# Exact offline fixture\n"
+            if page != 2
+            else b""
+            for page in range(1, source_context.preflight_page_count + 1)
+        )
+        markdown = b"\n\n".join(pages)
+        return PdfDocumentExtraction(
+            source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            page_numbers=tuple(range(1, source_context.preflight_page_count + 1)),
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            image_refs=(),
+            provider_id="offline_fixture_provider",
+            requested_model_id="offline_fixture_model",
+            model_id="offline_fixture_model",
+            adapter_id="offline_fixture_adapter_v1",
+            request_contract_version="offline_fixture_request_v1",
+            request_parameters=(("include_image_base64", True),),
+            request_parameters_sha256=hashlib.sha256(
+                b'{"include_image_base64":true}'
+            ).hexdigest(),
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            qualification_status="offline_fixture",
+            usage_page_count=source_context.preflight_page_count,
+            page_markdown_bytes=pages,
+            page_content_dispositions=tuple(
+                "provider_empty_page" if not page else "markdown_materialized"
+                for page in pages
+            ),
+        )
+
+
 class _BrokerReportFixtureExtractor(_OfflineFixtureExtractor):
     """A source-bound Document AI representation with no local PDF parser."""
 
@@ -129,6 +325,65 @@ class _BrokerReportFixtureExtractor(_OfflineFixtureExtractor):
             b"# Broker Activity Statement\n\n"
             b"## Transactions\n\n"
             b"| Symbol | Quantity | Proceeds |\n|---|---:|---:|\n| SAFE | 1 | 10 |\n"
+        )
+        pages = tuple(page_markdown for _ in base.page_numbers)
+        markdown = b"\n\n".join(pages)
+        return replace(
+            base,
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            page_markdown_bytes=pages,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            safe_technical_summary=(
+                ("markdown_bytes", len(markdown)),
+                ("pages_count", len(pages)),
+            ),
+        )
+
+
+class _RussianBrokerReportFixtureExtractor(_BrokerReportFixtureExtractor):
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        base = super().extract(pdf_bytes, source_context)
+        page_markdown = (
+            b"# \xd0\x9e\xd1\x82\xd1\x87\xd0\xb5\xd1\x82 \xd0\xb1\xd1\x80\xd0\xbe\xd0\xba\xd0\xb5\xd1\x80\xd0\xb0\n\n"
+            b"## \xd0\xa1\xd0\xb4\xd0\xb5\xd0\xbb\xd0\xba\xd0\xb8\n\n"
+            b"| \xd0\x94\xd0\xb0\xd1\x82\xd0\xb0 | \xd0\xa1\xd1\x83\xd0\xbc\xd0\xbc\xd0\xb0 | \xd0\x92\xd0\xb0\xd0\xbb\xd1\x8e\xd1\x82\xd0\xb0 |\n"
+            b"|---|---:|---|\n| 2026-01-01 | 10 | USD |\n"
+        )
+        pages = tuple(page_markdown for _ in base.page_numbers)
+        markdown = b"\n\n".join(pages)
+        return replace(
+            base,
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            page_markdown_bytes=pages,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            safe_technical_summary=(
+                ("markdown_bytes", len(markdown)),
+                ("pages_count", len(pages)),
+            ),
+        )
+
+
+class _GenericRussianFinancialFixtureExtractor(_BrokerReportFixtureExtractor):
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        base = super().extract(pdf_bytes, source_context)
+        page_markdown = (
+            b"# \xd0\xa3\xd1\x87\xd0\xb5\xd0\xb1\xd0\xbd\xd0\xb0\xd1\x8f \xd1\x82\xd0\xb0\xd0\xb1\xd0\xbb\xd0\xb8\xd1\x86\xd0\xb0\n\n"
+            b"| \xd0\x94\xd0\xb0\xd1\x82\xd0\xb0 \xd1\x81\xd0\xb4\xd0\xb5\xd0\xbb\xd0\xba\xd0\xb8 | \xd0\xa1\xd1\x83\xd0\xbc\xd0\xbc\xd0\xb0 | \xd0\x92\xd0\xb0\xd0\xbb\xd1\x8e\xd1\x82\xd0\xb0 |\n"
+            b"|---|---:|---|\n| 2026-01-01 | 10 | USD |\n"
         )
         pages = tuple(page_markdown for _ in base.page_numbers)
         markdown = b"\n\n".join(pages)
@@ -695,6 +950,48 @@ def test_document_ai_pdf_representation_reaches_existing_taxonomy_owner() -> Non
     }
 
 
+def test_russian_broker_report_heading_is_admitted_without_a_second_llm_stage() -> None:
+    result = Gate1Normalizer(
+        _pdf_document_extractor=_RussianBrokerReportFixtureExtractor()
+    ).normalize(
+        [_input(PUBLIC_PDF.read_bytes())],
+        input_context={
+            "source_policy": {
+                "mode": "native_ndfl_workspace_model",
+                "explicit": True,
+                "accept_pdf_html_source_roles": True,
+            }
+        },
+    )
+
+    candidate = result.package["taxonomy_candidates"][0]
+    eligibility = result.package["document_source_eligibility"]["entries"][0]
+    assert candidate["document_class_candidate"] == "source_broker_report"
+    assert eligibility["source_eligibility"] == "accepted_for_gate2"
+    assert result.package["gate2_handoff"]["handoff_mode"] != "gate2_blocked_no_eligible_sources"
+
+
+def test_generic_russian_financial_words_do_not_admit_an_instructional_table() -> None:
+    result = Gate1Normalizer(
+        _pdf_document_extractor=_GenericRussianFinancialFixtureExtractor()
+    ).normalize(
+        [_input(PUBLIC_PDF.read_bytes())],
+        input_context={
+            "source_policy": {
+                "mode": "native_ndfl_workspace_model",
+                "explicit": True,
+                "accept_pdf_html_source_roles": True,
+            }
+        },
+    )
+
+    candidate = result.package["taxonomy_candidates"][0]
+    eligibility = result.package["document_source_eligibility"]["entries"][0]
+    assert candidate["document_class_candidate"] == "unknown_or_needs_review"
+    assert eligibility["source_eligibility"] == "metadata_review_required"
+    assert result.package["gate2_handoff"]["handoff_mode"] == "gate2_blocked_requires_metadata_review"
+
+
 def _bounded_pdf_normalization(tmp_path: Path):
     pdf_input = _input(PUBLIC_PDF.read_bytes())
     normalizer = Gate1Normalizer(
@@ -760,6 +1057,123 @@ def test_normalizer_routes_pdf_markdown_unit_and_image_through_atomic_graph(
         expected_sha256=association["sha256"],
     )
     assert resolved["content"].startswith(b"\x89PNG")
+
+
+def test_normalizer_binds_one_annotated_ocr_response_to_private_sidecar(
+    tmp_path: Path,
+) -> None:
+    _normalizer, pdf_input, store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    extractor = _AnnotatedOfflineFixtureExtractor()
+    normalizer = Gate1Normalizer(_pdf_document_extractor=extractor)
+    execution = _annotation_execution()
+
+    result = normalizer.normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        pdf_table_continuation_annotation_execution=execution,
+    )
+
+    observed_pages, observed_prompt = extractor.annotation_calls[0]
+    assert observed_pages == tuple(range(len(observed_pages)))
+    assert len(observed_pages) > 1
+    assert observed_prompt == execution.content
+    assert not any(
+        item["code"] == "parser_failed"
+        for item in result.package["normalization_blockers"]
+    )
+    sidecar_refs = graph.physical_table_continuation_refs_by_doc
+    assert len(sidecar_refs) == 1
+    artifact_id = next(iter(sidecar_refs.values()))[0]
+    stored = store.get_record_unchecked(artifact_id)
+    payload = store.read_payload(stored)
+    assert payload["annotation_receipt"]["prompt_snapshot"] == execution.prompt_snapshot
+    # A body digest is deliberate provenance; the instruction body itself is
+    # never persisted in the private sidecar receipt.
+    assert "content" not in payload["annotation_receipt"]["prompt_snapshot"]
+    assert result.package["private_normalized_source_units"]
+    assert "private_physical_table_continuations" not in result.package
+
+
+def test_normalizer_rejects_forged_annotation_execution_before_provider_call(
+    tmp_path: Path,
+) -> None:
+    class ForgedExecution:
+        content = "send this unapproved instruction"
+        content_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        prompt_snapshot = {"prompt_hash": content_sha256}
+
+    _normalizer, pdf_input, _store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    extractor = _AnnotatedOfflineFixtureExtractor()
+    result = Gate1Normalizer(_pdf_document_extractor=extractor).normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        pdf_table_continuation_annotation_execution=ForgedExecution(),
+    )
+
+    assert extractor.annotation_calls == []
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert any(
+        item["code"] == "parser_failed"
+        and item["reason_code"] == "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
+        for item in result.package["normalization_blockers"]
+    )
+
+
+@pytest.mark.parametrize("tamper", ("content", "snapshot"))
+def test_normalizer_rejects_tampered_sealed_annotation_before_provider_call(
+    tmp_path: Path, tamper: str
+) -> None:
+    _normalizer, pdf_input, _store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    execution = _annotation_execution()
+    if tamper == "content":
+        object.__setattr__(execution, "content", "tampered instruction")
+    else:
+        snapshot = execution.prompt_snapshot
+        snapshot["safe_metadata"] = {"body": "must not persist"}
+        object.__setattr__(execution, "_prompt_snapshot", snapshot)
+
+    extractor = _AnnotatedOfflineFixtureExtractor()
+    result = Gate1Normalizer(_pdf_document_extractor=extractor).normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        pdf_table_continuation_annotation_execution=execution,
+    )
+
+    assert extractor.annotation_calls == []
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert any(
+        item["code"] == "parser_failed"
+        and item["reason_code"] == "PDF_DOCUMENT_AI_ANNOTATION_EXECUTION_INVALID"
+        for item in result.package["normalization_blockers"]
+    )
+
+
+def test_normalizer_omits_empty_annotation_sidecar_without_changing_full_source(
+    tmp_path: Path,
+) -> None:
+    _normalizer, pdf_input, _store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    extractor = _NoLinkAnnotatedOfflineFixtureExtractor()
+    result = Gate1Normalizer(_pdf_document_extractor=extractor).normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        pdf_table_continuation_annotation_execution=_annotation_execution(),
+    )
+
+    assert extractor.annotation_calls
+    assert graph.physical_table_continuation_refs_by_doc == {}
+    assert result.package["private_normalized_source_units"]
+    assert not any(
+        item["code"] == "parser_failed"
+        for item in result.package["normalization_blockers"]
+    )
 
 
 def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
@@ -874,6 +1288,84 @@ def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
     assert right_bank["provider_calls_total"] == 0
     assert right_bank["semantic_fallback_used"] is False
     assert "user_case_fact" not in json.dumps(artifact, sort_keys=True)
+
+
+def test_persisted_provider_empty_pdf_page_is_evidence_only_not_a_fact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
+    normalizer, pdf_input, store, graph, context, retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    normalizer = Gate1Normalizer(
+        _pdf_document_extractor=_ProviderEmptyPageFixtureExtractor()
+    )
+    result = normalizer.normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        input_context={
+            "canonical_gate2_write_enabled": True,
+            "canonical_gate2_read_enabled": True,
+            "normalizer_version": "provider-empty-page-boundary-v1",
+        },
+    )
+
+    manifest = persist_gate1_result(
+        store=store,
+        result=result,
+        context=context,
+        retention_policy=retention,
+        source_file_refs=[
+            {
+                "provider": "openwebui",
+                "openwebui_file_id": "pdf-normalizer-upload",
+                "content_type": "application/pdf",
+                "source_deleted": False,
+            }
+        ],
+    )
+    canonical_refs = manifest.artifact_refs_by_type.get(
+        "broker_reports_canonical_artifact_v1", []
+    )
+    assert len(canonical_refs) == 1
+    assert not manifest.artifact_refs_by_type.get(
+        "broker_reports_canonical_build_failure_v1", []
+    )
+    artifact = CanonicalReaderFactory(store=store, read_enabled=True).create().read_envelope(
+        canonical_refs[0], context
+    ).artifact
+    receipt = next(
+        item
+        for item in artifact["containers"]
+        if item["container_type"] == "DOCUMENT"
+    )["metadata"]["pdf_completeness"]
+    assert receipt["source_atom_accounting_percent"] == 100.0
+    assert receipt["unresolved_source_atoms_total"] == 0
+    assert receipt["categories"]["EVIDENCE_ONLY"] == 1
+    provenance = {
+        item["provenance_id"]: item["source_locator"]
+        for item in artifact["provenance"]
+    }
+    assert all(
+        not (
+            node["node_type"] in {"TEXT", "TABLE"}
+            and any(
+                provenance[ref].get("page") == 2
+                for ref in node.get("source_refs") or []
+            )
+        )
+        for node in artifact["nodes"]
+    )
 
 
 def test_normalizer_turns_atomic_pdf_publication_failure_into_blocker(
