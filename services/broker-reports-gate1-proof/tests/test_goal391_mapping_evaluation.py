@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from broker_reports_gate1.goal391_mapping_evaluation import (
+from broker_reports_gate1.goal391_mapping_lab_control_plan import (
     GOAL391_MAPPING_EVALUATOR_VERSION,
     normalized_trade_row_identity,
 )

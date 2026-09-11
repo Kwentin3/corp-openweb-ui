@@ -1,13 +1,15 @@
 """Value-free control contract for the temporary Goal #391 mapping lab.
 
-This module owns only the sealed laboratory-plan shape.  It does not read a
-source, infer financial meaning, call a provider, or persist anything.
+This module owns the sealed laboratory-plan shape and evaluator-only row
+identities.  It does not read a source, infer financial meaning, call a
+provider, or persist anything.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any, Mapping
 
 
@@ -26,6 +28,8 @@ _DECISION_FIELDS = frozenset(
 _NO_NAMED_CONSUMER_KINDS = frozenset(
     {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
 )
+GOAL391_MAPPING_EVALUATOR_VERSION = "goal391_role_mapping_evaluator_v3"
+_WHITESPACE = re.compile(r"\s+")
 
 
 def sha256_json(value: Any) -> str:
@@ -116,3 +120,30 @@ def canonical_table_node_ids(canonical: Any) -> tuple[str, ...]:
     if not table_node_ids or len(set(table_node_ids)) != len(table_node_ids):
         raise ValueError("goal391_mapping_lab_tables_invalid")
     return table_node_ids
+
+
+def normalize_trade_timestamp_for_identity(value: Any) -> str | None:
+    """Normalize only visual date/time separators for evaluator row identity.
+
+    This representation-only helper never changes Canonical, a model response,
+    a role or a financial value.  It accepts a wrapped date/time as the same
+    identity as its one-line display, and nothing more.
+    """
+
+    if not isinstance(value, str):
+        return None
+    normalized = _WHITESPACE.sub(" ", value.replace(",", " ")).strip()
+    return normalized or None
+
+
+def normalized_trade_row_identity(
+    *, instrument_id: Any, timestamp: Any
+) -> str | None:
+    """Build an evaluator-only row identity without mutating either input."""
+
+    if not isinstance(instrument_id, str) or not instrument_id.strip():
+        return None
+    normalized_timestamp = normalize_trade_timestamp_for_identity(timestamp)
+    if normalized_timestamp is None:
+        return None
+    return f"{instrument_id.strip().upper()}|{normalized_timestamp}"
