@@ -21,6 +21,15 @@ null and empty columns, amount_currency_bindings, side_values and
 row_dispositions. Do not make a data row into a header, join it to a table on
 another page, or assign financial roles to that physical table segment.
 
+The response also requires explicit_header_source_claims. It is a separate,
+value-free list. Return one claim only when the supplied package contains a
+physical continuation link from a header-bearing source table to a later
+headerless table and the listed rows of that later table are security trades.
+Copy target_table_ref, header_source_table_ref and the one-based physical row
+numbers exactly from the supplied package. Do not create a link from table
+position, similar columns, page order or broker convention. Return an empty
+claims array when the package has no uniquely supported continuation.
+
 For SECURITY_TRADES and SECURITY_TRADES_INCOMPLETE tables, use row_policy:
 default_disposition is SECURITY_TRADES and exception_rows lists only concrete
 non-trade data rows. exception_rows is always an array; use [] when none must

@@ -51,6 +51,16 @@ from live_verify_broker_reports_stage2_delivery import (  # noqa: E402
 
 
 REVISION = "a" * 40
+MAPPING_PIN = {
+    "prompt_ref": "prompt-1",
+    "prompt_command": "broker_ordinary_trade_semantic_mapping_v17",
+    "prompt_history_id": "history-1",
+    "prompt_hash": "a" * 64,
+}
+CONTINUATION_PIN = {
+    **MAPPING_PIN,
+    "prompt_command": "broker_pdf_table_continuation_annotation_v3",
+}
 
 
 def _manifest():
@@ -158,6 +168,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     "prompt_history_id": "history-1",
                     "prompt_hash": "a" * 64,
                 },
+                pdf_table_continuation_annotation_prompt_pin=CONTINUATION_PIN,
             )
 
         self.assertEqual(expected, captured["loader"])
@@ -179,12 +190,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             text=True,
             encoding="utf-8",
         ).stdout.strip()
-        pin = {
-            "prompt_ref": "prompt-1",
-            "prompt_command": "broker_ordinary_trade_semantic_mapping_v14",
-            "prompt_history_id": "history-1",
-            "prompt_hash": "a" * 64,
-        }
+        pin = MAPPING_PIN
         events: list[str] = []
 
         with (
@@ -203,7 +209,14 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **_kwargs: events.append("publish") or pin,
+                side_effect=lambda **kwargs: (
+                    events.append("publish:" + kwargs["profile"])
+                    or (
+                        CONTINUATION_PIN
+                        if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
+                        else pin
+                    )
+                ),
             ),
             mock.patch.object(
                 driver,
@@ -216,7 +229,11 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 side_effect=lambda **kwargs: (
                     events.append("post_remote_verify"),
                     self.assertTrue(kwargs["source_archive"].is_file()),
-                    pin,
+                    (
+                        CONTINUATION_PIN
+                        if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
+                        else pin
+                    ),
                 )[-1],
             ) as verify,
         ):
@@ -227,9 +244,22 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 prove_rollback=True,
             )
 
-        self.assertEqual(["publish", "atomic_remote", "post_remote_verify"], events)
-        self.assertEqual(1, verify.call_count)
+        self.assertEqual(
+            [
+                "publish:ordinary_trade_mapping_v17",
+                "publish:pdf_table_continuation_annotation_v3",
+                "atomic_remote",
+                "post_remote_verify",
+                "post_remote_verify",
+            ],
+            events,
+        )
+        self.assertEqual(2, verify.call_count)
         self.assertEqual(pin, receipt["ordinary_trade_mapping_prompt"]["pin"])
+        self.assertEqual(
+            CONTINUATION_PIN,
+            receipt["pdf_table_continuation_annotation_prompt"]["pin"],
+        )
 
     def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
         revision = subprocess.run(
@@ -240,19 +270,22 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             text=True,
             encoding="utf-8",
         ).stdout.strip()
-        pin = {
-            "prompt_ref": "prompt-1",
-            "prompt_command": "broker_ordinary_trade_semantic_mapping_v14",
-            "prompt_history_id": "history-1",
-            "prompt_hash": "a" * 64,
-        }
+        pin = MAPPING_PIN
 
         with (
             mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
             mock.patch.object(driver, "_prepare_remote_staging", return_value="/atomic-staging"),
             mock.patch.object(driver, "_copy_prompt_publication_payload"),
             mock.patch.object(driver, "_copy_payload"),
-            mock.patch.object(driver, "_run_native_prompt_publication", return_value=pin),
+            mock.patch.object(
+                driver,
+                "_run_native_prompt_publication",
+                side_effect=lambda **kwargs: (
+                    CONTINUATION_PIN
+                    if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
+                    else pin
+                ),
+            ),
             mock.patch.object(driver, "_run_remote_release", return_value={"status": "passed"}) as apply,
             mock.patch.object(
                 driver,

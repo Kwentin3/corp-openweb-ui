@@ -29,13 +29,17 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
-ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v16"
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v17"
 ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
-    "broker_reports_ordinary_trade_mapping_prompt.v16.md"
+    "broker_reports_ordinary_trade_mapping_prompt.v17.md"
 )
 PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE = (
     "pdf_table_continuation_annotation_v3"
+)
+PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET = (
+    "services/broker-reports-gate1-proof/managed_assets/prompts/"
+    "broker_reports_native_table_continuation_annotation_prompt.v3.md"
 )
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -211,6 +215,7 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
     paths = (
         "services/broker-reports-gate1-proof/broker_reports_gate1",
         ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET,
+        PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET,
     )
     _run(
         [
@@ -234,6 +239,7 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
         "services/broker-reports-gate1-proof/broker_reports_gate1/"
         "ordinary_trade_mapping_prompt_publication.py",
         ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET,
+        PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET,
     }
     if not required <= names:
         raise StageReleaseDriverError("stage_release_prompt_source_archive_invalid")
@@ -260,7 +266,11 @@ def _validated_prompt_pin(value: Any) -> dict[str, str]:
 
 
 def _run_native_prompt_publication(
-    *, ssh_target: str, remote_dir: str, verify_pin: Mapping[str, str] | None
+    *,
+    ssh_target: str,
+    remote_dir: str,
+    profile: str,
+    verify_pin: Mapping[str, str] | None,
 ) -> dict[str, str]:
     command = [
         *_ssh_prefix(ssh_target),
@@ -269,7 +279,7 @@ def _run_native_prompt_publication(
         "--staging-dir",
         remote_dir,
         "--profile",
-        ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+        profile,
     ]
     if verify_pin is not None:
         # ssh joins trailing argv items into a remote POSIX shell command.  Quote
@@ -295,6 +305,7 @@ def _verify_native_prompt_publication_after_remote_release(
     ssh_target: str,
     source_revision: str,
     source_archive: Path,
+    profile: str,
     expected_pin: Mapping[str, str],
 ) -> dict[str, str]:
     """Read back the native Prompt after the remote transaction cleaned its staging."""
@@ -311,6 +322,7 @@ def _verify_native_prompt_publication_after_remote_release(
         verification = _run_native_prompt_publication(
             ssh_target=ssh_target,
             remote_dir=verification_dir,
+            profile=profile,
             verify_pin=expected_pin,
         )
         if verification != _validated_prompt_pin(dict(expected_pin)):
@@ -331,14 +343,16 @@ def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
     }
 
 
-def _production_gate1_valves(pin: Mapping[str, str]) -> dict[str, str | bool]:
-    """Pin the supported mapping route and keep R&D table stitching off."""
+def _production_gate1_valves(
+    mapping_pin: Mapping[str, str],
+    continuation_pin: Mapping[str, str],
+) -> dict[str, str | bool]:
+    """Pin the two native Prompts required by the v17 continuation route."""
 
     return {
-        **_mapping_prompt_valves(pin),
-        # This clears a previously persisted enabled Valve. A Field default
-        # cannot turn off a value already stored on a live instance.
-        "pdf_table_continuation_annotation_enabled": False,
+        **_mapping_prompt_valves(mapping_pin),
+        **_pdf_table_continuation_annotation_prompt_valves(continuation_pin),
+        "pdf_table_continuation_annotation_enabled": True,
     }
 
 
@@ -411,6 +425,7 @@ def execute(
     apply: bool,
     prove_rollback: bool,
     ordinary_trade_mapping_prompt_pin: Mapping[str, str] | None = None,
+    pdf_table_continuation_annotation_prompt_pin: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     if prove_rollback and not apply:
         raise StageReleaseDriverError("stage_release_rollback_proof_requires_apply")
@@ -425,7 +440,12 @@ def execute(
         if ordinary_trade_mapping_prompt_pin is not None
         else None
     )
-    if not apply and supplied_prompt_pin is None:
+    supplied_continuation_pin = (
+        _validated_prompt_pin(dict(pdf_table_continuation_annotation_prompt_pin))
+        if pdf_table_continuation_annotation_prompt_pin is not None
+        else None
+    )
+    if not apply and (supplied_prompt_pin is None or supplied_continuation_pin is None):
         # Validation must not silently turn into a production Prompt mutation.
         # A caller can still perform a no-write release validation against an
         # already native-attested pin.
@@ -450,18 +470,30 @@ def execute(
                 prompt_pin = _run_native_prompt_publication(
                     ssh_target=ssh_target,
                     remote_dir=remote_dir,
+                    profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                    verify_pin=None,
+                )
+                continuation_pin = _run_native_prompt_publication(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    profile=PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE,
                     verify_pin=None,
                 )
             else:
                 prompt_pin = supplied_prompt_pin
+                continuation_pin = supplied_continuation_pin
                 assert prompt_pin is not None
+                assert continuation_pin is not None
             manifest = build_manifest(
                 source_revision=source_revision,
                 prompt_contracts=expected_prompt_contracts(),
                 provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
                 loader_bytes=loader_bytes,
                 function_valve_overrides={
-                    "broker_reports_gate1_pipe": _production_gate1_valves(prompt_pin)
+                    "broker_reports_gate1_pipe": _production_gate1_valves(
+                        prompt_pin,
+                        continuation_pin,
+                    )
                 },
             )
             validate_manifest(manifest)
@@ -496,10 +528,22 @@ def execute(
                     ssh_target=ssh_target,
                     source_revision=source_revision,
                     source_archive=prompt_source_archive,
+                    profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
                     expected_pin=prompt_pin,
+                )
+                continuation_verification = _verify_native_prompt_publication_after_remote_release(
+                    ssh_target=ssh_target,
+                    source_revision=source_revision,
+                    source_archive=prompt_source_archive,
+                    profile=PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE,
+                    expected_pin=continuation_pin,
                 )
                 receipt["ordinary_trade_mapping_prompt"] = {
                     "pin": prompt_verification,
+                    "history_binding_attested": True,
+                }
+                receipt["pdf_table_continuation_annotation_prompt"] = {
+                    "pin": continuation_verification,
                     "history_binding_attested": True,
                 }
             remote_dir = None
@@ -533,6 +577,9 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--prove-rollback", action="store_true")
     parser.add_argument("--ordinary-trade-mapping-prompt-pin-json", default=None)
+    parser.add_argument(
+        "--pdf-table-continuation-annotation-prompt-pin-json", default=None
+    )
     args = parser.parse_args()
 
     env = _read_env(Path(args.env_file))
@@ -547,6 +594,11 @@ def main() -> int:
         ordinary_trade_mapping_prompt_pin=(
             json.loads(args.ordinary_trade_mapping_prompt_pin_json)
             if args.ordinary_trade_mapping_prompt_pin_json is not None
+            else None
+        ),
+        pdf_table_continuation_annotation_prompt_pin=(
+            json.loads(args.pdf_table_continuation_annotation_prompt_pin_json)
+            if args.pdf_table_continuation_annotation_prompt_pin_json is not None
             else None
         ),
     )
