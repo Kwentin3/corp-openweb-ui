@@ -203,6 +203,8 @@ def test_closed_v17_profile_is_separate_and_forbids_direction_from_numeric_sign(
     assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION
     assert "Never infer\ndirection from a numeric sign" in asset
     assert "SECURITY_TRADES_INCOMPLETE without a side column" in asset
+    assert "explicit_header_source_claims" in asset
+    assert "physical continuation link" in asset
     assert result.safe_pin()["prompt_command"] == profile.command
 
 

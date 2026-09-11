@@ -26,6 +26,10 @@ _PIN = {
     "prompt_history_id": "history-1",
     "prompt_hash": "a" * 64,
 }
+_CONTINUATION_PIN = {
+    **_PIN,
+    "prompt_command": "broker_pdf_table_continuation_annotation_v3",
+}
 
 
 def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: Path):
@@ -68,7 +72,7 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v16",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v17",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -78,14 +82,20 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
 
 
-def test_production_gate1_valves_keep_table_stitching_research_off():
-    assert release._production_gate1_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v16",
+def test_production_gate1_valves_enable_only_pinned_v17_continuation_route():
+    assert release._production_gate1_valves(_PIN, _CONTINUATION_PIN) == {
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v17",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
         "ordinary_trade_mapping_prompt_hash": "a" * 64,
-        "pdf_table_continuation_annotation_enabled": False,
+        "pdf_table_continuation_annotation_prompt_id": "prompt-1",
+        "pdf_table_continuation_annotation_prompt_command": (
+            "broker_pdf_table_continuation_annotation_v3"
+        ),
+        "pdf_table_continuation_annotation_prompt_version": "history-1",
+        "pdf_table_continuation_annotation_prompt_hash": "a" * 64,
+        "pdf_table_continuation_annotation_enabled": True,
     }
 
 
@@ -107,7 +117,7 @@ def test_physical_table_prompt_pin_projects_only_its_four_release_valves():
         release._pdf_table_continuation_annotation_prompt_valves(_PIN)
 
 
-def test_atomic_release_publishes_and_rechecks_the_production_v16_profile():
+def test_atomic_release_publishes_and_rechecks_the_production_v17_profile():
     calls: list[list[str]] = []
 
     def run(args, *, check=True, timeout=None):
@@ -123,6 +133,7 @@ def test_atomic_release_publishes_and_rechecks_the_production_v16_profile():
         assert release._run_native_prompt_publication(
             ssh_target="release-host",
             remote_dir="/safe/staging",
+            profile="ordinary_trade_mapping_v17",
             verify_pin=None,
         ) == _PIN
 
@@ -131,7 +142,7 @@ def test_atomic_release_publishes_and_rechecks_the_production_v16_profile():
         "--staging-dir",
         "/safe/staging",
         "--profile",
-        "ordinary_trade_mapping_v16",
+        "ordinary_trade_mapping_v17",
     ]
 
 
@@ -146,6 +157,7 @@ def test_prompt_readback_keeps_json_pin_as_one_remote_shell_argument():
         assert release._run_native_prompt_publication(
             ssh_target="release-host",
             remote_dir="/safe/staging",
+            profile="ordinary_trade_mapping_v17",
             verify_pin=_PIN,
         ) == _PIN
 
@@ -155,7 +167,7 @@ def test_prompt_readback_keeps_json_pin_as_one_remote_shell_argument():
     ]
 
 
-def test_atomic_release_archives_the_same_v16_prompt_profile_it_pins(tmp_path: Path):
+def test_atomic_release_archives_both_prompt_assets_it_pins(tmp_path: Path):
     archive = tmp_path / "source.zip"
     revision = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -172,7 +184,7 @@ def test_atomic_release_archives_the_same_v16_prompt_profile_it_pins(tmp_path: P
     with zipfile.ZipFile(archive) as payload:
         names = set(payload.namelist())
     assert release.ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET in names
-    assert release.ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET in names
+    assert release.PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET in names
     assert not any(name.endswith("broker_reports_ordinary_trade_mapping_prompt.v13.md") for name in names)
 
 
@@ -209,6 +221,7 @@ def test_post_remote_prompt_readback_uses_fresh_staging_and_always_cleans_it(
             ssh_target="release-host",
             source_revision="0123456789abcdef0123456789abcdef01234567",
             source_archive=archive,
+            profile="ordinary_trade_mapping_v17",
             expected_pin=_PIN,
         ) == _PIN
 
@@ -269,6 +282,7 @@ def test_post_remote_prompt_readback_cleans_fresh_staging_after_failure(
                 ssh_target="release-host",
                 source_revision="0123456789abcdef0123456789abcdef01234567",
                 source_archive=archive,
+                profile="ordinary_trade_mapping_v17",
                 expected_pin=_PIN,
             )
 
@@ -283,6 +297,7 @@ def test_post_remote_prompt_readback_cleans_fresh_staging_after_failure(
         "ordinary_trade_mapping_v14",
         "ordinary_trade_mapping_v15",
         "ordinary_trade_mapping_v16",
+        "ordinary_trade_mapping_v17",
         "pdf_table_continuation_annotation_v3",
     ],
 )
