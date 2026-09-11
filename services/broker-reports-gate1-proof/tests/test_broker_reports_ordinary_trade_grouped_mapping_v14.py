@@ -79,6 +79,33 @@ def test_grouped_v14_reaches_existing_v13_semantic_owner(tmp_path) -> None:
     assert saved["status"] == "COMPLETE"
 
 
+def test_grouped_v14_binds_header_before_row_policy_expansion(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _grouped_response(table=table, mapping=mapping)
+    response["table_decisions"][0]["header_row"] = 2
+    client = runtime_fixtures.BoundaryModelClient([response])
+
+    result = asyncio.run(
+        _runtime(
+            store=store,
+            client=client,
+            mapping_response_adapter=(
+                OrdinaryTradeGroupedMappingV14AdapterFactory.create()
+            ),
+        ).resolve(document_id=document_id, context=context)
+    )
+
+    assert result["status"] == "COMPLETE"
+    saved = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    resolution = saved["table_resolutions"][0]
+    assert resolution["header_row"] == 1
+    assert resolution["security_trade_rows"][0] == 2
+
+
 def test_malformed_grouped_v14_stops_before_projection_or_fact_persistence(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)

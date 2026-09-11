@@ -13,7 +13,10 @@ import copy
 import json
 from typing import Any, Mapping
 
-from .ordinary_trade_semantic_mapping import MAPPING_RESPONSE_SCHEMA_VERSION
+from .ordinary_trade_semantic_mapping import (
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
+)
 
 
 ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION = (
@@ -92,6 +95,12 @@ def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dic
         or not isinstance(value.get("table_decisions"), list)
     ):
         _fail("ordinary_trade_grouped_mapping_v14_response_invalid")
+    # A physical header is Canonical-owned structure, never a model-selected
+    # row. Bind its compatible wire echo before row_policy expands row scope.
+    value = OrdinaryTradeSemanticMappingFactory.create().bind_source_owned_headers(
+        response=value,
+        package=package,
+    )
     rows_by_ref = _rows_by_table_ref(package)
     expanded = copy.deepcopy(value)
     expanded["schema_version"] = MAPPING_RESPONSE_SCHEMA_VERSION

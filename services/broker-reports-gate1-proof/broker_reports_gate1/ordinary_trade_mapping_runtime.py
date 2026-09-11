@@ -547,6 +547,10 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
             if contract_failure is not None:
                 raise OrdinaryTradeSemanticMappingError(contract_failure)
+            response_for_validation = self._semantic.bind_source_owned_headers(
+                response=response_for_validation,
+                package=package,
+            )
             outcome = self._semantic.validate_mapping_response(
                 response=response_for_validation,
                 canonical=binding["canonical"],

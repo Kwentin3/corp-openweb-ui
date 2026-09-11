@@ -229,6 +229,50 @@ class OrdinaryTradeSemanticMapping:
             return "ordinary_trade_semantic_mapping_response_message_invalid"
         return None
 
+    def bind_source_owned_headers(
+        self, *, response: Any, package: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Bind a compatible model response to Canonical-owned header rows.
+
+        ``header_row`` remains in the managed model schema for wire
+        compatibility, but it is not financial interpretation: Canonical
+        already owns the one physical header row for each ``table_ref``. Do
+        not let an integer echo from the model decide which source rows a
+        compact representation expands. Malformed fields, unknown table refs,
+        HEADER_ABSENT decisions, and tables without a physical header remain
+        untouched for the existing fail-closed semantic validation.
+        """
+
+        value = _strict_model_value(response)
+        case = package.get("case") if isinstance(package, Mapping) else None
+        tables = case.get("tables") if isinstance(case, Mapping) else None
+        if not isinstance(tables, list):
+            return copy.deepcopy(value)
+        headers_by_ref = {
+            table["table_ref"]: table["physical_header_row"]
+            for table in tables
+            if (
+                isinstance(table, Mapping)
+                and isinstance(table.get("table_ref"), str)
+                and isinstance(table.get("physical_header_row"), int)
+            )
+        }
+        bound = copy.deepcopy(value)
+        decisions = bound.get("table_decisions")
+        if not isinstance(decisions, list):
+            return bound
+        for decision in decisions:
+            if (
+                not isinstance(decision, dict)
+                or decision.get("disposition") == "HEADER_ABSENT"
+                or not isinstance(decision.get("header_row"), int)
+            ):
+                continue
+            physical_header_row = headers_by_ref.get(decision.get("table_ref"))
+            if physical_header_row is not None:
+                decision["header_row"] = physical_header_row
+        return bound
+
     def answer_prompt(self) -> Gate2ManagedPrompt:
         content = (
             "Interpret one natural-language answer to one supplied mapping question. "

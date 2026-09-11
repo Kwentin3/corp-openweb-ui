@@ -418,6 +418,28 @@ async def _native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     assert len(client.calls) == 1
 
 
+async def _model_header_echo_is_bound_to_canonical_before_mapping(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = case_fixtures._complete(table, mapping)
+    response["table_decisions"][0]["header_row"] = 2
+    client = BoundaryModelClient([response])
+
+    result = await _runtime(store, client).resolve(
+        document_id=document_id,
+        context=context,
+    )
+
+    assert result["status"] == "COMPLETE"
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    resolution = saved["table_resolutions"][0]
+    assert resolution["header_row"] == 1
+    assert resolution["security_trade_rows"][0] == 2
+
+
 async def _single_mapping_call_replaces_instructional_preclassification(
     tmp_path,
 ) -> None:
@@ -2015,6 +2037,10 @@ def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
 
 def test_native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_native_prompt_owner_completes_unknown_schema(tmp_path))
+
+
+def test_model_header_echo_is_bound_to_canonical_before_mapping(tmp_path) -> None:
+    asyncio.run(_model_header_echo_is_bound_to_canonical_before_mapping(tmp_path))
 
 
 def test_single_mapping_call_replaces_instructional_preclassification(
