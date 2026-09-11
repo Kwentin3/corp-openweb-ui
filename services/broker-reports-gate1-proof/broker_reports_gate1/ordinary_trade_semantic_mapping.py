@@ -18,7 +18,12 @@ from .instructional_table_classification import (
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
+from .ordinary_trade_explicit_header_source_response import (
+    ExplicitHeaderSourceResponseError,
+    validate_response as validate_explicit_header_source_response,
+)
 from .ordinary_trade_semantic_compiler import (
+    ORDINARY_TRADE_EXPLICIT_HEADER_SOURCE_CONTINUATION_SCHEMA_VERSION,
     OrdinaryTradeSemanticCompilerError,
     canonical_cell_literal,
 )
@@ -276,6 +281,95 @@ class OrdinaryTradeSemanticMapping:
             if physical_header_row is not None:
                 decision["header_row"] = physical_header_row
         return bound
+
+    def build_explicit_header_source_continuations(
+        self,
+        *,
+        response: Any,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        user_scope_sha256: str,
+        qualified_mappings: Iterable[Mapping[str, Any]],
+        qualification_receipts: Iterable[Mapping[str, Any]],
+        physical_table_continuation_context: Mapping[str, Any],
+        target_table_node_ids: Iterable[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Bind wire claims to the current qualified parent mapping.
+
+        This bridge owns only the reference binding. Financial roles remain
+        owned by the existing qualification authority.
+        """
+
+        try:
+            claims = validate_explicit_header_source_response(response)
+        except ExplicitHeaderSourceResponseError as exc:
+            _fail(exc.code)
+        binding = _current_explicit_header_canonical_binding(
+            canonical=canonical, canonical_binding=canonical_binding
+        )
+        if (
+            not isinstance(user_scope_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", user_scope_sha256) is None
+        ):
+            _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+        selected = None if target_table_node_ids is None else tuple(target_table_node_ids)
+        _model_tables, refs_by_node_id = _model_table_surfaces(
+            canonical, target_table_node_ids=selected, include_column_distinct_values=False
+        )
+        tables = _selected_table_surfaces(canonical=canonical, target_table_node_ids=None)
+        table_by_id = {item["table_node_id"]: item for item in tables}
+        allowed = set(table_by_id) if selected is None else set(selected)
+        if not allowed.issubset(table_by_id):
+            _fail("ordinary_trade_explicit_header_source_scope_invalid")
+        node_id_by_ref = {table_ref: node_id for node_id, table_ref in refs_by_node_id.items()}
+        links = _current_explicit_header_continuation_links(
+            canonical_binding=binding,
+            table_node_ids=set(table_by_id),
+            physical_table_continuation_context=physical_table_continuation_context,
+        )
+        qualified_by_node_id = _qualified_parent_mappings_by_node_id(
+            canonical_binding=binding,
+            user_scope_sha256=user_scope_sha256,
+            qualified_mappings=qualified_mappings,
+            qualification_receipts=qualification_receipts,
+        )
+        continuations: list[dict[str, Any]] = []
+        for claim in claims:
+            target_id = node_id_by_ref.get(claim["target_table_ref"])
+            parent_id = node_id_by_ref.get(claim["header_source_table_ref"])
+            if target_id is None or parent_id is None:
+                _fail("ordinary_trade_explicit_header_source_invalid")
+            if {parent_id, target_id} - allowed:
+                _fail("ordinary_trade_explicit_header_source_scope_invalid")
+            if (parent_id, target_id) not in links:
+                _fail("ordinary_trade_explicit_header_source_link_unverified")
+            parent, target = table_by_id[parent_id], table_by_id[target_id]
+            header_row = parent.get("physical_header_row")
+            if not isinstance(header_row, int) or header_row < 1:
+                _fail("ordinary_trade_explicit_header_source_parent_header_invalid")
+            if target.get("physical_header_row") is not None:
+                _fail("ordinary_trade_explicit_header_source_target_not_headerless")
+            target_rows = {
+                item.get("row") for item in target.get("rows", [])
+                if isinstance(item, Mapping) and isinstance(item.get("row"), int)
+            }
+            if not set(claim["security_trade_rows"]).issubset(target_rows):
+                _fail("ordinary_trade_explicit_header_source_rows_invalid")
+            mapping = qualified_by_node_id.get(parent_id)
+            if mapping is None or not _mapping_matches_physical_header(
+                mapping=mapping, parent=parent, header_row=header_row
+            ):
+                _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+            continuations.append({
+                "schema_version": ORDINARY_TRADE_EXPLICIT_HEADER_SOURCE_CONTINUATION_SCHEMA_VERSION,
+                "canonical_binding": copy.deepcopy(binding),
+                "target_table_node_id": target_id,
+                "header_source_table_node_id": parent_id,
+                "header_source_row": header_row,
+                "security_trade_rows": list(claim["security_trade_rows"]),
+                "mapping": copy.deepcopy(mapping),
+            })
+        return continuations
 
     def answer_prompt(self) -> Gate2ManagedPrompt:
         content = (
@@ -703,6 +797,54 @@ class OrdinaryTradeSemanticMapping:
             _fail("ordinary_trade_semantic_mapping_context_limit")
         return package
 
+    def expand_target_scope_for_source_bound_header_continuations(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        target_table_node_ids: Iterable[str],
+        frozen_table_node_ids: Iterable[str],
+        physical_table_continuation_context: Mapping[str, Any] | None,
+    ) -> list[str]:
+        """Include a frozen physical-header parent with an unknown child."""
+
+        requested = list(target_table_node_ids)
+        if not requested:
+            return []
+        target_ids = _ordered_target_table_node_ids(
+            canonical=canonical, target_table_node_ids=requested
+        )
+        if physical_table_continuation_context is None:
+            return target_ids
+        frozen_ids = set(frozen_table_node_ids)
+        all_table_ids = _ordered_target_table_node_ids(
+            canonical=canonical,
+            target_table_node_ids=[
+                node["node_id"] for node in canonical.get("nodes", [])
+                if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+            ],
+        )
+        if not frozen_ids.issubset(all_table_ids):
+            _fail("ordinary_trade_semantic_mapping_target_scope_stale")
+        nodes_by_id = {
+            node["node_id"]: node for node in canonical.get("nodes", [])
+            if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+            and isinstance(node.get("node_id"), str)
+        }
+        if set(nodes_by_id) != set(all_table_ids):
+            _fail("ordinary_trade_semantic_mapping_target_scope_stale")
+        expanded = set(target_ids)
+        for parent_id, child_id in _physical_continuation_links_for_scope_candidates(
+            canonical=canonical,
+            physical_table_continuation_context=physical_table_continuation_context,
+        ):
+            if (
+                child_id in expanded and parent_id in frozen_ids
+                and _physical_header_state(nodes_by_id[parent_id]) == "PRESENT"
+                and _physical_header_state(nodes_by_id[child_id]) == "ABSENT"
+            ):
+                expanded.add(parent_id)
+        return [table_id for table_id in all_table_ids if table_id in expanded]
+
     def build_classification_evidence_envelopes(
         self,
         *,
@@ -1050,8 +1192,21 @@ class OrdinaryTradeSemanticMapping:
         user_scope_sha256: str,
         target_table_node_ids: Iterable[str] | None = None,
         frozen_mappings: Iterable[Mapping[str, Any]] = (),
+        frozen_requalification_table_node_ids: Iterable[str] = (),
+        explicit_header_source_response: Mapping[str, Any] | None = None,
+        physical_table_continuation_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
+        validated_explicit_header_source_claims: list[dict[str, Any]] = []
+        if explicit_header_source_response is not None:
+            try:
+                validated_explicit_header_source_claims = (
+                    validate_explicit_header_source_response(
+                        explicit_header_source_response
+                    )
+                )
+            except ExplicitHeaderSourceResponseError as exc:
+                _fail(exc.code)
         if (
             set(value)
             != {
@@ -1075,6 +1230,9 @@ class OrdinaryTradeSemanticMapping:
             target_table_node_ids=target_table_node_ids,
         )
         tables = {item["table_node_id"]: item for item in table_surfaces}
+        frozen_requalification_ids = set(frozen_requalification_table_node_ids)
+        if not frozen_requalification_ids.issubset(tables):
+            _fail("ordinary_trade_semantic_mapping_target_scope_stale")
         _model_tables, refs_by_node_id = _model_table_surfaces(
             canonical,
             target_table_node_ids=target_table_node_ids,
@@ -1372,6 +1530,20 @@ class OrdinaryTradeSemanticMapping:
             for item in table_resolutions
             if item["disposition"] != "SECURITY_TRADES_INCOMPLETE"
         ]
+        explicit_header_source_continuations: list[dict[str, Any]] = []
+        if validated_explicit_header_source_claims:
+            explicit_header_source_continuations = (
+                self.build_explicit_header_source_continuations(
+                    response=explicit_header_source_response,
+                    canonical=canonical,
+                    canonical_binding=canonical_binding,
+                    user_scope_sha256=user_scope_sha256,
+                    qualified_mappings=qualified_mappings,
+                    qualification_receipts=qualification_receipts,
+                    physical_table_continuation_context=physical_table_continuation_context,
+                    target_table_node_ids=target_table_node_ids,
+                )
+            )
         dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
             canonical=canonical,
             canonical_binding=canonical_binding,
@@ -1387,6 +1559,8 @@ class OrdinaryTradeSemanticMapping:
                     strict=True,
                 )
             ],
+            explicit_header_source_continuations=explicit_header_source_continuations,
+            physical_table_continuation_context=physical_table_continuation_context,
             table_resolutions=compiler_table_resolutions,
         )
         incomplete_table_node_ids = {
@@ -1408,6 +1582,7 @@ class OrdinaryTradeSemanticMapping:
             "question": None,
             "qualified_mappings": qualified_mappings,
             "qualification_receipts": qualification_receipts,
+            "explicit_header_source_continuations": explicit_header_source_continuations,
             "table_resolutions": table_resolutions,
             "model_response_sha256": model_decision["response_sha256"],
             "execution_metadata_sha256": model_decision["execution_metadata_sha256"],
@@ -1516,6 +1691,181 @@ def _physical_continuation_links_for_scope(
             links.append(pair)
     positions = {table_node_id: index for index, table_node_id in enumerate(canonical_ids)}
     return sorted(links, key=lambda pair: (positions[pair[0]], positions[pair[1]]))
+
+
+def _current_explicit_header_canonical_binding(
+    *, canonical: Mapping[str, Any], canonical_binding: Mapping[str, str]
+) -> dict[str, str]:
+    keys = {
+        "document_id", "canonical_version_id", "canonical_root_sha256",
+        "source_artifact_ref", "source_sha256",
+    }
+    source = canonical.get("source") if isinstance(canonical, Mapping) else None
+    if (
+        not isinstance(canonical_binding, Mapping)
+        or set(canonical_binding) != keys
+        or not isinstance(source, Mapping)
+        or canonical_binding.get("canonical_root_sha256") != canonical.get("canonical_root_hash")
+        or canonical_binding.get("source_artifact_ref") != source.get("source_artifact_ref")
+        or canonical_binding.get("source_sha256") != source.get("source_sha256")
+        or not all(isinstance(canonical_binding.get(key), str) and canonical_binding[key] for key in keys)
+    ):
+        _fail("ordinary_trade_explicit_header_source_binding_invalid")
+    return copy.deepcopy(dict(canonical_binding))
+
+
+def _physical_continuation_links_for_scope_candidates(
+    *, canonical: Mapping[str, Any],
+    physical_table_continuation_context: Mapping[str, Any],
+) -> list[tuple[str, str]]:
+    if (
+        not isinstance(physical_table_continuation_context, Mapping)
+        or physical_table_continuation_context.get("schema_version")
+        != "broker_reports_physical_table_continuation_context_v1"
+        or not isinstance(physical_table_continuation_context.get("links"), list)
+    ):
+        _fail("ordinary_trade_mapping_physical_continuation_context_invalid")
+    all_table_ids = _ordered_target_table_node_ids(
+        canonical=canonical,
+        target_table_node_ids=[
+            node["node_id"] for node in canonical.get("nodes", [])
+            if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+        ],
+    )
+    known_ids = set(all_table_ids)
+    links: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for link in physical_table_continuation_context["links"]:
+        if (
+            not isinstance(link, Mapping)
+            or set(link) != {"parent_table_node_id", "child_table_node_id"}
+            or not isinstance(link.get("parent_table_node_id"), str)
+            or not isinstance(link.get("child_table_node_id"), str)
+        ):
+            _fail("ordinary_trade_mapping_physical_continuation_context_invalid")
+        pair = (link["parent_table_node_id"], link["child_table_node_id"])
+        if pair[0] == pair[1] or not set(pair).issubset(known_ids) or pair in seen:
+            _fail("ordinary_trade_mapping_physical_continuation_context_invalid")
+        seen.add(pair)
+        links.append(pair)
+    positions = {table_node_id: index for index, table_node_id in enumerate(all_table_ids)}
+    return sorted(links, key=lambda pair: (positions[pair[0]], positions[pair[1]]))
+
+
+def _physical_header_state(table: Mapping[str, Any]) -> str | None:
+    content = table.get("content") if isinstance(table, Mapping) else None
+    metadata = content.get("metadata") if isinstance(content, Mapping) else None
+    state = metadata.get("physical_header_state") if isinstance(metadata, Mapping) else None
+    return state if state in {"PRESENT", "ABSENT"} else None
+
+
+def _current_explicit_header_continuation_links(
+    *, canonical_binding: Mapping[str, str], table_node_ids: set[str],
+    physical_table_continuation_context: Mapping[str, Any],
+) -> set[tuple[str, str]]:
+    expected = {
+        key: canonical_binding[key]
+        for key in (
+            "document_id", "canonical_version_id", "canonical_root_sha256",
+            "source_artifact_ref", "source_sha256",
+        )
+    }
+    source_binding = (
+        physical_table_continuation_context.get("source_binding")
+        if isinstance(physical_table_continuation_context, Mapping) else None
+    )
+    if (
+        not isinstance(physical_table_continuation_context, Mapping)
+        or set(physical_table_continuation_context) != {
+            "schema_version", "sidecar_artifact_ref", "sidecar_id", "source_binding", "links"
+        }
+        or physical_table_continuation_context.get("schema_version")
+        != "broker_reports_physical_table_continuation_context_v1"
+        or not isinstance(physical_table_continuation_context.get("sidecar_artifact_ref"), str)
+        or not physical_table_continuation_context["sidecar_artifact_ref"]
+        or not isinstance(physical_table_continuation_context.get("sidecar_id"), str)
+        or not physical_table_continuation_context["sidecar_id"]
+        or not isinstance(source_binding, Mapping)
+        or any(source_binding.get(key) != expected_value for key, expected_value in expected.items())
+        or not isinstance(source_binding.get("normalization_run_id"), str)
+        or not source_binding["normalization_run_id"]
+        or not isinstance(physical_table_continuation_context.get("links"), list)
+    ):
+        _fail("ordinary_trade_explicit_header_source_context_invalid")
+    links: set[tuple[str, str]] = set()
+    for link in physical_table_continuation_context["links"]:
+        if (
+            not isinstance(link, Mapping)
+            or set(link) != {"parent_table_node_id", "child_table_node_id"}
+            or any(
+                not isinstance(link.get(key), str) or not link[key]
+                for key in ("parent_table_node_id", "child_table_node_id")
+            )
+        ):
+            _fail("ordinary_trade_explicit_header_source_context_invalid")
+        pair = (link["parent_table_node_id"], link["child_table_node_id"])
+        if pair[0] == pair[1] or not set(pair).issubset(table_node_ids) or pair in links:
+            _fail("ordinary_trade_explicit_header_source_context_invalid")
+        links.add(pair)
+    return links
+
+
+def _qualified_parent_mappings_by_node_id(
+    *, canonical_binding: Mapping[str, str], user_scope_sha256: str,
+    qualified_mappings: Iterable[Mapping[str, Any]],
+    qualification_receipts: Iterable[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    receipts = list(qualification_receipts)
+    receipts_by_id = {
+        item.get("qualification_id"): item for item in receipts
+        if isinstance(item, Mapping) and isinstance(item.get("qualification_id"), str)
+    }
+    if len(receipts_by_id) != len(receipts):
+        _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+    authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+    by_node_id: dict[str, dict[str, Any]] = {}
+    for mapping in qualified_mappings:
+        qualification_ref = mapping.get("qualification_ref") if isinstance(mapping, Mapping) else None
+        receipt = receipts_by_id.get(qualification_ref.get("qualification_id")) if isinstance(qualification_ref, Mapping) else None
+        case_scope = receipt.get("case_scope") if isinstance(receipt, Mapping) else None
+        table_node_id = case_scope.get("table_node_id") if isinstance(case_scope, Mapping) else None
+        if not isinstance(table_node_id, str) or not table_node_id:
+            _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+        expected_scope = {
+            **dict(canonical_binding), "user_scope_sha256": user_scope_sha256,
+            "table_node_id": table_node_id,
+        }
+        try:
+            authority.validate_case_mapping(
+                mapping=dict(mapping),
+                receipt=dict(receipt) if isinstance(receipt, Mapping) else {},
+                expected_case_scope=expected_scope,
+            )
+        except RuntimeError:
+            _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+        if table_node_id in by_node_id:
+            _fail("ordinary_trade_explicit_header_source_parent_mapping_invalid")
+        by_node_id[table_node_id] = copy.deepcopy(dict(mapping))
+    return by_node_id
+
+
+def _mapping_matches_physical_header(
+    *, mapping: Mapping[str, Any], parent: Mapping[str, Any], header_row: int
+) -> bool:
+    rows = parent.get("rows")
+    header = next((item for item in rows if isinstance(item, Mapping) and item.get("row") == header_row), None) if isinstance(rows, list) else None
+    columns = mapping.get("columns") if isinstance(mapping, Mapping) else None
+    if not isinstance(header, Mapping) or not isinstance(columns, list):
+        return False
+    source_headers = [
+        {"column": cell.get("column"), "header_literal": cell.get("literal")}
+        for cell in header.get("cells", []) if isinstance(cell, Mapping)
+    ] if isinstance(header.get("cells"), list) else []
+    mapping_headers = [
+        {"column": item.get("column"), "header_literal": item.get("header_literal")}
+        for item in columns if isinstance(item, Mapping)
+    ]
+    return mapping_headers == source_headers
 
 
 def _physical_continuation_batch_groups(

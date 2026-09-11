@@ -9,6 +9,7 @@ requirements: pydantic,pypdf==6.7.5,lxml==6.1.1
 from __future__ import annotations
 
 import asyncio
+import base64
 import copy
 import hashlib
 import inspect
@@ -131,6 +132,9 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
     OrdinaryTradeGroupedMappingV15AdapterFactory,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v17 import (
+    OrdinaryTradeGroupedMappingV17AdapterFactory,
+)
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
@@ -221,6 +225,7 @@ class _OrdinaryTradeMappingRouteProfile:
         input_schema_version: str = ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
         grouped_v14_response: bool = False,
         grouped_v15_response: bool = False,
+        grouped_v17_response: bool = False,
     ) -> None:
         self.profile_id = profile_id
         self.prompt_command = prompt_command
@@ -232,12 +237,15 @@ class _OrdinaryTradeMappingRouteProfile:
         self.input_schema_version = input_schema_version
         self.grouped_v14_response = grouped_v14_response
         self.grouped_v15_response = grouped_v15_response
+        self.grouped_v17_response = grouped_v17_response
 
     def mapping_response_adapter(self) -> Any | None:
         if self.grouped_v14_response:
             return OrdinaryTradeGroupedMappingV14AdapterFactory.create()
         if self.grouped_v15_response:
             return OrdinaryTradeGroupedMappingV15AdapterFactory.create()
+        if self.grouped_v17_response:
+            return OrdinaryTradeGroupedMappingV17AdapterFactory.create()
         return None
 
 
@@ -303,7 +311,7 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         input_schema_version=(
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
-        grouped_v15_response=True,
+        grouped_v17_response=True,
     ),
 }
 
@@ -1027,13 +1035,22 @@ class Pipe:
             and product_result.get("status") == "DECLARATION_XML_READY"
             and isinstance(declaration_result, dict)
         ):
+            delivery = (
+                self._read_persisted_ordinary_trade_xml(
+                    store=artifact_store,
+                    context=artifact_context,
+                    declaration=declaration_result,
+                )
+                if "xml_artifact_ref" in declaration_result
+                else declaration_result
+            )
             file_id = await self._publish_ndfl_xml_file(
                 user=__user__,
                 context=artifact_context,
                 filename="3-ndfl-2025.xml",
-                xml_bytes=declaration_result["xml_bytes"],
-                xml_sha256=declaration_result["xml_sha256"],
-                receipt_sha256=declaration_result["receipt_sha256"],
+                xml_bytes=delivery["xml_bytes"],
+                xml_sha256=delivery["xml_sha256"],
+                receipt_sha256=delivery["receipt_sha256"],
             )
             product_result["private_download"] = {
                 "file_id": file_id,
@@ -1242,13 +1259,20 @@ class Pipe:
             product.get("status") == "DECLARATION_XML_READY"
             and isinstance(declaration, dict)
         ):
+            delivery = (
+                self._read_persisted_ordinary_trade_xml(
+                    store=store, context=context, declaration=declaration
+                )
+                if "xml_artifact_ref" in declaration
+                else declaration
+            )
             file_id = await self._publish_ndfl_xml_file(
                 user=user,
                 context=context,
                 filename="3-ndfl-2025.xml",
-                xml_bytes=declaration["xml_bytes"],
-                xml_sha256=declaration["xml_sha256"],
-                receipt_sha256=declaration["receipt_sha256"],
+                xml_bytes=delivery["xml_bytes"],
+                xml_sha256=delivery["xml_sha256"],
+                receipt_sha256=delivery["receipt_sha256"],
             )
             product["private_download"] = {
                 "file_id": file_id,
@@ -2875,6 +2899,37 @@ class Pipe:
             "Full Source: "
             f"[скачать {FULL_SOURCE_ZIP_FILENAME}]({str(delivery['url'])})"
         )
+
+    @staticmethod
+    def _read_persisted_ordinary_trade_xml(
+        *, store: Any, context: ArtifactAccessContext, declaration: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Use only the declaration owner's private, hash-bound XML bytes."""
+        try:
+            xml_ref = str(declaration["xml_artifact_ref"])
+            receipt_ref = str(declaration["receipt_artifact_ref"])
+            resolver = ArtifactResolver(store)
+            xml_payload = resolver.resolve(xml_ref, context)["payload"]
+            receipt = resolver.resolve(receipt_ref, context)["payload"]
+            xml_bytes = base64.b64decode(xml_payload["xml_base64"], validate=True)
+            xml_sha256 = hashlib.sha256(xml_bytes).hexdigest()
+            if (
+                xml_payload.get("xml_sha256") != xml_sha256
+                or xml_payload.get("receipt_ref") != receipt_ref
+                or declaration.get("xml_sha256") != xml_sha256
+                or declaration.get("receipt_sha256") != receipt.get("receipt_sha256")
+                or declaration.get("xml_bytes") != xml_bytes
+            ):
+                raise ValueError("binding")
+            return {
+                "xml_bytes": xml_bytes,
+                "xml_sha256": xml_sha256,
+                "receipt_sha256": receipt["receipt_sha256"],
+            }
+        except (KeyError, TypeError, ValueError, ArtifactStoreError) as exc:
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_persisted_xml_binding_invalid"
+            ) from exc
 
     @staticmethod
     async def _publish_ndfl_xml_file(
