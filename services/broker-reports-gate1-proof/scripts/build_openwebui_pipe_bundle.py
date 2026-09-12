@@ -241,6 +241,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_grouped_mapping_v14",
     "ordinary_trade_grouped_mapping_v15",
     "ordinary_trade_grouped_mapping_v17",
+    "ordinary_trade_grouped_mapping_v18",
     "ordinary_trade_mapping_prompt",
     "pdf_table_continuation_annotation_prompt",
     "instructional_table_classification_prompt",

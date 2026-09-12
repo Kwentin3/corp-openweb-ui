@@ -297,7 +297,11 @@ def _fact_role(item: dict[str, Any]) -> dict[str, Any]:
         )
     return {
         "role": item["role"],
-        "requirement": "required",
+        # An opening-short effect refines a proved disposal; it is never a
+        # required source field for ordinary long trades.
+        "requirement": (
+            "optional" if item["role"] == "position_effect" else "required"
+        ),
         "status": "value",
         "value": item["value"],
         "source_binding": {
