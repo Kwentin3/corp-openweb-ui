@@ -224,7 +224,10 @@ class CreateSpreadsheetRequest(BaseModel):
 
 class ApplyPresentationBatchRequest(NativePptxReference):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    # A polished multi-slide deck commonly has more than 64 operations (slide,
+    # text boxes, shapes, table/chart, and notes).  This remains bounded while
+    # allowing a complete ordinary presentation in one atomic OfficeCLI batch.
+    commands: list[dict[str, Any]] = Field(min_length=1, max_length=256)
 
     @field_validator("commands")
     @classmethod
@@ -243,7 +246,7 @@ class ApplyPresentationBatchRequest(NativePptxReference):
 
 class CreatePresentationRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    commands: list[dict[str, Any]] = Field(min_length=1, max_length=256)
 
     @field_validator("commands")
     @classmethod

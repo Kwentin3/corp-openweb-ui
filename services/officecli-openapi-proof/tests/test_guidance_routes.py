@@ -612,6 +612,26 @@ def test_create_presentation_uses_official_create_batch_validate_and_pptx_mime()
     assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
 
 
+def test_create_presentation_accepts_a_complete_multi_slide_batch() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+    slide = {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}}
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"output_name": "full-commercial-proposal.pptx", "commands": [slide] * 89},
+    )
+
+    assert response.status_code == 200
+    assert len(json.loads(executor.inputs[1] or "[]")) == 89
+
+
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi(source=b"original XLSX bytes")
