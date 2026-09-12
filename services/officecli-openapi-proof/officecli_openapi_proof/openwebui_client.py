@@ -162,11 +162,17 @@ class HttpOpenWebUiClient:
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ),
         }
+        event_path = f"/api/v1/chats/{chat_id}/messages/{message_id}/event"
+        event_data = {"files": [chat_file]}
+        # In the pinned OpenWebUI runtime, ``files`` persists the attachment in
+        # the native message history, while ``chat:message:files`` updates the
+        # active chat. Both are native events with distinct responsibilities.
+        self._request("POST", event_path, authorization, json={"type": "files", "data": event_data})
         self._request(
             "POST",
-            f"/api/v1/chats/{chat_id}/messages/{message_id}/event",
+            event_path,
             authorization,
-            json={"type": "chat:message:files", "data": {"files": [chat_file]}},
+            json={"type": "chat:message:files", "data": event_data},
         )
 
     def delete(self, file_id: str, authorization: str) -> None:
