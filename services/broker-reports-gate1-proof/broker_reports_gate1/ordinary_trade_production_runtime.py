@@ -14,7 +14,7 @@ from .gate4_ordinary_trade_candidate import (
 )
 from .gate5_trusted_methodology import (
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
 )
 from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFactory
@@ -976,7 +976,9 @@ def _methodology_ref() -> dict[str, str]:
     return {
         "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
         "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-        "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+        "methodology_version": (
+            GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+        ),
     }
 
 

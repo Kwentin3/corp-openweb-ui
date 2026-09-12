@@ -68,7 +68,7 @@ def _candidate() -> dict:
     methodology_ref = _artifact_ref(
         "trusted_methodology",
         "ru-ndfl-securities-tax-model-proof",
-        "2026.1-experimental",
+        "2026.2-audited",
     )
     projection_ref = _artifact_ref(
         "validated_declaration_projection",
@@ -107,7 +107,7 @@ def _candidate() -> dict:
                         "capability_id": "execute_published_typed_behavior_v1",
                         "behavior_ref": {
                             "methodology_id": ("ru-ndfl-securities-tax-model-proof"),
-                            "methodology_version": "2026.1-experimental",
+                            "methodology_version": "2026.2-audited",
                             "behavior_id": (
                                 "securities_disposal_operation_tax_model_v0"
                             ),
@@ -170,7 +170,7 @@ def test_frozen_v2_payload_is_exact_and_history_free() -> None:
     assert hashlib.sha256(language.model_payload_bytes()).hexdigest() == (
         GATE5_DECLARATION_AUTHORING_LANGUAGE_PAYLOAD_RESOURCE_SHA256
     )
-    assert len(language.model_payload_bytes()) == 24971
+    assert len(language.model_payload_bytes()) == 24961
     assert list(payload) == [
         "official_evidence",
         "output_schema",
@@ -192,7 +192,7 @@ def test_g522_replay_payload_is_additive_exact_and_history_free() -> None:
     assert hashlib.sha256(replay.model_payload_bytes()).hexdigest() == (
         GATE5_DECLARATION_AUTHORING_LANGUAGE_G522_PAYLOAD_RESOURCE_SHA256
     )
-    assert len(replay.model_payload_bytes()) == 26614
+    assert len(replay.model_payload_bytes()) == 26594
     assert payload == build_unfrozen_declaration_authoring_language_payload_g522()
     assert payload["runtime_capabilities"] == historical_payload["runtime_capabilities"]
     assert payload["official_evidence"] == historical_payload["official_evidence"]
@@ -204,7 +204,7 @@ def test_g522_replay_payload_is_additive_exact_and_history_free() -> None:
     assert artifact["artifact_ref"] == {
         "artifact_kind": "trusted_methodology",
         "artifact_id": "ru-ndfl-securities-tax-model-proof",
-        "artifact_version": "2026.2-experimental",
+        "artifact_version": "2026.3-audited",
     }
     assert artifact["behavior_id"] == "securities_income_group_tax_base_v0"
     assert replay.bias_audit()["status"] == "passed"
@@ -225,7 +225,7 @@ def test_g523_replay_changes_only_current_capability_truth_and_generic_semantics
     assert hashlib.sha256(replay.model_payload_bytes()).hexdigest() == (
         GATE5_DECLARATION_AUTHORING_LANGUAGE_G523_PAYLOAD_RESOURCE_SHA256
     )
-    assert len(replay.model_payload_bytes()) == 26898
+    assert len(replay.model_payload_bytes()) == 26878
     assert payload == build_unfrozen_declaration_authoring_language_payload_g523()
     for section in (
         "research_policy",
@@ -270,7 +270,7 @@ def test_g522_compiler_accepts_the_new_exact_typed_behavior_composition() -> Non
     new_ref = _artifact_ref(
         "trusted_methodology",
         "ru-ndfl-securities-tax-model-proof",
-        "2026.2-experimental",
+        "2026.3-audited",
     )
     requirement = candidate["requirements"][1]
     requirement["runtime_support"] = "supported"
@@ -279,7 +279,7 @@ def test_g522_compiler_accepts_the_new_exact_typed_behavior_composition() -> Non
             "capability_id": "execute_published_typed_behavior_v1",
             "behavior_ref": {
                 "methodology_id": "ru-ndfl-securities-tax-model-proof",
-                "methodology_version": "2026.2-experimental",
+                "methodology_version": "2026.3-audited",
                 "behavior_id": "securities_income_group_tax_base_v0",
             },
             "artifact_refs": [new_ref],
@@ -298,7 +298,7 @@ def test_g522_compiler_accepts_the_new_exact_typed_behavior_composition() -> Non
         "behavior_ref": {
             "schema_version": "broker_reports_gate5_published_behavior_ref_v1",
             "methodology_id": "ru-ndfl-securities-tax-model-proof",
-            "methodology_version": "2026.2-experimental",
+            "methodology_version": "2026.3-audited",
             "behavior_id": "securities_income_group_tax_base_v0",
         },
         "input_contract_id": "broker_reports_gate5_income_group_tax_base_input_v0",
@@ -314,7 +314,7 @@ def test_g522_unchanged_replay_candidate_removes_old_gap_and_exposes_next_gap() 
     candidate = language.parse_candidate_response(raw)
 
     assert hashlib.sha256(raw).hexdigest() == (
-        "dee9cec002449e31ae7536a36e1a897fe2df1c7355f65ec999c7723cf5d70bf2"
+        "3e68a987e1fb08d2506e026735234dae4fc58251296711d8f0f3629eb2570502"
     )
     Draft202012Validator(language.output_schema()).validate(candidate)
     rendered = raw.decode("utf-8")
@@ -335,9 +335,9 @@ def test_g523_history_free_candidate_compiles_and_discovers_projection_gap() -> 
     candidate = language.parse_candidate_response(raw)
 
     assert hashlib.sha256(raw).hexdigest() == (
-        "1b681477ee6f3d09cf69ca533f42d53cebb26397912f57ccbf362c5decce7b4b"
+        "397dbffa4750c4f356a96caac06fe6e060c8ec39cd6b625aeb13eb5245ed0dee"
     )
-    assert len(raw) == 11146
+    assert len(raw) == 11086
     Draft202012Validator(language.output_schema()).validate(candidate)
     compiled = language.validate_candidate(candidate)
 
@@ -370,7 +370,7 @@ def test_g524_replay_changes_only_current_project_and_projection_inventory_truth
     assert hashlib.sha256(replay.model_payload_bytes()).hexdigest() == (
         GATE5_DECLARATION_AUTHORING_LANGUAGE_G524_PAYLOAD_RESOURCE_SHA256
     )
-    assert len(replay.model_payload_bytes()) == 28631
+    assert len(replay.model_payload_bytes()) == 28610
     assert payload == build_unfrozen_declaration_authoring_language_payload_g524()
     for section in ("research_policy", "official_evidence", "output_schema"):
         assert payload[section] == historical_payload[section]
@@ -497,9 +497,9 @@ def test_g524_history_free_candidate_compiles_and_preserves_next_gap() -> None:
     raw = G524_CANDIDATE.read_bytes()
     candidate = language.parse_candidate_response(raw)
 
-    assert len(raw) == 7405
+    assert len(raw) == 7380
     assert hashlib.sha256(raw).hexdigest() == (
-        "c2efa5639a8d083ef6f7c9d9cef4f873a1027cdfbcc4d765b80c66555aa8c8c1"
+        "28fc4b6e7e49e9057ddf440087b1dd20fe44aa6f9a332d0d042abe9044b824bf"
     )
     Draft202012Validator(language.output_schema()).validate(candidate)
     compiled = language.validate_candidate(candidate)

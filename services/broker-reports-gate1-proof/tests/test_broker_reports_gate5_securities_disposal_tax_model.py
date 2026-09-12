@@ -148,6 +148,7 @@ def test_first_declaration_driven_tax_model_replays_and_projects_appendix8(
         "ПризУчетУбыт": "0",
     }
     serialized_model = json.dumps(model, ensure_ascii=False, sort_keys=True)
+    assert "gate3" not in serialized_model.lower()
     for declaration_owned_literal in (
         "ВидОпер",
         "ДохСовОпер",
@@ -468,7 +469,15 @@ def _runtime(store) -> Gate5SecuritiesDisposalTaxModelRuntime:
         store=store,
         read_enabled=True,
         retention_policy=build_retention_policy(mode="synthetic_dev"),
+        list_facts=_active_qualified_fact_reader,
     ).create()
+
+
+def _active_qualified_fact_reader(*, context) -> list[dict]:
+    """V3 reader boundary; historical V2 materializer tests do not consume it."""
+
+    del context
+    return []
 
 
 def _methodology_ref() -> dict[str, str]:

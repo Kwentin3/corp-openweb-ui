@@ -6,6 +6,9 @@ import copy
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort
+from .gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
 from .gate5_deterministic_source_fact_consumption import (
     Gate5DeterministicSourceFactConsumptionRuntime,
     Gate5DeterministicSourceFactConsumptionRuntimeFactory,
@@ -35,6 +38,8 @@ GATE5_EXACT_EVIDENCE_GAPS_TERMINAL = "EXACT_EVIDENCE_GAPS_LOCALIZED"
 
 FACTORY_REQUIRED = (
     "Gate5RealTaxCaseAssemblyRuntimeFactory.create composes "
+    "Gate4OrdinaryTradeCandidateRuntimeFactory.create as the active V3 "
+    "list_facts(context) owner, "
     "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create, "
     "Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create and "
     "Gate5FullDeclarationDefinitionAuthoringFactory.create; "
@@ -93,11 +98,14 @@ class Gate5RealTaxCaseAssemblyRuntimeFactory:
         self._read_enabled = read_enabled
 
     def create(self) -> "Gate5RealTaxCaseAssemblyRuntime":
+        current_fact_owner = Gate4OrdinaryTradeCandidateRuntimeFactory(
+            store=self._store,
+            read_enabled=self._read_enabled,
+        ).create()
         return Gate5RealTaxCaseAssemblyRuntime(
             source_runtime=(
                 Gate5DeterministicSourceFactConsumptionRuntimeFactory(
-                    store=self._store,
-                    read_enabled=self._read_enabled,
+                    list_facts=current_fact_owner.list_facts,
                 ).create()
             ),
             definition_authority=(

@@ -424,9 +424,13 @@ def test_public_execute_signature_cannot_accept_implementation_or_schema_code() 
         for parameter in signature.parameters.values()
     )
     assert any("Factory.create" in item for item in FACTORY_REQUIRED)
+    assert any("qualified Fact v3 reads" in item for item in FACTORY_REQUIRED)
     assert any("dynamic import" in item for item in FORBIDDEN)
 
     source = inspect.getsource(typed_module)
+    factory_source = inspect.getsource(Gate5PublishedTypedBehaviorRuntimeFactory)
+    assert "Gate4OrdinaryTradeCandidateRuntimeFactory" in factory_source
+    assert ".create().list_facts" in factory_source
     tree = ast.parse(source)
     imported = {
         alias.name
@@ -544,7 +548,7 @@ print(hashlib.sha256(Gate5DeclarationAuthoringLanguageV2Factory.create_g523_repl
         "5",
         "5",
         GATE5_TRUSTED_CALCULATION_RESULT_SCHEMA_VERSION,
-        "62fde21f4bc75d32deebf3ac9c650b4506d5f269d3392c6ba97c3af3695a7a9d",
+        "5286f3a0c15c7cd86ef33b29e488ce5456071667e358704192e1c60cd00c5e68",
     ]
 
 

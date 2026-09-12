@@ -32,6 +32,9 @@ from .gate4_financial_case_cache import (
     CASE_COMPLETE_FOR_CURRENT_INPUT_SET,
     Gate4FinancialCaseRuntimeFactory,
 )
+from .gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
 from .gate5_declaration_budget_outcome import (
     GATE5_DECLARATION_BUDGET_DISPOSITION_COMPONENT_SCHEMA_VERSION,
 )
@@ -130,6 +133,7 @@ FACTORY_REQUIRED = (
     "CanonicalReaderFactory.create owns Gate 2 activation and reads",
     "Gate3ChunkBatchLabelingFactory.create and Gate3FinancialAnnotationsPersistenceFactory.create own Gate 3",
     "Gate4FinancialCaseRuntimeFactory.create owns Gate 4",
+    "Gate4OrdinaryTradeCandidateRuntimeFactory.create owns qualified Fact v3 reads",
     "existing Gate 5 factories own every tax, declaration and target result",
 )
 FORBIDDEN = (
@@ -269,6 +273,10 @@ class Gate5EndToEndFullTargetXmlRuntimeFactory:
         return Gate5EndToEndFullTargetXmlRuntime(
             store=self._store,
             retention_policy=self._retention_policy,
+            qualified_facts=Gate4OrdinaryTradeCandidateRuntimeFactory(
+                store=self._store,
+                read_enabled=self._read_enabled,
+            ).create(),
             gate3_model_client=self._gate3_model_client,
             gate3_model_id=self._gate3_model_id,
             gate3_provider_profile_id=self._gate3_provider_profile_id,
@@ -281,12 +289,14 @@ class Gate5EndToEndFullTargetXmlRuntime:
         *,
         store: Any,
         retention_policy: RetentionPolicy,
+        qualified_facts: Any,
         gate3_model_client: Any,
         gate3_model_id: str,
         gate3_provider_profile_id: str,
     ) -> None:
         self._store = store
         self._retention_policy = retention_policy
+        self._qualified_facts = qualified_facts
         self._gate3_model_client = gate3_model_client
         self._gate3_model_id = gate3_model_id
         self._gate3_provider_profile_id = gate3_provider_profile_id
@@ -544,6 +554,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
         )
         scope_binding = scope_receipt["scope_binding"]
 
+        _require_filing_instance_fields(value)
         filing = _right_side_result(
             right_side.filing_component,
             inputs=value,
@@ -985,6 +996,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
             store=self._store,
             read_enabled=True,
             retention_policy=self._retention_policy,
+            list_facts=self._qualified_facts.list_facts,
         ).create()
         tax_methodology_ref = {
             "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
@@ -1715,6 +1727,25 @@ def _right_side_result(
         return call(**kwargs)
     except Gate5DeclarationRightSideAssemblyError as exc:
         _fail(exc.code, exc.field)
+
+
+def _require_filing_instance_fields(value: Mapping[str, Any]) -> None:
+    filing_domain = _required(value, "filing_and_party_identity")
+    if not isinstance(filing_domain, Mapping):
+        _fail("gate5_e2e_case_fact_missing", "filing_instance")
+    filing = _required(filing_domain, "filing_instance")
+    if not isinstance(filing, Mapping):
+        _fail("gate5_e2e_case_fact_missing", "filing_instance")
+    for field in (
+        "declaration_instance_ref",
+        "correction_kind",
+        "correction_number",
+        "declaration_date",
+        "tax_period",
+        "destination_tax_authority_ref",
+        "tax_authority_code",
+    ):
+        _required(filing, field)
 
 
 def _required(value: Mapping[str, Any], key: str) -> Any:

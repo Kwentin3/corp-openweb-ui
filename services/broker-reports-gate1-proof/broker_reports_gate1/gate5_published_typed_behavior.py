@@ -8,6 +8,9 @@ import re
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
+from .gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
 from .gate5_methodology_calculation import (
     GATE5_CALCULATION_RESULT_SCHEMA_VERSION,
     GATE5_SECURITY_DISPOSAL_NET_RESULT_BEHAVIOR_ID,
@@ -61,6 +64,7 @@ FACTORY_REQUIRED = (
     "Gate5PublishedTypedBehaviorRuntimeFactory.create is the sole typed executor",
     "Gate5TrustedMethodologyCalculationRuntimeFactory.create owns G5.7 execution",
     "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create owns operation modeling",
+    "Gate4OrdinaryTradeCandidateRuntimeFactory.create owns qualified Fact v3 reads",
     "Gate5TaxPeriodCategoryAggregationRuntimeFactory.create owns member validation",
     "Gate5IncomeGroupTaxBaseRuntimeFactory.create owns income-group tax base",
 )
@@ -211,6 +215,10 @@ class Gate5PublishedTypedBehaviorRuntimeFactory:
                 store=self._store,
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
+                list_facts=Gate4OrdinaryTradeCandidateRuntimeFactory(
+                    store=self._store,
+                    read_enabled=self._read_enabled,
+                ).create().list_facts,
             ).create(),
             aggregation_runtime=(
                 Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
