@@ -683,7 +683,7 @@ def test_http_client_attaches_a_native_chat_file_reference(monkeypatch) -> None:
     )
     assert captured["headers"] == {"Authorization": "Bearer user-session"}
     assert captured["json"] == {
-        "type": "files",
+        "type": "chat:message:files",
         "data": {
             "files": [
                 {

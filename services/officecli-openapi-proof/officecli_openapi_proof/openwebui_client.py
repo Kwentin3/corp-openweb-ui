@@ -166,7 +166,7 @@ class HttpOpenWebUiClient:
             "POST",
             f"/api/v1/chats/{chat_id}/messages/{message_id}/event",
             authorization,
-            json={"type": "files", "data": {"files": [chat_file]}},
+            json={"type": "chat:message:files", "data": {"files": [chat_file]}},
         )
 
     def delete(self, file_id: str, authorization: str) -> None:
