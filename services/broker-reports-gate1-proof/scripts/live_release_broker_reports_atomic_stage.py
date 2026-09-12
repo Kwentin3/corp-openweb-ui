@@ -522,10 +522,14 @@ def main() -> int:
     parser.add_argument("--ordinary-trade-mapping-prompt-pin-json", default=None)
     args = parser.parse_args()
 
-    env = _read_env(Path(args.env_file))
-    ssh_target = (
-        args.ssh_target or env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
-    )
+    # An explicit target is a complete transport configuration. Requiring an
+    # unrelated local .env here makes a controlled release needlessly depend
+    # on an untracked workstation file.
+    if args.ssh_target:
+        ssh_target = args.ssh_target
+    else:
+        env = _read_env(Path(args.env_file))
+        ssh_target = env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
     receipt = execute(
         source_revision=args.source_revision,
         ssh_target=ssh_target,
