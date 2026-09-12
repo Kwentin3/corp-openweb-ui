@@ -60,6 +60,15 @@ from .pdf_table_continuation_annotation_prompt import (
     PROMPT_TEMPLATE_ID as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_ID,
     PROMPT_TEMPLATE_KIND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_TEMPLATE_KIND,
 )
+from .document_passport import (
+    INPUT_SCHEMA_VERSION as DOCUMENT_METADATA_PASSPORT_INPUT_SCHEMA_VERSION,
+    PASSPORT_JSON_SCHEMA_ID as DOCUMENT_METADATA_PASSPORT_OUTPUT_SCHEMA_ID,
+    PASSPORT_SCHEMA_VERSION as DOCUMENT_METADATA_PASSPORT_OUTPUT_SCHEMA_VERSION,
+    PROMPT_CONTRACT_ID as DOCUMENT_METADATA_PASSPORT_PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG as DOCUMENT_METADATA_PASSPORT_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as DOCUMENT_METADATA_PASSPORT_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as DOCUMENT_METADATA_PASSPORT_PROMPT_TEMPLATE_KIND,
+)
 
 
 PROMPT_ASSET_VERSION = "v13"
@@ -111,6 +120,7 @@ class OrdinaryTradeMappingPromptPublicationProfile:
     is_production: bool
     initial_access_grants: tuple[tuple[str, str, str], ...]
     metadata_extension: Mapping[str, Any] | None = None
+    metadata_mapping_domain: str | None = "ordinary_trade"
     commit_message: str | None = None
     legacy_metadata: Mapping[str, Any] | None = None
     legacy_name: str | None = None
@@ -254,8 +264,43 @@ PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE = (
         is_production=True,
         initial_access_grants=(("user", "*", "read"),),
         metadata_extension={"annotation_domain": "physical_table_continuation"},
+        metadata_mapping_domain=None,
         commit_message="Publish Broker Reports PDF table-continuation annotation Prompt v3",
     )
+)
+
+# A separate document-intake Prompt, sharing only the native Prompt/history
+# lifecycle with the table-mapping profiles.  Its new command avoids silently
+# reinterpreting the legacy seeded Prompt and gives the Pipe one exact pin.
+DOCUMENT_METADATA_PASSPORT_V1_PROFILE = OrdinaryTradeMappingPromptPublicationProfile(
+    profile_id="document_metadata_passport_v1",
+    command="broker_gate1_document_passport_v1",
+    name="Broker Reports document metadata passport v1",
+    asset_filename="broker_reports_document_metadata_passport_prompt.v1.md",
+    asset_version="v1",
+    template_id=DOCUMENT_METADATA_PASSPORT_PROMPT_TEMPLATE_ID,
+    template_kind=DOCUMENT_METADATA_PASSPORT_PROMPT_TEMPLATE_KIND,
+    prompt_contract_id=DOCUMENT_METADATA_PASSPORT_PROMPT_CONTRACT_ID,
+    input_schema_version=DOCUMENT_METADATA_PASSPORT_INPUT_SCHEMA_VERSION,
+    output_schema_id=DOCUMENT_METADATA_PASSPORT_OUTPUT_SCHEMA_ID,
+    output_schema_version=DOCUMENT_METADATA_PASSPORT_OUTPUT_SCHEMA_VERSION,
+    required_tag=DOCUMENT_METADATA_PASSPORT_PROMPT_REQUIRED_TAG,
+    placeholder="{{document_package_json}}",
+    is_production=True,
+    initial_access_grants=(("user", "*", "read"),),
+    metadata_mapping_domain=None,
+    metadata_extension={
+        "gate": "gate1",
+        "forbidden_tasks": [
+            "source_fact_extraction",
+            "tax_calculation",
+            "declaration_generation",
+            "xlsx_generation",
+            "ocr_vlm",
+            "knowledge_loading",
+        ],
+    },
+    commit_message="Publish Broker Reports document metadata passport Prompt v1",
 )
 
 _PUBLISHABLE_PROFILES = {
@@ -268,6 +313,7 @@ _PUBLISHABLE_PROFILES = {
         ORDINARY_TRADE_MAPPING_V16_PROFILE,
         ORDINARY_TRADE_MAPPING_V17_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
+        DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     )
 }
 
@@ -628,14 +674,14 @@ def _metadata(
         "output_schema_id": profile.output_schema_id,
         "output_schema_version": profile.output_schema_version,
         "structured_output_required": True,
-        "mapping_domain": "ordinary_trade",
+        "mapping_domain": profile.metadata_mapping_domain,
     }
     extension = dict(profile.metadata_extension or {})
     if set(extension) & set(base):
         raise OrdinaryTradeMappingPromptPublicationError(
             "ordinary_trade_mapping_prompt_profile_invalid"
         )
-    if profile is PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE:
+    if profile.metadata_mapping_domain is None:
         base.pop("mapping_domain")
     return {**base, **extension}
 
@@ -716,6 +762,8 @@ def _default_commit_message(
         return "Publish Broker Reports ordinary-trade mapping Prompt v16"
     if profile is ORDINARY_TRADE_MAPPING_V17_PROFILE:
         return "Publish Broker Reports ordinary-trade mapping Prompt v17"
+    if profile is DOCUMENT_METADATA_PASSPORT_V1_PROFILE:
+        return "Publish Broker Reports document metadata passport Prompt v1"
     raise OrdinaryTradeMappingPromptPublicationError(
         "ordinary_trade_mapping_prompt_profile_invalid"
     )
@@ -747,6 +795,7 @@ __all__ = [
     "ORDINARY_TRADE_MAPPING_V16_PROFILE",
     "ORDINARY_TRADE_MAPPING_V17_PROFILE",
     "PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE",
+    "DOCUMENT_METADATA_PASSPORT_V1_PROFILE",
     "PROMPT_ASSET_FILENAME",
     "PROMPT_ASSET_VERSION",
     "publication_input_from_asset",

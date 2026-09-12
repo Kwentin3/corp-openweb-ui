@@ -61,6 +61,10 @@ CONTINUATION_PIN = {
     **MAPPING_PIN,
     "prompt_command": "broker_pdf_table_continuation_annotation_v3",
 }
+PASSPORT_PIN = {
+    **MAPPING_PIN,
+    "prompt_command": "broker_gate1_document_passport_v1",
+}
 
 
 def _manifest():
@@ -169,6 +173,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     "prompt_hash": "a" * 64,
                 },
                 pdf_table_continuation_annotation_prompt_pin=CONTINUATION_PIN,
+                document_metadata_passport_prompt_pin=PASSPORT_PIN,
             )
 
         self.assertEqual(expected, captured["loader"])
@@ -214,7 +219,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     or (
                         CONTINUATION_PIN
                         if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                        else pin
+                        else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
                     )
                 ),
             ),
@@ -232,7 +237,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     (
                         CONTINUATION_PIN
                         if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                        else pin
+                        else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
                     ),
                 )[-1],
             ) as verify,
@@ -248,17 +253,23 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [
                 "publish:ordinary_trade_mapping_v17",
                 "publish:pdf_table_continuation_annotation_v3",
+                "publish:document_metadata_passport_v1",
                 "atomic_remote",
+                "post_remote_verify",
                 "post_remote_verify",
                 "post_remote_verify",
             ],
             events,
         )
-        self.assertEqual(2, verify.call_count)
+        self.assertEqual(3, verify.call_count)
         self.assertEqual(pin, receipt["ordinary_trade_mapping_prompt"]["pin"])
         self.assertEqual(
             CONTINUATION_PIN,
             receipt["pdf_table_continuation_annotation_prompt"]["pin"],
+        )
+        self.assertEqual(
+            PASSPORT_PIN,
+            receipt["document_metadata_passport_prompt"]["pin"],
         )
 
     def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
@@ -283,7 +294,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 side_effect=lambda **kwargs: (
                     CONTINUATION_PIN
                     if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                    else pin
+                    else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
                 ),
             ),
             mock.patch.object(driver, "_run_remote_release", return_value={"status": "passed"}) as apply,
