@@ -200,7 +200,7 @@ def evaluate_route_activation(
             and document_ai.get("adapter_status") == "native_text_ready"
             and document_ai.get("selected_engine") == "pdfplumber_native_text"
             and document_ai.get("selected_adapter")
-            == "pdfplumber_native_text_adapter_v1"
+            == "pdfplumber_native_text_adapter_v3"
             and document_ai.get("static_ready") is True
             and document_ai.get("composition_owner") == "PdfDocumentExtractorFactory"
             and document_ai.get("terminal_blockers")
