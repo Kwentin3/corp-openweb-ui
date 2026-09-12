@@ -22,6 +22,8 @@ OFFICECLI_INSTRUCTION = (
     "when they ask to create a new DOCX from the discussion, use the same official guidance and "
     "create tool. For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
     "For XLSX work, obtain the official Excel skill and relevant help before applying a batch. "
+    "When reporting a calculated XLSX value after creating or editing a workbook, inspect the returned "
+    "workbook and report its actual formula value instead of calculating it yourself. "
     "Do not report completion until the execution tool returns a result_file_id."
 )
 
