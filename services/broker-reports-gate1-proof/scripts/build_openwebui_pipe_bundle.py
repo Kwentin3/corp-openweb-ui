@@ -4,6 +4,7 @@ import ast
 import argparse
 import base64
 import json
+import re
 from pathlib import Path
 
 
@@ -375,6 +376,7 @@ def main() -> None:
             package_version="gate1_ordinary_trade_production_v9",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
+            package_name="broker_reports_gate1__gate1_pipe",
         )
         BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
         print(str(BUNDLE_PATH))
@@ -395,6 +397,7 @@ def main() -> None:
             package_version="gate2_positional_coverage_v1",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
+            package_name="broker_reports_gate1__gate2_source_fact",
         )
         GATE2_BUNDLE_PATH.write_text(gate2_bundle, encoding="utf-8", newline="\n")
         print(str(GATE2_BUNDLE_PATH))
@@ -418,6 +421,7 @@ def main() -> None:
             package_version="gate2_domain_single_current_pipeline_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
+            package_name="broker_reports_gate1__gate2_domain_source_fact",
         )
         GATE2_DOMAIN_BUNDLE_PATH.write_text(
             gate2_domain_bundle, encoding="utf-8", newline="\n"
@@ -450,6 +454,7 @@ def main() -> None:
             package_version="goal391_native_mapping_lab_v1",
             source_label="openwebui_actions/goal391_mapping_lab_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
+            package_name="broker_reports_gate1__goal391_mapping_lab",
         )
         GOAL391_LAB_BUNDLE_PATH.write_text(
             goal391_lab_bundle, encoding="utf-8", newline="\n"
@@ -664,7 +669,14 @@ def _render_bundle(
     package_version: str,
     source_label: str,
     requirements: str,
+    package_name: str,
 ) -> str:
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", package_name) is None:
+        raise ValueError("bundle_package_name_invalid")
+    pipe_source = _rebind_pipe_package_imports(
+        pipe_source,
+        package_name=package_name,
+    )
     modules_literal = json.dumps(modules, ensure_ascii=False, indent=2, sort_keys=True)
     resources_literal = json.dumps(
         resources, ensure_ascii=True, indent=2, sort_keys=True
@@ -688,7 +700,7 @@ import importlib.machinery
 import io
 
 
-_BUNDLED_PACKAGE_NAME = "broker_reports_gate1"
+_BUNDLED_PACKAGE_NAME = "{package_name}"
 _BUNDLED_PACKAGE_VERSION = "{package_version}"
 _BUNDLED_MODULE_ORDER = {order_literal}
 _BUNDLED_MODULES = {modules_literal}
@@ -759,6 +771,20 @@ _install_bundled_package()
 # Begin maintainable source adapter: {source_label}
 {pipe_source.rstrip()}
 '''
+
+
+def _rebind_pipe_package_imports(source: str, *, package_name: str) -> str:
+    """Bind one adapter's imports to its private in-memory package.
+
+    The maintained module sources use relative imports. Only the adapter has
+    absolute package imports, so leave payload keys and path literals alone.
+    """
+
+    return re.sub(
+        r"(?m)^from broker_reports_gate1(?=\.|\s+import\s)",
+        f"from {package_name}",
+        source,
+    )
 
 
 def _canonical_resource_bytes(path: Path) -> bytes:

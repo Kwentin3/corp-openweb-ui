@@ -52,13 +52,16 @@ def _broker_reports_modules() -> dict[str, object]:
         for name, module in sys.modules.items()
         if name == "broker_reports_gate1"
         or name.startswith("broker_reports_gate1.")
+        or name.startswith("broker_reports_gate1__")
     }
 
 
 def _clear_broker_reports_modules() -> None:
     for name in list(sys.modules):
-        if name == "broker_reports_gate1" or name.startswith(
-            "broker_reports_gate1."
+        if (
+            name == "broker_reports_gate1"
+            or name.startswith("broker_reports_gate1.")
+            or name.startswith("broker_reports_gate1__")
         ):
             del sys.modules[name]
 
@@ -198,7 +201,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             "gate2_financial_evidence_production_runtime",
             module._BUNDLED_MODULES,
         )
-        bundled_package = sys.modules["broker_reports_gate1"]
+        bundled_package = sys.modules[module._BUNDLED_PACKAGE_NAME]
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2ManagedPromptResolverFactory"))
         self.assertTrue(
@@ -287,7 +290,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertNotIn("sys.path.insert", source)
         module = load_domain_bundle_module()
         self.assertNotIn("gate2_handoff", module._BUNDLED_MODULES)
-        bundled_package = sys.modules["broker_reports_gate1"]
+        bundled_package = sys.modules[module._BUNDLED_PACKAGE_NAME]
         self.assertTrue(
             hasattr(bundled_package, "Gate2DomainSourceFactRuntimeFactory")
         )
@@ -307,7 +310,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertTrue(pipe.valves.answer_context_selection_enabled)
         self.assertFalse(pipe.valves.financial_evidence_enabled)
         registry_module = sys.modules[
-            "broker_reports_gate1.gate2_financial_evidence_registry"
+            module._BUNDLED_PACKAGE_NAME + ".gate2_financial_evidence_registry"
         ]
         self.assertEqual(
             pipe.valves.financial_evidence_registry_version,
@@ -385,7 +388,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertNotIn("pdf_structural_repair_runtime", order)
         self.assertNotIn("pdf_structural_row_windows", order)
         self.assertNotIn("pdf_structural_repair_shadow", order)
-        bundled_package = sys.modules["broker_reports_gate1"]
+        bundled_package = sys.modules[module._BUNDLED_PACKAGE_NAME]
         self.assertTrue(
             hasattr(
                 bundled_package,
@@ -423,14 +426,16 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
             order.index("gate2_deterministic_financial_scopes"),
             order.index("gate2_financial_evidence_successor"),
         )
-        clients_module = sys.modules["broker_reports_gate1.gate2_model_clients"]
+        clients_module = sys.modules[
+            module._BUNDLED_PACKAGE_NAME + ".gate2_model_clients"
+        ]
         self.assertIn(
             "Gate2StructuredModelClientFactory.create",
             clients_module.FACTORY_REQUIRED,
         )
         self.assertIn("must not call OpenWebUI", clients_module.FORBIDDEN)
         adapters_module = sys.modules[
-            "broker_reports_gate1.gate2_provider_adapters"
+            module._BUNDLED_PACKAGE_NAME + ".gate2_provider_adapters"
         ]
         self.assertIn(
             "Gate2ProviderAdapterFactory.create",
