@@ -9,6 +9,7 @@ import json
 import socket
 import sys
 import zipfile
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -39,6 +40,7 @@ from broker_reports_gate1.ordinary_trade_production_runtime import (
 from broker_reports_gate1.pdf_document_ai import (
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PdfDocumentExtraction,
+    PdfDocumentExtractionError,
     PdfDocumentExtractorFactory,
     PdfDocumentImageRef,
     PdfDocumentSelectedPageBinding,
@@ -51,6 +53,10 @@ from broker_reports_gate1.pdf_document_ai import (
     is_terminal_pdf_document_ai_request,
     pdf_document_selected_page_bindings_sha256,
     pdf_document_table_refs_sha256,
+)
+from broker_reports_gate1.pdfplumber_document_ai import (
+    PDF_NATIVE_TEXT_UNUSABLE,
+    PdfPlumberNativeTextExtractor,
 )
 from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PROMPT_COMMAND,
@@ -448,12 +454,41 @@ class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
         )
 
 
-def test_production_factory_is_sole_fail_closed_composition() -> None:
+def test_production_factory_is_sole_native_text_composition() -> None:
     extractor = PdfDocumentExtractorFactory.create()
 
-    assert isinstance(extractor, UnconfiguredPdfDocumentExtractor)
+    assert isinstance(extractor, PdfPlumberNativeTextExtractor)
     assert "_pdf_document_extractor" in inspect.signature(Gate1Normalizer).parameters
     assert "pdf_document_extractor" not in inspect.signature(Gate1Normalizer).parameters
+
+
+def _unconfigured_normalizer(**kwargs: object) -> Gate1Normalizer:
+    return Gate1Normalizer(
+        _pdf_document_extractor=UnconfiguredPdfDocumentExtractor(),
+        **kwargs,
+    )
+
+
+def test_native_text_factory_rejects_pdf_without_usable_text_layer() -> None:
+    from pypdf import PdfWriter
+
+    blank_pdf = io.BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.write(blank_pdf)
+    pdf_bytes = blank_pdf.getvalue()
+
+    with pytest.raises(PdfDocumentExtractionError) as exc_info:
+        PdfDocumentExtractorFactory.create().extract(
+            pdf_bytes,
+            PdfSourceContext(
+                document_ref="blank-native-text-pdf",
+                expected_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+                preflight_page_count=1,
+            ),
+        )
+
+    assert exc_info.value.code == PDF_NATIVE_TEXT_UNUSABLE
 
 
 def test_unconfigured_pdf_is_terminal_before_network_and_creates_no_downstream() -> None:
@@ -464,7 +499,7 @@ def test_unconfigured_pdf_is_terminal_before_network_and_creates_no_downstream()
         "connect",
         side_effect=AssertionError("network"),
     ):
-        result = Gate1Normalizer().normalize([_input(pdf_bytes)])
+        result = _unconfigured_normalizer().normalize([_input(pdf_bytes)])
 
     blocker_codes = {
         item["code"] for item in result.package["normalization_blockers"]
@@ -487,7 +522,7 @@ def test_archive_containing_only_pdf_is_terminal_before_domain_ingestion() -> No
     with zipfile.ZipFile(archive_buffer, "w") as archive:
         archive.writestr("public-sample.pdf", PUBLIC_PDF.read_bytes())
 
-    result = Gate1Normalizer().normalize(
+    result = _unconfigured_normalizer().normalize(
         [
             FileInput.from_bytes(
                 private_ref="public-pdf-archive-boundary-test",
@@ -515,7 +550,7 @@ def test_archive_with_two_duplicate_pdfs_is_terminal_and_valid_before_downstream
         archive.writestr("first.pdf", PUBLIC_PDF.read_bytes())
         archive.writestr("second.pdf", PUBLIC_PDF.read_bytes())
 
-    result = Gate1Normalizer().normalize(
+    result = _unconfigured_normalizer().normalize(
         [
             FileInput.from_bytes(
                 private_ref="public-multi-pdf-archive-boundary-test",
@@ -574,6 +609,8 @@ def _run_mixed_pipe(
     pipe_variant: str,
     tmp_path: Path,
     files: list[dict],
+    *,
+    unconfigured_pdf: bool = False,
 ) -> tuple[object, str, int]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     maintained_modules = {
@@ -594,9 +631,22 @@ def _run_mixed_pipe(
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             pipe_type = module.Pipe
+            pipe_module = module
         else:
             pipe_type = Pipe
+            pipe_module = sys.modules[pipe_type.__module__]
         pipe = pipe_type()
+        normalizer_type = pipe_module.Gate1Normalizer
+        unconfigured_type = sys.modules[
+            "broker_reports_gate1.pdf_document_ai"
+        ].UnconfiguredPdfDocumentExtractor
+
+        def unconfigured_pipe_normalizer(**kwargs: object) -> Gate1Normalizer:
+            return normalizer_type(
+                _pdf_document_extractor=unconfigured_type(),
+                **kwargs,
+            )
+
         pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
         pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
         owned_files = {
@@ -620,6 +670,15 @@ def _run_mixed_pipe(
 
         async def run() -> tuple[str, int]:
             with (
+                (
+                    patch.object(
+                        pipe_module,
+                        "Gate1Normalizer",
+                        side_effect=unconfigured_pipe_normalizer,
+                    )
+                    if unconfigured_pdf
+                    else nullcontext()
+                ),
                 patch.object(
                     pipe,
                     "_maybe_run_passport_stage",
@@ -680,6 +739,7 @@ def test_mixed_csv_and_pdf_continues_reduced_subset_in_production_pipe(
                 PUBLIC_PDF.read_bytes(),
             ),
         ],
+        unconfigured_pdf=True,
     )
 
     report = pipe.last_safe_report
@@ -729,6 +789,7 @@ def test_archive_pdf_and_xml_continues_xml_in_production_pipe(
                 mixed_archive_buffer.getvalue(),
             )
         ],
+        unconfigured_pdf=True,
     )
     control_pipe, _control_content, control_passport_await_count = _run_mixed_pipe(
         pipe_variant,
@@ -741,6 +802,7 @@ def test_archive_pdf_and_xml_continues_xml_in_production_pipe(
                 control_archive_buffer.getvalue(),
             )
         ],
+        unconfigured_pdf=True,
     )
 
     report = pipe.last_safe_report
@@ -856,6 +918,11 @@ def test_pipe_returns_unconfigured_pdf_before_any_provider_or_semantic_artifact(
 
     async def run() -> str:
         with (
+            patch.object(
+                sys.modules[Pipe.__module__],
+                "Gate1Normalizer",
+                side_effect=_unconfigured_normalizer,
+            ),
             patch.object(pipe, "_maybe_run_passport_stage", side_effect=forbidden),
             patch.object(pipe, "_maybe_run_clarification_stage", side_effect=forbidden),
             patch.object(pipe, "_maybe_run_ndfl_gate3", side_effect=forbidden),
