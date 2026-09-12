@@ -21,6 +21,7 @@ from officecli_openapi_proof.openwebui_client import (
 
 
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
 def office_output(*arguments: str, payload: object | None = None) -> OfficeCliOutput:
@@ -72,6 +73,10 @@ class RecordingOpenWebUi:
     def resolve_nearest_xlsx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
         self.calls.append(("resolve-xlsx", (chat_id, message_id)))
         return "resolved-xlsx-file-id"
+
+    def resolve_nearest_pptx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
+        self.calls.append(("resolve-pptx", (chat_id, message_id)))
+        return "resolved-pptx-file-id"
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
         self.calls.append(("download", file_id))
@@ -154,10 +159,13 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "get_officecli_help",
         "inspect_office_document",
         "inspect_office_spreadsheet",
+        "inspect_office_presentation",
         "apply_office_batch",
         "create_office_document",
         "create_office_spreadsheet",
         "apply_office_spreadsheet_batch",
+        "create_office_presentation",
+        "apply_office_presentation_batch",
     }
     assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
         "description"
@@ -313,6 +321,31 @@ def test_inspect_spreadsheet_resolves_only_xlsx_and_runs_annotated_view() -> Non
     assert executor.calls[0][0] == "view"
     assert executor.calls[0][1].endswith("source.xlsx")
     assert executor.calls[0][2:] == ("annotated", "--json")
+
+
+def test_inspect_presentation_resolves_only_pptx_and_runs_outline_view() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/inspect",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"command_payload": {"command": "view", "mode": "outline"}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["file_id"] == "resolved-pptx-file-id"
+    assert files.calls == [
+        ("resolve-pptx", ("native-chat-id", "native-message-id")),
+        ("download", "resolved-pptx-file-id"),
+    ]
+    assert executor.calls[0][1].endswith("source.pptx")
+    assert executor.calls[0][2:] == ("outline", "--json")
 
 
 def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:
@@ -552,6 +585,33 @@ def test_create_spreadsheet_removes_untouched_default_sheet() -> None:
     )
 
 
+def test_create_presentation_uses_official_create_batch_validate_and_pptx_mime() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert [call[0] for call in executor.calls] == ["create", "batch", "validate"]
+    assert executor.calls[0][1].endswith("created.pptx")
+    assert files.upload_content_types == [PPTX_CONTENT_TYPE]
+    assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
+
+
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi(source=b"original XLSX bytes")
@@ -596,6 +656,45 @@ def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx
     assert files.uploaded_bytes != files.source
     assert files.upload_content_types == [XLSX_CONTENT_TYPE]
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
+
+
+def test_apply_presentation_uses_pptx_ancestry_preserves_source_and_attaches_pptx() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi(source=b"original PPTX bytes")
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/apply-batch",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal-updated.pptx",
+            "commands": [
+                {
+                    "command": "set",
+                    "path": "/slide[1]/shape[1]",
+                    "props": {"text": "Updated"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source_file_id"] == "resolved-pptx-file-id"
+    assert response.json()["source_bytes_preserved"] is True
+    assert [call[0] for call in files.calls] == [
+        "resolve-pptx",
+        "download",
+        "download",
+        "upload",
+        "attach",
+    ]
+    assert executor.calls[0][1].endswith("result.pptx")
+    assert files.upload_content_types == [PPTX_CONTENT_TYPE]
+    assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
 
 
 def test_normalize_zero_dpi_page_setup_only_changes_private_xlsx_copy(tmp_path) -> None:

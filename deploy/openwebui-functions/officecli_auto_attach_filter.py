@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.1.0
+version: 0.2.0
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured Native chat models.
 """
@@ -17,13 +17,16 @@ from pydantic import BaseModel, Field
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v1]"
 OFFICECLI_INSTRUCTION = (
-    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX and XLSX work. "
+    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
     "when they ask to create a new DOCX from the discussion, use the same official guidance and "
     "create tool. For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
     "For XLSX work, obtain the official Excel skill and relevant help before applying a batch. "
     "When reporting a calculated XLSX value after creating or editing a workbook, inspect the returned "
     "workbook and report its actual formula value instead of calculating it yourself. "
+    "For PPTX work, obtain the official PPTX skill and relevant help before creating or editing a "
+    "presentation; inspect an attached presentation before editing it and preserve its existing template "
+    "and unaffected slides. "
     "Do not report completion until the execution tool returns a result_file_id."
 )
 

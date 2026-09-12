@@ -29,6 +29,10 @@ class OpenWebUiClient(Protocol):
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
 
+    def resolve_nearest_pptx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> str: ...
+
     def download(self, file_id: str, authorization: str, destination: Path) -> None: ...
 
     def upload(
@@ -91,6 +95,11 @@ class HttpOpenWebUiClient:
         self, chat_id: str, message_id: str, authorization: str
     ) -> str:
         return self._resolve_nearest_attachment(chat_id, message_id, authorization, ".xlsx")
+
+    def resolve_nearest_pptx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> str:
+        return self._resolve_nearest_attachment(chat_id, message_id, authorization, ".pptx")
 
     def _resolve_nearest_attachment(
         self, chat_id: str, message_id: str, authorization: str, suffix: str

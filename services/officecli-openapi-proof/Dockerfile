@@ -25,7 +25,11 @@ RUN apt-get update \
     && test -s /tmp/officecli-word-skill.md \
     && /usr/local/bin/officecli load_skill excel > /tmp/officecli-excel-skill.md \
     && test -s /tmp/officecli-excel-skill.md \
-    && rm -rf /var/lib/apt/lists/* /tmp/officecli-word-skill.md /tmp/officecli-excel-skill.md
+    && /usr/local/bin/officecli load_skill pptx > /tmp/officecli-pptx-skill.md \
+    && test -s /tmp/officecli-pptx-skill.md \
+    && /usr/local/bin/officecli help pptx > /tmp/officecli-pptx-help.md \
+    && test -s /tmp/officecli-pptx-help.md \
+    && rm -rf /var/lib/apt/lists/* /tmp/officecli-word-skill.md /tmp/officecli-excel-skill.md /tmp/officecli-pptx-skill.md /tmp/officecli-pptx-help.md
 
 COPY services/officecli-openapi-proof/pyproject.toml ./pyproject.toml
 COPY services/officecli-openapi-proof/officecli_openapi_proof ./officecli_openapi_proof
