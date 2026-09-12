@@ -15,6 +15,7 @@ from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
 from officecli_openapi_proof.openwebui_client import (
     HttpOpenWebUiClient,
+    NativeAttachment,
     OpenWebUiAmbiguousAttachment,
     OpenWebUiUnauthorized,
 )
@@ -77,6 +78,12 @@ class RecordingOpenWebUi:
     def resolve_nearest_pptx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
         self.calls.append(("resolve-pptx", (chat_id, message_id)))
         return "resolved-pptx-file-id"
+
+    def resolve_nearest_image_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeAttachment:
+        self.calls.append(("resolve-image", (chat_id, message_id)))
+        return NativeAttachment(file_id="resolved-image-file-id", name="attached-image.jpg")
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
         self.calls.append(("download", file_id))
@@ -633,6 +640,74 @@ def test_create_presentation_accepts_a_complete_multi_slide_batch() -> None:
     assert len(json.loads(executor.inputs[1] or "[]")) == 89
 
 
+def test_create_presentation_materializes_one_native_image_attachment() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi(source=b"image bytes")
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/slide[1]",
+                    "type": "picture",
+                    "props": {"src": "attachment://image", "x": "1in", "y": "1in"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    batch = json.loads(executor.inputs[1] or "[]")
+    assert batch[0]["props"]["src"].endswith("attached-image.jpg")
+    assert [call[0] for call in files.calls] == [
+        "resolve-image",
+        "download",
+        "upload",
+        "attach",
+    ]
+    assert files.calls[1] == ("download", "resolved-image-file-id")
+
+
+def test_create_presentation_rejects_an_invented_picture_path_before_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/slide[1]",
+                    "type": "picture",
+                    "props": {"src": "/mnt/uploads/coffee_image.jpg"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "attachment://image" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi(source=b"original XLSX bytes")
@@ -999,6 +1074,45 @@ def test_http_client_resolves_xlsx_from_native_ancestry_without_selecting_docx(m
     )
 
     assert result == "workbook-file-id"
+
+
+def test_http_client_resolves_one_image_from_native_ancestry_without_selecting_pptx(monkeypatch) -> None:
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "chat": {
+                    "history": {
+                        "messages": {
+                            "assistant-now": {
+                                "parentId": "user-source",
+                                "files": [{"id": "presentation-id", "name": "draft.pptx"}],
+                            },
+                            "user-source": {
+                                "parentId": None,
+                                "files": [{"id": "image-id", "name": "pilot-photo.jpeg"}],
+                            },
+                        }
+                    }
+                }
+            }
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "http://openwebui:8080/api/v1/chats/native-chat-id"
+        assert kwargs["headers"] == {"Authorization": "Bearer user-session"}
+        return Response()
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    result = client.resolve_nearest_image_attachment(
+        "native-chat-id", "assistant-now", "Bearer user-session"
+    )
+
+    assert result == NativeAttachment(file_id="image-id", name="pilot-photo.jpeg")
 
 
 def test_http_client_rejects_multiple_docx_attachments_in_nearest_native_message(monkeypatch) -> None:

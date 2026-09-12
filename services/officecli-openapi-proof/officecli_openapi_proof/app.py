@@ -28,6 +28,8 @@ from .openwebui_client import (
 
 
 PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+ATTACHED_IMAGE_SOURCE = "attachment://image"
+PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 class SkillRequest(BaseModel):
@@ -253,7 +255,17 @@ class CreatePresentationRequest(BaseModel):
     def translate_official_prop_alias(
         cls, value: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        return _translate_official_prop_alias(value)
+        normalized = _translate_official_prop_alias(value)
+        for command in normalized:
+            props = command.get("props")
+            if not isinstance(props, dict):
+                continue
+            source = props.get("src", props.get("path"))
+            if source is not None and source != ATTACHED_IMAGE_SOURCE:
+                raise ValueError(
+                    "PPTX picture src must be attachment://image from one native chat image attachment"
+                )
+        return normalized
 
     @field_validator("output_name")
     @classmethod
@@ -448,6 +460,43 @@ def _native_chat_message_ids(
             status_code=400, detail="native chat and message ids are required"
         )
     return chat_id, message_id
+
+
+def _materialize_presentation_images(
+    commands: list[dict[str, Any]],
+    workspace: Path,
+    openwebui: OpenWebUiClient,
+    chat_id: str,
+    message_id: str,
+    authorization: str,
+) -> list[dict[str, Any]]:
+    """Replace the documented image marker with one caller-authorized native attachment."""
+    prepared: list[dict[str, Any]] = []
+    needs_image = False
+    for command in commands:
+        copied = dict(command)
+        props = copied.get("props")
+        if isinstance(props, dict) and props.get("src", props.get("path")) == ATTACHED_IMAGE_SOURCE:
+            copied_props = dict(props)
+            copied_props["src"] = ATTACHED_IMAGE_SOURCE
+            copied_props.pop("path", None)
+            copied["props"] = copied_props
+            needs_image = True
+        prepared.append(copied)
+    if not needs_image:
+        return prepared
+
+    attachment = openwebui.resolve_nearest_image_attachment(chat_id, message_id, authorization)
+    suffix = Path(attachment.name).suffix.lower()
+    if suffix not in PRESENTATION_IMAGE_SUFFIXES:
+        raise OpenWebUiFailure("native image attachment has an unsupported file extension")
+    destination = workspace / f"attached-image{suffix}"
+    openwebui.download(attachment.file_id, authorization, destination)
+    for command in prepared:
+        props = command.get("props")
+        if isinstance(props, dict) and props.get("src") == ATTACHED_IMAGE_SOURCE:
+            props["src"] = str(destination)
+    return prepared
 
 
 def create_app(
@@ -1003,7 +1052,8 @@ def create_app(
         description=(
             "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting PPTX to this assistant message. Read the official "
-            "PPTX skill and relevant help before execution."
+            "PPTX skill and relevant help before execution. A picture may use only the "
+            "attachment://image source, which resolves exactly one native image attachment in this chat."
         ),
     )
     def create_office_presentation(
@@ -1020,6 +1070,14 @@ def create_app(
         try:
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result = Path(directory) / "created.pptx"
+                commands = _materialize_presentation_images(
+                    request.commands,
+                    Path(directory),
+                    openwebui,
+                    native_chat_id,
+                    native_message_id,
+                    bearer,
+                )
                 create_output = officecli.run(
                     "create", str(result), "--locale", "en-US", "--json"
                 )
@@ -1030,7 +1088,7 @@ def create_app(
                     "--stop-on-error",
                     "--json",
                     input_text=json.dumps(
-                        request.commands, ensure_ascii=False, separators=(",", ":")
+                        commands, ensure_ascii=False, separators=(",", ":")
                     ),
                 )
                 batch_result = _officecli_json(batch_output, "batch")
