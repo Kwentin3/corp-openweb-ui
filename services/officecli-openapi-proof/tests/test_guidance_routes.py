@@ -486,6 +486,71 @@ def test_create_spreadsheet_uses_official_create_batch_validate_and_xlsx_mime() 
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
 
 
+def test_create_spreadsheet_removes_untouched_default_sheet() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/spreadsheets/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={
+            "output_name": "commercial-calculation.xlsx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/",
+                    "type": "sheet",
+                    "props": {"name": "Data"},
+                },
+                {
+                    "command": "add",
+                    "parent": "/",
+                    "type": "sheet",
+                    "props": {"name": "Summary"},
+                },
+                {
+                    "command": "set",
+                    "sheet": "Data",
+                    "range": "A1",
+                    "props": {"value": "Amount"},
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert executor.inputs[1] == json.dumps(
+        [
+            {
+                "command": "add",
+                "parent": "/",
+                "type": "sheet",
+                "props": {"name": "Data"},
+            },
+            {
+                "command": "add",
+                "parent": "/",
+                "type": "sheet",
+                "props": {"name": "Summary"},
+            },
+            {
+                "command": "set",
+                "sheet": "Data",
+                "range": "A1",
+                "props": {"value": "Amount"},
+            },
+            {"command": "remove", "path": "/Sheet1"},
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi(source=b"original XLSX bytes")

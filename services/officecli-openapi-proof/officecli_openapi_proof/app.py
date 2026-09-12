@@ -211,6 +211,37 @@ def _translate_official_prop_alias(
     return normalized
 
 
+def _create_spreadsheet_commands(
+    commands: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Drop the generated empty Sheet1 when the request builds other sheets.
+
+    OfficeCLI's create command starts a workbook with Sheet1.  Keep that sheet
+    when the requested batch uses it; otherwise, when the batch explicitly
+    creates other sheets, remove the untouched placeholder in the same native
+    OfficeCLI batch.
+    """
+    creates_non_default_sheet = any(
+        command.get("command") == "add"
+        and command.get("type") == "sheet"
+        and isinstance(command.get("props"), dict)
+        and command["props"].get("name") not in {None, "Sheet1"}
+        for command in commands
+    )
+    default_sheet_is_used = any(
+        any(
+            isinstance(command.get(field), str)
+            and command[field].startswith("/Sheet1")
+            for field in ("parent", "path")
+        )
+        or command.get("sheet") == "Sheet1"
+        for command in commands
+    )
+    if not creates_non_default_sheet or default_sheet_is_used:
+        return commands
+    return [*commands, {"command": "remove", "path": "/Sheet1"}]
+
+
 class InspectionResponse(BaseModel):
     source: str
     file_id: str
@@ -662,7 +693,9 @@ def create_app(
                     "--stop-on-error",
                     "--json",
                     input_text=json.dumps(
-                        request.commands, ensure_ascii=False, separators=(",", ":")
+                        _create_spreadsheet_commands(request.commands),
+                        ensure_ascii=False,
+                        separators=(",", ":"),
                     ),
                 )
                 batch_result = _officecli_json(batch_output, "batch")
