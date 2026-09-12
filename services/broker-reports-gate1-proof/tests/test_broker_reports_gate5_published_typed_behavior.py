@@ -424,13 +424,13 @@ def test_public_execute_signature_cannot_accept_implementation_or_schema_code() 
         for parameter in signature.parameters.values()
     )
     assert any("Factory.create" in item for item in FACTORY_REQUIRED)
-    assert any("qualified Fact v3 reads" in item for item in FACTORY_REQUIRED)
+    assert any("create_from_resolved_inputs" in item for item in FACTORY_REQUIRED)
     assert any("dynamic import" in item for item in FORBIDDEN)
 
     source = inspect.getsource(typed_module)
     factory_source = inspect.getsource(Gate5PublishedTypedBehaviorRuntimeFactory)
-    assert "Gate4OrdinaryTradeCandidateRuntimeFactory" in factory_source
-    assert ".create().list_facts" in factory_source
+    assert "create_from_resolved_inputs" in factory_source
+    assert "Gate4OrdinaryTradeCandidateRuntimeFactory" not in factory_source
     tree = ast.parse(source)
     imported = {
         alias.name

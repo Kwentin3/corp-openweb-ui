@@ -13,7 +13,7 @@ interpretation.
 
 ```text
 CanonicalArtifactV1
-  -> qualified mapping case
+  -> packaged qualified mapping or qualified mapping case
   -> ordinary-trade projection
   -> QualifiedProjectionFactV3
   -> deterministic Gate 5 / tax XML assembly
@@ -33,11 +33,15 @@ must contain exactly:
 - projection artifact id;
 - Canonical document, version and root hash;
 - source observation id;
-- qualified semantic mapping-case reference;
+- qualified semantic mapping-case reference, or `null` only when the
+  dictionary authority is a packaged `ordinary_trade_schema_mapping:otmap_*`
+  mapping;
 - runtime-record id.
 
-Changing any bound item or a role invalidates the fact identity. Missing or
-malformed data fails closed.
+Changing any bound item or a role invalidates the fact identity. A packaged
+mapping is still bound by its exact qualified mapping authority, Canonical
+binding, observation and runtime record; `null` never authorizes invented
+case provenance. Missing or malformed data fails closed.
 
 ## Historical boundary
 

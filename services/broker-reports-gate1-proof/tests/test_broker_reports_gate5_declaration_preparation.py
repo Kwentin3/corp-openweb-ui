@@ -24,6 +24,7 @@ from broker_reports_gate1.gate5_residency_evidence import (
 )
 
 import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fixtures
+import test_broker_reports_ordinary_trade_tax_model_bridge as active_fixtures
 
 
 def test_complete_intake_types_metadata_and_financial_facts_without_tax_inference(
@@ -65,12 +66,7 @@ def test_complete_intake_types_metadata_and_financial_facts_without_tax_inferenc
 def test_review_scope_and_questions_are_exact_minimal_and_separated(
     tmp_path: Path,
 ) -> None:
-    store, context = source_fixtures._case(
-        tmp_path / "gaps",
-        include_purchases=False,
-        include_withheld_detail=False,
-        include_withheld_total=False,
-    )
+    store, context = _active_case(tmp_path / "gaps", include_purchase=False)
     _publish_metadata(store, context)
 
     result = _prepare(store, context, evidence_mode="SYNTHETIC_CONTROL")
@@ -98,9 +94,9 @@ def test_review_scope_and_questions_are_exact_minimal_and_separated(
     assert "obl_investment_partnership_results" not in active
     assert scope["absence_converted_to_not_applicable"] is False
     review = result["client_review"]
-    assert review["commission_sanity"]["mode"] == "hybrid"
-    assert review["commission_sanity"]["detail_count"] == 4
-    assert review["commission_sanity"]["aggregate_count"] == 1
+    assert review["commission_sanity"]["mode"] == "detail"
+    assert review["commission_sanity"]["detail_count"] == 2
+    assert review["commission_sanity"]["aggregate_count"] == 0
     assert review["commission_sanity"]["reconciliation"] == "not_performed"
     acquisition = next(
         item
@@ -109,9 +105,9 @@ def test_review_scope_and_questions_are_exact_minimal_and_separated(
         == "gate5_source_fact_acquisition_evidence_horizon_unproven"
     )
     assert acquisition["quantitative_gap"] == {
-        "required_quantity": "12",
+        "required_quantity": "4",
         "available_prior_quantity": "0",
-        "minimum_missing_quantity": "12",
+        "minimum_missing_quantity": "4",
     }
     assert review["advisory_findings"][0]["reason_code"] == (
         "withholding_evidence_absent"
@@ -157,39 +153,30 @@ def test_review_scope_and_questions_are_exact_minimal_and_separated(
     assert result["metrics"]["invented_relations"] == 0
 
 
-def test_broker_reported_withholding_does_not_trigger_a_duplicate_document_request(
+def test_historical_broker_reported_withholding_stays_outside_active_v3_preparation(
     tmp_path: Path,
 ) -> None:
     store, context = source_fixtures._case(tmp_path / "withholding")
+    historical = source_fixtures._gate4(store).list_facts(context=context)
+    assert {item["financial_type"] for item in historical} >= {
+        "TAX_WITHHELD",
+        "TAX_WITHHELD_TOTAL",
+    }
     _publish_metadata(store, context)
 
     result = _prepare(store, context, evidence_mode="REAL_EVIDENCE")
-    closure = result["gap_closure"]
-    foreign_requests = [
-        item
-        for item in closure["required_actions"]
-        if "obl_foreign_source_taxable_income_and_foreign_tax" in item["demand_refs"]
-    ]
-
-    assert foreign_requests
-    assert {item["closure_type"] for item in foreign_requests} == {
-        "METHODOLOGY_RESEARCH"
+    assert result["client_review"]["withheld_tax_sanity"] == {
+        "mode": "none",
+        "detail_count": 0,
+        "aggregate_count": 0,
+        "reconciliation": "not_performed",
     }
-    assert all(item["evidence_refs"] for item in foreign_requests)
-    assert not any(
-        item["closure_type"] == "ADDITIONAL_DOCUMENT"
-        and "obl_foreign_source_taxable_income_and_foreign_tax" in item["demand_refs"]
-        for item in closure["user_facing_required_actions"]
-    )
 
 
 def test_new_document_and_typed_answer_trigger_deterministic_replay(
     tmp_path: Path,
 ) -> None:
-    store, context = source_fixtures._case(
-        tmp_path / "replay",
-        include_purchases=False,
-    )
+    store, context = _active_case(tmp_path / "replay", include_purchase=False)
     _publish_metadata(store, context)
     runtime = Gate5DeclarationPreparationRuntimeFactory(
         store=store,
@@ -219,20 +206,19 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
         "route": "ordinary normalization path through Gate 1 to Gate 4",
     }
 
-    source_fixtures._publish(
-        store,
-        context,
+    _publish_active_trade_document(
+        store=store,
+        context=context,
         document_id="earlier-acquisition",
-        source_rows=("Purchase|01.01.2025|ACME|12|120.00|RUB",),
-        fact_specs=(
-            (
-                "SECURITY_PURCHASE",
-                source_fixtures._security_roles("01.01.2025", "12", "120.00", "RUB"),
+        rows=(
+            active_fixtures._HEADERS,
+            active_fixtures._with_roles(
+                active_fixtures._row(side=active_fixtures._PURCHASE_SIDE),
+                quantity="12",
+                gross_amount="120.00",
             ),
         ),
-        purchase_date="01.01.2025",
     )
-    source_fixtures._gate4(store).rebuild_case(context=context)
     after_document = runtime.replay(**_prepare_args(context, "SYNTHETIC_CONTROL", []))
     assert (
         after_document["machine_readable_declaration_draft"]["calculation_count"] == 1
@@ -382,6 +368,9 @@ def test_factories_and_non_goals_remain_explicit() -> None:
     assert "Gate5RealTaxCaseAssemblyRuntimeFactory.create" in (
         PREPARATION_FACTORY_REQUIRED[0]
     )
+    assert "Gate4OrdinaryTradeCandidateRuntimeFactory.create" in (
+        PREPARATION_FACTORY_REQUIRED[0]
+    )
     assert "manual XML" in PREPARATION_FORBIDDEN[0]
 
 
@@ -457,6 +446,55 @@ def _publish_metadata(store, context) -> None:
         target_indexes=(7,),
     )
     source_fixtures._gate4(store).rebuild_case(context=context)
+
+
+def _active_case(root: Path, *, include_purchase: bool):
+    rows = [active_fixtures._HEADERS]
+    if include_purchase:
+        rows.append(active_fixtures._row(side=active_fixtures._PURCHASE_SIDE))
+    rows.append(active_fixtures._row(side=active_fixtures._DISPOSAL_SIDE))
+    store, context, _facts = active_fixtures._case(root, rows=tuple(rows))
+    return store, context
+
+
+def _publish_active_trade_document(*, store, context, document_id: str, rows: tuple) -> None:
+    ordinary_fixtures = active_fixtures.ordinary_fixtures
+    qualified_rows = (
+        ("Qualified " + rows[0][0], *rows[0][1:]),
+        *rows[1:],
+    )
+    ordinary_fixtures.gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=qualified_rows,
+    )
+    envelope = active_fixtures.CanonicalReaderFactory(
+        store=store,
+        read_enabled=True,
+    ).create().read_active_envelope(document_id, context)
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    header_cells = sorted(
+        (item for item in table["content"]["cells"] if item["row"] == 1),
+        key=lambda item: item["column"],
+    )
+    mapping = ordinary_fixtures._mapping_from_headers(
+        tuple(item["displayed_value"] for item in header_cells)
+    )
+    active_fixtures._persist_qualified_mapping_case(
+        store=store,
+        context=context,
+        document_id=document_id,
+        mapping=mapping,
+    )
+    active_fixtures.OrdinaryTradeProjectionFactory(
+        store=store,
+        read_enabled=True,
+    ).create().compile_and_save(document_id=document_id, context=context)
 
 
 def _prepare(store, context, *, evidence_mode: str):

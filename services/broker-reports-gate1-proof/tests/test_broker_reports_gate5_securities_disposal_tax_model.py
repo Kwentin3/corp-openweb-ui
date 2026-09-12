@@ -229,7 +229,7 @@ def test_missing_expense_methodology_inputs_fail_closed_without_relation_inferen
     )
 
     with pytest.raises(Gate5SecuritiesDisposalTaxModelError) as caught:
-        _runtime(store).run_operation(
+        _operation_runtime(store).run_operation(
             methodology_ref={
                 **_methodology_ref(),
                 "methodology_version": (
@@ -471,6 +471,14 @@ def _runtime(store) -> Gate5SecuritiesDisposalTaxModelRuntime:
         retention_policy=build_retention_policy(mode="synthetic_dev"),
         list_facts=_active_qualified_fact_reader,
     ).create()
+
+
+def _operation_runtime(store) -> Gate5SecuritiesDisposalTaxModelRuntime:
+    return Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs(
+        store=store,
+        read_enabled=True,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    )
 
 
 def _active_qualified_fact_reader(*, context) -> list[dict]:
