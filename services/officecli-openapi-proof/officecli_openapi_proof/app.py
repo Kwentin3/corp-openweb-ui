@@ -30,6 +30,7 @@ from .openwebui_client import (
 PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 ATTACHED_IMAGE_SOURCE = "attachment://image"
 PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+PPTX_TABLE_CELL_KEY = re.compile(r"r[1-9][0-9]*c[1-9][0-9]*")
 
 
 class SkillRequest(BaseModel):
@@ -264,6 +265,17 @@ class CreatePresentationRequest(BaseModel):
             if source is not None and source != ATTACHED_IMAGE_SOURCE:
                 raise ValueError(
                     "PPTX picture src must be attachment://image from one native chat image attachment"
+                )
+            if (
+                command.get("command") == "set"
+                and isinstance(command.get("path"), str)
+                and "/table" in command["path"]
+                and isinstance(props, dict)
+                and any(PPTX_TABLE_CELL_KEY.fullmatch(key) for key in props)
+            ):
+                raise ValueError(
+                    "PPTX table cells must be seeded in the table add command with the official "
+                    "data property; rNcN keys are not valid table set properties"
                 )
         return normalized
 

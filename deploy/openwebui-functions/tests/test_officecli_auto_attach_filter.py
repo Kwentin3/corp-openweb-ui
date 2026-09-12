@@ -53,6 +53,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "table-row" in body["messages"][0]["content"]
     assert "actual formula value" in body["messages"][0]["content"]
     assert "official PPTX skill" in body["messages"][0]["content"]
+    assert "pptx table, pptx chart, or pptx picture help" in body["messages"][0]["content"]
+    assert "guessed rNcN cell keys" in body["messages"][0]["content"]
     assert "rather than adding a competing overlay" in body["messages"][0]["content"]
     assert "shape inventory" in body["messages"][0]["content"]
     assert "never guess a generic shape name" in body["messages"][0]["content"]

@@ -708,6 +708,36 @@ def test_create_presentation_rejects_an_invented_picture_path_before_execution()
     assert files.calls == []
 
 
+def test_create_presentation_rejects_guessed_table_cell_set_keys_before_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {
+                    "command": "set",
+                    "path": "/slide[1]/table[1]",
+                    "props": {"r1c1": "Budget"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "official data property" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi(source=b"original XLSX bytes")
