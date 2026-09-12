@@ -67,6 +67,33 @@ def _manifest():
 
 
 class AtomicStageReleaseContractTests(unittest.TestCase):
+    def test_cli_explicit_ssh_target_does_not_require_local_env_file(self):
+        captured = {}
+
+        with (
+            mock.patch.object(
+                driver,
+                "execute",
+                side_effect=lambda **kwargs: captured.update(kwargs) or {},
+            ),
+            mock.patch.object(driver, "_read_env") as read_env,
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "release.py",
+                    "--source-revision",
+                    REVISION,
+                    "--ssh-target",
+                    "root@release-host",
+                ],
+            ),
+        ):
+            self.assertEqual(0, driver.main())
+
+        read_env.assert_not_called()
+        self.assertEqual("root@release-host", captured["ssh_target"])
+
     def test_remote_verifier_payload_is_valid_python(self):
         def validate_remote_payload(*args, **kwargs):
             compile(kwargs["input"], "remote_runtime_verifier.py", "exec")
