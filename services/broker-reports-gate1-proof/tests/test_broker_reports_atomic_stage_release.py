@@ -407,17 +407,17 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertNotIn("semantic_visual_table_contract", manifest["provider_policy"])
         document_ai = manifest["provider_policy"]["pdf_document_ai_contract"]
         self.assertTrue(document_ai["configured"])
-        self.assertEqual("static_ready", document_ai["adapter_status"])
-        self.assertEqual("mistral_ocr", document_ai["selected_engine"])
+        self.assertEqual("native_text_ready", document_ai["adapter_status"])
+        self.assertEqual("pdfplumber_native_text", document_ai["selected_engine"])
         self.assertEqual(
-            "mistral_serverless_ocr_adapter_v3", document_ai["selected_adapter"]
+            "pdfplumber_native_text_adapter_v1", document_ai["selected_adapter"]
         )
         self.assertTrue(document_ai["static_ready"])
         self.assertEqual(
             "PdfDocumentExtractorFactory", document_ai["composition_owner"]
         )
         self.assertEqual(
-            {"unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED"},
+            {"native_text_unusable": "PDF_NATIVE_TEXT_UNUSABLE"},
             document_ai["terminal_blockers"],
         )
         self.assertFalse(document_ai["automatic_fallback"])

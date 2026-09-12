@@ -59,11 +59,10 @@ from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentSelectedPageBinding,
     PdfDocumentTableContinuationRAndDResult,
     PdfSourceContext,
-    RejectedPdfDocumentExtractor,
-    UnconfiguredPdfDocumentExtractor,
     pdf_document_selected_page_bindings_sha256,
     pdf_document_table_refs_sha256,
 )
+from broker_reports_gate1.pdfplumber_document_ai import PdfPlumberNativeTextExtractor
 from broker_reports_gate1.physical_table_continuation import (
     PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION,
     build_physical_table_continuation_sidecar,
@@ -1878,7 +1877,7 @@ def _server_request(
     return SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(config=config)))
 
 
-def test_factory_exposes_configured_native_mistral_to_product_flow(
+def test_factory_never_selects_legacy_mistral_for_product_flow(
     tmp_path: Path,
 ) -> None:
     configured = PdfDocumentExtractorFactory.create(
@@ -1889,12 +1888,12 @@ def test_factory_exposes_configured_native_mistral_to_product_flow(
     )
     no_request = PdfDocumentExtractorFactory.create()
 
-    assert isinstance(configured, MistralPdfDocumentExtractor)
-    assert isinstance(other_engine, UnconfiguredPdfDocumentExtractor)
-    assert isinstance(no_request, UnconfiguredPdfDocumentExtractor)
+    assert isinstance(configured, PdfPlumberNativeTextExtractor)
+    assert isinstance(other_engine, PdfPlumberNativeTextExtractor)
+    assert isinstance(no_request, PdfPlumberNativeTextExtractor)
 
 
-def test_factory_missing_native_key_is_terminal_without_network(
+def test_factory_does_not_read_legacy_mistral_key_or_construct_transport(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = _server_request(api_key="")
@@ -1908,12 +1907,7 @@ def test_factory_missing_native_key_is_terminal_without_network(
         server_request=request,
         image_root=tmp_path,
     )
-    assert isinstance(extractor, RejectedPdfDocumentExtractor)
-    with pytest.raises(PdfDocumentExtractionError) as caught:
-        extractor.extract(PDF_BYTES, _source_context(1))
-    _assert_typed_failure_without_leak(
-        caught, expected_code="PDF_DOCUMENT_AI_CONFIG_MISSING"
-    )
+    assert isinstance(extractor, PdfPlumberNativeTextExtractor)
 
 
 def _full_source_checksum(
@@ -2376,7 +2370,7 @@ def test_pdf_rejects_invalid_physical_table_sidecar_before_atomic_store_call(
     assert PHYSICAL_TABLE_CONTINUATION_ARTIFACT_TYPE not in graph.refs_by_type
 
 
-def test_production_pipe_uses_configured_native_mistral_once_and_nonblocking(
+def test_production_pipe_uses_native_text_without_legacy_mistral_and_nonblocking(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     opener = _FakeOpener(
@@ -2488,7 +2482,7 @@ def test_production_pipe_uses_configured_native_mistral_once_and_nonblocking(
     assert file_resolver.calls == [
         ("mistral-heartbeat-pdf", "mistral-heartbeat-user")
     ]
-    assert len(opener.calls) == 1
+    assert opener.calls == []
     assert len(published_files) == 1
     assert isinstance(content, str) and content
     assert pipe.last_safe_report is not None

@@ -666,7 +666,12 @@ class RejectedPdfDocumentExtractor:
 
 
 class PdfDocumentExtractorFactory:
-    """The sole production composition point for PDF understanding."""
+    """The sole production composition point for PDF understanding.
+
+    Goal #391 admits only deterministic extraction of a usable embedded text
+    layer.  The factory intentionally does not inspect OpenWebUI's Mistral
+    configuration and never falls through to a provider after local failure.
+    """
 
     FACTORY_REQUIRED = "PdfDocumentExtractorFactory.create is the only production PDF Document AI composition point"
     FORBIDDEN = "Automatic provider selection, retry and fallback are forbidden"
@@ -677,26 +682,10 @@ class PdfDocumentExtractorFactory:
         server_request: Any = None,
         image_root: Path | None = None,
     ) -> PdfDocumentExtractor:
-        del image_root  # Compatibility-only; ArtifactStore owns image persistence.
-        if server_request is None:
-            return UnconfiguredPdfDocumentExtractor()
-        try:
-            engine = str(
-                server_request.app.state.config.CONTENT_EXTRACTION_ENGINE or ""
-            ).lower()
-        except (AttributeError, TypeError):
-            return UnconfiguredPdfDocumentExtractor()
-        if engine != "mistral_ocr":
-            return UnconfiguredPdfDocumentExtractor()
-        from .mistral_pdf_document_ai import create_from_openwebui_request
+        del server_request, image_root
+        from .pdfplumber_document_ai import PdfPlumberNativeTextExtractor
 
-        try:
-            configured = create_from_openwebui_request(
-                server_request=server_request,
-            )
-        except PdfDocumentExtractionError as exc:
-            return RejectedPdfDocumentExtractor(exc.code)
-        return configured or UnconfiguredPdfDocumentExtractor()
+        return PdfPlumberNativeTextExtractor()
 
 
 def is_terminal_pdf_document_ai_request(
@@ -724,7 +713,7 @@ def is_terminal_pdf_document_ai_request(
                 blocker.get("code") == "parser_failed"
                 and str(
                     blocker.get("reason_code") or blocker.get("reason") or ""
-                ).startswith("PDF_DOCUMENT_")
+                ).startswith(("PDF_DOCUMENT_", "PDF_NATIVE_TEXT_"))
             )
         )
         and str(blocker.get("document_id") or "") in pdf_document_refs
