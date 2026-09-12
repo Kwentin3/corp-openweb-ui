@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.1.0
+version: 0.6.0
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured Native chat models.
 """
@@ -17,14 +17,32 @@ from pydantic import BaseModel, Field
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v1]"
 OFFICECLI_INSTRUCTION = (
-    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX and XLSX work. "
+    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
     "when they ask to create a new DOCX from the discussion, use the same official guidance and "
     "create tool. For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
     "For XLSX work, obtain the official Excel skill and relevant help before applying a batch. "
     "When reporting a calculated XLSX value after creating or editing a workbook, inspect the returned "
     "workbook and report its actual formula value instead of calculating it yourself. "
-    "Do not report completion until the execution tool returns a result_file_id."
+    "For PPTX work, obtain the official PPTX skill and relevant help before creating or editing a "
+    "presentation; inspect an attached presentation before editing it and preserve its existing template "
+    "and unaffected slides. If a new presentation contains a table, chart, or picture, obtain the matching "
+    "pptx table, pptx chart, or pptx picture help before its create batch. For a PPTX table, use the exact "
+    "official table-add data contract from that help to seed its cells; do not send guessed rNcN cell keys "
+    "in a later table set command. In a new multi-slide PPTX batch, add every requested slide at the document "
+    "root before adding content to that slide; do not address /slide[N] until its add command is earlier in the "
+    "same batch. When creating a PPTX, use a picture only if the user attached exactly one image "
+    "to this chat; then set its source to attachment://image. Never invent a local path, URL, or data URI for "
+    "a picture; otherwise create the presentation without one. "
+    "For a follow-up OfficeCLI request in the same chat, use the result_file_id from "
+    "the most recent successful OfficeCLI batch in the conversation as the source file; do not return to an "
+    "older uploaded file. "
+    "For an existing PPTX text change, use the official PPTX shape help and the "
+    "shape inventory to identify the visible target by its current text and stable shape path; never "
+    "guess a generic shape name. Change that existing shape rather than adding a competing overlay, preserve "
+    "its geometry, and explicitly remove any superseded shape. After the batch, inspect the returned PPTX "
+    "and verify that the requested text is in the intended shape and the replaced text is gone. Do not "
+    "report completion until that verification and the execution tool return a result_file_id."
 )
 
 
@@ -75,12 +93,13 @@ class Filter:
         valves = getattr(self, "valves", self.Valves())
         target_model_ids = _comma_separated_values(valves.target_model_ids)
 
-        # Fail closed: only named direct chat models in their configured Native mode opt in.
+        # Fail closed: only named direct chat models opt in.  A normal OpenWebUI
+        # chat does not set ``metadata.params.function_calling`` at all; treating
+        # its absence as a non-native mode silently removed OfficeCLI from the
+        # ordinary product path.
         if not target_model_ids or body.get("model") not in target_model_ids:
             return body
         if metadata.get("task") is not None:
-            return body
-        if metadata.get("params", {}).get("function_calling") != "native":
             return body
 
         # OpenWebUI preserves caller-provided OpenAI tools instead of resolving tool_ids.

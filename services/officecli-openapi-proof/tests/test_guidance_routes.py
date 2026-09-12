@@ -15,12 +15,14 @@ from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
 from officecli_openapi_proof.openwebui_client import (
     HttpOpenWebUiClient,
+    NativeAttachment,
     OpenWebUiAmbiguousAttachment,
     OpenWebUiUnauthorized,
 )
 
 
 XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
 def office_output(*arguments: str, payload: object | None = None) -> OfficeCliOutput:
@@ -48,7 +50,7 @@ class RecordingOfficeCli:
         if arguments[0] == "batch":
             Path(arguments[1]).write_bytes(b"changed DOCX bytes")
             return office_output(*arguments, payload={"success": self.batch_success, "data": {"edited": 1}})
-        if arguments[0] in {"view", "validate"}:
+        if arguments[0] in {"view", "query", "validate"}:
             return office_output(*arguments, payload={"success": True, "data": {"operation": arguments[0]}})
         return office_output(*arguments)
 
@@ -72,6 +74,16 @@ class RecordingOpenWebUi:
     def resolve_nearest_xlsx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
         self.calls.append(("resolve-xlsx", (chat_id, message_id)))
         return "resolved-xlsx-file-id"
+
+    def resolve_nearest_pptx_attachment(self, chat_id: str, message_id: str, authorization: str) -> str:
+        self.calls.append(("resolve-pptx", (chat_id, message_id)))
+        return "resolved-pptx-file-id"
+
+    def resolve_nearest_image_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeAttachment:
+        self.calls.append(("resolve-image", (chat_id, message_id)))
+        return NativeAttachment(file_id="resolved-image-file-id", name="attached-image.jpg")
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
         self.calls.append(("download", file_id))
@@ -154,10 +166,13 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "get_officecli_help",
         "inspect_office_document",
         "inspect_office_spreadsheet",
+        "inspect_office_presentation",
         "apply_office_batch",
         "create_office_document",
         "create_office_spreadsheet",
         "apply_office_spreadsheet_batch",
+        "create_office_presentation",
+        "apply_office_presentation_batch",
     }
     assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
         "description"
@@ -313,6 +328,32 @@ def test_inspect_spreadsheet_resolves_only_xlsx_and_runs_annotated_view() -> Non
     assert executor.calls[0][0] == "view"
     assert executor.calls[0][1].endswith("source.xlsx")
     assert executor.calls[0][2:] == ("annotated", "--json")
+
+
+def test_inspect_presentation_resolves_only_pptx_and_runs_shape_query() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/inspect",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"command_payload": {"command": "query", "selector": "shape"}},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["file_id"] == "resolved-pptx-file-id"
+    assert files.calls == [
+        ("resolve-pptx", ("native-chat-id", "native-message-id")),
+        ("download", "resolved-pptx-file-id"),
+    ]
+    assert executor.calls[0][1].endswith("source.pptx")
+    assert executor.calls[0][0] == "query"
+    assert executor.calls[0][2:] == ("shape", "--json")
 
 
 def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:
@@ -552,6 +593,189 @@ def test_create_spreadsheet_removes_untouched_default_sheet() -> None:
     )
 
 
+def test_create_presentation_uses_official_create_batch_validate_and_pptx_mime() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert [call[0] for call in executor.calls] == ["create", "batch", "validate"]
+    assert executor.calls[0][1].endswith("created.pptx")
+    assert files.upload_content_types == [PPTX_CONTENT_TYPE]
+    assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
+
+
+def test_create_presentation_accepts_a_complete_multi_slide_batch() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+    slide = {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}}
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={"output_name": "full-commercial-proposal.pptx", "commands": [slide] * 89},
+    )
+
+    assert response.status_code == 200
+    assert len(json.loads(executor.inputs[1] or "[]")) == 89
+
+
+def test_create_presentation_materializes_one_native_image_attachment() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi(source=b"image bytes")
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/",
+                    "type": "slide",
+                    "props": {"layout": "blank"},
+                },
+                {
+                    "command": "add",
+                    "parent": "/slide[1]",
+                    "type": "picture",
+                    "props": {"src": "attachment://image", "x": "1in", "y": "1in"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    batch = json.loads(executor.inputs[1] or "[]")
+    assert batch[1]["props"]["src"].endswith("attached-image.jpg")
+    assert [call[0] for call in files.calls] == [
+        "resolve-image",
+        "download",
+        "upload",
+        "attach",
+    ]
+    assert files.calls[1] == ("download", "resolved-image-file-id")
+
+
+def test_create_presentation_rejects_an_invented_picture_path_before_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/slide[1]",
+                    "type": "picture",
+                    "props": {"src": "/mnt/uploads/coffee_image.jpg"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "attachment://image" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
+def test_create_presentation_rejects_guessed_table_cell_set_keys_before_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {
+                    "command": "set",
+                    "path": "/slide[1]/table[1]",
+                    "props": {"r1c1": "Budget"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "official data property" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
+def test_create_presentation_rejects_content_before_its_slide_exists() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+                {
+                    "command": "add",
+                    "parent": "/slide[2]",
+                    "type": "shape",
+                    "props": {"text": "Pilot objective"},
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "add /slide[N]" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi(source=b"original XLSX bytes")
@@ -596,6 +820,45 @@ def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx
     assert files.uploaded_bytes != files.source
     assert files.upload_content_types == [XLSX_CONTENT_TYPE]
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
+
+
+def test_apply_presentation_uses_pptx_ancestry_preserves_source_and_attaches_pptx() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi(source=b"original PPTX bytes")
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/apply-batch",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal-updated.pptx",
+            "commands": [
+                {
+                    "command": "set",
+                    "path": "/slide[1]/shape[1]",
+                    "props": {"text": "Updated"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["source_file_id"] == "resolved-pptx-file-id"
+    assert response.json()["source_bytes_preserved"] is True
+    assert [call[0] for call in files.calls] == [
+        "resolve-pptx",
+        "download",
+        "download",
+        "upload",
+        "attach",
+    ]
+    assert executor.calls[0][1].endswith("result.pptx")
+    assert files.upload_content_types == [PPTX_CONTENT_TYPE]
+    assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
 
 
 def test_normalize_zero_dpi_page_setup_only_changes_private_xlsx_copy(tmp_path) -> None:
@@ -879,6 +1142,45 @@ def test_http_client_resolves_xlsx_from_native_ancestry_without_selecting_docx(m
     )
 
     assert result == "workbook-file-id"
+
+
+def test_http_client_resolves_one_image_from_native_ancestry_without_selecting_pptx(monkeypatch) -> None:
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {
+                "chat": {
+                    "history": {
+                        "messages": {
+                            "assistant-now": {
+                                "parentId": "user-source",
+                                "files": [{"id": "presentation-id", "name": "draft.pptx"}],
+                            },
+                            "user-source": {
+                                "parentId": None,
+                                "files": [{"id": "image-id", "name": "pilot-photo.jpeg"}],
+                            },
+                        }
+                    }
+                }
+            }
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "http://openwebui:8080/api/v1/chats/native-chat-id"
+        assert kwargs["headers"] == {"Authorization": "Bearer user-session"}
+        return Response()
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    result = client.resolve_nearest_image_attachment(
+        "native-chat-id", "assistant-now", "Bearer user-session"
+    )
+
+    assert result == NativeAttachment(file_id="image-id", name="pilot-photo.jpeg")
 
 
 def test_http_client_rejects_multiple_docx_attachments_in_nearest_native_message(monkeypatch) -> None:

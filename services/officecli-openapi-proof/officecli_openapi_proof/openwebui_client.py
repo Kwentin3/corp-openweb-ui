@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -18,6 +19,12 @@ class OpenWebUiAmbiguousAttachment(OpenWebUiFailure):
     """The current native message has more than one possible DOCX source."""
 
 
+@dataclass(frozen=True)
+class NativeAttachment:
+    file_id: str
+    name: str
+
+
 class OpenWebUiClient(Protocol):
     def verify_session(self, authorization: str) -> None: ...
 
@@ -28,6 +35,14 @@ class OpenWebUiClient(Protocol):
     def resolve_nearest_xlsx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
+
+    def resolve_nearest_pptx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> str: ...
+
+    def resolve_nearest_image_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeAttachment: ...
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None: ...
 
@@ -85,16 +100,34 @@ class HttpOpenWebUiClient:
     def resolve_nearest_docx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str:
-        return self._resolve_nearest_attachment(chat_id, message_id, authorization, ".docx")
+        return self._resolve_nearest_attachment(
+            chat_id, message_id, authorization, (".docx",)
+        ).file_id
 
     def resolve_nearest_xlsx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str:
-        return self._resolve_nearest_attachment(chat_id, message_id, authorization, ".xlsx")
+        return self._resolve_nearest_attachment(
+            chat_id, message_id, authorization, (".xlsx",)
+        ).file_id
+
+    def resolve_nearest_pptx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> str:
+        return self._resolve_nearest_attachment(
+            chat_id, message_id, authorization, (".pptx",)
+        ).file_id
+
+    def resolve_nearest_image_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeAttachment:
+        return self._resolve_nearest_attachment(
+            chat_id, message_id, authorization, (".png", ".jpg", ".jpeg", ".webp")
+        )
 
     def _resolve_nearest_attachment(
-        self, chat_id: str, message_id: str, authorization: str, suffix: str
-    ) -> str:
+        self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...]
+    ) -> NativeAttachment:
         response = self._request("GET", f"/api/v1/chats/{chat_id}", authorization)
         try:
             chat_record = response.json()
@@ -113,25 +146,31 @@ class HttpOpenWebUiClient:
                 break
             files = message.get("files", [])
             if isinstance(files, list):
-                matching_file_ids: list[str] = []
+                matching_files: list[NativeAttachment] = []
                 for native_file in files:
                     if not isinstance(native_file, dict):
                         continue
                     name = native_file.get("name") or native_file.get("filename") or ""
                     file_id = native_file.get("id") or native_file.get("url")
-                    if isinstance(name, str) and name.lower().endswith(suffix) and isinstance(file_id, str):
-                        if file_id not in matching_file_ids:
-                            matching_file_ids.append(file_id)
-                if len(matching_file_ids) == 1:
-                    return matching_file_ids[0]
-                if len(matching_file_ids) > 1:
+                    if (
+                        isinstance(name, str)
+                        and name.lower().endswith(suffixes)
+                        and isinstance(file_id, str)
+                        and all(existing.file_id != file_id for existing in matching_files)
+                    ):
+                        matching_files.append(NativeAttachment(file_id=file_id, name=name))
+                if len(matching_files) == 1:
+                    return matching_files[0]
+                if len(matching_files) > 1:
+                    label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
                     raise OpenWebUiAmbiguousAttachment(
-                        f"multiple {suffix[1:].upper()} attachments exist in the nearest native message; use an explicit file_id"
+                        f"multiple {label} attachments exist in the nearest native message; use an explicit file_id"
                     )
             parent_id = message.get("parentId")
             current_id = parent_id if isinstance(parent_id, str) else None
 
-        raise OpenWebUiFailure(f"no {suffix[1:].upper()} attachment exists in the native message ancestry")
+        label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
+        raise OpenWebUiFailure(f"no {label} attachment exists in the native message ancestry")
 
     def upload(
         self, source: Path, output_name: str, authorization: str, content_type: str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

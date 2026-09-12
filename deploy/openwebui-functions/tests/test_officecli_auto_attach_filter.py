@@ -52,6 +52,17 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
     assert "table-row" in body["messages"][0]["content"]
     assert "actual formula value" in body["messages"][0]["content"]
+    assert "official PPTX skill" in body["messages"][0]["content"]
+    assert "pptx table, pptx chart, or pptx picture help" in body["messages"][0]["content"]
+    assert "guessed rNcN cell keys" in body["messages"][0]["content"]
+    assert "add every requested slide at the document root" in body["messages"][0]["content"]
+    assert "rather than adding a competing overlay" in body["messages"][0]["content"]
+    assert "shape inventory" in body["messages"][0]["content"]
+    assert "never guess a generic shape name" in body["messages"][0]["content"]
+    assert "most recent successful OfficeCLI batch" in body["messages"][0]["content"]
+    assert "result_file_id" in body["messages"][0]["content"]
+    assert "attachment://image" in body["messages"][0]["content"]
+    assert "Never invent a local path" in body["messages"][0]["content"]
 
 
 def test_repeated_inlet_is_idempotent():
@@ -65,17 +76,23 @@ def test_repeated_inlet_is_idempotent():
     assert body["messages"][0]["content"].count(MODULE.OFFICECLI_INSTRUCTION_MARKER) == 1
 
 
-def test_non_native_and_unlisted_models_are_unchanged():
+def test_unlisted_models_are_unchanged():
     filter_instance = configured_filter()
-    for body, metadata in (
-        ({**eligible_body(), "model": "office-documents"}, native_metadata()),
-        (eligible_body(), {"params": {"function_calling": "default"}}),
-    ):
+    for body, metadata in (({**eligible_body(), "model": "office-documents"}, native_metadata()),):
         before = copy.deepcopy(body)
 
         run_inlet(filter_instance, body, metadata)
 
         assert body == before
+
+
+def test_ordinary_chat_without_function_calling_metadata_receives_officecli():
+    body = eligible_body()
+
+    run_inlet(configured_filter(), body, {"params": {}})
+
+    assert body["tool_ids"] == ["server:other", "server:officecli"]
+    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
 
 
 def test_task_and_caller_supplied_tools_are_unchanged():
