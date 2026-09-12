@@ -111,3 +111,19 @@ def test_v17_rejects_missing_or_non_strict_claim_envelope(tmp_path, mutation) ->
         OrdinaryTradeGroupedMappingV17AdapterFactory.create().explicit_header_source_claims(
             response=copy.deepcopy(response)
         )
+
+
+def test_v17_rejects_v18_only_position_effect(tmp_path) -> None:
+    _store, _context, _document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _v17_response(table=table, mapping=mapping)
+    response["table_decisions"][0]["side_values"][0]["position_effect"] = "OPEN_SHORT"
+
+    with pytest.raises(OrdinaryTradeGroupedMappingV17Error):
+        OrdinaryTradeGroupedMappingV17AdapterFactory.create().expand_to_v13(
+            response=response,
+            package=OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+                canonical=_canonical, confirmed_understandings=[]
+            ),
+        )
