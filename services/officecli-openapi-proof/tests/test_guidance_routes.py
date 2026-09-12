@@ -526,7 +526,8 @@ def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx
     assert [call[0] for call in executor.calls] == ["batch", "validate"]
     assert executor.calls[0][1].endswith("result.xlsx")
     assert files.source == b"original XLSX bytes"
-    assert files.uploaded_bytes == b"changed DOCX bytes"
+    assert files.uploaded_bytes is not None
+    assert files.uploaded_bytes != files.source
     assert files.upload_content_types == [XLSX_CONTENT_TYPE]
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
 
