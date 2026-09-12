@@ -4126,6 +4126,10 @@ class Pipe:
         return str(value)
 
     def _passport_enabled(self, body: dict[str, Any], metadata: dict[str, Any]) -> bool:
+        # A request is not an authority to activate an optional LLM branch.
+        # The Function owner must explicitly enable it through a Valve.
+        if not bool(self.valves.passport_enabled):
+            return False
         value = self._passport_config_value(
             body,
             metadata,
