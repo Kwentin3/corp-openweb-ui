@@ -195,6 +195,7 @@ GATE1_GATE5_MODULES = [
     "gate5_methodology_calculation",
     "gate5_trusted_methodology",
     "gate5_residency_evidence",
+    "qualified_projection_fact_v3",
     "gate5_deterministic_source_fact_consumption",
     "gate5_operation_set_demand_derivation",
     "gate5_securities_disposal_tax_model",
@@ -206,6 +207,8 @@ GATE1_GATE5_MODULES = [
     "gate5_declaration_income_sources",
     "gate5_declaration_right_side_assembly",
     "gate5_full_declaration_definition",
+]
+GATE1_GATE5_POST_GATE4_MODULES = [
     "gate5_real_tax_case_assembly",
     "gate5_declaration_scope_resolution",
     "gate5_resolved_declaration_package",
@@ -244,6 +247,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_projection",
     "ordinary_trade_mapping_runtime",
     "gate4_ordinary_trade_candidate",
+    *GATE1_GATE5_POST_GATE4_MODULES,
     "ordinary_trade_candidate_runtime",
     "authenticated_case_taxpayer_binding",
     "ordinary_trade_tax_model_bridge",
@@ -255,7 +259,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_production_runtime",
 ]
 _GATE1_ORDINARY_TRADE_INSERT_AT = (
-    GATE1_MODULE_ORDER.index("gate5_declaration_preparation") + 1
+    GATE1_MODULE_ORDER.index("gate5_full_declaration_definition") + 1
 )
 GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_ORDINARY_TRADE_INSERT_AT],
@@ -341,6 +345,7 @@ def main() -> None:
             | set(GATE1_INPUT_MODULES)
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
+            | set(GATE1_GATE5_POST_GATE4_MODULES)
             | set(GATE1_ORDINARY_TRADE_MODULES)
             | set(GOAL391_LAB_MODULES)
             | set(GATE2_ONLY_MODULES)
