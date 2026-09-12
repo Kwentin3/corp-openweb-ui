@@ -6,6 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Annotated, Any, Literal
+from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -240,6 +241,46 @@ def _create_spreadsheet_commands(
     if not creates_non_default_sheet or default_sheet_is_used:
         return commands
     return [*commands, {"command": "remove", "path": "/Sheet1"}]
+
+
+def _normalize_zero_dpi_page_setup(workbook: Path) -> bool:
+    """Make Office-generated XLSX page setup metadata acceptable to OfficeCLI.
+
+    Excel legitimately writes zero DPI for a sheet's printer settings.  The
+    installed OfficeCLI rejects that value while parsing a workbook batch.  The
+    native source attachment is never changed: this only normalizes the private
+    execution copy, and only the two unsupported zero values.
+    """
+    replacements = (
+        (b'horizontalDpi="0"', b'horizontalDpi="600"'),
+        (b'verticalDpi="0"', b'verticalDpi="600"'),
+    )
+    try:
+        with ZipFile(workbook, "r") as archive:
+            entries = [
+                (entry, archive.read(entry.filename)) for entry in archive.infolist()
+            ]
+    except BadZipFile:
+        return False
+
+    changed = False
+    normalized: list[tuple[Any, bytes]] = []
+    for entry, content in entries:
+        if entry.filename.startswith("xl/worksheets/") and entry.filename.endswith(".xml"):
+            original = content
+            for before, after in replacements:
+                content = content.replace(before, after)
+            changed = changed or content != original
+        normalized.append((entry, content))
+    if not changed:
+        return False
+
+    replacement = workbook.with_suffix(".normalized.xlsx")
+    with ZipFile(replacement, "w", ZIP_DEFLATED) as archive:
+        for entry, content in normalized:
+            archive.writestr(entry, content)
+    replacement.replace(workbook)
+    return True
 
 
 class InspectionResponse(BaseModel):
@@ -777,6 +818,7 @@ def create_app(
                 openwebui.download(source_file_id, bearer, source)
                 source_sha256 = sha256(source.read_bytes()).hexdigest()
                 result.write_bytes(source.read_bytes())
+                _normalize_zero_dpi_page_setup(result)
                 batch_output = officecli.run(
                     "batch",
                     str(result),

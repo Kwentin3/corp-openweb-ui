@@ -4,12 +4,13 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 import json
 from pathlib import Path
+from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from officecli_openapi_proof.app import create_app
+from officecli_openapi_proof.app import _normalize_zero_dpi_page_setup, create_app
 from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
 from officecli_openapi_proof.openwebui_client import (
@@ -595,6 +596,37 @@ def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx
     assert files.uploaded_bytes != files.source
     assert files.upload_content_types == [XLSX_CONTENT_TYPE]
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
+
+
+def test_normalize_zero_dpi_page_setup_only_changes_private_xlsx_copy(tmp_path) -> None:
+    workbook = tmp_path / "office-generated.xlsx"
+    with ZipFile(workbook, "w") as archive:
+        archive.writestr(
+            "xl/worksheets/sheet1.xml",
+            '<worksheet><pageSetup horizontalDpi="0" verticalDpi="0"/></worksheet>',
+        )
+        archive.writestr("xl/worksheets/sheet2.xml", "<worksheet/>")
+
+    assert _normalize_zero_dpi_page_setup(workbook) is True
+
+    with ZipFile(workbook) as archive:
+        assert archive.read("xl/worksheets/sheet1.xml") == (
+            b'<worksheet><pageSetup horizontalDpi="600" verticalDpi="600"/></worksheet>'
+        )
+        assert archive.read("xl/worksheets/sheet2.xml") == b"<worksheet/>"
+
+
+def test_normalize_zero_dpi_page_setup_leaves_normal_workbook_untouched(tmp_path) -> None:
+    workbook = tmp_path / "already-valid.xlsx"
+    with ZipFile(workbook, "w") as archive:
+        archive.writestr(
+            "xl/worksheets/sheet1.xml",
+            '<worksheet><pageSetup horizontalDpi="600" verticalDpi="600"/></worksheet>',
+        )
+
+    original = workbook.read_bytes()
+    assert _normalize_zero_dpi_page_setup(workbook) is False
+    assert workbook.read_bytes() == original
 
 
 @pytest.mark.parametrize(
