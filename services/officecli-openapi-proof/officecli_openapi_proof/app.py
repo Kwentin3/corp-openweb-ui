@@ -256,7 +256,7 @@ class ApplyPresentationBatchRequest(NativePptxReference):
     def translate_official_prop_alias(
         cls, value: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        return _translate_official_prop_alias(value)
+        return _normalize_presentation_commands(value)
 
     @field_validator("output_name")
     @classmethod
@@ -275,27 +275,7 @@ class CreatePresentationRequest(BaseModel):
     def translate_official_prop_alias(
         cls, value: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        normalized = _translate_official_prop_alias(value)
-        for command in normalized:
-            props = command.get("props")
-            if not isinstance(props, dict):
-                continue
-            source = props.get("src", props.get("path"))
-            if source is not None and source != ATTACHED_IMAGE_SOURCE:
-                raise ValueError(
-                    "PPTX picture src must be attachment://image from one native chat image attachment"
-                )
-            if (
-                command.get("command") == "set"
-                and isinstance(command.get("path"), str)
-                and "/table" in command["path"]
-                and isinstance(props, dict)
-                and any(PPTX_TABLE_CELL_KEY.fullmatch(key) for key in props)
-            ):
-                raise ValueError(
-                    "PPTX table cells must be seeded in the table add command with the official "
-                    "data property; rNcN keys are not valid table set properties"
-                )
+        normalized = _normalize_presentation_commands(value)
         _validate_presentation_create_order(normalized)
         return normalized
 
@@ -322,6 +302,33 @@ def _translate_official_prop_alias(
             {key: value for key, value in command.items() if key != "prop"}
             | {"props": command["prop"]}
         )
+    return normalized
+
+
+def _normalize_presentation_commands(
+    commands: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep create and apply equally strict about native image references."""
+    normalized = _translate_official_prop_alias(commands)
+    for command in normalized:
+        props = command.get("props")
+        if not isinstance(props, dict):
+            continue
+        source = props.get("src", props.get("path"))
+        if source is not None and source != ATTACHED_IMAGE_SOURCE:
+            raise ValueError(
+                "PPTX picture src must be attachment://image from one native chat image attachment"
+            )
+        if (
+            command.get("command") == "set"
+            and isinstance(command.get("path"), str)
+            and "/table" in command["path"]
+            and any(PPTX_TABLE_CELL_KEY.fullmatch(key) for key in props)
+        ):
+            raise ValueError(
+                "PPTX table cells must be seeded in the table add command with the official "
+                "data property; rNcN keys are not valid table set properties"
+            )
     return normalized
 
 
@@ -1124,7 +1131,8 @@ def create_app(
         operation_id="apply_office_presentation_batch",
         description=(
             "Edit, validate, and attach the single nearest native PPTX attachment. This is the final "
-            "execution operation; do not replace it with a textual explanation."
+            "execution operation; do not replace it with a textual explanation. A picture may use only "
+            "attachment://image, which resolves exactly one native image attachment in this chat."
         ),
     )
     def apply_office_presentation_batch(
@@ -1153,13 +1161,21 @@ def create_app(
                 openwebui.download(source_file_id, bearer, source)
                 source_sha256 = sha256(source.read_bytes()).hexdigest()
                 result.write_bytes(source.read_bytes())
+                commands = _materialize_presentation_images(
+                    request.commands,
+                    workspace,
+                    openwebui,
+                    native_chat_id,
+                    native_message_id,
+                    bearer,
+                )
                 batch_output = officecli.run(
                     "batch",
                     str(result),
                     "--stop-on-error",
                     "--json",
                     input_text=json.dumps(
-                        request.commands, ensure_ascii=False, separators=(",", ":")
+                        commands, ensure_ascii=False, separators=(",", ":")
                     ),
                 )
                 batch_result = _officecli_json(batch_output, "batch")
