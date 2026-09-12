@@ -387,6 +387,78 @@ def test_create_uses_official_create_batch_validate_and_native_attachment() -> N
     assert files.uploaded_bytes == b"changed DOCX bytes"
 
 
+def test_create_translates_official_help_prop_spelling_before_batch_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={
+            "output_name": "commercial-proposal.docx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/body",
+                    "type": "paragraph",
+                    "prop": {"text": "Commercial proposal"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert executor.inputs[1] == json.dumps(
+        [
+            {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {"text": "Commercial proposal"},
+            }
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def test_create_rejects_ambiguous_prop_and_props_before_creating_a_document() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={
+            "output_name": "commercial-proposal.docx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/body",
+                    "type": "paragraph",
+                    "prop": {"text": "singular"},
+                    "props": {"text": "plural"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "either prop or props" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
 def test_create_requires_native_chat_and_message_identifiers_before_side_effects() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
