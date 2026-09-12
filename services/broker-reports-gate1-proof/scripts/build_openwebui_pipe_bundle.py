@@ -158,7 +158,7 @@ MODULE_ORDER = [
 
 GATE1_INPUT_MODULES = [
     "openwebui_file_bytes",
-    "mistral_pdf_document_ai",
+    "pdfplumber_document_ai",
 ]
 
 _GATE1_INPUT_INSERT_AT = MODULE_ORDER.index("inputs") + 1
@@ -368,7 +368,7 @@ def main() -> None:
             version="0.39.0-ordinary-trade-production-bundled",
             package_version="gate1_ordinary_trade_production_v9",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
-            requirements="pydantic,pypdf==6.7.5,lxml==6.1.1",
+            requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
         )
         BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
         print(str(BUNDLE_PATH))
@@ -443,7 +443,7 @@ def main() -> None:
             version="0.1.0-native-lab-bundled",
             package_version="goal391_native_mapping_lab_v1",
             source_label="openwebui_actions/goal391_mapping_lab_pipe.py",
-            requirements="pydantic,pypdf==6.7.5,lxml==6.1.1",
+            requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
         )
         GOAL391_LAB_BUNDLE_PATH.write_text(
             goal391_lab_bundle, encoding="utf-8", newline="\n"

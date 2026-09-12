@@ -111,7 +111,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("_BUNDLED_MODULES", source)
         self.assertNotIn("pipe_stub", source)
         self.assertIn(
-            "requirements: pydantic,pypdf==6.7.5,lxml==6.1.1",
+            "requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
             source,
         )
         module = load_bundle_module()
@@ -209,6 +209,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             module._BUNDLED_MODULES,
         )
         self.assertIn("pdf_document_ai", module._BUNDLED_MODULES)
+        self.assertIn("pdfplumber_document_ai", module._BUNDLED_MODULES)
+        self.assertNotIn("mistral_pdf_document_ai", module._BUNDLED_MODULES)
         self.assertNotIn("visual_table_review_contracts", module._BUNDLED_MODULES)
         self.assertIn("gate3_metadata_source_facts", module._BUNDLED_MODULES)
         self.assertIn("gate5_evidence_intake", module._BUNDLED_MODULES)
