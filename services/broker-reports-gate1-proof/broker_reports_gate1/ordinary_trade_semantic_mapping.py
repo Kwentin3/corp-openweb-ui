@@ -180,6 +180,7 @@ _DECISION_KINDS = {
     "SIDE_VALUE",
     "TABLE_DISPOSITION",
 }
+_OPEN_SHORT_POSITION_EFFECT = "OPEN_SHORT"
 
 
 class OrdinaryTradeSemanticMappingError(RuntimeError):
@@ -3218,10 +3219,9 @@ def _validate_table_decision(
     if (
         (not side_values and side_columns)
         or any(
-            not isinstance(item, dict)
-            or set(item) != {"source_literal", "normalized_value"}
-            or item.get("source_literal") not in source_side_literals
-            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+            not _validated_side_value_item(
+                item, source_side_literals=source_side_literals
+            )
             for item in side_values
         )
         or len({item["source_literal"] for item in side_values}) != len(side_values)
@@ -3257,6 +3257,39 @@ def _validate_table_decision(
             else {}
         ),
     }
+
+
+def _validated_side_value_item(
+    value: Any, *, source_side_literals: set[str] | None = None
+) -> bool:
+    """Validate one closed model decision without interpreting source language.
+
+    ``position_effect`` is optional.  If it is present, it is evidence-bound
+    to the *same* exact literal already selected as the row side.  No phrase
+    vocabulary or runtime inference can turn a generic disposal into a short.
+    """
+
+    if not isinstance(value, dict):
+        return False
+    fields = set(value)
+    if fields not in (
+        {"source_literal", "normalized_value"},
+        {"source_literal", "normalized_value", "position_effect"},
+    ):
+        return False
+    literal = value.get("source_literal")
+    normalized = value.get("normalized_value")
+    if (
+        not isinstance(literal, str)
+        or not literal
+        or normalized not in {"PURCHASE", "DISPOSAL"}
+        or (source_side_literals is not None and literal not in source_side_literals)
+    ):
+        return False
+    effect = value.get("position_effect")
+    return effect is None or (
+        effect == _OPEN_SHORT_POSITION_EFFECT and normalized == "DISPOSAL"
+    )
 
 
 _DECISION_FIELDS = {

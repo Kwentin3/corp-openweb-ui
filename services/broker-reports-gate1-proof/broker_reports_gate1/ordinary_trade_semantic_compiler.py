@@ -108,6 +108,8 @@ _SPACE_DECIMAL = re.compile(
 _COMMA_GROUPED_DOT = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+\.[0-9]+$")
 _DOT_GROUPED_COMMA = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:\.[0-9]{3})+,[0-9]+$")
 _COMMA_GROUPED_INTEGER = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+$")
+_OPEN_SHORT_POSITION_EFFECT = "OPEN_SHORT"
+_POSITION_EFFECT_TRANSFORM = "SOURCE_BOUND_MAPPING_POSITION_EFFECT"
 
 
 class OrdinaryTradeSemanticCompilerError(RuntimeError):
@@ -704,11 +706,7 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     sides: dict[str, str] = {}
     for item in side_values:
         if (
-            not isinstance(item, dict)
-            or set(item) != {"source_literal", "normalized_value"}
-            or not isinstance(item.get("source_literal"), str)
-            or not item["source_literal"]
-            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+            not _validated_side_value_item(item)
             or item["source_literal"] in sides
         ):
             _fail("ordinary_trade_mapping_side_invalid")
@@ -735,6 +733,31 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     if value["mapping_id"] != "otmap_" + _sha256_json(identity_material)[:32]:
         _fail("ordinary_trade_mapping_identity_invalid")
     return copy.deepcopy(dict(value))
+
+
+def _validated_side_value_item(value: Any) -> bool:
+    """Accept only the closed, source-bound optional short marker."""
+
+    if not isinstance(value, dict):
+        return False
+    fields = set(value)
+    if fields not in (
+        {"source_literal", "normalized_value"},
+        {"source_literal", "normalized_value", "position_effect"},
+    ):
+        return False
+    literal = value.get("source_literal")
+    normalized = value.get("normalized_value")
+    if (
+        not isinstance(literal, str)
+        or not literal
+        or normalized not in {"PURCHASE", "DISPOSAL"}
+    ):
+        return False
+    effect = value.get("position_effect")
+    return effect is None or (
+        effect == _OPEN_SHORT_POSITION_EFFECT and normalized == "DISPOSAL"
+    )
 
 
 def validate_schema_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -1575,6 +1598,20 @@ def _runtime_records(
         ),
         _runtime_role("currency", currency, numeric_convention),
     ]
+    position_effect = _source_bound_position_effect(
+        side_field=side_field,
+        normalized_side=normalized_side,
+        mapping=mapping,
+    )
+    security_roles = list(common)
+    if position_effect is not None:
+        security_roles.append(
+            _runtime_position_effect(
+                field=side_field,
+                mapping_id=mapping["mapping_id"],
+                position_effect=position_effect,
+            )
+        )
     records = [
         _runtime_record(
             observation=observation,
@@ -1583,7 +1620,7 @@ def _runtime_records(
                 if normalized_side == "PURCHASE"
                 else "SECURITY_DISPOSAL"
             ),
-            roles=common,
+            roles=security_roles,
             claim_refs=[side_field["source_ref"]],
         )
     ]
@@ -1622,6 +1659,58 @@ def _runtime_records(
             )
         )
     return records
+
+
+def _source_bound_position_effect(
+    *, side_field: dict[str, Any], normalized_side: str, mapping: dict[str, Any]
+) -> str | None:
+    """Return the optional effect only from the exact admitted side literal."""
+
+    matching = [
+        item
+        for item in mapping["side_values"]
+        if item["source_literal"] == side_field["literal"]
+    ]
+    if len(matching) != 1:
+        _fail("ordinary_trade_side_unmapped")
+    effect = matching[0].get("position_effect")
+    if effect is None:
+        return None
+    if (
+        effect != _OPEN_SHORT_POSITION_EFFECT
+        or normalized_side != "DISPOSAL"
+        or matching[0].get("normalized_value") != "DISPOSAL"
+    ):
+        _fail("ordinary_trade_position_effect_invalid")
+    return effect
+
+
+def _runtime_position_effect(
+    *, field: dict[str, Any], mapping_id: str, position_effect: str
+) -> dict[str, Any]:
+    """Preserve a qualified effect with the same source cell as ``side``."""
+
+    if (
+        position_effect != _OPEN_SHORT_POSITION_EFFECT
+        or not isinstance(mapping_id, str)
+        or not mapping_id.startswith("otmap_")
+    ):
+        _fail("ordinary_trade_position_effect_invalid")
+    return {
+        "role": "position_effect",
+        "value": position_effect,
+        "source_binding": {
+            "source_ref": field["source_ref"],
+            "source_literal": field["literal"],
+            "deterministic_transform": _POSITION_EFFECT_TRANSFORM,
+            "canonical_cell": copy.deepcopy(field["canonical_cell"]),
+            "semantic_mapping": {
+                "mapping_id": mapping_id,
+                "side_source_literal": field["literal"],
+                "position_effect": position_effect,
+            },
+        },
+    }
 
 
 def _runtime_role(
@@ -1750,6 +1839,25 @@ def _validate_projection_lineage(
                 or source.get("canonical_cell") != field.get("canonical_cell")
             ):
                 _fail("ordinary_trade_runtime_lineage_invalid")
+            if role.get("role") == "position_effect":
+                semantic_mapping = source.get("semantic_mapping")
+                if (
+                    record.get("record_type") != "SECURITY_DISPOSAL"
+                    or role.get("value") != _OPEN_SHORT_POSITION_EFFECT
+                    or source.get("deterministic_transform")
+                    != _POSITION_EFFECT_TRANSFORM
+                    or not isinstance(semantic_mapping, Mapping)
+                    or semantic_mapping
+                    != {
+                        "mapping_id": observation.get("mapping_id"),
+                        "side_source_literal": field.get("literal"),
+                        "position_effect": _OPEN_SHORT_POSITION_EFFECT,
+                    }
+                    or not isinstance(observation.get("mapping_id"), str)
+                    or not str(observation["mapping_id"]).startswith("otmap_")
+                ):
+                    _fail("ordinary_trade_runtime_position_effect_invalid")
+                continue
             expected, transform = normalize_runtime_value(
                 str(role.get("role")),
                 str(field.get("literal")),

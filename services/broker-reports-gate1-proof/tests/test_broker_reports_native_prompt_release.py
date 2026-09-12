@@ -66,7 +66,7 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v17",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v18",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -78,7 +78,7 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
 
 def test_production_gate1_valves_pin_only_financial_roles_and_disable_legacy_routes():
     assert release._production_gate1_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v17",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v18",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
