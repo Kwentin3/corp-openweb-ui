@@ -913,6 +913,75 @@ def test_apply_presentation_uses_pptx_ancestry_preserves_source_and_attaches_ppt
     assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
 
 
+def test_apply_presentation_materializes_one_native_image_attachment() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi(source=b"original PPTX bytes")
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/apply-batch",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal-updated.pptx",
+            "commands": [
+                {
+                    "command": "set",
+                    "path": "/slide[1]/shape[2]",
+                    "props": {"src": "attachment://image"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    batch = json.loads(executor.inputs[0] or "[]")
+    assert batch[0]["props"]["src"].endswith("attached-image.jpg")
+    assert [call[0] for call in files.calls] == [
+        "resolve-pptx",
+        "download",
+        "resolve-image",
+        "download",
+        "download",
+        "upload",
+        "attach",
+    ]
+    assert files.calls[3] == ("download", "resolved-image-file-id")
+
+
+def test_apply_presentation_rejects_an_invented_picture_path_before_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/apply-batch",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal-updated.pptx",
+            "commands": [
+                {
+                    "command": "set",
+                    "path": "/slide[1]/shape[2]",
+                    "props": {"src": "/mnt/uploads/coffee_image.jpg"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "attachment://image" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
 @pytest.mark.parametrize(
     ("path", "payload"),
     [
