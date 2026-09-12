@@ -31,6 +31,7 @@ PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationm
 ATTACHED_IMAGE_SOURCE = "attachment://image"
 PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 PPTX_TABLE_CELL_KEY = re.compile(r"r[1-9][0-9]*c[1-9][0-9]*")
+PPTX_SLIDE_PATH = re.compile(r"^/slide\[([1-9][0-9]*)\](?:/|$)")
 
 
 class SkillRequest(BaseModel):
@@ -277,6 +278,7 @@ class CreatePresentationRequest(BaseModel):
                     "PPTX table cells must be seeded in the table add command with the official "
                     "data property; rNcN keys are not valid table set properties"
                 )
+        _validate_presentation_create_order(normalized)
         return normalized
 
     @field_validator("output_name")
@@ -303,6 +305,28 @@ def _translate_official_prop_alias(
             | {"props": command["prop"]}
         )
     return normalized
+
+
+def _validate_presentation_create_order(commands: list[dict[str, Any]]) -> None:
+    """Reject a batch that would address a slide before that slide exists."""
+    created_slides = 0
+    for command in commands:
+        if (
+            command.get("command") == "add"
+            and command.get("parent") == "/"
+            and command.get("type") == "slide"
+        ):
+            created_slides += 1
+            continue
+        target = command.get("parent", command.get("path"))
+        if not isinstance(target, str):
+            continue
+        match = PPTX_SLIDE_PATH.match(target)
+        if match is not None and int(match.group(1)) > created_slides:
+            raise ValueError(
+                "PPTX create batch must add /slide[N] at the document root before adding "
+                "content to that slide"
+            )
 
 
 def _create_spreadsheet_commands(

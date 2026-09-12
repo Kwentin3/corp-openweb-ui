@@ -657,6 +657,12 @@ def test_create_presentation_materializes_one_native_image_attachment() -> None:
             "commands": [
                 {
                     "command": "add",
+                    "parent": "/",
+                    "type": "slide",
+                    "props": {"layout": "blank"},
+                },
+                {
+                    "command": "add",
                     "parent": "/slide[1]",
                     "type": "picture",
                     "props": {"src": "attachment://image", "x": "1in", "y": "1in"},
@@ -667,7 +673,7 @@ def test_create_presentation_materializes_one_native_image_attachment() -> None:
 
     assert response.status_code == 200
     batch = json.loads(executor.inputs[1] or "[]")
-    assert batch[0]["props"]["src"].endswith("attached-image.jpg")
+    assert batch[1]["props"]["src"].endswith("attached-image.jpg")
     assert [call[0] for call in files.calls] == [
         "resolve-image",
         "download",
@@ -734,6 +740,38 @@ def test_create_presentation_rejects_guessed_table_cell_set_keys_before_executio
 
     assert response.status_code == 422
     assert "official data property" in response.text
+    assert executor.calls == []
+    assert files.calls == []
+
+
+def test_create_presentation_rejects_content_before_its_slide_exists() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/presentations/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "native-message-id",
+        },
+        json={
+            "output_name": "commercial-proposal.pptx",
+            "commands": [
+                {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+                {
+                    "command": "add",
+                    "parent": "/slide[2]",
+                    "type": "shape",
+                    "props": {"text": "Pilot objective"},
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "add /slide[N]" in response.text
     assert executor.calls == []
     assert files.calls == []
 
