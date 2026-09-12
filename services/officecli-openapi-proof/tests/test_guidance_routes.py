@@ -49,7 +49,7 @@ class RecordingOfficeCli:
         if arguments[0] == "batch":
             Path(arguments[1]).write_bytes(b"changed DOCX bytes")
             return office_output(*arguments, payload={"success": self.batch_success, "data": {"edited": 1}})
-        if arguments[0] in {"view", "validate"}:
+        if arguments[0] in {"view", "query", "validate"}:
             return office_output(*arguments, payload={"success": True, "data": {"operation": arguments[0]}})
         return office_output(*arguments)
 
@@ -323,7 +323,7 @@ def test_inspect_spreadsheet_resolves_only_xlsx_and_runs_annotated_view() -> Non
     assert executor.calls[0][2:] == ("annotated", "--json")
 
 
-def test_inspect_presentation_resolves_only_pptx_and_runs_annotated_view() -> None:
+def test_inspect_presentation_resolves_only_pptx_and_runs_shape_query() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
     client = TestClient(create_app(executor, files, settings()))
@@ -335,7 +335,7 @@ def test_inspect_presentation_resolves_only_pptx_and_runs_annotated_view() -> No
             "X-OpenWebUI-Chat-Id": "native-chat-id",
             "X-OpenWebUI-Message-Id": "native-message-id",
         },
-        json={"command_payload": {"command": "view", "mode": "annotated"}},
+        json={"command_payload": {"command": "query", "selector": "shape"}},
     )
 
     assert response.status_code == 200
@@ -345,7 +345,8 @@ def test_inspect_presentation_resolves_only_pptx_and_runs_annotated_view() -> No
         ("download", "resolved-pptx-file-id"),
     ]
     assert executor.calls[0][1].endswith("source.pptx")
-    assert executor.calls[0][2:] == ("annotated", "--json")
+    assert executor.calls[0][0] == "query"
+    assert executor.calls[0][2:] == ("shape", "--json")
 
 
 def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:

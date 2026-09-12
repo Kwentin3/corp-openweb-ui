@@ -54,7 +54,7 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "actual formula value" in body["messages"][0]["content"]
     assert "official PPTX skill" in body["messages"][0]["content"]
     assert "rather than adding a competing overlay" in body["messages"][0]["content"]
-    assert "annotated inspection" in body["messages"][0]["content"]
+    assert "shape inventory" in body["messages"][0]["content"]
     assert "never guess a generic shape name" in body["messages"][0]["content"]
 
 

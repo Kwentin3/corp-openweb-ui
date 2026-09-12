@@ -120,8 +120,8 @@ class InspectSpreadsheetRequest(NativeXlsxReference):
 
 
 class InspectPresentationCommandPayload(BaseModel):
-    command: Literal["view"]
-    mode: Literal["annotated"]
+    command: Literal["query"]
+    selector: Literal["shape"]
 
 
 class InspectPresentationRequest(NativePptxReference):
@@ -957,8 +957,9 @@ def create_app(
         response_model=InspectionResponse,
         operation_id="inspect_office_presentation",
         description=(
-            "Inspect the single nearest native PPTX attachment with official OfficeCLI "
-            "annotated output, including shape paths required for an existing-shape edit."
+            "Inspect the single nearest native PPTX attachment with the official OfficeCLI "
+            "shape inventory, including stable shape paths, current text, and formatting required "
+            "for an existing-shape edit."
         ),
     )
     def inspect_office_presentation(
@@ -982,9 +983,9 @@ def create_app(
                 source = Path(directory) / "source.pptx"
                 openwebui.download(source_file_id, bearer, source)
                 output = officecli.run(
-                    "view", str(source), request.command_payload.mode, "--json"
+                    "query", str(source), request.command_payload.selector, "--json"
                 )
-                result = _officecli_json(output, "view")
+                result = _officecli_json(output, "query")
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
