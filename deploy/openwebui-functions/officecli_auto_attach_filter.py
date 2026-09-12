@@ -26,7 +26,8 @@ OFFICECLI_INSTRUCTION = (
     "workbook and report its actual formula value instead of calculating it yourself. "
     "For PPTX work, obtain the official PPTX skill and relevant help before creating or editing a "
     "presentation; inspect an attached presentation before editing it and preserve its existing template "
-    "and unaffected slides. "
+    "and unaffected slides. When changing existing PPTX content, use the inspected existing shape rather "
+    "than adding a competing overlay; preserve its geometry and explicitly remove any superseded shape. "
     "Do not report completion until the execution tool returns a result_file_id."
 )
 

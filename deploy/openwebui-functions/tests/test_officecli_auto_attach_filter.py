@@ -53,6 +53,7 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "table-row" in body["messages"][0]["content"]
     assert "actual formula value" in body["messages"][0]["content"]
     assert "official PPTX skill" in body["messages"][0]["content"]
+    assert "rather than adding a competing overlay" in body["messages"][0]["content"]
 
 
 def test_repeated_inlet_is_idempotent():
