@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+from contextlib import asynccontextmanager
 from dataclasses import replace
 import hashlib
 import importlib.util
@@ -2142,7 +2143,7 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     pipe.valves.ordinary_trade_mapping_prompt_command = prompt_command
     pipe.valves.ordinary_trade_mapping_prompt_version = "history-1"
     pipe.valves.ordinary_trade_mapping_prompt_hash = "a" * 64
-    captured: dict[str, object] = {}
+    captured: dict[str, object] = {"model_client_factory_kwargs": []}
 
     class Resolver:
         def resolve(self, _user):
@@ -2157,8 +2158,8 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
             return Resolver()
 
     class ModelClientFactory:
-        def __init__(self, **_kwargs):
-            pass
+        def __init__(self, **kwargs):
+            captured["model_client_factory_kwargs"].append(kwargs)
 
         @staticmethod
         def create():
@@ -2212,6 +2213,12 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     assert config.release_prompt_version == "history-1"
     assert config.release_prompt_hash == "a" * 64
     runtime_kwargs = captured["runtime_kwargs"]
+    model_client_factory_kwargs = captured["model_client_factory_kwargs"]
+    assert len(model_client_factory_kwargs) == 2
+    for kwargs in model_client_factory_kwargs:
+        resolver = kwargs["completion_resolver"]
+        assert resolver.__self__ is pipe
+        assert resolver.__func__ is Pipe._openwebui_completion_dependencies
     assert runtime_kwargs["mapping_input_schema_version"] == expected_input_schema
     assert isinstance(runtime_kwargs["mapping_prompt_resolver"], Resolver)
     adapter = runtime_kwargs["mapping_response_adapter"]
@@ -2523,6 +2530,33 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         publish_human_facts=False,
         include_store=True,
     )
+    source_mapping_fixture = (
+        declaration_fixtures.assembly_fixtures.bridge_fixtures.ordinary_fixtures
+    )
+    source_envelope = source_mapping_fixture.CanonicalReaderFactory(
+        store=store,
+        read_enabled=True,
+    ).create().read_active_envelope("ordinary-trade-candidate-document", context)
+    source_table = next(
+        item
+        for item in source_envelope.artifact["nodes"]
+        if item["node_type"] == "TABLE"
+    )
+    source_headers = tuple(
+        item["displayed_value"]
+        for item in sorted(
+            (
+                item
+                for item in source_table["content"]["cells"]
+                if item["row"] == 1
+            ),
+            key=lambda item: item["column"],
+        )
+    )
+    valid_mapping_response = source_mapping_fixture._complete_mapping_response(
+        table=source_table,
+        mapping=source_mapping_fixture._mapping_from_headers(source_headers),
+    )
     maintained_modules = {
         name: module
         for name, module in sys.modules.items()
@@ -2582,6 +2616,11 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
     openwebui = ModuleType("open_webui")
     models = ModuleType("open_webui.models")
     files = ModuleType("open_webui.models.files")
+    internal = ModuleType("open_webui.internal")
+    internal_db = ModuleType("open_webui.internal.db")
+    access_grants = ModuleType("open_webui.models.access_grants")
+    prompt_history = ModuleType("open_webui.models.prompt_history")
+    prompts = ModuleType("open_webui.models.prompts")
     storage = ModuleType("open_webui.storage")
     provider = ModuleType("open_webui.storage.provider")
     files.FileForm = FileForm
@@ -2590,6 +2629,11 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
     monkeypatch.setitem(sys.modules, "open_webui", openwebui)
     monkeypatch.setitem(sys.modules, "open_webui.models", models)
     monkeypatch.setitem(sys.modules, "open_webui.models.files", files)
+    monkeypatch.setitem(sys.modules, "open_webui.internal", internal)
+    monkeypatch.setitem(sys.modules, "open_webui.internal.db", internal_db)
+    monkeypatch.setitem(sys.modules, "open_webui.models.access_grants", access_grants)
+    monkeypatch.setitem(sys.modules, "open_webui.models.prompt_history", prompt_history)
+    monkeypatch.setitem(sys.modules, "open_webui.models.prompts", prompts)
     monkeypatch.setitem(sys.modules, "open_webui.storage", storage)
     monkeypatch.setitem(sys.modules, "open_webui.storage.provider", provider)
 
@@ -2602,14 +2646,117 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         pipe.valves.artifact_payload_root = str(store.payload_root)
         pipe.valves.artifact_retention_mode = "synthetic_dev"
         presentation_calls: list[str] = []
+        mapping_calls = 0
+        mapping_prompt_content = "{{ordinary_trade_mapping_case_json}}"
+        mapping_prompt_id = "bundled-mapping-prompt"
+        mapping_prompt_version = "bundled-mapping-history"
+        mapping_prompt_meta = {
+            "template_id": bundled.ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
+            "template_kind": bundled.ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
+            "prompt_contract_id": bundled.ORDINARY_TRADE_MAPPING_PROMPT_CONTRACT_ID,
+            "input_contract": bundled.ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
+            "output_schema_id": bundled.ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
+            "output_schema_version": bundled.ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
+            "structured_output_required": True,
+            "mapping_domain": "ordinary_trade",
+        }
+        mapping_prompt_row = {
+            "id": mapping_prompt_id,
+            "command": pipe.valves.ordinary_trade_mapping_prompt_command,
+            "user_id": context.user_id,
+            "name": "Bundled mapping prompt",
+            "content": mapping_prompt_content,
+            "data": {},
+            "meta": mapping_prompt_meta,
+            "tags": [bundled.ORDINARY_TRADE_MAPPING_PROMPT_REQUIRED_TAG],
+            "version_id": mapping_prompt_version,
+            "is_active": True,
+        }
+
+        @asynccontextmanager
+        async def native_db_context():
+            yield "bundled-native-session"
+
+        class Prompts:
+            @staticmethod
+            async def get_prompt_by_id(prompt_id, *, db):
+                assert (prompt_id, db) == (
+                    mapping_prompt_id,
+                    "bundled-native-session",
+                )
+                return SimpleNamespace(model_dump=lambda: dict(mapping_prompt_row))
+
+        class PromptHistories:
+            @staticmethod
+            async def get_history_entry_by_id(history_id, *, db):
+                assert (history_id, db) == (
+                    mapping_prompt_version,
+                    "bundled-native-session",
+                )
+                return SimpleNamespace(
+                    prompt_id=mapping_prompt_id,
+                    snapshot={
+                        "command": mapping_prompt_row["command"],
+                        "content": mapping_prompt_content,
+                        "meta": mapping_prompt_meta,
+                        "tags": mapping_prompt_row["tags"],
+                    },
+                )
+
+        class AccessGrants:
+            @staticmethod
+            async def has_access(*_args, **_kwargs):
+                return True
+
+        internal_db.get_async_db_context = native_db_context
+        prompts.Prompts = Prompts
+        prompt_history.PromptHistories = PromptHistories
+        access_grants.AccessGrants = AccessGrants
+        pipe.valves.ordinary_trade_mapping_prompt_id = mapping_prompt_id
+        pipe.valves.ordinary_trade_mapping_prompt_version = mapping_prompt_version
+        pipe.valves.ordinary_trade_mapping_prompt_hash = (
+            hashlib.sha256(
+                (
+                    mapping_prompt_content
+                    + "\nprompt_contract:"
+                    + mapping_prompt_meta["prompt_contract_id"]
+                    + "\ninput_schema:"
+                    + mapping_prompt_meta["input_contract"]
+                    + "\noutput_schema_id:"
+                    + mapping_prompt_meta["output_schema_id"]
+                    + "\noutput_schema_version:"
+                    + mapping_prompt_meta["output_schema_version"]
+                ).encode("utf-8")
+            ).hexdigest()
+        )
 
         def completion(**call):
-            """Exercise the native structured presentation boundary per chat turn."""
+            """Exercise native strict mapping and presentation boundaries."""
 
+            nonlocal mapping_calls
             form_data = call["form_data"]
-            assert form_data["response_format"]["json_schema"]["name"] == (
-                "ordinary_trade_public_interpretation_v3"
-            )
+            schema_name = form_data["response_format"]["json_schema"]["name"]
+            if schema_name == "ordinary_trade_semantic_mapping_v1":
+                mapping_calls += 1
+                mapping_request = json.loads(form_data["messages"][0]["content"])
+                assert mapping_request["phase"] == "map"
+                assert [
+                    table["table_ref"]
+                    for table in mapping_request["case"]["tables"]
+                ] == ["table_1"]
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    valid_mapping_response,
+                                    ensure_ascii=False,
+                                )
+                            }
+                        }
+                    ]
+                }
+            assert schema_name == "ordinary_trade_public_interpretation_v3"
             turn = json.loads(form_data["messages"][1]["content"])
             answer = turn["current_user_message"]
             presentation_calls.append(answer)
@@ -2702,6 +2849,14 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         first = pipe.last_artifact_manifest["ndfl_gate3"]
         assert first["product"]["status"] == "INPUT_REQUIRED"
         assert first["product"]["xml_created"] is False
+        assert mapping_calls == 1
+        candidate_document = next(
+            item
+            for item in first["documents"]
+            if item["document_id"] == "ordinary-trade-candidate-document"
+        )
+        assert candidate_document["runtime_ready_observations"] > 0
+        assert candidate_document["relevant_unmapped_observations"] == 0
         assert "request_publication_ref" not in first_content
         assert "Допустимые значения" in first_content or "Ответьте" in first_content
 

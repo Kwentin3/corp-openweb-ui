@@ -73,6 +73,7 @@ GATE1_RESOURCE_NAMES = (
     "gate5_tax_methodology.ru_ndfl_securities_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v2.json",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v3.json",
     "gate5_tax_methodology.ru_ndfl_securities_source_fact_consumption_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json",
 )

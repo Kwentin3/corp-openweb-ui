@@ -1967,6 +1967,7 @@ class Pipe:
                     ),
                     user=user,
                     request=request,
+                    completion_resolver=self._openwebui_completion_dependencies,
                 ).create()
                 answer_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
@@ -1981,6 +1982,7 @@ class Pipe:
                     ),
                     user=user,
                     request=request,
+                    completion_resolver=self._openwebui_completion_dependencies,
                 ).create()
                 (
                     mapping_prompt_resolver,
