@@ -256,7 +256,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                "publish:ordinary_trade_mapping_v19",
+                "publish:ordinary_trade_mapping_v20",
                 "atomic_remote",
                 "post_remote_verify",
             ],
@@ -401,7 +401,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual("native_text_ready", document_ai["adapter_status"])
         self.assertEqual("pdfplumber_native_text", document_ai["selected_engine"])
         self.assertEqual(
-            "pdfplumber_native_text_adapter_v1", document_ai["selected_adapter"]
+            "pdfplumber_native_text_adapter_v3", document_ai["selected_adapter"]
         )
         self.assertTrue(document_ai["static_ready"])
         self.assertEqual(
@@ -414,7 +414,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertFalse(document_ai["automatic_fallback"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v35",
+                "architecture_policy_version": "broker_reports_architecture_policy_v37",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,

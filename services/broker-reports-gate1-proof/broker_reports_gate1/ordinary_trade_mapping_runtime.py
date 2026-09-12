@@ -312,6 +312,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                         target_table_node_ids=_currency_plan_target_table_node_ids(plan),
                     )
                 ),
+                explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
             instructional_state = current[1].get("instructional_classification_state")
             if instructional_state is not None and outcome["status"] == "COMPLETE":
@@ -607,6 +610,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 allow_source_bound_position_effect=(
                     self._allows_source_bound_position_effect()
                 ),
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
         except Exception as exc:
             code = getattr(
@@ -723,6 +727,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
             and getattr(
                 self._mapping_response_adapter,
                 "allows_source_bound_position_effect",
+                False,
+            )
+            is True
+        )
+
+    def _allows_model_selected_header(self) -> bool:
+        """Only the selected V20 representation admits a Canonical row choice."""
+
+        return bool(
+            self._mapping_response_adapter is not None
+            and getattr(
+                self._mapping_response_adapter,
+                "allows_model_selected_header",
                 False,
             )
             is True
@@ -959,6 +976,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 error_message="Semantic mapping requires one strict output without repair",
             )
             validated_response = self._expand_mapping_response_to_v13(response=response, package=package)
+            explicit_header_source_response = self._explicit_header_source_response(
+                response=response
+            )
             if self._semantic.mapping_response_contract_failure_code(validated_response) is not None:
                 raise OrdinaryTradeSemanticMappingError(
                     "ordinary_trade_semantic_mapping_response_invalid"
@@ -980,6 +1000,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                         target_table_node_ids=next_batch["target_table_node_ids"],
                     )
                 ),
+                explicit_header_source_response=explicit_header_source_response,
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
@@ -1114,6 +1137,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                         target_table_node_ids=batch["target_table_node_ids"],
                     )
                 ),
+                explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
             if outcome["status"] != "COMPLETE":
                 raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_batch_currency_replay_incomplete")
@@ -1611,6 +1637,21 @@ def _currency_plan_target_table_node_ids(plan: dict[str, Any]) -> list[str]:
             "ordinary_trade_user_currency_request_invalid"
         )
     return list(target)
+
+
+def _currency_plan_explicit_header_source_response(
+    plan: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Read only the semantic-owner envelope preserved for a strict replay."""
+
+    value = plan.get("explicit_header_source_response")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return copy.deepcopy(value)
 
 
 def _confirmed_currency_code(

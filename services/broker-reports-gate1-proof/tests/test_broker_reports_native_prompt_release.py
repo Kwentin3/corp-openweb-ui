@@ -67,7 +67,7 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v19",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v20",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -79,7 +79,7 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
 
 def test_production_gate1_valves_pin_only_financial_roles_and_disable_legacy_routes():
     assert release._production_gate1_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v19",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v20",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -334,6 +334,7 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     assert "from open_webui.models.prompt_history" not in container_source
     assert '"ordinary_trade_mapping_v16"' in container_source
     assert "ordinary_trade_mapping_v19" in container._PROFILE_IDS
+    assert "ordinary_trade_mapping_v20" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in host._PROFILE_IDS
     assert "document_metadata_passport_v1" in container._PROFILE_IDS

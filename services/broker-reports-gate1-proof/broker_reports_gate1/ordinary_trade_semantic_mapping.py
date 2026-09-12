@@ -1197,6 +1197,7 @@ class OrdinaryTradeSemanticMapping:
         explicit_header_source_response: Mapping[str, Any] | None = None,
         physical_table_continuation_context: Mapping[str, Any] | None = None,
         allow_source_bound_position_effect: bool = False,
+        allow_model_selected_header: bool = False,
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
         frozen_mapping_values = tuple(frozen_mappings)
@@ -1287,6 +1288,13 @@ class OrdinaryTradeSemanticMapping:
                 or len(ids) != len(set(ids))
             ):
                 _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+            _reject_model_selected_headers_for_continuation_children(
+                decisions=decisions,
+                canonical=canonical,
+                target_table_node_ids=target_table_node_ids,
+                physical_table_continuation_context=physical_table_continuation_context,
+                allow_model_selected_header=allow_model_selected_header,
+            )
             resolved = [
                 _validate_table_decision(
                     decision=item,
@@ -1311,6 +1319,7 @@ class OrdinaryTradeSemanticMapping:
                     allow_source_bound_position_effect=(
                         allow_source_bound_position_effect
                     ),
+                    allow_model_selected_header=allow_model_selected_header,
                 )
                 for item in decisions
             ]
@@ -1343,6 +1352,12 @@ class OrdinaryTradeSemanticMapping:
                 "question": None,
                 "currency_mapping_plan": {
                     "response": copy.deepcopy(value),
+                    # The strict wire envelope is retained only so a later
+                    # currency replay can rebuild the same explicit
+                    # continuation binding; it is revalidated on every use.
+                    "explicit_header_source_response": copy.deepcopy(
+                        explicit_header_source_response
+                    ),
                     "execution_metadata": _execution_metadata_value(execution_metadata),
                     "table_node_ids": sorted(scoped),
                     # Model table_ref values are positional, so preserve the
@@ -1379,6 +1394,13 @@ class OrdinaryTradeSemanticMapping:
             or len(ids) != len(set(ids))
         ):
             _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+        _reject_model_selected_headers_for_continuation_children(
+            decisions=decisions,
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+            physical_table_continuation_context=physical_table_continuation_context,
+            allow_model_selected_header=allow_model_selected_header,
+        )
         case_scope_base = {
             key: str(canonical_binding.get(key) or "")
             for key in (
@@ -1437,6 +1459,7 @@ class OrdinaryTradeSemanticMapping:
                 allow_source_bound_position_effect=(
                     allow_source_bound_position_effect
                 ),
+                allow_model_selected_header=allow_model_selected_header,
             )
             resolved_decisions.append(resolved)
         _validate_confirmed_decisions(
@@ -1713,6 +1736,53 @@ def _physical_continuation_links_for_scope(
             links.append(pair)
     positions = {table_node_id: index for index, table_node_id in enumerate(canonical_ids)}
     return sorted(links, key=lambda pair: (positions[pair[0]], positions[pair[1]]))
+
+
+def _reject_model_selected_headers_for_continuation_children(
+    *,
+    decisions: Iterable[Mapping[str, Any]],
+    canonical: Mapping[str, Any],
+    target_table_node_ids: Iterable[str] | None,
+    physical_table_continuation_context: Mapping[str, Any] | None,
+    allow_model_selected_header: bool,
+) -> None:
+    """Keep a verified continuation child out of V20 header selection.
+
+    A child row can be the first physical row only because its header belongs
+    to a separately source-bound parent.  Letting a model elect that row as a
+    local header would discard a source fact.  HEADER_ABSENT remains valid and
+    the existing explicit parent-header claim is still admitted later by its
+    own source-binding owner.
+    """
+
+    if not allow_model_selected_header or physical_table_continuation_context is None:
+        return
+    target_ids = (
+        [
+            node["node_id"]
+            for node in canonical.get("nodes", [])
+            if isinstance(node, Mapping)
+            and node.get("node_type") == "TABLE"
+            and isinstance(node.get("node_id"), str)
+        ]
+        if target_table_node_ids is None
+        else list(target_table_node_ids)
+    )
+    child_ids = {
+        child_id
+        for _parent_id, child_id in _physical_continuation_links_for_scope(
+            canonical=canonical,
+            target_table_node_ids=target_ids,
+            physical_table_continuation_context=physical_table_continuation_context,
+        )
+    }
+    for decision in decisions:
+        if (
+            isinstance(decision, Mapping)
+            and decision.get("table_node_id") in child_ids
+            and isinstance(decision.get("header_row"), int)
+        ):
+            _fail("ordinary_trade_semantic_mapping_continuation_child_header_forbidden")
 
 
 def _current_explicit_header_canonical_binding(
@@ -2923,6 +2993,7 @@ def _validate_table_decision(
     model_supplies_sparse_columns: bool = False,
     preserve_model_classification_evidence: bool = False,
     allow_source_bound_position_effect: bool = False,
+    allow_model_selected_header: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -3021,9 +3092,26 @@ def _validate_table_decision(
             "side_values": [],
             "security_trade_rows": [],
         }
+    selected_header_row = decision.get("header_row")
+    source_bound_header_rows = {
+        row["row"]
+        for row in table["rows"]
+        if isinstance(row, dict)
+        and isinstance(row.get("row"), int)
+        and isinstance(row.get("cells"), list)
+        and bool(row["cells"])
+    }
+    accepted_header_row = table.get("physical_header_row")
     if (
-        not isinstance(decision.get("header_row"), int)
-        or decision["header_row"] != table.get("physical_header_row")
+        not isinstance(selected_header_row, int)
+        or (
+            selected_header_row != accepted_header_row
+            and not (
+                allow_model_selected_header
+                and accepted_header_row is None
+                and selected_header_row in source_bound_header_rows
+            )
+        )
     ):
         _fail("ordinary_trade_semantic_mapping_header_invalid")
     incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
