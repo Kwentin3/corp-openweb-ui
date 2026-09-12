@@ -547,6 +547,45 @@ async def _user_currency_assertion_resumes_same_case_without_provider_retry(tmp_
     assert current["confirmed_understandings"][-1]["decision"]["currency_code"] == "USD"
 
 
+async def _currency_replay_preserves_frozen_requalification_scope(tmp_path) -> None:
+    rows = [list(row) for row in case_fixtures.candidate._ROWS]
+    gross_column = next(
+        item["column"]
+        for item in case_fixtures.candidate._QUALIFIED_MAPPING["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    rows[1][gross_column - 1] = ""
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=tuple(tuple(row) for row in rows)
+    )
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    response = case_fixtures._complete(table, mapping)
+    response["status"] = "CURRENCY_ASSERTION_REQUIRED"
+    response["table_decisions"][0]["amount_currency_bindings"] = []
+    response["table_decisions"][0]["columns"][5]["semantic_role"] = "unmapped"
+    client = BoundaryModelClient([response])
+    runtime = _runtime(store, client)
+
+    pending = await runtime.resolve(document_id=document_id, context=context)
+    completed = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        user_message="currency: USD",
+    )
+
+    assert pending["status"] == "CURRENCY_ASSERTION_REQUIRED"
+    assert completed["status"] == "COMPLETE"
+    assert completed["provider_calls_this_turn"] == 0
+    assert len(client.calls) == 1
+
+
 async def _repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
@@ -1371,6 +1410,60 @@ async def _known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
     assert answer_client.calls == []
 
 
+async def _frozen_schema_with_incomplete_row_is_requalified_in_exact_scope(
+    tmp_path,
+) -> None:
+    rows = [list(row) for row in case_fixtures.candidate._ROWS]
+    gross_column = next(
+        item["column"]
+        for item in case_fixtures.candidate._QUALIFIED_MAPPING["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    # One row remains materially usable.  The other does not.  The table must
+    # still be requalified as one authority instead of silently keeping a
+    # frozen mapping for the usable row and dropping the incomplete one.
+    rows[1][gross_column - 1] = ""
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=tuple(tuple(row) for row in rows)
+    )
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
+    ).create()
+    canonical_ref = store.get_active_canonical_version(
+        context=context, document_id=document_id
+    ).manifest_ref
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert len(client.calls) == 1
+    assert [item["table_ref"] for item in client.calls[0]["package"]["case"]["tables"]] == [
+        "table_1"
+    ]
+    # The later projection is part of the production composition.  Reaching a
+    # product result proves the case-scoped mapping displaced the frozen one
+    # for this one table rather than failing with a dual-authority conflict.
+    assert result["product"]["gate4"]["security_facts_total"] == 1
+
+
 async def _mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
     unknown_rows = _unknown_rows()
     mapping = case_fixtures.candidate._mapping_from_headers(unknown_rows[0])
@@ -1712,10 +1805,18 @@ async def _row_classification_reaches_product_terminal(
     tmp_path, *, row, blocked
 ) -> None:
     rows = (*case_fixtures.candidate._ROWS, row)
-    store, context, document_id, _mapping = case_fixtures.candidate._case(
+    store, context, document_id, mapping = case_fixtures.candidate._case(
         tmp_path, rows=rows
     )
-    client = BoundaryModelClient([])
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)] if blocked else [])
     runtime = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,
@@ -1742,15 +1843,14 @@ async def _row_classification_reaches_product_terminal(
     )
     final_observation = projection["source_observations"][-1]
 
-    assert client.calls == []
     if blocked:
-        assert result["semantic_mapping"]["status"] == "SPECIALIST_REVIEW_REQUIRED"
-        assert result["product"]["gate4"]["facts_total"] == 0
-        assert final_observation["disposition"] == "RELEVANT_UNMAPPED"
-        assert final_observation["reason_code"] == (
-            "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
-        )
+        assert result["semantic_mapping"]["status"] == "COMPLETE"
+        assert len(client.calls) == 1
+        assert result["product"]["gate4"]["facts_total"] == 4
+        assert final_observation["disposition"] == "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
+        assert final_observation["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
     else:
+        assert client.calls == []
         assert "semantic_mapping" not in result
         assert result["product"]["gate4"]["facts_total"] == 4
         assert final_observation["disposition"] == ("SOURCE_RETAINED_NO_CONSUMER")
@@ -2067,6 +2167,10 @@ def test_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_pa
     asyncio.run(_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path))
 
 
+def test_currency_replay_preserves_frozen_requalification_scope(tmp_path) -> None:
+    asyncio.run(_currency_replay_preserves_frozen_requalification_scope(tmp_path))
+
+
 def test_repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path) -> None:
     asyncio.run(_repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path))
 
@@ -2154,6 +2258,10 @@ def test_sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
 
 def test_known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
     asyncio.run(_known_schema_fast_path_has_zero_semantic_calls(tmp_path))
+
+
+def test_frozen_schema_with_incomplete_row_is_requalified_in_exact_scope(tmp_path) -> None:
+    asyncio.run(_frozen_schema_with_incomplete_row_is_requalified_in_exact_scope(tmp_path))
 
 
 def test_mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:

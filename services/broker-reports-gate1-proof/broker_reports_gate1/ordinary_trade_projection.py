@@ -134,6 +134,13 @@ class OrdinaryTradeProjectionRuntime:
                 "physical_table_continuation_context"
             ],
             table_resolutions=case_material["table_resolutions"],
+            frozen_requalification_table_node_ids=(
+                self._compiler.frozen_mapping_requalification_table_node_ids(
+                    canonical=envelope.artifact,
+                    canonical_binding=binding,
+                    mappings=self._mappings,
+                )
+            ),
             semantic_mapping_case_ref=case_material[
                 "mapping_case_artifact_id"
             ],

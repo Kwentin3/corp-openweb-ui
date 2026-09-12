@@ -8,7 +8,7 @@ import inspect
 import json
 import re
 import secrets
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from .artifact_models import ArtifactAccessContext
 from .gate2_model_contracts import require_strict_json_schema_response
@@ -306,6 +306,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=_currency_plan_target_table_node_ids(plan),
                 frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=(
+                    self._frozen_requalification_table_node_ids(
+                        binding=binding,
+                        target_table_node_ids=_currency_plan_target_table_node_ids(plan),
+                    )
+                ),
             )
             instructional_state = current[1].get("instructional_classification_state")
             if instructional_state is not None and outcome["status"] == "COMPLETE":
@@ -411,6 +417,13 @@ class OrdinaryTradeAutomaticMappingRuntime:
             canonical=binding["canonical"],
             mappings=self._frozen_mappings,
         )
+        frozen_requalification_candidates = (
+            self._compiler.frozen_mapping_requalification_table_node_ids(
+                canonical=binding["canonical"],
+                canonical_binding=binding["canonical_binding"],
+                mappings=self._frozen_mappings,
+            )
+        )
         frozen_table_node_ids = [
             node["node_id"] for node in binding["canonical"].get("nodes", [])
             if isinstance(node, dict) and node.get("node_type") == "TABLE"
@@ -425,12 +438,17 @@ class OrdinaryTradeAutomaticMappingRuntime:
             and (item.get("decision") or {}).get("disposition")
             == "NO_NAMED_CONSUMER"
         }
+        requested_target_table_node_ids = (
+            set(unmapped_table_node_ids) | set(frozen_requalification_candidates)
+        ) - confirmed_exclusion_ids
         target_table_node_ids = [
-            table_node_id
-            for table_node_id in unmapped_table_node_ids
-            if table_node_id not in confirmed_exclusion_ids
+            node["node_id"]
+            for node in binding["canonical"].get("nodes", [])
+            if isinstance(node, dict)
+            and node.get("node_type") == "TABLE"
+            and isinstance(node.get("node_id"), str)
+            and node["node_id"] in requested_target_table_node_ids
         ]
-        unmapped_target_table_node_ids = list(target_table_node_ids)
         target_table_node_ids = self._semantic.expand_target_scope_for_source_bound_header_continuations(
             canonical=binding["canonical"],
             target_table_node_ids=target_table_node_ids,
@@ -438,8 +456,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
             physical_table_continuation_context=binding["physical_table_continuation_context"],
         )
         frozen_requalification_table_node_ids = [
-            table_node_id for table_node_id in target_table_node_ids
-            if table_node_id not in unmapped_target_table_node_ids
+            table_node_id
+            for table_node_id in frozen_requalification_candidates
+            if table_node_id not in confirmed_exclusion_ids
         ]
         if not target_table_node_ids:
             saved = self._cases.save_deterministic_terminal(
@@ -955,6 +974,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=next_batch["target_table_node_ids"],
                 frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=(
+                    self._frozen_requalification_table_node_ids(
+                        binding=binding,
+                        target_table_node_ids=next_batch["target_table_node_ids"],
+                    )
+                ),
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
@@ -1083,6 +1108,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 confirmed_understandings=saved_assertion[1]["confirmed_understandings"],
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=batch["target_table_node_ids"], frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=(
+                    self._frozen_requalification_table_node_ids(
+                        binding=binding,
+                        target_table_node_ids=batch["target_table_node_ids"],
+                    )
+                ),
             )
             if outcome["status"] != "COMPLETE":
                 raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_batch_currency_replay_incomplete")
@@ -1107,6 +1138,30 @@ class OrdinaryTradeAutomaticMappingRuntime:
             document_id=document_id, context=context, binding=binding, current=resumed,
             confirmed=resumed[1]["confirmed_understandings"], provider_calls_this_turn=0,
         )
+
+    def _frozen_requalification_table_node_ids(
+        self,
+        *,
+        binding: Mapping[str, Any],
+        target_table_node_ids: Iterable[str],
+    ) -> list[str]:
+        """Rebuild the compiler-owned scope for every strict replay.
+
+        The saved mapping response is not an authority for this scope.  Currency
+        replay must use the same current Canonical selector as the original
+        validation, limited only by that response's persisted table scope.
+        """
+
+        target_ids = set(target_table_node_ids)
+        return [
+            table_node_id
+            for table_node_id in self._compiler.frozen_mapping_requalification_table_node_ids(
+                canonical=binding["canonical"],
+                canonical_binding=binding["canonical_binding"],
+                mappings=self._frozen_mappings,
+            )
+            if table_node_id in target_ids
+        ]
 
     def _mapping_prompt_user_context(
         self, context: ArtifactAccessContext

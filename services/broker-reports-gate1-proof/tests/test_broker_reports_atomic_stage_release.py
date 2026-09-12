@@ -256,7 +256,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                "publish:ordinary_trade_mapping_v18",
+                "publish:ordinary_trade_mapping_v19",
                 "atomic_remote",
                 "post_remote_verify",
             ],
