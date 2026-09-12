@@ -1312,6 +1312,93 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 remote._snapshot_prompt_rows(restored_prompts),
             )
 
+    def test_repeated_rollback_rehearsal_restores_each_attempt_baseline(self):
+        """A retry keeps its own candidate state; it must not rehearse to v1's baseline."""
+        manifest = _manifest()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            staging = root / manifest["release_id"]
+            staging.mkdir()
+            (staging / "manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+            for contract in FUNCTION_CONTRACTS:
+                shutil.copyfile(
+                    contract.bundle_path, staging / contract.bundle_path.name
+                )
+            candidate_loader = (staging / manifest["loader"]["file_name"])
+            candidate_loader.write_bytes(b"candidate-loader")
+            manifest = build_manifest(
+                source_revision=REVISION,
+                prompt_contracts=expected_prompt_contracts(),
+                provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+                loader_bytes=candidate_loader.read_bytes(),
+            )
+            (staging / "manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+            db = root / "webui.db"
+            self._database(db)
+            loader_path = root / "loader.js"
+            loader_path.write_bytes(b"previous-loader")
+            rollback_root = root / "rollbacks"
+
+            def live_state(*, db_path, data_root, manifest):
+                return {
+                    "functions": [
+                        {
+                            "function_id": contract.function_id,
+                            "active": True,
+                            "global": False,
+                            "type": "pipe",
+                        }
+                        for contract in FUNCTION_CONTRACTS
+                    ],
+                    "retired_functions": [],
+                    "image": {},
+                    "loader": remote._loader_state(),
+                    "managed_prompts": [],
+                    "workload": {},
+                    "counters": {},
+                }
+
+            with (
+                mock.patch.object(remote, "LOADER_PATH", loader_path),
+                mock.patch.object(remote, "ROLLBACK_ROOT", rollback_root),
+                mock.patch.object(remote, "_volume_mount", return_value=root),
+                mock.patch.object(remote, "_webui_db", return_value=db),
+                mock.patch.object(remote, "_live_state", side_effect=live_state),
+                mock.patch.object(remote, "_assert_static_contracts"),
+                mock.patch.object(remote, "_assert_prompt_set_present"),
+                mock.patch.object(remote, "_assert_quiescent"),
+                mock.patch.object(remote, "_assert_candidate"),
+                mock.patch.object(remote, "_stop_container"),
+                mock.patch.object(remote, "_start_container"),
+                mock.patch.object(remote, "_wait_healthy"),
+            ):
+                first = remote.execute(
+                    staging_dir=staging, apply=True, prove_rollback=True
+                )
+                second = remote.execute(
+                    staging_dir=staging, apply=True, prove_rollback=True
+                )
+
+            self.assertTrue(first["rollback_artifact_created"])
+            self.assertFalse(second["rollback_artifact_created"])
+            self.assertTrue(second["rollback_proof"]["candidate_state_restored"])
+            self.assertEqual(
+                {
+                    item["function_id"]: item["content_sha256"]
+                    for item in manifest["functions"]
+                },
+                remote._content_hashes(
+                    remote._function_rows(
+                        db, [item["function_id"] for item in manifest["functions"]]
+                    )
+                ),
+            )
+            self.assertEqual(b"candidate-loader", loader_path.read_bytes())
+
     def test_remote_cleanup_and_ssh_are_fail_closed(self):
         remote_source = (SCRIPTS / "broker_reports_atomic_stage_remote.py").read_text(
             encoding="utf-8"

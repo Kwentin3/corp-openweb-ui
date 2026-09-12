@@ -1250,6 +1250,16 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "staging_removed": True,
         }
 
+    # The persistent artifact is the recovery/audit identity of this release.
+    # A rollback rehearsal, however, must restore the state at the start of
+    # *this* invocation.  Those differ when an operator safely retries the
+    # same release id after it has already reached its candidate state.
+    attempt_rollback_rows = _snapshot_function_rows(current_function_rows)
+    attempt_rollback_prompt_rows = _snapshot_prompt_rows(current_prompt_rows)
+    attempt_rollback_loader_bytes = LOADER_PATH.read_bytes()
+    if _sha256_bytes(attempt_rollback_loader_bytes) != previous_loader_sha256:
+        raise StageReleaseError("stage_release_loader_changed_before_attempt_snapshot")
+
     (
         rollback,
         rollback_identity,
@@ -1262,12 +1272,16 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         before_state=before,
         loader_bytes=LOADER_PATH.read_bytes(),
     )
-    rollback_rows = _json_object(rollback.get("previous_function_rows"))
-    rollback_prompt_rows = _json_object(rollback.get("previous_prompt_rows"))
-    if not rollback_prompt_rows:
+    persistent_rollback_prompt_rows = _json_object(
+        rollback.get("previous_prompt_rows")
+    )
+    if not persistent_rollback_prompt_rows:
         raise StageReleaseError("stage_release_prompt_rollback_missing")
     rollback_loader_contract = _json_object(rollback.get("previous_loader"))
-    if rollback_loader_contract.get("content_sha256") != previous_loader_sha256:
+    if (
+        rollback_created
+        and rollback_loader_contract.get("content_sha256") != previous_loader_sha256
+    ):
         raise StageReleaseError("stage_release_loader_rollback_mismatch")
     restore_required = False
     health_checks = 0
@@ -1306,13 +1320,13 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         if prove_rollback:
             _stop_container()
             _replace_loader(
-                content=rollback_loader_bytes,
+                content=attempt_rollback_loader_bytes,
                 expected_sha256=candidate_loader_sha256,
             )
             _replace_release_rows(
                 db_path=db_path,
-                replacement_function_rows=rollback_rows,
-                replacement_prompt_rows=rollback_prompt_rows,
+                replacement_function_rows=attempt_rollback_rows,
+                replacement_prompt_rows=attempt_rollback_prompt_rows,
                 expected_function_hashes=desired_hashes,
                 expected_prompt_hashes=desired_prompt_hashes,
             )
@@ -1322,8 +1336,9 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             restored_rows = _function_rows(db_path, managed_function_ids)
             restored_prompt_rows = _prompt_rows(db_path, prompt_ids)
             if (
-                _snapshot_function_rows(restored_rows) != rollback_rows
-                or _snapshot_prompt_rows(restored_prompt_rows) != rollback_prompt_rows
+                _snapshot_function_rows(restored_rows) != attempt_rollback_rows
+                or _snapshot_prompt_rows(restored_prompt_rows)
+                != attempt_rollback_prompt_rows
             ):
                 raise StageReleaseError("stage_release_rollback_rehearsal_mismatch")
             restored = _live_state(
@@ -1334,7 +1349,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
                 manifest,
                 require_candidate_loader=False,
             )
-            if restored["loader"] != rollback["previous_object_identities"]["loader"]:
+            if restored["loader"]["content_sha256"] != previous_loader_sha256:
                 raise StageReleaseError(
                     "stage_release_loader_rollback_rehearsal_mismatch"
                 )
@@ -1376,9 +1391,9 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         if restore_required:
             _restore_after_failure(
                 db_path=db_path,
-                rollback_function_rows=rollback_rows,
-                rollback_prompt_rows=rollback_prompt_rows,
-                rollback_loader_bytes=rollback_loader_bytes,
+                rollback_function_rows=attempt_rollback_rows,
+                rollback_prompt_rows=attempt_rollback_prompt_rows,
+                rollback_loader_bytes=attempt_rollback_loader_bytes,
                 previous_loader_sha256=previous_loader_sha256,
                 candidate_loader_sha256=candidate_loader_sha256,
             )
