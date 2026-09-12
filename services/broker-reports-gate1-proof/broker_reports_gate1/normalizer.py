@@ -654,6 +654,7 @@ class Gate1Normalizer:
                         bounded_graph.publish_pdf_full_source_atomic(
                             result=full_source_result,
                             image_refs=pdf_extraction.image_refs,
+                            table_refs=pdf_extraction.table_refs,
                             physical_table_continuation_sidecar=(
                                 physical_table_continuation_sidecar
                             ),

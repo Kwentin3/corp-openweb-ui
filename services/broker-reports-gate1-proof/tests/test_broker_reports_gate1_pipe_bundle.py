@@ -6,8 +6,11 @@ import importlib.util
 import sys
 import tempfile
 import unittest
+from io import BytesIO
+import json
 from pathlib import Path
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -510,11 +513,83 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             content,
         )
         self.assertEqual(b"PK", publication["content"][:2])
+        with ZipFile(BytesIO(publication["content"])) as archive:
+            markdown_name = "documents/001/full-source.md"
+            markdown = archive.read(markdown_name)
+            manifest = json.loads(archive.read("manifest.json"))
+            table_entry = manifest["documents"][0]["tables"][0]
+            self.assertEqual(
+                manifest["documents"][0]["markdown_sha256"],
+                hashlib.sha256(markdown).hexdigest(),
+            )
+            self.assertEqual(
+                table_entry["sha256"],
+                hashlib.sha256(archive.read(table_entry["archive_path"])).hexdigest(),
+            )
         self.assertIsNotNone(pipe.last_artifact_manifest)
         self.assertEqual(
             "bundle-full-source-private-file",
             pipe.last_artifact_manifest["full_source_delivery"]["file_id"],
         )
+
+    def test_bundled_pipe_rejects_mutated_native_table_anchor_before_zip_projection(self):
+        module = load_bundle_module()
+        page_markdown = "before [table](native-table.html) after"
+        page_sha256 = hashlib.sha256(page_markdown.encode("utf-8")).hexdigest()
+        payloads = [
+            (
+                object(),
+                {
+                    "document_ai_markdown_sha256": page_sha256,
+                    "format_structural_inventory": {
+                        "page_markdown_sha256": page_sha256,
+                    },
+                    "source_location": {
+                        "kind": "document_ai_page_markdown_body",
+                        "page": 1,
+                        "content_order": 1,
+                    },
+                    "normalized_projection": {"text": "before "},
+                },
+                "body",
+            ),
+            (
+                object(),
+                {
+                    "document_ai_markdown_sha256": page_sha256,
+                    "format_structural_inventory": {
+                        "page_markdown_sha256": page_sha256,
+                    },
+                    "source_location": {
+                        "kind": "document_ai_native_table_html",
+                        "page": 1,
+                        "content_order": 2,
+                    },
+                    "normalized_projection": {"cells": [["not used"]]},
+                    "document_ai_native_table_markdown_target": "native-table.html",
+                    "document_ai_native_table_markdown_anchor": "[table](other.html)",
+                },
+                "table",
+            ),
+            (
+                object(),
+                {
+                    "document_ai_markdown_sha256": page_sha256,
+                    "format_structural_inventory": {
+                        "page_markdown_sha256": page_sha256,
+                    },
+                    "source_location": {
+                        "kind": "document_ai_page_markdown_body",
+                        "page": 1,
+                        "content_order": 3,
+                    },
+                    "normalized_projection": {"text": " after"},
+                },
+                "tail",
+            ),
+        ]
+        with self.assertRaises(module.ArtifactStoreError):
+            module.Pipe._reconstruct_pdf_full_source_markdown(payloads)
 
 
 if __name__ == "__main__":
