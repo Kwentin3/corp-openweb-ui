@@ -31,6 +31,8 @@ class HelpRequest(BaseModel):
         "docx paragraph",
         "docx set paragraph",
         "docx add markdown",
+        "docx table-row",
+        "docx table-cell",
         "docx view",
     ]
 
@@ -78,10 +80,17 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
         max_length=64,
         description=(
             "Official OfficeCLI batch items. Each item has a bare verb in command and its "
-            "arguments as sibling fields, for example command=set with path and props. "
+            "arguments as sibling fields, for example command=set with path and props. The official "
+            "CLI help writes the corresponding flag as --prop; that singular JSON spelling is accepted "
+            "and translated to props. "
             "Obtain the exact command details from OfficeCLI help before calling."
         ),
     )
+
+    @field_validator("commands")
+    @classmethod
+    def translate_official_prop_alias(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return _translate_official_prop_alias(value)
 
     @field_validator("output_name")
     @classmethod
@@ -98,9 +107,15 @@ class CreateOfficeDocumentRequest(BaseModel):
         max_length=64,
         description=(
             "Official OfficeCLI batch items used to fill a newly created DOCX. Read the installed "
-            "OfficeCLI help before choosing element types and properties."
+            "OfficeCLI help before choosing element types and properties. The official help's --prop "
+            "flag may be supplied as prop and is translated to the batch JSON field props."
         ),
     )
+
+    @field_validator("commands")
+    @classmethod
+    def translate_official_prop_alias(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return _translate_official_prop_alias(value)
 
     @field_validator("output_name")
     @classmethod
@@ -108,6 +123,19 @@ class CreateOfficeDocumentRequest(BaseModel):
         if Path(value).name != value or not value.lower().endswith(".docx"):
             raise ValueError("output_name must be a plain .docx filename")
         return value
+
+
+def _translate_official_prop_alias(commands: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Bridge the official CLI's ``--prop`` spelling to batch JSON's ``props`` field."""
+    normalized: list[dict[str, Any]] = []
+    for command in commands:
+        if "prop" not in command:
+            normalized.append(command)
+            continue
+        if "props" in command:
+            raise ValueError("a batch item must specify either prop or props, not both")
+        normalized.append({key: value for key, value in command.items() if key != "prop"} | {"props": command["prop"]})
+    return normalized
 
 
 class InspectionResponse(BaseModel):
@@ -149,6 +177,8 @@ HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "docx paragraph": ("help", "docx", "paragraph"),
     "docx set paragraph": ("help", "docx", "set", "paragraph"),
     "docx add markdown": ("help", "docx", "add", "markdown"),
+    "docx table-row": ("help", "docx", "table-row"),
+    "docx table-cell": ("help", "docx", "table-cell"),
     "docx view": ("help", "docx", "view"),
 }
 

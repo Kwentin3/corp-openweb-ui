@@ -175,6 +175,27 @@ def test_help_exposes_official_markdown_creation_guidance() -> None:
     assert executor.calls == [("help", "docx", "add", "markdown")]
 
 
+@pytest.mark.parametrize(
+    ("topic", "arguments"),
+    [
+        ("docx table-row", ("help", "docx", "table-row")),
+        ("docx table-cell", ("help", "docx", "table-cell")),
+    ],
+)
+def test_help_exposes_official_table_edit_guidance(topic: str, arguments: tuple[str, ...]) -> None:
+    executor = RecordingOfficeCli()
+    client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
+
+    response = client.post(
+        "/v1/officecli/help",
+        headers={"Authorization": "Bearer user-session"},
+        json={"topic": topic},
+    )
+
+    assert response.status_code == 200
+    assert executor.calls == [arguments]
+
+
 def test_guidance_requires_the_forwarded_openwebui_session() -> None:
     executor = RecordingOfficeCli()
     client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
@@ -364,6 +385,78 @@ def test_create_uses_official_create_batch_validate_and_native_attachment() -> N
     )
     assert [call[0] for call in files.calls] == ["upload", "attach"]
     assert files.uploaded_bytes == b"changed DOCX bytes"
+
+
+def test_create_translates_official_help_prop_spelling_before_batch_execution() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={
+            "output_name": "commercial-proposal.docx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/body",
+                    "type": "paragraph",
+                    "prop": {"text": "Commercial proposal"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    assert executor.inputs[1] == json.dumps(
+        [
+            {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {"text": "Commercial proposal"},
+            }
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def test_create_rejects_ambiguous_prop_and_props_before_creating_a_document() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/documents/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={
+            "output_name": "commercial-proposal.docx",
+            "commands": [
+                {
+                    "command": "add",
+                    "parent": "/body",
+                    "type": "paragraph",
+                    "prop": {"text": "singular"},
+                    "props": {"text": "plural"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "either prop or props" in response.text
+    assert executor.calls == []
+    assert files.calls == []
 
 
 def test_create_requires_native_chat_and_message_identifiers_before_side_effects() -> None:
@@ -557,14 +650,14 @@ def test_http_client_uses_native_openwebui_session_endpoint_and_rejects_fake_bea
 
 
 def test_http_client_attaches_a_native_chat_file_reference(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    captured: list[dict[str, object]] = []
 
     class Response:
         def raise_for_status(self) -> None:
             return None
 
     def request(method, url, **kwargs):
-        captured.update({"method": method, "url": url, **kwargs})
+        captured.append({"method": method, "url": url, **kwargs})
         return Response()
 
     monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
@@ -584,13 +677,16 @@ def test_http_client_attaches_a_native_chat_file_reference(monkeypatch) -> None:
         "Bearer user-session",
     )
 
-    assert captured["method"] == "POST"
-    assert captured["url"] == (
-        "http://openwebui:8080/api/v1/chats/native-chat-id/messages/assistant-now/event"
-    )
-    assert captured["headers"] == {"Authorization": "Bearer user-session"}
-    assert captured["json"] == {
-        "type": "files",
+    assert [request["method"] for request in captured] == ["POST", "POST"]
+    assert [request["url"] for request in captured] == [
+        "http://openwebui:8080/api/v1/chats/native-chat-id/messages/assistant-now/event",
+        "http://openwebui:8080/api/v1/chats/native-chat-id/messages/assistant-now/event",
+    ]
+    assert [request["headers"] for request in captured] == [
+        {"Authorization": "Bearer user-session"},
+        {"Authorization": "Bearer user-session"},
+    ]
+    expected_data = {
         "data": {
             "files": [
                 {
@@ -613,6 +709,8 @@ def test_http_client_attaches_a_native_chat_file_reference(monkeypatch) -> None:
             ]
         },
     }
+    assert captured[0]["json"] == {"type": "files", **expected_data}
+    assert captured[1]["json"] == {"type": "chat:message:files", **expected_data}
 
 
 def settings() -> Settings:
