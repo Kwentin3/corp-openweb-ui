@@ -57,16 +57,6 @@ MAPPING_PIN = {
     "prompt_history_id": "history-1",
     "prompt_hash": "a" * 64,
 }
-CONTINUATION_PIN = {
-    **MAPPING_PIN,
-    "prompt_command": "broker_pdf_table_continuation_annotation_v3",
-}
-PASSPORT_PIN = {
-    **MAPPING_PIN,
-    "prompt_command": "broker_gate1_document_passport_v1",
-}
-
-
 def _manifest():
     return build_manifest(
         source_revision=REVISION,
@@ -172,8 +162,6 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     "prompt_history_id": "history-1",
                     "prompt_hash": "a" * 64,
                 },
-                pdf_table_continuation_annotation_prompt_pin=CONTINUATION_PIN,
-                document_metadata_passport_prompt_pin=PASSPORT_PIN,
             )
 
         self.assertEqual(expected, captured["loader"])
@@ -214,14 +202,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **kwargs: (
-                    events.append("publish:" + kwargs["profile"])
-                    or (
-                        CONTINUATION_PIN
-                        if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                        else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
-                    )
-                ),
+                side_effect=lambda **kwargs: events.append("publish:" + kwargs["profile"])
+                or pin,
             ),
             mock.patch.object(
                 driver,
@@ -234,11 +216,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 side_effect=lambda **kwargs: (
                     events.append("post_remote_verify"),
                     self.assertTrue(kwargs["source_archive"].is_file()),
-                    (
-                        CONTINUATION_PIN
-                        if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                        else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
-                    ),
+                    pin,
                 )[-1],
             ) as verify,
         ):
@@ -252,25 +230,15 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(
             [
                 "publish:ordinary_trade_mapping_v17",
-                "publish:pdf_table_continuation_annotation_v3",
-                "publish:document_metadata_passport_v1",
                 "atomic_remote",
-                "post_remote_verify",
-                "post_remote_verify",
                 "post_remote_verify",
             ],
             events,
         )
-        self.assertEqual(3, verify.call_count)
+        self.assertEqual(1, verify.call_count)
         self.assertEqual(pin, receipt["ordinary_trade_mapping_prompt"]["pin"])
-        self.assertEqual(
-            CONTINUATION_PIN,
-            receipt["pdf_table_continuation_annotation_prompt"]["pin"],
-        )
-        self.assertEqual(
-            PASSPORT_PIN,
-            receipt["document_metadata_passport_prompt"]["pin"],
-        )
+        self.assertNotIn("pdf_table_continuation_annotation_prompt", receipt)
+        self.assertNotIn("document_metadata_passport_prompt", receipt)
 
     def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
         revision = subprocess.run(
@@ -291,11 +259,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **kwargs: (
-                    CONTINUATION_PIN
-                    if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                    else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
-                ),
+                return_value=pin,
             ),
             mock.patch.object(driver, "_run_remote_release", return_value={"status": "passed"}) as apply,
             mock.patch.object(
@@ -435,6 +399,10 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertTrue(
             manifest["functions"][0]["valves"]["ordinary_trade_candidate_enabled"]
         )
+        self.assertFalse(
+            manifest["functions"][0]["valves"]["pdf_table_continuation_annotation_enabled"]
+        )
+        self.assertFalse(manifest["functions"][0]["valves"]["passport_enabled"])
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
         self.assertNotIn("private_intake_contract", manifest["image"])
@@ -477,6 +445,9 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 GATE1_RETIRED_VALVE_KEYS[0]: False,
                 "canonical_gate2_compare_enabled": True,
                 "pdf_dual_vlm_enabled": False,
+                "pdf_table_continuation_annotation_enabled": True,
+                "passport_enabled": True,
+                "passport_prompt_id": "obsolete-prompt",
             },
         )
 
@@ -487,10 +458,13 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertNotIn("pdf_semantic_visual_table_downstream_enabled", valves)
         self.assertNotIn("pdf_hybrid_shadow_enabled", valves)
         self.assertNotIn("pdf_structural_repair_shadow_enabled", valves)
+        self.assertNotIn("passport_prompt_id", valves)
         self.assertTrue(valves["canonical_gate2_write_enabled"])
         self.assertTrue(valves["canonical_gate2_read_enabled"])
         self.assertFalse(valves["ndfl_gate3_enabled"])
         self.assertTrue(valves["ordinary_trade_candidate_enabled"])
+        self.assertFalse(valves["pdf_table_continuation_annotation_enabled"])
+        self.assertFalse(valves["passport_enabled"])
         self.assertTrue(valves_match(function_id, valves))
         self.assertTrue(all(key not in valves for key in GATE1_RETIRED_VALVE_KEYS))
 

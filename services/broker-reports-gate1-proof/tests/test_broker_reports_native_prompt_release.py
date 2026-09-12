@@ -26,16 +26,6 @@ _PIN = {
     "prompt_history_id": "history-1",
     "prompt_hash": "a" * 64,
 }
-_CONTINUATION_PIN = {
-    **_PIN,
-    "prompt_command": "broker_pdf_table_continuation_annotation_v3",
-}
-_PASSPORT_PIN = {
-    **_PIN,
-    "prompt_command": "broker_gate1_document_passport_v1",
-}
-
-
 def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: Path):
     archive = tmp_path / "ordinary_trade_mapping_prompt_source.zip"
     runner = tmp_path / "broker_reports_native_prompt_publish_container.py"
@@ -86,59 +76,16 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
 
 
-def test_production_gate1_valves_pin_the_native_document_intake_and_v17_routes():
-    assert release._production_gate1_valves(_PIN, _CONTINUATION_PIN, _PASSPORT_PIN) == {
+def test_production_gate1_valves_pin_only_financial_roles_and_disable_legacy_routes():
+    assert release._production_gate1_valves(_PIN) == {
         "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v17",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
         "ordinary_trade_mapping_prompt_hash": "a" * 64,
-        "pdf_table_continuation_annotation_prompt_id": "prompt-1",
-        "pdf_table_continuation_annotation_prompt_command": (
-            "broker_pdf_table_continuation_annotation_v3"
-        ),
-        "pdf_table_continuation_annotation_prompt_version": "history-1",
-        "pdf_table_continuation_annotation_prompt_hash": "a" * 64,
-        "pdf_table_continuation_annotation_enabled": True,
-        "passport_prompt_id": "prompt-1",
-        "passport_prompt_command": "broker_gate1_document_passport_v1",
-        "passport_prompt_version": "history-1",
-        "passport_prompt_hash": "a" * 64,
-        "passport_enabled": True,
-        "passport_model_id": "models/gemini-3.5-flash",
+        "pdf_table_continuation_annotation_enabled": False,
+        "passport_enabled": False,
     }
-
-
-def test_physical_table_prompt_pin_projects_only_its_four_release_valves():
-    pin = {**_PIN, "prompt_command": "broker_pdf_table_continuation_annotation_v3"}
-
-    assert release._pdf_table_continuation_annotation_prompt_valves(pin) == {
-        "pdf_table_continuation_annotation_prompt_id": "prompt-1",
-        "pdf_table_continuation_annotation_prompt_command": (
-            "broker_pdf_table_continuation_annotation_v3"
-        ),
-        "pdf_table_continuation_annotation_prompt_version": "history-1",
-        "pdf_table_continuation_annotation_prompt_hash": "a" * 64,
-    }
-    with pytest.raises(
-        release.StageReleaseDriverError,
-        match="pdf_table_continuation_prompt_command_invalid",
-    ):
-        release._pdf_table_continuation_annotation_prompt_valves(_PIN)
-
-
-def test_document_passport_pin_projects_only_its_four_release_valves():
-    assert release._document_metadata_passport_prompt_valves(_PASSPORT_PIN) == {
-        "passport_prompt_id": "prompt-1",
-        "passport_prompt_command": "broker_gate1_document_passport_v1",
-        "passport_prompt_version": "history-1",
-        "passport_prompt_hash": "a" * 64,
-    }
-    with pytest.raises(
-        release.StageReleaseDriverError,
-        match="document_metadata_passport_prompt_command_invalid",
-    ):
-        release._document_metadata_passport_prompt_valves(_PIN)
 
 
 def test_atomic_release_publishes_and_rechecks_the_production_v17_profile():
@@ -191,7 +138,7 @@ def test_prompt_readback_keeps_json_pin_as_one_remote_shell_argument():
     ]
 
 
-def test_atomic_release_archives_every_prompt_asset_it_pins(tmp_path: Path):
+def test_atomic_release_archives_only_financial_role_prompt_asset(tmp_path: Path):
     archive = tmp_path / "source.zip"
     revision = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -208,8 +155,14 @@ def test_atomic_release_archives_every_prompt_asset_it_pins(tmp_path: Path):
     with zipfile.ZipFile(archive) as payload:
         names = set(payload.namelist())
     assert release.ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET in names
-    assert release.PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET in names
-    assert release.DOCUMENT_METADATA_PASSPORT_PRODUCTION_ASSET in names
+    assert (
+        "services/broker-reports-gate1-proof/managed_assets/prompts/"
+        "broker_reports_native_table_continuation_annotation_prompt.v3.md"
+    ) not in names
+    assert (
+        "services/broker-reports-gate1-proof/managed_assets/prompts/"
+        "broker_reports_document_metadata_passport_prompt.v1.md"
+    ) not in names
     assert not any(name.endswith("broker_reports_ordinary_trade_mapping_prompt.v13.md") for name in names)
 
 

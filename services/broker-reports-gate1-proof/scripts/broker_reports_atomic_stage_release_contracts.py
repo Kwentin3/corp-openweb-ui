@@ -81,6 +81,8 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "ndfl_presentation_llm_enabled": True,
     "ndfl_presentation_model_id": "models/gemini-3.5-flash",
     "ndfl_presentation_openwebui_origin": "https://gpt.alpha-soft.ru",
+    "pdf_table_continuation_annotation_enabled": False,
+    "passport_enabled": False,
 }
 
 GATE1_RETIRED_VALVE_KEYS = (
@@ -115,6 +117,15 @@ GATE1_RETIRED_VALVE_KEYS = (
     "pdf_semantic_header_shadow_enabled",
     "ndfl_full_product_enabled",
     "ndfl_full_product_synthetic_only",
+    "pdf_table_continuation_annotation_prompt_id",
+    "pdf_table_continuation_annotation_prompt_command",
+    "pdf_table_continuation_annotation_prompt_version",
+    "pdf_table_continuation_annotation_prompt_hash",
+    "passport_prompt_id",
+    "passport_prompt_command",
+    "passport_prompt_version",
+    "passport_prompt_hash",
+    "passport_model_id",
 )
 
 RETIRED_FUNCTION_IDS = (
