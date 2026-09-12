@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.2.0
+version: 0.3.0
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured Native chat models.
 """
@@ -26,9 +26,12 @@ OFFICECLI_INSTRUCTION = (
     "workbook and report its actual formula value instead of calculating it yourself. "
     "For PPTX work, obtain the official PPTX skill and relevant help before creating or editing a "
     "presentation; inspect an attached presentation before editing it and preserve its existing template "
-    "and unaffected slides. When changing existing PPTX content, use the inspected existing shape rather "
-    "than adding a competing overlay; preserve its geometry and explicitly remove any superseded shape. "
-    "Do not report completion until the execution tool returns a result_file_id."
+    "and unaffected slides. For an existing PPTX text change, use the official PPTX shape help and the "
+    "annotated inspection to identify the visible target by its current text and stable shape path; never "
+    "guess a generic shape name. Change that existing shape rather than adding a competing overlay, preserve "
+    "its geometry, and explicitly remove any superseded shape. After the batch, inspect the returned PPTX "
+    "and verify that the requested text is in the intended shape and the replaced text is gone. Do not "
+    "report completion until that verification and the execution tool return a result_file_id."
 )
 
 

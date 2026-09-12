@@ -323,7 +323,7 @@ def test_inspect_spreadsheet_resolves_only_xlsx_and_runs_annotated_view() -> Non
     assert executor.calls[0][2:] == ("annotated", "--json")
 
 
-def test_inspect_presentation_resolves_only_pptx_and_runs_outline_view() -> None:
+def test_inspect_presentation_resolves_only_pptx_and_runs_annotated_view() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
     client = TestClient(create_app(executor, files, settings()))
@@ -335,7 +335,7 @@ def test_inspect_presentation_resolves_only_pptx_and_runs_outline_view() -> None
             "X-OpenWebUI-Chat-Id": "native-chat-id",
             "X-OpenWebUI-Message-Id": "native-message-id",
         },
-        json={"command_payload": {"command": "view", "mode": "outline"}},
+        json={"command_payload": {"command": "view", "mode": "annotated"}},
     )
 
     assert response.status_code == 200
@@ -345,7 +345,7 @@ def test_inspect_presentation_resolves_only_pptx_and_runs_outline_view() -> None
         ("download", "resolved-pptx-file-id"),
     ]
     assert executor.calls[0][1].endswith("source.pptx")
-    assert executor.calls[0][2:] == ("outline", "--json")
+    assert executor.calls[0][2:] == ("annotated", "--json")
 
 
 def test_apply_uses_native_file_result_and_preserves_source_bytes() -> None:

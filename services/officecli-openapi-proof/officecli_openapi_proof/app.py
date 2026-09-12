@@ -121,7 +121,7 @@ class InspectSpreadsheetRequest(NativeXlsxReference):
 
 class InspectPresentationCommandPayload(BaseModel):
     command: Literal["view"]
-    mode: Literal["outline"]
+    mode: Literal["annotated"]
 
 
 class InspectPresentationRequest(NativePptxReference):
@@ -956,7 +956,10 @@ def create_app(
         "/v1/officecli/presentations/inspect",
         response_model=InspectionResponse,
         operation_id="inspect_office_presentation",
-        description="Inspect the single nearest native PPTX attachment with official OfficeCLI outline output.",
+        description=(
+            "Inspect the single nearest native PPTX attachment with official OfficeCLI "
+            "annotated output, including shape paths required for an existing-shape edit."
+        ),
     )
     def inspect_office_presentation(
         request: InspectPresentationRequest,
