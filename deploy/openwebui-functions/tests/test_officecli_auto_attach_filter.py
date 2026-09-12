@@ -50,6 +50,7 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert body["tool_ids"] == ["server:other", "server:officecli"]
     assert body["messages"][0]["content"].startswith("Keep this existing instruction.")
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
+    assert "table-row" in body["messages"][0]["content"]
 
 
 def test_repeated_inlet_is_idempotent():

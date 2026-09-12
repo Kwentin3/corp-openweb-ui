@@ -175,6 +175,27 @@ def test_help_exposes_official_markdown_creation_guidance() -> None:
     assert executor.calls == [("help", "docx", "add", "markdown")]
 
 
+@pytest.mark.parametrize(
+    ("topic", "arguments"),
+    [
+        ("docx table-row", ("help", "docx", "table-row")),
+        ("docx table-cell", ("help", "docx", "table-cell")),
+    ],
+)
+def test_help_exposes_official_table_edit_guidance(topic: str, arguments: tuple[str, ...]) -> None:
+    executor = RecordingOfficeCli()
+    client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))
+
+    response = client.post(
+        "/v1/officecli/help",
+        headers={"Authorization": "Bearer user-session"},
+        json={"topic": topic},
+    )
+
+    assert response.status_code == 200
+    assert executor.calls == [arguments]
+
+
 def test_guidance_requires_the_forwarded_openwebui_session() -> None:
     executor = RecordingOfficeCli()
     client = TestClient(create_app(executor, RecordingOpenWebUi(), settings()))

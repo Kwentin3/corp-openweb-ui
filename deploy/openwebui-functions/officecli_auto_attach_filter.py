@@ -20,7 +20,8 @@ OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX work. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
     "when they ask to create a new DOCX from the discussion, use the same official guidance and "
-    "create tool. Do not report completion until the execution tool returns a result_file_id."
+    "create tool. For a table edit, obtain the table-row and table-cell help before applying a batch. "
+    "Do not report completion until the execution tool returns a result_file_id."
 )
 
 

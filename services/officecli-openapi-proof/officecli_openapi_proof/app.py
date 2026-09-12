@@ -31,6 +31,8 @@ class HelpRequest(BaseModel):
         "docx paragraph",
         "docx set paragraph",
         "docx add markdown",
+        "docx table-row",
+        "docx table-cell",
         "docx view",
     ]
 
@@ -149,6 +151,8 @@ HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "docx paragraph": ("help", "docx", "paragraph"),
     "docx set paragraph": ("help", "docx", "set", "paragraph"),
     "docx add markdown": ("help", "docx", "add", "markdown"),
+    "docx table-row": ("help", "docx", "table-row"),
+    "docx table-cell": ("help", "docx", "table-cell"),
     "docx view": ("help", "docx", "view"),
 }
 
