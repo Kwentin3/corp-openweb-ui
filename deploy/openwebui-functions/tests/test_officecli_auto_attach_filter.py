@@ -73,17 +73,23 @@ def test_repeated_inlet_is_idempotent():
     assert body["messages"][0]["content"].count(MODULE.OFFICECLI_INSTRUCTION_MARKER) == 1
 
 
-def test_non_native_and_unlisted_models_are_unchanged():
+def test_unlisted_models_are_unchanged():
     filter_instance = configured_filter()
-    for body, metadata in (
-        ({**eligible_body(), "model": "office-documents"}, native_metadata()),
-        (eligible_body(), {"params": {"function_calling": "default"}}),
-    ):
+    for body, metadata in (({**eligible_body(), "model": "office-documents"}, native_metadata()),):
         before = copy.deepcopy(body)
 
         run_inlet(filter_instance, body, metadata)
 
         assert body == before
+
+
+def test_ordinary_chat_without_function_calling_metadata_receives_officecli():
+    body = eligible_body()
+
+    run_inlet(configured_filter(), body, {"params": {}})
+
+    assert body["tool_ids"] == ["server:other", "server:officecli"]
+    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
 
 
 def test_task_and_caller_supplied_tools_are_unchanged():

@@ -88,12 +88,13 @@ class Filter:
         valves = getattr(self, "valves", self.Valves())
         target_model_ids = _comma_separated_values(valves.target_model_ids)
 
-        # Fail closed: only named direct chat models in their configured Native mode opt in.
+        # Fail closed: only named direct chat models opt in.  A normal OpenWebUI
+        # chat does not set ``metadata.params.function_calling`` at all; treating
+        # its absence as a non-native mode silently removed OfficeCLI from the
+        # ordinary product path.
         if not target_model_ids or body.get("model") not in target_model_ids:
             return body
         if metadata.get("task") is not None:
-            return body
-        if metadata.get("params", {}).get("function_calling") != "native":
             return body
 
         # OpenWebUI preserves caller-provided OpenAI tools instead of resolving tool_ids.
