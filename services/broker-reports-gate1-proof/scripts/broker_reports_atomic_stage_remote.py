@@ -146,14 +146,14 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
     ) or {}
     if (
         document_ai.get("configured") is not True
-        or document_ai.get("adapter_status") != "static_ready"
-        or document_ai.get("selected_engine") != "mistral_ocr"
-        or document_ai.get("selected_adapter") != "mistral_serverless_ocr_adapter_v3"
+        or document_ai.get("adapter_status") != "native_text_ready"
+        or document_ai.get("selected_engine") != "pdfplumber_native_text"
+        or document_ai.get("selected_adapter") != "pdfplumber_native_text_adapter_v1"
         or document_ai.get("static_ready") is not True
         or document_ai.get("composition_owner") != "PdfDocumentExtractorFactory"
         or document_ai.get("automatic_fallback") is not False
         or document_ai.get("terminal_blockers")
-        != {"unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED"}
+        != {"native_text_unusable": "PDF_NATIVE_TEXT_UNUSABLE"}
     ):
         raise StageReleaseError("stage_release_pdf_document_ai_contract_invalid")
     functions = manifest.get("functions") or []

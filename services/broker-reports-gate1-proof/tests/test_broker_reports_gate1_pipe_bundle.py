@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib.util
 import sys
 import tempfile
@@ -111,7 +112,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("_BUNDLED_MODULES", source)
         self.assertNotIn("pipe_stub", source)
         self.assertIn(
-            "requirements: pydantic,pypdf==6.7.5,lxml==6.1.1",
+            "requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
             source,
         )
         module = load_bundle_module()
@@ -209,6 +210,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             module._BUNDLED_MODULES,
         )
         self.assertIn("pdf_document_ai", module._BUNDLED_MODULES)
+        self.assertIn("pdfplumber_document_ai", module._BUNDLED_MODULES)
+        self.assertNotIn("mistral_pdf_document_ai", module._BUNDLED_MODULES)
         self.assertNotIn("visual_table_review_contracts", module._BUNDLED_MODULES)
         self.assertIn("gate3_metadata_source_facts", module._BUNDLED_MODULES)
         self.assertIn("gate5_evidence_intake", module._BUNDLED_MODULES)
@@ -373,7 +376,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertNotIn('"rows"', content)
         self.assertNotIn('"text"', content)
 
-    def test_bundled_pipe_fails_closed_for_pdf_without_document_ai(self):
+    def test_bundled_pipe_projects_pdf_full_source_through_private_file_boundary(self):
         module = load_bundle_module()
         pipe = module.Pipe()
         root = Path(self._tmp.name)
@@ -387,6 +390,34 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertFalse(hasattr(pipe.valves, "pdf_structural_repair_shadow_enabled"))
         self.assertFalse(hasattr(pipe.valves, "pdf_vlm_guided_intake_shadow_enabled"))
         self.assertFalse(hasattr(pipe.valves, "pdf_semantic_header_shadow_enabled"))
+        publication: dict[str, object] = {}
+
+        async def publish_private_file(**kwargs):
+            publication.update(kwargs)
+            self.assertEqual({"id": "bundle-test-user"}, kwargs["user"])
+            self.assertEqual("bundle-test-user", kwargs["context"].user_id)
+            self.assertEqual("bundle-test-chat", kwargs["context"].chat_id)
+            self.assertEqual(module.FULL_SOURCE_ZIP_FILENAME, kwargs["filename"])
+            self.assertEqual("application/zip", kwargs["content_type"])
+            self.assertEqual(
+                hashlib.sha256(kwargs["content"]).hexdigest(),
+                kwargs["content_sha256"],
+            )
+            self.assertEqual(
+                module.FULL_SOURCE_PROJECTION_SCHEMA_VERSION,
+                kwargs["purpose"],
+            )
+            self.assertEqual(1, kwargs["projection_metadata"]["documents_total"])
+            return "bundle-full-source-private-file"
+
+        original_publisher = module.Pipe._publish_owner_scoped_private_file
+        module.Pipe._publish_owner_scoped_private_file = staticmethod(publish_private_file)
+        self.addCleanup(
+            setattr,
+            module.Pipe,
+            "_publish_owner_scoped_private_file",
+            original_publisher,
+        )
         content = run_pipe(
             pipe,
             {
@@ -406,12 +437,20 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
                 ]
             },
         )
-        self.assertIn("gate2_blocked_no_eligible_sources", content)
+        self.assertIn("full_package_ready_for_gate2", content)
+        self.assertNotIn("gate2_blocked_no_eligible_sources", content)
+        self.assertNotIn("PDF_DOCUMENT_AI_NOT_CONFIGURED", content)
+        self.assertIn("Full Source:", content)
+        self.assertIn(
+            "/api/v1/files/bundle-full-source-private-file/content?attachment=true",
+            content,
+        )
+        self.assertEqual(b"PK", publication["content"][:2])
         self.assertIsNotNone(pipe.last_artifact_manifest)
-        artifact_types = set(pipe.last_artifact_manifest["artifact_refs_by_type"])
-        self.assertNotIn("full_source_v0", artifact_types)
-        self.assertNotIn("canonical_artifact_v1", artifact_types)
-        self.assertNotIn("normalized_source_facts_v0", artifact_types)
+        self.assertEqual(
+            "bundle-full-source-private-file",
+            pipe.last_artifact_manifest["full_source_delivery"]["file_id"],
+        )
 
 
 if __name__ == "__main__":

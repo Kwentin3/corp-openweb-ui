@@ -13,7 +13,6 @@ SCANNED_ROOTS = (
     SERVICE_ROOT / "tests",
 )
 FORBIDDEN_ENGINE_TOKENS = (
-    "pdfplumber",
     "pdfminer",
     "pymupdf",
     "import fitz",

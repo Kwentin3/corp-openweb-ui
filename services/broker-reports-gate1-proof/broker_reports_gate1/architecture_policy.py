@@ -232,10 +232,10 @@ COMPATIBILITY_ONLY_CROSS_DOMAIN_MODULES = {
 PDF_DOCUMENT_EXTRACTION_PORT = "PdfDocumentExtractor"
 PDF_DOCUMENT_EXTRACTION_ENVELOPE = "PdfDocumentExtraction"
 PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT = "PdfDocumentExtractorFactory.create"
-PDF_DOCUMENT_EXTRACTION_DEFAULT = "UnconfiguredPdfDocumentExtractor"
-PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
-PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE = "mistral_ocr"
-PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "mistral_serverless_ocr_adapter_v3"
+PDF_DOCUMENT_EXTRACTION_DEFAULT = "PdfPlumberNativeTextExtractor"
+PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE = "PDF_NATIVE_TEXT_UNUSABLE"
+PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE = "pdfplumber_native_text"
+PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "pdfplumber_native_text_adapter_v1"
 PDF_DOCUMENT_EXTRACTION_STATIC_READY = True
 PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE = (
     "existing_artifact_store_atomic_private_graph"
@@ -257,7 +257,7 @@ GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
 WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
-    "pdf_document_ai": "production_active_fail_closed_on_native_config",
+    "pdf_document_ai": "goal391_candidate_fail_closed_on_unusable_native_text",
     "gate1_bounded_graph": "maintained",
     "workload_authority": "maintained",
 }
@@ -281,8 +281,8 @@ FACTORY_REQUIRED = (
     "consumer evidence demand must route through Gate3EvidenceDemandPortFactory.create"
 )
 FORBIDDEN = (
-    "Native OpenWebUI processing, Knowledge/RAG/vectorization, local content "
-    "extraction, local OCR production dependencies, and model canonical "
+    "Native OpenWebUI processing, Knowledge/RAG/vectorization, external PDF "
+    "provider extraction, local OCR production dependencies, and model canonical "
     "authority are forbidden; retaining decoded private representations for "
     "the complete Gate 1 run, process-local workload queues and local OCR "
     "worker pools are forbidden; automatic provider fallback and Markdown "

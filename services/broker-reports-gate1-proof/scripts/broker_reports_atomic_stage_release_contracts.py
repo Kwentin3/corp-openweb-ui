@@ -20,10 +20,10 @@ from broker_reports_gate1.architecture_policy import (
     PDF_DOCUMENT_EXTRACTION_STATIC_READY,
 )
 from broker_reports_gate1.pdf_document_ai import (
-    PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PDF_DOCUMENT_AI_POLICY_VERSION,
     PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
 )
+from broker_reports_gate1.pdfplumber_document_ai import PDF_NATIVE_TEXT_UNUSABLE
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
@@ -143,7 +143,7 @@ FUNCTION_CONTRACTS = (
         required_markers=(
             "WorkloadAuthorityFactory",
             "PdfDocumentExtractorFactory",
-            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+            "PDF_NATIVE_TEXT_UNUSABLE",
             "Gate2TablePackageFactory",
             "broker_reports_fns_2ndfl_source_facts_v1",
             "Gate5DeclarationPreparationRuntimeFactory",
@@ -421,14 +421,14 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
 def pdf_document_ai_contract_manifest() -> dict[str, Any]:
     return {
         "configured": PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
-        "adapter_status": "static_ready",
+        "adapter_status": "native_text_ready",
         "selected_engine": PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
         "selected_adapter": PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
         "static_ready": PDF_DOCUMENT_EXTRACTION_STATIC_READY,
         "policy_version": PDF_DOCUMENT_AI_POLICY_VERSION,
         "extraction_schema_version": PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
         "composition_owner": "PdfDocumentExtractorFactory",
-        "terminal_blockers": {"unconfigured": PDF_DOCUMENT_AI_NOT_CONFIGURED},
+        "terminal_blockers": {"native_text_unusable": PDF_NATIVE_TEXT_UNUSABLE},
         "automatic_fallback": False,
         "runtime_boundary": {
             "architecture_policy_version": ARCHITECTURE_POLICY_VERSION,

@@ -952,9 +952,12 @@ class Pipe:
                 __event_emitter__,
                 self._progress_description(
                     safe_metadata,
-                    user_message="PDF Document AI is not configured or live-qualified.",
+                    user_message=(
+                        "PDF нельзя надёжно обработать: пригодный текстовый слой "
+                        "не найден. Пожалуйста, загрузите исходный документ с текстом."
+                    ),
                     internal_message=(
-                        "Gate 1 stopped at the PDF Document AI boundary; "
+                        "Gate 1 stopped at the native PDF text boundary; "
                         "no downstream artifacts were created."
                     ),
                 ),

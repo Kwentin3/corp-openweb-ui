@@ -458,16 +458,19 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertEqual(
             PDF_DOCUMENT_EXTRACTION_DEFAULT,
-            "UnconfiguredPdfDocumentExtractor",
+            "PdfPlumberNativeTextExtractor",
         )
         self.assertEqual(
             PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE,
-            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+            "PDF_NATIVE_TEXT_UNUSABLE",
         )
-        self.assertEqual(PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE, "mistral_ocr")
+        self.assertEqual(
+            PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
+            "pdfplumber_native_text",
+        )
         self.assertEqual(
             PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
-            "mistral_serverless_ocr_adapter_v3",
+            "pdfplumber_native_text_adapter_v1",
         )
         self.assertTrue(PDF_DOCUMENT_EXTRACTION_STATIC_READY)
         self.assertEqual(
@@ -546,7 +549,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
 
     def test_pdf_document_ai_component_is_explicitly_classified(self):
         expected = {
-            "pdf_document_ai": "production_active_fail_closed_on_native_config"
+            "pdf_document_ai": "goal391_candidate_fail_closed_on_unusable_native_text"
         }
         self.assertEqual(
             {key: COMPONENT_RUNTIME_STATUSES.get(key) for key in expected},

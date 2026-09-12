@@ -1,8 +1,8 @@
 # ADR: PDF Document AI boundary
 
-Status: `CURRENT PRODUCT ROUTE`
+Status: `GOAL #391 SELECTED CANDIDATE — NOT LIVE ACCEPTANCE`
 
-Decision date: 2026-09-05
+Decision date: 2026-09-12
 
 PDF understanding belongs to one port in the existing source-normalization
 domain: `PdfDocumentExtractor.extract(pdf_bytes, source_context) ->
@@ -13,40 +13,26 @@ provider provenance, qualification status, page usage, and a text-free safe
 technical summary. It is transport evidence, not a second Canonical or a
 financial-semantic authority.
 
-Mistral Document AI is the first isolated adapter behind this port. Its
-production request is pinned to `mistral-ocr-4-1`; moving aliases are forbidden.
-The adapter owns one versioned request contract and records its normalized
-significant parameters, digest, adapter version, and provider-reported model.
-Native
-OpenWebUI `request.app.state.config` remains the sole runtime owner of
-`CONTENT_EXTRACTION_ENGINE`, `MISTRAL_OCR_API_BASE_URL`, and
-`MISTRAL_OCR_API_KEY`. Broker Reports does not copy these settings into Pipe,
-valves, environment aliases, or another persistent store. Only
-`PdfDocumentExtractorFactory` may select the adapter from the live native
-configuration; Pipe and the downstream domains remain provider-neutral.
+Goal #391 selects the deterministic `pdfplumber` native-text adapter behind
+this port for PDF with a usable embedded text layer. The adapter records only
+the source-bound ordered page text, its deterministic parameters and hashes.
+It does not render pages, run OCR, call a provider, or treat table geometry as
+financial meaning. `PdfDocumentExtractorFactory` is the only composition
+point; Pipe and downstream domains remain parser-neutral.
 
-For one accepted PDF the adapter makes exactly one provider call. Retry,
-automatic fallback, engine probing, and a second extraction path are
-forbidden. Ordered page Markdown bytes are assembled with exactly two LF
-bytes (`b"\n\n"`) between adjacent pages. Page bytes are not stripped,
-trimmed, repaired, or otherwise normalized. Native HTML tables remain separate
-physical page segments; their header presence comes only from `<thead>`/`<th>`
-structure and they are never joined across pages or repaired from neighbours.
-Image references in the result are
-opaque ArtifactStore identifiers; every reference remains bound to its
-page-scoped Markdown target and raw SHA-256. Decoded image bytes exist only in
-the short-lived neutral extraction envelope until the existing bounded-graph
-owner atomically publishes Markdown, its Full Source unit, and every image
-through the existing ArtifactStore.
+There is no provider call. Retry, automatic fallback, engine probing and a
+second extraction path are forbidden. Page text is emitted in physical order
+and joined with exactly two LF bytes (`b"\n\n"`). The adapter makes no attempt
+to repair, join or semantically interpret tables: a broken visual table stays
+a broken representation whose literals and order are available to the later
+financial-role owner. An unusable embedded text layer terminates typed and
+creates no downstream source facts or provider work.
 
-There is no separate admin qualification or activation route. When native
-OpenWebUI configuration selects `mistral_ocr`, the ordinary authenticated
-`broker_reports_gate1_pipe` path may select the adapter. An unselected or absent
-engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`. Invalid configuration
-or provider failure terminates fail-closed; neither case permits retry,
-fallback, repair, engine probing or downstream publication from an incomplete
-extraction. The API key must not enter logs, errors, public results, technical
-summaries, receipts, Git, Pipe state or browser code.
+The ordinary authenticated `broker_reports_gate1_pipe` path selects this
+adapter solely through the factory. It does not read a PDF-provider
+configuration or key. Missing/dependent-parser failure and unusable native text
+terminate fail-closed; neither permits retry, fallback, repair, engine probing
+or downstream publication from an incomplete extraction.
 
 The source boundary is native OpenWebUI custody. The Pipe receives opaque file
 IDs, resolves each row through `Files`, verifies the authenticated owner, and
@@ -70,14 +56,12 @@ The 2026-09-02 Playground Markdown remains research reference material only.
 Its exact model and parameters were not recorded, so it is not a byte oracle
 and cannot define current product acceptance.
 
-PDFPlumber, pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox reconstruction,
-hybrid/dual-engine execution, structural repair, and automatic fallback are
-rejected product paths. An engine may be introduced only as one adapter behind
-the same port and selected explicitly at the single composition point;
-Pipe, Full Source, Canonical, financial mapping, Gate 4, and Gate 5 must not
-gain provider-specific knowledge. The Mistral adapter owns `table_format=html`
-in its versioned request contract. Full Source stores the private physical table
-unit; Canonical alone translates its structure into TABLE/row/cell representation.
+Mistral OCR, pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox reconstruction,
+hybrid/dual-engine execution, structural repair, table-specific profiles and
+automatic fallback are rejected product paths. Historical Mistral artifacts are
+R&D only and cannot be activated by changing a key or engine setting. The
+factory admits one deterministic adapter; Pipe, Full Source, Canonical,
+financial mapping, Gate 4 and Gate 5 must not gain adapter-specific knowledge.
 
 ## OpenWebUI 0.9.6 compatibility seam
 
