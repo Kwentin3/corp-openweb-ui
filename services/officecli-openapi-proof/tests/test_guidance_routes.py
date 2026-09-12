@@ -129,8 +129,11 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "load_officecli_skill",
         "get_officecli_help",
         "inspect_office_document",
+        "inspect_office_spreadsheet",
         "apply_office_batch",
         "create_office_document",
+        "create_office_spreadsheet",
+        "apply_office_spreadsheet_batch",
     }
     assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
         "description"

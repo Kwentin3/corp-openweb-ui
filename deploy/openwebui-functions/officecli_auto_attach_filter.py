@@ -17,10 +17,11 @@ from pydantic import BaseModel, Field
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v1]"
 OFFICECLI_INSTRUCTION = (
-    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX work. "
+    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX and XLSX work. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
     "when they ask to create a new DOCX from the discussion, use the same official guidance and "
-    "create tool. For a table edit, obtain the table-row and table-cell help before applying a batch. "
+    "create tool. For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
+    "For XLSX work, obtain the official Excel skill and relevant help before applying a batch. "
     "Do not report completion until the execution tool returns a result_file_id."
 )
 

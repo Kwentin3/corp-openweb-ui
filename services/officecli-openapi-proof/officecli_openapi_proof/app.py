@@ -11,7 +11,12 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings, load_settings
-from .officecli import OfficeCliExecutor, OfficeCliFailure, OfficeCliOutput, SubprocessOfficeCliExecutor
+from .officecli import (
+    OfficeCliExecutor,
+    OfficeCliFailure,
+    OfficeCliOutput,
+    SubprocessOfficeCliExecutor,
+)
 from .openwebui_client import (
     HttpOpenWebUiClient,
     OpenWebUiAmbiguousAttachment,
@@ -22,7 +27,7 @@ from .openwebui_client import (
 
 
 class SkillRequest(BaseModel):
-    skill: Literal["word"]
+    skill: Literal["word", "excel"]
 
 
 class HelpRequest(BaseModel):
@@ -34,6 +39,11 @@ class HelpRequest(BaseModel):
         "docx table-row",
         "docx table-cell",
         "docx view",
+        "xlsx",
+        "xlsx sheet",
+        "xlsx cell",
+        "xlsx table",
+        "xlsx view",
     ]
 
 
@@ -66,10 +76,26 @@ class NativeDocxReference(BaseModel):
             return None
         if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9-]{1,128}", value):
             return value
-        raise ValueError("file_id must be omitted or be an opaque native OpenWebUI file id")
+        raise ValueError(
+            "file_id must be omitted or be an opaque native OpenWebUI file id"
+        )
+
+
+class NativeXlsxReference(NativeDocxReference):
+    file_id: str | None = Field(
+        default=None,
+        description=(
+            "Optional native OpenWebUI XLSX file id. Omit it rather than guessing: "
+            "the nearest XLSX attachment in the native message ancestry is used."
+        ),
+    )
 
 
 class InspectOfficeDocumentRequest(NativeDocxReference):
+    command_payload: InspectCommandPayload
+
+
+class InspectSpreadsheetRequest(NativeXlsxReference):
     command_payload: InspectCommandPayload
 
 
@@ -89,7 +115,9 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
     @field_validator("commands")
     @classmethod
-    def translate_official_prop_alias(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def translate_official_prop_alias(
+        cls, value: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return _translate_official_prop_alias(value)
 
     @field_validator("output_name")
@@ -114,7 +142,9 @@ class CreateOfficeDocumentRequest(BaseModel):
 
     @field_validator("commands")
     @classmethod
-    def translate_official_prop_alias(cls, value: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def translate_official_prop_alias(
+        cls, value: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         return _translate_official_prop_alias(value)
 
     @field_validator("output_name")
@@ -125,7 +155,47 @@ class CreateOfficeDocumentRequest(BaseModel):
         return value
 
 
-def _translate_official_prop_alias(commands: list[dict[str, Any]]) -> list[dict[str, Any]]:
+class ApplySpreadsheetBatchRequest(NativeXlsxReference):
+    output_name: str = Field(min_length=6, max_length=120)
+    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+
+    @field_validator("commands")
+    @classmethod
+    def translate_official_prop_alias(
+        cls, value: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        return _translate_official_prop_alias(value)
+
+    @field_validator("output_name")
+    @classmethod
+    def output_name_is_a_plain_xlsx_name(cls, value: str) -> str:
+        if Path(value).name != value or not value.lower().endswith(".xlsx"):
+            raise ValueError("output_name must be a plain .xlsx filename")
+        return value
+
+
+class CreateSpreadsheetRequest(BaseModel):
+    output_name: str = Field(min_length=6, max_length=120)
+    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+
+    @field_validator("commands")
+    @classmethod
+    def translate_official_prop_alias(
+        cls, value: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        return _translate_official_prop_alias(value)
+
+    @field_validator("output_name")
+    @classmethod
+    def output_name_is_a_plain_xlsx_name(cls, value: str) -> str:
+        if Path(value).name != value or not value.lower().endswith(".xlsx"):
+            raise ValueError("output_name must be a plain .xlsx filename")
+        return value
+
+
+def _translate_official_prop_alias(
+    commands: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Bridge the official CLI's ``--prop`` spelling to batch JSON's ``props`` field."""
     normalized: list[dict[str, Any]] = []
     for command in commands:
@@ -134,7 +204,10 @@ def _translate_official_prop_alias(commands: list[dict[str, Any]]) -> list[dict[
             continue
         if "props" in command:
             raise ValueError("a batch item must specify either prop or props, not both")
-        normalized.append({key: value for key, value in command.items() if key != "prop"} | {"props": command["prop"]})
+        normalized.append(
+            {key: value for key, value in command.items() if key != "prop"}
+            | {"props": command["prop"]}
+        )
     return normalized
 
 
@@ -180,6 +253,11 @@ HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "docx table-row": ("help", "docx", "table-row"),
     "docx table-cell": ("help", "docx", "table-cell"),
     "docx view": ("help", "docx", "view"),
+    "xlsx": ("help", "xlsx"),
+    "xlsx sheet": ("help", "xlsx", "sheet"),
+    "xlsx cell": ("help", "xlsx", "cell"),
+    "xlsx table": ("help", "xlsx", "table"),
+    "xlsx view": ("help", "xlsx", "view"),
 }
 
 
@@ -194,22 +272,34 @@ def _officecli_json(output: OfficeCliOutput, operation: str) -> Any:
 
 
 def _bearer(authorization: str | None) -> str:
-    if not authorization or not authorization.startswith("Bearer ") or len(authorization) <= len("Bearer "):
-        raise HTTPException(status_code=401, detail="a forwarded OpenWebUI bearer session is required")
+    if (
+        not authorization
+        or not authorization.startswith("Bearer ")
+        or len(authorization) <= len("Bearer ")
+    ):
+        raise HTTPException(
+            status_code=401, detail="a forwarded OpenWebUI bearer session is required"
+        )
     return authorization
 
 
 def _http_error(error: Exception) -> HTTPException:
     if isinstance(error, OpenWebUiUnauthorized):
-        return HTTPException(status_code=401, detail="forwarded OpenWebUI session was rejected")
+        return HTTPException(
+            status_code=401, detail="forwarded OpenWebUI session was rejected"
+        )
     if isinstance(error, OpenWebUiAmbiguousAttachment):
         return HTTPException(status_code=422, detail=str(error))
     return HTTPException(status_code=502, detail=str(error))
 
 
-def _native_chat_message_ids(chat_id: str | None, message_id: str | None) -> tuple[str, str]:
+def _native_chat_message_ids(
+    chat_id: str | None, message_id: str | None
+) -> tuple[str, str]:
     if not chat_id or not message_id:
-        raise HTTPException(status_code=400, detail="native chat and message ids are required")
+        raise HTTPException(
+            status_code=400, detail="native chat and message ids are required"
+        )
     return chat_id, message_id
 
 
@@ -235,7 +325,9 @@ def create_app(
             raise _http_error(error) from error
         return bearer
 
-    def guidance_response_for(authorization: str | None, *arguments: str) -> GuidanceResponse:
+    def guidance_response_for(
+        authorization: str | None, *arguments: str
+    ) -> GuidanceResponse:
         authenticated_bearer(authorization)
         try:
             output = officecli.run(*arguments)
@@ -291,18 +383,69 @@ def create_app(
         request: InspectOfficeDocumentRequest,
         authorization: Annotated[str | None, Header()] = None,
         chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
-        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+        message_id: Annotated[
+            str | None, Header(alias="X-OpenWebUI-Message-Id")
+        ] = None,
     ) -> InspectionResponse:
         bearer = authenticated_bearer(authorization)
-        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
+        native_chat_id, native_message_id = _native_chat_message_ids(
+            chat_id, message_id
+        )
         try:
-            source_file_id = request.file_id or openwebui.resolve_nearest_docx_attachment(
-                native_chat_id, native_message_id, bearer
+            source_file_id = (
+                request.file_id
+                or openwebui.resolve_nearest_docx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
             )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.docx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run("view", str(source), request.command_payload.mode, "--json")
+                output = officecli.run(
+                    "view", str(source), request.command_payload.mode, "--json"
+                )
+                result = _officecli_json(output, "view")
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            raise _http_error(error) from error
+        return InspectionResponse(
+            source=f"officecli v{active_settings.expected_version}",
+            file_id=source_file_id,
+            officecli_result=result,
+            officecli_result_sha256=output.content_sha256,
+            auto_resident_disabled=output.auto_resident_disabled,
+        )
+
+    @app.post(
+        "/v1/officecli/spreadsheets/inspect",
+        response_model=InspectionResponse,
+        operation_id="inspect_office_spreadsheet",
+        description="Inspect the single nearest native XLSX attachment with official annotated OfficeCLI output.",
+    )
+    def inspect_office_spreadsheet(
+        request: InspectSpreadsheetRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[
+            str | None, Header(alias="X-OpenWebUI-Message-Id")
+        ] = None,
+    ) -> InspectionResponse:
+        bearer = authenticated_bearer(authorization)
+        native_chat_id, native_message_id = _native_chat_message_ids(
+            chat_id, message_id
+        )
+        try:
+            source_file_id = (
+                request.file_id
+                or openwebui.resolve_nearest_xlsx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
+            )
+            with TemporaryDirectory(prefix="officecli-proof-") as directory:
+                source = Path(directory) / "source.xlsx"
+                openwebui.download(source_file_id, bearer, source)
+                output = officecli.run(
+                    "view", str(source), request.command_payload.mode, "--json"
+                )
                 result = _officecli_json(output, "view")
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
@@ -330,15 +473,22 @@ def create_app(
         request: ApplyOfficeBatchRequest,
         authorization: Annotated[str | None, Header()] = None,
         chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
-        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+        message_id: Annotated[
+            str | None, Header(alias="X-OpenWebUI-Message-Id")
+        ] = None,
     ) -> ApplyResponse:
         bearer = authenticated_bearer(authorization)
-        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
+        native_chat_id, native_message_id = _native_chat_message_ids(
+            chat_id, message_id
+        )
 
         native_file: dict[str, Any] | None = None
         try:
-            source_file_id = request.file_id or openwebui.resolve_nearest_docx_attachment(
-                native_chat_id, native_message_id, bearer
+            source_file_id = (
+                request.file_id
+                or openwebui.resolve_nearest_docx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
             )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 workspace = Path(directory)
@@ -354,10 +504,14 @@ def create_app(
                     str(result_path),
                     "--stop-on-error",
                     "--json",
-                    input_text=json.dumps(request.commands, ensure_ascii=False, separators=(",", ":")),
+                    input_text=json.dumps(
+                        request.commands, ensure_ascii=False, separators=(",", ":")
+                    ),
                 )
                 batch_result = _officecli_json(batch_output, "batch")
-                validation_output = officecli.run("validate", str(result_path), "--json")
+                validation_output = officecli.run(
+                    "validate", str(result_path), "--json"
+                )
                 validation_result = _officecli_json(validation_output, "validate")
 
                 if not result_path.is_file() or result_path.stat().st_size == 0:
@@ -367,9 +521,13 @@ def create_app(
                     raise OfficeCliFailure("officecli result bytes did not change")
 
                 openwebui.download(source_file_id, bearer, source_after_path)
-                source_bytes_preserved = sha256(source_after_path.read_bytes()).hexdigest() == source_sha256
+                source_bytes_preserved = (
+                    sha256(source_after_path.read_bytes()).hexdigest() == source_sha256
+                )
                 if not source_bytes_preserved:
-                    raise OpenWebUiFailure("source file bytes changed during the request")
+                    raise OpenWebUiFailure(
+                        "source file bytes changed during the request"
+                    )
 
                 native_file = openwebui.upload(result_path, request.output_name, bearer)
                 openwebui.attach(native_chat_id, native_message_id, native_file, bearer)
@@ -411,26 +569,36 @@ def create_app(
         request: CreateOfficeDocumentRequest,
         authorization: Annotated[str | None, Header()] = None,
         chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
-        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+        message_id: Annotated[
+            str | None, Header(alias="X-OpenWebUI-Message-Id")
+        ] = None,
     ) -> CreateResponse:
         bearer = authenticated_bearer(authorization)
-        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
+        native_chat_id, native_message_id = _native_chat_message_ids(
+            chat_id, message_id
+        )
 
         native_file: dict[str, Any] | None = None
         try:
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result_path = Path(directory) / "created.docx"
-                create_output = officecli.run("create", str(result_path), "--locale", "en-US", "--json")
+                create_output = officecli.run(
+                    "create", str(result_path), "--locale", "en-US", "--json"
+                )
                 create_result = _officecli_json(create_output, "create")
                 batch_output = officecli.run(
                     "batch",
                     str(result_path),
                     "--stop-on-error",
                     "--json",
-                    input_text=json.dumps(request.commands, ensure_ascii=False, separators=(",", ":")),
+                    input_text=json.dumps(
+                        request.commands, ensure_ascii=False, separators=(",", ":")
+                    ),
                 )
                 batch_result = _officecli_json(batch_output, "batch")
-                validation_output = officecli.run("validate", str(result_path), "--json")
+                validation_output = officecli.run(
+                    "validate", str(result_path), "--json"
+                )
                 validation_result = _officecli_json(validation_output, "validate")
 
                 if not result_path.is_file() or result_path.stat().st_size == 0:
@@ -459,6 +627,178 @@ def create_app(
                 and batch_output.auto_resident_disabled
                 and validation_output.auto_resident_disabled
             ),
+            bounded_processes_completed=True,
+        )
+
+    @app.post(
+        "/v1/officecli/spreadsheets/create",
+        response_model=CreateResponse,
+        operation_id="create_office_spreadsheet",
+        description="Create, batch, validate, and attach a new XLSX from the chat request.",
+    )
+    def create_office_spreadsheet(
+        request: CreateSpreadsheetRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[
+            str | None, Header(alias="X-OpenWebUI-Message-Id")
+        ] = None,
+    ) -> CreateResponse:
+        bearer = authenticated_bearer(authorization)
+        native_chat_id, native_message_id = _native_chat_message_ids(
+            chat_id, message_id
+        )
+        native_file: dict[str, Any] | None = None
+        try:
+            with TemporaryDirectory(prefix="officecli-proof-") as directory:
+                result_path = Path(directory) / "created.xlsx"
+                create_output = officecli.run(
+                    "create", str(result_path), "--locale", "en-US", "--json"
+                )
+                create_result = _officecli_json(create_output, "create")
+                batch_output = officecli.run(
+                    "batch",
+                    str(result_path),
+                    "--stop-on-error",
+                    "--json",
+                    input_text=json.dumps(
+                        request.commands, ensure_ascii=False, separators=(",", ":")
+                    ),
+                )
+                batch_result = _officecli_json(batch_output, "batch")
+                validation_output = officecli.run(
+                    "validate", str(result_path), "--json"
+                )
+                validation_result = _officecli_json(validation_output, "validate")
+                if not result_path.is_file() or result_path.stat().st_size == 0:
+                    raise OfficeCliFailure("officecli did not leave an XLSX result")
+                result_sha256 = sha256(result_path.read_bytes()).hexdigest()
+                native_file = openwebui.upload(
+                    result_path,
+                    request.output_name,
+                    bearer,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+                openwebui.attach(
+                    native_chat_id,
+                    native_message_id,
+                    native_file,
+                    bearer,
+                    "updated.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            if native_file and isinstance(native_file.get("id"), str):
+                try:
+                    openwebui.delete(native_file["id"], bearer)
+                except OpenWebUiFailure:
+                    pass
+            raise _http_error(error) from error
+        return CreateResponse(
+            source=f"officecli v{active_settings.expected_version}",
+            result_file_id=native_file["id"],
+            result_file=native_file,
+            create_result=create_result,
+            batch_result=batch_result,
+            validation_result=validation_result,
+            result_sha256=result_sha256,
+            auto_resident_disabled=(
+                create_output.auto_resident_disabled
+                and batch_output.auto_resident_disabled
+                and validation_output.auto_resident_disabled
+            ),
+            bounded_processes_completed=True,
+        )
+
+    @app.post(
+        "/v1/officecli/spreadsheets/apply-batch",
+        response_model=ApplyResponse,
+        operation_id="apply_office_spreadsheet_batch",
+        description="Edit, validate, and attach the single nearest native XLSX attachment.",
+    )
+    def apply_office_spreadsheet_batch(
+        request: ApplySpreadsheetBatchRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[
+            str | None, Header(alias="X-OpenWebUI-Message-Id")
+        ] = None,
+    ) -> ApplyResponse:
+        bearer = authenticated_bearer(authorization)
+        native_chat_id, native_message_id = _native_chat_message_ids(
+            chat_id, message_id
+        )
+        native_file: dict[str, Any] | None = None
+        try:
+            source_file_id = (
+                request.file_id
+                or openwebui.resolve_nearest_xlsx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
+            )
+            with TemporaryDirectory(prefix="officecli-proof-") as directory:
+                workspace = Path(directory)
+                source = workspace / "source-input.xlsx"
+                result = workspace / "result.xlsx"
+                source_after = workspace / "source-after-check.xlsx"
+                openwebui.download(source_file_id, bearer, source)
+                source_sha256 = sha256(source.read_bytes()).hexdigest()
+                result.write_bytes(source.read_bytes())
+                batch_output = officecli.run(
+                    "batch",
+                    str(result),
+                    "--stop-on-error",
+                    "--json",
+                    input_text=json.dumps(
+                        request.commands, ensure_ascii=False, separators=(",", ":")
+                    ),
+                )
+                batch_result = _officecli_json(batch_output, "batch")
+                validation_output = officecli.run("validate", str(result), "--json")
+                validation_result = _officecli_json(validation_output, "validate")
+                if not result.is_file() or result.stat().st_size == 0:
+                    raise OfficeCliFailure("officecli did not leave an XLSX result")
+                result_sha256 = sha256(result.read_bytes()).hexdigest()
+                if result_sha256 == source_sha256:
+                    raise OfficeCliFailure("officecli result bytes did not change")
+                openwebui.download(source_file_id, bearer, source_after)
+                if sha256(source_after.read_bytes()).hexdigest() != source_sha256:
+                    raise OpenWebUiFailure(
+                        "source file bytes changed during the request"
+                    )
+                native_file = openwebui.upload(
+                    result,
+                    request.output_name,
+                    bearer,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+                openwebui.attach(
+                    native_chat_id,
+                    native_message_id,
+                    native_file,
+                    bearer,
+                    "updated.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            if native_file and isinstance(native_file.get("id"), str):
+                try:
+                    openwebui.delete(native_file["id"], bearer)
+                except OpenWebUiFailure:
+                    pass
+            raise _http_error(error) from error
+        return ApplyResponse(
+            source=f"officecli v{active_settings.expected_version}",
+            source_file_id=source_file_id,
+            result_file_id=native_file["id"],
+            result_file=native_file,
+            batch_result=batch_result,
+            validation_result=validation_result,
+            source_sha256=source_sha256,
+            result_sha256=result_sha256,
+            source_bytes_preserved=True,
+            auto_resident_disabled=batch_output.auto_resident_disabled
+            and validation_output.auto_resident_disabled,
             bounded_processes_completed=True,
         )
 

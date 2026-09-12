@@ -23,7 +23,9 @@ RUN apt-get update \
     && test "$(/usr/local/bin/officecli --version)" = "${OFFICECLI_VERSION}" \
     && /usr/local/bin/officecli load_skill word > /tmp/officecli-word-skill.md \
     && test -s /tmp/officecli-word-skill.md \
-    && rm -rf /var/lib/apt/lists/* /tmp/officecli-word-skill.md
+    && /usr/local/bin/officecli load_skill excel > /tmp/officecli-excel-skill.md \
+    && test -s /tmp/officecli-excel-skill.md \
+    && rm -rf /var/lib/apt/lists/* /tmp/officecli-word-skill.md /tmp/officecli-excel-skill.md
 
 COPY services/officecli-openapi-proof/pyproject.toml ./pyproject.toml
 COPY services/officecli-openapi-proof/officecli_openapi_proof ./officecli_openapi_proof
