@@ -18,9 +18,6 @@ from broker_reports_gate1.active_category_declaration_assembly import (
 )
 from broker_reports_gate1.artifact_retention import build_retention_policy
 from broker_reports_gate1.canonical_store import CanonicalReader
-from broker_reports_gate1.gate4_financial_case_cache import (
-    Gate4FinancialCaseRuntimeFactory,
-)
 from broker_reports_gate1.gate5_declaration_projection import (
     Gate5DeclarationProjectionRuntime,
 )
@@ -39,14 +36,23 @@ from broker_reports_gate1.gate5_residency_evidence import (
     Gate5ResidencyEvidenceRuntimeFactory,
     gate5_residency_methodology_input,
 )
+from broker_reports_gate1.gate5_securities_disposal_tax_model import (
+    GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID,
+    Gate5SecuritiesDisposalTaxModelRuntimeFactory,
+)
+from broker_reports_gate1.gate5_trusted_methodology import (
+    GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
+)
 from broker_reports_gate1 import active_category_declaration_assembly as assembly_module
 from broker_reports_gate1 import gate5_declaration_scope_resolution as scope_module
 from broker_reports_gate1 import gate5_resolved_declaration_package as package_module
 
 import test_broker_reports_ordinary_trade_tax_model_bridge as bridge_fixtures
+import test_broker_reports_gate5_securities_disposal_tax_model as tax_model_fixtures
+import test_broker_reports_gate5_tax_period_category_aggregation as aggregation_fixtures
 
 
-def test_clean_active_fact_v2_category_reaches_consumer_first_xsd_deterministically(
+def test_clean_active_qualified_projection_fact_v3_category_reaches_consumer_first_xsd_deterministically(
     tmp_path: Path,
 ) -> None:
     store, context, facts = _case(tmp_path / "clean", proceeds="60.00")
@@ -72,7 +78,12 @@ def test_clean_active_fact_v2_category_reaches_consumer_first_xsd_deterministica
         first["fact_v2_binding"]["boundary"]
         == "Gate4OrdinaryTradeCandidateRuntimeFactory.create"
     )
-    assert first["fact_v2_binding"]["gate3_case_status"] == "not_executed"
+    assert first["fact_v2_binding"]["status"] == (
+        "current_qualified_projection_fact_v3_available"
+    )
+    assert first["fact_v2_binding"]["qualified_projection_case_status"] == (
+        "not_executed"
+    )
     assert first["target_accounting"]["deterministic_identical_xml_bytes"] is True
     assert first["target_accounting"]["xsd_conformance"]["xsd_valid"] is True
     assert first["target_accounting"]["mapping_occurrences_total"] == 49
@@ -630,22 +641,42 @@ def test_historical_gate3_sql_and_legacy_projection_fallbacks_are_trapped(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    store, context, facts = _case(tmp_path / "fallback-traps", proceeds="60.00")
+    _config, store, context = tax_model_fixtures.calculation_fixtures._representative_case(
+        tmp_path / "fallback-traps",
+        monkeypatch,
+    )
+    _model, context = aggregation_fixtures._operation_model(
+        store=store,
+        monkeypatch=monkeypatch,
+        ref="fallback-traps",
+        gross="60.00",
+        acquisition="40.00",
+        fee="3.00",
+    )
 
     def forbidden(*args, **kwargs):
         raise AssertionError("forbidden historical fallback executed")
 
-    monkeypatch.setattr(Gate4FinancialCaseRuntimeFactory, "create", forbidden)
     monkeypatch.setattr(Gate5EndToEndFullTargetXmlRuntimeFactory, "create", forbidden)
     monkeypatch.setattr(CanonicalReader, "read_active_envelope", forbidden)
     monkeypatch.setattr(Gate5DeclarationProjectionRuntime, "project", forbidden)
 
-    result = _runtime(store).run(
-        **_bridge_inputs(context, facts, store),
-        right_side_inputs=_right_side(context.user_id),
+    result = Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs(
+        store=store,
+        read_enabled=True,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    ).run_operation(
+        methodology_ref={
+            **tax_model_fixtures._methodology_ref(),
+            "methodology_version": GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
+        },
+        resolved_inputs={**tax_model_fixtures._resolved_inputs(), "scope": {}},
         context=context,
     )
-    assert result["terminal"] == ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN
+    assert result["status"] == "modeled"
+    assert result["tax_model"]["methodology_binding"]["behavior_id"] == (
+        GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID
+    )
     assert "existing owners" in FACTORY_REQUIRED[0]
     assert any(
         "Operation to Category member binding" in item for item in FACTORY_REQUIRED
