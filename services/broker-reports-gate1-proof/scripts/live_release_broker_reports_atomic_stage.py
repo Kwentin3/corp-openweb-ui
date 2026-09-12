@@ -41,6 +41,12 @@ PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
     "broker_reports_native_table_continuation_annotation_prompt.v3.md"
 )
+DOCUMENT_METADATA_PASSPORT_PRODUCTION_PROFILE = "document_metadata_passport_v1"
+DOCUMENT_METADATA_PASSPORT_PRODUCTION_ASSET = (
+    "services/broker-reports-gate1-proof/managed_assets/prompts/"
+    "broker_reports_document_metadata_passport_prompt.v1.md"
+)
+DOCUMENT_METADATA_PASSPORT_PRODUCTION_MODEL_ID = "models/gemini-3.5-flash"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -216,6 +222,7 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
         "services/broker-reports-gate1-proof/broker_reports_gate1",
         ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET,
         PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET,
+        DOCUMENT_METADATA_PASSPORT_PRODUCTION_ASSET,
     )
     _run(
         [
@@ -240,6 +247,7 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
         "ordinary_trade_mapping_prompt_publication.py",
         ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET,
         PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_ASSET,
+        DOCUMENT_METADATA_PASSPORT_PRODUCTION_ASSET,
     }
     if not required <= names:
         raise StageReleaseDriverError("stage_release_prompt_source_archive_invalid")
@@ -346,13 +354,33 @@ def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
 def _production_gate1_valves(
     mapping_pin: Mapping[str, str],
     continuation_pin: Mapping[str, str],
+    passport_pin: Mapping[str, str],
 ) -> dict[str, str | bool]:
-    """Pin the two native Prompts required by the v17 continuation route."""
+    """Pin the native Prompts required by the ordinary product route."""
 
     return {
         **_mapping_prompt_valves(mapping_pin),
         **_pdf_table_continuation_annotation_prompt_valves(continuation_pin),
+        **_document_metadata_passport_prompt_valves(passport_pin),
         "pdf_table_continuation_annotation_enabled": True,
+        "passport_enabled": True,
+        "passport_model_id": DOCUMENT_METADATA_PASSPORT_PRODUCTION_MODEL_ID,
+    }
+
+
+def _document_metadata_passport_prompt_valves(
+    pin: Mapping[str, str],
+) -> dict[str, str]:
+    value = _validated_prompt_pin(dict(pin))
+    if value["prompt_command"] != "broker_gate1_document_passport_v1":
+        raise StageReleaseDriverError(
+            "stage_release_document_metadata_passport_prompt_command_invalid"
+        )
+    return {
+        "passport_prompt_id": value["prompt_ref"],
+        "passport_prompt_command": value["prompt_command"],
+        "passport_prompt_version": value["prompt_history_id"],
+        "passport_prompt_hash": value["prompt_hash"],
     }
 
 
@@ -426,6 +454,7 @@ def execute(
     prove_rollback: bool,
     ordinary_trade_mapping_prompt_pin: Mapping[str, str] | None = None,
     pdf_table_continuation_annotation_prompt_pin: Mapping[str, str] | None = None,
+    document_metadata_passport_prompt_pin: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     if prove_rollback and not apply:
         raise StageReleaseDriverError("stage_release_rollback_proof_requires_apply")
@@ -445,7 +474,16 @@ def execute(
         if pdf_table_continuation_annotation_prompt_pin is not None
         else None
     )
-    if not apply and (supplied_prompt_pin is None or supplied_continuation_pin is None):
+    supplied_passport_pin = (
+        _validated_prompt_pin(dict(document_metadata_passport_prompt_pin))
+        if document_metadata_passport_prompt_pin is not None
+        else None
+    )
+    if not apply and (
+        supplied_prompt_pin is None
+        or supplied_continuation_pin is None
+        or supplied_passport_pin is None
+    ):
         # Validation must not silently turn into a production Prompt mutation.
         # A caller can still perform a no-write release validation against an
         # already native-attested pin.
@@ -479,11 +517,19 @@ def execute(
                     profile=PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE,
                     verify_pin=None,
                 )
+                passport_pin = _run_native_prompt_publication(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    profile=DOCUMENT_METADATA_PASSPORT_PRODUCTION_PROFILE,
+                    verify_pin=None,
+                )
             else:
                 prompt_pin = supplied_prompt_pin
                 continuation_pin = supplied_continuation_pin
                 assert prompt_pin is not None
                 assert continuation_pin is not None
+                passport_pin = supplied_passport_pin
+                assert passport_pin is not None
             manifest = build_manifest(
                 source_revision=source_revision,
                 prompt_contracts=expected_prompt_contracts(),
@@ -493,6 +539,7 @@ def execute(
                     "broker_reports_gate1_pipe": _production_gate1_valves(
                         prompt_pin,
                         continuation_pin,
+                        passport_pin,
                     )
                 },
             )
@@ -538,12 +585,23 @@ def execute(
                     profile=PDF_TABLE_CONTINUATION_ANNOTATION_PRODUCTION_PROFILE,
                     expected_pin=continuation_pin,
                 )
+                passport_verification = _verify_native_prompt_publication_after_remote_release(
+                    ssh_target=ssh_target,
+                    source_revision=source_revision,
+                    source_archive=prompt_source_archive,
+                    profile=DOCUMENT_METADATA_PASSPORT_PRODUCTION_PROFILE,
+                    expected_pin=passport_pin,
+                )
                 receipt["ordinary_trade_mapping_prompt"] = {
                     "pin": prompt_verification,
                     "history_binding_attested": True,
                 }
                 receipt["pdf_table_continuation_annotation_prompt"] = {
                     "pin": continuation_verification,
+                    "history_binding_attested": True,
+                }
+                receipt["document_metadata_passport_prompt"] = {
+                    "pin": passport_verification,
                     "history_binding_attested": True,
                 }
             remote_dir = None
@@ -580,6 +638,7 @@ def main() -> int:
     parser.add_argument(
         "--pdf-table-continuation-annotation-prompt-pin-json", default=None
     )
+    parser.add_argument("--document-metadata-passport-prompt-pin-json", default=None)
     args = parser.parse_args()
 
     env = _read_env(Path(args.env_file))
@@ -599,6 +658,11 @@ def main() -> int:
         pdf_table_continuation_annotation_prompt_pin=(
             json.loads(args.pdf_table_continuation_annotation_prompt_pin_json)
             if args.pdf_table_continuation_annotation_prompt_pin_json is not None
+            else None
+        ),
+        document_metadata_passport_prompt_pin=(
+            json.loads(args.document_metadata_passport_prompt_pin_json)
+            if args.document_metadata_passport_prompt_pin_json is not None
             else None
         ),
     )

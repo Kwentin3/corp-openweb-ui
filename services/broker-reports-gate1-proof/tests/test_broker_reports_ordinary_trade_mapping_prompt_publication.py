@@ -23,6 +23,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_V16_PROFILE,
     ORDINARY_TRADE_MAPPING_V17_PROFILE,
     PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
+    DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     OrdinaryTradeMappingPromptPublication,
     OrdinaryTradeMappingPromptPublicationError,
     OrdinaryTradeMappingPromptPublicationInput,
@@ -252,6 +253,33 @@ def test_repository_physical_table_asset_is_bound_to_its_closed_profile() -> Non
     )
     assert "physical table" in request.content
     assert "{{" not in request.content
+
+
+def test_document_passport_profile_is_native_public_and_has_one_private_input_marker(
+    monkeypatch, tmp_path: Path
+):
+    profile = DOCUMENT_METADATA_PASSPORT_V1_PROFILE
+    content = "Classify {{document_package_json}} once."
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    assert profile.command == "broker_gate1_document_passport_v1"
+    assert "mapping_domain" not in owner["prompts"].inserted.meta
+    assert owner["prompts"].inserted.meta["gate"] == "gate1"
+    assert owner["prompts"].inserted.access_grants == [
+        {"principal_type": "user", "principal_id": "*", "permission": "read"}
+    ]
+    assert result.safe_pin()["prompt_command"] == profile.command
 
 
 def test_v14_managed_prompt_requires_complete_document_currency_bindings():
