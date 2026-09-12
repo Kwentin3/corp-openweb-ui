@@ -5,9 +5,9 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-from typing import Any
+from typing import Any, Callable
 
-from .artifact_models import ArtifactAccessContext, ArtifactStorePort
+from .artifact_models import ArtifactAccessContext
 from .gate5_deterministic_source_fact_consumption import (
     GATE5_AVAILABLE_SOURCE_FACT_ASSEMBLY_SCHEMA_VERSION,
     Gate5DeterministicSourceFactConsumptionRuntime,
@@ -26,6 +26,7 @@ GATE5_CLIENT_EVIDENCE_REVIEW_TERMINAL = "CLIENT_EVIDENCE_REVIEW_PROVEN"
 
 FACTORY_REQUIRED = (
     "Gate5ClientEvidenceReviewRuntimeFactory.create composes "
+    "an injected V3 qualified-projection list_facts(context) reader with "
     "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create",
 )
 FORBIDDEN = (
@@ -50,15 +51,17 @@ class Gate5ClientEvidenceReviewError(ValueError):
 
 
 class Gate5ClientEvidenceReviewRuntimeFactory:
-    def __init__(self, *, store: ArtifactStorePort, read_enabled: bool) -> None:
-        self._store = store
-        self._read_enabled = read_enabled
+    def __init__(
+        self,
+        *,
+        list_facts: Callable[..., list[dict[str, Any]]],
+    ) -> None:
+        self._list_facts = list_facts
 
     def create(self) -> "Gate5ClientEvidenceReviewRuntime":
         return Gate5ClientEvidenceReviewRuntime(
             source_runtime=Gate5DeterministicSourceFactConsumptionRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
+                list_facts=self._list_facts,
             ).create()
         )
 

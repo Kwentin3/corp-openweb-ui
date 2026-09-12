@@ -25,6 +25,7 @@ from .gate5_published_typed_behavior import (
 )
 from .gate5_runtime_capabilities import Gate5RuntimeCapabilityContractV1Factory
 from .gate5_trusted_methodology import (
+    GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
     Gate5TrustedMethodologyAuthorityFactory,
 )
@@ -40,7 +41,7 @@ GATE5_CLEAN_CONTEXT_PAYLOAD_RESOURCE = (
     "gate5_clean_context_declaration_trial.primary.v1.payload.json"
 )
 GATE5_CLEAN_CONTEXT_PAYLOAD_RESOURCE_SHA256 = (
-    "a3ad620016c93eff08a7f79cdb24f86cdcc81b0dd16ce7a68be2660d760fac46"
+    "74c7f59a512ac87a08b62b07075b0f3ed7ae67065c1e9db5cc0d8a360df40867"
 )
 
 FACTORY_REQUIRED = (
@@ -390,7 +391,7 @@ def _published_artifact_inventory() -> dict[str, Any]:
         ),
         _methodology_artifact(
             artifact_id="ru-ndfl-securities-tax-model-proof",
-            artifact_version="2026.1-experimental",
+            artifact_version=GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
             behavior_id="securities_disposal_operation_tax_model_v0",
             semantic_input_contract="broker_reports_gate5_securities_disposal_resolved_inputs_v0",
             semantic_input_meaning="Resolved securities-disposal money values plus closed applicability and expense-evidence context for one operation.",

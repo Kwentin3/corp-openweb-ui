@@ -96,6 +96,7 @@ class OrdinaryTradeTaxModelBridgeRuntimeFactory:
             store=self._store,
             read_enabled=self._read_enabled,
             retention_policy=self._retention_policy,
+            list_facts=current_fact_set.list_facts,
         ).create_current_source_fact_operation(
             source_fact_consumption=source_fact_consumption
         )

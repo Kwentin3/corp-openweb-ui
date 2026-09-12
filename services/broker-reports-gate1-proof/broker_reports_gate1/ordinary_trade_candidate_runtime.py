@@ -9,8 +9,8 @@ from .gate4_ordinary_trade_candidate import (
 )
 from .gate5_deterministic_source_fact_consumption import (
     Gate5DeterministicSourceFactConsumptionRuntime,
+    Gate5DeterministicSourceFactConsumptionRuntimeFactory,
 )
-from .gate5_trusted_methodology import Gate5TrustedMethodologyAuthorityFactory
 
 
 FACTORY_REQUIRED = (
@@ -46,10 +46,9 @@ class OrdinaryTradeCandidateRuntimeFactory:
             store=self._store,
             read_enabled=self._read_enabled,
         ).create()
-        return financial_case, Gate5DeterministicSourceFactConsumptionRuntime(
-            financial_case=financial_case,
-            authority=Gate5TrustedMethodologyAuthorityFactory.create(),
-        )
+        return financial_case, Gate5DeterministicSourceFactConsumptionRuntimeFactory(
+            list_facts=financial_case.list_facts,
+        ).create()
 
 
 __all__ = [

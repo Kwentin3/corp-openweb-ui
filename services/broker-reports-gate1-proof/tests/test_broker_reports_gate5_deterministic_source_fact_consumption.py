@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from dataclasses import replace
+import hashlib
 import inspect
 from pathlib import Path
 
@@ -28,6 +29,9 @@ from broker_reports_gate1.gate5_deterministic_source_fact_consumption import (
 from broker_reports_gate1 import (
     gate5_deterministic_source_fact_consumption as consumption_module,
 )
+from broker_reports_gate1 import (
+    gate5_client_evidence_review as review_module,
+)
 from broker_reports_gate1.gate5_securities_disposal_tax_model import (
     Gate5SecuritiesDisposalTaxModelRuntimeFactory,
 )
@@ -38,8 +42,12 @@ from broker_reports_gate1.gate5_trusted_methodology import (
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_VERSION,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+)
+from broker_reports_gate1.qualified_projection_fact_v3 import (
+    QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION,
+    build_qualified_projection_fact_v3,
 )
 import test_broker_reports_gate4_sql_materialization as gate4_fixtures
 import test_broker_reports_gate5_securities_disposal_tax_model as tax_model_fixtures
@@ -581,7 +589,7 @@ def test_acquisition_basis_coverage_gap_is_quantified_without_zero_cost_inferenc
     assert assembled["fifo_calculations"] == []
     assert assembled["invented_relations"] == 0
     review = Gate5ClientEvidenceReviewRuntimeFactory(
-        store=store, read_enabled=True
+        list_facts=lambda *, context: _v3_facts(store, context=context),
     ).create().review(source_assembly=assembled)
     finding = review["required_blockers"][0]
     assert finding["acquisition_basis_coverage"] == coverage
@@ -593,6 +601,59 @@ def test_acquisition_basis_coverage_gap_is_quantified_without_zero_cost_inferenc
     assert "does not make a gross-proceeds tax conclusion" in finding[
         "client_benefit_rationale"
     ]
+
+
+def test_client_evidence_review_reads_only_injected_v3_qualified_facts(
+    tmp_path: Path,
+) -> None:
+    store, context = _case(tmp_path / "v3-client-review")
+    observed_facts = []
+
+    def list_facts(*, context):
+        facts = _v3_facts(store, context=context)
+        observed_facts.extend(facts)
+        return facts
+
+    review = Gate5ClientEvidenceReviewRuntimeFactory(
+        list_facts=list_facts,
+    ).create().review(
+        methodology_ref=_source_methodology_ref(),
+        context=context,
+    )
+
+    assert review["terminals"] == ["CLIENT_EVIDENCE_REVIEW_PROVEN"]
+    assert review["coverage"] == [
+        {
+            "asset": "ACME",
+            "currency": "RUB",
+            "status": "RESOLVED",
+            "purchase_fact_count": 2,
+            "disposal_fact_count": 1,
+            "resolved_disposals": 1,
+            "first_required_quantity": None,
+            "first_supported_prior_quantity": None,
+            "first_minimum_gap_quantity": None,
+            "acquisition_basis_coverage": None,
+            "source_document_count": 3,
+            "stored_relations": 0,
+        }
+    ]
+    assert observed_facts
+    assert all(
+        fact["schema_version"] == QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION
+        for fact in observed_facts
+    )
+    assert "gate3_binding" not in _keys(observed_facts)
+    assert "gate3_binding" not in _keys(review)
+
+    factory_source = inspect.getsource(Gate5ClientEvidenceReviewRuntimeFactory)
+    module_source = inspect.getsource(review_module)
+    assert "injected V3 qualified-projection list_facts(context) reader" in (
+        review_module.FACTORY_REQUIRED[0]
+    )
+    assert "list_facts=self._list_facts" in factory_source
+    assert "ArtifactStorePort" not in module_source
+    assert "gate4_financial_case_cache" not in module_source
 
 
 def test_one_lot_covers_ten_disposals_without_persisted_pair_relations(
@@ -715,7 +776,7 @@ def test_direct_charge_requires_same_explicit_source_transaction_row() -> None:
     binding = {"canonical_binding": {"document_id": "d", "version": "v1"}}
 
     def fact(target):
-        return {"gate3_binding": binding, "annotation_target": target}
+        return {"qualified_projection_binding": binding, "annotation_target": target}
 
     assert consumption_module._same_source_transaction_row(
         fact({"kind": "table_row", "node_id": "table", "row": 7}),
@@ -802,11 +863,10 @@ def test_factory_route_is_closed_world_and_read_only() -> None:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.add(node.module)
 
-    assert "Gate4FinancialCaseRuntimeFactory.create" in FACTORY_REQUIRED[0]
+    assert "injected list_facts(context) reader" in FACTORY_REQUIRED[0]
     assert "reconciliation" in FORBIDDEN[0]
-    assert "Gate4FinancialCaseRuntimeFactory(" in factory_source
     assert "Gate5TrustedMethodologyAuthorityFactory.create()" in factory_source
-    assert "self._financial_case.list_facts(context=context)" in runtime_source
+    assert "self._list_facts(context=context)" in runtime_source
     assert ".put(" not in runtime_source
     assert imports == {
         "__future__",
@@ -814,9 +874,8 @@ def test_factory_route_is_closed_world_and_read_only() -> None:
         "copy",
         "datetime",
         "decimal",
-        "gate4_financial_case_cache",
-        "gate4_financial_case_materialization",
         "gate5_trusted_methodology",
+        "qualified_projection_fact_v3",
         "re",
         "typing",
     }
@@ -1103,9 +1162,58 @@ def _gate4(store):
 
 def _consumer(store):
     return Gate5DeterministicSourceFactConsumptionRuntimeFactory(
-        store=store,
-        read_enabled=True,
+        list_facts=lambda *, context: _v3_facts(store, context=context),
     ).create()
+
+
+def _v3_facts(store, *, context):
+    facts = []
+    for source in _gate4(store).list_facts(context=context):
+        document_id = source["gate3_binding"]["canonical_binding"]["document_id"]
+        node_id = "qualified-" + document_id
+        target = {"kind": "table_cell", "node_id": node_id, "row": 1, "column": 1}
+        roles = []
+        for index, role in enumerate(source["roles"], start=1):
+            if (
+                role.get("requirement") != "required"
+                and role.get("role") != "position_effect"
+            ):
+                continue
+            value = role.get("value")
+            roles.append(
+                {
+                    "role": role["role"],
+                    "requirement": "required",
+                    "status": role["status"],
+                    "value": value if role["status"] == "value" else None,
+                    "source_binding": {
+                        "target": {**target, "column": index},
+                        "exact_text": "" if value is None else str(value),
+                        "source_literal": "" if value is None else str(value),
+                    },
+                }
+            )
+        facts.append(
+            build_qualified_projection_fact_v3(
+                case_binding=source["case_binding"],
+                projection_artifact_id="projection-" + document_id,
+                canonical_binding={
+                    "document_id": document_id,
+                    "canonical_version_id": source["gate3_binding"]["canonical_binding"]["canonical_version_id"],
+                    "canonical_root_sha256": hashlib.sha256(document_id.encode()).hexdigest(),
+                },
+                source_observation_id="observation-" + source["fact_id"],
+                semantic_mapping_case_ref="mapping-" + document_id,
+                runtime_record_id="runtime-" + source["fact_id"],
+                semantic_kind="normalized_source_fact",
+                semantic_binding=source["semantic_binding"],
+                financial_type=source["financial_type"],
+                annotation_target=target,
+                roles=roles,
+                status=source["status"],
+            )
+        )
+    return facts
 
 
 def _tax_model(store):
@@ -1113,6 +1221,7 @@ def _tax_model(store):
         store=store,
         read_enabled=True,
         retention_policy=build_retention_policy(mode="synthetic_dev"),
+        list_facts=lambda *, context: _v3_facts(store, context=context),
     ).create()
 
 
@@ -1149,7 +1258,7 @@ def _source_methodology_ref() -> dict[str, str]:
     return {
         "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
         "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-        "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+        "methodology_version": GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     }
 
 

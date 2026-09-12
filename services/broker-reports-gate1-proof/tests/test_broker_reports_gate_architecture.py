@@ -274,7 +274,6 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             direct_gate5_composers,
             {
                 "gate5_deterministic_source_fact_consumption",
-                "ordinary_trade_candidate_runtime",
             },
         )
         self.assertLess(
@@ -329,7 +328,9 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         "broker_reports_ordinary_trade_mapping_qualification_v2"
                         "|broker_reports_ordinary_trade_case_mapping_qualification_v1"
                     ),
-                    "normalized_fact_contract": "Gate4FinancialCaseFactV2",
+                    "normalized_fact_contract": (
+                        "broker_reports_qualified_projection_fact_v3"
+                    ),
                     "canonical_completeness_owner": (
                         "OrdinaryTradeProjectionRuntime.current_case_coverage"
                     ),
