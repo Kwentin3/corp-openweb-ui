@@ -189,7 +189,15 @@ class CreateOfficeDocumentRequest(BaseModel):
 
 class ApplySpreadsheetBatchRequest(NativeXlsxReference):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    commands: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=64,
+        description=(
+            "Ordered official OfficeCLI batch items for the current XLSX attachment. "
+            "Use this operation for a later conversational edit; do not create a new "
+            "workbook when continuing an existing one."
+        ),
+    )
 
     @field_validator("commands")
     @classmethod
@@ -208,7 +216,18 @@ class ApplySpreadsheetBatchRequest(NativeXlsxReference):
 
 class CreateSpreadsheetRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=64)
+    commands: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=64,
+        description=(
+            "One ordered official OfficeCLI batch for the whole initial workbook. "
+            "A new XLSX already contains Sheet1: do not add, remove, or rename Sheet1 "
+            "unless the user explicitly requests that change. Include new sheets, cell "
+            "values, and cross-sheet formulas in this single batch. A failed batch rolls "
+            "back all of its operations; use apply_office_spreadsheet_batch, not another "
+            "create call, for a later conversational edit."
+        ),
+    )
 
     @field_validator("commands")
     @classmethod
@@ -794,7 +813,12 @@ def create_app(
         "/v1/officecli/spreadsheets/create",
         response_model=CreateResponse,
         operation_id="create_office_spreadsheet",
-        description="Create, batch, validate, and attach a new XLSX from the chat request.",
+        description=(
+            "Create, batch, validate, and attach a new XLSX from the chat request. "
+            "The workbook starts with Sheet1, so submit all initial work in one ordered "
+            "batch and add only additional sheets. For a later chat turn, use "
+            "apply_office_spreadsheet_batch on the returned attachment."
+        ),
     )
     def create_office_spreadsheet(
         request: CreateSpreadsheetRequest,

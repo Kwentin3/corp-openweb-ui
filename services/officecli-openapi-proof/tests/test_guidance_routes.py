@@ -527,6 +527,25 @@ def test_create_spreadsheet_uses_official_create_batch_validate_and_xlsx_mime() 
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
 
 
+def test_spreadsheet_openapi_contract_explains_default_sheet_and_follow_up() -> None:
+    client = TestClient(create_app(RecordingOfficeCli(), RecordingOpenWebUi(), settings()))
+
+    schema = client.get("/openapi.json").json()
+    create = schema["paths"]["/v1/officecli/spreadsheets/create"]["post"]
+    create_commands = schema["components"]["schemas"]["CreateSpreadsheetRequest"][
+        "properties"
+    ]["commands"]["description"]
+    apply_commands = schema["components"]["schemas"]["ApplySpreadsheetBatchRequest"][
+        "properties"
+    ]["commands"]["description"]
+
+    assert "starts with Sheet1" in create["description"]
+    assert "one ordered official officecli batch" in create_commands.lower()
+    assert "do not add, remove, or rename Sheet1" in create_commands
+    assert "apply_office_spreadsheet_batch" in create_commands
+    assert "later conversational edit" in apply_commands
+
+
 def test_create_spreadsheet_keeps_default_sheet_without_an_explicit_remove() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
