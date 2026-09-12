@@ -4,13 +4,12 @@ from dataclasses import dataclass, field
 from hashlib import sha256
 import json
 from pathlib import Path
-from zipfile import ZipFile
 
 from fastapi.testclient import TestClient
 import httpx
 import pytest
 
-from officecli_openapi_proof.app import _normalize_zero_dpi_page_setup, create_app
+from officecli_openapi_proof.app import create_app
 from officecli_openapi_proof.config import Settings
 from officecli_openapi_proof.officecli import OfficeCliOutput, SubprocessOfficeCliExecutor
 from officecli_openapi_proof.openwebui_client import (
@@ -528,7 +527,7 @@ def test_create_spreadsheet_uses_official_create_batch_validate_and_xlsx_mime() 
     assert files.attachment_content_types == [XLSX_CONTENT_TYPE]
 
 
-def test_create_spreadsheet_removes_untouched_default_sheet() -> None:
+def test_create_spreadsheet_keeps_default_sheet_without_an_explicit_remove() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
     client = TestClient(create_app(executor, files, settings()))
@@ -586,10 +585,44 @@ def test_create_spreadsheet_removes_untouched_default_sheet() -> None:
                 "range": "A1",
                 "props": {"value": "Amount"},
             },
-            {"command": "remove", "path": "/Sheet1"},
         ],
         ensure_ascii=False,
         separators=(",", ":"),
+    )
+
+
+def test_create_spreadsheet_does_not_remove_sheet1_referenced_by_formula() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+    commands = [
+        {
+            "command": "add",
+            "parent": "/",
+            "type": "sheet",
+            "props": {"name": "Summary"},
+        },
+        {
+            "command": "set",
+            "sheet": "Summary",
+            "range": "A1",
+            "props": {"formula": "SUM(Sheet1!A1:A2)"},
+        },
+    ]
+
+    response = client.post(
+        "/v1/officecli/spreadsheets/create",
+        headers={
+            "Authorization": "Bearer user-session",
+            "X-OpenWebUI-Chat-Id": "native-chat-id",
+            "X-OpenWebUI-Message-Id": "assistant-now",
+        },
+        json={"output_name": "formula-reference.xlsx", "commands": commands},
+    )
+
+    assert response.status_code == 200
+    assert executor.inputs[1] == json.dumps(
+        commands, ensure_ascii=False, separators=(",", ":")
     )
 
 
@@ -859,37 +892,6 @@ def test_apply_presentation_uses_pptx_ancestry_preserves_source_and_attaches_ppt
     assert executor.calls[0][1].endswith("result.pptx")
     assert files.upload_content_types == [PPTX_CONTENT_TYPE]
     assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
-
-
-def test_normalize_zero_dpi_page_setup_only_changes_private_xlsx_copy(tmp_path) -> None:
-    workbook = tmp_path / "office-generated.xlsx"
-    with ZipFile(workbook, "w") as archive:
-        archive.writestr(
-            "xl/worksheets/sheet1.xml",
-            '<worksheet><pageSetup horizontalDpi="0" verticalDpi="0"/></worksheet>',
-        )
-        archive.writestr("xl/worksheets/sheet2.xml", "<worksheet/>")
-
-    assert _normalize_zero_dpi_page_setup(workbook) is True
-
-    with ZipFile(workbook) as archive:
-        assert archive.read("xl/worksheets/sheet1.xml") == (
-            b'<worksheet><pageSetup horizontalDpi="600" verticalDpi="600"/></worksheet>'
-        )
-        assert archive.read("xl/worksheets/sheet2.xml") == b"<worksheet/>"
-
-
-def test_normalize_zero_dpi_page_setup_leaves_normal_workbook_untouched(tmp_path) -> None:
-    workbook = tmp_path / "already-valid.xlsx"
-    with ZipFile(workbook, "w") as archive:
-        archive.writestr(
-            "xl/worksheets/sheet1.xml",
-            '<worksheet><pageSetup horizontalDpi="600" verticalDpi="600"/></worksheet>',
-        )
-
-    original = workbook.read_bytes()
-    assert _normalize_zero_dpi_page_setup(workbook) is False
-    assert workbook.read_bytes() == original
 
 
 @pytest.mark.parametrize(
