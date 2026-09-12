@@ -387,7 +387,7 @@ def test_case_resource_is_hash_pinned_closed_world_and_target_free_runtime(
     ):
         assert owner in runtime_source
     assert "Gate4OrdinaryTradeCandidateRuntimeFactory" in factory_source
-    assert "list_facts=self._qualified_facts.list_facts" in runtime_source
+    assert "create_from_resolved_inputs" in runtime_source
     for forbidden in (
         "test_broker_reports_",
         "sqlite3",

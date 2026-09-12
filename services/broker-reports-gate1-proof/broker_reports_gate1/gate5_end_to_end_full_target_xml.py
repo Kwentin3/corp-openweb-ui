@@ -992,12 +992,11 @@ class Gate5EndToEndFullTargetXmlRuntime:
                     },
                     context=context,
                 )
-        tax_runtime = Gate5SecuritiesDisposalTaxModelRuntimeFactory(
+        tax_runtime = Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs(
             store=self._store,
             read_enabled=True,
             retention_policy=self._retention_policy,
-            list_facts=self._qualified_facts.list_facts,
-        ).create()
+        )
         tax_methodology_ref = {
             "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
             "methodology_id": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,

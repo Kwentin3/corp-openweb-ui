@@ -41,7 +41,7 @@ def build_qualified_projection_fact_v3(
     projection_artifact_id: str,
     canonical_binding: Mapping[str, Any],
     source_observation_id: str,
-    semantic_mapping_case_ref: str,
+    semantic_mapping_case_ref: str | None,
     runtime_record_id: str,
     semantic_kind: str,
     semantic_binding: Mapping[str, Any],
@@ -118,10 +118,25 @@ def _validate_shape(value: Any) -> None:
         if not isinstance(authority, Mapping) or set(authority) != {"authority_id", "semantic_version"} or not all(_identifier(authority.get(key)) for key in authority):
             _fail("qualified_projection_fact_v3_semantic_binding_invalid")
     _validate_roles(value.get("roles"))
+    _validate_mapping_case_binding(
+        binding=value["qualified_projection_binding"],
+        semantic=value["semantic_binding"],
+    )
 
 
 def _validate_binding(value: Any) -> None:
-    if not isinstance(value, Mapping) or set(value) != _BINDING_KEYS or not all(_identifier(value.get(key)) for key in _BINDING_KEYS - {"canonical_binding"}):
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != _BINDING_KEYS
+        or not all(
+            _identifier(value.get(key))
+            for key in _BINDING_KEYS - {"canonical_binding", "semantic_mapping_case_ref"}
+        )
+        or (
+            value.get("semantic_mapping_case_ref") is not None
+            and not _identifier(value.get("semantic_mapping_case_ref"))
+        )
+    ):
         _fail("qualified_projection_fact_v3_binding_invalid")
     canonical = value.get("canonical_binding")
     if (
@@ -132,6 +147,22 @@ def _validate_binding(value: Any) -> None:
         or _SHA256.fullmatch(canonical["canonical_root_sha256"]) is None
     ):
         _fail("qualified_projection_fact_v3_canonical_binding_invalid")
+
+
+def _validate_mapping_case_binding(
+    *, binding: Mapping[str, Any], semantic: Mapping[str, Any]
+) -> None:
+    """A missing case ref is honest only for a packaged qualified mapping."""
+
+    if binding["semantic_mapping_case_ref"] is not None:
+        return
+    dictionary = semantic.get("dictionary")
+    authority_id = dictionary.get("authority_id") if isinstance(dictionary, Mapping) else None
+    if (
+        not isinstance(authority_id, str)
+        or not authority_id.startswith("ordinary_trade_schema_mapping:otmap_")
+    ):
+        _fail("qualified_projection_fact_v3_binding_invalid")
 
 
 def _validate_roles(value: Any) -> None:
