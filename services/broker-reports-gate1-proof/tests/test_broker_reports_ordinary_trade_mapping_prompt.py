@@ -25,6 +25,12 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND,
@@ -401,6 +407,32 @@ def test_snapshot_validator_accepts_only_the_closed_v17_direction_guard_identity
     assert validate_ordinary_trade_mapping_prompt_snapshot(snapshot) == snapshot
     mixed = dict(snapshot)
     mixed["prompt_command"] = ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND
+    with pytest.raises(OrdinaryTradeMappingPromptError) as invalid:
+        validate_ordinary_trade_mapping_prompt_snapshot(mixed)
+    assert invalid.value.code == "ordinary_trade_mapping_prompt_snapshot_invalid"
+
+
+def test_snapshot_validator_accepts_only_the_closed_v19_same_cell_evidence_identity():
+    snapshot = OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="test-v19-prompt",
+        command=ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND,
+        version="test-v19-version",
+        content="Map {{ordinary_trade_mapping_case_json}}.",
+        hash="e" * 64,
+        source="test",
+        template_id=ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+        tags=(ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,),
+        safe_metadata={},
+    ).snapshot()
+
+    assert validate_ordinary_trade_mapping_prompt_snapshot(snapshot) == snapshot
+    mixed = dict(snapshot)
+    mixed["prompt_command"] = ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND
     with pytest.raises(OrdinaryTradeMappingPromptError) as invalid:
         validate_ordinary_trade_mapping_prompt_snapshot(mixed)
     assert invalid.value.code == "ordinary_trade_mapping_prompt_snapshot_invalid"

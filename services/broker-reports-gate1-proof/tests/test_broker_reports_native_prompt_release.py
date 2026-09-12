@@ -67,7 +67,7 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v18",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v19",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -79,7 +79,7 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
 
 def test_production_gate1_valves_pin_only_financial_roles_and_disable_legacy_routes():
     assert release._production_gate1_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v18",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v19",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -333,14 +333,14 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     assert "OrdinaryTradeMappingPromptPublisher" in container_source
     assert "from open_webui.models.prompt_history" not in container_source
     assert '"ordinary_trade_mapping_v16"' in container_source
-    assert "ordinary_trade_mapping_v18" in container._PROFILE_IDS
+    assert "ordinary_trade_mapping_v19" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in host._PROFILE_IDS
     assert "document_metadata_passport_v1" in container._PROFILE_IDS
     assert "document_metadata_passport_v1" in host._PROFILE_IDS
 
 
-def test_container_selects_the_closed_v18_profile_for_native_readback(monkeypatch):
+def test_container_selects_the_closed_v19_profile_for_native_readback(monkeypatch):
     from broker_reports_gate1 import ordinary_trade_mapping_prompt_publication as publication
 
     selected = []
@@ -360,10 +360,10 @@ def test_container_selects_the_closed_v18_profile_for_native_readback(monkeypatc
         container._run(
             asset_root=Path("unused"),
             verify_pin=_PIN,
-            profile_id="ordinary_trade_mapping_v18",
+            profile_id="ordinary_trade_mapping_v19",
         )
     )
 
-    assert selected == [publication.ORDINARY_TRADE_MAPPING_V18_PROFILE]
+    assert selected == [publication.ORDINARY_TRADE_MAPPING_V19_PROFILE]
     assert result["status"] == "verified"
     assert result["prompt_command"] == _PIN["prompt_command"]

@@ -115,6 +115,11 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V18_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
@@ -340,6 +345,23 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         ),
         grouped_v18_response=True,
     ),
+    # v19 changes the native managed instruction only. It deliberately keeps
+    # V18's closed wire adapter and Runtime contract.
+    "ordinary_trade_mapping_v19": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v19",
+        prompt_command=ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+        grouped_v18_response=True,
+    ),
 }
 
 
@@ -438,7 +460,7 @@ class Pipe:
             default="ordinary_trade_mapping_v13",
             description=(
                 "Sealed production mapping route profile. Only the released "
-                "v13, v14, v15, v16, v17 and v18 profiles are admitted."
+                "v13, v14, v15, v16, v17, v18 and v19 profiles are admitted."
             ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")

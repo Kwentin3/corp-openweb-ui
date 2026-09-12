@@ -1199,6 +1199,7 @@ class OrdinaryTradeSemanticMapping:
         allow_source_bound_position_effect: bool = False,
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
+        frozen_mapping_values = tuple(frozen_mappings)
         validated_explicit_header_source_claims: list[dict[str, Any]] = []
         if explicit_header_source_response is not None:
             try:
@@ -1232,8 +1233,17 @@ class OrdinaryTradeSemanticMapping:
             target_table_node_ids=target_table_node_ids,
         )
         tables = {item["table_node_id"]: item for item in table_surfaces}
-        frozen_requalification_ids = set(frozen_requalification_table_node_ids)
-        if not frozen_requalification_ids.issubset(tables):
+        frozen_requalification_ids = list(frozen_requalification_table_node_ids)
+        expected_frozen_requalification_ids = [
+            table_node_id
+            for table_node_id in OrdinaryTradeSemanticCompilerFactory.create().frozen_mapping_requalification_table_node_ids(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                mappings=frozen_mapping_values,
+            )
+            if table_node_id in tables
+        ]
+        if frozen_requalification_ids != expected_frozen_requalification_ids:
             _fail("ordinary_trade_semantic_mapping_target_scope_stale")
         _model_tables, refs_by_node_id = _model_table_surfaces(
             canonical,
@@ -1558,7 +1568,7 @@ class OrdinaryTradeSemanticMapping:
         dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
             canonical=canonical,
             canonical_binding=canonical_binding,
-            mappings=frozen_mappings,
+            mappings=frozen_mapping_values,
             scoped_mappings=[
                 {
                     "table_node_id": receipt["case_scope"]["table_node_id"],
@@ -1573,6 +1583,7 @@ class OrdinaryTradeSemanticMapping:
             explicit_header_source_continuations=explicit_header_source_continuations,
             physical_table_continuation_context=physical_table_continuation_context,
             table_resolutions=compiler_table_resolutions,
+            frozen_requalification_table_node_ids=frozen_requalification_ids,
         )
         incomplete_table_node_ids = {
             item["table_node_id"]

@@ -139,6 +139,7 @@ class OrdinaryTradeSemanticCompiler:
         explicit_header_source_continuations: Iterable[Mapping[str, Any]] = (),
         physical_table_continuation_context: Mapping[str, Any] | None = None,
         table_resolutions: Iterable[Mapping[str, Any]] = (),
+        frozen_requalification_table_node_ids: Iterable[str] = (),
         semantic_mapping_case_ref: str | None = None,
     ) -> dict[str, Any]:
         if semantic_mapping_case_ref is not None and (
@@ -148,6 +149,39 @@ class OrdinaryTradeSemanticCompiler:
             _fail("ordinary_trade_mapping_case_ref_invalid")
         binding = _canonical_binding(canonical=canonical, value=canonical_binding)
         accepted = tuple(_validated_mapping(item) for item in mappings)
+        eligible_frozen_requalification_ids = (
+            self.frozen_mapping_requalification_table_node_ids(
+                canonical=canonical,
+                canonical_binding=binding,
+                mappings=accepted,
+            )
+        )
+        requested_frozen_requalification_ids = list(
+            frozen_requalification_table_node_ids
+        )
+        if (
+            len(requested_frozen_requalification_ids)
+            != len(set(requested_frozen_requalification_ids))
+            or any(
+                not isinstance(item, str) or not item
+                for item in requested_frozen_requalification_ids
+            )
+            or requested_frozen_requalification_ids
+            != [
+                node.get("node_id")
+                for node in canonical.get("nodes", [])
+                if isinstance(node, Mapping)
+                and node.get("node_type") == "TABLE"
+                and node.get("node_id") in set(requested_frozen_requalification_ids)
+            ]
+            or not set(requested_frozen_requalification_ids).issubset(
+                eligible_frozen_requalification_ids
+            )
+        ):
+            _fail("ordinary_trade_frozen_requalification_scope_invalid")
+        accepted_frozen_requalification_ids = set(
+            requested_frozen_requalification_ids
+        )
         accepted_scoped = tuple(
             _validated_scoped_mapping(item) for item in scoped_mappings
         )
@@ -232,6 +266,14 @@ class OrdinaryTradeSemanticCompiler:
             global_matches = _matching_mappings(rows=rows, mappings=accepted)
             if len(global_matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
+            if table.get("node_id") in accepted_frozen_requalification_ids:
+                if len(global_matches) != 1:
+                    _fail("ordinary_trade_frozen_requalification_scope_stale")
+                # The compiler itself admitted this exact table because its
+                # frozen mapping cannot materialize every financial row.  A
+                # case-scoped mapping/resolution now owns this table; keep the
+                # global registry authoritative everywhere else.
+                global_matches = []
             scoped_matches = _matching_scoped_mappings(
                 table=table,
                 rows=rows,
@@ -465,6 +507,68 @@ class OrdinaryTradeSemanticCompiler:
             if len(matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
             if not matches:
+                result.append(node_id)
+        return result
+
+    def frozen_mapping_requalification_table_node_ids(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        mappings: Iterable[Mapping[str, Any]],
+    ) -> list[str]:
+        """Return exact frozen-schema tables whose rows do not materialize.
+
+        Header equality remains a fast path only while every financial row can
+        satisfy the frozen record contract.  If one financial row cannot, the
+        whole table is requalified as one case-scoped authority: retaining the
+        frozen mapping for its other rows would silently split one source table
+        between two mapping owners.  This selector does not discover a broker
+        pattern or a table meaning: it reuses the compiler's existing exact
+        mapping and row-validity rules to name a narrow case scope for semantic
+        requalification.
+        """
+
+        binding = _canonical_binding(canonical=canonical, value=canonical_binding)
+        accepted = tuple(_validated_mapping(item) for item in mappings)
+        fingerprints = [item["structural_fingerprint"] for item in accepted]
+        if len(fingerprints) != len(set(fingerprints)):
+            _fail("ordinary_trade_mapping_fingerprint_duplicate")
+        result: list[str] = []
+        for table in canonical.get("nodes", []):
+            if not isinstance(table, Mapping) or table.get("node_type") != "TABLE":
+                continue
+            node_id = table.get("node_id")
+            if not isinstance(node_id, str) or not node_id:
+                _fail("ordinary_trade_table_node_id_invalid")
+            rows = _table_rows(table)
+            matches = _matching_mappings(rows=rows, mappings=accepted)
+            if len(matches) > 1:
+                _fail("ordinary_trade_table_mapping_ambiguous")
+            if not matches:
+                continue
+            mapping, header_row = matches[0]
+            numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
+            has_incomplete_financial_row = False
+            for row_number in sorted(row for row in rows if row > header_row):
+                cells = rows[row_number]
+                if not any(_literal(cell) for cell in cells.values()):
+                    continue
+                observation = _mapped_observation(
+                    binding=binding,
+                    table=table,
+                    row=row_number,
+                    cells=cells,
+                    mapping=mapping,
+                    numeric_convention=numeric_convention,
+                )
+                if (
+                    observation["disposition"] == "RELEVANT_UNMAPPED"
+                    and observation["reason_code"]
+                    == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
+                ):
+                    has_incomplete_financial_row = True
+            if has_incomplete_financial_row:
                 result.append(node_id)
         return result
 

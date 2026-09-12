@@ -28,6 +28,7 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v16",
         "ordinary_trade_mapping_v17",
         "ordinary_trade_mapping_v18",
+        "ordinary_trade_mapping_v19",
         "pdf_table_continuation_annotation_v3",
         "document_metadata_passport_v1",
     }
