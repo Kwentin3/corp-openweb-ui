@@ -21,6 +21,7 @@ from broker_reports_gate1 import (
     FileInput,
     GATE1_ARTIFACT_STORE_MAPPING,
     Gate1Normalizer,
+    UnconfiguredPdfDocumentExtractor,
     build_retention_policy,
     persist_gate1_result,
     render_chat_content,
@@ -595,7 +596,9 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         )
 
     def test_reduced_handoff_contains_eligibility_refs_and_only_included_private_refs(self):
-        result = Gate1Normalizer().normalize(
+        result = Gate1Normalizer(
+            _pdf_document_extractor=UnconfiguredPdfDocumentExtractor()
+        ).normalize(
             [
                 FileInput.from_bytes(
                     private_ref="reduced-csv-1",
