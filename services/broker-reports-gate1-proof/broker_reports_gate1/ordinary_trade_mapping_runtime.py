@@ -585,6 +585,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 frozen_requalification_table_node_ids=frozen_requalification_table_node_ids,
                 explicit_header_source_response=explicit_header_source_response,
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_source_bound_position_effect=(
+                    self._allows_source_bound_position_effect()
+                ),
             )
         except Exception as exc:
             code = getattr(
@@ -692,6 +695,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
         if not isinstance(value, dict):
             raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
         return value
+
+    def _allows_source_bound_position_effect(self) -> bool:
+        """Only the selected V18 response adapter enables this semantic seam."""
+
+        return bool(
+            self._mapping_response_adapter is not None
+            and getattr(
+                self._mapping_response_adapter,
+                "allows_source_bound_position_effect",
+                False,
+            )
+            is True
+        )
 
     async def _run_batch_plan(
         self,

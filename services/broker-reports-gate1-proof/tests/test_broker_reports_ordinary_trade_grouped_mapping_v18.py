@@ -18,6 +18,7 @@ from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT,
     compile_schema_mapping,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
@@ -47,7 +48,7 @@ def _v18_response(*, table: dict, mapping: dict) -> dict:
     return response
 
 
-def _short_case(tmp_path):
+def _short_case(tmp_path, *, short_literal: str = "Open short sale"):
     headers = list(candidate._ROWS[0])
     # Keep this as an unknown schema so the fixture's frozen known mapping
     # cannot be a second authority for the V18 qualified candidate.
@@ -58,7 +59,7 @@ def _short_case(tmp_path):
             side="Buy", quantity="10", unit_price="10.00", gross="100.00", broker="0", exchange="0"
         ),
         candidate._source_row(
-            side="Open short sale", quantity="4", unit_price="15.00", gross="60.00", broker="1.00", exchange="2.00"
+            side=short_literal, quantity="4", unit_price="15.00", gross="60.00", broker="1.00", exchange="2.00"
         ),
     )
     store, context, document_id, _ignored_mapping = candidate._case(tmp_path, rows=rows)
@@ -80,12 +81,18 @@ def _short_case(tmp_path):
         side_values=[
             {"source_literal": "Buy", "normalized_value": "PURCHASE"},
             {
-                "source_literal": "Open short sale",
+                "source_literal": short_literal,
                 "normalized_value": "DISPOSAL",
                 "position_effect": "OPEN_SHORT",
+                "position_effect_evidence": {
+                    "source_row": 3,
+                    "source_column": 7,
+                    "source_literal": short_literal,
+                },
             },
         ],
         qualification_ref=copy.deepcopy(candidate._QUALIFIED_MAPPING["qualification_ref"]),
+        position_effect_contract=SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT,
     )
     binding = {
         "document_id": envelope.document_id,
@@ -97,8 +104,10 @@ def _short_case(tmp_path):
     return store, context, document_id, envelope.artifact, binding, table, mapping
 
 
-def _complete_and_save(tmp_path, *, mutation=None):
-    store, context, document_id, canonical, binding, table, mapping = _short_case(tmp_path)
+def _complete_and_save(tmp_path, *, mutation=None, short_literal: str = "Open short sale"):
+    store, context, document_id, canonical, binding, table, mapping = _short_case(
+        tmp_path, short_literal=short_literal
+    )
     response = _v18_response(table=table, mapping=mapping)
     if mutation is not None:
         mutation(response)
@@ -120,6 +129,7 @@ def _complete_and_save(tmp_path, *, mutation=None):
         user_scope_sha256=cases.case_binding(document_id=document_id, context=context)[
             "user_scope_sha256"
         ],
+        allow_source_bound_position_effect=True,
     )
     cases.save_mapping_outcome(
         document_id=document_id,
@@ -159,6 +169,11 @@ def test_v18_schema_has_closed_optional_effect_only_on_side_values() -> None:
     assert len(side_schemas) == 2
     assert all(item["properties"]["position_effect"] == {"const": "OPEN_SHORT"} for item in side_schemas)
     assert all(item["required"] == ["source_literal", "normalized_value"] for item in side_schemas)
+    assert all(
+        item["properties"]["position_effect_evidence"]["required"]
+        == ["source_row", "source_column", "source_literal"]
+        for item in side_schemas
+    )
 
 
 def test_v18_emits_source_bound_optional_open_short_to_active_candidate(tmp_path) -> None:
@@ -192,6 +207,21 @@ def test_v18_emits_source_bound_optional_open_short_to_active_candidate(tmp_path
     assert fact_effect["source_binding"]["source_literal"] == "Open short sale"
 
 
+def test_v18_accepts_an_ordinary_mapping_without_position_effect(tmp_path) -> None:
+    def remove_effect(response: dict) -> None:
+        side_value = response["table_decisions"][0]["side_values"][1]
+        side_value.pop("position_effect")
+        side_value.pop("position_effect_evidence")
+
+    _store, _context, _document_id, outcome = _complete_and_save(
+        tmp_path,
+        mutation=remove_effect,
+    )
+    mapping = outcome["qualified_mappings"][0]
+    assert "position_effect_contract" not in mapping
+    assert all("position_effect" not in item for item in mapping["side_values"])
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -201,8 +231,22 @@ def test_v18_emits_source_bound_optional_open_short_to_active_candidate(tmp_path
         lambda response: response["table_decisions"][0]["side_values"][1].update(
             {"source_literal": "invented opening short", "position_effect": "OPEN_SHORT"}
         ),
+        lambda response: response["table_decisions"][0]["side_values"][1].pop(
+            "position_effect_evidence"
+        ),
     ],
 )
 def test_v18_rejects_unknown_or_non_source_bound_effect(tmp_path, mutation) -> None:
     with pytest.raises(OrdinaryTradeSemanticMappingError):
         _complete_and_save(tmp_path, mutation=mutation)
+
+
+def test_v18_generic_sale_requires_an_exact_source_cell_evidence(tmp_path) -> None:
+    with pytest.raises(OrdinaryTradeSemanticMappingError):
+        _complete_and_save(
+            tmp_path,
+            short_literal="Sale",
+            mutation=lambda response: response["table_decisions"][0]["side_values"][1].pop(
+                "position_effect_evidence"
+            ),
+        )

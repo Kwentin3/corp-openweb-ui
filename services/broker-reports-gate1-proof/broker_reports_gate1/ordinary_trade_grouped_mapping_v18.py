@@ -14,7 +14,7 @@ from typing import Any, Mapping
 
 from .ordinary_trade_grouped_mapping_v17 import (
     OrdinaryTradeGroupedMappingV17Error,
-    expand_grouped_response as _expand_v17,
+    _expand_grouped_response as _expand_v17,
     explicit_header_source_claims as _claims_v17,
     grouped_mapping_response_format as _format_v17,
 )
@@ -62,6 +62,12 @@ class OrdinaryTradeGroupedMappingV18Adapter:
     def explicit_header_source_claims(self, *, response: Any) -> dict[str, Any]:
         return explicit_header_source_claims(response=response)
 
+    @property
+    def allows_source_bound_position_effect(self) -> bool:
+        """Expose V18's closed semantic capability to its coordinator only."""
+
+        return True
+
 
 def grouped_mapping_response_format(
     *, v13_response_format: Mapping[str, Any]
@@ -88,7 +94,11 @@ def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dic
     """Validate the V18 root, then retain V17's grouped expansion owner."""
 
     try:
-        return _expand_v17(response=_as_v17(response), package=package)
+        return _expand_v17(
+            response=_as_v17(response),
+            package=package,
+            allow_source_bound_position_effect=True,
+        )
     except OrdinaryTradeGroupedMappingV17Error as exc:
         raise OrdinaryTradeGroupedMappingV18Error(
             exc.code.replace("_v17_", "_v18_")
@@ -152,6 +162,16 @@ def _add_position_effect_to_side_values(value: Any) -> int:
         and _POSITION_EFFECT not in item_properties
     ):
         item_properties[_POSITION_EFFECT] = {"const": _OPEN_SHORT}
+        item_properties["position_effect_evidence"] = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "source_row": {"type": "integer", "minimum": 1},
+                "source_column": {"type": "integer", "minimum": 1},
+                "source_literal": {"type": "string", "minLength": 1},
+            },
+            "required": ["source_row", "source_column", "source_literal"],
+        }
         changed += 1
     for item in value.values():
         changed += _add_position_effect_to_side_values(item)

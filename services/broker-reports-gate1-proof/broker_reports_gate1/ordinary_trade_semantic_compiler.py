@@ -110,6 +110,8 @@ _DOT_GROUPED_COMMA = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:\.[0-9]{3})+,[0-9]+$"
 _COMMA_GROUPED_INTEGER = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+$")
 _OPEN_SHORT_POSITION_EFFECT = "OPEN_SHORT"
 _POSITION_EFFECT_TRANSFORM = "SOURCE_BOUND_MAPPING_POSITION_EFFECT"
+SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT = "SOURCE_BOUND_OPEN_SHORT_V1"
+_POSITION_EFFECT_MAPPING_CONTRACT_KEY = "position_effect_contract"
 
 
 class OrdinaryTradeSemanticCompilerError(RuntimeError):
@@ -476,6 +478,7 @@ def compile_schema_mapping(
     side_values: Iterable[Mapping[str, str]],
     qualification_ref: Mapping[str, str],
     user_currency_assertion: Mapping[str, Any] | None = None,
+    position_effect_contract: str | None = None,
 ) -> dict[str, Any]:
     """Freeze a validated mapping candidate without accepting row values."""
 
@@ -513,11 +516,22 @@ def compile_schema_mapping(
             else -1
         )
     )
+    frozen_side_values = [copy.deepcopy(dict(item)) for item in side_values]
+    has_position_effect = any(
+        "position_effect" in item for item in frozen_side_values
+    )
+    if has_position_effect != (position_effect_contract is not None):
+        _fail("ordinary_trade_mapping_position_effect_contract_invalid")
+    if position_effect_contract not in {
+        None,
+        SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT,
+    }:
+        _fail("ordinary_trade_mapping_position_effect_contract_invalid")
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
         "amount_currency_bindings": frozen_amount_currency_bindings,
-        "side_values": [copy.deepcopy(dict(item)) for item in side_values],
+        "side_values": frozen_side_values,
         "qualification_ref": frozen_qualification_ref,
         "user_currency_assertion": (
             copy.deepcopy(dict(user_currency_assertion))
@@ -525,6 +539,8 @@ def compile_schema_mapping(
             else None
         ),
     }
+    if position_effect_contract is not None:
+        material[_POSITION_EFFECT_MAPPING_CONTRACT_KEY] = position_effect_contract
     mapping = {
         "schema_version": ORDINARY_TRADE_MAPPING_SCHEMA_VERSION,
         "mapping_id": "otmap_" + _sha256_json(material)[:32],
@@ -537,6 +553,8 @@ def compile_schema_mapping(
         "qualification_ref": material["qualification_ref"],
         "user_currency_assertion": material["user_currency_assertion"],
     }
+    if position_effect_contract is not None:
+        mapping[_POSITION_EFFECT_MAPPING_CONTRACT_KEY] = position_effect_contract
     return _validated_mapping(mapping)
 
 
@@ -648,9 +666,15 @@ def _canonical_binding(
 
 
 def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    mapping_keys = set(value) if isinstance(value, Mapping) else set()
+    has_contract = _POSITION_EFFECT_MAPPING_CONTRACT_KEY in mapping_keys
     if (
         not isinstance(value, Mapping)
-        or set(value) != _MAPPING_KEYS
+        or (
+            mapping_keys != _MAPPING_KEYS
+            and mapping_keys
+            != _MAPPING_KEYS | {_POSITION_EFFECT_MAPPING_CONTRACT_KEY}
+        )
         or any(key in value for key in _FORBIDDEN_PROFILE_KEYS)
         or value.get("schema_version") != ORDINARY_TRADE_MAPPING_SCHEMA_VERSION
         or value.get("table_type") != _TABLE_TYPE
@@ -703,10 +727,15 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     side_values = value.get("side_values")
     if not isinstance(side_values, list) or not side_values:
         _fail("ordinary_trade_mapping_side_invalid")
+    position_effect_contract = value.get(_POSITION_EFFECT_MAPPING_CONTRACT_KEY)
+    if has_contract and position_effect_contract != SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT:
+        _fail("ordinary_trade_mapping_position_effect_contract_invalid")
     sides: dict[str, str] = {}
     for item in side_values:
         if (
-            not _validated_side_value_item(item)
+            not _validated_side_value_item(
+                item, allow_position_effect=has_contract
+            )
             or item["source_literal"] in sides
         ):
             _fail("ordinary_trade_mapping_side_invalid")
@@ -730,12 +759,16 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
         "qualification_ref": copy.deepcopy(qualification_ref),
         "user_currency_assertion": user_currency_assertion,
     }
+    if has_contract:
+        identity_material[_POSITION_EFFECT_MAPPING_CONTRACT_KEY] = (
+            position_effect_contract
+        )
     if value["mapping_id"] != "otmap_" + _sha256_json(identity_material)[:32]:
         _fail("ordinary_trade_mapping_identity_invalid")
     return copy.deepcopy(dict(value))
 
 
-def _validated_side_value_item(value: Any) -> bool:
+def _validated_side_value_item(value: Any, *, allow_position_effect: bool = False) -> bool:
     """Accept only the closed, source-bound optional short marker."""
 
     if not isinstance(value, dict):
@@ -743,7 +776,12 @@ def _validated_side_value_item(value: Any) -> bool:
     fields = set(value)
     if fields not in (
         {"source_literal", "normalized_value"},
-        {"source_literal", "normalized_value", "position_effect"},
+        {
+            "source_literal",
+            "normalized_value",
+            "position_effect",
+            "position_effect_evidence",
+        },
     ):
         return False
     literal = value.get("source_literal")
@@ -755,8 +793,18 @@ def _validated_side_value_item(value: Any) -> bool:
     ):
         return False
     effect = value.get("position_effect")
-    return effect is None or (
-        effect == _OPEN_SHORT_POSITION_EFFECT and normalized == "DISPOSAL"
+    if effect is None:
+        return True
+    evidence = value.get("position_effect_evidence")
+    return (
+        allow_position_effect
+        and effect == _OPEN_SHORT_POSITION_EFFECT
+        and normalized == "DISPOSAL"
+        and isinstance(evidence, dict)
+        and set(evidence) == {"source_row", "source_column", "source_literal"}
+        and evidence.get("source_literal") == literal
+        and isinstance(evidence.get("source_row"), int)
+        and isinstance(evidence.get("source_column"), int)
     )
 
 
@@ -1666,6 +1714,10 @@ def _source_bound_position_effect(
 ) -> str | None:
     """Return the optional effect only from the exact admitted side literal."""
 
+    if mapping.get(_POSITION_EFFECT_MAPPING_CONTRACT_KEY) != (
+        SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT
+    ):
+        return None
     matching = [
         item
         for item in mapping["side_values"]
@@ -1682,6 +1734,14 @@ def _source_bound_position_effect(
         or matching[0].get("normalized_value") != "DISPOSAL"
     ):
         _fail("ordinary_trade_position_effect_invalid")
+    evidence = matching[0].get("position_effect_evidence")
+    if (
+        not isinstance(evidence, Mapping)
+        or evidence.get("source_literal") != side_field["literal"]
+        or evidence.get("source_row") != side_field["canonical_cell"]["row"]
+        or evidence.get("source_column") != side_field["canonical_cell"]["column"]
+    ):
+        _fail("ordinary_trade_position_effect_evidence_invalid")
     return effect
 
 

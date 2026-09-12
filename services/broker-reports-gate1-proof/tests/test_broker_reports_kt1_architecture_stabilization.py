@@ -859,6 +859,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_grouped_mapping_v18.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_explicit_header_source_response.py"
         ),
         (

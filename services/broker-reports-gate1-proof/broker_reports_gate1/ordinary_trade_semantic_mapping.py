@@ -1196,6 +1196,7 @@ class OrdinaryTradeSemanticMapping:
         frozen_requalification_table_node_ids: Iterable[str] = (),
         explicit_header_source_response: Mapping[str, Any] | None = None,
         physical_table_continuation_context: Mapping[str, Any] | None = None,
+        allow_source_bound_position_effect: bool = False,
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
         validated_explicit_header_source_claims: list[dict[str, Any]] = []
@@ -1296,6 +1297,9 @@ class OrdinaryTradeSemanticMapping:
                     preserve_model_classification_evidence=(
                         value["schema_version"]
                         in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
+                    ),
+                    allow_source_bound_position_effect=(
+                        allow_source_bound_position_effect
                     ),
                 )
                 for item in decisions
@@ -1420,6 +1424,9 @@ class OrdinaryTradeSemanticMapping:
                         == "INSTRUCTIONAL_REFERENCE"
                     )
                 ),
+                allow_source_bound_position_effect=(
+                    allow_source_bound_position_effect
+                ),
             )
             resolved_decisions.append(resolved)
         _validate_confirmed_decisions(
@@ -1489,6 +1496,9 @@ class OrdinaryTradeSemanticMapping:
                     user_currency_assertion=_confirmed_user_currency_assertion(
                         confirmed_understandings=confirmed_understandings,
                         table_node_id=resolved["table_node_id"],
+                    ),
+                    allow_source_bound_position_effect=(
+                        allow_source_bound_position_effect
                     ),
                 )
                 qualified_mappings.append(mapping)
@@ -2901,6 +2911,7 @@ def _validate_table_decision(
     model_supplies_missing_required_roles: bool = False,
     model_supplies_sparse_columns: bool = False,
     preserve_model_classification_evidence: bool = False,
+    allow_source_bound_position_effect: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -3215,12 +3226,22 @@ def _validate_table_decision(
         for cell in source_row["cells"]
         if side_columns and cell["column"] == side_columns[0] and cell["literal"]
     }
+    source_side_cells = {
+        (source_row["row"], cell["column"], cell["literal"])
+        for source_row in table["rows"]
+        if source_row["row"] in security_trade_rows
+        for cell in source_row["cells"]
+        if side_columns and cell["column"] == side_columns[0] and cell["literal"]
+    }
     side_values = decision["side_values"]
     if (
         (not side_values and side_columns)
         or any(
             not _validated_side_value_item(
-                item, source_side_literals=source_side_literals
+                item,
+                source_side_literals=source_side_literals,
+                source_side_cells=source_side_cells,
+                allow_source_bound_position_effect=allow_source_bound_position_effect,
             )
             for item in side_values
         )
@@ -3260,7 +3281,11 @@ def _validate_table_decision(
 
 
 def _validated_side_value_item(
-    value: Any, *, source_side_literals: set[str] | None = None
+    value: Any,
+    *,
+    source_side_literals: set[str] | None = None,
+    source_side_cells: set[tuple[int, int, str]] | None = None,
+    allow_source_bound_position_effect: bool = False,
 ) -> bool:
     """Validate one closed model decision without interpreting source language.
 
@@ -3274,7 +3299,12 @@ def _validated_side_value_item(
     fields = set(value)
     if fields not in (
         {"source_literal", "normalized_value"},
-        {"source_literal", "normalized_value", "position_effect"},
+        {
+            "source_literal",
+            "normalized_value",
+            "position_effect",
+            "position_effect_evidence",
+        },
     ):
         return False
     literal = value.get("source_literal")
@@ -3287,8 +3317,21 @@ def _validated_side_value_item(
     ):
         return False
     effect = value.get("position_effect")
-    return effect is None or (
-        effect == _OPEN_SHORT_POSITION_EFFECT and normalized == "DISPOSAL"
+    if effect is None:
+        return True
+    evidence = value.get("position_effect_evidence")
+    return (
+        allow_source_bound_position_effect
+        and effect == _OPEN_SHORT_POSITION_EFFECT
+        and normalized == "DISPOSAL"
+        and isinstance(evidence, dict)
+        and set(evidence) == {"source_row", "source_column", "source_literal"}
+        and evidence.get("source_literal") == literal
+        and isinstance(evidence.get("source_row"), int)
+        and isinstance(evidence.get("source_column"), int)
+        and source_side_cells is not None
+        and (evidence["source_row"], evidence["source_column"], evidence["source_literal"])
+        in source_side_cells
     )
 
 
