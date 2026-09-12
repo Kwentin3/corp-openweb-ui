@@ -16,7 +16,7 @@ import importlib.machinery
 import io
 
 
-_BUNDLED_PACKAGE_NAME = "broker_reports_gate1"
+_BUNDLED_PACKAGE_NAME = "broker_reports_gate1__gate2_source_fact"
 _BUNDLED_PACKAGE_VERSION = "gate2_positional_coverage_v1"
 _BUNDLED_MODULE_ORDER = ["contracts", "architecture_policy", "workload_authority", "source_provenance", "table_projection", "blockers", "pdf_document_ai", "pdf_table_continuation_annotation_contract", "file_processing_outcomes", "inputs", "archive_intake", "detectors", "csv_profile", "profilers_csv_txt", "profilers_docx", "profilers_image", "profilers_pdf", "profilers_xlsx", "xml_source", "profilers_xml", "profilers_zip", "full_source", "canonical_artifact", "artifact_models", "artifact_lifecycle", "artifact_retention", "artifact_store", "physical_table_continuation", "physical_table_continuation_context", "bounded_graph", "taxonomy", "criticality", "eligibility", "document_memory", "domain_ingestion", "validators", "clarification", "artifact_resolver", "canonical_store", "gate1_public_contracts", "gate2_source_fact_contracts", "gate2_fns_2ndfl_contracts", "gate2_fns_2ndfl_adapter", "gate2_fns_2ndfl_parity", "gate2_table_packages", "gate2_input_readiness", "gate2_model_contracts", "instructional_table_classification", "gate2_model_requests", "gate2_economy_model_policy", "gate2_economy_workload_policy", "gate2_economy_provider_selection", "gate2_economy_budget", "gate2_provider_adapters", "gate2_model_clients", "gate2_domain_routing", "gate2_candidate_binding", "gate2_candidate_binding_runtime", "gate2_llm_context", "gate2_domain_packages", "gate2_source_unit_segmentation", "gate2_domain_contracts", "gate2_domain_finalization", "gate2_source_fact_selection", "gate2_source_fact_validation", "gate2_source_fact_runtime", "gate2_source_fact_stitching", "answer_context_selection", "gate3_context_manifest", "gate2_domain_runtime", "compact_report", "safe_report", "document_passport", "normalizer", "__init__", "gate2_chat_dcp_resolution"]
 _BUNDLED_MODULES = {
@@ -170,7 +170,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from broker_reports_gate1 import (
+from broker_reports_gate1__gate2_source_fact import (
     ArtifactAccessContext,
     ArtifactStoreConfig,
     ArtifactStoreError,
@@ -197,8 +197,8 @@ from broker_reports_gate1 import (
     WORKLOAD_GATE2_SOURCE,
     provider_budgets_from_json,
 )
-from broker_reports_gate1.gate2_source_fact_contracts import Gate2PromptError
-from broker_reports_gate1.gate2_chat_dcp_resolution import (
+from broker_reports_gate1__gate2_source_fact.gate2_source_fact_contracts import Gate2PromptError
+from broker_reports_gate1__gate2_source_fact.gate2_chat_dcp_resolution import (
     Gate2ChatDcpResolutionError,
     Gate2ChatDcpResolverConfig,
     Gate2ChatDcpResolverFactory,

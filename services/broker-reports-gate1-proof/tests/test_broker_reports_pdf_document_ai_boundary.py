@@ -616,7 +616,11 @@ def _run_mixed_pipe(
     maintained_modules = {
         name: module
         for name, module in sys.modules.items()
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
+        if (
+            name == "broker_reports_gate1"
+            or name.startswith("broker_reports_gate1.")
+            or name.startswith("broker_reports_gate1__")
+        )
     }
     try:
         if pipe_variant == "bundled":
@@ -637,8 +641,13 @@ def _run_mixed_pipe(
             pipe_module = sys.modules[pipe_type.__module__]
         pipe = pipe_type()
         normalizer_type = pipe_module.Gate1Normalizer
+        package_name = (
+            pipe_module._BUNDLED_PACKAGE_NAME
+            if pipe_variant == "bundled"
+            else "broker_reports_gate1"
+        )
         unconfigured_type = sys.modules[
-            "broker_reports_gate1.pdf_document_ai"
+            package_name + ".pdf_document_ai"
         ].UnconfiguredPdfDocumentExtractor
 
         def unconfigured_pipe_normalizer(**kwargs: object) -> Gate1Normalizer:
@@ -710,8 +719,10 @@ def _run_mixed_pipe(
     finally:
         if pipe_variant == "bundled":
             for name in list(sys.modules):
-                if name == "broker_reports_gate1" or name.startswith(
-                    "broker_reports_gate1."
+                if (
+                    name == "broker_reports_gate1"
+                    or name.startswith("broker_reports_gate1.")
+                    or name.startswith("broker_reports_gate1__")
                 ):
                     del sys.modules[name]
             sys.modules.update(maintained_modules)

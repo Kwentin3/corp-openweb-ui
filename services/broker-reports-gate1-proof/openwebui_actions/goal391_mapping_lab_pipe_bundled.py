@@ -16,7 +16,7 @@ import importlib.machinery
 import io
 
 
-_BUNDLED_PACKAGE_NAME = "broker_reports_gate1"
+_BUNDLED_PACKAGE_NAME = "broker_reports_gate1__goal391_mapping_lab"
 _BUNDLED_PACKAGE_VERSION = "goal391_native_mapping_lab_v1"
 _BUNDLED_MODULE_ORDER = ["contracts", "architecture_policy", "workload_authority", "source_provenance", "table_projection", "blockers", "pdf_document_ai", "pdf_table_continuation_annotation_contract", "file_processing_outcomes", "inputs", "openwebui_file_bytes", "pdfplumber_document_ai", "archive_intake", "detectors", "csv_profile", "profilers_csv_txt", "profilers_docx", "profilers_image", "profilers_pdf", "profilers_xlsx", "xml_source", "profilers_xml", "profilers_zip", "full_source", "canonical_artifact", "artifact_models", "artifact_lifecycle", "artifact_retention", "artifact_store", "physical_table_continuation", "physical_table_continuation_context", "bounded_graph", "taxonomy", "criticality", "eligibility", "document_memory", "domain_ingestion", "validators", "clarification", "artifact_resolver", "canonical_store", "gate1_public_contracts", "gate2_source_fact_contracts", "gate2_fns_2ndfl_contracts", "gate2_fns_2ndfl_adapter", "gate2_fns_2ndfl_parity", "gate2_table_packages", "gate2_input_readiness", "gate2_model_contracts", "instructional_table_classification", "gate2_model_requests", "gate2_economy_model_policy", "gate2_economy_workload_policy", "gate2_economy_provider_selection", "gate2_economy_budget", "gate2_provider_adapters", "gate2_model_clients", "gate2_domain_routing", "gate2_candidate_binding", "gate2_candidate_binding_runtime", "gate2_llm_context", "gate2_domain_packages", "gate2_source_unit_segmentation", "gate2_domain_contracts", "gate2_domain_finalization", "gate2_source_fact_selection", "gate2_source_fact_validation", "gate2_source_fact_runtime", "gate2_source_fact_stitching", "answer_context_selection", "gate3_context_manifest", "gate3_financial_label_dictionary", "gate3_financial_role_pack", "gate3_evidence_demand_port", "gate3_projection", "gate3_structural_chunking", "gate3_bounded_labeling", "gate3_role_labeling", "gate3_chunk_batch_labeling", "gate3_financial_annotations_persistence", "gate3_ndfl_case_readiness", "gate3_metadata_source_facts", "gate4_financial_case_materialization", "gate4_financial_case_cache", "gate3_ndfl_workflow", "gate2_domain_runtime", "gate2_handoff", "compact_report", "safe_report", "document_passport", "normalizer", "gate5_evidence_demand", "gate5_methodology_selection", "gate5_supplemental_fact", "gate5_combined_requirement_check", "gate5_declaration_filing_context", "declaration_semantics", "gate5_declaration_projection", "gate5_supplemental_fact_discovery", "gate5_methodology_calculation", "gate5_trusted_methodology", "gate5_residency_evidence", "qualified_projection_fact_v3", "gate5_deterministic_source_fact_consumption", "gate5_operation_set_demand_derivation", "gate5_securities_disposal_tax_model", "gate5_tax_period_category_aggregation", "gate5_income_group_tax_base", "gate5_declaration_tax_settlement", "gate5_declaration_budget_outcome", "gate5_declaration_financial_investment_results", "gate5_declaration_income_sources", "gate5_declaration_right_side_assembly", "gate5_full_declaration_definition", "ordinary_trade_semantic_compiler", "ordinary_trade_qualified_mappings", "ordinary_trade_explicit_header_source_response", "ordinary_trade_semantic_mapping", "ordinary_trade_grouped_mapping_v14", "ordinary_trade_grouped_mapping_v15", "ordinary_trade_grouped_mapping_v17", "ordinary_trade_mapping_prompt", "pdf_table_continuation_annotation_prompt", "instructional_table_classification_prompt", "ordinary_trade_mapping_case", "canonical_finalization", "ordinary_trade_projection", "ordinary_trade_mapping_runtime", "gate4_ordinary_trade_candidate", "gate5_real_tax_case_assembly", "gate5_declaration_scope_resolution", "gate5_resolved_declaration_package", "gate5_declaration_semantic_input", "gate5_full_target_xml_projection", "gate5_evidence_intake", "gate5_client_evidence_review", "gate5_human_gap_closure", "gate5_declaration_preparation", "ordinary_trade_candidate_runtime", "authenticated_case_taxpayer_binding", "ordinary_trade_tax_model_bridge", "active_category_declaration_assembly", "ordinary_trade_declaration_chat_adapter", "ordinary_trade_declaration_case_inputs", "ordinary_trade_declaration_case_bundle", "ordinary_trade_declaration_mvp", "ordinary_trade_production_runtime", "goal391_private_corpus_export", "goal391_private_selection_binding", "goal391_mapping_lab_control_plan", "goal391_grouped_mapping_lab_v14", "__init__"]
 _BUNDLED_MODULES = {
@@ -284,30 +284,30 @@ from typing import Any, Mapping
 
 from pydantic import BaseModel, Field
 
-from broker_reports_gate1.artifact_models import ArtifactAccessContext
-from broker_reports_gate1.artifact_resolver import ArtifactResolver
-from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
-from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
-from broker_reports_gate1.canonical_store import CanonicalReaderFactory
-from broker_reports_gate1.gate2_model_clients import Gate2StructuredModelClientFactory
-from broker_reports_gate1.gate2_model_contracts import (
+from broker_reports_gate1__goal391_mapping_lab.artifact_models import ArtifactAccessContext
+from broker_reports_gate1__goal391_mapping_lab.artifact_resolver import ArtifactResolver
+from broker_reports_gate1__goal391_mapping_lab.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1__goal391_mapping_lab.canonical_artifact import validate_canonical_artifact
+from broker_reports_gate1__goal391_mapping_lab.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1__goal391_mapping_lab.gate2_model_clients import Gate2StructuredModelClientFactory
+from broker_reports_gate1__goal391_mapping_lab.gate2_model_contracts import (
     Gate2SourceFactRuntimeError,
     Gate2StructuredModelClientConfig,
     require_strict_json_schema_response,
 )
-from broker_reports_gate1.gate2_model_requests import (
+from broker_reports_gate1__goal391_mapping_lab.gate2_model_requests import (
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
-from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+from broker_reports_gate1__goal391_mapping_lab.ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
 )
-from broker_reports_gate1.goal391_private_selection_binding import (
+from broker_reports_gate1__goal391_mapping_lab.goal391_private_selection_binding import (
     Goal391PrivateSelectionBindingIssuer,
     Goal391PrivateSourceFileSelectionRequest,
 )
-from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
+from broker_reports_gate1__goal391_mapping_lab.goal391_grouped_mapping_lab_v14 import (
     GROUPED_MAPPING_LAB_PROMPT_COMMAND,
     GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
     GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
@@ -317,18 +317,18 @@ from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
     expand_grouped_response,
     grouped_mapping_response_format,
 )
-from broker_reports_gate1.goal391_mapping_lab_control_plan import (
+from broker_reports_gate1__goal391_mapping_lab.goal391_mapping_lab_control_plan import (
     SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION,
     canonical_table_node_ids,
     sha256_json,
     valid_expected_assessment,
 )
-from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+from broker_reports_gate1__goal391_mapping_lab.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
-from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+from broker_reports_gate1__goal391_mapping_lab.ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerError,
 )
 
