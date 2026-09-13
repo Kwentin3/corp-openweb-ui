@@ -20,6 +20,15 @@ columns only; if an explicit currency column is absent use
 SECURITY_TRADES_INCOMPLETE. For NO_NAMED_CONSUMER and
 UNSUPPORTED_FINANCIAL_MEANING retain the schema's empty role collections.
 
+For SECURITY_TRADES, columns must contain exactly one
+{column, semantic_role} object for every cell of the selected header, in that
+header's original source order. Use only the shown integer column numbers: do
+not omit, duplicate, reorder, or invent a column. Give each visible header
+column its allowed semantic_role; use unmapped for every other visible column.
+Return SECURITY_TRADES only when asset_name, trade_date, side, quantity,
+unit_price, currency, and gross_amount are present. Otherwise return
+SECURITY_TRADES_INCOMPLETE and do not claim missing facts.
+
 An exception_rows entry may name only a non-empty source row in that same
 table whose row number is strictly greater than that table's selected
 header_row. Never name header_row, a prior row, a blank row, or a row that is

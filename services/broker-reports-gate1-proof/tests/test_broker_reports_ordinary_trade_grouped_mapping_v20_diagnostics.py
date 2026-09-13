@@ -17,6 +17,7 @@ from broker_reports_gate1.ordinary_trade_mapping_runtime import (
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
+    OrdinaryTradeProjectionFactory,
 )
 
 import test_broker_reports_issue312_mapping_case as case_fixtures
@@ -54,6 +55,80 @@ def _v20_response(*, table: dict, mapping: dict, policy: dict) -> dict:
             "claims": [],
         },
     }
+
+
+def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> None:
+    """A complete V20 column contract reaches the existing projection owner."""
+
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _v20_response(
+        table=table,
+        mapping=mapping,
+        policy={"default_disposition": "SECURITY_TRADES", "exception_rows": []},
+    )
+    client = runtime_fixtures.BoundaryModelClient([response])
+
+    result = asyncio.run(
+        _runtime(store=store, client=client).resolve(
+            document_id=document_id, context=context
+        )
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
+    assert len(client.calls) == 1
+    projections = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create()
+    projection = projections.compile_and_save(document_id=document_id, context=context)
+    assert projection.artifact_type == ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE
+    projection_payload = projections.read(
+        artifact_id=projection.artifact_id, context=context
+    )
+    assert projection_payload["runtime_records"]
+    assert projection_payload["qualified_table_resolutions"][0]["disposition"] == (
+        "SECURITY_TRADES"
+    )
+
+
+@pytest.mark.parametrize("malformation", ["omit", "duplicate", "reorder", "invent"])
+def test_v20_malformed_columns_stay_terminal_and_never_project(
+    tmp_path, malformation: str
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _v20_response(
+        table=table,
+        mapping=mapping,
+        policy={"default_disposition": "SECURITY_TRADES", "exception_rows": []},
+    )
+    columns = response["table_decisions"][0]["columns"]
+    if malformation == "omit":
+        columns.pop()
+    elif malformation == "duplicate":
+        columns[-1] = dict(columns[0])
+    elif malformation == "reorder":
+        columns.reverse()
+    else:
+        columns[0] = {**columns[0], "column": 987654321}
+
+    result = asyncio.run(
+        _runtime(
+            store=store,
+            client=runtime_fixtures.BoundaryModelClient([response]),
+        ).resolve(document_id=document_id, context=context)
+    )
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    saved = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert saved["reason_code"] == "ordinary_trade_semantic_mapping_columns_invalid"
+    assert store.list_by_type(
+        context.normalization_run_id,
+        ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
+    ) == []
 
 
 @pytest.mark.parametrize(
