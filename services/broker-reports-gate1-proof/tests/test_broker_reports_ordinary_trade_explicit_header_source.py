@@ -159,27 +159,7 @@ def _continuation(mapping: dict) -> dict:
     }
 
 
-def _physical_context(*, links: list[dict] | None = None) -> dict:
-    return {
-        "schema_version": "broker_reports_physical_table_continuation_context_v1",
-        "sidecar_artifact_ref": "art_continuation_sidecar",
-        "sidecar_id": "ptc_test",
-        "source_binding": {
-            "normalization_run_id": "run_continuation",
-            **copy.deepcopy(_BINDING),
-        },
-        "links": links
-        if links is not None
-        else [
-            {
-                "parent_table_node_id": "table-parent",
-                "child_table_node_id": "table-child",
-            }
-        ],
-    }
-
-
-def _compile(*, continuation: dict, physical_context: dict | None = None) -> dict:
+def _compile(*, continuation: dict) -> dict:
     mapping = continuation["mapping"]
     return OrdinaryTradeSemanticCompilerFactory.create().compile(
         canonical=_canonical(),
@@ -187,9 +167,6 @@ def _compile(*, continuation: dict, physical_context: dict | None = None) -> dic
         mappings=[],
         scoped_mappings=[{"table_node_id": "table-parent", "mapping": mapping}],
         explicit_header_source_continuations=[continuation],
-        physical_table_continuation_context=(
-            _physical_context() if physical_context is None else physical_context
-        ),
         table_resolutions=[_parent_resolution()],
     )
 
@@ -240,14 +217,7 @@ def test_explicit_header_source_fails_closed_for_wrong_binding_or_surface(mutati
     assert error.value.code == code
 
 
-def test_explicit_header_source_requires_exact_source_owned_link() -> None:
-    with pytest.raises(OrdinaryTradeSemanticCompilerError) as error:
-        _compile(
-            continuation=_continuation(_mapping()),
-            physical_context=_physical_context(links=[{
-                "parent_table_node_id": "table-child",
-                "child_table_node_id": "table-parent",
-            }]),
-        )
+def test_explicit_header_source_needs_no_physical_sidecar() -> None:
+    projection = _compile(continuation=_continuation(_mapping()))
 
-    assert error.value.code == "ordinary_trade_explicit_header_source_link_unverified"
+    assert len(projection["runtime_records"]) == 4

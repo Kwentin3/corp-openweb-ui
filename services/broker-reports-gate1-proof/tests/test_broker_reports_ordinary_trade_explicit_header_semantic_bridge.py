@@ -79,6 +79,40 @@ def _response(*, rows: list[int] | None = None) -> dict:
     }
 
 
+def _header_absent_decision() -> dict:
+    return {
+        "table_ref": "table_2",
+        "header_row": None,
+        "disposition": "HEADER_ABSENT",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+    }
+
+
+def test_semantic_response_reaches_compiler_without_physical_sidecar(tmp_path) -> None:
+    semantic, canonical, binding, context, parent, child, outcome = _prepared_parent_outcome(tmp_path)
+    response = case_fixtures._complete(parent, outcome["qualified_mappings"][0])
+    response["table_decisions"].append(_header_absent_decision())
+
+    completed = semantic.validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=case_fixtures._metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+        target_table_node_ids=[parent["node_id"], child["node_id"]],
+        explicit_header_source_response=_response(),
+    )
+
+    assert completed["status"] == "COMPLETE"
+    assert completed["explicit_header_source_continuations"][0]["target_table_node_id"] == child["node_id"]
+
+
 def test_semantic_bridge_reuses_exact_qualified_parent_mapping_for_explicit_rows(tmp_path) -> None:
     semantic, canonical, binding, context, parent, child, outcome = _prepared_parent_outcome(tmp_path)
 
@@ -89,9 +123,6 @@ def test_semantic_bridge_reuses_exact_qualified_parent_mapping_for_explicit_rows
         user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
         qualified_mappings=outcome["qualified_mappings"],
         qualification_receipts=outcome["qualification_receipts"],
-        physical_table_continuation_context=_physical_context(
-            binding, parent["node_id"], child["node_id"]
-        ),
     )
 
     assert continuations == [
@@ -192,9 +223,6 @@ def test_semantic_bridge_rejects_a_claim_outside_its_mapping_batch_scope(tmp_pat
             user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
             qualified_mappings=outcome["qualified_mappings"],
             qualification_receipts=outcome["qualification_receipts"],
-            physical_table_continuation_context=_physical_context(
-                binding, parent["node_id"], child["node_id"]
-            ),
             target_table_node_ids=[parent["node_id"]],
         )
 
@@ -214,9 +242,6 @@ def test_semantic_bridge_uses_batch_local_table_refs_not_global_order(tmp_path) 
         user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
         qualified_mappings=outcome["qualified_mappings"],
         qualification_receipts=outcome["qualification_receipts"],
-        physical_table_continuation_context=_physical_context(
-            binding, parent["node_id"], child["node_id"]
-        ),
         target_table_node_ids=[parent["node_id"], child["node_id"]],
     )
 
@@ -227,12 +252,6 @@ def test_semantic_bridge_uses_batch_local_table_refs_not_global_order(tmp_path) 
 @pytest.mark.parametrize(
     ("mutation", "code"),
     [
-        (
-            lambda response, context: context["links"][0].update(
-                {"parent_table_node_id": "forged-parent"}
-            ),
-            "ordinary_trade_explicit_header_source_context_invalid",
-        ),
         (
             lambda response, context: response["claims"][0].update(
                 {"security_trade_rows": [999]}
@@ -245,13 +264,12 @@ def test_semantic_bridge_uses_batch_local_table_refs_not_global_order(tmp_path) 
         ),
     ],
 )
-def test_semantic_bridge_fails_closed_for_unbound_rows_links_or_parent_authority(
+def test_semantic_bridge_fails_closed_for_unbound_rows_or_parent_authority(
     tmp_path, mutation, code
 ) -> None:
     semantic, canonical, binding, context, parent, child, outcome = _prepared_parent_outcome(tmp_path)
     response = _response()
-    physical_context = _physical_context(binding, parent["node_id"], child["node_id"])
-    mutation(response, physical_context)
+    mutation(response, {})
     mappings = outcome["qualified_mappings"]
     if code == "ordinary_trade_explicit_header_source_parent_mapping_invalid":
         mappings = copy.deepcopy(mappings)
@@ -265,7 +283,23 @@ def test_semantic_bridge_fails_closed_for_unbound_rows_links_or_parent_authority
             user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
             qualified_mappings=mappings,
             qualification_receipts=outcome["qualification_receipts"],
-            physical_table_continuation_context=physical_context,
         )
 
     assert error.value.code == code
+
+
+def test_semantic_bridge_rejects_stale_canonical_binding_without_sidecar(tmp_path) -> None:
+    semantic, canonical, binding, context, _parent, _child, outcome = _prepared_parent_outcome(tmp_path)
+    stale_binding = {**binding, "source_sha256": "0" * 64}
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as error:
+        semantic.build_explicit_header_source_continuations(
+            response=_response(),
+            canonical=canonical,
+            canonical_binding=stale_binding,
+            user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+            qualified_mappings=outcome["qualified_mappings"],
+            qualification_receipts=outcome["qualification_receipts"],
+        )
+
+    assert error.value.code == "ordinary_trade_explicit_header_source_binding_invalid"

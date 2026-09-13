@@ -292,7 +292,7 @@ class OrdinaryTradeSemanticMapping:
         user_scope_sha256: str,
         qualified_mappings: Iterable[Mapping[str, Any]],
         qualification_receipts: Iterable[Mapping[str, Any]],
-        physical_table_continuation_context: Mapping[str, Any],
+        physical_table_continuation_context: Mapping[str, Any] | None = None,
         target_table_node_ids: Iterable[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Bind wire claims to the current qualified parent mapping.
@@ -323,11 +323,6 @@ class OrdinaryTradeSemanticMapping:
         if not allowed.issubset(table_by_id):
             _fail("ordinary_trade_explicit_header_source_scope_invalid")
         node_id_by_ref = {table_ref: node_id for node_id, table_ref in refs_by_node_id.items()}
-        links = _current_explicit_header_continuation_links(
-            canonical_binding=binding,
-            table_node_ids=set(table_by_id),
-            physical_table_continuation_context=physical_table_continuation_context,
-        )
         qualified_by_node_id = _qualified_parent_mappings_by_node_id(
             canonical_binding=binding,
             user_scope_sha256=user_scope_sha256,
@@ -342,8 +337,6 @@ class OrdinaryTradeSemanticMapping:
                 _fail("ordinary_trade_explicit_header_source_invalid")
             if {parent_id, target_id} - allowed:
                 _fail("ordinary_trade_explicit_header_source_scope_invalid")
-            if (parent_id, target_id) not in links:
-                _fail("ordinary_trade_explicit_header_source_link_unverified")
             parent, target = table_by_id[parent_id], table_by_id[target_id]
             header_row = parent.get("physical_header_row")
             if not isinstance(header_row, int) or header_row < 1:
