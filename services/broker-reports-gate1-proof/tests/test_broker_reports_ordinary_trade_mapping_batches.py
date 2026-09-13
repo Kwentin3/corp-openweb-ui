@@ -5,7 +5,10 @@ import hashlib
 import json
 import asyncio
 import logging
+import sys
 from dataclasses import replace
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -26,7 +29,9 @@ from broker_reports_gate1.ordinary_trade_mapping_case import (
     MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
 )
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
+from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
@@ -248,6 +253,56 @@ def _product_batches(tmp_path, monkeypatch):
     client = runtime_fixtures.BoundaryModelClient(responses)
     runtime = runtime_fixtures._runtime(store, client)
     return store, context, document_id, client, runtime
+
+
+def _install_openwebui_private_file_boundary(monkeypatch, tmp_path):
+    rows = {}
+
+    class FileForm:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class Files:
+        @staticmethod
+        async def get_file_by_id(file_id):
+            return rows.get(file_id)
+
+        @staticmethod
+        async def insert_new_file(user_id, form):
+            row = SimpleNamespace(**form.__dict__, user_id=user_id)
+            rows[form.id] = row
+            return row
+
+    class Storage:
+        @staticmethod
+        def upload_file(stream, name, _headers):
+            content = stream.read()
+            path = tmp_path / name
+            path.write_bytes(content)
+            return content, str(path)
+
+        @staticmethod
+        def get_file(path):
+            return path
+
+        @staticmethod
+        def delete_file(path):
+            Path(path).unlink(missing_ok=True)
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    files = ModuleType("open_webui.models.files")
+    storage = ModuleType("open_webui.storage")
+    provider = ModuleType("open_webui.storage.provider")
+    files.FileForm = FileForm
+    files.Files = Files
+    provider.Storage = Storage
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.files", files)
+    monkeypatch.setitem(sys.modules, "open_webui.storage", storage)
+    monkeypatch.setitem(sys.modules, "open_webui.storage.provider", provider)
+    return rows
 
 
 def test_product_splits_and_publishes_only_full_scope(tmp_path, monkeypatch):
@@ -500,6 +555,86 @@ def test_complete_batch_exposes_no_private_raw_response_ref(tmp_path, monkeypatc
     assert store.list_by_type(
         context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
     ) == []
+
+
+def test_pipe_projects_only_invalid_mapping_raw_response_to_owner_file(
+    tmp_path, monkeypatch, caplog
+):
+    store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
+    private_response = {"provider_private_value": "mapping-output-do-not-log"}
+    client.outputs[1] = private_response
+    mapping = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+    assert mapping["status"] == "MAPPING_OUTPUT_INVALID"
+    raw_ref = mapping["private_mapping_raw_output_ref"]
+
+    rows = _install_openwebui_private_file_boundary(monkeypatch, tmp_path)
+    caplog.set_level(logging.INFO, logger="openwebui_actions.broker_reports_gate1_pipe")
+    Pipe._audit_mapping_terminal(mapping)
+    delivery = asyncio.run(
+        Pipe._publish_mapping_forensics_file(
+            store=store,
+            context=context,
+            user={"id": context.user_id, "email": "", "name": ""},
+            semantic_mapping=mapping,
+        )
+    )
+
+    assert delivery is not None
+    assert delivery["filename"] == "mapping-response-forensics.json"
+    assert delivery["content_type"] == "application/json"
+    assert delivery["url"] == (
+        f"/api/v1/files/{delivery['file_id']}/content?attachment=true"
+    )
+    assert len(rows) == 1
+    row = rows[delivery["file_id"]]
+    assert row.user_id == context.user_id
+    assert row.filename == delivery["filename"]
+    assert json.loads(Path(row.path).read_text(encoding="utf-8")) == private_response
+    assert row.meta["data"]["broker_reports_mapping_forensics"] is True
+    assert row.meta["data"]["mapping_case_artifact_id"] == raw_ref[
+        "mapping_case_artifact_id"
+    ]
+    assert "provider_private_value" not in repr(delivery)
+    assert "mapping-output-do-not-log" not in caplog.text
+    public_link = Pipe._mapping_forensics_download_line(delivery)
+    assert delivery["url"] in public_link
+    assert "mapping-output-do-not-log" not in public_link
+
+    foreign_context = replace(context, user_id="other-user")
+    with pytest.raises(ArtifactStoreError) as foreign:
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=foreign_context,
+                user={"id": "other-user", "email": "", "name": ""},
+                semantic_mapping=mapping,
+            )
+        )
+    assert foreign.value.code == "artifact_access_denied"
+    assert len(rows) == 1
+
+    complete_store, complete_context, complete_document_id, _client, complete_runtime = (
+        _product_batches(tmp_path / "complete", monkeypatch)
+    )
+    complete = asyncio.run(
+        complete_runtime.resolve(
+            document_id=complete_document_id,
+            context=complete_context,
+        )
+    )
+    assert complete["status"] == "COMPLETE"
+    assert (
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=complete_store,
+                context=complete_context,
+                user={"id": complete_context.user_id, "email": "", "name": ""},
+                semantic_mapping=complete,
+            )
+        )
+        is None
+    )
+    assert len(rows) == 1
 
 
 @pytest.mark.parametrize("restart", [False, True, "after_assertion", "resolver_fails_pending"])
