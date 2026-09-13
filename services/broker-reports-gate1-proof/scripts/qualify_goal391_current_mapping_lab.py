@@ -36,6 +36,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (  # noqa: E402
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
+    ordinary_trade_mapping_prompt_config_for_command,
     ordinary_trade_mapping_wire_contract_for_prompt,
 )
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact  # noqa: E402
@@ -1116,14 +1117,13 @@ def _resolve_mapping_prompt(
     if not selector_id:
         raise SystemExit("goal391_mapping_prompt_selector_invalid")
     return OrdinaryTradeMappingPromptResolverFactory(
-        OrdinaryTradeMappingPromptConfig(
+        ordinary_trade_mapping_prompt_config_for_command(
             source="openwebui_sqlite",
             db_path=db_path,
             prompt_id=selector_id,
-            command=None,
-            required_command=str(prompt_command or "").strip(),
-            release_prompt_version=str(prompt_version or "").strip() or None,
-            release_prompt_hash=str(prompt_hash or "").strip() or None,
+            prompt_command=str(prompt_command or "").strip(),
+            release_prompt_version=str(prompt_version or "").strip(),
+            release_prompt_hash=str(prompt_hash or "").strip(),
         )
     ).create().resolve(
         OrdinaryTradeMappingPromptUserContext(

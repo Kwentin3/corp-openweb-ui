@@ -340,6 +340,45 @@ class OrdinaryTradeMappingPromptConfig:
     release_prompt_hash: str | None = None
 
 
+def ordinary_trade_mapping_prompt_config_for_command(
+    *,
+    source: str,
+    db_path: Path | None,
+    prompt_id: str,
+    prompt_command: str,
+    release_prompt_version: str,
+    release_prompt_hash: str,
+) -> OrdinaryTradeMappingPromptConfig:
+    """Build a resolver config from one closed released Prompt identity."""
+
+    identities = [
+        identity
+        for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+        if prompt_command in identity["commands"]
+    ]
+    if len(identities) != 1:
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_wire_contract_invalid",
+            "Ordinary-trade mapping Prompt command is not released",
+        )
+    identity = identities[0]
+    return OrdinaryTradeMappingPromptConfig(
+        source=source,
+        db_path=db_path,
+        prompt_id=prompt_id,
+        command=None,
+        required_command=prompt_command,
+        required_template_id=identity["template_id"],
+        required_template_kind=identity["template_kind"],
+        required_input_schema_version=identity["input_schema_version"],
+        required_output_schema_id=identity["output_schema_id"],
+        required_output_schema_version=identity["output_schema_version"],
+        required_tag=identity["required_tag"],
+        release_prompt_version=release_prompt_version,
+        release_prompt_hash=release_prompt_hash,
+    )
+
+
 @dataclass(frozen=True)
 class OrdinaryTradeMappingManagedPrompt:
     prompt_ref: str
@@ -1156,6 +1195,7 @@ __all__ = [
     "OrdinaryTradeMappingPromptUserContext",
     "StaticOrdinaryTradeMappingPromptResolver",
     "ordinary_trade_mapping_prompt_hash",
+    "ordinary_trade_mapping_prompt_config_for_command",
     "ordinary_trade_mapping_wire_contract",
     "ordinary_trade_mapping_wire_contract_for_prompt",
     "validate_ordinary_trade_mapping_prompt_snapshot",
