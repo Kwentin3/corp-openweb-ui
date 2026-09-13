@@ -33,8 +33,9 @@ _OPEN_SHORT = "OPEN_SHORT"
 class OrdinaryTradeGroupedMappingV18Error(RuntimeError):
     """A value-free rejection at the V18 representation boundary."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, safe_shape_category: str | None = None) -> None:
         self.code = code
+        self.safe_shape_category = safe_shape_category
         super().__init__(code)
 
 
@@ -101,7 +102,8 @@ def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dic
         )
     except OrdinaryTradeGroupedMappingV17Error as exc:
         raise OrdinaryTradeGroupedMappingV18Error(
-            exc.code.replace("_v17_", "_v18_")
+            exc.code.replace("_v17_", "_v18_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 
@@ -112,7 +114,8 @@ def explicit_header_source_claims(*, response: Any) -> dict[str, Any]:
         return _claims_v17(response=_as_v17(response))
     except OrdinaryTradeGroupedMappingV17Error as exc:
         raise OrdinaryTradeGroupedMappingV18Error(
-            exc.code.replace("_v17_", "_v18_")
+            exc.code.replace("_v17_", "_v18_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 

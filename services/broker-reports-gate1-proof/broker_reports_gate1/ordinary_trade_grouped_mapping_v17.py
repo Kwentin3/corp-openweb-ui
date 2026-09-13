@@ -35,8 +35,9 @@ _EXPLICIT_HEADER_SOURCE_CLAIMS_FIELD = "explicit_header_source_claims"
 class OrdinaryTradeGroupedMappingV17Error(RuntimeError):
     """A value-free rejection at the V17 representation boundary."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, safe_shape_category: str | None = None) -> None:
         self.code = code
+        self.safe_shape_category = safe_shape_category
         super().__init__(code)
 
 
@@ -134,7 +135,8 @@ def _expand_grouped_response(
         return _expand_v15(response=grouped_response, package=package)
     except OrdinaryTradeGroupedMappingV15Error as exc:
         raise OrdinaryTradeGroupedMappingV17Error(
-            exc.code.replace("_v15_", "_v17_")
+            exc.code.replace("_v15_", "_v17_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 

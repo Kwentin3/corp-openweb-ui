@@ -616,6 +616,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             code = getattr(
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
             )
+            reason_code = _mapping_output_reason_code(exc, str(code))
             incomplete = str(code) in {
                 "ordinary_trade_semantic_mapping_side_invalid",
                 "ordinary_trade_semantic_mapping_dry_run_incomplete",
@@ -624,7 +625,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 document_id=document_id,
                 context=context,
                 status="MAPPING_OUTPUT_INVALID",
-                reason_code=str(code),
+                reason_code=reason_code,
                 message=(
                     (
                         "Mapping не покрывает все значения и строки полного "
@@ -1014,7 +1015,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 mapping_batch_state=state,
                 provider_calls_total=1,
                 mapping_prompt_snapshot=snapshot,
-                reason_code=str(code),
+                reason_code=_mapping_output_reason_code(exc, str(code)),
             )
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn + 1)
         if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
@@ -1586,6 +1587,27 @@ def _model_content_dict(response: Any) -> dict[str, Any]:
 
 def _metadata_sha256(value: Any) -> str:
     return hashlib.sha256(repr(value).encode("utf-8")).hexdigest()
+
+
+def _mapping_output_reason_code(error: Exception, code: str) -> str:
+    """Keep only a closed V20 wire-shape category in the durable receipt.
+
+    This is diagnostic control state, not a repair path.  In particular, it
+    deliberately excludes the rejected row number, source literals, table
+    identifiers and every provider value.
+    """
+
+    if code != "ordinary_trade_grouped_mapping_v20_row_policy_invalid":
+        return code
+    category = getattr(error, "safe_shape_category", None)
+    if category not in {
+        "policy_object_invalid",
+        "exception_item_invalid",
+        "exception_rows_not_strictly_ordered",
+        "exception_row_outside_data_rows",
+    }:
+        return code
+    return f"{code}:{category}"
 
 
 def _sha256_json(value: Any) -> str:

@@ -27,8 +27,9 @@ ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION = (
 
 
 class OrdinaryTradeGroupedMappingV20Error(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, safe_shape_category: str | None = None) -> None:
         self.code = code
+        self.safe_shape_category = safe_shape_category
         super().__init__(code)
 
 
@@ -104,7 +105,8 @@ def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dic
         return _expand_v18(response=v18_value, package=package)
     except OrdinaryTradeGroupedMappingV18Error as exc:
         raise OrdinaryTradeGroupedMappingV20Error(
-            exc.code.replace("_v18_", "_v20_")
+            exc.code.replace("_v18_", "_v20_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 
@@ -131,7 +133,8 @@ def explicit_header_source_claims(*, response: Any) -> dict[str, Any]:
         return _claims_v18(response=v18_value)
     except OrdinaryTradeGroupedMappingV18Error as exc:
         raise OrdinaryTradeGroupedMappingV20Error(
-            exc.code.replace("_v18_", "_v20_")
+            exc.code.replace("_v18_", "_v20_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 
