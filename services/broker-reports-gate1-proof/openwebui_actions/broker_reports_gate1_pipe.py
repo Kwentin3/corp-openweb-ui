@@ -2908,7 +2908,13 @@ class Pipe:
                     "private_file_projection_lookup_unavailable",
                     "OpenWebUI private file lookup is unavailable",
                 )
-            row = await getter(file_id)
+            try:
+                row = await getter(file_id)
+            except Exception as exc:
+                raise ArtifactStoreError(
+                    "private_file_projection_lookup_failed",
+                    "OpenWebUI private file lookup failed",
+                ) from exc
             if row is None:
                 return None
             meta = getattr(row, "meta", None)
@@ -2951,17 +2957,23 @@ class Pipe:
         if await existing_valid() is not None:
             return file_id
         attempt_id = uuid.uuid4().hex
-        uploaded, file_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(content),
-            f"{file_id}_{attempt_id}_{filename}",
-            {
-                "OpenWebUI-User-Email": str(user.get("email") or ""),
-                "OpenWebUI-User-Id": str(user["id"]),
-                "OpenWebUI-User-Name": str(user.get("name") or ""),
-                "OpenWebUI-File-Id": file_id,
-            },
-        )
+        try:
+            uploaded, file_path = await asyncio.to_thread(
+                Storage.upload_file,
+                io.BytesIO(content),
+                f"{file_id}_{attempt_id}_{filename}",
+                {
+                    "OpenWebUI-User-Email": str(user.get("email") or ""),
+                    "OpenWebUI-User-Id": str(user["id"]),
+                    "OpenWebUI-User-Name": str(user.get("name") or ""),
+                    "OpenWebUI-File-Id": file_id,
+                },
+            )
+        except Exception as exc:
+            raise ArtifactStoreError(
+                "private_file_projection_upload_failed",
+                "OpenWebUI private file upload failed",
+            ) from exc
         if uploaded != content:
             await Pipe._delete_partial_private_file(
                 Storage=Storage, file_path=file_path

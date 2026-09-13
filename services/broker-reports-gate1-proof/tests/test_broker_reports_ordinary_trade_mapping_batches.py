@@ -302,7 +302,7 @@ def _install_openwebui_private_file_boundary(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "open_webui.models.files", files)
     monkeypatch.setitem(sys.modules, "open_webui.storage", storage)
     monkeypatch.setitem(sys.modules, "open_webui.storage.provider", provider)
-    return rows
+    return rows, Files, Storage
 
 
 def test_product_splits_and_publishes_only_full_scope(tmp_path, monkeypatch):
@@ -567,7 +567,7 @@ def test_pipe_projects_only_invalid_mapping_raw_response_to_owner_file(
     assert mapping["status"] == "MAPPING_OUTPUT_INVALID"
     raw_ref = mapping["private_mapping_raw_output_ref"]
 
-    rows = _install_openwebui_private_file_boundary(monkeypatch, tmp_path)
+    rows, _Files, _Storage = _install_openwebui_private_file_boundary(monkeypatch, tmp_path)
     caplog.set_level(logging.INFO, logger="openwebui_actions.broker_reports_gate1_pipe")
     Pipe._audit_mapping_terminal(mapping)
     delivery = asyncio.run(
@@ -711,6 +711,47 @@ def test_pipe_keeps_persisted_invalid_terminal_when_native_file_boundary_is_unav
     assert "private_mapping_raw_output_ref" not in mapping["public_state"]
     assert "mapping-output-do-not-log" not in caplog.text
     assert "private_file_projection_boundary_unavailable" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("boundary", "expected_code"),
+    [
+        ("lookup", "private_file_projection_lookup_failed"),
+        ("upload", "private_file_projection_upload_failed"),
+    ],
+)
+def test_pipe_keeps_persisted_invalid_terminal_when_native_private_file_operation_fails(
+    tmp_path, monkeypatch, caplog, boundary, expected_code
+):
+    store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
+    client.outputs[1] = {"provider_private_value": "mapping-output-do-not-log"}
+    mapping = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+    persisted_before = runtime._cases.current(document_id=document_id, context=context)
+    _rows, Files, Storage = _install_openwebui_private_file_boundary(monkeypatch, tmp_path)
+
+    if boundary == "lookup":
+        async def unavailable_lookup(_file_id):
+            raise RuntimeError("native file lookup unavailable")
+
+        monkeypatch.setattr(Files, "get_file_by_id", unavailable_lookup)
+    else:
+        def unavailable_upload(_stream, _name, _headers):
+            raise RuntimeError("native storage upload unavailable")
+
+        monkeypatch.setattr(Storage, "upload_file", unavailable_upload)
+
+    caplog.set_level(logging.WARNING, logger="openwebui_actions.broker_reports_gate1_pipe")
+    assert asyncio.run(
+        Pipe._try_publish_mapping_forensics_file(
+            store=store,
+            context=context,
+            user={"id": context.user_id, "email": "", "name": ""},
+            semantic_mapping=mapping,
+        )
+    ) is None
+    assert runtime._cases.current(document_id=document_id, context=context) == persisted_before
+    assert "mapping-output-do-not-log" not in caplog.text
+    assert expected_code in caplog.text
 
 
 @pytest.mark.parametrize("restart", [False, True, "after_assertion", "resolver_fails_pending"])
