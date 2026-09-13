@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import re
 from dataclasses import replace
 from typing import Any, Mapping
@@ -54,6 +55,8 @@ _V4_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v4"
 _V5_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v5"
 _MAPPING_RAW_RESPONSE_UNSET = object()
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CLOSED_REASON_CODE = re.compile(r"ordinary_trade_[a-z0-9_]+(?::[a-z0-9_]+)?")
+_LOGGER = logging.getLogger(__name__)
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
     "persistence and continuation entrypoint"
@@ -1249,7 +1252,43 @@ class OrdinaryTradeMappingCaseRuntime:
                     "ordinary_trade_mapping_case_concurrent_answer"
                 ) from exc
             raise
+        _audit_mapping_output_invalid_terminal(
+            payload=payload,
+            raw_response_saved=(mapping_raw_response is not _MAPPING_RAW_RESPONSE_UNSET),
+        )
         return stored, copy.deepcopy(payload)
+
+
+def _audit_mapping_output_invalid_terminal(
+    *, payload: Mapping[str, Any], raw_response_saved: bool
+) -> None:
+    """Emit one body-free receipt when an invalid mapping terminal is persisted.
+
+    The mapping case is the single persistence owner shared by one-shot, batch,
+    and resume paths.  This line deliberately contains only closed technical
+    metadata; source data, prompt text, provider output, identities, and
+    artifact identifiers remain private-case data.
+    """
+
+    if payload.get("status") != "MAPPING_OUTPUT_INVALID":
+        return
+    reason_code = str(payload.get("reason_code") or "")
+    if _CLOSED_REASON_CODE.fullmatch(reason_code) is None:
+        reason_code = "ordinary_trade_mapping_output_invalid"
+    revision = payload.get("revision")
+    provider_calls_total = payload.get("provider_calls_total")
+    if not isinstance(revision, int) or revision < 1:
+        return
+    if not isinstance(provider_calls_total, int) or provider_calls_total < 0:
+        return
+    _LOGGER.info(
+        "broker_reports_mapping_invalid_terminal reason_code=%s revision=%s "
+        "provider_calls_total=%s raw_response_saved=%s",
+        reason_code,
+        revision,
+        provider_calls_total,
+        raw_response_saved,
+    )
 
 
 def _validate_payload(payload: Any, *, authority: Any) -> None:
