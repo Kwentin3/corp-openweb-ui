@@ -22,6 +22,9 @@ import broker_reports_gate1.ordinary_trade_semantic_mapping as semantic_module
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseError
 from broker_reports_gate1.ordinary_trade_mapping_case import MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+)
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
@@ -444,6 +447,17 @@ def test_invalid_batch_preserves_private_raw_response_without_logging_it(
     assert result["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 2
     assert runtime._cases.qualified_material(document_id=document_id, context=context) is None
+    raw_ref = result["private_mapping_raw_output_ref"]
+    assert raw_ref == runtime._cases.invalid_mapping_raw_output_ref(
+        document_id=document_id, context=context
+    )
+    assert raw_ref == {
+        "schema_version": MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+        "artifact_ref": raw_ref["artifact_ref"],
+        "mapping_case_artifact_id": result["mapping_case_artifact_id"],
+    }
+    assert private_response["provider_private_value"] not in repr(result)
+    assert "private_mapping_raw_output_ref" not in result["public_state"]
     assert asyncio.run(runtime.resolve(document_id=document_id, context=context))["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 2
     raw_records = store.list_by_type(
@@ -452,6 +466,11 @@ def test_invalid_batch_preserves_private_raw_response_without_logging_it(
     assert len(raw_records) == 1
     raw_record = raw_records[0]
     assert raw_record.visibility == "private_case"
+    assert raw_record.artifact_id == raw_ref["artifact_ref"]
+    assert raw_record.user_id == context.user_id
+    assert raw_record.case_id == context.case_id
+    assert raw_record.chat_id == context.chat_id
+    assert raw_record.workspace_model_id == context.workspace_model_id
     assert raw_record.safe_metadata["contains_provider_response"] is True
     raw = ArtifactResolver(store).resolve(raw_record.artifact_id, context)["payload"]
     assert raw["response_content"] == private_response
@@ -466,6 +485,21 @@ def test_invalid_batch_preserves_private_raw_response_without_logging_it(
         "revision=5 provider_calls_total=2 raw_response_saved=True"
     ]
     assert "batch-output-do-not-log" not in caplog.text
+
+
+def test_complete_batch_exposes_no_private_raw_response_ref(tmp_path, monkeypatch):
+    store, context, document_id, _client, runtime = _product_batches(tmp_path, monkeypatch)
+
+    result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+
+    assert result["status"] == "COMPLETE"
+    assert "private_mapping_raw_output_ref" not in result
+    assert runtime._cases.invalid_mapping_raw_output_ref(
+        document_id=document_id, context=context
+    ) is None
+    assert store.list_by_type(
+        context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    ) == []
 
 
 @pytest.mark.parametrize("restart", [False, True, "after_assertion", "resolver_fails_pending"])

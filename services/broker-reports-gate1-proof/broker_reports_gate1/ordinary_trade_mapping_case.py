@@ -48,6 +48,9 @@ from .ordinary_trade_semantic_compiler import (
 MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v7"
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
 MAPPING_RAW_OUTPUT_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_raw_output_v1"
+MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_mapping_raw_output_ref_v1"
+)
 _V6_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v6"
 _LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
 _V3_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v3"
@@ -993,6 +996,59 @@ class OrdinaryTradeMappingCaseRuntime:
             ),
         }
 
+    def invalid_mapping_raw_output_ref(
+        self, *, document_id: str, context: ArtifactAccessContext
+    ) -> dict[str, str] | None:
+        """Return the current invalid-output raw artifact reference, if any.
+
+        This is an internal forensic seam. The MappingCase remains the sole
+        owner of both the failed case receipt and its atomically persisted raw
+        provider response; callers receive neither the response nor a
+        derivable artifact identifier.
+        """
+
+        current = self.current(document_id=document_id, context=context)
+        if current is None or current[1]["status"] != "MAPPING_OUTPUT_INVALID":
+            return None
+        mapping_record = current[0]
+        matches: list[ArtifactRecord] = []
+        for candidate in self._resolver.catalog_case(context):
+            if (
+                candidate.artifact_type != MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+                or candidate.document_id != document_id
+            ):
+                continue
+            candidate_context = replace(
+                context, normalization_run_id=candidate.normalization_run_id
+            )
+            raw_record = self._resolver.resolve_record(
+                candidate.artifact_id, candidate_context
+            )
+            if (
+                raw_record.safe_metadata.get("mapping_case_artifact_id")
+                != mapping_record.artifact_id
+            ):
+                continue
+            if (
+                raw_record.user_id != mapping_record.user_id
+                or raw_record.case_id != mapping_record.case_id
+                or raw_record.chat_id != mapping_record.chat_id
+                or raw_record.workspace_model_id != mapping_record.workspace_model_id
+                or raw_record.normalization_run_id
+                != mapping_record.normalization_run_id
+            ):
+                _fail("ordinary_trade_mapping_case_raw_output_scope_invalid")
+            matches.append(raw_record)
+        if len(matches) > 1:
+            _fail("ordinary_trade_mapping_case_raw_output_ambiguous")
+        if not matches:
+            return None
+        return {
+            "schema_version": MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+            "artifact_ref": matches[0].artifact_id,
+            "mapping_case_artifact_id": mapping_record.artifact_id,
+        }
+
     def public_state(
         self, *, document_id: str, context: ArtifactAccessContext
     ) -> dict[str, Any] | None:
@@ -1867,6 +1923,7 @@ __all__ = [
     "MAPPING_CASE_ARTIFACT_TYPE",
     "MAPPING_CASE_RECEIPT_SCHEMA_VERSION",
     "MAPPING_RAW_OUTPUT_ARTIFACT_TYPE",
+    "MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION",
     "OrdinaryTradeMappingCaseError",
     "OrdinaryTradeMappingCaseFactory",
     "OrdinaryTradeMappingCaseRuntime",

@@ -1626,7 +1626,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         provider_calls_this_turn: int,
     ) -> dict[str, Any]:
         record, payload = current
-        return {
+        result = {
             "schema_version": "broker_reports_ordinary_trade_mapping_turn_v1",
             "status": payload["status"],
             "mapping_case_artifact_id": record.artifact_id,
@@ -1644,6 +1644,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 context=context,
             ),
         }
+        raw_output_ref = self._cases.invalid_mapping_raw_output_ref(
+            document_id=str(record.document_id), context=context
+        )
+        if raw_output_ref is not None:
+            result["private_mapping_raw_output_ref"] = raw_output_ref
+        return result
 
 
 def _model_content_dict(response: Any) -> dict[str, Any]:
