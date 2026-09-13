@@ -15,6 +15,7 @@ import hashlib
 import inspect
 import io
 import json
+import logging
 import re
 import urllib.parse
 import urllib.request
@@ -27,6 +28,9 @@ from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from pydantic import BaseModel, Field
+
+
+_LOGGER = logging.getLogger(__name__)
 
 from broker_reports_gate1 import (
     ArtifactAccessContext,
@@ -2025,6 +2029,7 @@ class Pipe:
                 ),
             )
             semantic_mapping = result.get("semantic_mapping")
+            self._audit_mapping_terminal(semantic_mapping)
             if (
                 isinstance(semantic_mapping, dict)
                 and semantic_mapping.get("status")
@@ -3042,6 +3047,43 @@ class Pipe:
         return (
             "Full Source: "
             f"[скачать {FULL_SOURCE_ZIP_FILENAME}]({str(delivery['url'])})"
+        )
+
+    @staticmethod
+    def _audit_mapping_terminal(semantic_mapping: Any) -> None:
+        """Emit an operator-safe terminal receipt, never model or source data.
+
+        The mapping case remains the authoritative private forensic record.
+        This log is intentionally limited to values already admitted by the
+        mapping case's public control-state projection, so it cannot turn the
+        Pipe log into a second artifact store or leak Canonical/model payloads.
+        """
+
+        if not isinstance(semantic_mapping, dict):
+            return
+        if semantic_mapping.get("status") != "MAPPING_OUTPUT_INVALID":
+            return
+        public_state = semantic_mapping.get("public_state")
+        public_state = public_state if isinstance(public_state, dict) else {}
+        reason = public_state.get("mapping_failure_reason")
+        if not isinstance(reason, str) or not reason:
+            reason = "mapping_output_invalid"
+        provider_calls_total = public_state.get("provider_calls_total")
+        if not isinstance(provider_calls_total, int) or provider_calls_total < 0:
+            provider_calls_total = 0
+        provider_calls_this_turn = semantic_mapping.get("provider_calls_this_turn")
+        if (
+            not isinstance(provider_calls_this_turn, int)
+            or provider_calls_this_turn < 0
+        ):
+            provider_calls_this_turn = 0
+        _LOGGER.info(
+            "broker_reports_mapping_terminal status=MAPPING_OUTPUT_INVALID "
+            "mapping_failure_reason=%s provider_calls_this_turn=%d "
+            "provider_calls_total=%d",
+            reason,
+            provider_calls_this_turn,
+            provider_calls_total,
         )
 
     @staticmethod
