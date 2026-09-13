@@ -6,12 +6,22 @@ import importlib.util
 import sys
 import tempfile
 import unittest
+from io import BytesIO
+import json
 from pathlib import Path
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 BUNDLE = ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
+GATE2_BUNDLE = (
+    ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe_bundled.py"
+)
+GATE2_DOMAIN_BUNDLE = (
+    ROOT / "openwebui_actions" / "broker_reports_gate2_domain_source_fact_pipe_bundled.py"
+)
+GOAL391_LAB_BUNDLE = ROOT / "openwebui_actions" / "goal391_mapping_lab_pipe_bundled.py"
 FIXTURES = REPO / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normalization"
 PUBLIC_PDF = (
     REPO
@@ -74,13 +84,21 @@ def _broker_reports_modules() -> dict[str, object]:
     return {
         name: module
         for name, module in sys.modules.items()
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
+        if (
+            name == "broker_reports_gate1"
+            or name.startswith("broker_reports_gate1.")
+            or name.startswith("broker_reports_gate1__")
+        )
     }
 
 
 def _clear_broker_reports_modules() -> None:
     for name in list(sys.modules):
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
+        if (
+            name == "broker_reports_gate1"
+            or name.startswith("broker_reports_gate1.")
+            or name.startswith("broker_reports_gate1__")
+        ):
             del sys.modules[name]
 
 
@@ -97,6 +115,15 @@ def load_bundle_module():
     return module
 
 
+def load_additional_bundle_module(bundle_path: Path, module_name: str):
+    spec = importlib.util.spec_from_file_location(module_name, bundle_path)
+    if spec is None or spec.loader is None:
+        raise AssertionError("could not create secondary bundled pipe import spec")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
     def setUp(self) -> None:
         self._maintained_modules = _broker_reports_modules()
@@ -106,6 +133,46 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
     def tearDown(self) -> None:
         _clear_broker_reports_modules()
         sys.modules.update(self._maintained_modules)
+
+    def test_gate1_pdf_factory_survives_loading_another_bundled_function(self):
+        gate1_bundle = load_bundle_module()
+        gate1_package = sys.modules[gate1_bundle._BUNDLED_PACKAGE_NAME]
+
+        additional_bundles = tuple(
+            load_additional_bundle_module(path, module_name)
+            for path, module_name in (
+                (
+                    GATE2_BUNDLE,
+                    "broker_reports_gate2_source_fact_pipe_bundled_after_gate1_under_test",
+                ),
+                (
+                    GATE2_DOMAIN_BUNDLE,
+                    "broker_reports_gate2_domain_source_fact_pipe_bundled_after_gate1_under_test",
+                ),
+                (
+                    GOAL391_LAB_BUNDLE,
+                    "goal391_mapping_lab_pipe_bundled_after_gate1_under_test",
+                ),
+            )
+        )
+
+        self.assertEqual(
+            3,
+            len({bundle._BUNDLED_PACKAGE_NAME for bundle in additional_bundles}),
+        )
+        self.assertNotIn(
+            gate1_bundle._BUNDLED_PACKAGE_NAME,
+            {bundle._BUNDLED_PACKAGE_NAME for bundle in additional_bundles},
+        )
+        self.assertIs(
+            gate1_package,
+            sys.modules[gate1_bundle._BUNDLED_PACKAGE_NAME],
+        )
+        extractor = gate1_package.PdfDocumentExtractorFactory.create()
+        self.assertEqual(
+            "broker_reports_gate1__gate1_pipe.pdfplumber_document_ai",
+            type(extractor).__module__,
+        )
 
     def test_bundled_pipe_runs_backend_normalizer_without_repo_package_import(self):
         source = BUNDLE.read_text(encoding="utf-8")
@@ -173,7 +240,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             module._BUNDLED_RESOURCES,
         )
         bundled_methodology = sys.modules[
-            "broker_reports_gate1.gate5_trusted_methodology"
+            module._BUNDLED_PACKAGE_NAME + ".gate5_trusted_methodology"
         ]
         resolved = bundled_methodology.Gate5TrustedMethodologyAuthorityFactory.create().resolve(
             {
@@ -193,7 +260,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             resolved["methodology"]["status"],
         )
         bundled_projection = sys.modules[
-            "broker_reports_gate1.gate5_full_target_xml_projection"
+            module._BUNDLED_PACKAGE_NAME + ".gate5_full_target_xml_projection"
         ]
         consumer_definition = bundled_projection.Gate5ConsumerFirstXmlProjectionDefinitionAuthorityFactory.create().resolve()
         self.assertEqual(
@@ -278,7 +345,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn(
             "gate5_deterministic_source_fact_consumption", module._BUNDLED_MODULES
         )
-        bundled_package = sys.modules["broker_reports_gate1"]
+        bundled_package = sys.modules[module._BUNDLED_PACKAGE_NAME]
         self.assertTrue(hasattr(bundled_package, "NormalizedSliceProvenanceFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate1DocumentMemoryFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2InputReadinessFactory"))
@@ -446,11 +513,83 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             content,
         )
         self.assertEqual(b"PK", publication["content"][:2])
+        with ZipFile(BytesIO(publication["content"])) as archive:
+            markdown_name = "documents/001/full-source.md"
+            markdown = archive.read(markdown_name)
+            manifest = json.loads(archive.read("manifest.json"))
+            table_entry = manifest["documents"][0]["tables"][0]
+            self.assertEqual(
+                manifest["documents"][0]["markdown_sha256"],
+                hashlib.sha256(markdown).hexdigest(),
+            )
+            self.assertEqual(
+                table_entry["sha256"],
+                hashlib.sha256(archive.read(table_entry["archive_path"])).hexdigest(),
+            )
         self.assertIsNotNone(pipe.last_artifact_manifest)
         self.assertEqual(
             "bundle-full-source-private-file",
             pipe.last_artifact_manifest["full_source_delivery"]["file_id"],
         )
+
+    def test_bundled_pipe_rejects_mutated_native_table_anchor_before_zip_projection(self):
+        module = load_bundle_module()
+        page_markdown = "before [table](native-table.html) after"
+        page_sha256 = hashlib.sha256(page_markdown.encode("utf-8")).hexdigest()
+        payloads = [
+            (
+                object(),
+                {
+                    "document_ai_markdown_sha256": page_sha256,
+                    "format_structural_inventory": {
+                        "page_markdown_sha256": page_sha256,
+                    },
+                    "source_location": {
+                        "kind": "document_ai_page_markdown_body",
+                        "page": 1,
+                        "content_order": 1,
+                    },
+                    "normalized_projection": {"text": "before "},
+                },
+                "body",
+            ),
+            (
+                object(),
+                {
+                    "document_ai_markdown_sha256": page_sha256,
+                    "format_structural_inventory": {
+                        "page_markdown_sha256": page_sha256,
+                    },
+                    "source_location": {
+                        "kind": "document_ai_native_table_html",
+                        "page": 1,
+                        "content_order": 2,
+                    },
+                    "normalized_projection": {"cells": [["not used"]]},
+                    "document_ai_native_table_markdown_target": "native-table.html",
+                    "document_ai_native_table_markdown_anchor": "[table](other.html)",
+                },
+                "table",
+            ),
+            (
+                object(),
+                {
+                    "document_ai_markdown_sha256": page_sha256,
+                    "format_structural_inventory": {
+                        "page_markdown_sha256": page_sha256,
+                    },
+                    "source_location": {
+                        "kind": "document_ai_page_markdown_body",
+                        "page": 1,
+                        "content_order": 3,
+                    },
+                    "normalized_projection": {"text": " after"},
+                },
+                "tail",
+            ),
+        ]
+        with self.assertRaises(module.ArtifactStoreError):
+            module.Pipe._reconstruct_pdf_full_source_markdown(payloads)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ import re
 from typing import Any
 
 from .ordinary_trade_semantic_compiler import (
+    SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT,
     compile_schema_mapping,
     structural_fingerprint,
     validate_schema_mapping,
@@ -613,14 +614,19 @@ def qualify_case_mapping(
     headers: list[dict[str, Any]],
     model_columns: list[dict[str, Any]],
     amount_currency_bindings: list[dict[str, int]],
-    side_values: list[dict[str, str]],
+    side_values: list[dict[str, Any]],
     case_scope: dict[str, str],
     model_decision: dict[str, str],
     confirmed_understandings: list[dict[str, str]],
     user_currency_assertion: dict[str, Any] | None = None,
+    allow_source_bound_position_effect: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Admit one model-proposed mapping only for its authenticated case scope."""
 
+    position_effect_contract = _position_effect_contract(
+        side_values=side_values,
+        allow_source_bound_position_effect=allow_source_bound_position_effect,
+    )
     provisional = compile_schema_mapping(
         title_literal=title_literal,
         headers=headers,
@@ -632,6 +638,7 @@ def qualify_case_mapping(
             "receipt_sha256": "0" * 64,
         },
         user_currency_assertion=user_currency_assertion,
+        position_effect_contract=position_effect_contract,
     )
     semantic_scope = {
         "columns": provisional["columns"],
@@ -639,6 +646,10 @@ def qualify_case_mapping(
         "side_values": provisional["side_values"],
         "user_currency_assertion": provisional["user_currency_assertion"],
     }
+    if "position_effect_contract" in provisional:
+        semantic_scope["position_effect_contract"] = provisional[
+            "position_effect_contract"
+        ]
     headers_by_column = {
         item["column"]: item["header_literal"] for item in provisional["columns"]
     }
@@ -676,6 +687,7 @@ def qualify_case_mapping(
             "receipt_sha256": receipt["receipt_sha256"],
         },
         user_currency_assertion=user_currency_assertion,
+        position_effect_contract=position_effect_contract,
     )
     validate_case_qualified_mapping(
         mapping=mapping,
@@ -683,6 +695,20 @@ def qualify_case_mapping(
         expected_case_scope=case_scope,
     )
     return mapping, receipt
+
+
+def _position_effect_contract(
+    *,
+    side_values: list[dict[str, Any]],
+    allow_source_bound_position_effect: bool,
+) -> str | None:
+    """Record the V18 contract only when this mapping actually uses it."""
+
+    if not allow_source_bound_position_effect:
+        return None
+    if any("position_effect" in item for item in side_values):
+        return SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT
+    return None
 
 
 def validate_case_qualified_mapping(
@@ -753,6 +779,8 @@ def validate_case_qualified_mapping(
         "side_values": mapping["side_values"],
         "user_currency_assertion": mapping["user_currency_assertion"],
     }
+    if "position_effect_contract" in mapping:
+        scope["position_effect_contract"] = mapping["position_effect_contract"]
     if receipt.get("semantic_scope_sha256") != _sha256_json(scope):
         raise RuntimeError("ordinary_trade_case_mapping_scope_invalid")
     model_decision = receipt.get("model_decision")

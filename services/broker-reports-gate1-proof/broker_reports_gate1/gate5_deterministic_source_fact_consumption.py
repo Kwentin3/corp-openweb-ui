@@ -6,17 +6,18 @@ import copy
 from datetime import date
 from decimal import Decimal, InvalidOperation
 import re
-from typing import Any
+from typing import Any, Callable
 
-from .artifact_models import ArtifactAccessContext, ArtifactStorePort
-from .gate4_financial_case_cache import Gate4FinancialCaseRuntimeFactory
-from .gate4_financial_case_materialization import (
-    GATE4_FINANCIAL_CASE_FACT_SCHEMA_VERSION,
+from .artifact_models import ArtifactAccessContext
+from .qualified_projection_fact_v3 import (
+    QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION,
+    qualified_projection_binding,
+    validate_qualified_projection_fact_v3,
 )
 from .gate5_trusted_methodology import (
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_SCHEMA_VERSION,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
     Gate5TrustedMethodologyAuthority,
     Gate5TrustedMethodologyAuthorityFactory,
@@ -64,8 +65,8 @@ GATE5_SECURITY_POSITION_SCOPE_SCHEMA_VERSION = (
 )
 
 FACTORY_REQUIRED = (
-    "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create composes "
-    "Gate4FinancialCaseRuntimeFactory.create and "
+    "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create composes an "
+    "injected list_facts(context) reader and "
     "Gate5TrustedMethodologyAuthorityFactory.create",
 )
 FORBIDDEN = (
@@ -104,18 +105,13 @@ class Gate5DeterministicSourceFactConsumptionRuntimeFactory:
     def __init__(
         self,
         *,
-        store: ArtifactStorePort,
-        read_enabled: bool,
+        list_facts: Callable[..., list[dict[str, Any]]],
     ) -> None:
-        self._store = store
-        self._read_enabled = read_enabled
+        self._list_facts = list_facts
 
     def create(self) -> "Gate5DeterministicSourceFactConsumptionRuntime":
         return Gate5DeterministicSourceFactConsumptionRuntime(
-            financial_case=Gate4FinancialCaseRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
-            ).create(),
+            list_facts=self._list_facts,
             authority=Gate5TrustedMethodologyAuthorityFactory.create(),
         )
 
@@ -124,10 +120,10 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
     def __init__(
         self,
         *,
-        financial_case: Any,
+        list_facts: Callable[..., list[dict[str, Any]]],
         authority: Gate5TrustedMethodologyAuthority,
     ) -> None:
-        self._financial_case = financial_case
+        self._list_facts = list_facts
         self._authority = authority
 
     def run(
@@ -141,7 +137,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             resolved["methodology"],
             authority_binding=resolved["authority_binding"],
         )
-        facts = self._financial_case.list_facts(context=context)
+        facts = self._list_facts(context=context)
         return _consume(
             facts=facts,
             context=context,
@@ -165,7 +161,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
         expected_case_binding = _case_binding(context)
         facts = [
             _source_fact(fact, expected_case_binding=expected_case_binding)
-            for fact in self._financial_case.list_facts(context=context)
+            for fact in self._list_facts(context=context)
         ]
         securities = [
             _security_assessment(fact)
@@ -208,7 +204,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
         document_consumption = []
         document_ids = sorted(
             {
-                fact["gate3_binding"]["canonical_binding"]["document_id"]
+                fact["qualified_projection_binding"]["canonical_binding"]["document_id"]
                 for fact in facts
             }
         )
@@ -216,7 +212,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             document_facts = [
                 fact
                 for fact in facts
-                if fact["gate3_binding"]["canonical_binding"]["document_id"]
+                if fact["qualified_projection_binding"]["canonical_binding"]["document_id"]
                 == document_id
             ]
             document_security = [
@@ -283,7 +279,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
         expected_case_binding = _case_binding(context)
         facts = [
             _source_fact(fact, expected_case_binding=expected_case_binding)
-            for fact in self._financial_case.list_facts(context=context)
+            for fact in self._list_facts(context=context)
         ]
         assembly = _assemble_available_security_groups(
             facts=facts,
@@ -307,7 +303,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             },
             "source_document_ids": sorted(
                 {
-                    fact["gate3_binding"]["canonical_binding"]["document_id"]
+                    fact["qualified_projection_binding"]["canonical_binding"]["document_id"]
                     for fact in facts
                 }
             ),
@@ -370,7 +366,7 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             {
                 "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
                 "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-                "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+                "methodology_version": GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
             }
         )
         methodology = _methodology(
@@ -639,7 +635,7 @@ def _validated_consumption_result(
         not isinstance(binding, dict)
         or binding.get("methodology_id") != GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID
         or binding.get("methodology_version")
-        != GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+        != GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
         or binding.get("behavior_id") != _BEHAVIOR_ID
     ):
         _fail("gate5_source_fact_consumption_result_invalid")
@@ -685,7 +681,7 @@ def _tax_model_input(value: Any, *, expected_name: str) -> dict[str, Any]:
         if (
             not isinstance(source, dict)
             or source.get("source_kind") != "normalized_source_fact"
-            or re.fullmatch(r"g4fact_[0-9a-f]{32}", source.get("fact_id", "")) is None
+            or re.fullmatch(r"qpf3_[0-9a-f]{32}", source.get("fact_id", "")) is None
         ):
             _fail("gate5_source_fact_tax_model_input_invalid", expected_name)
     return {
@@ -711,7 +707,7 @@ def _methodology(value: Any, *, authority_binding: dict[str, Any]) -> dict[str, 
         != GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_SCHEMA_VERSION
         or value.get("methodology_id") != GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID
         or value.get("methodology_version")
-        != GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+        != GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
         or value.get("methodology_id") != authority_binding.get("methodology_id")
         or value.get("methodology_version")
         != authority_binding.get("methodology_version")
@@ -735,7 +731,7 @@ def _methodology(value: Any, *, authority_binding: dict[str, Any]) -> dict[str, 
         }
         or behavior.get("behavior_id") != _BEHAVIOR_ID
         or behavior.get("source_fact_schema_version")
-        != GATE4_FINANCIAL_CASE_FACT_SCHEMA_VERSION
+        != QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION
         or behavior.get("source_fact_semantic_kind") != "normalized_source_fact"
     ):
         _fail("gate5_source_fact_methodology_invalid")
@@ -788,20 +784,14 @@ def _methodology(value: Any, *, authority_binding: dict[str, Any]) -> dict[str, 
 def _source_fact(
     value: Any, *, expected_case_binding: dict[str, str]
 ) -> dict[str, Any]:
-    if (
-        not isinstance(value, dict)
-        or value.get("schema_version") != GATE4_FINANCIAL_CASE_FACT_SCHEMA_VERSION
-        or value.get("semantic_kind") != "normalized_source_fact"
-        or value.get("case_binding") != expected_case_binding
-        or not isinstance(value.get("fact_id"), str)
-        or re.fullmatch(r"g4fact_[0-9a-f]{32}", value["fact_id"]) is None
-        or value.get("status") not in {"role_complete", "role_incomplete"}
-        or not isinstance(value.get("roles"), list)
-        or not isinstance(value.get("gate3_binding"), dict)
-        or not isinstance(value.get("annotation_target"), dict)
-    ):
+    try:
+        fact = validate_qualified_projection_fact_v3(value)
+        qualified_projection_binding(fact)
+    except ValueError:
         _fail("gate5_source_fact_contract_invalid")
-    return copy.deepcopy(value)
+    if fact.get("case_binding") != expected_case_binding:
+        _fail("gate5_source_fact_contract_invalid")
+    return fact
 
 
 def _security_input(fact: dict[str, Any]) -> dict[str, Any]:
@@ -1086,7 +1076,7 @@ def _available_group_row(
 ) -> dict[str, Any]:
     source_document_ids = sorted(
         {
-            item["fact"]["gate3_binding"]["canonical_binding"]["document_id"]
+            item["fact"]["qualified_projection_binding"]["canonical_binding"]["document_id"]
             for item in [*purchases, *disposals, *opening_shorts]
         }
     )
@@ -1169,7 +1159,7 @@ def _operation_period_observation(
 ) -> dict[str, Any]:
     by_document: dict[str, list[dict[str, Any]]] = {}
     for item in ready_inputs:
-        document_id = item["fact"]["gate3_binding"]["canonical_binding"][
+        document_id = item["fact"]["qualified_projection_binding"]["canonical_binding"][
             "document_id"
         ]
         by_document.setdefault(document_id, []).append(item)
@@ -1221,7 +1211,7 @@ def _invalid_security_fact_blocker(
     fact: dict[str, Any],
     error: Gate5DeterministicSourceFactConsumptionError,
 ) -> dict[str, Any]:
-    document_id = fact["gate3_binding"]["canonical_binding"]["document_id"]
+    document_id = fact["qualified_projection_binding"]["canonical_binding"]["document_id"]
     closing_evidence = {
         "gate5_source_fact_required_role_missing": (
             "the missing required source-bound role or another normalized fact "
@@ -1607,7 +1597,9 @@ def _fact_source(fact: dict[str, Any]) -> dict[str, Any]:
         "source_kind": "normalized_source_fact",
         "fact_id": fact["fact_id"],
         "financial_type": fact["financial_type"],
-        "gate3_binding": copy.deepcopy(fact["gate3_binding"]),
+        "qualified_projection_binding": copy.deepcopy(
+            fact["qualified_projection_binding"]
+        ),
         "annotation_target": copy.deepcopy(fact["annotation_target"]),
     }
 
@@ -1818,8 +1810,8 @@ def _commission_money(value: Any, *, expected_currency: str) -> Decimal:
 
 def _same_source_transaction_row(left: dict[str, Any], right: dict[str, Any]) -> bool:
     if (
-        left["gate3_binding"].get("canonical_binding")
-        != right["gate3_binding"].get("canonical_binding")
+        left["qualified_projection_binding"].get("canonical_binding")
+        != right["qualified_projection_binding"].get("canonical_binding")
     ):
         return False
     left_target = left["annotation_target"]
@@ -1837,7 +1829,7 @@ def _same_source_transaction_row(left: dict[str, Any], right: dict[str, Any]) ->
 def _source_row_evidence(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
-    binding = value.get("gate3_binding")
+    binding = value.get("qualified_projection_binding")
     target = value.get("annotation_target")
     return (
         isinstance(binding, dict)

@@ -26,6 +26,11 @@ from broker_reports_gate1.artifact_models import (
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.canonical_artifact import (
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+)
+from broker_reports_gate1.full_source import FullSourceArtifactFactory
 from broker_reports_gate1.bounded_graph import (
     Gate1BoundedGraphConfig,
     Gate1BoundedGraphFactory,
@@ -58,6 +63,10 @@ from broker_reports_gate1.pdfplumber_document_ai import (
     PDF_NATIVE_TEXT_UNUSABLE,
     PdfPlumberNativeTextExtractor,
 )
+from broker_reports_gate1.table_projection import NormalizedTableProjectionFactory
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    OrdinaryTradeSemanticMappingFactory,
+)
 from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PROMPT_COMMAND,
     PROMPT_CONTRACT_ID,
@@ -77,6 +86,16 @@ PUBLIC_PDF = next(
     (REPO_ROOT / "docs" / "reports" / "2026-09-02" / "artifacts").glob(
         "*/fidelity/source.pdf"
     )
+)
+PUBLIC_TABLE_PDF = (
+    REPO_ROOT
+    / "docs"
+    / "reports"
+    / "2026-09-02"
+    / "artifacts"
+    / "mistral-public-pairs"
+    / "drivewealth"
+    / "source.pdf"
 )
 BUNDLED_PIPE_PATH = (
     REPO_ROOT
@@ -491,6 +510,252 @@ def test_native_text_factory_rejects_pdf_without_usable_text_layer() -> None:
     assert exc_info.value.code == PDF_NATIVE_TEXT_UNUSABLE
 
 
+class _PdfPlumberPageFixture:
+    def __init__(self, *, text: str, tables: object) -> None:
+        self._text = text
+        self._tables = tables
+
+    def extract_text(self) -> str:
+        return self._text
+
+    def extract_tables(self) -> object:
+        return self._tables
+
+
+class _PdfPlumberDocumentFixture:
+    def __init__(self, page: _PdfPlumberPageFixture) -> None:
+        self.pages = [page]
+
+    def __enter__(self) -> "_PdfPlumberDocumentFixture":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+def test_native_text_table_anchor_cannot_be_forged_by_predictable_pdf_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    forged_target = "pdfplumber-table-p001-t001.html"
+    document = _PdfPlumberDocumentFixture(
+        _PdfPlumberPageFixture(
+            text=f"[forged]({forged_target})",
+            tables=[[["date", "amount"], ["2026-01-01", "10"]]],
+        )
+    )
+    monkeypatch.setattr(
+        "broker_reports_gate1.pdfplumber_document_ai.pdfplumber.open",
+        lambda _source: document,
+    )
+    pdf_bytes = b"safe-pdf-fixture"
+    extraction = PdfPlumberNativeTextExtractor().extract(
+        pdf_bytes,
+        PdfSourceContext(
+            document_ref="forged-table-anchor-fixture",
+            expected_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            preflight_page_count=1,
+        ),
+    )
+
+    table = extraction.table_refs[0]
+    page_markdown = extraction.page_markdown_bytes[0].decode("utf-8")
+    assert table.markdown_target != forged_target
+    assert page_markdown.count(f"]({forged_target})") == 1
+    assert page_markdown.count(f"]({table.markdown_target})") == 1
+    built = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id="forged-table-anchor-run",
+        document_id="forged-table-anchor-document",
+        profile_id="forged-table-anchor-profile",
+        extraction=extraction,
+    )
+    assert len(
+        [
+            unit
+            for unit in built.units
+            if unit.get("source_location", {}).get("kind")
+            == "document_ai_native_table_html"
+        ]
+    ) == 1
+
+
+def test_native_text_table_marker_does_not_make_blank_source_usable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    document = _PdfPlumberDocumentFixture(
+        _PdfPlumberPageFixture(
+            text="",
+            tables=[[["date", "amount"], ["2026-01-01", "10"]]],
+        )
+    )
+    monkeypatch.setattr(
+        "broker_reports_gate1.pdfplumber_document_ai.pdfplumber.open",
+        lambda _source: document,
+    )
+    pdf_bytes = b"blank-text-table-fixture"
+
+    with pytest.raises(PdfDocumentExtractionError) as exc_info:
+        PdfPlumberNativeTextExtractor().extract(
+            pdf_bytes,
+            PdfSourceContext(
+                document_ref="blank-text-table-fixture",
+                expected_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+                preflight_page_count=1,
+            ),
+        )
+
+    assert exc_info.value.code == PDF_NATIVE_TEXT_UNUSABLE
+
+
+def test_native_text_rows_reach_canonical_without_a_physical_header_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The extraction adapter never claims that a first row is a header."""
+
+    import test_broker_reports_ordinary_trade_production_candidate as candidate
+
+    document = _PdfPlumberDocumentFixture(
+        _PdfPlumberPageFixture(
+            text="Structured trade table follows.",
+            tables=[[list(row) for row in candidate._ROWS]],
+        )
+    )
+    monkeypatch.setattr(
+        "broker_reports_gate1.pdfplumber_document_ai.pdfplumber.open",
+        lambda _source: document,
+    )
+    pdf_bytes = b"semantic-header-fixture"
+    extraction = PdfPlumberNativeTextExtractor().extract(
+        pdf_bytes,
+        PdfSourceContext(
+            document_ref="semantic-header-fixture",
+            expected_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            preflight_page_count=1,
+        ),
+    )
+    built = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id="semantic-header-run",
+        document_id="semantic-header-document",
+        profile_id="semantic-header-profile",
+        extraction=extraction,
+    )
+    projections = NormalizedTableProjectionFactory().create().build_for_document(
+        source_format="pdf", payloads=built.payloads, source_units=built.units
+    ).projections
+    canonical = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(normalizer_version="semantic-header-test-v1")
+    ).create().build(
+        tenant_id="semantic-header-tenant",
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": hashlib.sha256(pdf_bytes).hexdigest(),
+        },
+        source_artifact_ref="semantic-header-source",
+        source_payloads=built.payloads,
+        source_units=built.units,
+        table_projections=projections,
+    )
+    table = next(node for node in canonical["nodes"] if node["node_type"] == "TABLE")
+    assert table["content"]["metadata"]["physical_header_state"] == "ABSENT"
+    assert table["content"]["header"] == []
+
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    package = semantic.build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=[table["node_id"]],
+    )
+    package_table = package["case"]["tables"][0]
+    assert package_table["physical_header_row"] is None
+    assert package_table["rows"][0]["cells"]
+
+
+def test_native_text_tables_are_neutral_full_source_units_without_duplicate_projection() -> None:
+    """The public embedded-text fixture proves adapter-to-Canonical handoff.
+
+    Its page text remains available as source context, while only each exact
+    PdfPlumber table reference becomes one table projection.  This prevents
+    the same page's textual rendering from becoming a second financial-table
+    input downstream.
+    """
+
+    from pypdf import PdfReader
+
+    pdf_bytes = PUBLIC_TABLE_PDF.read_bytes()
+    extraction = PdfPlumberNativeTextExtractor().extract(
+        pdf_bytes,
+        PdfSourceContext(
+            document_ref="public-embedded-text-table-pdf",
+            expected_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            preflight_page_count=len(PdfReader(io.BytesIO(pdf_bytes)).pages),
+        ),
+    )
+
+    assert extraction.adapter_id == "pdfplumber_native_text_adapter_v3"
+    assert extraction.request_contract_version == "pdfplumber_native_text_v3"
+    assert extraction.table_refs
+    assert extraction.safe_technical_summary[-1] == (
+        "tables_count",
+        len(extraction.table_refs),
+    )
+    for table in extraction.table_refs:
+        page = extraction.page_markdown_bytes[table.page_number - 1].decode("utf-8")
+        assert f"]({table.markdown_target})" in page
+        assert table.html_bytes.startswith(b"<table><tbody>")
+        assert b"<th>" not in table.html_bytes
+        assert b"<td>" in table.html_bytes
+
+    built = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id="pdfplumber-native-table-boundary",
+        document_id="public-embedded-text-table-pdf",
+        profile_id="public-pdf-profile",
+        extraction=extraction,
+    )
+    native_table_units = [
+        unit
+        for unit in built.units
+        if unit.get("source_location", {}).get("kind")
+        == "document_ai_native_table_html"
+    ]
+    text_units = [
+        unit for unit in built.units if unit.get("slice_type") == "text_excerpt"
+    ]
+    assert len(native_table_units) == len(extraction.table_refs)
+    assert text_units
+
+    projections = NormalizedTableProjectionFactory().create().build_for_document(
+        source_format="pdf",
+        payloads=built.payloads,
+        source_units=built.units,
+    ).projections
+    assert len(projections) == len(native_table_units)
+    assert {item["source_unit_ref"] for item in projections} == {
+        item["unit_ref"] for item in native_table_units
+    }
+    assert all(item["validator_status"] == "passed" for item in projections)
+
+    normalized = Gate1Normalizer(
+        _pdf_document_extractor=PdfPlumberNativeTextExtractor()
+    ).normalize(
+        [_input(pdf_bytes)],
+        input_context={"clarification_criticality_refinement_enabled": True},
+    )
+    downstream_projections = normalized.package[
+        "private_normalized_table_projections"
+    ]
+    downstream_table_units = [
+        unit
+        for unit in normalized.package["private_normalized_source_units"]
+        if unit.get("source_location", {}).get("kind")
+        == "document_ai_native_table_html"
+    ]
+    assert normalized.package["validation_result"]["status"] == "passed"
+    assert len(downstream_projections) == len(native_table_units)
+    assert {item["source_unit_ref"] for item in downstream_projections} == {
+        unit["unit_ref"] for unit in downstream_table_units
+    }
+
+
 def test_unconfigured_pdf_is_terminal_before_network_and_creates_no_downstream() -> None:
     pdf_bytes = PUBLIC_PDF.read_bytes()
 
@@ -616,7 +881,11 @@ def _run_mixed_pipe(
     maintained_modules = {
         name: module
         for name, module in sys.modules.items()
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
+        if (
+            name == "broker_reports_gate1"
+            or name.startswith("broker_reports_gate1.")
+            or name.startswith("broker_reports_gate1__")
+        )
     }
     try:
         if pipe_variant == "bundled":
@@ -637,8 +906,13 @@ def _run_mixed_pipe(
             pipe_module = sys.modules[pipe_type.__module__]
         pipe = pipe_type()
         normalizer_type = pipe_module.Gate1Normalizer
+        package_name = (
+            pipe_module._BUNDLED_PACKAGE_NAME
+            if pipe_variant == "bundled"
+            else "broker_reports_gate1"
+        )
         unconfigured_type = sys.modules[
-            "broker_reports_gate1.pdf_document_ai"
+            package_name + ".pdf_document_ai"
         ].UnconfiguredPdfDocumentExtractor
 
         def unconfigured_pipe_normalizer(**kwargs: object) -> Gate1Normalizer:
@@ -710,8 +984,10 @@ def _run_mixed_pipe(
     finally:
         if pipe_variant == "bundled":
             for name in list(sys.modules):
-                if name == "broker_reports_gate1" or name.startswith(
-                    "broker_reports_gate1."
+                if (
+                    name == "broker_reports_gate1"
+                    or name.startswith("broker_reports_gate1.")
+                    or name.startswith("broker_reports_gate1__")
                 ):
                     del sys.modules[name]
             sys.modules.update(maintained_modules)

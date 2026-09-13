@@ -501,13 +501,11 @@ def _operation_model(
         "value"
     ] = fee_documented
     result = (
-        Gate5SecuritiesDisposalTaxModelRuntimeFactory(
+        Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs(
             store=store,
             read_enabled=True,
             retention_policy=build_retention_policy(mode="synthetic_dev"),
-        )
-        .create()
-        .run_operation(
+        ).run_operation(
             methodology_ref=_operation_methodology_ref(),
             resolved_inputs=resolved_inputs,
             context=context,

@@ -7,8 +7,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
-from referencing import Registry, Resource
 
 from broker_reports_gate1.gate4_ordinary_trade_candidate import (
     FORBIDDEN as GATE4_FORBIDDEN,
@@ -16,11 +14,6 @@ from broker_reports_gate1.gate4_ordinary_trade_candidate import (
 )
 from broker_reports_gate1.ordinary_trade_candidate_runtime import (
     OrdinaryTradeCandidateRuntimeFactory,
-)
-from broker_reports_gate1.gate5_trusted_methodology import (
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
-    GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
@@ -35,31 +28,26 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
     compile_schema_mapping,
 )
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMetadata
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    OrdinaryTradeMappingCaseFactory,
+)
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
+)
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
+)
+from broker_reports_gate1.qualified_projection_fact_v3 import (
+    QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION,
+    QualifiedProjectionFactV3Error,
+    qualified_projection_binding,
+    validate_qualified_projection_fact_v3,
 )
 
 import test_broker_reports_gate4_sql_materialization as gate4_fixtures
 import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fact_fixtures
-
-
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_CONTRACTS = _REPO_ROOT / "docs" / "stage2" / "contracts"
-_FACT_SCHEMA = json.loads(
-    (_CONTRACTS / "BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.schema.json")
-    .read_text(encoding="utf-8")
-)
-_TARGET_SCHEMA = json.loads(
-    (_CONTRACTS / "BROKER_REPORTS_GATE3_TARGET.v1.schema.json").read_text(
-        encoding="utf-8"
-    )
-)
-_FACT_VALIDATOR = Draft202012Validator(
-    _FACT_SCHEMA,
-    registry=Registry().with_resource(
-        _TARGET_SCHEMA["$id"], Resource.from_contents(_TARGET_SCHEMA)
-    ),
-)
 
 
 _QUALIFIED_MAPPING = (
@@ -113,10 +101,15 @@ _ROWS = (
 )
 
 
-def test_candidate_reaches_unchanged_gate5_and_is_exactly_repeatable(
+def test_candidate_emits_v3_facts_from_current_qualified_projection(
     tmp_path: Path,
 ) -> None:
-    store, context, document_id, mapping = _case(tmp_path)
+    qualified_rows = (("Qualified asset", *_ROWS[0][1:]), *_ROWS[1:])
+    store, context, document_id, _mapping = _case(
+        tmp_path,
+        rows=qualified_rows,
+        persist_mapping_case=True,
+    )
     projections = OrdinaryTradeProjectionFactory(
         store=store, read_enabled=True
     ).create()
@@ -130,9 +123,9 @@ def test_candidate_reaches_unchanged_gate5_and_is_exactly_repeatable(
 
     assert second.artifact_id == first.artifact_id
     projection = projections.read(artifact_id=first.artifact_id, context=context)
-    assert projection["mapping_matches"] == [
-        {"mapping_id": mapping["mapping_id"], "matched_tables": 1}
-    ]
+    assert len(projection["mapping_matches"]) == 1
+    assert projection["mapping_matches"][0]["matched_tables"] == 1
+    assert projection["mapping_matches"][0]["mapping_id"].startswith("otmap_")
     assert [item["disposition"] for item in projection["source_observations"]] == [
         "RUNTIME_READY",
         "RUNTIME_READY",
@@ -154,30 +147,48 @@ def test_candidate_reaches_unchanged_gate5_and_is_exactly_repeatable(
     )
     assert len({item["fact_id"] for item in facts_first}) == 4
     for fact in facts_first:
-        _FACT_VALIDATOR.validate(fact)
+        assert fact["schema_version"] == QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION
+        assert validate_qualified_projection_fact_v3(fact) == fact
     assert [item["financial_type"] for item in facts_first] == [
         "SECURITY_PURCHASE",
         "SECURITY_DISPOSAL",
         "TRANSACTION_CHARGE",
         "TRANSACTION_CHARGE",
     ]
+    by_runtime_record = {
+        item["runtime_record_id"]: item for item in projection["runtime_records"]
+    }
+    canonical_binding = {
+        key: projection["canonical_binding"][key]
+        for key in (
+            "document_id",
+            "canonical_version_id",
+            "canonical_root_sha256",
+        )
+    }
     assert all(
-        item["gate3_binding"]["financial_annotations_artifact_id"]
-        == first.artifact_id
-        for item in facts_first
+        qualified_projection_binding(fact)
+        == {
+            "projection_artifact_id": first.artifact_id,
+            "canonical_binding": canonical_binding,
+            "source_observation_id": by_runtime_record[
+                qualified_projection_binding(fact)["runtime_record_id"]
+            ]["source_observation_id"],
+            "semantic_mapping_case_ref": projection["semantic_mapping_case_ref"],
+            "runtime_record_id": qualified_projection_binding(fact)[
+                "runtime_record_id"
+            ],
+        }
+        for fact in facts_first
     )
 
-    consumed = OrdinaryTradeCandidateRuntimeFactory(
-        store=store, read_enabled=True
-    ).create().run(methodology_ref=_methodology_ref(), context=context)
-    disposal = consumed["securities"][0]
-    assert disposal["gross_income"]["value"] == {
-        "kind": "money",
-        "amount": "60.00",
-        "currency": "RUB",
-    }
-    assert disposal["recognized_acquisition_cost"]["value"]["amount"] == "40.00"
-    assert disposal["direct_transaction_expense"]["value"]["amount"] == "3.00"
+    mutated = copy.deepcopy(facts_first[0])
+    mutated["qualified_projection_binding"]["runtime_record_id"] = (
+        "forged-runtime-record"
+    )
+    with pytest.raises(QualifiedProjectionFactV3Error) as rejected:
+        validate_qualified_projection_fact_v3(mutated)
+    assert rejected.value.code == "qualified_projection_fact_v3_identity_invalid"
 
 
 def test_equal_source_values_remain_distinct_observations(tmp_path: Path) -> None:
@@ -534,7 +545,12 @@ def test_active_production_does_not_claim_injected_historical_open_short(
     assert result["provider_calls_total"] == 0
 
 
-def _case(tmp_path: Path, *, rows: tuple = _ROWS):
+def _case(
+    tmp_path: Path,
+    *,
+    rows: tuple = _ROWS,
+    persist_mapping_case: bool = False,
+):
     store, context = gate4_fixtures._store_context(tmp_path)
     document_id = "ordinary-trade-candidate-document"
     gate4_fixtures._activate_canonical(
@@ -562,7 +578,88 @@ def _case(tmp_path: Path, *, rows: tuple = _ROWS):
     mapping = _mapping_from_headers(
         tuple(item["displayed_value"] for item in header_cells)
     )
+    if persist_mapping_case:
+        canonical_binding = {
+            "document_id": envelope.document_id,
+            "canonical_version_id": envelope.canonical_version_id,
+            "canonical_root_sha256": envelope.canonical_root_sha256,
+            "source_artifact_ref": envelope.artifact["source"][
+                "source_artifact_ref"
+            ],
+            "source_sha256": envelope.artifact["source"]["source_sha256"],
+        }
+        cases = OrdinaryTradeMappingCaseFactory(
+            store=store, read_enabled=True
+        ).create()
+        outcome = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+            response=_complete_mapping_response(table=table, mapping=mapping),
+            canonical=envelope.artifact,
+            canonical_binding=canonical_binding,
+            model_id="fixture-qualified-mapping",
+            provider_profile_id="fixture",
+            execution_metadata=_mapping_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256=cases.case_binding(
+                document_id=document_id, context=context
+            )["user_scope_sha256"],
+        )
+        cases.save_mapping_outcome(
+            document_id=document_id,
+            context=context,
+            outcome=outcome,
+            provider_calls_total=0,
+        )
     return store, context, document_id, mapping
+
+
+def _mapping_metadata() -> Gate2ProviderExecutionMetadata:
+    return Gate2ProviderExecutionMetadata(
+        provider_id="fixture",
+        provider_profile_id="fixture",
+        provider_profile_revision="1",
+        adapter_id="fixture",
+        adapter_version="1",
+        requested_model_id="fixture-qualified-mapping",
+        structured_output_mode="fixture",
+        response_format_type="json_schema",
+        response_format_schema_mode="strict_json_schema",
+    )
+
+
+def _complete_mapping_response(*, table: dict, mapping: dict) -> dict:
+    rows = {
+        cell["row"]
+        for cell in table["content"]["cells"]
+        if cell["row"] > 1 and str(cell.get("displayed_value") or "").strip()
+    }
+    return {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "header_row": 1,
+                "disposition": "SECURITY_TRADES",
+                "columns": [
+                    {
+                        "column": item["column"],
+                        "semantic_role": item["semantic_role"],
+                    }
+                    for item in mapping["columns"]
+                ],
+                "amount_currency_bindings": copy.deepcopy(
+                    mapping["amount_currency_bindings"]
+                ),
+                "side_values": copy.deepcopy(mapping["side_values"]),
+                "row_dispositions": [
+                    {"row": row, "disposition": "SECURITY_TRADES"}
+                    for row in sorted(rows)
+                ],
+            }
+        ],
+        "clarification": None,
+        "message": "fixture qualified mapping",
+    }
 
 
 def _mapping_from_headers(headers: tuple[str, ...]) -> dict:
@@ -582,11 +679,3 @@ def _mapping_from_headers(headers: tuple[str, ...]) -> dict:
         side_values=copy.deepcopy(_QUALIFIED_MAPPING["side_values"]),
         qualification_ref=copy.deepcopy(_QUALIFIED_MAPPING["qualification_ref"]),
     )
-
-
-def _methodology_ref() -> dict[str, str]:
-    return {
-        "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-        "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-        "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
-    }

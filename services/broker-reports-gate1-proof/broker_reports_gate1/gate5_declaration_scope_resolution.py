@@ -41,6 +41,10 @@ from .gate5_real_tax_case_assembly import (
     Gate5RealTaxCaseAssemblyRuntime,
     Gate5RealTaxCaseAssemblyRuntimeFactory,
 )
+from .qualified_projection_fact_v3 import (
+    QualifiedProjectionFactV3Error,
+    qualified_projection_binding,
+)
 
 
 GATE5_DECLARATION_SCOPE_SCHEMA_VERSION = "broker_reports_gate5_declaration_scope_v0"
@@ -92,7 +96,7 @@ FACTORY_REQUIRED = (
     "Gate5DeclarationScopeActivationRuntimeFactory.create owns supplied-case "
     "intent/evidence activation in this same scope domain",
     "Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope "
-    "accepts an injected Fact v2 runtime at the composition boundary",
+    "accepts an injected QualifiedProjectionFactV3 runtime at the composition boundary",
 )
 FORBIDDEN = (
     "handwritten Declaration domain or applicability-policy list",
@@ -252,6 +256,16 @@ _GATE4_BINDING_KEYS = frozenset(
         "boundary",
         "status",
         "gate3_case_status",
+        "sources",
+        "facts",
+        "binding_sha256",
+    }
+)
+_CURRENT_FACT_BINDING_KEYS = frozenset(
+    {
+        "boundary",
+        "status",
+        "qualified_projection_case_status",
         "sources",
         "facts",
         "binding_sha256",
@@ -1323,17 +1337,23 @@ def _current_fact_binding(
     sources_by_id: dict[str, dict[str, Any]] = {}
     fact_rows = []
     for fact in facts:
-        gate3_binding = fact.get("gate3_binding", {})
-        artifact_id = gate3_binding.get("financial_annotations_artifact_id")
-        canonical = gate3_binding.get("canonical_binding")
-        if not isinstance(artifact_id, str) or not isinstance(canonical, dict):
+        try:
+            binding = qualified_projection_binding(fact)
+        except QualifiedProjectionFactV3Error:
             _fail("gate5_declaration_scope_current_fact_binding_invalid")
-        sources_by_id[artifact_id] = {
-            "document_id": canonical.get("document_id"),
-            "status": "current_fact_v2_source",
-            "canonical_version_id": canonical.get("canonical_version_id"),
-            "financial_annotations_artifact_id": artifact_id,
+        artifact_id = binding["projection_artifact_id"]
+        canonical = binding["canonical_binding"]
+        source = {
+            "document_id": canonical["document_id"],
+            "status": "current_qualified_projection_fact_v3_source",
+            "canonical_version_id": canonical["canonical_version_id"],
+            "canonical_root_sha256": canonical["canonical_root_sha256"],
+            "projection_artifact_id": artifact_id,
         }
+        previous = sources_by_id.get(artifact_id)
+        if previous is not None and previous != source:
+            _fail("gate5_declaration_scope_current_fact_binding_invalid")
+        sources_by_id[artifact_id] = source
         fact_rows.append(
             {
                 "fact_id": fact.get("fact_id"),
@@ -1343,8 +1363,8 @@ def _current_fact_binding(
         )
     base = {
         "boundary": boundary,
-        "status": "current_fact_v2_available",
-        "gate3_case_status": "not_executed",
+        "status": "current_qualified_projection_fact_v3_available",
+        "qualified_projection_case_status": "not_executed",
         "sources": sorted(sources_by_id.values(), key=lambda item: item["document_id"]),
         "facts": sorted(fact_rows, key=lambda item: item["fact_id"]),
     }
@@ -1354,10 +1374,10 @@ def _current_fact_binding(
 def _validated_current_fact_binding(value: Any, *, boundary: str | None) -> None:
     if (
         not isinstance(value, dict)
-        or set(value) != _GATE4_BINDING_KEYS
+        or set(value) != _CURRENT_FACT_BINDING_KEYS
         or value.get("boundary") != boundary
-        or value.get("status") != "current_fact_v2_available"
-        or value.get("gate3_case_status") != "not_executed"
+        or value.get("status") != "current_qualified_projection_fact_v3_available"
+        or value.get("qualified_projection_case_status") != "not_executed"
         or not isinstance(value.get("sources"), list)
         or not isinstance(value.get("facts"), list)
     ):
@@ -1365,9 +1385,6 @@ def _validated_current_fact_binding(value: Any, *, boundary: str | None) -> None
     base = {key: copy.deepcopy(value[key]) for key in value if key != "binding_sha256"}
     if value.get("binding_sha256") != _canonical_sha256(base):
         _fail("gate5_declaration_scope_current_fact_binding_invalid")
-    base = {key: copy.deepcopy(value[key]) for key in value if key != "binding_sha256"}
-    if value.get("binding_sha256") != _canonical_sha256(base):
-        _fail("gate5_declaration_scope_gate4_binding_invalid")
 
 
 def _validated_missing_source_requests(
@@ -1485,6 +1502,14 @@ def _validate_current_financial_sources(
     for source in sources:
         if source.get("source_kind") == "normalized_source_fact":
             fact = current.get(source.get("fact_id"))
+            try:
+                projection_binding = (
+                    None
+                    if fact is None
+                    else qualified_projection_binding(fact)
+                )
+            except QualifiedProjectionFactV3Error:
+                projection_binding = None
             expected = (
                 None
                 if fact is None
@@ -1492,7 +1517,7 @@ def _validate_current_financial_sources(
                     "source_kind": "normalized_source_fact",
                     "fact_id": fact["fact_id"],
                     "financial_type": fact["financial_type"],
-                    "gate3_binding": fact["gate3_binding"],
+                    "qualified_projection_binding": projection_binding,
                     "annotation_target": fact["annotation_target"],
                 }
             )

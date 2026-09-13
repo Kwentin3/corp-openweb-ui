@@ -110,6 +110,21 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V18_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
@@ -135,6 +150,12 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v17 import (
     OrdinaryTradeGroupedMappingV17AdapterFactory,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v18 import (
+    OrdinaryTradeGroupedMappingV18AdapterFactory,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
+    OrdinaryTradeGroupedMappingV20AdapterFactory,
+)
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
@@ -149,13 +170,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_dialogue_context_sha256,
     public_dialogue_interpretation_messages,
     public_dialogue_interpretation_response_format,
-    public_dialogue_message_response_format,
-    public_dialogue_render_messages,
-    public_mapping_verification_messages,
-    public_mapping_verification_response_format,
     render_public_dialogue_fallback,
     validate_public_dialogue_interpretation,
-    validate_public_dialogue_message,
 )
 from broker_reports_gate1.openwebui_file_bytes import (
     OpenWebUIFileBytesError,
@@ -226,6 +242,8 @@ class _OrdinaryTradeMappingRouteProfile:
         grouped_v14_response: bool = False,
         grouped_v15_response: bool = False,
         grouped_v17_response: bool = False,
+        grouped_v18_response: bool = False,
+        grouped_v20_response: bool = False,
     ) -> None:
         self.profile_id = profile_id
         self.prompt_command = prompt_command
@@ -238,6 +256,8 @@ class _OrdinaryTradeMappingRouteProfile:
         self.grouped_v14_response = grouped_v14_response
         self.grouped_v15_response = grouped_v15_response
         self.grouped_v17_response = grouped_v17_response
+        self.grouped_v18_response = grouped_v18_response
+        self.grouped_v20_response = grouped_v20_response
 
     def mapping_response_adapter(self) -> Any | None:
         if self.grouped_v14_response:
@@ -246,6 +266,10 @@ class _OrdinaryTradeMappingRouteProfile:
             return OrdinaryTradeGroupedMappingV15AdapterFactory.create()
         if self.grouped_v17_response:
             return OrdinaryTradeGroupedMappingV17AdapterFactory.create()
+        if self.grouped_v18_response:
+            return OrdinaryTradeGroupedMappingV18AdapterFactory.create()
+        if self.grouped_v20_response:
+            return OrdinaryTradeGroupedMappingV20AdapterFactory.create()
         return None
 
 
@@ -312,6 +336,53 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
         grouped_v17_response=True,
+    ),
+    "ordinary_trade_mapping_v18": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v18",
+        prompt_command=ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V18_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+        grouped_v18_response=True,
+    ),
+    # v19 changes the native managed instruction only. It deliberately keeps
+    # V18's closed wire adapter and Runtime contract.
+    "ordinary_trade_mapping_v19": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v19",
+        prompt_command=ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+        grouped_v18_response=True,
+    ),
+    "ordinary_trade_mapping_v20": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v20",
+        prompt_command=ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+        grouped_v20_response=True,
     ),
 }
 
@@ -411,7 +482,7 @@ class Pipe:
             default="ordinary_trade_mapping_v13",
             description=(
                 "Sealed production mapping route profile. Only the released "
-                "v13, v14, v15 and v16 profiles are admitted."
+                "v13, v14, v15, v16, v17, v18, v19 and v20 profiles are admitted."
             ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")
@@ -1104,6 +1175,11 @@ class Pipe:
                 done=True,
             )
         if artifact_context.workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID:
+            # The native Pipe return is the only public delivery of a newly
+            # completed NDFL workload.  Do not make a second presentation-model
+            # completion a post-result dependency: the owner-built context has
+            # a deterministic Russian rendering and the private XML link is
+            # already bound below.
             chat_content = await self._render_ndfl_public_dialogue(
                 result=ndfl_gate3,
                 user=__user__,
@@ -1638,61 +1714,12 @@ class Pipe:
             model_used = bool(existing.get("interpretation_model_used"))
         elif call_already_used:
             fallback_used = True
-        elif (
-            isinstance(context.get("current_question"), dict)
-            and context["current_question"].get("authority_kind")
-            in {
-                "source_choice_confirmation",
-                "declaration_case_bundle_confirmation",
-            }
-        ):
-            content = render_public_dialogue_fallback(context)
-        elif self.valves.ndfl_presentation_llm_enabled:
-            try:
-                system_content, user_content = public_dialogue_render_messages(context)
-                raw = await self._call_openwebui_presentation_completion(
-                    system_content=system_content,
-                    user_content=user_content,
-                    response_format=public_dialogue_message_response_format(
-                        context=context
-                    ),
-                    user=user,
-                    request=request,
-                    task="ordinary_trade_public_dialogue_render",
-                )
-                question = context.get("current_question")
-                mapping_verification = None
-                if (
-                    isinstance(question, dict)
-                    and question.get("authority_kind") == "source_choice"
-                ):
-                    verifier_system, verifier_user = (
-                        public_mapping_verification_messages(
-                            context=context, draft=raw
-                        )
-                    )
-                    mapping_verification = (
-                        await self._call_openwebui_presentation_completion(
-                            system_content=verifier_system,
-                            user_content=verifier_user,
-                            response_format=(
-                                public_mapping_verification_response_format()
-                            ),
-                            user=user,
-                            request=request,
-                            task="ordinary_trade_public_mapping_verification",
-                        )
-                    )
-                content = validate_public_dialogue_message(
-                    raw,
-                    context=context,
-                    mapping_verification=mapping_verification,
-                )
-                model_used = True
-            except Exception:
-                fallback_used = True
         if not content:
+            # The first-pass route intentionally never invokes a presentation
+            # completion.  This renderer carries no financial meaning: it only
+            # turns the owner-built public context into the Pipe's one string.
             content = render_public_dialogue_fallback(context)
+            fallback_used = True
         download = product.get("private_download")
         if (
             context["outcome"]["download_available"] is True
@@ -1967,6 +1994,7 @@ class Pipe:
                     ),
                     user=user,
                     request=request,
+                    completion_resolver=self._openwebui_completion_dependencies,
                 ).create()
                 answer_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
@@ -1981,6 +2009,7 @@ class Pipe:
                     ),
                     user=user,
                     request=request,
+                    completion_resolver=self._openwebui_completion_dependencies,
                 ).create()
                 (
                     mapping_prompt_resolver,
@@ -2410,6 +2439,113 @@ class Pipe:
         return str(path)
 
     @staticmethod
+    def _reconstruct_pdf_full_source_markdown(
+        page_payloads: list[tuple[Any, dict[str, Any], str]],
+    ) -> tuple[str, str]:
+        """Rebuild exact private Markdown from sealed page descriptors."""
+
+        if not page_payloads:
+            raise ArtifactStoreError(
+                "full_source_projection_payload_invalid",
+                "PDF Full Source payload set is empty",
+            )
+        markdown_sha256 = str(
+            page_payloads[0][1].get("document_ai_markdown_sha256") or ""
+        )
+        if re.fullmatch(r"[0-9a-f]{64}", markdown_sha256) is None:
+            raise ArtifactStoreError(
+                "full_source_projection_markdown_hash_mismatch",
+                "PDF Full Source Markdown seal is invalid",
+            )
+        pages: dict[int, list[dict[str, Any]]] = {}
+        for _record, payload, _payload_ref in page_payloads:
+            if str(payload.get("document_ai_markdown_sha256") or "") != markdown_sha256:
+                raise ArtifactStoreError(
+                    "full_source_projection_markdown_hash_mismatch",
+                    "PDF Full Source Markdown page seal is invalid",
+                )
+            location = payload.get("source_location")
+            page = location.get("page") if isinstance(location, dict) else None
+            if type(page) is not int or page < 1:
+                projection = payload.get("normalized_projection")
+                text = projection.get("text") if isinstance(projection, dict) else None
+                if len(page_payloads) != 1 or not isinstance(text, str):
+                    raise ArtifactStoreError(
+                        "full_source_projection_markdown_hash_mismatch",
+                        "PDF Full Source Markdown page seal is invalid",
+                    )
+                if hashlib.sha256(text.encode("utf-8")).hexdigest() != markdown_sha256:
+                    raise ArtifactStoreError(
+                        "full_source_projection_markdown_hash_mismatch",
+                        "PDF Full Source Markdown seal is invalid",
+                    )
+                return text, markdown_sha256
+            pages.setdefault(page, []).append(payload)
+
+        markdown_pages: list[str] = []
+        for page in sorted(pages):
+            descriptors = pages[page]
+            page_seals = {
+                str((item.get("format_structural_inventory") or {}).get("page_markdown_sha256") or "")
+                for item in descriptors
+            }
+            if len(page_seals) != 1 or re.fullmatch(r"[0-9a-f]{64}", next(iter(page_seals))) is None:
+                raise ArtifactStoreError(
+                    "full_source_projection_markdown_hash_mismatch",
+                    "PDF Full Source Markdown page seal is invalid",
+                )
+            parts: list[str] = []
+            for item in sorted(
+                descriptors,
+                key=lambda current: int(
+                    (current.get("source_location") or {}).get("content_order") or 0
+                ),
+            ):
+                location = item.get("source_location") or {}
+                kind = location.get("kind")
+                projection = item.get("normalized_projection")
+                if kind in {"document_ai_page_markdown", "document_ai_page_markdown_body"}:
+                    text = projection.get("text") if isinstance(projection, dict) else None
+                    if not isinstance(text, str):
+                        raise ArtifactStoreError(
+                            "full_source_projection_markdown_hash_mismatch",
+                            "PDF Full Source Markdown page seal is invalid",
+                        )
+                    parts.append(text)
+                elif kind == "document_ai_native_table_html":
+                    target = item.get("document_ai_native_table_markdown_target")
+                    anchor = item.get("document_ai_native_table_markdown_anchor")
+                    if (
+                        not isinstance(anchor, str)
+                        or Pipe._closed_zip_member(target) != target
+                        or not anchor.endswith(f"({target})")
+                    ):
+                        raise ArtifactStoreError(
+                            "full_source_projection_markdown_hash_mismatch",
+                            "PDF Full Source Markdown page seal is invalid",
+                        )
+                    parts.append(anchor)
+                else:
+                    raise ArtifactStoreError(
+                        "full_source_projection_markdown_hash_mismatch",
+                        "PDF Full Source Markdown page seal is invalid",
+                    )
+            page_markdown = "".join(parts)
+            if hashlib.sha256(page_markdown.encode("utf-8")).hexdigest() != next(iter(page_seals)):
+                raise ArtifactStoreError(
+                    "full_source_projection_markdown_hash_mismatch",
+                    "PDF Full Source Markdown page seal is invalid",
+                )
+            markdown_pages.append(page_markdown)
+        markdown = "\n\n".join(markdown_pages)
+        if hashlib.sha256(markdown.encode("utf-8")).hexdigest() != markdown_sha256:
+            raise ArtifactStoreError(
+                "full_source_projection_markdown_hash_mismatch",
+                "PDF Full Source Markdown seal is invalid",
+            )
+        return markdown, markdown_sha256
+
+    @staticmethod
     def _zip_entry(name: str, content: bytes) -> tuple[ZipInfo, bytes]:
         info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
         info.compress_type = ZIP_DEFLATED
@@ -2500,34 +2636,9 @@ class Pipe:
                     "full_source_projection_payload_invalid",
                     "PDF Full Source payload binding is invalid",
                 )
-            markdown_parts: list[str] = []
-            markdown_sha256 = str(payload.get("document_ai_markdown_sha256") or "")
-            for _page_record, page_payload, _page_ref in page_payloads:
-                projection = page_payload.get("normalized_projection")
-                page_markdown = (
-                    projection.get("text") if isinstance(projection, dict) else None
-                )
-                if (
-                    not isinstance(page_markdown, str)
-                    or str(page_payload.get("document_ai_markdown_sha256") or "")
-                    != markdown_sha256
-                ):
-                    raise ArtifactStoreError(
-                        "full_source_projection_markdown_hash_mismatch",
-                        "PDF Full Source Markdown page seal is invalid",
-                    )
-                markdown_parts.append(page_markdown)
-            markdown = "\n\n".join(markdown_parts)
-            if (
-                not isinstance(markdown, str)
-                or re.fullmatch(r"[0-9a-f]{64}", markdown_sha256) is None
-                or hashlib.sha256(markdown.encode("utf-8")).hexdigest()
-                != markdown_sha256
-            ):
-                raise ArtifactStoreError(
-                    "full_source_projection_markdown_hash_mismatch",
-                    "PDF Full Source Markdown seal is invalid",
-                )
+            markdown, markdown_sha256 = Pipe._reconstruct_pdf_full_source_markdown(
+                page_payloads
+            )
             source_ref = record.source_file_ref
             provenance = payload.get("document_ai_provenance")
             if not isinstance(source_ref, dict) or not isinstance(provenance, dict):
@@ -2602,6 +2713,68 @@ class Pipe:
                         "media_type": binary["media_type"],
                     }
                 )
+            tables: list[dict[str, Any]] = []
+            for _table_record, table_payload, _table_ref in page_payloads:
+                if (
+                    (table_payload.get("source_location") or {}).get("kind")
+                    != "document_ai_native_table_html"
+                ):
+                    continue
+                target_value = table_payload.get(
+                    "document_ai_native_table_markdown_target"
+                )
+                target = Pipe._closed_zip_member(target_value)
+                artifact_id = str(
+                    table_payload.get("document_ai_native_table_ref") or ""
+                )
+                expected_sha256 = str(
+                    table_payload.get("document_ai_native_table_sha256") or ""
+                )
+                if not artifact_id or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+                    raise ArtifactStoreError(
+                        "full_source_projection_table_binding_invalid",
+                        "PDF Full Source table binding is invalid",
+                    )
+                binary = resolver.resolve_private_binary(
+                    artifact_id,
+                    context,
+                    expected_sha256=expected_sha256,
+                )
+                binary_record = binary["record"]
+                binary_source_ref = binary_record.source_file_ref
+                if (
+                    binary["media_type"] != "text/html"
+                    or not isinstance(binary_source_ref, dict)
+                    or str(binary_source_ref.get("openwebui_file_id") or "")
+                    != source_file_id
+                    or str(binary_source_ref.get("file_hash_sha256") or "")
+                    != source_sha256
+                ):
+                    raise ArtifactStoreError(
+                        "full_source_projection_table_binding_invalid",
+                        "PDF Full Source table belongs to another source",
+                    )
+                archive_path = f"{document_root}/{target}"
+                existing = entries.get(archive_path)
+                if existing is not None and existing != binary["content"]:
+                    raise ArtifactStoreError(
+                        "full_source_projection_table_target_collision",
+                        "One Markdown table target resolves to different bytes",
+                    )
+                entries[archive_path] = binary["content"]
+                tables.append(
+                    {
+                        "artifact_id": artifact_id,
+                        "page_number": int(
+                            (table_payload.get("source_location") or {}).get("page")
+                            or 0
+                        ),
+                        "markdown_target": target,
+                        "archive_path": archive_path,
+                        "sha256": binary["content_sha256"],
+                        "media_type": binary["media_type"],
+                    }
+                )
             documents.append(
                 {
                     "document_ref": document_id,
@@ -2614,6 +2787,7 @@ class Pipe:
                     "markdown_path": markdown_path,
                     "markdown_sha256": markdown_sha256,
                     "images": images,
+                    "tables": tables,
                     "document_ai_provenance": copy.deepcopy(provenance),
                 }
             )
@@ -4124,6 +4298,10 @@ class Pipe:
         return str(value)
 
     def _passport_enabled(self, body: dict[str, Any], metadata: dict[str, Any]) -> bool:
+        # A request is not an authority to activate an optional LLM branch.
+        # The Function owner must explicitly enable it through a Valve.
+        if not bool(self.valves.passport_enabled):
+            return False
         value = self._passport_config_value(
             body,
             metadata,

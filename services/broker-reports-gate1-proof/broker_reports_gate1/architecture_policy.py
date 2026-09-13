@@ -10,7 +10,7 @@ from __future__ import annotations
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v35"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v37"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -54,7 +54,7 @@ ACTIVE_PRODUCT_ROUTES = {
             "broker_reports_ordinary_trade_mapping_qualification_v2"
             "|broker_reports_ordinary_trade_case_mapping_qualification_v1"
         ),
-        "normalized_fact_contract": "Gate4FinancialCaseFactV2",
+        "normalized_fact_contract": "broker_reports_qualified_projection_fact_v3",
         "canonical_completeness_owner": (
             "OrdinaryTradeProjectionRuntime.current_case_coverage"
         ),
@@ -235,7 +235,7 @@ PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT = "PdfDocumentExtractorFactory.create"
 PDF_DOCUMENT_EXTRACTION_DEFAULT = "PdfPlumberNativeTextExtractor"
 PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE = "PDF_NATIVE_TEXT_UNUSABLE"
 PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE = "pdfplumber_native_text"
-PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "pdfplumber_native_text_adapter_v1"
+PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "pdfplumber_native_text_adapter_v3"
 PDF_DOCUMENT_EXTRACTION_STATIC_READY = True
 PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE = (
     "existing_artifact_store_atomic_private_graph"

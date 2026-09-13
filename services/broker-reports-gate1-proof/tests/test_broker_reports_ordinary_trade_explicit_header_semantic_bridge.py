@@ -107,6 +107,80 @@ def test_semantic_bridge_reuses_exact_qualified_parent_mapping_for_explicit_rows
     ]
 
 
+def test_v20_cannot_turn_a_verified_continuation_child_first_row_into_header(
+    tmp_path,
+) -> None:
+    semantic, canonical, binding, context, parent, child, outcome = _prepared_parent_outcome(tmp_path)
+    response = case_fixtures._complete(parent, outcome["qualified_mappings"][0])
+    child_decision = copy.deepcopy(response["table_decisions"][0])
+    child_decision["table_ref"] = "table_2"
+    # This is the adversarial loss: row 1 is a real child fact, not a local
+    # header. V20 must reject before any role/compiler path can consume it.
+    child_decision["header_row"] = 1
+    response["table_decisions"].append(child_decision)
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as error:
+        semantic.validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=case_fixtures._metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+            target_table_node_ids=[parent["node_id"], child["node_id"]],
+            physical_table_continuation_context=_physical_context(
+                binding, parent["node_id"], child["node_id"]
+            ),
+            allow_model_selected_header=True,
+        )
+
+    assert error.value.code == "ordinary_trade_semantic_mapping_continuation_child_header_forbidden"
+
+
+def test_persisted_currency_replay_keeps_continuation_child_header_guard(
+    tmp_path,
+) -> None:
+    """A saved batch/currency response is not allowed to lose continuation scope."""
+
+    semantic, canonical, binding, context, parent, child, outcome = _prepared_parent_outcome(tmp_path)
+    response = case_fixtures._complete(parent, outcome["qualified_mappings"][0])
+    child_decision = copy.deepcopy(response["table_decisions"][0])
+    child_decision["table_ref"] = "table_2"
+    child_decision["header_row"] = 1
+    response["table_decisions"].append(child_decision)
+    persisted_currency_plan = {
+        "response": {**response, "status": "COMPLETE"},
+        "execution_metadata": case_fixtures._metadata(),
+        "target_table_node_ids": [parent["node_id"], child["node_id"]],
+        "table_node_ids": [parent["node_id"], child["node_id"]],
+        "explicit_header_source_response": None,
+    }
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as error:
+        semantic.validate_mapping_response(
+            response=persisted_currency_plan["response"],
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=persisted_currency_plan["execution_metadata"],
+            confirmed_understandings=[],
+            user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+            target_table_node_ids=persisted_currency_plan["target_table_node_ids"],
+            physical_table_continuation_context=_physical_context(
+                binding, parent["node_id"], child["node_id"]
+            ),
+            explicit_header_source_response=persisted_currency_plan[
+                "explicit_header_source_response"
+            ],
+            allow_model_selected_header=True,
+        )
+
+    assert error.value.code == "ordinary_trade_semantic_mapping_continuation_child_header_forbidden"
+
+
 def test_semantic_bridge_rejects_a_claim_outside_its_mapping_batch_scope(tmp_path) -> None:
     semantic, canonical, binding, context, parent, child, outcome = _prepared_parent_outcome(tmp_path)
 

@@ -6,6 +6,7 @@ import copy
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort
+from .gate4_ordinary_trade_candidate import Gate4OrdinaryTradeCandidateRuntimeFactory
 from .gate5_evidence_intake import (
     Gate5EvidenceIntakeRuntime,
     Gate5EvidenceIntakeRuntimeFactory,
@@ -50,6 +51,7 @@ FACTORY_REQUIRED = (
     "Gate5DeclarationPreparationRuntimeFactory.create composes "
     "Gate5EvidenceIntakeRuntimeFactory.create, "
     "Gate5RealTaxCaseAssemblyRuntimeFactory.create, "
+    "Gate4OrdinaryTradeCandidateRuntimeFactory.create, "
     "Gate5ClientEvidenceReviewRuntimeFactory.create, "
     "Gate5DeclarationScopeActivationRuntimeFactory.create, "
     "Gate5HumanGapClosureRuntimeFactory.create and the official target "
@@ -74,6 +76,10 @@ class Gate5DeclarationPreparationRuntimeFactory:
         self._read_enabled = read_enabled
 
     def create(self) -> "Gate5DeclarationPreparationRuntime":
+        current_fact_owner = Gate4OrdinaryTradeCandidateRuntimeFactory(
+            store=self._store,
+            read_enabled=self._read_enabled,
+        ).create()
         return Gate5DeclarationPreparationRuntime(
             intake=Gate5EvidenceIntakeRuntimeFactory(
                 store=self._store,
@@ -84,8 +90,7 @@ class Gate5DeclarationPreparationRuntimeFactory:
                 read_enabled=self._read_enabled,
             ).create(),
             client_review=Gate5ClientEvidenceReviewRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
+                list_facts=current_fact_owner.list_facts,
             ).create(),
             scope_activation=Gate5DeclarationScopeActivationRuntimeFactory(
                 store=self._store,

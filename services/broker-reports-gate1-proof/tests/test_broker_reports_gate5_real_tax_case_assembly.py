@@ -10,15 +10,14 @@ from broker_reports_gate1.gate5_real_tax_case_assembly import (
     Gate5RealTaxCaseAssemblyRuntimeFactory,
     _demand_terminal,
 )
+from broker_reports_gate1.ordinary_trade_projection import OrdinaryTradeProjectionFactory
 
+import test_broker_reports_ordinary_trade_production_candidate as candidate_fixtures
 import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fixtures
 
 
 def test_demand_first_case_assembly_keeps_real_gaps_exact(tmp_path: Path) -> None:
-    store, context = source_fixtures._case(
-        tmp_path / "real-gap",
-        include_purchases=False,
-    )
+    store, context = _qualified_case(tmp_path / "real-gap")
 
     assembled = _runtime(store).assemble(
         source_fact_methodology_ref=source_fixtures._source_methodology_ref(),
@@ -32,7 +31,7 @@ def test_demand_first_case_assembly_keeps_real_gaps_exact(tmp_path: Path) -> Non
     ]
     assert assembled["metrics"]["declaration_demands_total"] == 25
     assert assembled["metrics"]["MISSING_EVIDENCE"] == 4
-    assert assembled["metrics"]["SOURCE_EVIDENCE_INSUFFICIENT"] == 3
+    assert assembled["metrics"]["SOURCE_EVIDENCE_INSUFFICIENT"] == 2
     assert assembled["metrics"]["METHODOLOGY_UNRESOLVED"] == 2
     assert assembled["metrics"]["NOT_ACTIVATED_FOR_SUPPLIED_CASE"] == 16
     assert assembled["metrics"]["RESOLVED"] == 0
@@ -43,7 +42,7 @@ def test_demand_first_case_assembly_keeps_real_gaps_exact(tmp_path: Path) -> Non
         "EXTERNAL_AUTHORITATIVE_FACT_MISSING": 0,
         "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT": 0,
         "METHODOLOGY_RULE_MISSING": 2,
-        "REAL_SOURCE_EVIDENCE_MISSING": 3,
+        "REAL_SOURCE_EVIDENCE_MISSING": 2,
         "USER_CASE_FACT_MISSING": 4,
     }
     active = [
@@ -52,24 +51,24 @@ def test_demand_first_case_assembly_keeps_real_gaps_exact(tmp_path: Path) -> Non
         if row["terminal"] != "NOT_ACTIVATED_FOR_SUPPLIED_CASE"
     ]
     assert len(active) == 9
-    assert all(row["gap_owner_classification"] for row in active)
+    assert all(
+        row["gap_owner_classification"]
+        for row in active
+        if row["terminal"] != "AVAILABLE"
+    )
     assert assembled["declaration_input_methodology_binding"][
         "methodology_id"
     ] == "ru-3ndfl-2025-declaration-input-contract"
-    assert assembled["multi_source_assembly"]["status"] == "PROVEN"
+    assert assembled["multi_source_assembly"]["status"] == "SINGLE_SOURCE_ONLY"
     assert assembled["reconciliation"] == "not_performed"
     securities = next(
         row
         for row in assembled["declaration_demands"]
         if row["demand"] == "obl_securities_and_derivatives_results"
     )
-    assert securities["terminal"] == "SOURCE_EVIDENCE_INSUFFICIENT"
+    assert securities["terminal"] == "AVAILABLE"
     assert securities["available_evidence"]["fact_ids"]
-    assert securities["blocker"]["declaration_demand"] == securities["demand"]
-    assert securities["blocker"]["required_fact"]
-    assert securities["blocker"]["evidence_searched"]["source_fact_count"] > 0
-    assert securities["blocker"]["why_supplied_evidence_is_insufficient"]
-    assert securities["blocker"]["evidence_that_could_close"]
+    assert securities["blocker"] is None
     for demand in {
         "obl_digital_financial_asset_and_right_results",
         "obl_investment_partnership_results",
@@ -84,7 +83,7 @@ def test_demand_first_case_assembly_keeps_real_gaps_exact(tmp_path: Path) -> Non
 def test_synthetic_control_is_separate_and_does_not_promote_declaration(
     tmp_path: Path,
 ) -> None:
-    store, context = source_fixtures._case(tmp_path / "synthetic-control")
+    store, context = _qualified_case(tmp_path / "synthetic-control")
 
     assembled = _runtime(store).assemble(
         source_fact_methodology_ref=source_fixtures._source_methodology_ref(),
@@ -134,6 +133,7 @@ def test_case_assembly_factory_is_read_only_and_factory_backed() -> None:
     factory_source = inspect.getsource(Gate5RealTaxCaseAssemblyRuntimeFactory)
     runtime_source = inspect.getsource(Gate5RealTaxCaseAssemblyRuntime)
     assert "Gate5DeterministicSourceFactConsumptionRuntimeFactory" in factory_source
+    assert "Gate4OrdinaryTradeCandidateRuntimeFactory" in factory_source
     assert "Gate5TrustedFullDeclarationDefinitionAuthorityFactory" in factory_source
     assert "Gate5FullDeclarationDefinitionAuthoringFactory" in factory_source
     assert "Gate5TrustedMethodologyAuthorityFactory" in factory_source
@@ -148,3 +148,17 @@ def _runtime(store):
         store=store,
         read_enabled=True,
     ).create()
+
+
+def _qualified_case(tmp_path: Path):
+    rows = (("Qualified asset", *candidate_fixtures._ROWS[0][1:]), *candidate_fixtures._ROWS[1:])
+    store, context, document_id, _mapping = candidate_fixtures._case(
+        tmp_path,
+        rows=rows,
+        persist_mapping_case=True,
+    )
+    OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create().compile_and_save(
+        document_id=document_id,
+        context=context,
+    )
+    return store, context

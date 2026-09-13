@@ -894,6 +894,8 @@ class FullSourceArtifactBuilder:
             "document_ai_image_refs",
             "document_ai_native_table_ref",
             "document_ai_native_table_sha256",
+            "document_ai_native_table_markdown_target",
+            "document_ai_native_table_markdown_anchor",
         ):
             if key in descriptor:
                 checksum_material[key] = copy.deepcopy(descriptor[key])
@@ -947,6 +949,8 @@ class FullSourceArtifactBuilder:
             "document_ai_image_refs",
             "document_ai_native_table_ref",
             "document_ai_native_table_sha256",
+            "document_ai_native_table_markdown_target",
+            "document_ai_native_table_markdown_anchor",
         ):
             if key in descriptor:
                 payload[key] = copy.deepcopy(descriptor[key])
@@ -1179,6 +1183,7 @@ def _document_ai_native_page_descriptors(
                 page=page,
                 table=table,
                 content_order=content_order,
+                markdown_anchor=match.group(0),
                 provenance=provenance,
                 markdown_sha256=markdown_sha256,
                 parser_version=parser_version,
@@ -1259,6 +1264,7 @@ def _document_ai_native_table_descriptor(
     page: int,
     table: Any,
     content_order: int,
+    markdown_anchor: str,
     provenance: dict[str, Any],
     markdown_sha256: str,
     parser_version: str,
@@ -1301,6 +1307,8 @@ def _document_ai_native_table_descriptor(
         "document_ai_markdown_sha256": markdown_sha256,
         "document_ai_native_table_ref": table.local_ref,
         "document_ai_native_table_sha256": table.sha256,
+        "document_ai_native_table_markdown_target": table.markdown_target,
+        "document_ai_native_table_markdown_anchor": markdown_anchor,
     }
 
 

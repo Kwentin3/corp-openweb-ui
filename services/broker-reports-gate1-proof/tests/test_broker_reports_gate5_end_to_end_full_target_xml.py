@@ -107,6 +107,37 @@ def test_source_to_official_xml_replays_every_gate_and_emits_hash_chain(
     )
 
 
+def test_historical_operation_route_does_not_read_v3_facts_before_v3_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    class FailingQualifiedFactReader:
+        def list_facts(self, *, context):
+            calls.append(context)
+            raise AssertionError("historical operation route must not read V3 facts")
+
+    class QualifiedFactFactory:
+        def __init__(self, *, store, read_enabled):
+            assert store is not None
+            assert read_enabled is True
+
+        def create(self):
+            return FailingQualifiedFactReader()
+
+    monkeypatch.setattr(
+        module,
+        "Gate4OrdinaryTradeCandidateRuntimeFactory",
+        QualifiedFactFactory,
+    )
+
+    result, _ = _run(tmp_path, _proof_input())
+
+    assert result["status"] == GATE5_END_TO_END_STATUS
+    assert calls == []
+
+
 def test_same_source_case_and_authorities_produce_same_semantics_and_xml(
     tmp_path: Path,
 ) -> None:
@@ -333,13 +364,14 @@ def test_case_resource_is_hash_pinned_closed_world_and_target_free_runtime(
     )
 
     source = inspect.getsource(module)
+    factory_source = inspect.getsource(module.Gate5EndToEndFullTargetXmlRuntimeFactory)
     runtime_source = inspect.getsource(module.Gate5EndToEndFullTargetXmlRuntime)
     imports = {
         node.module
         for node in ast.walk(ast.parse(source))
         if isinstance(node, ast.ImportFrom) and node.module is not None
     }
-    assert len(FACTORY_REQUIRED) == 6
+    assert len(FACTORY_REQUIRED) == 7
     assert FORBIDDEN
     for owner in (
         "Gate1Normalizer().normalize",
@@ -354,6 +386,8 @@ def test_case_resource_is_hash_pinned_closed_world_and_target_free_runtime(
         "Gate5FullTargetXmlProjectionRuntimeFactory",
     ):
         assert owner in runtime_source
+    assert "Gate4OrdinaryTradeCandidateRuntimeFactory" in factory_source
+    assert "create_from_resolved_inputs" in runtime_source
     for forbidden in (
         "test_broker_reports_",
         "sqlite3",

@@ -57,16 +57,6 @@ MAPPING_PIN = {
     "prompt_history_id": "history-1",
     "prompt_hash": "a" * 64,
 }
-CONTINUATION_PIN = {
-    **MAPPING_PIN,
-    "prompt_command": "broker_pdf_table_continuation_annotation_v3",
-}
-PASSPORT_PIN = {
-    **MAPPING_PIN,
-    "prompt_command": "broker_gate1_document_passport_v1",
-}
-
-
 def _manifest():
     return build_manifest(
         source_revision=REVISION,
@@ -77,6 +67,33 @@ def _manifest():
 
 
 class AtomicStageReleaseContractTests(unittest.TestCase):
+    def test_cli_explicit_ssh_target_does_not_require_local_env_file(self):
+        captured = {}
+
+        with (
+            mock.patch.object(
+                driver,
+                "execute",
+                side_effect=lambda **kwargs: captured.update(kwargs) or {},
+            ),
+            mock.patch.object(driver, "_read_env") as read_env,
+            mock.patch.object(
+                sys,
+                "argv",
+                [
+                    "release.py",
+                    "--source-revision",
+                    REVISION,
+                    "--ssh-target",
+                    "root@release-host",
+                ],
+            ),
+        ):
+            self.assertEqual(0, driver.main())
+
+        read_env.assert_not_called()
+        self.assertEqual("root@release-host", captured["ssh_target"])
+
     def test_remote_verifier_payload_is_valid_python(self):
         def validate_remote_payload(*args, **kwargs):
             compile(kwargs["input"], "remote_runtime_verifier.py", "exec")
@@ -172,8 +189,6 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     "prompt_history_id": "history-1",
                     "prompt_hash": "a" * 64,
                 },
-                pdf_table_continuation_annotation_prompt_pin=CONTINUATION_PIN,
-                document_metadata_passport_prompt_pin=PASSPORT_PIN,
             )
 
         self.assertEqual(expected, captured["loader"])
@@ -214,14 +229,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **kwargs: (
-                    events.append("publish:" + kwargs["profile"])
-                    or (
-                        CONTINUATION_PIN
-                        if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                        else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
-                    )
-                ),
+                side_effect=lambda **kwargs: events.append("publish:" + kwargs["profile"])
+                or pin,
             ),
             mock.patch.object(
                 driver,
@@ -234,11 +243,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 side_effect=lambda **kwargs: (
                     events.append("post_remote_verify"),
                     self.assertTrue(kwargs["source_archive"].is_file()),
-                    (
-                        CONTINUATION_PIN
-                        if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                        else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
-                    ),
+                    pin,
                 )[-1],
             ) as verify,
         ):
@@ -251,26 +256,16 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                "publish:ordinary_trade_mapping_v17",
-                "publish:pdf_table_continuation_annotation_v3",
-                "publish:document_metadata_passport_v1",
+                "publish:ordinary_trade_mapping_v20",
                 "atomic_remote",
-                "post_remote_verify",
-                "post_remote_verify",
                 "post_remote_verify",
             ],
             events,
         )
-        self.assertEqual(3, verify.call_count)
+        self.assertEqual(1, verify.call_count)
         self.assertEqual(pin, receipt["ordinary_trade_mapping_prompt"]["pin"])
-        self.assertEqual(
-            CONTINUATION_PIN,
-            receipt["pdf_table_continuation_annotation_prompt"]["pin"],
-        )
-        self.assertEqual(
-            PASSPORT_PIN,
-            receipt["document_metadata_passport_prompt"]["pin"],
-        )
+        self.assertNotIn("pdf_table_continuation_annotation_prompt", receipt)
+        self.assertNotIn("document_metadata_passport_prompt", receipt)
 
     def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
         revision = subprocess.run(
@@ -291,11 +286,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **kwargs: (
-                    CONTINUATION_PIN
-                    if kwargs["profile"] == "pdf_table_continuation_annotation_v3"
-                    else (PASSPORT_PIN if kwargs["profile"] == "document_metadata_passport_v1" else pin)
-                ),
+                return_value=pin,
             ),
             mock.patch.object(driver, "_run_remote_release", return_value={"status": "passed"}) as apply,
             mock.patch.object(
@@ -410,7 +401,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual("native_text_ready", document_ai["adapter_status"])
         self.assertEqual("pdfplumber_native_text", document_ai["selected_engine"])
         self.assertEqual(
-            "pdfplumber_native_text_adapter_v1", document_ai["selected_adapter"]
+            "pdfplumber_native_text_adapter_v3", document_ai["selected_adapter"]
         )
         self.assertTrue(document_ai["static_ready"])
         self.assertEqual(
@@ -423,7 +414,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertFalse(document_ai["automatic_fallback"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v35",
+                "architecture_policy_version": "broker_reports_architecture_policy_v37",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,
@@ -435,6 +426,10 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertTrue(
             manifest["functions"][0]["valves"]["ordinary_trade_candidate_enabled"]
         )
+        self.assertFalse(
+            manifest["functions"][0]["valves"]["pdf_table_continuation_annotation_enabled"]
+        )
+        self.assertFalse(manifest["functions"][0]["valves"]["passport_enabled"])
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
         self.assertNotIn("private_intake_contract", manifest["image"])
@@ -477,6 +472,9 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 GATE1_RETIRED_VALVE_KEYS[0]: False,
                 "canonical_gate2_compare_enabled": True,
                 "pdf_dual_vlm_enabled": False,
+                "pdf_table_continuation_annotation_enabled": True,
+                "passport_enabled": True,
+                "passport_prompt_id": "obsolete-prompt",
             },
         )
 
@@ -487,10 +485,13 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertNotIn("pdf_semantic_visual_table_downstream_enabled", valves)
         self.assertNotIn("pdf_hybrid_shadow_enabled", valves)
         self.assertNotIn("pdf_structural_repair_shadow_enabled", valves)
+        self.assertNotIn("passport_prompt_id", valves)
         self.assertTrue(valves["canonical_gate2_write_enabled"])
         self.assertTrue(valves["canonical_gate2_read_enabled"])
         self.assertFalse(valves["ndfl_gate3_enabled"])
         self.assertTrue(valves["ordinary_trade_candidate_enabled"])
+        self.assertFalse(valves["pdf_table_continuation_annotation_enabled"])
+        self.assertFalse(valves["passport_enabled"])
         self.assertTrue(valves_match(function_id, valves))
         self.assertTrue(all(key not in valves for key in GATE1_RETIRED_VALVE_KEYS))
 
@@ -1310,6 +1311,93 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 rollback_prompt_rows,
                 remote._snapshot_prompt_rows(restored_prompts),
             )
+
+    def test_repeated_rollback_rehearsal_restores_each_attempt_baseline(self):
+        """A retry keeps its own candidate state; it must not rehearse to v1's baseline."""
+        manifest = _manifest()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            staging = root / manifest["release_id"]
+            staging.mkdir()
+            (staging / "manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+            for contract in FUNCTION_CONTRACTS:
+                shutil.copyfile(
+                    contract.bundle_path, staging / contract.bundle_path.name
+                )
+            candidate_loader = (staging / manifest["loader"]["file_name"])
+            candidate_loader.write_bytes(b"candidate-loader")
+            manifest = build_manifest(
+                source_revision=REVISION,
+                prompt_contracts=expected_prompt_contracts(),
+                provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+                loader_bytes=candidate_loader.read_bytes(),
+            )
+            (staging / "manifest.json").write_text(
+                json.dumps(manifest), encoding="utf-8"
+            )
+            db = root / "webui.db"
+            self._database(db)
+            loader_path = root / "loader.js"
+            loader_path.write_bytes(b"previous-loader")
+            rollback_root = root / "rollbacks"
+
+            def live_state(*, db_path, data_root, manifest):
+                return {
+                    "functions": [
+                        {
+                            "function_id": contract.function_id,
+                            "active": True,
+                            "global": False,
+                            "type": "pipe",
+                        }
+                        for contract in FUNCTION_CONTRACTS
+                    ],
+                    "retired_functions": [],
+                    "image": {},
+                    "loader": remote._loader_state(),
+                    "managed_prompts": [],
+                    "workload": {},
+                    "counters": {},
+                }
+
+            with (
+                mock.patch.object(remote, "LOADER_PATH", loader_path),
+                mock.patch.object(remote, "ROLLBACK_ROOT", rollback_root),
+                mock.patch.object(remote, "_volume_mount", return_value=root),
+                mock.patch.object(remote, "_webui_db", return_value=db),
+                mock.patch.object(remote, "_live_state", side_effect=live_state),
+                mock.patch.object(remote, "_assert_static_contracts"),
+                mock.patch.object(remote, "_assert_prompt_set_present"),
+                mock.patch.object(remote, "_assert_quiescent"),
+                mock.patch.object(remote, "_assert_candidate"),
+                mock.patch.object(remote, "_stop_container"),
+                mock.patch.object(remote, "_start_container"),
+                mock.patch.object(remote, "_wait_healthy"),
+            ):
+                first = remote.execute(
+                    staging_dir=staging, apply=True, prove_rollback=True
+                )
+                second = remote.execute(
+                    staging_dir=staging, apply=True, prove_rollback=True
+                )
+
+            self.assertTrue(first["rollback_artifact_created"])
+            self.assertFalse(second["rollback_artifact_created"])
+            self.assertTrue(second["rollback_proof"]["candidate_state_restored"])
+            self.assertEqual(
+                {
+                    item["function_id"]: item["content_sha256"]
+                    for item in manifest["functions"]
+                },
+                remote._content_hashes(
+                    remote._function_rows(
+                        db, [item["function_id"] for item in manifest["functions"]]
+                    )
+                ),
+            )
+            self.assertEqual(b"candidate-loader", loader_path.read_bytes())
 
     def test_remote_cleanup_and_ssh_are_fail_closed(self):
         remote_source = (SCRIPTS / "broker_reports_atomic_stage_remote.py").read_text(

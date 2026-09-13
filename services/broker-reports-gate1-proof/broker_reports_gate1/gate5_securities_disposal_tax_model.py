@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from decimal import Decimal, InvalidOperation
 import re
-from typing import Any
+from typing import Any, Callable
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
 from .gate5_combined_requirement_check import GATE5_COMBINED_REQUIREMENTS_SCHEMA_VERSION
@@ -62,7 +62,9 @@ FACTORY_REQUIRED = (
     "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create owns the "
     "normalized-source-fact result consumed by run_from_current_source_facts",
     "Gate5SecuritiesDisposalTaxModelRuntimeFactory."
-    "create_current_source_fact_operation owns inactive Fact v2 consumer injection",
+    "create_current_source_fact_operation owns inactive qualified Fact v3 consumer injection",
+    "Gate5SecuritiesDisposalTaxModelRuntimeFactory."
+    "create_from_resolved_inputs owns resolved-input operation composition",
 )
 FORBIDDEN = (
     "direct Gate 4, Supplemental Fact, ArtifactStore, SQL, source or provider reads",
@@ -139,10 +141,12 @@ class Gate5SecuritiesDisposalTaxModelRuntimeFactory:
         store: ArtifactStorePort,
         read_enabled: bool,
         retention_policy: RetentionPolicy,
+        list_facts: Callable[..., list[dict[str, Any]]],
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
         self._retention_policy = retention_policy
+        self._list_facts = list_facts
 
     def create(self) -> "Gate5SecuritiesDisposalTaxModelRuntime":
         return Gate5SecuritiesDisposalTaxModelRuntime(
@@ -154,19 +158,39 @@ class Gate5SecuritiesDisposalTaxModelRuntimeFactory:
             ).create(),
             source_fact_consumption=(
                 Gate5DeterministicSourceFactConsumptionRuntimeFactory(
-                    store=self._store,
-                    read_enabled=self._read_enabled,
+                    list_facts=self._list_facts,
                 ).create()
             ),
             projector=Gate5DeclarationProjectionRuntimeFactory.create(),
         )
 
+    @classmethod
+    def create_from_resolved_inputs(
+        cls,
+        *,
+        store: ArtifactStorePort,
+        read_enabled: bool,
+        retention_policy: RetentionPolicy,
+    ) -> "Gate5SecuritiesDisposalTaxModelRuntime":
+        """Compose only the dependencies used by ``run_operation``."""
+
+        return Gate5SecuritiesDisposalTaxModelRuntime(
+            authority=Gate5TrustedMethodologyAuthorityFactory.create(),
+            discovery=Gate5SupplementalFactDiscoveryRuntimeFactory(
+                store=store,
+                read_enabled=read_enabled,
+                retention_policy=retention_policy,
+            ).create(),
+            source_fact_consumption=None,
+            projector=None,
+        )
+
     def create_current_source_fact_operation(
         self,
         *,
-        source_fact_consumption: Gate5DeterministicSourceFactConsumptionRuntime,
+        source_fact_consumption: Gate5DeterministicSourceFactConsumptionRuntime | None,
     ) -> "Gate5SecuritiesDisposalTaxModelRuntime":
-        """Compose the existing owner with one factory-built Fact v2 consumer."""
+        """Compose the existing owner with one factory-built qualified Fact v3 consumer."""
 
         return Gate5SecuritiesDisposalTaxModelRuntime(
             authority=Gate5TrustedMethodologyAuthorityFactory.create(),
@@ -298,7 +322,7 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         disposal_fact_id: str,
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
-        """Build one operation model from the factory-owned current Fact v2 port."""
+        """Build one operation model from the factory-owned qualified Fact v3 port."""
 
         inputs, resolved, behavior, applicability, money_inputs, consumed = (
             self._prepare_from_current_source_facts(
@@ -349,7 +373,7 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             resolved_inputs=resolved_inputs,
             expected_behavior_id=expected_behavior_id,
         )
-        consumed = self._source_fact_consumption.run(
+        consumed = self._require_source_fact_consumption().run(
             methodology_ref=source_fact_methodology_ref,
             context=context,
         )
@@ -405,6 +429,13 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         if self._projector is None:
             _fail("gate5_tax_model_projector_not_composed")
         return self._projector
+
+    def _require_source_fact_consumption(
+        self,
+    ) -> Gate5DeterministicSourceFactConsumptionRuntime:
+        if self._source_fact_consumption is None:
+            _fail("gate5_tax_model_source_fact_consumption_not_composed")
+        return self._source_fact_consumption
 
     def _prepare_contract(
         self,

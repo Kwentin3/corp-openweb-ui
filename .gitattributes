@@ -31,3 +31,4 @@ services/broker-reports-gate1-proof/openwebui_actions/*_bundled.py text eol=lf
 docs/reports/2026-08-10/BROKER_REPORTS_GATE5_CLEAN_CONTEXT_DECLARATION_AUTHORING_G5_19.* text eol=lf
 docs/reports/2026-08-14/BROKER_REPORTS_GATE5_DECLARATION_INPUT_CONTRACT_AUDIT_G5_43.report.md text eol=lf whitespace=-trailing-space
 docs/stage2/contracts/BROKER_REPORTS_GATE3_ROLE_LABELING_RESPONSE.v1.schema.json text eol=lf
+docs/stage2/contracts/BROKER_REPORTS_GATE3_LABELING_RESPONSE.v1.schema.json text eol=lf

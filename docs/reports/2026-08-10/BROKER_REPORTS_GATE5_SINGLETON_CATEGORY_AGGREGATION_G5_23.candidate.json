@@ -42,14 +42,14 @@
           "capability_id": "execute_published_typed_behavior_v1",
           "behavior_ref": {
             "methodology_id": "ru-ndfl-securities-tax-model-proof",
-            "methodology_version": "2026.1-experimental",
+            "methodology_version": "2026.2-audited",
             "behavior_id": "securities_disposal_operation_tax_model_v0"
           },
           "artifact_refs": [
             {
               "artifact_kind": "trusted_methodology",
               "artifact_id": "ru-ndfl-securities-tax-model-proof",
-              "artifact_version": "2026.1-experimental"
+              "artifact_version": "2026.2-audited"
             }
           ]
         },
@@ -60,7 +60,7 @@
             {
               "artifact_kind": "trusted_methodology",
               "artifact_id": "ru-ndfl-securities-tax-model-proof",
-              "artifact_version": "2026.1-experimental"
+              "artifact_version": "2026.2-audited"
             },
             {
               "artifact_kind": "validated_declaration_projection",
@@ -104,14 +104,14 @@
           "capability_id": "execute_published_typed_behavior_v1",
           "behavior_ref": {
             "methodology_id": "ru-ndfl-securities-tax-model-proof",
-            "methodology_version": "2026.1-experimental",
+            "methodology_version": "2026.2-audited",
             "behavior_id": "securities_disposal_operation_tax_model_v0"
           },
           "artifact_refs": [
             {
               "artifact_kind": "trusted_methodology",
               "artifact_id": "ru-ndfl-securities-tax-model-proof",
-              "artifact_version": "2026.1-experimental"
+              "artifact_version": "2026.2-audited"
             }
           ]
         },
@@ -122,7 +122,7 @@
             {
               "artifact_kind": "trusted_methodology",
               "artifact_id": "ru-ndfl-securities-tax-model-proof",
-              "artifact_version": "2026.1-experimental"
+              "artifact_version": "2026.2-audited"
             },
             {
               "artifact_kind": "validated_declaration_projection",
@@ -135,14 +135,14 @@
           "capability_id": "execute_published_typed_behavior_v1",
           "behavior_ref": {
             "methodology_id": "ru-ndfl-securities-tax-model-proof",
-            "methodology_version": "2026.2-experimental",
+            "methodology_version": "2026.3-audited",
             "behavior_id": "securities_income_group_tax_base_v0"
           },
           "artifact_refs": [
             {
               "artifact_kind": "trusted_methodology",
               "artifact_id": "ru-ndfl-securities-tax-model-proof",
-              "artifact_version": "2026.2-experimental"
+              "artifact_version": "2026.3-audited"
             }
           ]
         }
@@ -175,14 +175,14 @@
           "capability_id": "execute_published_typed_behavior_v1",
           "behavior_ref": {
             "methodology_id": "ru-ndfl-securities-tax-model-proof",
-            "methodology_version": "2026.2-experimental",
+            "methodology_version": "2026.3-audited",
             "behavior_id": "securities_income_group_tax_base_v0"
           },
           "artifact_refs": [
             {
               "artifact_kind": "trusted_methodology",
               "artifact_id": "ru-ndfl-securities-tax-model-proof",
-              "artifact_version": "2026.2-experimental"
+              "artifact_version": "2026.3-audited"
             }
           ]
         }
@@ -206,7 +206,7 @@
         {
           "artifact_kind": "trusted_methodology",
           "artifact_id": "ru-ndfl-securities-tax-model-proof",
-          "artifact_version": "2026.2-experimental"
+          "artifact_version": "2026.3-audited"
         },
         {
           "artifact_kind": "validated_declaration_projection",
@@ -235,7 +235,7 @@
         {
           "artifact_kind": "trusted_methodology",
           "artifact_id": "ru-ndfl-securities-tax-model-proof",
-          "artifact_version": "2026.2-experimental"
+          "artifact_version": "2026.3-audited"
         },
         {
           "artifact_kind": "validated_declaration_projection",

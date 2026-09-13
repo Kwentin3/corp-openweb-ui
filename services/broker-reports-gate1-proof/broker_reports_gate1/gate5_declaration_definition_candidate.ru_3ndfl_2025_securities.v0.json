@@ -88,7 +88,7 @@
         {
           "artifact_kind": "trusted_methodology",
           "artifact_id": "ru-ndfl-securities-tax-model-proof",
-          "artifact_version": "2026.1-experimental",
+          "artifact_version": "2026.2-audited",
           "role": "accepted_operation_member_binding"
         },
         {

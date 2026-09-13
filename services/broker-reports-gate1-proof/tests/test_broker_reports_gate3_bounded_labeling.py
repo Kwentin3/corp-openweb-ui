@@ -513,7 +513,9 @@ def test_response_schema_resource_is_exact_contract_copy() -> None:
         REPO_ROOT
         / "docs/stage2/contracts/BROKER_REPORTS_GATE3_LABELING_RESPONSE.v1.schema.json"
     )
-    assert resource.read_bytes() == contract.read_bytes()
+    assert resource.read_text(encoding="utf-8") == contract.read_text(
+        encoding="utf-8"
+    )
     assert hashlib.sha256(resource.read_bytes()).hexdigest() == (
         GATE3_LABELING_RESPONSE_SCHEMA_SHA256
     )

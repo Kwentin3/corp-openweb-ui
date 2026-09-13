@@ -20,7 +20,6 @@ from broker_reports_gate1 import (
     Gate3FinancialAnnotationsPersistenceFactory,
     Gate3StructuralChunkFactory,
     Gate4FinancialCaseRuntimeFactory,
-    Gate5DeterministicSourceFactConsumptionRuntimeFactory,
     build_retention_policy,
 )
 from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
@@ -41,13 +40,6 @@ from broker_reports_gate1.gate3_financial_role_pack import (
 from broker_reports_gate1.gate3_role_labeling import (
     GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
 )
-from broker_reports_gate1.gate5_trusted_methodology import (
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
-    GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-)
-
-
 MODEL_ID = "models/gemini-3.5-flash"
 PROVIDER_PROFILE_ID = "google_gemini"
 
@@ -497,30 +489,10 @@ def test_same_row_role_conflict_fails_closed_and_downstream_keeps_five(
         .rebuild_case(context=context)
     )
     labels = [fact["financial_type"] for fact in gate4.facts]
-    gate5 = (
-        Gate5DeterministicSourceFactConsumptionRuntimeFactory(
-            store=store, read_enabled=True
-        )
-        .create()
-        .assess(
-            methodology_ref={
-                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-                "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-                "methodology_version": (
-                    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
-                ),
-            },
-            context=context,
-        )
-    )
-
     assert len(gate4.facts) == 21
     assert labels.count("SECURITY_PURCHASE") == 5
     assert labels.count("COMMISSION") == 8
     assert labels.count("TRANSACTION_CHARGE") == 8
-    assert gate5["facts_total"] == 21
-    assert gate5["security_fact_counts"]["total"] == 5
-    assert len(gate5["assertions"]["commissions"]["detail"]) == 16
 
 
 def test_empty_recovery_publishes_identical_full_view_with_zero_deletions(
@@ -560,7 +532,7 @@ def test_empty_recovery_publishes_identical_full_view_with_zero_deletions(
     assert recovered.receipt["deleted_total"] == 0
 
 
-def test_twenty_one_to_five_demand_replay_keeps_all_gate4_and_gate5_facts(
+def test_twenty_one_to_five_demand_replay_keeps_all_historical_gate4_facts(
     tmp_path: Path,
 ) -> None:
     store, context, document_id, _canonical = _setup(tmp_path)
@@ -605,31 +577,10 @@ def test_twenty_one_to_five_demand_replay_keeps_all_gate4_and_gate5_facts(
         .rebuild_case(context=context)
     )
     labels = [fact["financial_type"] for fact in gate4.facts]
-    gate5 = (
-        Gate5DeterministicSourceFactConsumptionRuntimeFactory(
-            store=store, read_enabled=True
-        )
-        .create()
-        .assess(
-            methodology_ref={
-                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-                "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-                "methodology_version": (
-                    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
-                ),
-            },
-            context=context,
-        )
-    )
-
     assert len(gate4.facts) == 21
     assert labels.count("SECURITY_PURCHASE") == 5
     assert labels.count("COMMISSION") == 8
     assert labels.count("TRANSACTION_CHARGE") == 8
-    assert gate5["facts_total"] == 21
-    assert gate5["security_fact_counts"]["total"] == 5
-    assert len(gate5["assertions"]["commissions"]["detail"]) == 16
-    assert gate5["terminals"] == ["SOURCE_FACT_ASSERTIONS_PRESERVED"]
     assert recovered.receipt["unchanged_recovered_total"] == 5
     assert recovered.receipt["preserved_unrelated_total"] == 16
     assert recovered.receipt["deleted_total"] == 0

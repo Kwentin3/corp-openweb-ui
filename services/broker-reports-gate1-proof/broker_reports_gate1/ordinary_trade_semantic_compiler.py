@@ -108,6 +108,10 @@ _SPACE_DECIMAL = re.compile(
 _COMMA_GROUPED_DOT = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+\.[0-9]+$")
 _DOT_GROUPED_COMMA = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:\.[0-9]{3})+,[0-9]+$")
 _COMMA_GROUPED_INTEGER = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+$")
+_OPEN_SHORT_POSITION_EFFECT = "OPEN_SHORT"
+_POSITION_EFFECT_TRANSFORM = "SOURCE_BOUND_MAPPING_POSITION_EFFECT"
+SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT = "SOURCE_BOUND_OPEN_SHORT_V1"
+_POSITION_EFFECT_MAPPING_CONTRACT_KEY = "position_effect_contract"
 
 
 class OrdinaryTradeSemanticCompilerError(RuntimeError):
@@ -135,6 +139,7 @@ class OrdinaryTradeSemanticCompiler:
         explicit_header_source_continuations: Iterable[Mapping[str, Any]] = (),
         physical_table_continuation_context: Mapping[str, Any] | None = None,
         table_resolutions: Iterable[Mapping[str, Any]] = (),
+        frozen_requalification_table_node_ids: Iterable[str] = (),
         semantic_mapping_case_ref: str | None = None,
     ) -> dict[str, Any]:
         if semantic_mapping_case_ref is not None and (
@@ -144,6 +149,39 @@ class OrdinaryTradeSemanticCompiler:
             _fail("ordinary_trade_mapping_case_ref_invalid")
         binding = _canonical_binding(canonical=canonical, value=canonical_binding)
         accepted = tuple(_validated_mapping(item) for item in mappings)
+        eligible_frozen_requalification_ids = (
+            self.frozen_mapping_requalification_table_node_ids(
+                canonical=canonical,
+                canonical_binding=binding,
+                mappings=accepted,
+            )
+        )
+        requested_frozen_requalification_ids = list(
+            frozen_requalification_table_node_ids
+        )
+        if (
+            len(requested_frozen_requalification_ids)
+            != len(set(requested_frozen_requalification_ids))
+            or any(
+                not isinstance(item, str) or not item
+                for item in requested_frozen_requalification_ids
+            )
+            or requested_frozen_requalification_ids
+            != [
+                node.get("node_id")
+                for node in canonical.get("nodes", [])
+                if isinstance(node, Mapping)
+                and node.get("node_type") == "TABLE"
+                and node.get("node_id") in set(requested_frozen_requalification_ids)
+            ]
+            or not set(requested_frozen_requalification_ids).issubset(
+                eligible_frozen_requalification_ids
+            )
+        ):
+            _fail("ordinary_trade_frozen_requalification_scope_invalid")
+        accepted_frozen_requalification_ids = set(
+            requested_frozen_requalification_ids
+        )
         accepted_scoped = tuple(
             _validated_scoped_mapping(item) for item in scoped_mappings
         )
@@ -228,6 +266,14 @@ class OrdinaryTradeSemanticCompiler:
             global_matches = _matching_mappings(rows=rows, mappings=accepted)
             if len(global_matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
+            if table.get("node_id") in accepted_frozen_requalification_ids:
+                if len(global_matches) != 1:
+                    _fail("ordinary_trade_frozen_requalification_scope_stale")
+                # The compiler itself admitted this exact table because its
+                # frozen mapping cannot materialize every financial row.  A
+                # case-scoped mapping/resolution now owns this table; keep the
+                # global registry authoritative everywhere else.
+                global_matches = []
             scoped_matches = _matching_scoped_mappings(
                 table=table,
                 rows=rows,
@@ -464,6 +510,68 @@ class OrdinaryTradeSemanticCompiler:
                 result.append(node_id)
         return result
 
+    def frozen_mapping_requalification_table_node_ids(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        mappings: Iterable[Mapping[str, Any]],
+    ) -> list[str]:
+        """Return exact frozen-schema tables whose rows do not materialize.
+
+        Header equality remains a fast path only while every financial row can
+        satisfy the frozen record contract.  If one financial row cannot, the
+        whole table is requalified as one case-scoped authority: retaining the
+        frozen mapping for its other rows would silently split one source table
+        between two mapping owners.  This selector does not discover a broker
+        pattern or a table meaning: it reuses the compiler's existing exact
+        mapping and row-validity rules to name a narrow case scope for semantic
+        requalification.
+        """
+
+        binding = _canonical_binding(canonical=canonical, value=canonical_binding)
+        accepted = tuple(_validated_mapping(item) for item in mappings)
+        fingerprints = [item["structural_fingerprint"] for item in accepted]
+        if len(fingerprints) != len(set(fingerprints)):
+            _fail("ordinary_trade_mapping_fingerprint_duplicate")
+        result: list[str] = []
+        for table in canonical.get("nodes", []):
+            if not isinstance(table, Mapping) or table.get("node_type") != "TABLE":
+                continue
+            node_id = table.get("node_id")
+            if not isinstance(node_id, str) or not node_id:
+                _fail("ordinary_trade_table_node_id_invalid")
+            rows = _table_rows(table)
+            matches = _matching_mappings(rows=rows, mappings=accepted)
+            if len(matches) > 1:
+                _fail("ordinary_trade_table_mapping_ambiguous")
+            if not matches:
+                continue
+            mapping, header_row = matches[0]
+            numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
+            has_incomplete_financial_row = False
+            for row_number in sorted(row for row in rows if row > header_row):
+                cells = rows[row_number]
+                if not any(_literal(cell) for cell in cells.values()):
+                    continue
+                observation = _mapped_observation(
+                    binding=binding,
+                    table=table,
+                    row=row_number,
+                    cells=cells,
+                    mapping=mapping,
+                    numeric_convention=numeric_convention,
+                )
+                if (
+                    observation["disposition"] == "RELEVANT_UNMAPPED"
+                    and observation["reason_code"]
+                    == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
+                ):
+                    has_incomplete_financial_row = True
+            if has_incomplete_financial_row:
+                result.append(node_id)
+        return result
+
 
 def compile_schema_mapping(
     *,
@@ -474,6 +582,7 @@ def compile_schema_mapping(
     side_values: Iterable[Mapping[str, str]],
     qualification_ref: Mapping[str, str],
     user_currency_assertion: Mapping[str, Any] | None = None,
+    position_effect_contract: str | None = None,
 ) -> dict[str, Any]:
     """Freeze a validated mapping candidate without accepting row values."""
 
@@ -511,11 +620,22 @@ def compile_schema_mapping(
             else -1
         )
     )
+    frozen_side_values = [copy.deepcopy(dict(item)) for item in side_values]
+    has_position_effect = any(
+        "position_effect" in item for item in frozen_side_values
+    )
+    if has_position_effect != (position_effect_contract is not None):
+        _fail("ordinary_trade_mapping_position_effect_contract_invalid")
+    if position_effect_contract not in {
+        None,
+        SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT,
+    }:
+        _fail("ordinary_trade_mapping_position_effect_contract_invalid")
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
         "amount_currency_bindings": frozen_amount_currency_bindings,
-        "side_values": [copy.deepcopy(dict(item)) for item in side_values],
+        "side_values": frozen_side_values,
         "qualification_ref": frozen_qualification_ref,
         "user_currency_assertion": (
             copy.deepcopy(dict(user_currency_assertion))
@@ -523,6 +643,8 @@ def compile_schema_mapping(
             else None
         ),
     }
+    if position_effect_contract is not None:
+        material[_POSITION_EFFECT_MAPPING_CONTRACT_KEY] = position_effect_contract
     mapping = {
         "schema_version": ORDINARY_TRADE_MAPPING_SCHEMA_VERSION,
         "mapping_id": "otmap_" + _sha256_json(material)[:32],
@@ -535,6 +657,8 @@ def compile_schema_mapping(
         "qualification_ref": material["qualification_ref"],
         "user_currency_assertion": material["user_currency_assertion"],
     }
+    if position_effect_contract is not None:
+        mapping[_POSITION_EFFECT_MAPPING_CONTRACT_KEY] = position_effect_contract
     return _validated_mapping(mapping)
 
 
@@ -646,9 +770,15 @@ def _canonical_binding(
 
 
 def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    mapping_keys = set(value) if isinstance(value, Mapping) else set()
+    has_contract = _POSITION_EFFECT_MAPPING_CONTRACT_KEY in mapping_keys
     if (
         not isinstance(value, Mapping)
-        or set(value) != _MAPPING_KEYS
+        or (
+            mapping_keys != _MAPPING_KEYS
+            and mapping_keys
+            != _MAPPING_KEYS | {_POSITION_EFFECT_MAPPING_CONTRACT_KEY}
+        )
         or any(key in value for key in _FORBIDDEN_PROFILE_KEYS)
         or value.get("schema_version") != ORDINARY_TRADE_MAPPING_SCHEMA_VERSION
         or value.get("table_type") != _TABLE_TYPE
@@ -701,14 +831,15 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     side_values = value.get("side_values")
     if not isinstance(side_values, list) or not side_values:
         _fail("ordinary_trade_mapping_side_invalid")
+    position_effect_contract = value.get(_POSITION_EFFECT_MAPPING_CONTRACT_KEY)
+    if has_contract and position_effect_contract != SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT:
+        _fail("ordinary_trade_mapping_position_effect_contract_invalid")
     sides: dict[str, str] = {}
     for item in side_values:
         if (
-            not isinstance(item, dict)
-            or set(item) != {"source_literal", "normalized_value"}
-            or not isinstance(item.get("source_literal"), str)
-            or not item["source_literal"]
-            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+            not _validated_side_value_item(
+                item, allow_position_effect=has_contract
+            )
             or item["source_literal"] in sides
         ):
             _fail("ordinary_trade_mapping_side_invalid")
@@ -732,9 +863,53 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
         "qualification_ref": copy.deepcopy(qualification_ref),
         "user_currency_assertion": user_currency_assertion,
     }
+    if has_contract:
+        identity_material[_POSITION_EFFECT_MAPPING_CONTRACT_KEY] = (
+            position_effect_contract
+        )
     if value["mapping_id"] != "otmap_" + _sha256_json(identity_material)[:32]:
         _fail("ordinary_trade_mapping_identity_invalid")
     return copy.deepcopy(dict(value))
+
+
+def _validated_side_value_item(value: Any, *, allow_position_effect: bool = False) -> bool:
+    """Accept only the closed, source-bound optional short marker."""
+
+    if not isinstance(value, dict):
+        return False
+    fields = set(value)
+    if fields not in (
+        {"source_literal", "normalized_value"},
+        {
+            "source_literal",
+            "normalized_value",
+            "position_effect",
+            "position_effect_evidence",
+        },
+    ):
+        return False
+    literal = value.get("source_literal")
+    normalized = value.get("normalized_value")
+    if (
+        not isinstance(literal, str)
+        or not literal
+        or normalized not in {"PURCHASE", "DISPOSAL"}
+    ):
+        return False
+    effect = value.get("position_effect")
+    if effect is None:
+        return True
+    evidence = value.get("position_effect_evidence")
+    return (
+        allow_position_effect
+        and effect == _OPEN_SHORT_POSITION_EFFECT
+        and normalized == "DISPOSAL"
+        and isinstance(evidence, dict)
+        and set(evidence) == {"source_row", "source_column", "source_literal"}
+        and evidence.get("source_literal") == literal
+        and isinstance(evidence.get("source_row"), int)
+        and isinstance(evidence.get("source_column"), int)
+    )
 
 
 def validate_schema_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
@@ -1575,6 +1750,20 @@ def _runtime_records(
         ),
         _runtime_role("currency", currency, numeric_convention),
     ]
+    position_effect = _source_bound_position_effect(
+        side_field=side_field,
+        normalized_side=normalized_side,
+        mapping=mapping,
+    )
+    security_roles = list(common)
+    if position_effect is not None:
+        security_roles.append(
+            _runtime_position_effect(
+                field=side_field,
+                mapping_id=mapping["mapping_id"],
+                position_effect=position_effect,
+            )
+        )
     records = [
         _runtime_record(
             observation=observation,
@@ -1583,7 +1772,7 @@ def _runtime_records(
                 if normalized_side == "PURCHASE"
                 else "SECURITY_DISPOSAL"
             ),
-            roles=common,
+            roles=security_roles,
             claim_refs=[side_field["source_ref"]],
         )
     ]
@@ -1622,6 +1811,70 @@ def _runtime_records(
             )
         )
     return records
+
+
+def _source_bound_position_effect(
+    *, side_field: dict[str, Any], normalized_side: str, mapping: dict[str, Any]
+) -> str | None:
+    """Return the optional effect only from the exact admitted side literal."""
+
+    if mapping.get(_POSITION_EFFECT_MAPPING_CONTRACT_KEY) != (
+        SOURCE_BOUND_OPEN_SHORT_MAPPING_CONTRACT
+    ):
+        return None
+    matching = [
+        item
+        for item in mapping["side_values"]
+        if item["source_literal"] == side_field["literal"]
+    ]
+    if len(matching) != 1:
+        _fail("ordinary_trade_side_unmapped")
+    effect = matching[0].get("position_effect")
+    if effect is None:
+        return None
+    if (
+        effect != _OPEN_SHORT_POSITION_EFFECT
+        or normalized_side != "DISPOSAL"
+        or matching[0].get("normalized_value") != "DISPOSAL"
+    ):
+        _fail("ordinary_trade_position_effect_invalid")
+    evidence = matching[0].get("position_effect_evidence")
+    if (
+        not isinstance(evidence, Mapping)
+        or evidence.get("source_literal") != side_field["literal"]
+        or evidence.get("source_row") != side_field["canonical_cell"]["row"]
+        or evidence.get("source_column") != side_field["canonical_cell"]["column"]
+    ):
+        _fail("ordinary_trade_position_effect_evidence_invalid")
+    return effect
+
+
+def _runtime_position_effect(
+    *, field: dict[str, Any], mapping_id: str, position_effect: str
+) -> dict[str, Any]:
+    """Preserve a qualified effect with the same source cell as ``side``."""
+
+    if (
+        position_effect != _OPEN_SHORT_POSITION_EFFECT
+        or not isinstance(mapping_id, str)
+        or not mapping_id.startswith("otmap_")
+    ):
+        _fail("ordinary_trade_position_effect_invalid")
+    return {
+        "role": "position_effect",
+        "value": position_effect,
+        "source_binding": {
+            "source_ref": field["source_ref"],
+            "source_literal": field["literal"],
+            "deterministic_transform": _POSITION_EFFECT_TRANSFORM,
+            "canonical_cell": copy.deepcopy(field["canonical_cell"]),
+            "semantic_mapping": {
+                "mapping_id": mapping_id,
+                "side_source_literal": field["literal"],
+                "position_effect": position_effect,
+            },
+        },
+    }
 
 
 def _runtime_role(
@@ -1750,6 +2003,25 @@ def _validate_projection_lineage(
                 or source.get("canonical_cell") != field.get("canonical_cell")
             ):
                 _fail("ordinary_trade_runtime_lineage_invalid")
+            if role.get("role") == "position_effect":
+                semantic_mapping = source.get("semantic_mapping")
+                if (
+                    record.get("record_type") != "SECURITY_DISPOSAL"
+                    or role.get("value") != _OPEN_SHORT_POSITION_EFFECT
+                    or source.get("deterministic_transform")
+                    != _POSITION_EFFECT_TRANSFORM
+                    or not isinstance(semantic_mapping, Mapping)
+                    or semantic_mapping
+                    != {
+                        "mapping_id": observation.get("mapping_id"),
+                        "side_source_literal": field.get("literal"),
+                        "position_effect": _OPEN_SHORT_POSITION_EFFECT,
+                    }
+                    or not isinstance(observation.get("mapping_id"), str)
+                    or not str(observation["mapping_id"]).startswith("otmap_")
+                ):
+                    _fail("ordinary_trade_runtime_position_effect_invalid")
+                continue
             expected, transform = normalize_runtime_value(
                 str(role.get("role")),
                 str(field.get("literal")),

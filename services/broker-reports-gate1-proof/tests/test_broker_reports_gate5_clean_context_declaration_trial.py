@@ -42,7 +42,7 @@ def _candidate() -> dict:
     methodology_ref = _artifact_ref(
         "trusted_methodology",
         "ru-ndfl-securities-tax-model-proof",
-        "2026.1-experimental",
+        "2026.2-audited",
         "registered_behavior",
     )
     return {
@@ -79,7 +79,7 @@ def _candidate() -> dict:
                         "registered_behavior": {
                             "schema_version": "broker_reports_gate5_published_behavior_ref_v1",
                             "methodology_id": "ru-ndfl-securities-tax-model-proof",
-                            "methodology_version": "2026.1-experimental",
+                            "methodology_version": "2026.2-audited",
                             "behavior_id": "securities_disposal_operation_tax_model_v0",
                             "input_contract_id": "broker_reports_gate5_securities_disposal_resolved_inputs_v0",
                             "output_contract_id": "broker_reports_gate5_securities_disposal_operation_tax_model_v0",
