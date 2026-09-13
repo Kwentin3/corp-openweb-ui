@@ -2037,10 +2037,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
     visible_question = await pipe._render_ndfl_public_dialogue(
         result=first, user={"id": "user-a"}, request=object()
     )
-    assert [call["task"] for call in captured] == [
-        "ordinary_trade_public_dialogue_render",
-        "ordinary_trade_public_mapping_verification",
-    ]
+    assert captured == []
     assert "Колонка 9" in visible_question
     assert "Колонка 10" in visible_question
     assert source_injection in visible_question
