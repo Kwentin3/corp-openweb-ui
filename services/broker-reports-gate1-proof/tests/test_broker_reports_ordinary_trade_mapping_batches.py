@@ -4,7 +4,11 @@ import copy
 import hashlib
 import json
 import asyncio
+import logging
+import sys
 from dataclasses import replace
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -20,7 +24,14 @@ import test_broker_reports_issue312_mapping_runtime as runtime_fixtures
 import broker_reports_gate1.ordinary_trade_semantic_mapping as semantic_module
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseError
+from broker_reports_gate1.ordinary_trade_mapping_case import MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+)
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
+from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V16_PROMPT_COMMAND,
@@ -244,6 +255,56 @@ def _product_batches(tmp_path, monkeypatch):
     return store, context, document_id, client, runtime
 
 
+def _install_openwebui_private_file_boundary(monkeypatch, tmp_path):
+    rows = {}
+
+    class FileForm:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class Files:
+        @staticmethod
+        async def get_file_by_id(file_id):
+            return rows.get(file_id)
+
+        @staticmethod
+        async def insert_new_file(user_id, form):
+            row = SimpleNamespace(**form.__dict__, user_id=user_id)
+            rows[form.id] = row
+            return row
+
+    class Storage:
+        @staticmethod
+        def upload_file(stream, name, _headers):
+            content = stream.read()
+            path = tmp_path / name
+            path.write_bytes(content)
+            return content, str(path)
+
+        @staticmethod
+        def get_file(path):
+            return path
+
+        @staticmethod
+        def delete_file(path):
+            Path(path).unlink(missing_ok=True)
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    files = ModuleType("open_webui.models.files")
+    storage = ModuleType("open_webui.storage")
+    provider = ModuleType("open_webui.storage.provider")
+    files.FileForm = FileForm
+    files.Files = Files
+    provider.Storage = Storage
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.files", files)
+    monkeypatch.setitem(sys.modules, "open_webui.storage", storage)
+    monkeypatch.setitem(sys.modules, "open_webui.storage.provider", provider)
+    return rows, Files, Storage
+
+
 def test_product_splits_and_publishes_only_full_scope(tmp_path, monkeypatch):
     store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
     result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
@@ -427,15 +488,270 @@ def test_stale_request_cannot_replay_completed_idle_batch(tmp_path, monkeypatch)
     asyncio.run(exercise())
 
 
-def test_invalid_batch_does_not_publish_or_retry(tmp_path, monkeypatch):
+def test_invalid_batch_preserves_private_raw_response_without_logging_it(
+    tmp_path, monkeypatch, caplog
+):
     store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
-    client.outputs[1] = {}
+    private_response = {"provider_private_value": "batch-output-do-not-log"}
+    client.outputs[1] = private_response
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_case",
+    )
     result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
     assert result["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 2
     assert runtime._cases.qualified_material(document_id=document_id, context=context) is None
+    raw_ref = result["private_mapping_raw_output_ref"]
+    assert raw_ref == runtime._cases.invalid_mapping_raw_output_ref(
+        document_id=document_id, context=context
+    )
+    assert raw_ref == {
+        "schema_version": MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+        "artifact_ref": raw_ref["artifact_ref"],
+        "mapping_case_artifact_id": result["mapping_case_artifact_id"],
+    }
+    assert private_response["provider_private_value"] not in repr(result)
+    assert "private_mapping_raw_output_ref" not in result["public_state"]
     assert asyncio.run(runtime.resolve(document_id=document_id, context=context))["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 2
+    raw_records = store.list_by_type(
+        context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    )
+    assert len(raw_records) == 1
+    raw_record = raw_records[0]
+    assert raw_record.visibility == "private_case"
+    assert raw_record.artifact_id == raw_ref["artifact_ref"]
+    assert raw_record.user_id == context.user_id
+    assert raw_record.case_id == context.case_id
+    assert raw_record.chat_id == context.chat_id
+    assert raw_record.workspace_model_id == context.workspace_model_id
+    assert raw_record.safe_metadata["contains_provider_response"] is True
+    raw = ArtifactResolver(store).resolve(raw_record.artifact_id, context)["payload"]
+    assert raw["response_content"] == private_response
+    receipt = [
+        record.message
+        for record in caplog.records
+        if "broker_reports_mapping_invalid_terminal" in record.message
+    ]
+    assert receipt == [
+        "broker_reports_mapping_invalid_terminal "
+        "reason_code=ordinary_trade_semantic_mapping_response_invalid "
+        "revision=5 provider_calls_total=2 raw_response_saved=True"
+    ]
+    assert "batch-output-do-not-log" not in caplog.text
+
+
+def test_complete_batch_exposes_no_private_raw_response_ref(tmp_path, monkeypatch):
+    store, context, document_id, _client, runtime = _product_batches(tmp_path, monkeypatch)
+
+    result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+
+    assert result["status"] == "COMPLETE"
+    assert "private_mapping_raw_output_ref" not in result
+    assert runtime._cases.invalid_mapping_raw_output_ref(
+        document_id=document_id, context=context
+    ) is None
+    assert store.list_by_type(
+        context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    ) == []
+
+
+def test_pipe_projects_only_invalid_mapping_raw_response_to_owner_file(
+    tmp_path, monkeypatch, caplog
+):
+    store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
+    private_response = {"provider_private_value": "mapping-output-do-not-log"}
+    client.outputs[1] = private_response
+    mapping = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+    assert mapping["status"] == "MAPPING_OUTPUT_INVALID"
+    raw_ref = mapping["private_mapping_raw_output_ref"]
+
+    rows, _Files, _Storage = _install_openwebui_private_file_boundary(monkeypatch, tmp_path)
+    caplog.set_level(logging.INFO, logger="openwebui_actions.broker_reports_gate1_pipe")
+    Pipe._audit_mapping_terminal(mapping)
+    delivery = asyncio.run(
+        Pipe._publish_mapping_forensics_file(
+            store=store,
+            context=context,
+            user={"id": context.user_id, "email": "", "name": ""},
+            semantic_mapping=mapping,
+        )
+    )
+
+    assert delivery is not None
+    assert delivery["filename"] == "mapping-response-forensics.json"
+    assert delivery["content_type"] == "application/json"
+    assert delivery["url"] == (
+        f"/api/v1/files/{delivery['file_id']}/content?attachment=true"
+    )
+    assert len(rows) == 1
+    row = rows[delivery["file_id"]]
+    assert row.user_id == context.user_id
+    assert row.filename == delivery["filename"]
+    assert json.loads(Path(row.path).read_text(encoding="utf-8")) == private_response
+    assert row.meta["data"]["broker_reports_mapping_forensics"] is True
+    assert row.meta["data"]["mapping_case_artifact_id"] == raw_ref[
+        "mapping_case_artifact_id"
+    ]
+    assert "provider_private_value" not in repr(delivery)
+    assert "mapping-output-do-not-log" not in caplog.text
+    public_link = Pipe._mapping_forensics_download_line(delivery)
+    assert delivery["url"] in public_link
+    assert "mapping-output-do-not-log" not in public_link
+
+    # The public turn state and its opaque private response reference have to
+    # name the same MappingCase before the Pipe resolves anything.  This is a
+    # real boundary mutation: the stored private artifact remains valid, but
+    # a forged coordinator result cannot publish it as another case.
+    misbound_mapping = dict(mapping)
+    misbound_mapping["mapping_case_artifact_id"] = "foreign-mapping-case"
+    # If the Pipe resolved first, this unknown ref would yield
+    # ``artifact_not_found``.  The binding error proves the mandatory check is
+    # before private resolution.
+    misbound_mapping["private_mapping_raw_output_ref"] = {
+        **raw_ref,
+        "artifact_ref": "not-a-mapping-raw-artifact",
+    }
+    with pytest.raises(ArtifactStoreError) as misbound:
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user={"id": context.user_id, "email": "", "name": ""},
+                semantic_mapping=misbound_mapping,
+            )
+        )
+    assert misbound.value.code == "mapping_forensics_private_case_binding_invalid"
+    assert len(rows) == 1
+
+    overfull_reference = dict(mapping)
+    overfull_reference["private_mapping_raw_output_ref"] = {
+        **raw_ref,
+        "untrusted_extra": "must-not-be-accepted",
+    }
+    with pytest.raises(ArtifactStoreError) as overfull:
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user={"id": context.user_id, "email": "", "name": ""},
+                semantic_mapping=overfull_reference,
+            )
+        )
+    assert overfull.value.code == "mapping_forensics_private_reference_invalid"
+    assert len(rows) == 1
+
+    foreign_context = replace(context, user_id="other-user")
+    with pytest.raises(ArtifactStoreError) as foreign:
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=foreign_context,
+                user={"id": "other-user", "email": "", "name": ""},
+                semantic_mapping=mapping,
+            )
+        )
+    assert foreign.value.code == "artifact_access_denied"
+    assert len(rows) == 1
+
+    complete_store, complete_context, complete_document_id, _client, complete_runtime = (
+        _product_batches(tmp_path / "complete", monkeypatch)
+    )
+    complete = asyncio.run(
+        complete_runtime.resolve(
+            document_id=complete_document_id,
+            context=complete_context,
+        )
+    )
+    assert complete["status"] == "COMPLETE"
+    assert (
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=complete_store,
+                context=complete_context,
+                user={"id": complete_context.user_id, "email": "", "name": ""},
+                semantic_mapping=complete,
+            )
+        )
+        is None
+    )
+    assert len(rows) == 1
+
+
+def test_pipe_keeps_persisted_invalid_terminal_when_native_file_boundary_is_unavailable(
+    tmp_path, monkeypatch, caplog
+):
+    store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
+    client.outputs[1] = {"provider_private_value": "mapping-output-do-not-log"}
+    mapping = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+    assert mapping["status"] == "MAPPING_OUTPUT_INVALID"
+    persisted_before = runtime._cases.current(document_id=document_id, context=context)
+
+    caplog.set_level(logging.WARNING, logger="openwebui_actions.broker_reports_gate1_pipe")
+    delivery = asyncio.run(
+        Pipe._try_publish_mapping_forensics_file(
+            store=store,
+            context=context,
+            user={"id": context.user_id, "email": "", "name": ""},
+            semantic_mapping=mapping,
+        )
+    )
+
+    # No OpenWebUI Files/Storage modules are installed in this test process:
+    # this invokes the real private-publication boundary and proves the Pipe
+    # retains the owner-persisted terminal when that optional boundary fails.
+    assert delivery is None
+    persisted_after = runtime._cases.current(document_id=document_id, context=context)
+    assert persisted_after == persisted_before
+    assert persisted_after[1]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert runtime._cases.invalid_mapping_raw_output_ref(
+        document_id=document_id, context=context
+    ) == mapping["private_mapping_raw_output_ref"]
+    assert "private_mapping_raw_output_ref" not in mapping["public_state"]
+    assert "mapping-output-do-not-log" not in caplog.text
+    assert "private_file_projection_boundary_unavailable" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("boundary", "expected_code"),
+    [
+        ("lookup", "private_file_projection_lookup_failed"),
+        ("upload", "private_file_projection_upload_failed"),
+    ],
+)
+def test_pipe_keeps_persisted_invalid_terminal_when_native_private_file_operation_fails(
+    tmp_path, monkeypatch, caplog, boundary, expected_code
+):
+    store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
+    client.outputs[1] = {"provider_private_value": "mapping-output-do-not-log"}
+    mapping = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+    persisted_before = runtime._cases.current(document_id=document_id, context=context)
+    _rows, Files, Storage = _install_openwebui_private_file_boundary(monkeypatch, tmp_path)
+
+    if boundary == "lookup":
+        async def unavailable_lookup(_file_id):
+            raise RuntimeError("native file lookup unavailable")
+
+        monkeypatch.setattr(Files, "get_file_by_id", unavailable_lookup)
+    else:
+        def unavailable_upload(_stream, _name, _headers):
+            raise RuntimeError("native storage upload unavailable")
+
+        monkeypatch.setattr(Storage, "upload_file", unavailable_upload)
+
+    caplog.set_level(logging.WARNING, logger="openwebui_actions.broker_reports_gate1_pipe")
+    assert asyncio.run(
+        Pipe._try_publish_mapping_forensics_file(
+            store=store,
+            context=context,
+            user={"id": context.user_id, "email": "", "name": ""},
+            semantic_mapping=mapping,
+        )
+    ) is None
+    assert runtime._cases.current(document_id=document_id, context=context) == persisted_before
+    assert "mapping-output-do-not-log" not in caplog.text
+    assert expected_code in caplog.text
 
 
 @pytest.mark.parametrize("restart", [False, True, "after_assertion", "resolver_fails_pending"])

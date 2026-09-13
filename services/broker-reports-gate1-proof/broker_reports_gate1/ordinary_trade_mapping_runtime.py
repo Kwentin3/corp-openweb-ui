@@ -1037,6 +1037,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             message="One mapping batch attempt is started.", mapping_batch_state=state,
             provider_calls_total=0, mapping_prompt_snapshot=snapshot,
         )
+        response = None
         try:
             response = await self._model_client.extract(
                 prompt=prompt,
@@ -1080,16 +1081,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
-            saved = self._cases.save_batch_state(
-                document_id=document_id,
-                context=context,
-                status="MAPPING_OUTPUT_INVALID",
-                message="The mapping batch response is invalid or unavailable.",
-                mapping_batch_state=state,
-                provider_calls_total=1,
-                mapping_prompt_snapshot=snapshot,
-                reason_code=_mapping_output_reason_code(exc, str(code)),
-            )
+            terminal_kwargs = {
+                "document_id": document_id,
+                "context": context,
+                "status": "MAPPING_OUTPUT_INVALID",
+                "message": "The mapping batch response is invalid or unavailable.",
+                "mapping_batch_state": state,
+                "provider_calls_total": 1,
+                "mapping_prompt_snapshot": snapshot,
+                "reason_code": _mapping_output_reason_code(exc, str(code)),
+            }
+            if response is not None:
+                terminal_kwargs["mapping_raw_response"] = response.content
+            saved = self._cases.save_batch_state(**terminal_kwargs)
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn + 1)
         if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
             state["pending_batch_id"] = next_batch["batch_id"]
@@ -1622,7 +1626,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         provider_calls_this_turn: int,
     ) -> dict[str, Any]:
         record, payload = current
-        return {
+        result = {
             "schema_version": "broker_reports_ordinary_trade_mapping_turn_v1",
             "status": payload["status"],
             "mapping_case_artifact_id": record.artifact_id,
@@ -1640,6 +1644,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 context=context,
             ),
         }
+        raw_output_ref = self._cases.invalid_mapping_raw_output_ref(
+            document_id=str(record.document_id), context=context
+        )
+        if raw_output_ref is not None:
+            result["private_mapping_raw_output_ref"] = raw_output_ref
+        return result
 
 
 def _model_content_dict(response: Any) -> dict[str, Any]:

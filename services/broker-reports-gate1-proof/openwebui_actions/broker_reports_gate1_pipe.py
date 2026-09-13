@@ -88,6 +88,10 @@ from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
+    MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+)
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     DOCUMENT_OPENING_INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
@@ -213,6 +217,10 @@ NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
 FULL_SOURCE_PROJECTION_SCHEMA_VERSION = "broker_reports_full_source_projection_v1"
 FULL_SOURCE_ZIP_FILENAME = "full-source.zip"
+MAPPING_FORENSICS_PROJECTION_SCHEMA_VERSION = (
+    "broker_reports_mapping_forensics_projection_v1"
+)
+MAPPING_FORENSICS_FILENAME = "mapping-response-forensics.json"
 
 
 class _OrdinaryTradeMappingRouteProfile:
@@ -1073,6 +1081,16 @@ class Pipe:
                 "status": "disabled",
                 "provider_calls_total": 0,
             }
+        # MappingCase has already persisted this terminal before the optional
+        # owner-scoped diagnostic projection runs.  A missing Files/Storage
+        # boundary must not turn that durable, safe terminal into a Pipe
+        # failure or expose a link to an unavailable private payload.
+        mapping_forensics_delivery = await self._try_publish_mapping_forensics_file(
+            store=artifact_store,
+            context=artifact_context,
+            user=__user__,
+            semantic_mapping=ndfl_gate3.get("semantic_mapping"),
+        )
         product_result = ndfl_gate3.get("product")
         declaration_result = ndfl_gate3.get("declaration")
         if (
@@ -1115,6 +1133,11 @@ class Pipe:
             **(
                 {"full_source_delivery": full_source_delivery}
                 if full_source_delivery is not None
+                else {}
+            ),
+            **(
+                {"mapping_forensics_delivery": mapping_forensics_delivery}
+                if mapping_forensics_delivery is not None
                 else {}
             ),
         }
@@ -1177,6 +1200,14 @@ class Pipe:
                     chat_content,
                     "",
                     self._full_source_download_line(full_source_delivery),
+                ]
+            )
+        if mapping_forensics_delivery is not None:
+            chat_content = "\n".join(
+                [
+                    chat_content,
+                    "",
+                    self._mapping_forensics_download_line(mapping_forensics_delivery),
                 ]
             )
         if self._live_smoke_requested(safe_body, messages_arg):
@@ -2877,7 +2908,13 @@ class Pipe:
                     "private_file_projection_lookup_unavailable",
                     "OpenWebUI private file lookup is unavailable",
                 )
-            row = await getter(file_id)
+            try:
+                row = await getter(file_id)
+            except Exception as exc:
+                raise ArtifactStoreError(
+                    "private_file_projection_lookup_failed",
+                    "OpenWebUI private file lookup failed",
+                ) from exc
             if row is None:
                 return None
             meta = getattr(row, "meta", None)
@@ -2920,17 +2957,23 @@ class Pipe:
         if await existing_valid() is not None:
             return file_id
         attempt_id = uuid.uuid4().hex
-        uploaded, file_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(content),
-            f"{file_id}_{attempt_id}_{filename}",
-            {
-                "OpenWebUI-User-Email": str(user.get("email") or ""),
-                "OpenWebUI-User-Id": str(user["id"]),
-                "OpenWebUI-User-Name": str(user.get("name") or ""),
-                "OpenWebUI-File-Id": file_id,
-            },
-        )
+        try:
+            uploaded, file_path = await asyncio.to_thread(
+                Storage.upload_file,
+                io.BytesIO(content),
+                f"{file_id}_{attempt_id}_{filename}",
+                {
+                    "OpenWebUI-User-Email": str(user.get("email") or ""),
+                    "OpenWebUI-User-Id": str(user["id"]),
+                    "OpenWebUI-User-Name": str(user.get("name") or ""),
+                    "OpenWebUI-File-Id": file_id,
+                },
+            )
+        except Exception as exc:
+            raise ArtifactStoreError(
+                "private_file_projection_upload_failed",
+                "OpenWebUI private file upload failed",
+            ) from exc
         if uploaded != content:
             await Pipe._delete_partial_private_file(
                 Storage=Storage, file_path=file_path
@@ -3047,6 +3090,184 @@ class Pipe:
         return (
             "Full Source: "
             f"[скачать {FULL_SOURCE_ZIP_FILENAME}]({str(delivery['url'])})"
+        )
+
+    @staticmethod
+    async def _try_publish_mapping_forensics_file(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        user: Any,
+        semantic_mapping: Any,
+    ) -> dict[str, Any] | None:
+        """Best-effort native File projection after a persisted terminal.
+
+        The optional download is not a MappingCase state transition.  Expected
+        ArtifactStore failures therefore suppress only the download and retain
+        the already-persisted invalid-mapping terminal.
+        """
+
+        try:
+            return await Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user=user,
+                semantic_mapping=semantic_mapping,
+            )
+        except ArtifactStoreError as exc:
+            logging.getLogger(__name__).warning(
+                "broker_reports_mapping_forensics_unavailable code=%s",
+                exc.code,
+            )
+            return None
+
+    @staticmethod
+    async def _publish_mapping_forensics_file(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        user: Any,
+        semantic_mapping: Any,
+    ) -> dict[str, Any] | None:
+        """Project an owner-bound invalid mapping response through OpenWebUI Files.
+
+        MappingCase stays the sole owner of the raw provider answer.  The Pipe
+        only resolves its opaque private reference in the same case context.
+        """
+
+        if (
+            not isinstance(semantic_mapping, dict)
+            or semantic_mapping.get("status") != "MAPPING_OUTPUT_INVALID"
+        ):
+            return None
+        raw_ref = semantic_mapping.get("private_mapping_raw_output_ref")
+        if raw_ref is None:
+            return None
+        if (
+            not isinstance(raw_ref, dict)
+            or set(raw_ref)
+            != {
+                "schema_version",
+                "artifact_ref",
+                "mapping_case_artifact_id",
+            }
+            or raw_ref.get("schema_version")
+            != MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION
+            or not isinstance(raw_ref.get("artifact_ref"), str)
+            or not raw_ref["artifact_ref"]
+            or not isinstance(raw_ref.get("mapping_case_artifact_id"), str)
+            or not raw_ref["mapping_case_artifact_id"]
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_reference_invalid",
+                "Mapping forensics private reference is invalid",
+            )
+        # The turn result is the coordinator's current-case control state;
+        # its case id must bind the opaque raw reference before *any* private
+        # artifact lookup.  Checking only the referenced record below would
+        # permit a caller-supplied result to project a different valid case's
+        # response within the same authenticated scope.
+        if (
+            not isinstance(semantic_mapping.get("mapping_case_artifact_id"), str)
+            or not semantic_mapping["mapping_case_artifact_id"]
+            or semantic_mapping["mapping_case_artifact_id"]
+            != raw_ref["mapping_case_artifact_id"]
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_case_binding_invalid",
+                "Mapping forensics case binding is invalid",
+            )
+        resolver = ArtifactResolver(store)
+        resolved = resolver.resolve_case(raw_ref["artifact_ref"], context)
+        record = resolved["record"]
+        payload = resolved["payload"]
+        if (
+            record.artifact_type != MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+            or record.visibility != "private_case"
+            or record.safe_metadata.get("mapping_case_artifact_id")
+            != raw_ref["mapping_case_artifact_id"]
+            or not isinstance(payload, dict)
+            or payload.get("schema_version") != MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+            or payload.get("mapping_case_artifact_id")
+            != raw_ref["mapping_case_artifact_id"]
+            or "response_content" not in payload
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_payload_invalid",
+                "Mapping forensics private payload is invalid",
+            )
+        try:
+            raw_canonical_bytes = json.dumps(
+                payload["response_content"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            content = json.dumps(
+                payload["response_content"],
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+                allow_nan=False,
+            ).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise ArtifactStoreError(
+                "mapping_forensics_private_payload_not_json",
+                "Mapping forensics private payload is not JSON serializable",
+            ) from exc
+        raw_response_sha256 = hashlib.sha256(raw_canonical_bytes).hexdigest()
+        if record.safe_metadata.get("response_content_sha256") != raw_response_sha256:
+            raise ArtifactStoreError(
+                "mapping_forensics_private_payload_hash_mismatch",
+                "Mapping forensics private payload checksum is invalid",
+            )
+        content_sha256 = hashlib.sha256(content).hexdigest()
+        case_scope_sha256 = hashlib.sha256(
+            str(context.case_id or context.chat_id).encode("utf-8")
+        ).hexdigest()
+        identity_material = {
+            "owner": "OpenWebUIFiles",
+            "authenticated_user_ref": context.user_id,
+            "case_scope_sha256": case_scope_sha256,
+            "mapping_case_artifact_id": raw_ref["mapping_case_artifact_id"],
+            "raw_response_sha256": raw_response_sha256,
+        }
+        identity_json = json.dumps(identity_material, sort_keys=True, separators=(",", ":"))
+        file_id = await Pipe._publish_owner_scoped_private_file(
+            user=user,
+            context=context,
+            filename=MAPPING_FORENSICS_FILENAME,
+            content_type="application/json",
+            content=content,
+            content_sha256=content_sha256,
+            purpose=MAPPING_FORENSICS_PROJECTION_SCHEMA_VERSION,
+            projection_metadata={},
+            identity_material=identity_material,
+            file_id_namespace="d6259544-2138-4a42-b48c-b0e07f2cf4a1",
+            record_metadata={
+                "broker_reports_mapping_forensics": True,
+                "private_user_artifact": True,
+                "case_scope_sha256": case_scope_sha256,
+                "mapping_case_artifact_id": raw_ref["mapping_case_artifact_id"],
+                "raw_response_sha256": raw_response_sha256,
+                "publication_identity_sha256": hashlib.sha256(
+                    identity_json.encode("utf-8")
+                ).hexdigest(),
+            },
+        )
+        return {
+            "file_id": file_id,
+            "filename": MAPPING_FORENSICS_FILENAME,
+            "url": f"/api/v1/files/{file_id}/content?attachment=true",
+            "content_type": "application/json",
+        }
+
+    @staticmethod
+    def _mapping_forensics_download_line(delivery: dict[str, Any]) -> str:
+        return (
+            "[Скачать ответ разметки для диагностики]"
+            f"({str(delivery['url'])})"
         )
 
     @staticmethod
