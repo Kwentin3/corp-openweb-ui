@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from dataclasses import replace
 
 import pytest
 
@@ -15,6 +16,9 @@ from broker_reports_gate1.gate2_provider_adapters import Gate2ProviderAdapterFac
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
     OrdinaryTradeMappingCaseFactory,
+)
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    StaticOrdinaryTradeMappingPromptResolver,
 )
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_models import ArtifactStoreError
@@ -46,6 +50,22 @@ def _runtime(*, store, client):
         model_client=client,
         mapping_response_adapter=OrdinaryTradeGroupedMappingV20AdapterFactory.create(),
         **runtime_fixtures._mapping_prompt_dependencies(),
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+    ).create()
+
+
+def _runtime_with_prompt(*, store, client, prompt):
+    dependencies = runtime_fixtures._mapping_prompt_dependencies()
+    dependencies["mapping_prompt_resolver"] = StaticOrdinaryTradeMappingPromptResolver(
+        prompt
+    )
+    return OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        mapping_response_adapter=OrdinaryTradeGroupedMappingV20AdapterFactory.create(),
+        **dependencies,
         model_id="models/gemini-3.5-flash",
         provider_profile_id="google_gemini",
     ).create()
@@ -116,6 +136,59 @@ def test_gemini_projection_keeps_strict_default_trade_row_policy() -> None:
             "enum": ["SECURITY_TRADES"]
         }
         assert projected_policy["properties"]["exception_rows"]["type"] == "array"
+
+
+def test_revised_prompt_retries_one_prior_invalid_row_policy_attempt(tmp_path) -> None:
+    """A published prompt revision permits one fresh strict provider attempt."""
+
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    invalid = _v20_response(
+        table=table,
+        mapping=mapping,
+        policy={"default_disposition": "NO_NAMED_CONSUMER", "exception_rows": []},
+    )
+    initial = asyncio.run(
+        _runtime(
+            store=store,
+            client=runtime_fixtures.BoundaryModelClient([invalid]),
+        ).resolve(document_id=document_id, context=context)
+    )
+    assert initial["status"] == "MAPPING_OUTPUT_INVALID"
+
+    revised_prompt = replace(
+        runtime_fixtures._test_mapping_prompt(),
+        version="test-v2",
+        hash="c" * 64,
+        content=(
+            "Map {{ordinary_trade_mapping_case_json}} as strict JSON with an "
+            "exact row_policy object."
+        ),
+    )
+    revised_client = runtime_fixtures.BoundaryModelClient([invalid])
+    retried = asyncio.run(
+        _runtime_with_prompt(
+            store=store,
+            client=revised_client,
+            prompt=revised_prompt,
+        ).resolve(document_id=document_id, context=context)
+    )
+    assert retried["status"] == "MAPPING_OUTPUT_INVALID"
+    assert retried["provider_calls_this_turn"] == 1
+    assert len(revised_client.calls) == 1
+
+    repeated_client = runtime_fixtures.BoundaryModelClient([])
+    repeated = asyncio.run(
+        _runtime_with_prompt(
+            store=store,
+            client=repeated_client,
+            prompt=revised_prompt,
+        ).resolve(document_id=document_id, context=context)
+    )
+    assert repeated["status"] == "MAPPING_OUTPUT_INVALID"
+    assert repeated["provider_calls_this_turn"] == 0
+    assert repeated_client.calls == []
 
 
 def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> None:
