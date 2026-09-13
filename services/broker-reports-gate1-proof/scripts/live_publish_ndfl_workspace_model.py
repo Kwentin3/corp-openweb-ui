@@ -40,7 +40,10 @@ LEGACY_PIPE_IDS = (
     "broker_reports_gate2_source_fact_pipe",
     "broker_reports_gate2_domain_source_fact_pipe",
 )
-TECHNICAL_PIPE_IDS = LEGACY_PIPE_IDS
+# The Function remains the executable base for the public Workspace Model.  A
+# disabled Custom Model record with this same ID is OpenWebUI's native way to
+# remove that raw Pipe from the chooser without detaching the facade from it.
+TECHNICAL_PIPE_IDS = (NDFL_OPENWEBUI_BASE_PIPE_ID, *LEGACY_PIPE_IDS)
 PRODUCT_ROUTE_IDS = (
     NDFL_WORKSPACE_MODEL_STABLE_ID,
     NDFL_OPENWEBUI_BASE_PIPE_ID,
@@ -267,15 +270,15 @@ def desired_hidden_pipe_model(
     *,
     previous: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    runtime_base_required = False
+    is_workspace_runtime_base = pipe_id == NDFL_OPENWEBUI_BASE_PIPE_ID
     return {
         "id": pipe_id,
         "base_model_id": None,
         "name": pipe_id,
         "meta": {
             "description": (
-                "ACL-restricted runtime base owned by the NDFL product model."
-                if runtime_base_required
+                "Inactive technical base hidden behind the NDFL product model."
+                if is_workspace_runtime_base
                 else "Inactive legacy route owned by the NDFL product model."
             ),
             "tags": [
@@ -287,12 +290,22 @@ def desired_hidden_pipe_model(
                 "schema_version": HIDDEN_ROUTE_SCHEMA_VERSION,
                 "route_id": pipe_id,
                 "user_facing_owner_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
-                "runtime_base_required": runtime_base_required,
+                # The executable Function, not this disabled model override,
+                # remains the runtime base.  Keep the distinction explicit so
+                # this record cannot become a competing route by accident.
+                "runtime_base_required": False,
             },
         },
         "params": {},
-        "access_grants": _grant_payload(previous),
-        "is_active": runtime_base_required,
+        # OpenWebUI checks base-model ACLs while resolving the public facade.
+        # Keep ordinary-user read only on the hidden base override; it does
+        # not make the override visible because it remains inactive.
+        "access_grants": (
+            _with_ordinary_user_read(_grant_payload(previous))
+            if is_workspace_runtime_base
+            else _grant_payload(previous)
+        ),
+        "is_active": False,
     }
 
 
@@ -341,21 +354,6 @@ def _is_managed_legacy_ndfl(record: dict[str, Any]) -> bool:
         and isinstance(binding, dict)
         and binding.get("workspace_model_id") == LEGACY_NDFL_MODEL_ID
     )
-
-
-def evaluate_required_base_model(record: dict[str, Any] | None) -> dict[str, bool]:
-    checks = {
-        "present": record is not None,
-        "stable_id_match": bool(
-            record and record.get("id") == NDFL_OPENWEBUI_BASE_PIPE_ID
-        ),
-        "not_a_facade": bool(record and record.get("base_model_id") is None),
-        "active": bool(record and record.get("is_active") is True),
-        "ordinary_user_read": bool(
-            record and _has_ordinary_user_read(_grant_payload(record))
-        ),
-    }
-    return {**checks, "passed": all(checks.values())}
 
 
 def evaluate_required_base_function(
@@ -550,6 +548,13 @@ def evaluate_hidden_pipe_model(
         "managed_marker": bool(
             record and _is_managed_hidden_route(record, pipe_id)
         ),
+        "base_chain_ordinary_user_read": bool(
+            pipe_id != NDFL_OPENWEBUI_BASE_PIPE_ID
+            or (
+                record
+                and _has_ordinary_user_read(_grant_payload(record))
+            )
+        ),
     }
 
 
@@ -562,10 +567,7 @@ def evaluate_visible_routes(
         if item.get("id") in PRODUCT_ROUTE_IDS
     }
     internal_base_ids = visible_ids & {NDFL_OPENWEBUI_BASE_PIPE_ID}
-    competing_ids = visible_ids - {
-        NDFL_WORKSPACE_MODEL_STABLE_ID,
-        NDFL_OPENWEBUI_BASE_PIPE_ID,
-    }
+    competing_ids = visible_ids - {NDFL_WORKSPACE_MODEL_STABLE_ID}
     return {
         "visible_product_route_ids": sorted(
             visible_ids & {NDFL_WORKSPACE_MODEL_STABLE_ID}
@@ -599,24 +601,24 @@ def main() -> int:
     token = _signin(session, base_url, env)
     session.headers.update({"Authorization": f"Bearer {token}"})
 
-    tracked_ids = (
-        NDFL_WORKSPACE_MODEL_STABLE_ID,
-        NDFL_OPENWEBUI_BASE_PIPE_ID,
-        LEGACY_NDFL_MODEL_ID,
-        LEGACY_WORKSPACE_MODEL_ID,
-        *TECHNICAL_PIPE_IDS,
+    tracked_ids = tuple(
+        dict.fromkeys(
+            (
+                NDFL_WORKSPACE_MODEL_STABLE_ID,
+                LEGACY_NDFL_MODEL_ID,
+                LEGACY_WORKSPACE_MODEL_ID,
+                *TECHNICAL_PIPE_IDS,
+            )
+        )
     )
     previous = {
         stable_id: _get_model(session, base_url, stable_id)
         for stable_id in tracked_ids
     }
-    base_model_check = evaluate_required_base_model(
-        previous[NDFL_OPENWEBUI_BASE_PIPE_ID]
-    )
     base_function_check = evaluate_required_base_function(
         _get_function(session, base_url, FUNCTION_ID)
     )
-    if not base_model_check["passed"] or not base_function_check["passed"]:
+    if not base_function_check["passed"]:
         raise NdflWorkspacePublishError("ndfl_base_pipe_topology_invalid")
     if (
         previous[NDFL_WORKSPACE_MODEL_STABLE_ID] is not None
@@ -712,9 +714,6 @@ def main() -> int:
             stable_id: _get_model(session, base_url, stable_id)
             for stable_id in tracked_ids
         }
-        current_base_model_check = evaluate_required_base_model(
-            current[NDFL_OPENWEBUI_BASE_PIPE_ID]
-        )
         current_base_function_check = evaluate_required_base_function(
             _get_function(session, base_url, FUNCTION_ID)
         )
@@ -740,8 +739,7 @@ def main() -> int:
             all(check.values()) for check in hidden_checks.values()
         )
         passed = bool(
-            current_base_model_check["passed"]
-            and current_base_function_check["passed"]
+            current_base_function_check["passed"]
             and ndfl_check["routing_passed"]
             and ndfl_check["display_name_match"]
             and ndfl_check["managed_tags_match"]
@@ -785,9 +783,11 @@ def main() -> int:
         "stable_bindings": ndfl_product_binding_snapshot(),
         "actions": actions,
         "checks": {
-            "required_base_model": current_base_model_check,
             "required_base_function": current_base_function_check,
             "ndfl_workspace_model": ndfl_check,
+            "hidden_base_model_override": hidden_checks[
+                NDFL_OPENWEBUI_BASE_PIPE_ID
+            ],
             "hidden_technical_routes": hidden_checks,
             "legacy_ndfl_model_inactive": legacy_ndfl_inactive,
             "legacy_workspace_model_inactive": legacy_workspace_inactive,
