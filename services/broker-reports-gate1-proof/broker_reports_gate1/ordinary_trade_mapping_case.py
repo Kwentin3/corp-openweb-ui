@@ -73,6 +73,35 @@ _STATUSES = {
     "CURRENCY_ASSERTION_REQUIRED",
 }
 
+# Public state is deliberately less detailed than the private, authenticated
+# mapping receipt.  These labels are product-control categories, not copies of
+# exception codes: neither the provider response nor Canonical coordinates can
+# cross this boundary through a diagnostic.
+_PUBLIC_MAPPING_FAILURE_REASONS = {
+    "ordinary_trade_semantic_mapping_columns_invalid": "mapping_columns_invalid",
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:policy_object_invalid": (
+        "mapping_row_policy_invalid"
+    ),
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:exception_item_invalid": (
+        "mapping_row_policy_invalid"
+    ),
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:exception_rows_not_strictly_ordered": (
+        "mapping_row_policy_invalid"
+    ),
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:exception_row_outside_data_rows": (
+        "mapping_row_policy_invalid"
+    ),
+}
+_PUBLIC_MAPPING_FAILURE_REASON_FALLBACK = "mapping_output_invalid"
+
+
+def _public_mapping_failure_reason(reason_code: Any) -> str:
+    """Translate a private failure code to a closed, value-free public label."""
+
+    return _PUBLIC_MAPPING_FAILURE_REASONS.get(
+        str(reason_code), _PUBLIC_MAPPING_FAILURE_REASON_FALLBACK
+    )
+
 
 def mapping_case_artifact_types() -> frozenset[str]:
     """Return the closed receipt types accepted during the v2-to-v3 migration."""
@@ -948,7 +977,7 @@ class OrdinaryTradeMappingCaseRuntime:
             return None
         payload = current[1]
         question = payload.get("question")
-        return {
+        public = {
             "status": payload["status"],
             "message": payload["message"],
             "question": (
@@ -990,6 +1019,11 @@ class OrdinaryTradeMappingCaseRuntime:
             },
             "provider_calls_total": payload["provider_calls_total"],
         }
+        if payload["status"] == "MAPPING_OUTPUT_INVALID":
+            public["mapping_failure_reason"] = _public_mapping_failure_reason(
+                payload.get("reason_code")
+            )
+        return public
 
     def _next_payload(
         self, *, prior: dict[str, Any] | None, **values: Any

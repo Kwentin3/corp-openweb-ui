@@ -235,6 +235,45 @@ def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
     assert safe_role_map_sha256(base) != safe_role_map_sha256(changed)
 
 
+def test_lab_private_forensic_capture_is_external_and_contains_only_response_receipt(tmp_path):
+    runner = _lab_runner_module()
+    capture_root = tmp_path / "private-response"
+    capture = runner._PrivateForensicResponseCapture.create(capture_root)
+    response = SimpleNamespace(content={"private_model_field": "kept-out-of-safe-receipt"})
+    case = {
+        "case_id": "one-case",
+        "canonical_binding": {
+            "canonical_root_sha256": "canonical-root",
+            "source_sha256": "source-sha",
+        },
+    }
+    candidate = {"prompt_sha256": "prompt-sha", "model_id": "test-model"}
+
+    capture.write(case=case, candidate=candidate, response=response)
+
+    files = list(capture_root.glob("*.json"))
+    assert len(files) == 1
+    captured = json.loads(files[0].read_text(encoding="utf-8"))
+    assert captured["schema_version"] == "goal391_mapping_lab_forensic_response_v1"
+    assert captured["lab_only"] is True
+    assert captured["candidate"] == candidate
+    assert captured["response_content"] == response.content
+    assert captured["response_content_sha256"] == runner._sha256(response.content)
+    assert "canonical" not in captured
+    assert "prompt" not in captured
+
+
+def test_lab_private_forensic_capture_rejects_repo_or_existing_directory(tmp_path):
+    runner = _lab_runner_module()
+    with pytest.raises(SystemExit, match="goal391_private_forensic_response_directory_invalid"):
+        runner._require_new_external_directory(runner.REPO_ROOT)
+
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    with pytest.raises(SystemExit, match="goal391_private_forensic_response_directory_invalid"):
+        runner._require_new_external_directory(existing)
+
+
 def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
     runner = _lab_runner_module()
     node_id = "node_currency_target"

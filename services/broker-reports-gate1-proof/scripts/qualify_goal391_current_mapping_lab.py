@@ -50,6 +50,9 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
 SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v7"
+PRIVATE_FORENSIC_RESPONSE_SCHEMA_VERSION = (
+    "goal391_mapping_lab_forensic_response_v1"
+)
 
 
 class Goal391CurrentMappingLabError(RuntimeError):
@@ -64,6 +67,7 @@ def main() -> int:
     parser.add_argument("--expectations", type=Path, required=True)
     parser.add_argument("--safe-receipt", type=Path, required=True)
     parser.add_argument("--progress-receipt", type=Path)
+    parser.add_argument("--private-forensic-response-dir", type=Path)
     parser.add_argument("--expected-git-head", required=True)
     parser.add_argument("--ordinary-user-id", required=True)
     parser.add_argument("--prompt-db-path", type=Path, required=True)
@@ -104,6 +108,11 @@ def main() -> int:
         _is_within(progress_path, REPO_ROOT.resolve()) or progress_path.exists()
     ):
         raise SystemExit("goal391_progress_receipt_invalid")
+    forensic_response_dir = args.private_forensic_response_dir
+    if args.preflight_only and forensic_response_dir is not None:
+        raise SystemExit("goal391_private_forensic_response_live_only")
+    if forensic_response_dir is not None:
+        forensic_response_dir = _require_new_external_directory(forensic_response_dir)
     semantic = OrdinaryTradeSemanticMappingFactory.create()
     candidate = _current_candidate(
         semantic=semantic, prompt=prompt, expected_git_head=args.expected_git_head
@@ -129,6 +138,7 @@ def main() -> int:
             cases=cases,
             ordinary_user_id=ordinary_user_id,
             progress_path=progress_path,
+            forensic_response_dir=forensic_response_dir,
         )
     )
     _write_json(receipt_path, receipt)
@@ -146,6 +156,7 @@ async def _run_live_qualification(
     cases: list[Mapping[str, Any]],
     ordinary_user_id: str,
     progress_path: Path | None,
+    forensic_response_dir: Path | None = None,
 ) -> dict[str, Any]:
     submissions = {"count": 0}
 
@@ -202,13 +213,20 @@ async def _run_live_qualification(
         ),
     ).create()
 
+    forensic_capture = (
+        _PrivateForensicResponseCapture.create(forensic_response_dir)
+        if forensic_response_dir is not None
+        else None
+    )
     records, terminal_error = await _run_all_cases(
         semantic=semantic,
         prompt=prompt,
+        candidate=candidate,
         client=client,
         cases=cases,
         submissions=submissions,
         progress=progress,
+        forensic_capture=forensic_capture,
     )
 
     lifecycle = client.qualification_lifecycle_snapshot()
@@ -244,6 +262,7 @@ async def _run_live_qualification(
             "chat_count_unchanged": chats_after == chats_before,
             "artifact_store_mutation": False,
             "canonical_mutation": False,
+            "private_forensic_response_capture": forensic_capture is not None,
         },
         "terminal_error": terminal_error,
     }
@@ -511,7 +530,8 @@ def _owner_classification_envelopes(
 
 
 async def _run_case(
-    *, semantic, prompt, client, case: Mapping[str, Any], progress
+    *, semantic, prompt, candidate=None, client, case: Mapping[str, Any], progress,
+    forensic_capture=None,
 ) -> dict[str, Any]:
     package = semantic.build_mapping_package(
         canonical=case["canonical"],
@@ -526,6 +546,8 @@ async def _run_case(
         response_format=semantic.mapping_response_format(),
     )
     progress("RESPONSE_RECEIVED", case)
+    if forensic_capture is not None:
+        forensic_capture.write(case=case, candidate=candidate, response=response)
     _require_one_strict_result(response)
     if semantic.mapping_response_contract_failure_code(response) is not None:
         raise Goal391CurrentMappingLabError("goal391_model_response_contract_invalid")
@@ -544,7 +566,10 @@ async def _run_case(
     return {"outcome": outcome, "response": response}
 
 
-async def _run_all_cases(*, semantic, prompt, client, cases, submissions, progress):
+async def _run_all_cases(
+    *, semantic, prompt, candidate=None, client, cases, submissions, progress,
+    forensic_capture=None,
+):
     records = []
     terminal_error = None
     for case in cases:
@@ -555,9 +580,11 @@ async def _run_all_cases(*, semantic, prompt, client, cases, submissions, progre
             outcome = await _run_case(
                 semantic=semantic,
                 prompt=prompt,
+                candidate=candidate,
                 client=client,
                 case=case,
                 progress=progress,
+                forensic_capture=forensic_capture,
             )
             if submissions["count"] - before != 1:
                 raise Goal391CurrentMappingLabError("goal391_exactly_one_call_required")
@@ -1132,6 +1159,64 @@ def _write_json(path: Path, value: Mapping[str, Any], *, atomic: bool = False) -
         handle.flush()
         os.fsync(handle.fileno())
     temporary.replace(path)
+
+
+class _PrivateForensicResponseCapture:
+    """One R&D-only private response sink, deliberately outside product storage."""
+
+    def __init__(self, root: Path) -> None:
+        self._root = root
+
+    @classmethod
+    def create(cls, root: Path) -> "_PrivateForensicResponseCapture":
+        try:
+            root.mkdir(mode=0o700)
+        except OSError as exc:
+            raise Goal391CurrentMappingLabError(
+                "goal391_private_forensic_response_directory_create_failed"
+            ) from exc
+        return cls(root)
+
+    def write(self, *, case: Mapping[str, Any], candidate: Mapping[str, Any], response: Any) -> None:
+        case_sha256 = _sha256(case["case_id"])
+        content = getattr(response, "content", None)
+        value = {
+            "schema_version": PRIVATE_FORENSIC_RESPONSE_SCHEMA_VERSION,
+            "lab_only": True,
+            "case_sha256": case_sha256,
+            "canonical_root_sha256": case["canonical_binding"]["canonical_root_sha256"],
+            "source_sha256": case["canonical_binding"]["source_sha256"],
+            "candidate": dict(candidate),
+            "response_content_sha256": _sha256(content),
+            "response_content": content,
+        }
+        encoded = (
+            json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, default=str)
+            + "\n"
+        ).encode("utf-8")
+        path = self._root / f"{case_sha256}.json"
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except OSError as exc:
+            raise Goal391CurrentMappingLabError(
+                "goal391_private_forensic_response_write_failed"
+            ) from exc
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(encoded)
+
+
+def _require_new_external_directory(path: Path) -> Path:
+    resolved = path.resolve()
+    if (
+        resolved == REPO_ROOT.resolve()
+        or _is_within(resolved, REPO_ROOT.resolve())
+        or resolved.exists()
+        or resolved.is_symlink()
+        or not resolved.parent.is_dir()
+        or resolved.parent.is_symlink()
+    ):
+        raise SystemExit("goal391_private_forensic_response_directory_invalid")
+    return resolved
 
 
 def _sha256(value: Any) -> str:

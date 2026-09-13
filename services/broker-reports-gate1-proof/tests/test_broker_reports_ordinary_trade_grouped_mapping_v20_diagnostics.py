@@ -131,6 +131,68 @@ def test_v20_malformed_columns_stay_terminal_and_never_project(
     ) == []
 
 
+def test_mapping_output_invalid_public_state_has_only_closed_failure_reason(
+    tmp_path,
+) -> None:
+    """The user-facing state may diagnose a class, never private mapping data."""
+
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = _v20_response(
+        table=table,
+        mapping=mapping,
+        policy={"default_disposition": "SECURITY_TRADES", "exception_rows": []},
+    )
+    response["message"] = "provider-private-value-987654321"
+    response["table_decisions"][0]["columns"][0] = {
+        **response["table_decisions"][0]["columns"][0],
+        "column": 987654321,
+    }
+
+    result = asyncio.run(
+        _runtime(
+            store=store,
+            client=runtime_fixtures.BoundaryModelClient([response]),
+        ).resolve(document_id=document_id, context=context)
+    )
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    public = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().public_state(document_id=document_id, context=context)
+    assert public is not None
+    assert public["mapping_failure_reason"] == "mapping_columns_invalid"
+    exposed = json.dumps(public, ensure_ascii=False, sort_keys=True)
+    assert "ordinary_trade_semantic_mapping_columns_invalid" not in exposed
+    assert "provider-private-value-987654321" not in exposed
+    assert "987654321" not in exposed
+
+
+def test_mapping_output_invalid_public_state_uses_generic_closed_fallback(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    cases.save_provider_terminal(
+        document_id=document_id,
+        context=context,
+        status="MAPPING_OUTPUT_INVALID",
+        reason_code="provider-message-with-value-987654321",
+        message="private terminal message",
+        provider_calls_total=0,
+    )
+
+    public = cases.public_state(document_id=document_id, context=context)
+    assert public is not None
+    assert public["mapping_failure_reason"] == "mapping_output_invalid"
+    exposed = json.dumps(public, ensure_ascii=False, sort_keys=True)
+    assert "provider-message-with-value-987654321" not in exposed
+    assert "987654321" not in exposed
+
+
 @pytest.mark.parametrize(
     ("policy", "category"),
     [
