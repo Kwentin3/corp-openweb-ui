@@ -33,6 +33,8 @@ from .artifact_models import (
 
 FACTORY_REQUIRED = "ArtifactStoreFactory.create is the only production store entrypoint"
 FORBIDDEN = "Pipe and Gate 2 resolver must not instantiate SqliteArtifactStoreAdapter directly"
+_SQLITE_BUSY_TIMEOUT_SECONDS = 30.0
+_SQLITE_BUSY_TIMEOUT_MILLISECONDS = int(_SQLITE_BUSY_TIMEOUT_SECONDS * 1000)
 
 
 @dataclass(frozen=True)
@@ -1975,7 +1977,7 @@ class SqliteArtifactStoreAdapter:
                 conn = sqlite3.connect(
                     f"{self.sqlite_path.resolve().as_uri()}?mode=ro",
                     uri=True,
-                    timeout=30.0,
+                    timeout=_SQLITE_BUSY_TIMEOUT_SECONDS,
                 )
             except sqlite3.Error as exc:
                 raise ArtifactStoreError(
@@ -1983,9 +1985,13 @@ class SqliteArtifactStoreAdapter:
                 ) from exc
         else:
             self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-            conn = sqlite3.connect(self.sqlite_path, timeout=30.0)
+            conn = sqlite3.connect(self.sqlite_path, timeout=_SQLITE_BUSY_TIMEOUT_SECONDS)
         conn.row_factory = sqlite3.Row
         try:
+            # ``timeout`` only configures the Python connection constructor.
+            # Set SQLite's own busy handler explicitly too, so every short-lived
+            # Pipe-owned store connection has the same bounded contention policy.
+            conn.execute(f"PRAGMA busy_timeout = {_SQLITE_BUSY_TIMEOUT_MILLISECONDS}")
             if immediate:
                 conn.execute("BEGIN IMMEDIATE")
             yield conn
@@ -2008,6 +2014,11 @@ class SqliteArtifactStoreAdapter:
         self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
         self.payload_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         with self._connect() as conn:
+            # A Pipe creates a store per turn.  WAL lets a short writer and
+            # independent readers coexist for the same durable ArtifactStore.
+            # SQLite keeps its safe journal mode when the underlying VFS cannot
+            # support WAL; errors still propagate fail-closed.
+            conn.execute("PRAGMA journal_mode = WAL").fetchone()
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS artifact_records(

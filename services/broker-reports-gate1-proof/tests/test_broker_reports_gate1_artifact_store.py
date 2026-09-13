@@ -4,6 +4,8 @@ import copy
 import json
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -64,6 +66,81 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
     def test_factory_anchors_prevent_artifact_store_drift(self):
         self.assertIn("ArtifactStoreFactory.create", FACTORY_REQUIRED)
         self.assertIn("must not instantiate SqliteArtifactStoreAdapter directly", FORBIDDEN)
+
+    def test_sqlite_artifact_store_uses_wal_and_a_thirty_second_busy_bound(self):
+        with self.store._connect() as conn:
+            journal_mode = str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower()
+            busy_timeout = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])
+
+        self.assertEqual(journal_mode, "wal")
+        self.assertEqual(busy_timeout, 30_000)
+
+    def test_sqlite_artifact_store_waits_for_short_concurrent_writer_without_corruption(self):
+        """Real stores share one bounded SQLite writer policy, not a retry loop."""
+
+        root = Path(self._tmp.name)
+        second_store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=root / "artifacts.sqlite3",
+                payload_root=root / "payloads",
+            )
+        ).create()
+        retention = build_retention_policy(mode="api_smoke")
+        first = ArtifactRecord(
+            artifact_id="art_concurrent_first",
+            artifact_type="validation_result_v0",
+            case_id="case-concurrent",
+            chat_id="chat-concurrent",
+            user_id="user-concurrent",
+            workspace_model_id="workspace-concurrent",
+            normalization_run_id="run-concurrent",
+            document_id=None,
+            source_file_ref=None,
+            visibility="safe_internal",
+            storage_backend="project_artifact_store",
+            retention_policy=retention,
+            access_policy={"requires_user_id": True},
+            validation_status="validated",
+            lifecycle_status="visible_safe",
+            payload={"schema_version": "validation_result_v0", "ordinal": 1},
+            safe_metadata={"ordinal": 1},
+        )
+        second = ArtifactRecord(
+            **{
+                **first.__dict__,
+                "artifact_id": "art_concurrent_second",
+                "payload": {"schema_version": "validation_result_v0", "ordinal": 2},
+                "safe_metadata": {"ordinal": 2},
+            }
+        )
+        errors: list[BaseException] = []
+        started = threading.Event()
+
+        def write_second_record() -> None:
+            started.set()
+            try:
+                second_store.put_record(second)
+            except BaseException as exc:  # assertion happens on the test thread
+                errors.append(exc)
+
+        # This is a real ArtifactStore write transaction.  The second store has
+        # to wait for it rather than receiving ``database is locked``.
+        self.store.put_record(first)
+        with self.store._connect(immediate=True):
+            writer = threading.Thread(target=write_second_record)
+            writer.start()
+            self.assertTrue(started.wait(timeout=1))
+            time.sleep(0.1)
+            self.assertTrue(writer.is_alive())
+        writer.join(timeout=5)
+
+        self.assertFalse(writer.is_alive())
+        self.assertEqual(errors, [])
+        stored = self.store.list_by_run("run-concurrent")
+        self.assertEqual([record.artifact_id for record in stored], [first.artifact_id, second.artifact_id])
+        self.assertEqual(self.store.read_payload(stored[0])["ordinal"], 1)
+        self.assertEqual(self.store.read_payload(stored[1])["ordinal"], 2)
 
     def test_document_extraction_packet_is_private_payload_artifact(self):
         retention = build_retention_policy(mode="customer_approved_test", explicit=True)
