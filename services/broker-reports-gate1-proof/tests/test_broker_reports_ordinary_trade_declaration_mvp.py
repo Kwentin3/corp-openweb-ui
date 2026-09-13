@@ -18,6 +18,12 @@ from broker_reports_gate1.gate5_human_gap_closure import (
     Gate5HumanGapClosureError,
     Gate5HumanGapClosureRuntimeFactory,
 )
+from broker_reports_gate1.gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
+from broker_reports_gate1.qualified_projection_fact_v3 import (
+    QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION,
+)
 from broker_reports_gate1.gate5_full_target_xml_projection import (
     Gate5FullTargetXmlProjectionRuntimeFactory,
 )
@@ -46,7 +52,7 @@ from broker_reports_gate1.ordinary_trade_candidate_runtime import (
 )
 from broker_reports_gate1.gate5_trusted_methodology import (
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
     Gate5TrustedMethodologyError,
 )
@@ -120,6 +126,57 @@ def test_persisted_canonical_facts_reach_byte_stable_official_xsd_xml(
     assert etree.tostring(etree.fromstring(first["xml_bytes"]), method="c14n") == (
         etree.tostring(etree.fromstring(fixture.read_bytes()), method="c14n")
     )
+
+
+def test_qualified_projection_facts_carry_canonical_provenance_to_xml_or_fail_closed(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers, store = _case(
+        tmp_path,
+        proceeds="60.00",
+        include_store=True,
+    )
+    facts = Gate4OrdinaryTradeCandidateRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create().list_facts(context=context)
+    assert facts and all(
+        fact["schema_version"] == QUALIFIED_PROJECTION_FACT_V3_SCHEMA_VERSION
+        for fact in facts
+    )
+    disposal = next(
+        fact for fact in facts if fact["financial_type"] == "SECURITY_DISPOSAL"
+    )
+
+    produced = _run(runtime, context)
+    gross_source = produced["assembly_receipt"]["owner_artifacts"][
+        "operation_tax_model"
+    ]["gross_income"]["sources"]
+    assert gross_source == [
+        {
+            "source_kind": "normalized_source_fact",
+            "fact_id": disposal["fact_id"],
+            "financial_type": disposal["financial_type"],
+            "qualified_projection_binding": disposal["qualified_projection_binding"],
+            "annotation_target": disposal["annotation_target"],
+        }
+    ]
+
+    stale_facts = copy.deepcopy(facts)
+    stale_facts[0]["qualified_projection_binding"]["runtime_record_id"] = (
+        "stale-runtime-record"
+    )
+    consumer = runtime._declaration._assembly._bridge._current_facts
+    original_list_facts = consumer._list_facts
+    consumer._list_facts = lambda *, context: copy.deepcopy(stale_facts)
+    try:
+        rejected = runtime.run(canonical_artifact_refs=[], context=context)
+    finally:
+        consumer._list_facts = original_list_facts
+
+    assert rejected["declaration"] is None
+    assert rejected["product"]["xml_created"] is False
+    assert rejected["product"]["terminal"] == "gate5_source_fact_contract_invalid"
 
 
 def test_user_attested_candidate_defer_draft_and_same_case_xml_resume(
@@ -836,7 +893,7 @@ def test_whole_active_canonical_document_without_projection_blocks_before_xml(
     )
 
 
-def test_relevant_unmapped_incomplete_operation_blocks_before_xml(
+def test_incomplete_source_role_blocks_before_xml(
     tmp_path: Path,
 ) -> None:
     runtime, context, _providers = _case(
@@ -851,10 +908,12 @@ def test_relevant_unmapped_incomplete_operation_blocks_before_xml(
     assert result["declaration"] is None
     assert result["product"]["xml_created"] is False
     assert result["product"]["terminal"] == (
-        "ordinary_trade_declaration_canonical_relevant_unmapped"
+        "gate4_ordinary_trade_source_role_incomplete"
     )
-    assert result["product"]["gate4"]["security_facts_total"] == 0
-    assert result["product"]["gate4"]["facts_total"] == 0
+    # Complete rows remain available for review; the incomplete row blocks
+    # declaration assembly rather than erasing otherwise qualified evidence.
+    assert result["product"]["gate4"]["security_facts_total"] == 2
+    assert result["product"]["gate4"]["facts_total"] == 4
     assert result["system_identity"]["canonical_coverage_sha256"]
 
 
@@ -1735,7 +1794,9 @@ def _publish_human_facts(
         methodology_ref={
             "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
             "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-            "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+            "methodology_version": (
+                GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+            ),
         },
         context=context,
     )

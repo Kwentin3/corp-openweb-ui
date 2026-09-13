@@ -5,6 +5,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -33,6 +34,12 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     PROMPT_REQUIRED_TAG,
     PROMPT_TEMPLATE_ID,
     PROMPT_TEMPLATE_KIND,
+    DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
     OrdinaryTradeMappingManagedPrompt,
     ordinary_trade_mapping_prompt_hash,
 )
@@ -233,6 +240,85 @@ def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
     )
 
     assert safe_role_map_sha256(base) != safe_role_map_sha256(changed)
+
+
+def test_current_mapping_lab_uses_v20_wire_format_when_the_pinned_prompt_declares_v20():
+    runner = _lab_runner_module()
+    prompt = replace(
+        _managed_qualification_prompt(),
+        command=ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
+        input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+        tags=(ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,),
+    )
+    semantic = runner.OrdinaryTradeSemanticMappingFactory.create()
+
+    response_format = runner._mapping_response_format(
+        semantic=semantic, prompt=prompt
+    )
+
+    assert response_format["json_schema"]["name"] == (
+        "broker_reports_ordinary_trade_grouped_mapping_response_v20"
+    )
+    assert runner._mapping_response_schema_version(prompt=prompt) == (
+        "broker_reports_ordinary_trade_grouped_mapping_response_v20"
+    )
+
+
+def test_current_mapping_lab_rejects_a_hybrid_v20_prompt_identity() -> None:
+    runner = _lab_runner_module()
+    prompt = replace(
+        _managed_qualification_prompt(),
+        output_schema_id=ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+    )
+
+    with pytest.raises(runner.Goal391CurrentMappingLabError) as exc:
+        runner._mapping_wire_contract(prompt=prompt)
+
+    assert str(exc.value) == "goal391_mapping_prompt_wire_contract_unsupported"
+
+
+def test_lab_private_forensic_capture_is_external_and_contains_only_response_receipt(tmp_path):
+    runner = _lab_runner_module()
+    capture_root = tmp_path / "private-response"
+    capture = runner._PrivateForensicResponseCapture.create(capture_root)
+    response = SimpleNamespace(content={"private_model_field": "kept-out-of-safe-receipt"})
+    case = {
+        "case_id": "one-case",
+        "canonical_binding": {
+            "canonical_root_sha256": "canonical-root",
+            "source_sha256": "source-sha",
+        },
+    }
+    candidate = {"prompt_sha256": "prompt-sha", "model_id": "test-model"}
+
+    capture.write(case=case, candidate=candidate, response=response)
+
+    files = list(capture_root.glob("*.json"))
+    assert len(files) == 1
+    captured = json.loads(files[0].read_text(encoding="utf-8"))
+    assert captured["schema_version"] == "goal391_mapping_lab_forensic_response_v1"
+    assert captured["lab_only"] is True
+    assert captured["candidate"] == candidate
+    assert captured["response_content"] == response.content
+    assert captured["response_content_sha256"] == runner._sha256(response.content)
+    assert "canonical" not in captured
+    assert "prompt" not in captured
+
+
+def test_lab_private_forensic_capture_rejects_repo_or_existing_directory(tmp_path):
+    runner = _lab_runner_module()
+    with pytest.raises(SystemExit, match="goal391_private_forensic_response_directory_invalid"):
+        runner._require_new_external_directory(runner.REPO_ROOT)
+
+    existing = tmp_path / "existing"
+    existing.mkdir()
+    with pytest.raises(SystemExit, match="goal391_private_forensic_response_directory_invalid"):
+        runner._require_new_external_directory(existing)
 
 
 def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
@@ -1019,7 +1105,7 @@ def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> Non
     resolved = runner._resolve_mapping_prompt(
         db_path=Path("/private/prompt.db"),
         prompt_id="managed-candidate-id",
-        prompt_command="broker_ordinary_trade_semantic_mapping_rnd_v23",
+        prompt_command=PROMPT_COMMAND,
         prompt_version="managed-candidate-version",
         prompt_hash="a" * 64,
         ordinary_user_id="ordinary-user",
@@ -1028,7 +1114,7 @@ def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> Non
     assert resolved is managed
     assert captured["config"].prompt_id == "managed-candidate-id"
     assert captured["config"].command is None
-    assert captured["config"].required_command == "broker_ordinary_trade_semantic_mapping_rnd_v23"
+    assert captured["config"].required_command == PROMPT_COMMAND
     assert captured["config"].release_prompt_version == "managed-candidate-version"
     assert captured["config"].release_prompt_hash == "a" * 64
     assert captured["user_context"].user_id == "ordinary-user"

@@ -21,7 +21,7 @@ from .full_source import (
     SOURCE_PAYLOAD_SCHEMA_VERSION,
     validate_full_source_unit,
 )
-from .pdf_document_ai import PdfDocumentImageRef
+from .pdf_document_ai import PdfDocumentImageRef, PdfDocumentTableRef
 from .physical_table_continuation import (
     PHYSICAL_TABLE_CONTINUATION_SCHEMA_VERSION,
     PhysicalTableContinuationError,
@@ -328,6 +328,7 @@ class Gate1BoundedGraph:
         *,
         result: FullSourceBuildResult,
         image_refs: tuple[PdfDocumentImageRef, ...],
+        table_refs: tuple[PdfDocumentTableRef, ...] = (),
         physical_table_continuation_sidecar: dict[str, Any] | None = None,
     ) -> None:
         """Publish one complete PDF Markdown/unit/image graph or none of it."""
@@ -372,6 +373,28 @@ class Gate1BoundedGraph:
         )
         if stored_associations != expected_associations:
             raise Gate1BoundedGraphError("bounded_pdf_image_association_mismatch")
+
+        expected_table_associations = tuple(
+            (
+                table.page_number,
+                table.markdown_target,
+                table.local_ref,
+                table.sha256,
+            )
+            for table in table_refs
+        )
+        stored_table_associations = tuple(
+            (
+                (payload.get("source_location") or {}).get("page"),
+                payload.get("document_ai_native_table_markdown_target"),
+                payload.get("document_ai_native_table_ref"),
+                payload.get("document_ai_native_table_sha256"),
+            )
+            for payload in result.payloads
+            if payload.get("document_ai_native_table_ref") is not None
+        )
+        if table_refs and stored_table_associations != expected_table_associations:
+            raise Gate1BoundedGraphError("bounded_pdf_table_association_mismatch")
 
         source_checksum = str(
             self.source_records_by_doc[document_id].get("file_hash_sha256") or ""
@@ -459,6 +482,28 @@ class Gate1BoundedGraph:
             )
             for image in image_refs
         ]
+        table_records = [
+            self._build_record(
+                artifact_id=table.local_ref,
+                artifact_type=PRIVATE_BINARY_ARTIFACT_TYPE,
+                document_id=document_id,
+                source_file_ref=source_ref,
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status="validated",
+                payload=build_private_binary_payload(
+                    content=table.html_bytes, media_type="text/html"
+                ),
+                safe_metadata={
+                    "media_type": "text/html",
+                    "content_sha256": table.sha256,
+                    "page_number": table.page_number,
+                    "markdown_target": table.markdown_target,
+                },
+                access_policy=access_policy,
+            )
+            for table in table_refs
+        ]
         sidecar_records = []
         if sidecar_metadata is not None:
             sidecar_records.append(
@@ -475,7 +520,13 @@ class Gate1BoundedGraph:
                     access_policy=access_policy,
                 )
             )
-        records = [*payload_records, *unit_records, *image_records, *sidecar_records]
+        records = [
+            *payload_records,
+            *unit_records,
+            *image_records,
+            *table_records,
+            *sidecar_records,
+        ]
         self.store.put_records_atomic(records)
 
         for payload, unit, payload_record, unit_record in zip(

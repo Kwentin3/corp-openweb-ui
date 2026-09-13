@@ -86,7 +86,7 @@ def test_exact_model_payload_is_split_measured_and_prompt_has_no_expected_gap_hi
             },
             {
                 "section": "published_artifact_inventory",
-                "utf8_bytes": 1785,
+                "utf8_bytes": 1780,
                 "unicode_lexical_tokens": 389,
             },
             {
@@ -100,7 +100,7 @@ def test_exact_model_payload_is_split_measured_and_prompt_has_no_expected_gap_hi
                 "unicode_lexical_tokens": 245,
             },
         ],
-        "enveloped_payload_utf8_bytes": 15747,
+        "enveloped_payload_utf8_bytes": 15742,
     }
 
     prompt = json.dumps(

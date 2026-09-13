@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from broker_reports_gate1.artifact_retention import build_retention_policy
-from broker_reports_gate1.canonical_store import CanonicalReader
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate4_financial_case_cache import (
     Gate4FinancialCaseRuntimeFactory,
 )
@@ -28,7 +28,7 @@ from broker_reports_gate1.gate5_trusted_methodology import (
     GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
     Gate5TrustedMethodologyAuthorityFactory,
 )
@@ -37,6 +37,12 @@ from broker_reports_gate1.ordinary_trade_projection import (
 )
 from broker_reports_gate1.ordinary_trade_candidate_runtime import (
     OrdinaryTradeCandidateRuntimeFactory,
+)
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    OrdinaryTradeMappingCaseFactory,
+)
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    OrdinaryTradeSemanticMappingFactory,
 )
 from broker_reports_gate1.ordinary_trade_tax_model_bridge import (
     ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
@@ -192,9 +198,14 @@ def test_current_fact_v2_reaches_operation_and_category_models_deterministically
     ):
         for source in section:
             fact = facts_by_id[source["fact_id"]]
-            assert source["gate3_binding"] == fact["gate3_binding"]
+            assert (
+                source["qualified_projection_binding"]
+                == fact["qualified_projection_binding"]
+            )
             assert source["annotation_target"] == fact["annotation_target"]
-            assert source["gate3_binding"]["canonical_binding"]["canonical_version_id"]
+            assert source["qualified_projection_binding"]["canonical_binding"][
+                "canonical_version_id"
+            ]
     assert operation["gross_income"]["value"] == _money("60.00")
     assert operation["related_expenses"]["total"] == _money("43.00")
     assert operation["allowable_expenses"]["total"] == _money("40.00")
@@ -969,7 +980,6 @@ def test_bridge_factory_traps_historical_and_declaration_fallbacks(
         raise AssertionError("forbidden fallback executed")
 
     monkeypatch.setattr(Gate4FinancialCaseRuntimeFactory, "create", forbidden)
-    monkeypatch.setattr(CanonicalReader, "read_active_envelope", forbidden)
     monkeypatch.setattr(Gate5DeclarationProjectionRuntime, "project", forbidden)
 
     result = _run(
@@ -1073,9 +1083,25 @@ def _with_roles(row: tuple[str, ...], **updates: str) -> tuple[str, ...]:
 
 
 def _case(tmp_path: Path, *, rows: tuple | None = None):
-    store, context, document_id, _mapping = ordinary_fixtures._case(
+    source_rows = rows or (
+        _HEADERS,
+        _row(side=_PURCHASE_SIDE),
+        _row(side=_DISPOSAL_SIDE),
+    )
+    qualified_rows = (
+        ("Qualified " + source_rows[0][0], *source_rows[0][1:]),
+        *source_rows[1:],
+    )
+    store, context, document_id, mapping = ordinary_fixtures._case(
         tmp_path,
-        rows=rows or (_HEADERS, _row(side="Покупка"), _row(side="Продажа")),
+        rows=qualified_rows,
+        persist_mapping_case=False,
+    )
+    _persist_qualified_mapping_case(
+        store=store,
+        context=context,
+        document_id=document_id,
+        mapping=mapping,
     )
     OrdinaryTradeProjectionFactory(
         store=store, read_enabled=True
@@ -1092,6 +1118,50 @@ def _case(tmp_path: Path, *, rows: tuple | None = None):
         .list_facts(context=context)
     )
     return store, context, facts
+
+
+def _persist_qualified_mapping_case(*, store, context, document_id: str, mapping: dict):
+    envelope = CanonicalReaderFactory(
+        store=store, read_enabled=True
+    ).create().read_active_envelope(document_id, context)
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    response = ordinary_fixtures._complete_mapping_response(
+        table=table,
+        mapping=mapping,
+    )
+    side_column = next(
+        item["column"] for item in mapping["columns"] if item["semantic_role"] == "side"
+    )
+    source_side_literals = {
+        cell["displayed_value"]
+        for cell in table["content"]["cells"]
+        if cell["row"] > 1 and cell["column"] == side_column and cell["displayed_value"]
+    }
+    response["table_decisions"][0]["side_values"] = [
+        item
+        for item in response["table_decisions"][0]["side_values"]
+        if item["source_literal"] in source_side_literals
+    ]
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    binding = cases.case_binding(document_id=document_id, context=context)
+    outcome = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=envelope.artifact,
+        canonical_binding=binding["canonical_binding"],
+        model_id="fixture-qualified-mapping",
+        provider_profile_id="fixture",
+        execution_metadata=ordinary_fixtures._mapping_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=binding["user_scope_sha256"],
+    )
+    cases.save_mapping_outcome(
+        document_id=document_id,
+        context=context,
+        outcome=outcome,
+        provider_calls_total=0,
+    )
 
 
 def _runtime(store):
@@ -1170,7 +1240,9 @@ def _source_methodology_ref() -> dict[str, str]:
     return {
         "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
         "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
-        "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+        "methodology_version": (
+            GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+        ),
     }
 
 

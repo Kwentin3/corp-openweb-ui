@@ -30,8 +30,9 @@ ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION = (
 class OrdinaryTradeGroupedMappingV15Error(RuntimeError):
     """A value-free rejection at the V15 representation boundary."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, safe_shape_category: str | None = None) -> None:
         self.code = code
+        self.safe_shape_category = safe_shape_category
         super().__init__(code)
 
 
@@ -96,7 +97,8 @@ def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dic
         return _expand_v14(response=value, package=package)
     except OrdinaryTradeGroupedMappingV14Error as exc:
         raise OrdinaryTradeGroupedMappingV15Error(
-            exc.code.replace("_v14_", "_v15_")
+            exc.code.replace("_v14_", "_v15_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 

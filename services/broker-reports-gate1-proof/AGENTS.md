@@ -223,18 +223,19 @@ separate bootstrap report.
   [Generic Materialization](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md).
 - The active ordinary-security-trade route is
   `CanonicalArtifactV1 -> exact qualified mapping -> Source Observations ->`
-  `deterministic runtime records -> Gate4FinancialCaseFactV2 -> deterministic`
+  `deterministic runtime records -> QualifiedProjectionFactV3 -> deterministic`
   `Gate 5`. Enter only through
   `OrdinaryTradeProductionRuntimeFactory.create`. Current Gate 3 type/role
   model passes, `FinancialAnnotationsV2` reads and
   `Gate4FinancialCaseRuntimeFactory.create` are disabled for this route and are
   retained only as an explicit deployment rollback, never a semantic fallback.
 - The current fact boundary is
-  [Gate 4 Financial Case Fact v2](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md).
+  [Qualified Projection Fact v3](../../docs/stage2/contracts/BROKER_REPORTS_QUALIFIED_PROJECTION_FACT.v3.md).
   `Gate4OrdinaryTradeCandidateRuntimeFactory.create` is the active ordinary-
-  trade producer. The historical field `gate3_binding` binds the ordinary
-  projection artifact and Canonical identity on this route; its name does not
-  prove Gate 3 execution.
+  trade producer. Its `qualified_projection_binding` binds the ordinary
+  projection artifact, Canonical identity, qualified mapping case, source
+  observation and runtime record. `gate3_binding` belongs only to the retained
+  historical rollback route and is forbidden in the active route.
 - Qualified mappings may use only exact title/header/column structure and exact
   source enum literals. Mapping v3 must bind every emitted amount column to one
   exact currency column, and qualification receipt v2 must identify direct

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import inspect
 import json
@@ -36,6 +37,13 @@ from broker_reports_gate1.gate5_trusted_methodology import (
     FORBIDDEN,
     GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE,
     GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256,
+    GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE,
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256,
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
 )
 import test_broker_reports_gate5_methodology_calculation as calculation_fixtures
 
@@ -393,6 +401,64 @@ def test_ordinary_trade_product_methodology_requires_exact_source_assertions() -
     )
     assert rejected.value.gap_owner_classification == (
         "REAL_SOURCE_EVIDENCE_MISSING"
+    )
+
+
+def test_source_fact_methodology_keeps_v2_and_publishes_hash_pinned_v3() -> None:
+    authority = Gate5TrustedMethodologyAuthorityFactory.create()
+    v2 = authority.resolve(
+        {
+            "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+            "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
+            "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+        }
+    )
+    v3 = authority.resolve(
+        {
+            "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+            "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
+            "methodology_version": (
+                GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+            ),
+        }
+    )
+
+    assert v2["authority_binding"]["resource_sha256"] == (
+        GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256
+    )
+    assert v2["methodology"]["methodology_version"] == (
+        GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+    )
+    assert v2["methodology"]["behavior"]["source_fact_schema_version"] == (
+        "broker_reports_gate4_financial_case_fact_v2"
+    )
+    assert v3["authority_binding"]["resource_sha256"] == (
+        GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256
+    )
+    assert v3["methodology"]["methodology_version"] == (
+        GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+    )
+    assert v3["methodology"]["behavior"]["source_fact_schema_version"] == (
+        "broker_reports_qualified_projection_fact_v3"
+    )
+    expected_v3 = copy.deepcopy(v2["methodology"])
+    expected_v3["methodology_version"] = (
+        GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+    )
+    expected_v3["behavior"]["source_fact_schema_version"] = (
+        "broker_reports_qualified_projection_fact_v3"
+    )
+    assert v3["methodology"] == expected_v3
+    assert hashlib.sha256(
+        (PACKAGE_ROOT / GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE).read_bytes()
+    ).hexdigest() == GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256
+    assert hashlib.sha256(
+        (
+            PACKAGE_ROOT
+            / GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE
+        ).read_bytes()
+    ).hexdigest() == (
+        GATE5_QUALIFIED_PROJECTION_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256
     )
 
 

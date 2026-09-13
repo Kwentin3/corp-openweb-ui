@@ -180,6 +180,7 @@ _DECISION_KINDS = {
     "SIDE_VALUE",
     "TABLE_DISPOSITION",
 }
+_OPEN_SHORT_POSITION_EFFECT = "OPEN_SHORT"
 
 
 class OrdinaryTradeSemanticMappingError(RuntimeError):
@@ -1195,8 +1196,11 @@ class OrdinaryTradeSemanticMapping:
         frozen_requalification_table_node_ids: Iterable[str] = (),
         explicit_header_source_response: Mapping[str, Any] | None = None,
         physical_table_continuation_context: Mapping[str, Any] | None = None,
+        allow_source_bound_position_effect: bool = False,
+        allow_model_selected_header: bool = False,
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
+        frozen_mapping_values = tuple(frozen_mappings)
         validated_explicit_header_source_claims: list[dict[str, Any]] = []
         if explicit_header_source_response is not None:
             try:
@@ -1230,8 +1234,17 @@ class OrdinaryTradeSemanticMapping:
             target_table_node_ids=target_table_node_ids,
         )
         tables = {item["table_node_id"]: item for item in table_surfaces}
-        frozen_requalification_ids = set(frozen_requalification_table_node_ids)
-        if not frozen_requalification_ids.issubset(tables):
+        frozen_requalification_ids = list(frozen_requalification_table_node_ids)
+        expected_frozen_requalification_ids = [
+            table_node_id
+            for table_node_id in OrdinaryTradeSemanticCompilerFactory.create().frozen_mapping_requalification_table_node_ids(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                mappings=frozen_mapping_values,
+            )
+            if table_node_id in tables
+        ]
+        if frozen_requalification_ids != expected_frozen_requalification_ids:
             _fail("ordinary_trade_semantic_mapping_target_scope_stale")
         _model_tables, refs_by_node_id = _model_table_surfaces(
             canonical,
@@ -1275,6 +1288,13 @@ class OrdinaryTradeSemanticMapping:
                 or len(ids) != len(set(ids))
             ):
                 _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+            _reject_model_selected_headers_for_continuation_children(
+                decisions=decisions,
+                canonical=canonical,
+                target_table_node_ids=target_table_node_ids,
+                physical_table_continuation_context=physical_table_continuation_context,
+                allow_model_selected_header=allow_model_selected_header,
+            )
             resolved = [
                 _validate_table_decision(
                     decision=item,
@@ -1296,6 +1316,10 @@ class OrdinaryTradeSemanticMapping:
                         value["schema_version"]
                         in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
                     ),
+                    allow_source_bound_position_effect=(
+                        allow_source_bound_position_effect
+                    ),
+                    allow_model_selected_header=allow_model_selected_header,
                 )
                 for item in decisions
             ]
@@ -1328,6 +1352,12 @@ class OrdinaryTradeSemanticMapping:
                 "question": None,
                 "currency_mapping_plan": {
                     "response": copy.deepcopy(value),
+                    # The strict wire envelope is retained only so a later
+                    # currency replay can rebuild the same explicit
+                    # continuation binding; it is revalidated on every use.
+                    "explicit_header_source_response": copy.deepcopy(
+                        explicit_header_source_response
+                    ),
                     "execution_metadata": _execution_metadata_value(execution_metadata),
                     "table_node_ids": sorted(scoped),
                     # Model table_ref values are positional, so preserve the
@@ -1364,6 +1394,13 @@ class OrdinaryTradeSemanticMapping:
             or len(ids) != len(set(ids))
         ):
             _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+        _reject_model_selected_headers_for_continuation_children(
+            decisions=decisions,
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+            physical_table_continuation_context=physical_table_continuation_context,
+            allow_model_selected_header=allow_model_selected_header,
+        )
         case_scope_base = {
             key: str(canonical_binding.get(key) or "")
             for key in (
@@ -1419,6 +1456,10 @@ class OrdinaryTradeSemanticMapping:
                         == "INSTRUCTIONAL_REFERENCE"
                     )
                 ),
+                allow_source_bound_position_effect=(
+                    allow_source_bound_position_effect
+                ),
+                allow_model_selected_header=allow_model_selected_header,
             )
             resolved_decisions.append(resolved)
         _validate_confirmed_decisions(
@@ -1489,6 +1530,9 @@ class OrdinaryTradeSemanticMapping:
                         confirmed_understandings=confirmed_understandings,
                         table_node_id=resolved["table_node_id"],
                     ),
+                    allow_source_bound_position_effect=(
+                        allow_source_bound_position_effect
+                    ),
                 )
                 qualified_mappings.append(mapping)
                 qualification_receipts.append(receipt)
@@ -1547,7 +1591,7 @@ class OrdinaryTradeSemanticMapping:
         dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
             canonical=canonical,
             canonical_binding=canonical_binding,
-            mappings=frozen_mappings,
+            mappings=frozen_mapping_values,
             scoped_mappings=[
                 {
                     "table_node_id": receipt["case_scope"]["table_node_id"],
@@ -1562,6 +1606,7 @@ class OrdinaryTradeSemanticMapping:
             explicit_header_source_continuations=explicit_header_source_continuations,
             physical_table_continuation_context=physical_table_continuation_context,
             table_resolutions=compiler_table_resolutions,
+            frozen_requalification_table_node_ids=frozen_requalification_ids,
         )
         incomplete_table_node_ids = {
             item["table_node_id"]
@@ -1691,6 +1736,53 @@ def _physical_continuation_links_for_scope(
             links.append(pair)
     positions = {table_node_id: index for index, table_node_id in enumerate(canonical_ids)}
     return sorted(links, key=lambda pair: (positions[pair[0]], positions[pair[1]]))
+
+
+def _reject_model_selected_headers_for_continuation_children(
+    *,
+    decisions: Iterable[Mapping[str, Any]],
+    canonical: Mapping[str, Any],
+    target_table_node_ids: Iterable[str] | None,
+    physical_table_continuation_context: Mapping[str, Any] | None,
+    allow_model_selected_header: bool,
+) -> None:
+    """Keep a verified continuation child out of V20 header selection.
+
+    A child row can be the first physical row only because its header belongs
+    to a separately source-bound parent.  Letting a model elect that row as a
+    local header would discard a source fact.  HEADER_ABSENT remains valid and
+    the existing explicit parent-header claim is still admitted later by its
+    own source-binding owner.
+    """
+
+    if not allow_model_selected_header or physical_table_continuation_context is None:
+        return
+    target_ids = (
+        [
+            node["node_id"]
+            for node in canonical.get("nodes", [])
+            if isinstance(node, Mapping)
+            and node.get("node_type") == "TABLE"
+            and isinstance(node.get("node_id"), str)
+        ]
+        if target_table_node_ids is None
+        else list(target_table_node_ids)
+    )
+    child_ids = {
+        child_id
+        for _parent_id, child_id in _physical_continuation_links_for_scope(
+            canonical=canonical,
+            target_table_node_ids=target_ids,
+            physical_table_continuation_context=physical_table_continuation_context,
+        )
+    }
+    for decision in decisions:
+        if (
+            isinstance(decision, Mapping)
+            and decision.get("table_node_id") in child_ids
+            and isinstance(decision.get("header_row"), int)
+        ):
+            _fail("ordinary_trade_semantic_mapping_continuation_child_header_forbidden")
 
 
 def _current_explicit_header_canonical_binding(
@@ -2900,6 +2992,8 @@ def _validate_table_decision(
     model_supplies_missing_required_roles: bool = False,
     model_supplies_sparse_columns: bool = False,
     preserve_model_classification_evidence: bool = False,
+    allow_source_bound_position_effect: bool = False,
+    allow_model_selected_header: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -2998,9 +3092,26 @@ def _validate_table_decision(
             "side_values": [],
             "security_trade_rows": [],
         }
+    selected_header_row = decision.get("header_row")
+    source_bound_header_rows = {
+        row["row"]
+        for row in table["rows"]
+        if isinstance(row, dict)
+        and isinstance(row.get("row"), int)
+        and isinstance(row.get("cells"), list)
+        and bool(row["cells"])
+    }
+    accepted_header_row = table.get("physical_header_row")
     if (
-        not isinstance(decision.get("header_row"), int)
-        or decision["header_row"] != table.get("physical_header_row")
+        not isinstance(selected_header_row, int)
+        or (
+            selected_header_row != accepted_header_row
+            and not (
+                allow_model_selected_header
+                and accepted_header_row is None
+                and selected_header_row in source_bound_header_rows
+            )
+        )
     ):
         _fail("ordinary_trade_semantic_mapping_header_invalid")
     incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
@@ -3214,14 +3325,23 @@ def _validate_table_decision(
         for cell in source_row["cells"]
         if side_columns and cell["column"] == side_columns[0] and cell["literal"]
     }
+    source_side_cells = {
+        (source_row["row"], cell["column"], cell["literal"])
+        for source_row in table["rows"]
+        if source_row["row"] in security_trade_rows
+        for cell in source_row["cells"]
+        if side_columns and cell["column"] == side_columns[0] and cell["literal"]
+    }
     side_values = decision["side_values"]
     if (
         (not side_values and side_columns)
         or any(
-            not isinstance(item, dict)
-            or set(item) != {"source_literal", "normalized_value"}
-            or item.get("source_literal") not in source_side_literals
-            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+            not _validated_side_value_item(
+                item,
+                source_side_literals=source_side_literals,
+                source_side_cells=source_side_cells,
+                allow_source_bound_position_effect=allow_source_bound_position_effect,
+            )
             for item in side_values
         )
         or len({item["source_literal"] for item in side_values}) != len(side_values)
@@ -3257,6 +3377,61 @@ def _validate_table_decision(
             else {}
         ),
     }
+
+
+def _validated_side_value_item(
+    value: Any,
+    *,
+    source_side_literals: set[str] | None = None,
+    source_side_cells: set[tuple[int, int, str]] | None = None,
+    allow_source_bound_position_effect: bool = False,
+) -> bool:
+    """Validate one closed model decision without interpreting source language.
+
+    ``position_effect`` is optional.  If it is present, it is evidence-bound
+    to the *same* exact literal already selected as the row side.  No phrase
+    vocabulary or runtime inference can turn a generic disposal into a short.
+    """
+
+    if not isinstance(value, dict):
+        return False
+    fields = set(value)
+    if fields not in (
+        {"source_literal", "normalized_value"},
+        {
+            "source_literal",
+            "normalized_value",
+            "position_effect",
+            "position_effect_evidence",
+        },
+    ):
+        return False
+    literal = value.get("source_literal")
+    normalized = value.get("normalized_value")
+    if (
+        not isinstance(literal, str)
+        or not literal
+        or normalized not in {"PURCHASE", "DISPOSAL"}
+        or (source_side_literals is not None and literal not in source_side_literals)
+    ):
+        return False
+    effect = value.get("position_effect")
+    if effect is None:
+        return True
+    evidence = value.get("position_effect_evidence")
+    return (
+        allow_source_bound_position_effect
+        and effect == _OPEN_SHORT_POSITION_EFFECT
+        and normalized == "DISPOSAL"
+        and isinstance(evidence, dict)
+        and set(evidence) == {"source_row", "source_column", "source_literal"}
+        and evidence.get("source_literal") == literal
+        and isinstance(evidence.get("source_row"), int)
+        and isinstance(evidence.get("source_column"), int)
+        and source_side_cells is not None
+        and (evidence["source_row"], evidence["source_column"], evidence["source_literal"])
+        in source_side_cells
+    )
 
 
 _DECISION_FIELDS = {

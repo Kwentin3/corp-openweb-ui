@@ -4,6 +4,7 @@ import ast
 import argparse
 import base64
 import json
+import re
 from pathlib import Path
 
 
@@ -73,6 +74,7 @@ GATE1_RESOURCE_NAMES = (
     "gate5_tax_methodology.ru_ndfl_securities_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v2.json",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v3.json",
     "gate5_tax_methodology.ru_ndfl_securities_source_fact_consumption_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json",
 )
@@ -195,6 +197,7 @@ GATE1_GATE5_MODULES = [
     "gate5_methodology_calculation",
     "gate5_trusted_methodology",
     "gate5_residency_evidence",
+    "qualified_projection_fact_v3",
     "gate5_deterministic_source_fact_consumption",
     "gate5_operation_set_demand_derivation",
     "gate5_securities_disposal_tax_model",
@@ -206,6 +209,8 @@ GATE1_GATE5_MODULES = [
     "gate5_declaration_income_sources",
     "gate5_declaration_right_side_assembly",
     "gate5_full_declaration_definition",
+]
+GATE1_GATE5_POST_GATE4_MODULES = [
     "gate5_real_tax_case_assembly",
     "gate5_declaration_scope_resolution",
     "gate5_resolved_declaration_package",
@@ -236,6 +241,8 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_grouped_mapping_v14",
     "ordinary_trade_grouped_mapping_v15",
     "ordinary_trade_grouped_mapping_v17",
+    "ordinary_trade_grouped_mapping_v18",
+    "ordinary_trade_grouped_mapping_v20",
     "ordinary_trade_mapping_prompt",
     "pdf_table_continuation_annotation_prompt",
     "instructional_table_classification_prompt",
@@ -244,6 +251,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_projection",
     "ordinary_trade_mapping_runtime",
     "gate4_ordinary_trade_candidate",
+    *GATE1_GATE5_POST_GATE4_MODULES,
     "ordinary_trade_candidate_runtime",
     "authenticated_case_taxpayer_binding",
     "ordinary_trade_tax_model_bridge",
@@ -255,7 +263,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_production_runtime",
 ]
 _GATE1_ORDINARY_TRADE_INSERT_AT = (
-    GATE1_MODULE_ORDER.index("gate5_declaration_preparation") + 1
+    GATE1_MODULE_ORDER.index("gate5_full_declaration_definition") + 1
 )
 GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_ORDINARY_TRADE_INSERT_AT],
@@ -341,6 +349,7 @@ def main() -> None:
             | set(GATE1_INPUT_MODULES)
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
+            | set(GATE1_GATE5_POST_GATE4_MODULES)
             | set(GATE1_ORDINARY_TRADE_MODULES)
             | set(GOAL391_LAB_MODULES)
             | set(GATE2_ONLY_MODULES)
@@ -369,6 +378,7 @@ def main() -> None:
             package_version="gate1_ordinary_trade_production_v9",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
+            package_name="broker_reports_gate1__gate1_pipe",
         )
         BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
         print(str(BUNDLE_PATH))
@@ -389,6 +399,7 @@ def main() -> None:
             package_version="gate2_positional_coverage_v1",
             source_label="openwebui_actions/broker_reports_gate2_source_fact_pipe.py",
             requirements="pydantic",
+            package_name="broker_reports_gate1__gate2_source_fact",
         )
         GATE2_BUNDLE_PATH.write_text(gate2_bundle, encoding="utf-8", newline="\n")
         print(str(GATE2_BUNDLE_PATH))
@@ -412,6 +423,7 @@ def main() -> None:
             package_version="gate2_domain_single_current_pipeline_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
+            package_name="broker_reports_gate1__gate2_domain_source_fact",
         )
         GATE2_DOMAIN_BUNDLE_PATH.write_text(
             gate2_domain_bundle, encoding="utf-8", newline="\n"
@@ -444,6 +456,7 @@ def main() -> None:
             package_version="goal391_native_mapping_lab_v1",
             source_label="openwebui_actions/goal391_mapping_lab_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,lxml==6.1.1",
+            package_name="broker_reports_gate1__goal391_mapping_lab",
         )
         GOAL391_LAB_BUNDLE_PATH.write_text(
             goal391_lab_bundle, encoding="utf-8", newline="\n"
@@ -658,7 +671,14 @@ def _render_bundle(
     package_version: str,
     source_label: str,
     requirements: str,
+    package_name: str,
 ) -> str:
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", package_name) is None:
+        raise ValueError("bundle_package_name_invalid")
+    pipe_source = _rebind_pipe_package_imports(
+        pipe_source,
+        package_name=package_name,
+    )
     modules_literal = json.dumps(modules, ensure_ascii=False, indent=2, sort_keys=True)
     resources_literal = json.dumps(
         resources, ensure_ascii=True, indent=2, sort_keys=True
@@ -682,7 +702,7 @@ import importlib.machinery
 import io
 
 
-_BUNDLED_PACKAGE_NAME = "broker_reports_gate1"
+_BUNDLED_PACKAGE_NAME = "{package_name}"
 _BUNDLED_PACKAGE_VERSION = "{package_version}"
 _BUNDLED_MODULE_ORDER = {order_literal}
 _BUNDLED_MODULES = {modules_literal}
@@ -753,6 +773,20 @@ _install_bundled_package()
 # Begin maintainable source adapter: {source_label}
 {pipe_source.rstrip()}
 '''
+
+
+def _rebind_pipe_package_imports(source: str, *, package_name: str) -> str:
+    """Bind one adapter's imports to its private in-memory package.
+
+    The maintained module sources use relative imports. Only the adapter has
+    absolute package imports, so leave payload keys and path literals alone.
+    """
+
+    return re.sub(
+        r"(?m)^from broker_reports_gate1(?=\.|\s+import\s)",
+        f"from {package_name}",
+        source,
+    )
 
 
 def _canonical_resource_bytes(path: Path) -> bytes:

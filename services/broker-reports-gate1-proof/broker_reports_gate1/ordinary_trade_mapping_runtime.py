@@ -8,7 +8,7 @@ import inspect
 import json
 import re
 import secrets
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from .artifact_models import ArtifactAccessContext
 from .gate2_model_contracts import require_strict_json_schema_response
@@ -306,6 +306,15 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=_currency_plan_target_table_node_ids(plan),
                 frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=(
+                    self._frozen_requalification_table_node_ids(
+                        binding=binding,
+                        target_table_node_ids=_currency_plan_target_table_node_ids(plan),
+                    )
+                ),
+                explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
             instructional_state = current[1].get("instructional_classification_state")
             if instructional_state is not None and outcome["status"] == "COMPLETE":
@@ -411,6 +420,13 @@ class OrdinaryTradeAutomaticMappingRuntime:
             canonical=binding["canonical"],
             mappings=self._frozen_mappings,
         )
+        frozen_requalification_candidates = (
+            self._compiler.frozen_mapping_requalification_table_node_ids(
+                canonical=binding["canonical"],
+                canonical_binding=binding["canonical_binding"],
+                mappings=self._frozen_mappings,
+            )
+        )
         frozen_table_node_ids = [
             node["node_id"] for node in binding["canonical"].get("nodes", [])
             if isinstance(node, dict) and node.get("node_type") == "TABLE"
@@ -425,12 +441,17 @@ class OrdinaryTradeAutomaticMappingRuntime:
             and (item.get("decision") or {}).get("disposition")
             == "NO_NAMED_CONSUMER"
         }
+        requested_target_table_node_ids = (
+            set(unmapped_table_node_ids) | set(frozen_requalification_candidates)
+        ) - confirmed_exclusion_ids
         target_table_node_ids = [
-            table_node_id
-            for table_node_id in unmapped_table_node_ids
-            if table_node_id not in confirmed_exclusion_ids
+            node["node_id"]
+            for node in binding["canonical"].get("nodes", [])
+            if isinstance(node, dict)
+            and node.get("node_type") == "TABLE"
+            and isinstance(node.get("node_id"), str)
+            and node["node_id"] in requested_target_table_node_ids
         ]
-        unmapped_target_table_node_ids = list(target_table_node_ids)
         target_table_node_ids = self._semantic.expand_target_scope_for_source_bound_header_continuations(
             canonical=binding["canonical"],
             target_table_node_ids=target_table_node_ids,
@@ -438,8 +459,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
             physical_table_continuation_context=binding["physical_table_continuation_context"],
         )
         frozen_requalification_table_node_ids = [
-            table_node_id for table_node_id in target_table_node_ids
-            if table_node_id not in unmapped_target_table_node_ids
+            table_node_id
+            for table_node_id in frozen_requalification_candidates
+            if table_node_id not in confirmed_exclusion_ids
         ]
         if not target_table_node_ids:
             saved = self._cases.save_deterministic_terminal(
@@ -585,11 +607,16 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 frozen_requalification_table_node_ids=frozen_requalification_table_node_ids,
                 explicit_header_source_response=explicit_header_source_response,
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_source_bound_position_effect=(
+                    self._allows_source_bound_position_effect()
+                ),
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
         except Exception as exc:
             code = getattr(
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
             )
+            reason_code = _mapping_output_reason_code(exc, str(code))
             incomplete = str(code) in {
                 "ordinary_trade_semantic_mapping_side_invalid",
                 "ordinary_trade_semantic_mapping_dry_run_incomplete",
@@ -598,7 +625,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 document_id=document_id,
                 context=context,
                 status="MAPPING_OUTPUT_INVALID",
-                reason_code=str(code),
+                reason_code=reason_code,
                 message=(
                     (
                         "Mapping не покрывает все значения и строки полного "
@@ -613,6 +640,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 ),
                 provider_calls_total=1,
                 mapping_prompt_snapshot=prompt_snapshot,
+                mapping_raw_response=response.content,
             )
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
@@ -692,6 +720,32 @@ class OrdinaryTradeAutomaticMappingRuntime:
         if not isinstance(value, dict):
             raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
         return value
+
+    def _allows_source_bound_position_effect(self) -> bool:
+        """Only the selected V18 response adapter enables this semantic seam."""
+
+        return bool(
+            self._mapping_response_adapter is not None
+            and getattr(
+                self._mapping_response_adapter,
+                "allows_source_bound_position_effect",
+                False,
+            )
+            is True
+        )
+
+    def _allows_model_selected_header(self) -> bool:
+        """Only the selected V20 representation admits a Canonical row choice."""
+
+        return bool(
+            self._mapping_response_adapter is not None
+            and getattr(
+                self._mapping_response_adapter,
+                "allows_model_selected_header",
+                False,
+            )
+            is True
+        )
 
     async def _run_batch_plan(
         self,
@@ -924,6 +978,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 error_message="Semantic mapping requires one strict output without repair",
             )
             validated_response = self._expand_mapping_response_to_v13(response=response, package=package)
+            explicit_header_source_response = self._explicit_header_source_response(
+                response=response
+            )
             if self._semantic.mapping_response_contract_failure_code(validated_response) is not None:
                 raise OrdinaryTradeSemanticMappingError(
                     "ordinary_trade_semantic_mapping_response_invalid"
@@ -939,6 +996,15 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=next_batch["target_table_node_ids"],
                 frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=(
+                    self._frozen_requalification_table_node_ids(
+                        binding=binding,
+                        target_table_node_ids=next_batch["target_table_node_ids"],
+                    )
+                ),
+                explicit_header_source_response=explicit_header_source_response,
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
@@ -950,7 +1016,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 mapping_batch_state=state,
                 provider_calls_total=1,
                 mapping_prompt_snapshot=snapshot,
-                reason_code=str(code),
+                reason_code=_mapping_output_reason_code(exc, str(code)),
             )
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn + 1)
         if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
@@ -1067,6 +1133,15 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 confirmed_understandings=saved_assertion[1]["confirmed_understandings"],
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=batch["target_table_node_ids"], frozen_mappings=self._frozen_mappings,
+                frozen_requalification_table_node_ids=(
+                    self._frozen_requalification_table_node_ids(
+                        binding=binding,
+                        target_table_node_ids=batch["target_table_node_ids"],
+                    )
+                ),
+                explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                physical_table_continuation_context=binding["physical_table_continuation_context"],
+                allow_model_selected_header=self._allows_model_selected_header(),
             )
             if outcome["status"] != "COMPLETE":
                 raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_batch_currency_replay_incomplete")
@@ -1091,6 +1166,30 @@ class OrdinaryTradeAutomaticMappingRuntime:
             document_id=document_id, context=context, binding=binding, current=resumed,
             confirmed=resumed[1]["confirmed_understandings"], provider_calls_this_turn=0,
         )
+
+    def _frozen_requalification_table_node_ids(
+        self,
+        *,
+        binding: Mapping[str, Any],
+        target_table_node_ids: Iterable[str],
+    ) -> list[str]:
+        """Rebuild the compiler-owned scope for every strict replay.
+
+        The saved mapping response is not an authority for this scope.  Currency
+        replay must use the same current Canonical selector as the original
+        validation, limited only by that response's persisted table scope.
+        """
+
+        target_ids = set(target_table_node_ids)
+        return [
+            table_node_id
+            for table_node_id in self._compiler.frozen_mapping_requalification_table_node_ids(
+                canonical=binding["canonical"],
+                canonical_binding=binding["canonical_binding"],
+                mappings=self._frozen_mappings,
+            )
+            if table_node_id in target_ids
+        ]
 
     def _mapping_prompt_user_context(
         self, context: ArtifactAccessContext
@@ -1491,6 +1590,27 @@ def _metadata_sha256(value: Any) -> str:
     return hashlib.sha256(repr(value).encode("utf-8")).hexdigest()
 
 
+def _mapping_output_reason_code(error: Exception, code: str) -> str:
+    """Keep only a closed V20 wire-shape category in the durable receipt.
+
+    This is diagnostic control state, not a repair path.  In particular, it
+    deliberately excludes the rejected row number, source literals, table
+    identifiers and every provider value.
+    """
+
+    if code != "ordinary_trade_grouped_mapping_v20_row_policy_invalid":
+        return code
+    category = getattr(error, "safe_shape_category", None)
+    if category not in {
+        "policy_object_invalid",
+        "exception_item_invalid",
+        "exception_rows_not_strictly_ordered",
+        "exception_row_outside_data_rows",
+    }:
+        return code
+    return f"{code}:{category}"
+
+
 def _sha256_json(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -1540,6 +1660,21 @@ def _currency_plan_target_table_node_ids(plan: dict[str, Any]) -> list[str]:
             "ordinary_trade_user_currency_request_invalid"
         )
     return list(target)
+
+
+def _currency_plan_explicit_header_source_response(
+    plan: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Read only the semantic-owner envelope preserved for a strict replay."""
+
+    value = plan.get("explicit_header_source_response")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return copy.deepcopy(value)
 
 
 def _confirmed_currency_code(

@@ -46,11 +46,13 @@ from .ordinary_trade_semantic_compiler import (
 # and, when consumed by the mapper, the exact physical-table sidecar identity.
 MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v7"
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
+MAPPING_RAW_OUTPUT_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_raw_output_v1"
 _V6_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v6"
 _LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
 _V3_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v3"
 _V4_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v4"
 _V5_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v5"
+_MAPPING_RAW_RESPONSE_UNSET = object()
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
@@ -72,6 +74,35 @@ _STATUSES = {
     "MAPPING_OUTPUT_INVALID",
     "CURRENCY_ASSERTION_REQUIRED",
 }
+
+# Public state is deliberately less detailed than the private, authenticated
+# mapping receipt.  These labels are product-control categories, not copies of
+# exception codes: neither the provider response nor Canonical coordinates can
+# cross this boundary through a diagnostic.
+_PUBLIC_MAPPING_FAILURE_REASONS = {
+    "ordinary_trade_semantic_mapping_columns_invalid": "mapping_columns_invalid",
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:policy_object_invalid": (
+        "mapping_row_policy_invalid"
+    ),
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:exception_item_invalid": (
+        "mapping_row_policy_invalid"
+    ),
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:exception_rows_not_strictly_ordered": (
+        "mapping_row_policy_invalid"
+    ),
+    "ordinary_trade_grouped_mapping_v20_row_policy_invalid:exception_row_outside_data_rows": (
+        "mapping_row_policy_invalid"
+    ),
+}
+_PUBLIC_MAPPING_FAILURE_REASON_FALLBACK = "mapping_output_invalid"
+
+
+def _public_mapping_failure_reason(reason_code: Any) -> str:
+    """Translate a private failure code to a closed, value-free public label."""
+
+    return _PUBLIC_MAPPING_FAILURE_REASONS.get(
+        str(reason_code), _PUBLIC_MAPPING_FAILURE_REASON_FALLBACK
+    )
 
 
 def mapping_case_artifact_types() -> frozenset[str]:
@@ -505,6 +536,7 @@ class OrdinaryTradeMappingCaseRuntime:
         message: str,
         provider_calls_total: int,
         mapping_prompt_snapshot: dict[str, Any] | None = None,
+        mapping_raw_response: Any = _MAPPING_RAW_RESPONSE_UNSET,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         if status not in {
             "PROVIDER_UNAVAILABLE",
@@ -512,6 +544,11 @@ class OrdinaryTradeMappingCaseRuntime:
             "MAPPING_OUTPUT_INVALID",
         }:
             _fail("ordinary_trade_mapping_case_outcome_invalid")
+        if (
+            mapping_raw_response is not _MAPPING_RAW_RESPONSE_UNSET
+            and status != "MAPPING_OUTPUT_INVALID"
+        ):
+            _fail("ordinary_trade_mapping_case_raw_output_status_invalid")
         return self._save_terminal(
             document_id=document_id,
             context=context,
@@ -520,6 +557,7 @@ class OrdinaryTradeMappingCaseRuntime:
             message=message,
             provider_calls_total=provider_calls_total,
             mapping_prompt_snapshot=mapping_prompt_snapshot,
+            mapping_raw_response=mapping_raw_response,
         )
 
     def save_deterministic_terminal(
@@ -681,6 +719,7 @@ class OrdinaryTradeMappingCaseRuntime:
         message: str,
         provider_calls_total: int,
         mapping_prompt_snapshot: dict[str, Any] | None = None,
+        mapping_raw_response: Any = _MAPPING_RAW_RESPONSE_UNSET,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         current = self.current(document_id=document_id, context=context)
         prior = current[1] if current is not None else None
@@ -711,7 +750,12 @@ class OrdinaryTradeMappingCaseRuntime:
             instructional_classification_state=None,
             reason_code=reason_code,
         )
-        return self._put(payload=payload, document_id=document_id, context=context)
+        return self._put(
+            payload=payload,
+            document_id=document_id,
+            context=context,
+            mapping_raw_response=mapping_raw_response,
+        )
 
     def save_answer_candidate(
         self,
@@ -948,7 +992,7 @@ class OrdinaryTradeMappingCaseRuntime:
             return None
         payload = current[1]
         question = payload.get("question")
-        return {
+        public = {
             "status": payload["status"],
             "message": payload["message"],
             "question": (
@@ -990,6 +1034,11 @@ class OrdinaryTradeMappingCaseRuntime:
             },
             "provider_calls_total": payload["provider_calls_total"],
         }
+        if payload["status"] == "MAPPING_OUTPUT_INVALID":
+            public["mapping_failure_reason"] = _public_mapping_failure_reason(
+                payload.get("reason_code")
+            )
+        return public
 
     def _next_payload(
         self, *, prior: dict[str, Any] | None, **values: Any
@@ -1089,6 +1138,7 @@ class OrdinaryTradeMappingCaseRuntime:
         payload: dict[str, Any],
         document_id: str,
         context: ArtifactAccessContext,
+        mapping_raw_response: Any = _MAPPING_RAW_RESPONSE_UNSET,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         active = self._store.get_active_canonical_version(
             context=context, document_id=document_id
@@ -1134,8 +1184,64 @@ class OrdinaryTradeMappingCaseRuntime:
                 "contains_source_values": True,
             },
         )
+        records = [record]
+        if mapping_raw_response is not _MAPPING_RAW_RESPONSE_UNSET:
+            if payload["status"] != "MAPPING_OUTPUT_INVALID":
+                _fail("ordinary_trade_mapping_case_raw_output_status_invalid")
+            raw_payload = {
+                "schema_version": MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
+                "mapping_case_artifact_id": record.artifact_id,
+                "response_content": copy.deepcopy(mapping_raw_response),
+            }
+            raw_response_sha256 = _sha256_json(raw_payload["response_content"])
+            records.append(
+                ArtifactRecord(
+                    artifact_id=(
+                        "art_otmapraw_"
+                        + payload["case_id"][7:27]
+                        + f"_{payload['revision']:04d}"
+                    ),
+                    artifact_type=MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
+                    case_id=context.case_id,
+                    chat_id=context.chat_id,
+                    user_id=context.user_id,
+                    workspace_model_id=context.workspace_model_id,
+                    normalization_run_id=context.normalization_run_id,
+                    document_id=document_id,
+                    source_file_ref=copy.deepcopy(manifest.source_file_ref),
+                    visibility="private_case",
+                    storage_backend="project_artifact_payload",
+                    retention_policy=manifest.retention_policy,
+                    access_policy={
+                        "requires_user_id": True,
+                        "requires_case_or_chat": True,
+                        "requires_workspace_model_id_when_present": bool(
+                            context.workspace_model_id
+                        ),
+                        "ordinary_trade_mapping_failure_forensics_only": True,
+                    },
+                    validation_status="validated",
+                    lifecycle_status=lifecycle_for_visibility(
+                        visibility="private_case", validation_status="validated"
+                    ),
+                    payload_kind="json_file",
+                    payload=raw_payload,
+                    safe_metadata={
+                        "mapping_case_artifact_id": record.artifact_id,
+                        "mapping_case_revision": payload["revision"],
+                        "terminal_status": payload["status"],
+                        "response_content_sha256": raw_response_sha256,
+                        "mapping_prompt_hash": (
+                            (payload.get("mapping_prompt_snapshot") or {}).get("hash")
+                        ),
+                        "contains_provider_response": True,
+                        "global_reuse_allowed": False,
+                    },
+                )
+            )
         try:
-            stored = self._store.put_record(record)
+            stored_records = self._store.put_records_atomic(records)
+            stored = stored_records[0]
         except Exception as exc:
             winner = self._store.get_record_unchecked(artifact_id)
             if winner is not None:
@@ -1715,6 +1821,7 @@ __all__ = [
     "FORBIDDEN",
     "MAPPING_CASE_ARTIFACT_TYPE",
     "MAPPING_CASE_RECEIPT_SCHEMA_VERSION",
+    "MAPPING_RAW_OUTPUT_ARTIFACT_TYPE",
     "OrdinaryTradeMappingCaseError",
     "OrdinaryTradeMappingCaseFactory",
     "OrdinaryTradeMappingCaseRuntime",

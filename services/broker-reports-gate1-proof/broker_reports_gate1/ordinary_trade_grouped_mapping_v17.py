@@ -35,8 +35,9 @@ _EXPLICIT_HEADER_SOURCE_CLAIMS_FIELD = "explicit_header_source_claims"
 class OrdinaryTradeGroupedMappingV17Error(RuntimeError):
     """A value-free rejection at the V17 representation boundary."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, *, safe_shape_category: str | None = None) -> None:
         self.code = code
+        self.safe_shape_category = safe_shape_category
         super().__init__(code)
 
 
@@ -104,15 +105,38 @@ def grouped_mapping_response_format(
     return result
 
 
-def expand_grouped_response(*, response: Any, package: Mapping[str, Any]) -> dict[str, Any]:
+def expand_grouped_response(
+    *,
+    response: Any,
+    package: Mapping[str, Any],
+) -> dict[str, Any]:
     """Validate the V17 envelope, then delegate grouped expansion to V15."""
 
-    grouped_response, _claims = _split_response(response=response)
+    return _expand_grouped_response(
+        response=response,
+        package=package,
+        allow_source_bound_position_effect=False,
+    )
+
+
+def _expand_grouped_response(
+    *,
+    response: Any,
+    package: Mapping[str, Any],
+    allow_source_bound_position_effect: bool,
+) -> dict[str, Any]:
+    """Private V18 bridge; public V17 expansion always rejects later fields."""
+
+    grouped_response, _claims = _split_response(
+        response=response,
+        allow_source_bound_position_effect=allow_source_bound_position_effect,
+    )
     try:
         return _expand_v15(response=grouped_response, package=package)
     except OrdinaryTradeGroupedMappingV15Error as exc:
         raise OrdinaryTradeGroupedMappingV17Error(
-            exc.code.replace("_v15_", "_v17_")
+            exc.code.replace("_v15_", "_v17_"),
+            safe_shape_category=getattr(exc, "safe_shape_category", None),
         ) from exc
 
 
@@ -123,7 +147,9 @@ def explicit_header_source_claims(*, response: Any) -> dict[str, Any]:
     return claims
 
 
-def _split_response(*, response: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+def _split_response(
+    *, response: Any, allow_source_bound_position_effect: bool = False
+) -> tuple[dict[str, Any], dict[str, Any]]:
     value = _response_value(response)
     required = {
         "schema_version",
@@ -140,6 +166,14 @@ def _split_response(*, response: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         != ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION
     ):
         _fail("ordinary_trade_grouped_mapping_v17_response_invalid")
+    # V17 is immutable.  Its compact envelope must never become a back door
+    # for a later semantic feature merely because an older nested schema was
+    # permissive while expanding the response.
+    if (
+        not allow_source_bound_position_effect
+        and _contains_position_effect(value["table_decisions"])
+    ):
+        _fail("ordinary_trade_grouped_mapping_v17_response_invalid")
     claim_response = value[_EXPLICIT_HEADER_SOURCE_CLAIMS_FIELD]
     try:
         claims = validate_explicit_header_source_response(claim_response)
@@ -154,6 +188,16 @@ def _split_response(*, response: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         "schema_version": EXPLICIT_HEADER_SOURCE_RESPONSE_SCHEMA_VERSION,
         "claims": claims,
     }
+
+
+def _contains_position_effect(value: Any) -> bool:
+    if isinstance(value, dict):
+        return "position_effect" in value or any(
+            _contains_position_effect(item) for item in value.values()
+        )
+    if isinstance(value, list):
+        return any(_contains_position_effect(item) for item in value)
+    return False
 
 
 def _response_value(response: Any) -> Any:

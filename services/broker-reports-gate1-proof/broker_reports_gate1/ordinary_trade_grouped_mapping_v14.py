@@ -25,10 +25,15 @@ ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION = (
 
 
 class OrdinaryTradeGroupedMappingV14Error(RuntimeError):
-    """A value-free rejection at the grouped response representation boundary."""
+    """A value-free rejection at the grouped response representation boundary.
 
-    def __init__(self, code: str) -> None:
+    ``safe_shape_category`` is deliberately a closed structural category.  It
+    must never carry a row number, a source literal, or model-provided text.
+    """
+
+    def __init__(self, code: str, *, safe_shape_category: str | None = None) -> None:
         self.code = code
+        self.safe_shape_category = safe_shape_category
         super().__init__(code)
 
 
@@ -260,7 +265,7 @@ def _validated_exceptions(*, policy: Any, expected_rows: list[int]) -> dict[int,
         or policy.get("default_disposition") != "SECURITY_TRADES"
         or not isinstance(policy.get("exception_rows"), list)
     ):
-        _fail("ordinary_trade_grouped_mapping_v14_row_policy_invalid")
+        _row_policy_fail("policy_object_invalid")
     exceptions: dict[int, str] = {}
     rows: list[int] = []
     for item in policy["exception_rows"]:
@@ -270,13 +275,29 @@ def _validated_exceptions(*, policy: Any, expected_rows: list[int]) -> dict[int,
             or not isinstance(item.get("row"), int)
             or item.get("disposition") != "NO_NAMED_CONSUMER"
         ):
-            _fail("ordinary_trade_grouped_mapping_v14_row_policy_invalid")
+            _row_policy_fail("exception_item_invalid")
         row = item["row"]
         rows.append(row)
         exceptions[row] = "NO_NAMED_CONSUMER"
-    if rows != sorted(set(rows)) or not set(rows) <= set(expected_rows):
-        _fail("ordinary_trade_grouped_mapping_v14_row_policy_invalid")
+    if rows != sorted(set(rows)):
+        _row_policy_fail("exception_rows_not_strictly_ordered")
+    if not set(rows) <= set(expected_rows):
+        _row_policy_fail("exception_row_outside_data_rows")
     return exceptions
+
+
+def _row_policy_fail(category: str) -> None:
+    if category not in {
+        "policy_object_invalid",
+        "exception_item_invalid",
+        "exception_rows_not_strictly_ordered",
+        "exception_row_outside_data_rows",
+    }:
+        _fail("ordinary_trade_grouped_mapping_v14_row_policy_invalid")
+    raise OrdinaryTradeGroupedMappingV14Error(
+        "ordinary_trade_grouped_mapping_v14_row_policy_invalid",
+        safe_shape_category=category,
+    )
 
 
 def _without_source_header_exceptions(

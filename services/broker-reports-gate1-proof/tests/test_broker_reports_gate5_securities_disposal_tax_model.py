@@ -148,6 +148,7 @@ def test_first_declaration_driven_tax_model_replays_and_projects_appendix8(
         "ПризУчетУбыт": "0",
     }
     serialized_model = json.dumps(model, ensure_ascii=False, sort_keys=True)
+    assert "gate3" not in serialized_model.lower()
     for declaration_owned_literal in (
         "ВидОпер",
         "ДохСовОпер",
@@ -228,7 +229,7 @@ def test_missing_expense_methodology_inputs_fail_closed_without_relation_inferen
     )
 
     with pytest.raises(Gate5SecuritiesDisposalTaxModelError) as caught:
-        _runtime(store).run_operation(
+        _operation_runtime(store).run_operation(
             methodology_ref={
                 **_methodology_ref(),
                 "methodology_version": (
@@ -468,7 +469,23 @@ def _runtime(store) -> Gate5SecuritiesDisposalTaxModelRuntime:
         store=store,
         read_enabled=True,
         retention_policy=build_retention_policy(mode="synthetic_dev"),
+        list_facts=_active_qualified_fact_reader,
     ).create()
+
+
+def _operation_runtime(store) -> Gate5SecuritiesDisposalTaxModelRuntime:
+    return Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs(
+        store=store,
+        read_enabled=True,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    )
+
+
+def _active_qualified_fact_reader(*, context) -> list[dict]:
+    """V3 reader boundary; historical V2 materializer tests do not consume it."""
+
+    del context
+    return []
 
 
 def _methodology_ref() -> dict[str, str]:

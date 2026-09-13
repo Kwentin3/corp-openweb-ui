@@ -21,6 +21,20 @@ from .ordinary_trade_grouped_mapping_v14 import (
 from .ordinary_trade_grouped_mapping_v15 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION,
 )
+from .ordinary_trade_grouped_mapping_v17 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION,
+)
+from .ordinary_trade_grouped_mapping_v18 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V18_RESPONSE_SCHEMA_VERSION,
+)
+from .ordinary_trade_grouped_mapping_v20 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeGroupedMappingV20AdapterFactory,
+)
+from .ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
+from .ordinary_trade_grouped_mapping_v15 import OrdinaryTradeGroupedMappingV15AdapterFactory
+from .ordinary_trade_grouped_mapping_v17 import OrdinaryTradeGroupedMappingV17AdapterFactory
+from .ordinary_trade_grouped_mapping_v18 import OrdinaryTradeGroupedMappingV18AdapterFactory
 from .ordinary_trade_semantic_mapping import (
     MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
     MAPPING_INPUT_SCHEMA_VERSION,
@@ -130,6 +144,56 @@ ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG = (
 ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION = (
     ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION
 )
+ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v18"
+)
+ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v18"
+)
+ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V18_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v18"
+)
+ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V18_RESPONSE_SCHEMA_VERSION
+)
+# v19 changes only the managed instruction.  It keeps the V18 compact wire
+# and source-bound effect validator; a new Prompt identity keeps V18 history
+# immutable.
+ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v19"
+)
+ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v19"
+)
+ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v19"
+)
+ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V18_RESPONSE_SCHEMA_VERSION
+)
+# V20 changes the strict semantic-header admission route.  V19 remains an
+# immutable physical-header route and must never acquire this capability.
+ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v20"
+)
+ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v20"
+)
+ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v20"
+)
+ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 # A snapshot is an execution receipt, not a bag of independently optional
@@ -181,6 +245,33 @@ _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
         "required_tag": ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG,
         "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V18_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
 )
 
 
@@ -189,6 +280,32 @@ class OrdinaryTradeMappingPromptError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+@dataclass(frozen=True)
+class OrdinaryTradeMappingWireContract:
+    """One closed Prompt-identity to wire-representation selection seam."""
+
+    response_schema_version: str
+    response_adapter: Any | None
+
+    @property
+    def allows_source_bound_position_effect(self) -> bool:
+        return bool(
+            self.response_adapter is not None
+            and getattr(
+                self.response_adapter, "allows_source_bound_position_effect", False
+            ) is True
+        )
+
+    @property
+    def allows_model_selected_header(self) -> bool:
+        return bool(
+            self.response_adapter is not None
+            and getattr(
+                self.response_adapter, "allows_model_selected_header", False
+            ) is True
+        )
 
 
 @dataclass(frozen=True)
@@ -221,6 +338,45 @@ class OrdinaryTradeMappingPromptConfig:
     # product route merely because it retains the same command and contract.
     release_prompt_version: str | None = None
     release_prompt_hash: str | None = None
+
+
+def ordinary_trade_mapping_prompt_config_for_command(
+    *,
+    source: str,
+    db_path: Path | None,
+    prompt_id: str,
+    prompt_command: str,
+    release_prompt_version: str,
+    release_prompt_hash: str,
+) -> OrdinaryTradeMappingPromptConfig:
+    """Build a resolver config from one closed released Prompt identity."""
+
+    identities = [
+        identity
+        for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+        if prompt_command in identity["commands"]
+    ]
+    if len(identities) != 1:
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_wire_contract_invalid",
+            "Ordinary-trade mapping Prompt command is not released",
+        )
+    identity = identities[0]
+    return OrdinaryTradeMappingPromptConfig(
+        source=source,
+        db_path=db_path,
+        prompt_id=prompt_id,
+        command=None,
+        required_command=prompt_command,
+        required_template_id=identity["template_id"],
+        required_template_kind=identity["template_kind"],
+        required_input_schema_version=identity["input_schema_version"],
+        required_output_schema_id=identity["output_schema_id"],
+        required_output_schema_version=identity["output_schema_version"],
+        required_tag=identity["required_tag"],
+        release_prompt_version=release_prompt_version,
+        release_prompt_hash=release_prompt_hash,
+    )
 
 
 @dataclass(frozen=True)
@@ -851,6 +1007,95 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
     return copy.deepcopy(value)
 
 
+def ordinary_trade_mapping_wire_contract(
+    *,
+    prompt_command: str | None,
+    template_id: str,
+    template_kind: str,
+    output_schema_id: str,
+    output_schema_version: str,
+    required_tag: str,
+    input_schema_version: str,
+) -> OrdinaryTradeMappingWireContract:
+    """Resolve one released Prompt identity to its closed response adapter.
+
+    This is intentionally owned beside Prompt identity rather than by the
+    Pipe or a qualification runner: both consumers must send and validate the
+    same wire representation.  A hybrid identity fails closed.
+    """
+
+    identity_matches = any(
+        prompt_command in identity["commands"]
+        and template_id == identity["template_id"]
+        and template_kind == identity["template_kind"]
+        and output_schema_id == identity["output_schema_id"]
+        and output_schema_version == identity["output_schema_version"]
+        and input_schema_version == identity["input_schema_version"]
+        and required_tag == identity["required_tag"]
+        for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+    )
+    if not identity_matches:
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_wire_contract_invalid",
+            "Ordinary-trade mapping Prompt wire contract is not released",
+        )
+    adapter_factory = {
+        ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV14AdapterFactory
+        ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV15AdapterFactory
+        ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V18_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV18AdapterFactory
+        ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV20AdapterFactory
+        ),
+    }.get(output_schema_id)
+    if output_schema_id == ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION:
+        adapter_factory = OrdinaryTradeGroupedMappingV17AdapterFactory
+    return OrdinaryTradeMappingWireContract(
+        response_schema_version=output_schema_id,
+        response_adapter=(adapter_factory.create() if adapter_factory is not None else None),
+    )
+
+
+def ordinary_trade_mapping_wire_contract_for_prompt(
+    prompt: OrdinaryTradeMappingManagedPrompt,
+) -> OrdinaryTradeMappingWireContract:
+    """Resolve a managed prompt snapshot without exposing its body."""
+
+    matching_identity = next(
+        (
+            identity
+            for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+            if prompt.command in identity["commands"]
+            and prompt.template_id == identity["template_id"]
+            and prompt.template_kind == identity["template_kind"]
+            and prompt.output_schema_id == identity["output_schema_id"]
+            and prompt.output_schema_version == identity["output_schema_version"]
+            and prompt.input_schema_version == identity["input_schema_version"]
+            and identity["required_tag"] in prompt.tags
+        ),
+        None,
+    )
+    if matching_identity is None:
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_wire_contract_invalid",
+            "Ordinary-trade mapping Prompt wire contract is not released",
+        )
+    return ordinary_trade_mapping_wire_contract(
+        prompt_command=prompt.command,
+        template_id=prompt.template_id,
+        template_kind=prompt.template_kind,
+        output_schema_id=prompt.output_schema_id,
+        output_schema_version=prompt.output_schema_version,
+        required_tag=matching_identity["required_tag"],
+        input_schema_version=prompt.input_schema_version,
+    )
+
+
 def _validate_release_pin(*, version: str | None, prompt_hash: str | None) -> None:
     normalized_version = str(version or "").strip()
     normalized_hash = str(prompt_hash or "").strip()
@@ -909,6 +1154,26 @@ __all__ = [
     "ORDINARY_TRADE_MAPPING_V16_PROMPT_REQUIRED_TAG",
     "ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_ID",
     "ORDINARY_TRADE_MAPPING_V16_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V17_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V17_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V17_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V18_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V18_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V18_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V18_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V19_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V19_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V19_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V20_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND",
     "OUTPUT_SCHEMA_ID",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_COMMAND",
@@ -930,5 +1195,8 @@ __all__ = [
     "OrdinaryTradeMappingPromptUserContext",
     "StaticOrdinaryTradeMappingPromptResolver",
     "ordinary_trade_mapping_prompt_hash",
+    "ordinary_trade_mapping_prompt_config_for_command",
+    "ordinary_trade_mapping_wire_contract",
+    "ordinary_trade_mapping_wire_contract_for_prompt",
     "validate_ordinary_trade_mapping_prompt_snapshot",
 ]

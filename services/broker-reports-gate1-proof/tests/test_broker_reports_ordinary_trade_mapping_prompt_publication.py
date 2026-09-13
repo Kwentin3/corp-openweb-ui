@@ -12,6 +12,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
     ORDINARY_TRADE_MAPPING_V17_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION,
     PROMPT_PLACEHOLDER,
     ordinary_trade_mapping_prompt_hash,
 )
@@ -22,6 +23,9 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_V15_PROFILE,
     ORDINARY_TRADE_MAPPING_V16_PROFILE,
     ORDINARY_TRADE_MAPPING_V17_PROFILE,
+    ORDINARY_TRADE_MAPPING_V18_PROFILE,
+    ORDINARY_TRADE_MAPPING_V19_PROFILE,
+    ORDINARY_TRADE_MAPPING_V20_PROFILE,
     PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     OrdinaryTradeMappingPromptPublication,
@@ -207,6 +211,103 @@ def test_closed_v17_profile_is_separate_and_forbids_direction_from_numeric_sign(
     assert "explicit_header_source_claims" in asset
     assert "physical continuation link" in asset
     assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_closed_v19_profile_is_immutable_successor_with_same_cell_evidence_rule(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V19_PROFILE
+    (tmp_path / profile.asset_filename).write_text(_CONTENT, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    asset = (_V14_PROMPT_ASSET.parent / profile.asset_filename).read_text(
+        encoding="utf-8"
+    )
+    assert profile.profile_id == "ordinary_trade_mapping_v19"
+    assert profile.command != ORDINARY_TRADE_MAPPING_V18_PROFILE.command
+    assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V19_COMPACT_RESPONSE_SCHEMA_VERSION
+    assert "position_effect_evidence" in asset
+    assert "same source cell" in asset
+    assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_v20_native_asset_binds_row_policy_exceptions_to_real_data_rows(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V20_PROFILE
+    asset_root = _V14_PROMPT_ASSET.parent
+    content = (asset_root / profile.asset_filename).read_text(encoding="utf-8")
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    assert profile.profile_id == "ordinary_trade_mapping_v20"
+    assert "only a non-empty source row" in content
+    assert "strictly greater than that table's selected\nheader_row" in content
+    assert "header_row, a prior row, a blank row" in content
+    assert "exception_rows as []" in content
+    assert owner["prompts"].inserted.content == content
+    assert result.prompt_hash == ordinary_trade_mapping_prompt_hash(
+        content,
+        prompt_contract_id=profile.prompt_contract_id,
+        input_schema_version=profile.input_schema_version,
+        output_schema_id=profile.output_schema_id,
+        output_schema_version=profile.output_schema_version,
+    )
+    assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_v20_native_asset_binds_full_ordered_columns_to_selected_header(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V20_PROFILE
+    asset_root = _V14_PROMPT_ASSET.parent
+    content = (asset_root / profile.asset_filename).read_text(encoding="utf-8")
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    assert "exactly one\n{column, semantic_role} object for every cell" in content
+    assert "header's original source order" in content
+    assert "do\nnot omit, duplicate, reorder, or invent a column" in content
+    assert "use unmapped for every other visible column" in content
+    assert "Otherwise return\nSECURITY_TRADES_INCOMPLETE and do not claim missing facts" in content
+    assert owner["prompts"].inserted.content == content
+    assert result.prompt_hash == ordinary_trade_mapping_prompt_hash(
+        content,
+        prompt_contract_id=profile.prompt_contract_id,
+        input_schema_version=profile.input_schema_version,
+        output_schema_id=profile.output_schema_id,
+        output_schema_version=profile.output_schema_version,
+    )
 
 
 def test_closed_physical_table_profile_publishes_native_instruction_without_mapping_placeholder(

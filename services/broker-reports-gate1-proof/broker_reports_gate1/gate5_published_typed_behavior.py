@@ -60,7 +60,8 @@ GATE5_PUBLISHED_TYPED_BEHAVIOR_BINDING_ID = "gate5.execute_published_typed_behav
 FACTORY_REQUIRED = (
     "Gate5PublishedTypedBehaviorRuntimeFactory.create is the sole typed executor",
     "Gate5TrustedMethodologyCalculationRuntimeFactory.create owns G5.7 execution",
-    "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create owns operation modeling",
+    "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs "
+    "owns operation modeling",
     "Gate5TaxPeriodCategoryAggregationRuntimeFactory.create owns member validation",
     "Gate5IncomeGroupTaxBaseRuntimeFactory.create owns income-group tax base",
 )
@@ -207,11 +208,11 @@ class Gate5PublishedTypedBehaviorRuntimeFactory:
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
             ).create(),
-            operation_runtime=Gate5SecuritiesDisposalTaxModelRuntimeFactory(
+            operation_runtime=Gate5SecuritiesDisposalTaxModelRuntimeFactory.create_from_resolved_inputs(
                 store=self._store,
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
-            ).create(),
+            ),
             aggregation_runtime=(
                 Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
             ),

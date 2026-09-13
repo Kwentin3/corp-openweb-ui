@@ -148,7 +148,7 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
         document_ai.get("configured") is not True
         or document_ai.get("adapter_status") != "native_text_ready"
         or document_ai.get("selected_engine") != "pdfplumber_native_text"
-        or document_ai.get("selected_adapter") != "pdfplumber_native_text_adapter_v1"
+        or document_ai.get("selected_adapter") != "pdfplumber_native_text_adapter_v3"
         or document_ai.get("static_ready") is not True
         or document_ai.get("composition_owner") != "PdfDocumentExtractorFactory"
         or document_ai.get("automatic_fallback") is not False
@@ -1126,27 +1126,46 @@ def _restore_after_failure(
     previous_loader_sha256: str,
     candidate_loader_sha256: str,
 ) -> None:
-    _stop_container()
-    current_loader_sha256 = _loader_state()["content_sha256"]
-    if current_loader_sha256 not in {
-        previous_loader_sha256,
-        candidate_loader_sha256,
-    }:
-        raise StageReleaseError("stage_release_loader_changed_during_failure_restore")
-    _replace_release_rows(
-        db_path=db_path,
-        replacement_function_rows=rollback_function_rows,
-        replacement_prompt_rows=rollback_prompt_rows,
-        expected_function_hashes=None,
-        expected_prompt_hashes=None,
-    )
-    if current_loader_sha256 != previous_loader_sha256:
-        _replace_loader(
-            content=rollback_loader_bytes,
-            expected_sha256=candidate_loader_sha256,
+    restore_error: BaseException | None = None
+    restart_error: BaseException | None = None
+    try:
+        _stop_container()
+        current_loader_sha256 = _loader_state()["content_sha256"]
+        if current_loader_sha256 not in {
+            previous_loader_sha256,
+            candidate_loader_sha256,
+        }:
+            raise StageReleaseError("stage_release_loader_changed_during_failure_restore")
+        _replace_release_rows(
+            db_path=db_path,
+            replacement_function_rows=rollback_function_rows,
+            replacement_prompt_rows=rollback_prompt_rows,
+            expected_function_hashes=None,
+            expected_prompt_hashes=None,
         )
-    _start_container()
-    _wait_healthy()
+        if current_loader_sha256 != previous_loader_sha256:
+            _replace_loader(
+                content=rollback_loader_bytes,
+                expected_sha256=candidate_loader_sha256,
+            )
+    except BaseException as exc:
+        restore_error = exc
+    finally:
+        # Recovery itself is a stopped-runtime boundary.  Do not strand the
+        # service if a restore or an interrupt fails inside that boundary.
+        try:
+            _start_container()
+        except BaseException as exc:
+            restart_error = exc
+        try:
+            _wait_healthy()
+        except BaseException as exc:
+            if restart_error is None:
+                restart_error = exc
+    if restore_error is not None:
+        raise restore_error
+    if restart_error is not None:
+        raise restart_error
 
 
 def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str, Any]:
@@ -1250,6 +1269,16 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "staging_removed": True,
         }
 
+    # The persistent artifact is the recovery/audit identity of this release.
+    # A rollback rehearsal, however, must restore the state at the start of
+    # *this* invocation.  Those differ when an operator safely retries the
+    # same release id after it has already reached its candidate state.
+    attempt_rollback_rows = _snapshot_function_rows(current_function_rows)
+    attempt_rollback_prompt_rows = _snapshot_prompt_rows(current_prompt_rows)
+    attempt_rollback_loader_bytes = LOADER_PATH.read_bytes()
+    if _sha256_bytes(attempt_rollback_loader_bytes) != previous_loader_sha256:
+        raise StageReleaseError("stage_release_loader_changed_before_attempt_snapshot")
+
     (
         rollback,
         rollback_identity,
@@ -1262,12 +1291,16 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         before_state=before,
         loader_bytes=LOADER_PATH.read_bytes(),
     )
-    rollback_rows = _json_object(rollback.get("previous_function_rows"))
-    rollback_prompt_rows = _json_object(rollback.get("previous_prompt_rows"))
-    if not rollback_prompt_rows:
+    persistent_rollback_prompt_rows = _json_object(
+        rollback.get("previous_prompt_rows")
+    )
+    if not persistent_rollback_prompt_rows:
         raise StageReleaseError("stage_release_prompt_rollback_missing")
     rollback_loader_contract = _json_object(rollback.get("previous_loader"))
-    if rollback_loader_contract.get("content_sha256") != previous_loader_sha256:
+    if (
+        rollback_created
+        and rollback_loader_contract.get("content_sha256") != previous_loader_sha256
+    ):
         raise StageReleaseError("stage_release_loader_rollback_mismatch")
     restore_required = False
     health_checks = 0
@@ -1306,13 +1339,13 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         if prove_rollback:
             _stop_container()
             _replace_loader(
-                content=rollback_loader_bytes,
+                content=attempt_rollback_loader_bytes,
                 expected_sha256=candidate_loader_sha256,
             )
             _replace_release_rows(
                 db_path=db_path,
-                replacement_function_rows=rollback_rows,
-                replacement_prompt_rows=rollback_prompt_rows,
+                replacement_function_rows=attempt_rollback_rows,
+                replacement_prompt_rows=attempt_rollback_prompt_rows,
                 expected_function_hashes=desired_hashes,
                 expected_prompt_hashes=desired_prompt_hashes,
             )
@@ -1322,8 +1355,9 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             restored_rows = _function_rows(db_path, managed_function_ids)
             restored_prompt_rows = _prompt_rows(db_path, prompt_ids)
             if (
-                _snapshot_function_rows(restored_rows) != rollback_rows
-                or _snapshot_prompt_rows(restored_prompt_rows) != rollback_prompt_rows
+                _snapshot_function_rows(restored_rows) != attempt_rollback_rows
+                or _snapshot_prompt_rows(restored_prompt_rows)
+                != attempt_rollback_prompt_rows
             ):
                 raise StageReleaseError("stage_release_rollback_rehearsal_mismatch")
             restored = _live_state(
@@ -1334,7 +1368,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
                 manifest,
                 require_candidate_loader=False,
             )
-            if restored["loader"] != rollback["previous_object_identities"]["loader"]:
+            if restored["loader"]["content_sha256"] != previous_loader_sha256:
                 raise StageReleaseError(
                     "stage_release_loader_rollback_rehearsal_mismatch"
                 )
@@ -1372,16 +1406,22 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             rollback_proof["loader_candidate_state_restored"] = True
         if candidate["counters"] != before["counters"]:
             raise StageReleaseError("stage_release_repository_sink_delta_detected")
-    except BaseException:
+    except BaseException as original_error:
         if restore_required:
-            _restore_after_failure(
-                db_path=db_path,
-                rollback_function_rows=rollback_rows,
-                rollback_prompt_rows=rollback_prompt_rows,
-                rollback_loader_bytes=rollback_loader_bytes,
-                previous_loader_sha256=previous_loader_sha256,
-                candidate_loader_sha256=candidate_loader_sha256,
-            )
+            try:
+                _restore_after_failure(
+                    db_path=db_path,
+                    rollback_function_rows=attempt_rollback_rows,
+                    rollback_prompt_rows=attempt_rollback_prompt_rows,
+                    rollback_loader_bytes=attempt_rollback_loader_bytes,
+                    previous_loader_sha256=previous_loader_sha256,
+                    candidate_loader_sha256=candidate_loader_sha256,
+                )
+            except BaseException as recovery_error:
+                original_error.add_note(
+                    "failure recovery also failed: "
+                    + type(recovery_error).__name__
+                )
         elif not _container_running():
             _start_container()
             _wait_healthy()

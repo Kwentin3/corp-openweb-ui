@@ -885,6 +885,18 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertEqual([], pipe.completion_forms)
         self.assertNotIn("PRIVATE NAME", content)
 
+    def test_passport_request_cannot_enable_a_valve_disabled_branch(self):
+        pipe = self._pipe()
+
+        self.assertFalse(
+            pipe._passport_enabled(
+                {"passport_enabled": True},
+                {"document_metadata_passport": {"enabled": True}},
+            )
+        )
+        pipe.valves.passport_enabled = True
+        self.assertTrue(pipe._passport_enabled({"passport_enabled": True}, {}))
+
     def test_pipe_can_require_trigger_phrase(self):
         pipe = self._pipe()
         pipe.valves.require_trigger_phrase = True
