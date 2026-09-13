@@ -10,6 +10,8 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeGroupedMappingV20AdapterFactory,
 )
+from broker_reports_gate1.gate2_model_contracts import gate2_provider_profile
+from broker_reports_gate1.gate2_provider_adapters import Gate2ProviderAdapterFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
     OrdinaryTradeMappingCaseFactory,
@@ -24,6 +26,7 @@ from broker_reports_gate1.ordinary_trade_mapping_runtime import (
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
@@ -65,6 +68,54 @@ def _v20_response(*, table: dict, mapping: dict, policy: dict) -> dict:
             "claims": [],
         },
     }
+
+
+def test_gemini_projection_keeps_strict_default_trade_row_policy() -> None:
+    """Gemini must receive the same fixed default disposition as the owner."""
+
+    response_format = OrdinaryTradeGroupedMappingV20AdapterFactory.create().mapping_response_format(
+        v13_response_format=OrdinaryTradeSemanticMappingFactory.create().mapping_response_format()
+    )
+    canonical_policies = [
+        variant["properties"]["row_policy"]
+        for variant in response_format["json_schema"]["schema"]["properties"][
+            "table_decisions"
+        ]["items"]["anyOf"]
+        if "row_policy" in variant["properties"]
+    ]
+    adapter = Gate2ProviderAdapterFactory(
+        profile=gate2_provider_profile("google_gemini")
+    ).create()
+    prepared = adapter.prepare_form_data(
+        form_data={
+            "model": "models/gemini-3.5-flash",
+            "messages": [],
+            "response_format": response_format,
+        },
+        response_format=response_format,
+    )
+    projected_policies = [
+        variant["properties"]["row_policy"]
+        for variant in prepared.form_data["response_format"]["json_schema"]["schema"][
+            "properties"
+        ]["table_decisions"]["items"]["anyOf"]
+        if "row_policy" in variant["properties"]
+    ]
+
+    assert len(canonical_policies) == len(projected_policies) == 2
+    for canonical_policy, projected_policy in zip(canonical_policies, projected_policies):
+        assert canonical_policy["properties"]["default_disposition"] == {
+            "const": "SECURITY_TRADES"
+        }
+        assert projected_policy["required"] == [
+            "default_disposition",
+            "exception_rows",
+        ]
+        assert projected_policy["additionalProperties"] is False
+        assert projected_policy["properties"]["default_disposition"] == {
+            "enum": ["SECURITY_TRADES"]
+        }
+        assert projected_policy["properties"]["exception_rows"]["type"] == "array"
 
 
 def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> None:

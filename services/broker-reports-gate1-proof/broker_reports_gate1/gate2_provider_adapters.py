@@ -2170,6 +2170,7 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "confidence",
     "coverage_status",
     "decision_kind",
+    "default_disposition",
     "disposition",
     "fact_subtype",
     "fact_type",
