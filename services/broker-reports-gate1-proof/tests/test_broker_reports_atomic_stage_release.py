@@ -67,6 +67,32 @@ def _manifest():
 
 
 class AtomicStageReleaseContractTests(unittest.TestCase):
+    def test_staging_copy_uses_one_scp_invocation_per_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = [Path(directory) / name for name in ("one", "two", "three")]
+            for path in paths:
+                path.write_bytes(path.name.encode("ascii"))
+            calls = []
+
+            with mock.patch.object(
+                driver,
+                "_run",
+                side_effect=lambda args, **_kwargs: calls.append(args),
+            ):
+                driver._copy_files_to_remote_staging(
+                    ssh_target="root@release-host",
+                    remote_dir="/owned-staging",
+                    paths=paths,
+                    missing_code="payload_missing",
+                )
+
+        self.assertEqual(3, len(calls))
+        self.assertEqual(
+            [str(path) for path in paths],
+            [call[-2] for call in calls],
+        )
+        self.assertTrue(all(call[-1] == "root@release-host:/owned-staging/" for call in calls))
+
     def test_cli_explicit_ssh_target_does_not_require_local_env_file(self):
         captured = {}
 
