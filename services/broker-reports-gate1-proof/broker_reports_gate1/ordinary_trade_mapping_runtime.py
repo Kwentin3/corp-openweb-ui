@@ -6,6 +6,7 @@ import copy
 import hashlib
 import inspect
 import json
+import logging
 import re
 import secrets
 from typing import Any, Iterable, Mapping
@@ -35,6 +36,9 @@ from .ordinary_trade_qualified_mappings import (
 from .ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerFactory,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 _USER_CURRENCY_ANSWER = re.compile(
@@ -548,6 +552,37 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=0
             )
         try:
+            request_receipt = self._semantic.preflight_mapping_request(
+                package=package,
+                canonical=binding["canonical"],
+                confirmed_understandings=confirmed,
+                target_table_node_ids=target_table_node_ids,
+                physical_table_continuation_context=binding[
+                    "physical_table_continuation_context"
+                ],
+                input_schema_version=self._input_schema_version,
+                prompt_snapshot=prompt_snapshot,
+            )
+            _audit_mapping_request_preflight(request_receipt)
+        except Exception as exc:
+            code = getattr(exc, "code", "ordinary_trade_mapping_request_preflight_invalid")
+            _audit_mapping_request_preflight_invalid(code)
+            saved = self._cases.save_provider_terminal(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                reason_code=str(code),
+                message=(
+                    "The mapping request did not match its current Canonical and "
+                    "instruction. No provider call was made."
+                ),
+                provider_calls_total=0,
+                mapping_prompt_snapshot=prompt_snapshot,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=0
+            )
+        try:
             response = await self._model_client.extract(
                 prompt=prompt,
                 package=package,
@@ -617,6 +652,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
             )
             reason_code = _mapping_output_reason_code(exc, str(code))
+            _audit_provider_mapping_output_invalid(reason_code)
             incomplete = str(code) in {
                 "ordinary_trade_semantic_mapping_side_invalid",
                 "ordinary_trade_semantic_mapping_dry_run_incomplete",
@@ -955,6 +991,42 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 reason_code="ordinary_trade_mapping_batch_plan_integrity_invalid",
             )
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn)
+        try:
+            request_receipt = self._semantic.preflight_mapping_request(
+                package=package,
+                canonical=binding["canonical"],
+                confirmed_understandings=transport_confirmed,
+                target_table_node_ids=next_batch["target_table_node_ids"],
+                physical_table_continuation_context=binding[
+                    "physical_table_continuation_context"
+                ],
+                input_schema_version=self._input_schema_version,
+                prompt_snapshot=snapshot,
+            )
+            _audit_mapping_request_preflight(request_receipt)
+        except Exception as exc:
+            code = getattr(exc, "code", "ordinary_trade_mapping_request_preflight_invalid")
+            _audit_mapping_request_preflight_invalid(code)
+            saved = self._cases.save_batch_state(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                message=(
+                    "The mapping batch request did not match its current Canonical "
+                    "and instruction. No provider call was made."
+                ),
+                mapping_batch_state=state,
+                provider_calls_total=0,
+                mapping_prompt_snapshot=snapshot,
+                reason_code=str(
+                    code
+                ),
+            )
+            return self._result(
+                current=saved,
+                context=context,
+                provider_calls_this_turn=provider_calls_this_turn,
+            )
         # The existing immutable case revision is the durable attempt claim.
         # A unique token makes concurrent claims conflict instead of replay.
         state = copy.deepcopy(state)
@@ -1609,6 +1681,58 @@ def _mapping_output_reason_code(error: Exception, code: str) -> str:
     }:
         return code
     return f"{code}:{category}"
+
+
+def _audit_provider_mapping_output_invalid(reason_code: Any) -> None:
+    """Log only a closed technical reason from a rejected provider response.
+
+    This is a forensic receipt, not a second persistence or response path.
+    The provider response itself stays in the existing private-case artifact;
+    values, source references, and exception text must never enter logs.
+    """
+
+    value = str(reason_code or "")
+    if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+(?::[a-z0-9_]+)?", value):
+        value = "ordinary_trade_semantic_mapping_output_invalid"
+    _LOGGER.info("broker_reports_mapping_contract_rejected reason_code=%s", value)
+
+
+def _audit_mapping_request_preflight(receipt: Any) -> None:
+    """Emit a body-free request receipt before the one provider call."""
+
+    if not isinstance(receipt, Mapping):
+        return
+    package_sha256 = receipt.get("package_sha256")
+    prompt_hash = receipt.get("prompt_hash")
+    tables_total = receipt.get("tables_total")
+    rows_total = receipt.get("rows_total")
+    if (
+        not isinstance(package_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", package_sha256) is None
+        or not isinstance(prompt_hash, str)
+        or re.fullmatch(r"[0-9a-f]{64}", prompt_hash) is None
+        or not isinstance(tables_total, int)
+        or tables_total < 1
+        or not isinstance(rows_total, int)
+        or rows_total < 0
+    ):
+        return
+    _LOGGER.info(
+        "broker_reports_mapping_request_preflight package_sha256=%s prompt_hash=%s tables_total=%s rows_total=%s",
+        package_sha256,
+        prompt_hash,
+        tables_total,
+        rows_total,
+    )
+
+
+def _audit_mapping_request_preflight_invalid(reason_code: Any) -> None:
+    """Log a closed preflight reason without emitting request contents."""
+
+    value = str(reason_code or "")
+    if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+", value):
+        value = "ordinary_trade_mapping_request_preflight_invalid"
+    _LOGGER.info("broker_reports_mapping_request_preflight_rejected reason_code=%s", value)
 
 
 def _sha256_json(value: Any) -> str:
