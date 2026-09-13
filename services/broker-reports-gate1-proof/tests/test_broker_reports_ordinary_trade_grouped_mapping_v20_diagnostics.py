@@ -272,6 +272,44 @@ def test_mapping_output_invalid_public_state_uses_generic_closed_fallback(
     assert "987654321" not in exposed
 
 
+def test_persisted_invalid_mapping_logs_one_closed_terminal_receipt(
+    tmp_path, caplog
+) -> None:
+    """The shared persistence owner emits one safe receipt after its terminal write."""
+
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_case",
+    )
+
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    saved.save_provider_terminal(
+        document_id=document_id,
+        context=context,
+        status="MAPPING_OUTPUT_INVALID",
+        reason_code="ordinary_trade_semantic_mapping_columns_invalid",
+        message="provider-private-value-987654321",
+        provider_calls_total=2,
+    )
+
+    receipt = [
+        record.message
+        for record in caplog.records
+        if "broker_reports_mapping_invalid_terminal" in record.message
+    ]
+    assert receipt == [
+        "broker_reports_mapping_invalid_terminal "
+        "reason_code=ordinary_trade_semantic_mapping_columns_invalid "
+        "revision=1 provider_calls_total=2 raw_response_saved=False"
+    ]
+    assert "provider-private-value-987654321" not in caplog.text
+    assert context.user_id not in caplog.text
+    assert document_id not in caplog.text
+
+
 def test_request_preflight_log_is_body_free(caplog) -> None:
     caplog.set_level(
         logging.INFO,
