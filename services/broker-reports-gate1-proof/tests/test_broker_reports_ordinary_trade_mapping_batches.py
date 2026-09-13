@@ -600,6 +600,48 @@ def test_pipe_projects_only_invalid_mapping_raw_response_to_owner_file(
     assert delivery["url"] in public_link
     assert "mapping-output-do-not-log" not in public_link
 
+    # The public turn state and its opaque private response reference have to
+    # name the same MappingCase before the Pipe resolves anything.  This is a
+    # real boundary mutation: the stored private artifact remains valid, but
+    # a forged coordinator result cannot publish it as another case.
+    misbound_mapping = dict(mapping)
+    misbound_mapping["mapping_case_artifact_id"] = "foreign-mapping-case"
+    # If the Pipe resolved first, this unknown ref would yield
+    # ``artifact_not_found``.  The binding error proves the mandatory check is
+    # before private resolution.
+    misbound_mapping["private_mapping_raw_output_ref"] = {
+        **raw_ref,
+        "artifact_ref": "not-a-mapping-raw-artifact",
+    }
+    with pytest.raises(ArtifactStoreError) as misbound:
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user={"id": context.user_id, "email": "", "name": ""},
+                semantic_mapping=misbound_mapping,
+            )
+        )
+    assert misbound.value.code == "mapping_forensics_private_case_binding_invalid"
+    assert len(rows) == 1
+
+    overfull_reference = dict(mapping)
+    overfull_reference["private_mapping_raw_output_ref"] = {
+        **raw_ref,
+        "untrusted_extra": "must-not-be-accepted",
+    }
+    with pytest.raises(ArtifactStoreError) as overfull:
+        asyncio.run(
+            Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user={"id": context.user_id, "email": "", "name": ""},
+                semantic_mapping=overfull_reference,
+            )
+        )
+    assert overfull.value.code == "mapping_forensics_private_reference_invalid"
+    assert len(rows) == 1
+
     foreign_context = replace(context, user_id="other-user")
     with pytest.raises(ArtifactStoreError) as foreign:
         asyncio.run(
@@ -635,6 +677,40 @@ def test_pipe_projects_only_invalid_mapping_raw_response_to_owner_file(
         is None
     )
     assert len(rows) == 1
+
+
+def test_pipe_keeps_persisted_invalid_terminal_when_native_file_boundary_is_unavailable(
+    tmp_path, monkeypatch, caplog
+):
+    store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
+    client.outputs[1] = {"provider_private_value": "mapping-output-do-not-log"}
+    mapping = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+    assert mapping["status"] == "MAPPING_OUTPUT_INVALID"
+    persisted_before = runtime._cases.current(document_id=document_id, context=context)
+
+    caplog.set_level(logging.WARNING, logger="openwebui_actions.broker_reports_gate1_pipe")
+    delivery = asyncio.run(
+        Pipe._try_publish_mapping_forensics_file(
+            store=store,
+            context=context,
+            user={"id": context.user_id, "email": "", "name": ""},
+            semantic_mapping=mapping,
+        )
+    )
+
+    # No OpenWebUI Files/Storage modules are installed in this test process:
+    # this invokes the real private-publication boundary and proves the Pipe
+    # retains the owner-persisted terminal when that optional boundary fails.
+    assert delivery is None
+    persisted_after = runtime._cases.current(document_id=document_id, context=context)
+    assert persisted_after == persisted_before
+    assert persisted_after[1]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert runtime._cases.invalid_mapping_raw_output_ref(
+        document_id=document_id, context=context
+    ) == mapping["private_mapping_raw_output_ref"]
+    assert "private_mapping_raw_output_ref" not in mapping["public_state"]
+    assert "mapping-output-do-not-log" not in caplog.text
+    assert "private_file_projection_boundary_unavailable" in caplog.text
 
 
 @pytest.mark.parametrize("restart", [False, True, "after_assertion", "resolver_fails_pending"])
