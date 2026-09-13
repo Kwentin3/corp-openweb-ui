@@ -987,6 +987,8 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 original_atomic_write(path=path, content=content, mode=mode)
                 if atomic_write_calls == 1:
                     raise RuntimeError("fault_after_loader_replace")
+                if atomic_write_calls == 2:
+                    raise RuntimeError("fault_during_recovery")
 
             with (
                 mock.patch.object(remote, "LOADER_PATH", loader_path),

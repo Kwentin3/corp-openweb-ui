@@ -1126,27 +1126,46 @@ def _restore_after_failure(
     previous_loader_sha256: str,
     candidate_loader_sha256: str,
 ) -> None:
-    _stop_container()
-    current_loader_sha256 = _loader_state()["content_sha256"]
-    if current_loader_sha256 not in {
-        previous_loader_sha256,
-        candidate_loader_sha256,
-    }:
-        raise StageReleaseError("stage_release_loader_changed_during_failure_restore")
-    _replace_release_rows(
-        db_path=db_path,
-        replacement_function_rows=rollback_function_rows,
-        replacement_prompt_rows=rollback_prompt_rows,
-        expected_function_hashes=None,
-        expected_prompt_hashes=None,
-    )
-    if current_loader_sha256 != previous_loader_sha256:
-        _replace_loader(
-            content=rollback_loader_bytes,
-            expected_sha256=candidate_loader_sha256,
+    restore_error: BaseException | None = None
+    restart_error: BaseException | None = None
+    try:
+        _stop_container()
+        current_loader_sha256 = _loader_state()["content_sha256"]
+        if current_loader_sha256 not in {
+            previous_loader_sha256,
+            candidate_loader_sha256,
+        }:
+            raise StageReleaseError("stage_release_loader_changed_during_failure_restore")
+        _replace_release_rows(
+            db_path=db_path,
+            replacement_function_rows=rollback_function_rows,
+            replacement_prompt_rows=rollback_prompt_rows,
+            expected_function_hashes=None,
+            expected_prompt_hashes=None,
         )
-    _start_container()
-    _wait_healthy()
+        if current_loader_sha256 != previous_loader_sha256:
+            _replace_loader(
+                content=rollback_loader_bytes,
+                expected_sha256=candidate_loader_sha256,
+            )
+    except BaseException as exc:
+        restore_error = exc
+    finally:
+        # Recovery itself is a stopped-runtime boundary.  Do not strand the
+        # service if a restore or an interrupt fails inside that boundary.
+        try:
+            _start_container()
+        except BaseException as exc:
+            restart_error = exc
+        try:
+            _wait_healthy()
+        except BaseException as exc:
+            if restart_error is None:
+                restart_error = exc
+    if restore_error is not None:
+        raise restore_error
+    if restart_error is not None:
+        raise restart_error
 
 
 def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str, Any]:
@@ -1387,16 +1406,22 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             rollback_proof["loader_candidate_state_restored"] = True
         if candidate["counters"] != before["counters"]:
             raise StageReleaseError("stage_release_repository_sink_delta_detected")
-    except BaseException:
+    except BaseException as original_error:
         if restore_required:
-            _restore_after_failure(
-                db_path=db_path,
-                rollback_function_rows=attempt_rollback_rows,
-                rollback_prompt_rows=attempt_rollback_prompt_rows,
-                rollback_loader_bytes=attempt_rollback_loader_bytes,
-                previous_loader_sha256=previous_loader_sha256,
-                candidate_loader_sha256=candidate_loader_sha256,
-            )
+            try:
+                _restore_after_failure(
+                    db_path=db_path,
+                    rollback_function_rows=attempt_rollback_rows,
+                    rollback_prompt_rows=attempt_rollback_prompt_rows,
+                    rollback_loader_bytes=attempt_rollback_loader_bytes,
+                    previous_loader_sha256=previous_loader_sha256,
+                    candidate_loader_sha256=candidate_loader_sha256,
+                )
+            except BaseException as recovery_error:
+                original_error.add_note(
+                    "failure recovery also failed: "
+                    + type(recovery_error).__name__
+                )
         elif not _container_running():
             _start_container()
             _wait_healthy()
