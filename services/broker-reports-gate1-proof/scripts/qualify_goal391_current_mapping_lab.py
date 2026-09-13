@@ -36,6 +36,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (  # noqa: E402
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
+    ordinary_trade_mapping_wire_contract_for_prompt,
 )
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact  # noqa: E402
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (  # noqa: E402
@@ -418,6 +419,10 @@ def _preflight(
         candidate.get("prompt_output_schema_version")
         == MAPPING_RESPONSE_SCHEMA_VERSION
     )
+    requires_continuation_context = (
+        candidate.get("response_schema_version")
+        == "broker_reports_ordinary_trade_grouped_mapping_response_v20"
+    )
     for expected in expectations["cases"]:
         snapshot_id = expected.get("snapshot_id")
         if not isinstance(snapshot_id, str) or not snapshot_id:
@@ -426,11 +431,20 @@ def _preflight(
         if not snapshot_path.is_file():
             snapshot_path = corpus_root / "canonical" / f"{snapshot_id}.json"
         canonical = _read_json(snapshot_path)
+        continuation_context = _frozen_physical_table_continuation_context(
+            corpus_root=corpus_root,
+            snapshot_id=snapshot_id,
+            canonical=canonical,
+            document_id=expected.get("document_id"),
+            required=requires_continuation_context,
+        )
         cases.append(
             _fixture(
                 canonical=canonical,
                 expected=expected,
                 requires_model_selected_evidence=requires_model_selected_evidence,
+                physical_table_continuation_context=continuation_context,
+                requires_full_runtime_parity=requires_continuation_context,
             )
         )
     if len({case["case_id"] for case in cases}) != len(cases):
@@ -443,6 +457,8 @@ def _fixture(
     canonical: dict[str, Any],
     expected: Mapping[str, Any],
     requires_model_selected_evidence: bool = False,
+    physical_table_continuation_context: Mapping[str, Any] | None = None,
+    requires_full_runtime_parity: bool = False,
 ) -> dict[str, Any]:
     required = {
         "case_id",
@@ -455,7 +471,11 @@ def _fixture(
         "target_table_node_ids",
         "user_scope_sha256",
     }
-    if set(expected) != required:
+    allowed = required | {"frozen_requalification_table_node_ids"}
+    if (set(expected) != required and set(expected) != allowed) or (
+        requires_full_runtime_parity
+        and "frozen_requalification_table_node_ids" not in expected
+    ):
         raise SystemExit("goal391_expectation_case_invalid")
     _validate_expected_assessment(
         expected["expected_assessment"],
@@ -481,6 +501,10 @@ def _fixture(
         "confirmed_understandings": expected["confirmed_understandings"],
         "target_table_node_ids": expected["target_table_node_ids"],
         "frozen_mappings": expected["frozen_mappings"],
+        "frozen_requalification_table_node_ids": _frozen_requalification_table_node_ids(
+            expected.get("frozen_requalification_table_node_ids", [])
+        ),
+        "physical_table_continuation_context": physical_table_continuation_context,
         "user_scope_sha256": expected["user_scope_sha256"],
         "expected_assessment": expected_assessment,
         # The mapping owner, not a human manifest or the model, owns the full
@@ -537,22 +561,27 @@ async def _run_case(
         canonical=case["canonical"],
         confirmed_understandings=case["confirmed_understandings"],
         target_table_node_ids=case["target_table_node_ids"],
+        physical_table_continuation_context=case.get("physical_table_continuation_context"),
+        input_schema_version=prompt.input_schema_version,
     )
     progress("DISPATCH_INTENT", case)
     response = await client.extract(
         prompt=prompt,
         package=package,
         model_id=MODEL_ID,
-        response_format=semantic.mapping_response_format(),
+        response_format=_mapping_response_format(semantic=semantic, prompt=prompt),
     )
     progress("RESPONSE_RECEIVED", case)
     if forensic_capture is not None:
         forensic_capture.write(case=case, candidate=candidate, response=response)
     _require_one_strict_result(response)
-    if semantic.mapping_response_contract_failure_code(response) is not None:
+    response_for_validation = _expand_mapping_response(
+        response=response, package=package, prompt=prompt
+    )
+    if semantic.mapping_response_contract_failure_code(response_for_validation) is not None:
         raise Goal391CurrentMappingLabError("goal391_model_response_contract_invalid")
     outcome = semantic.validate_mapping_response(
-        response=response,
+        response=response_for_validation,
         canonical=case["canonical"],
         canonical_binding=case["canonical_binding"],
         model_id=MODEL_ID,
@@ -562,6 +591,19 @@ async def _run_case(
         user_scope_sha256=case["user_scope_sha256"],
         target_table_node_ids=case["target_table_node_ids"],
         frozen_mappings=case["frozen_mappings"],
+        frozen_requalification_table_node_ids=case.get(
+            "frozen_requalification_table_node_ids", []
+        ),
+        explicit_header_source_response=_explicit_header_source_response(
+            response=response, prompt=prompt
+        ),
+        physical_table_continuation_context=case.get("physical_table_continuation_context"),
+        allow_source_bound_position_effect=_mapping_wire_contract(
+            prompt=prompt
+        ).allows_source_bound_position_effect,
+        allow_model_selected_header=_mapping_wire_contract(
+            prompt=prompt
+        ).allows_model_selected_header,
     )
     return {"outcome": outcome, "response": response}
 
@@ -909,9 +951,154 @@ def _current_candidate(*, semantic: Any, prompt: Any, expected_git_head: str) ->
         "prompt_input_schema_version": prompt.input_schema_version,
         "prompt_output_schema_id": prompt.output_schema_id,
         "prompt_output_schema_version": prompt.output_schema_version,
-        "response_schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
-        "response_format_sha256": _sha256(semantic.mapping_response_format()),
+        "response_schema_version": _mapping_response_schema_version(prompt=prompt),
+        "response_format_sha256": _sha256(
+            _mapping_response_format(semantic=semantic, prompt=prompt)
+        ),
     }
+
+
+def _frozen_requalification_table_node_ids(value: Any) -> list[str]:
+    if (
+        not isinstance(value, list)
+        or any(not isinstance(item, str) or not item for item in value)
+        or len(value) != len(set(value))
+    ):
+        raise SystemExit("goal391_frozen_requalification_scope_invalid")
+    return list(value)
+
+
+def _frozen_physical_table_continuation_context(
+    *,
+    corpus_root: Path,
+    snapshot_id: str,
+    canonical: Mapping[str, Any],
+    document_id: Any,
+    required: bool,
+) -> dict[str, Any] | None:
+    """Read an owner-exported continuation projection; never reconstruct it."""
+
+    path = corpus_root / "continuation" / f"{snapshot_id}.json"
+    if not path.is_file():
+        if required:
+            raise SystemExit("goal391_frozen_continuation_context_missing")
+        return None
+    value = _read_json(path)
+    source = canonical.get("source") if isinstance(canonical, Mapping) else None
+    binding = {
+        "document_id": str(document_id or ""),
+        "canonical_version_id": str(canonical.get("artifact_id") or ""),
+        "canonical_root_sha256": str(canonical.get("canonical_root_hash") or ""),
+        "source_artifact_ref": str((source or {}).get("source_artifact_ref") or ""),
+        "source_sha256": str((source or {}).get("source_sha256") or ""),
+    }
+    if (
+        set(value) != {
+            "schema_version",
+            "snapshot_id",
+            "canonical_binding",
+            "continuation_context",
+            "continuation_context_sha256",
+        }
+        or value.get("schema_version")
+        != "goal391_frozen_physical_table_continuation_context_v1"
+        or value.get("snapshot_id") != snapshot_id
+        or value.get("canonical_binding") != binding
+    ):
+        raise SystemExit("goal391_frozen_continuation_context_invalid")
+    context = value.get("continuation_context")
+    expected_hash = value.get("continuation_context_sha256")
+    if context is None:
+        if expected_hash is not None:
+            raise SystemExit("goal391_frozen_continuation_context_invalid")
+        return None
+    if (
+        not isinstance(context, dict)
+        or not isinstance(expected_hash, str)
+        or expected_hash != _sha256(context)
+        or set(context)
+        != {"schema_version", "sidecar_artifact_ref", "sidecar_id", "source_binding", "links"}
+        or context.get("schema_version")
+        != "broker_reports_physical_table_continuation_context_v1"
+        or context.get("source_binding") != binding
+        or not isinstance(context.get("sidecar_artifact_ref"), str)
+        or not context["sidecar_artifact_ref"]
+        or not isinstance(context.get("sidecar_id"), str)
+        or not context["sidecar_id"]
+        or not isinstance(context.get("links"), list)
+        or not context["links"]
+    ):
+        raise SystemExit("goal391_frozen_continuation_context_invalid")
+    table_ids = {
+        item.get("node_id")
+        for item in canonical.get("nodes", [])
+        if isinstance(item, Mapping)
+        and item.get("node_type") == "TABLE"
+        and isinstance(item.get("node_id"), str)
+    }
+    links: set[tuple[str, str]] = set()
+    for link in context["links"]:
+        if (
+            not isinstance(link, Mapping)
+            or set(link) != {"parent_table_node_id", "child_table_node_id"}
+            or not isinstance(link.get("parent_table_node_id"), str)
+            or not isinstance(link.get("child_table_node_id"), str)
+            or link["parent_table_node_id"] == link["child_table_node_id"]
+            or link["parent_table_node_id"] not in table_ids
+            or link["child_table_node_id"] not in table_ids
+            or (link["parent_table_node_id"], link["child_table_node_id"]) in links
+        ):
+            raise SystemExit("goal391_frozen_continuation_context_invalid")
+        links.add((link["parent_table_node_id"], link["child_table_node_id"]))
+    return context
+
+
+def _mapping_wire_contract(*, prompt: Any) -> Any:
+    try:
+        return ordinary_trade_mapping_wire_contract_for_prompt(prompt)
+    except Exception as exc:
+        raise Goal391CurrentMappingLabError(
+            "goal391_mapping_prompt_wire_contract_unsupported"
+        ) from exc
+
+
+def _mapping_response_schema_version(*, prompt: Any) -> str:
+    return _mapping_wire_contract(prompt=prompt).response_schema_version
+
+
+def _mapping_response_format(*, semantic: Any, prompt: Any) -> dict[str, Any]:
+    v15_response_format = semantic.mapping_response_format()
+    adapter = _mapping_wire_contract(prompt=prompt).response_adapter
+    return (
+        v15_response_format
+        if adapter is None
+        else adapter.mapping_response_format(v13_response_format=v15_response_format)
+    )
+
+
+def _expand_mapping_response(
+    *, response: Any, package: Mapping[str, Any], prompt: Any
+) -> Any:
+    adapter = _mapping_wire_contract(prompt=prompt).response_adapter
+    return response if adapter is None else adapter.expand_to_v13(
+        response=response, package=package
+    )
+
+
+def _explicit_header_source_response(*, response: Any, prompt: Any) -> dict[str, Any] | None:
+    extractor = getattr(
+        _mapping_wire_contract(prompt=prompt).response_adapter,
+        "explicit_header_source_claims",
+        None,
+    )
+    if extractor is None:
+        return None
+    if not callable(extractor):
+        raise Goal391CurrentMappingLabError("goal391_mapping_response_adapter_invalid")
+    value = extractor(response=response)
+    if not isinstance(value, dict):
+        raise Goal391CurrentMappingLabError("goal391_mapping_response_adapter_invalid")
+    return value
 
 
 def _resolve_mapping_prompt(

@@ -133,6 +133,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     PROMPT_REQUIRED_TAG as ORDINARY_TRADE_MAPPING_PROMPT_REQUIRED_TAG,
     PROMPT_TEMPLATE_ID as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_ID,
     PROMPT_TEMPLATE_KIND as ORDINARY_TRADE_MAPPING_PROMPT_TEMPLATE_KIND,
+    ordinary_trade_mapping_wire_contract,
 )
 from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PROMPT_COMMAND as PDF_TABLE_CONTINUATION_ANNOTATION_PROMPT_COMMAND,
@@ -140,21 +141,6 @@ from broker_reports_gate1.pdf_table_continuation_annotation_prompt import (
     PdfTableContinuationAnnotationPromptConfig,
     PdfTableContinuationAnnotationPromptResolverFactory,
     execution_from_managed_prompt,
-)
-from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import (
-    OrdinaryTradeGroupedMappingV14AdapterFactory,
-)
-from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
-    OrdinaryTradeGroupedMappingV15AdapterFactory,
-)
-from broker_reports_gate1.ordinary_trade_grouped_mapping_v17 import (
-    OrdinaryTradeGroupedMappingV17AdapterFactory,
-)
-from broker_reports_gate1.ordinary_trade_grouped_mapping_v18 import (
-    OrdinaryTradeGroupedMappingV18AdapterFactory,
-)
-from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
-    OrdinaryTradeGroupedMappingV20AdapterFactory,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
@@ -239,11 +225,6 @@ class _OrdinaryTradeMappingRouteProfile:
         output_schema_version: str,
         required_tag: str,
         input_schema_version: str = ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
-        grouped_v14_response: bool = False,
-        grouped_v15_response: bool = False,
-        grouped_v17_response: bool = False,
-        grouped_v18_response: bool = False,
-        grouped_v20_response: bool = False,
     ) -> None:
         self.profile_id = profile_id
         self.prompt_command = prompt_command
@@ -253,24 +234,17 @@ class _OrdinaryTradeMappingRouteProfile:
         self.output_schema_version = output_schema_version
         self.required_tag = required_tag
         self.input_schema_version = input_schema_version
-        self.grouped_v14_response = grouped_v14_response
-        self.grouped_v15_response = grouped_v15_response
-        self.grouped_v17_response = grouped_v17_response
-        self.grouped_v18_response = grouped_v18_response
-        self.grouped_v20_response = grouped_v20_response
 
     def mapping_response_adapter(self) -> Any | None:
-        if self.grouped_v14_response:
-            return OrdinaryTradeGroupedMappingV14AdapterFactory.create()
-        if self.grouped_v15_response:
-            return OrdinaryTradeGroupedMappingV15AdapterFactory.create()
-        if self.grouped_v17_response:
-            return OrdinaryTradeGroupedMappingV17AdapterFactory.create()
-        if self.grouped_v18_response:
-            return OrdinaryTradeGroupedMappingV18AdapterFactory.create()
-        if self.grouped_v20_response:
-            return OrdinaryTradeGroupedMappingV20AdapterFactory.create()
-        return None
+        return ordinary_trade_mapping_wire_contract(
+            prompt_command=self.prompt_command,
+            template_id=self.template_id,
+            template_kind=self.template_kind,
+            output_schema_id=self.output_schema_id,
+            output_schema_version=self.output_schema_version,
+            required_tag=self.required_tag,
+            input_schema_version=self.input_schema_version,
+        ).response_adapter
 
 
 _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
@@ -293,7 +267,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
             ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION
         ),
         required_tag=ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
-        grouped_v14_response=True,
     ),
     "ordinary_trade_mapping_v15": _OrdinaryTradeMappingRouteProfile(
         profile_id="ordinary_trade_mapping_v15",
@@ -305,7 +278,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
             ORDINARY_TRADE_MAPPING_V15_COMPACT_RESPONSE_SCHEMA_VERSION
         ),
         required_tag=ORDINARY_TRADE_MAPPING_V15_PROMPT_REQUIRED_TAG,
-        grouped_v15_response=True,
     ),
     "ordinary_trade_mapping_v16": _OrdinaryTradeMappingRouteProfile(
         profile_id="ordinary_trade_mapping_v16",
@@ -320,7 +292,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         input_schema_version=(
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
-        grouped_v15_response=True,
     ),
     "ordinary_trade_mapping_v17": _OrdinaryTradeMappingRouteProfile(
         profile_id="ordinary_trade_mapping_v17",
@@ -335,7 +306,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         input_schema_version=(
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
-        grouped_v17_response=True,
     ),
     "ordinary_trade_mapping_v18": _OrdinaryTradeMappingRouteProfile(
         profile_id="ordinary_trade_mapping_v18",
@@ -350,7 +320,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         input_schema_version=(
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
-        grouped_v18_response=True,
     ),
     # v19 changes the native managed instruction only. It deliberately keeps
     # V18's closed wire adapter and Runtime contract.
@@ -367,7 +336,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         input_schema_version=(
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
-        grouped_v18_response=True,
     ),
     "ordinary_trade_mapping_v20": _OrdinaryTradeMappingRouteProfile(
         profile_id="ordinary_trade_mapping_v20",
@@ -382,7 +350,6 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
         input_schema_version=(
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
-        grouped_v20_response=True,
     ),
 }
 

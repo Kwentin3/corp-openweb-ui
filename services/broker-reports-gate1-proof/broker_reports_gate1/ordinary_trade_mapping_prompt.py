@@ -21,12 +21,20 @@ from .ordinary_trade_grouped_mapping_v14 import (
 from .ordinary_trade_grouped_mapping_v15 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION,
 )
+from .ordinary_trade_grouped_mapping_v17 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION,
+)
 from .ordinary_trade_grouped_mapping_v18 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V18_RESPONSE_SCHEMA_VERSION,
 )
 from .ordinary_trade_grouped_mapping_v20 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeGroupedMappingV20AdapterFactory,
 )
+from .ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
+from .ordinary_trade_grouped_mapping_v15 import OrdinaryTradeGroupedMappingV15AdapterFactory
+from .ordinary_trade_grouped_mapping_v17 import OrdinaryTradeGroupedMappingV17AdapterFactory
+from .ordinary_trade_grouped_mapping_v18 import OrdinaryTradeGroupedMappingV18AdapterFactory
 from .ordinary_trade_semantic_mapping import (
     MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
     MAPPING_INPUT_SCHEMA_VERSION,
@@ -272,6 +280,32 @@ class OrdinaryTradeMappingPromptError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+@dataclass(frozen=True)
+class OrdinaryTradeMappingWireContract:
+    """One closed Prompt-identity to wire-representation selection seam."""
+
+    response_schema_version: str
+    response_adapter: Any | None
+
+    @property
+    def allows_source_bound_position_effect(self) -> bool:
+        return bool(
+            self.response_adapter is not None
+            and getattr(
+                self.response_adapter, "allows_source_bound_position_effect", False
+            ) is True
+        )
+
+    @property
+    def allows_model_selected_header(self) -> bool:
+        return bool(
+            self.response_adapter is not None
+            and getattr(
+                self.response_adapter, "allows_model_selected_header", False
+            ) is True
+        )
 
 
 @dataclass(frozen=True)
@@ -934,6 +968,95 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
     return copy.deepcopy(value)
 
 
+def ordinary_trade_mapping_wire_contract(
+    *,
+    prompt_command: str | None,
+    template_id: str,
+    template_kind: str,
+    output_schema_id: str,
+    output_schema_version: str,
+    required_tag: str,
+    input_schema_version: str,
+) -> OrdinaryTradeMappingWireContract:
+    """Resolve one released Prompt identity to its closed response adapter.
+
+    This is intentionally owned beside Prompt identity rather than by the
+    Pipe or a qualification runner: both consumers must send and validate the
+    same wire representation.  A hybrid identity fails closed.
+    """
+
+    identity_matches = any(
+        prompt_command in identity["commands"]
+        and template_id == identity["template_id"]
+        and template_kind == identity["template_kind"]
+        and output_schema_id == identity["output_schema_id"]
+        and output_schema_version == identity["output_schema_version"]
+        and input_schema_version == identity["input_schema_version"]
+        and required_tag == identity["required_tag"]
+        for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+    )
+    if not identity_matches:
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_wire_contract_invalid",
+            "Ordinary-trade mapping Prompt wire contract is not released",
+        )
+    adapter_factory = {
+        ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV14AdapterFactory
+        ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V15_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV15AdapterFactory
+        ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V18_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV18AdapterFactory
+        ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV20AdapterFactory
+        ),
+    }.get(output_schema_id)
+    if output_schema_id == ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION:
+        adapter_factory = OrdinaryTradeGroupedMappingV17AdapterFactory
+    return OrdinaryTradeMappingWireContract(
+        response_schema_version=output_schema_id,
+        response_adapter=(adapter_factory.create() if adapter_factory is not None else None),
+    )
+
+
+def ordinary_trade_mapping_wire_contract_for_prompt(
+    prompt: OrdinaryTradeMappingManagedPrompt,
+) -> OrdinaryTradeMappingWireContract:
+    """Resolve a managed prompt snapshot without exposing its body."""
+
+    matching_identity = next(
+        (
+            identity
+            for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+            if prompt.command in identity["commands"]
+            and prompt.template_id == identity["template_id"]
+            and prompt.template_kind == identity["template_kind"]
+            and prompt.output_schema_id == identity["output_schema_id"]
+            and prompt.output_schema_version == identity["output_schema_version"]
+            and prompt.input_schema_version == identity["input_schema_version"]
+            and identity["required_tag"] in prompt.tags
+        ),
+        None,
+    )
+    if matching_identity is None:
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_wire_contract_invalid",
+            "Ordinary-trade mapping Prompt wire contract is not released",
+        )
+    return ordinary_trade_mapping_wire_contract(
+        prompt_command=prompt.command,
+        template_id=prompt.template_id,
+        template_kind=prompt.template_kind,
+        output_schema_id=prompt.output_schema_id,
+        output_schema_version=prompt.output_schema_version,
+        required_tag=matching_identity["required_tag"],
+        input_schema_version=prompt.input_schema_version,
+    )
+
+
 def _validate_release_pin(*, version: str | None, prompt_hash: str | None) -> None:
     normalized_version = str(version or "").strip()
     normalized_hash = str(prompt_hash or "").strip()
@@ -1033,5 +1156,7 @@ __all__ = [
     "OrdinaryTradeMappingPromptUserContext",
     "StaticOrdinaryTradeMappingPromptResolver",
     "ordinary_trade_mapping_prompt_hash",
+    "ordinary_trade_mapping_wire_contract",
+    "ordinary_trade_mapping_wire_contract_for_prompt",
     "validate_ordinary_trade_mapping_prompt_snapshot",
 ]
