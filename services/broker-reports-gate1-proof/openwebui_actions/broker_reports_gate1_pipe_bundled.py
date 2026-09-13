@@ -1346,7 +1346,11 @@ class Pipe:
                 "status": "disabled",
                 "provider_calls_total": 0,
             }
-        mapping_forensics_delivery = await self._publish_mapping_forensics_file(
+        # MappingCase has already persisted this terminal before the optional
+        # owner-scoped diagnostic projection runs.  A missing Files/Storage
+        # boundary must not turn that durable, safe terminal into a Pipe
+        # failure or expose a link to an unavailable private payload.
+        mapping_forensics_delivery = await self._try_publish_mapping_forensics_file(
             store=artifact_store,
             context=artifact_context,
             user=__user__,
@@ -3169,7 +3173,13 @@ class Pipe:
                     "private_file_projection_lookup_unavailable",
                     "OpenWebUI private file lookup is unavailable",
                 )
-            row = await getter(file_id)
+            try:
+                row = await getter(file_id)
+            except Exception as exc:
+                raise ArtifactStoreError(
+                    "private_file_projection_lookup_failed",
+                    "OpenWebUI private file lookup failed",
+                ) from exc
             if row is None:
                 return None
             meta = getattr(row, "meta", None)
@@ -3212,17 +3222,23 @@ class Pipe:
         if await existing_valid() is not None:
             return file_id
         attempt_id = uuid.uuid4().hex
-        uploaded, file_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(content),
-            f"{file_id}_{attempt_id}_{filename}",
-            {
-                "OpenWebUI-User-Email": str(user.get("email") or ""),
-                "OpenWebUI-User-Id": str(user["id"]),
-                "OpenWebUI-User-Name": str(user.get("name") or ""),
-                "OpenWebUI-File-Id": file_id,
-            },
-        )
+        try:
+            uploaded, file_path = await asyncio.to_thread(
+                Storage.upload_file,
+                io.BytesIO(content),
+                f"{file_id}_{attempt_id}_{filename}",
+                {
+                    "OpenWebUI-User-Email": str(user.get("email") or ""),
+                    "OpenWebUI-User-Id": str(user["id"]),
+                    "OpenWebUI-User-Name": str(user.get("name") or ""),
+                    "OpenWebUI-File-Id": file_id,
+                },
+            )
+        except Exception as exc:
+            raise ArtifactStoreError(
+                "private_file_projection_upload_failed",
+                "OpenWebUI private file upload failed",
+            ) from exc
         if uploaded != content:
             await Pipe._delete_partial_private_file(
                 Storage=Storage, file_path=file_path
@@ -3342,6 +3358,35 @@ class Pipe:
         )
 
     @staticmethod
+    async def _try_publish_mapping_forensics_file(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        user: Any,
+        semantic_mapping: Any,
+    ) -> dict[str, Any] | None:
+        """Best-effort native File projection after a persisted terminal.
+
+        The optional download is not a MappingCase state transition.  Expected
+        ArtifactStore failures therefore suppress only the download and retain
+        the already-persisted invalid-mapping terminal.
+        """
+
+        try:
+            return await Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user=user,
+                semantic_mapping=semantic_mapping,
+            )
+        except ArtifactStoreError as exc:
+            logging.getLogger(__name__).warning(
+                "broker_reports_mapping_forensics_unavailable code=%s",
+                exc.code,
+            )
+            return None
+
+    @staticmethod
     async def _publish_mapping_forensics_file(
         *,
         store: Any,
@@ -3365,6 +3410,12 @@ class Pipe:
             return None
         if (
             not isinstance(raw_ref, dict)
+            or set(raw_ref)
+            != {
+                "schema_version",
+                "artifact_ref",
+                "mapping_case_artifact_id",
+            }
             or raw_ref.get("schema_version")
             != MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION
             or not isinstance(raw_ref.get("artifact_ref"), str)
@@ -3375,6 +3426,21 @@ class Pipe:
             raise ArtifactStoreError(
                 "mapping_forensics_private_reference_invalid",
                 "Mapping forensics private reference is invalid",
+            )
+        # The turn result is the coordinator's current-case control state;
+        # its case id must bind the opaque raw reference before *any* private
+        # artifact lookup.  Checking only the referenced record below would
+        # permit a caller-supplied result to project a different valid case's
+        # response within the same authenticated scope.
+        if (
+            not isinstance(semantic_mapping.get("mapping_case_artifact_id"), str)
+            or not semantic_mapping["mapping_case_artifact_id"]
+            or semantic_mapping["mapping_case_artifact_id"]
+            != raw_ref["mapping_case_artifact_id"]
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_case_binding_invalid",
+                "Mapping forensics case binding is invalid",
             )
         resolver = ArtifactResolver(store)
         resolved = resolver.resolve_case(raw_ref["artifact_ref"], context)
