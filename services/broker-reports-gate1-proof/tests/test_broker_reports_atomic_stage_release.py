@@ -255,13 +255,16 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **kwargs: events.append("publish:" + kwargs["profile"])
-                or pin,
+                side_effect=lambda **kwargs: events.append(
+                    "observe" if kwargs.get("read_current") else "publish:" + kwargs["profile"]
+                ) or pin,
             ),
             mock.patch.object(
                 driver,
                 "_run_remote_release",
-                side_effect=lambda **_kwargs: events.append("atomic_remote") or {"status": "passed"},
+                side_effect=lambda **kwargs: events.append(
+                    "candidate_validate" if not kwargs["apply"] else "atomic_apply"
+                ) or {"status": "validated" if not kwargs["apply"] else "passed"},
             ),
             mock.patch.object(
                 driver,
@@ -282,8 +285,10 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(
             [
+                "observe",
+                "candidate_validate",
                 "publish:ordinary_trade_mapping_v20",
-                "atomic_remote",
+                "atomic_apply",
                 "post_remote_verify",
             ],
             events,
@@ -314,7 +319,13 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 "_run_native_prompt_publication",
                 return_value=pin,
             ),
-            mock.patch.object(driver, "_run_remote_release", return_value={"status": "passed"}) as apply,
+            mock.patch.object(
+                driver,
+                "_run_remote_release",
+                side_effect=lambda **kwargs: {
+                    "status": "passed" if kwargs["apply"] else "validated"
+                },
+            ) as apply,
             mock.patch.object(
                 driver,
                 "_verify_native_prompt_publication_after_remote_release",
@@ -329,8 +340,55 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                     prove_rollback=True,
                 )
 
-        self.assertEqual(1, apply.call_count)
+        self.assertEqual(1, sum(call.kwargs["apply"] for call in apply.call_args_list))
         self.assertEqual(1, verify.call_count)
+
+    def test_apply_rolls_back_observed_prompt_when_atomic_activation_fails(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        events: list[str] = []
+
+        def remote_release(**kwargs):
+            events.append("validate" if not kwargs["apply"] else "apply")
+            if kwargs["apply"]:
+                raise driver.StageReleaseDriverError("stage_release_remote_failed:health")
+            return {"status": "validated"}
+
+        with (
+            mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
+            mock.patch.object(driver, "_prepare_remote_staging", return_value="/atomic-staging"),
+            mock.patch.object(driver, "_copy_prompt_publication_payload"),
+            mock.patch.object(driver, "_copy_payload"),
+            mock.patch.object(
+                driver,
+                "_run_native_prompt_publication",
+                side_effect=lambda **kwargs: events.append(
+                    "observe" if kwargs.get("read_current") else "publish"
+                ) or MAPPING_PIN,
+            ),
+            mock.patch.object(driver, "_run_remote_release", side_effect=remote_release),
+            mock.patch.object(
+                driver,
+                "_rollback_native_prompt_publication_after_remote_failure",
+                side_effect=lambda **kwargs: events.append("prompt_rollback") or MAPPING_PIN,
+            ) as rollback,
+        ):
+            with self.assertRaisesRegex(driver.StageReleaseDriverError, "remote_failed:health"):
+                driver.execute(
+                    source_revision=revision,
+                    ssh_target="validated-target",
+                    apply=True,
+                    prove_rollback=True,
+                )
+
+        self.assertEqual(["observe", "validate", "publish", "apply", "prompt_rollback"], events)
+        self.assertEqual(MAPPING_PIN, rollback.call_args.kwargs["previous_pin"])
 
     def test_git_blob_loader_identity_ignores_checkout_line_endings(self):
         revision = subprocess.run(
