@@ -798,6 +798,66 @@ class OrdinaryTradeSemanticMapping:
             _fail("ordinary_trade_semantic_mapping_context_limit")
         return package
 
+    def preflight_mapping_request(
+        self,
+        *,
+        package: Mapping[str, Any],
+        canonical: Mapping[str, Any],
+        confirmed_understandings: list[dict[str, Any]],
+        target_table_node_ids: Iterable[str],
+        physical_table_continuation_context: Mapping[str, Any] | None,
+        input_schema_version: str,
+        prompt_snapshot: Any,
+    ) -> dict[str, Any]:
+        """Bind one imminent model request to its existing source owners.
+
+        ``build_mapping_package`` is the sole package owner. This final
+        preflight rebuilds that package from owner inputs and compares the
+        actual object handed to the transport. It adds no repair, persistence,
+        or provider-specific representation.
+        """
+
+        try:
+            from .ordinary_trade_mapping_prompt import (
+                validate_ordinary_trade_mapping_prompt_snapshot,
+            )
+
+            snapshot = validate_ordinary_trade_mapping_prompt_snapshot(
+                prompt_snapshot
+            )
+        except Exception as exc:
+            _fail(
+                getattr(
+                    exc,
+                    "code",
+                    "ordinary_trade_mapping_request_prompt_snapshot_invalid",
+                )
+            )
+        if snapshot["input_schema_version"] != input_schema_version:
+            _fail("ordinary_trade_mapping_request_prompt_input_schema_mismatch")
+
+        expected = self.build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=confirmed_understandings,
+            target_table_node_ids=target_table_node_ids,
+            physical_table_continuation_context=physical_table_continuation_context,
+            input_schema_version=input_schema_version,
+        )
+        if not isinstance(package, Mapping) or _canonical_json(package) != _canonical_json(expected):
+            _fail("ordinary_trade_mapping_request_package_binding_invalid")
+
+        tables = expected["case"]["tables"]
+        return {
+            "schema_version": "broker_reports_ordinary_trade_mapping_request_receipt_v1",
+            "package_sha256": _sha256_json(expected),
+            "input_schema_version": input_schema_version,
+            "prompt_hash": snapshot["prompt_hash"],
+            "output_schema_id": snapshot["output_schema_id"],
+            "output_schema_version": snapshot["output_schema_version"],
+            "tables_total": len(tables),
+            "rows_total": sum(len(table["rows"]) for table in tables),
+        }
+
     def expand_target_scope_for_source_bound_header_continuations(
         self,
         *,

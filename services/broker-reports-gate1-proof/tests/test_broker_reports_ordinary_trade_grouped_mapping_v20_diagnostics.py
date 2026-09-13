@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 
@@ -17,6 +18,12 @@ from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
+    _audit_mapping_request_preflight,
+    _audit_mapping_request_preflight_invalid,
+    _audit_provider_mapping_output_invalid,
+)
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
@@ -94,6 +101,42 @@ def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> N
     )
     assert store.list_by_type(
         context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    ) == []
+
+
+def test_prompt_package_schema_mismatch_stops_before_provider_call(tmp_path) -> None:
+    """A wrong input contract is an input failure, never a Gemini attempt."""
+
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = runtime_fixtures.BoundaryModelClient([])
+    runtime = OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        mapping_response_adapter=OrdinaryTradeGroupedMappingV20AdapterFactory.create(),
+        **runtime_fixtures._mapping_prompt_dependencies(),
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        input_schema_version=MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    ).create()
+
+    result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["provider_calls_this_turn"] == 0
+    assert client.calls == []
+    saved = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert saved["provider_calls_total"] == 0
+    assert saved["reason_code"] == (
+        "ordinary_trade_mapping_request_prompt_input_schema_mismatch"
+    )
+    assert store.list_by_type(
+        context.normalization_run_id,
+        MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
     ) == []
 
 
@@ -227,6 +270,54 @@ def test_mapping_output_invalid_public_state_uses_generic_closed_fallback(
     exposed = json.dumps(public, ensure_ascii=False, sort_keys=True)
     assert "provider-message-with-value-987654321" not in exposed
     assert "987654321" not in exposed
+
+
+def test_request_preflight_log_is_body_free(caplog) -> None:
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    _audit_mapping_request_preflight(
+        {
+            "package_sha256": "a" * 64,
+            "prompt_hash": "b" * 64,
+            "tables_total": 2,
+            "rows_total": 17,
+            "source_literal": "private-value-987654321",
+        }
+    )
+
+    assert "broker_reports_mapping_request_preflight" in caplog.text
+    assert "a" * 64 in caplog.text
+    assert "b" * 64 in caplog.text
+    assert "private-value-987654321" not in caplog.text
+
+
+def test_request_preflight_rejection_log_is_closed(caplog) -> None:
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    _audit_mapping_request_preflight_invalid("private-value-987654321")
+
+    assert "broker_reports_mapping_request_preflight_rejected" in caplog.text
+    assert "ordinary_trade_mapping_request_preflight_invalid" in caplog.text
+    assert "private-value-987654321" not in caplog.text
+
+
+def test_provider_mapping_contract_audit_never_logs_untrusted_reason_value(caplog) -> None:
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    _audit_provider_mapping_output_invalid("provider-private-value-987654321")
+
+    assert "broker_reports_mapping_contract_rejected" in caplog.text
+    assert "ordinary_trade_semantic_mapping_output_invalid" in caplog.text
+    assert "provider-private-value-987654321" not in caplog.text
 
 
 @pytest.mark.parametrize(
