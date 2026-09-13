@@ -29,10 +29,10 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
-ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v20"
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v21"
 ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
-    "broker_reports_ordinary_trade_mapping_prompt.v20.md"
+    "broker_reports_ordinary_trade_mapping_prompt.v21.md"
 )
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -279,12 +279,15 @@ def _run_native_prompt_publication(
     profile: str,
     verify_pin: Mapping[str, str] | None,
     read_current: bool = False,
+    allow_missing: bool = False,
     rollback_pin: Mapping[str, str] | None = None,
-) -> dict[str, str]:
+) -> dict[str, str] | None:
     modes = int(bool(read_current)) + int(verify_pin is not None) + int(
         rollback_pin is not None
     )
     if modes > 1:
+        raise StageReleaseDriverError("stage_release_prompt_publication_mode_invalid")
+    if allow_missing and not read_current:
         raise StageReleaseDriverError("stage_release_prompt_publication_mode_invalid")
     command = [
         *_ssh_prefix(ssh_target),
@@ -297,6 +300,8 @@ def _run_native_prompt_publication(
     ]
     if read_current:
         command.append("--read-current")
+        if allow_missing:
+            command.append("--allow-missing")
     elif rollback_pin is not None:
         command.extend(
             [
@@ -320,7 +325,72 @@ def _run_native_prompt_publication(
         value = json.loads(completed.stdout)
     except ValueError as exc:
         raise StageReleaseDriverError("stage_release_prompt_publication_receipt_invalid") from exc
+    if allow_missing and value == {"status": "absent"}:
+        return None
     return _validated_prompt_pin(value)
+
+
+def bootstrap_ordinary_trade_mapping_prompt(
+    *, source_revision: str, ssh_target: str
+) -> dict[str, Any]:
+    """Explicitly create and attest the immutable v21 Prompt before release."""
+
+    local_checks = _assert_release_tree(source_revision)
+    release_name = "broker-reports-" + hashlib.sha256(
+        ("prompt-bootstrap:" + source_revision).encode("ascii")
+    ).hexdigest()[:12]
+    remote_dir: str | None = None
+    with tempfile.TemporaryDirectory(prefix="broker-reports-prompt-bootstrap-") as temp:
+        source_archive = Path(temp) / PROMPT_ARCHIVE_NAME
+        _write_prompt_source_archive(
+            source_revision=source_revision,
+            destination=source_archive,
+        )
+        try:
+            remote_dir = _prepare_remote_staging(ssh_target, release_name)
+            _copy_prompt_publication_payload(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                source_archive=source_archive,
+            )
+            current = _run_native_prompt_publication(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                verify_pin=None,
+                read_current=True,
+                allow_missing=True,
+            )
+            if current is not None:
+                return {
+                    "status": "existing",
+                    "pin": current,
+                    "local_release_checks": local_checks,
+                }
+            published = _run_native_prompt_publication(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                verify_pin=None,
+            )
+            assert published is not None
+            verified = _run_native_prompt_publication(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                verify_pin=published,
+            )
+            assert verified is not None
+            if verified != published:
+                raise StageReleaseDriverError("stage_release_prompt_publication_pin_drift")
+            return {
+                "status": "created",
+                "pin": verified,
+                "local_release_checks": local_checks,
+            }
+        finally:
+            if remote_dir is not None:
+                _cleanup_remote_staging(ssh_target, remote_dir)
 
 
 def _verify_native_prompt_publication_after_remote_release(
@@ -669,6 +739,7 @@ def main() -> int:
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--prove-rollback", action="store_true")
+    parser.add_argument("--bootstrap-ordinary-trade-mapping-prompt", action="store_true")
     parser.add_argument("--ordinary-trade-mapping-prompt-pin-json", default=None)
     args = parser.parse_args()
 
@@ -680,17 +751,29 @@ def main() -> int:
     else:
         env = _read_env(Path(args.env_file))
         ssh_target = env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
-    receipt = execute(
-        source_revision=args.source_revision,
-        ssh_target=ssh_target,
-        apply=bool(args.apply),
-        prove_rollback=bool(args.prove_rollback),
-        ordinary_trade_mapping_prompt_pin=(
-            json.loads(args.ordinary_trade_mapping_prompt_pin_json)
-            if args.ordinary_trade_mapping_prompt_pin_json is not None
-            else None
-        ),
-    )
+    if args.bootstrap_ordinary_trade_mapping_prompt:
+        if (
+            args.apply
+            or args.prove_rollback
+            or args.ordinary_trade_mapping_prompt_pin_json is not None
+        ):
+            raise StageReleaseDriverError("stage_release_prompt_bootstrap_mode_invalid")
+        receipt = bootstrap_ordinary_trade_mapping_prompt(
+            source_revision=args.source_revision,
+            ssh_target=ssh_target,
+        )
+    else:
+        receipt = execute(
+            source_revision=args.source_revision,
+            ssh_target=ssh_target,
+            apply=bool(args.apply),
+            prove_rollback=bool(args.prove_rollback),
+            ordinary_trade_mapping_prompt_pin=(
+                json.loads(args.ordinary_trade_mapping_prompt_pin_json)
+                if args.ordinary_trade_mapping_prompt_pin_json is not None
+                else None
+            ),
+        )
     print(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

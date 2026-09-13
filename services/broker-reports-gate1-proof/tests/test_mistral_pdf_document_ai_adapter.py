@@ -1062,7 +1062,7 @@ def test_native_html_table_is_preserved_as_physical_header_and_headerless_units(
     )
     mapping_tables = mapping_package["case"]["tables"]
     assert [table["physical_header_row"] for table in mapping_tables] == [1, None]
-    assert mapping_tables[1]["header_row_choices"] == []
+    assert mapping_tables[1]["header_row_choices"] == [1]
     assert mapping_tables[1]["rows"] == [
         {
             "row": 1,

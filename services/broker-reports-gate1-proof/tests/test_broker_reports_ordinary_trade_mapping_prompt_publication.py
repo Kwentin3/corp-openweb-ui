@@ -26,6 +26,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_V18_PROFILE,
     ORDINARY_TRADE_MAPPING_V19_PROFILE,
     ORDINARY_TRADE_MAPPING_V20_PROFILE,
+    ORDINARY_TRADE_MAPPING_V21_PROFILE,
     PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     OrdinaryTradeMappingPromptPublication,
@@ -338,6 +339,33 @@ def test_closed_physical_table_profile_publishes_native_instruction_without_mapp
     ]
     assert result.safe_pin()["prompt_command"] == profile.command
     assert result.prompt_hash == pdf_table_continuation_annotation_prompt_hash(content)
+
+
+def test_v21_native_asset_limits_header_selection_to_supplied_choices(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V21_PROFILE
+    asset_root = _V14_PROMPT_ASSET.parent
+    content = (asset_root / profile.asset_filename).read_text(encoding="utf-8")
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    assert profile.profile_id == "ordinary_trade_mapping_v21"
+    assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V20_PROFILE.output_schema_id
+    assert "header_row_choices is the complete allowed set" in content
+    assert "Either select only a number" in content
+    assert "header_row_choices as header_row" in content
+    assert result.safe_pin()["prompt_command"] == profile.command
 
 
 def test_repository_physical_table_asset_is_bound_to_its_closed_profile() -> None:

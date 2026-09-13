@@ -43,6 +43,9 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v18 import (
     OrdinaryTradeGroupedMappingV18Adapter,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
+    OrdinaryTradeGroupedMappingV20Adapter,
+)
 from broker_reports_gate1.openwebui_file_bytes import OpenWebUIOwnedFile
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -2132,6 +2135,15 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
             OrdinaryTradeGroupedMappingV18Adapter,
         ),
+        (
+            "ordinary_trade_mapping_v21",
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV20Adapter,
+        ),
     ],
 )
 def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
@@ -2271,10 +2283,10 @@ def test_mapping_route_profile_rejects_lab_or_arbitrary_selector(profile_id: str
 
 def test_mapping_route_profile_rejects_command_not_pinned_to_profile() -> None:
     pipe = Pipe()
-    pipe.valves.ordinary_trade_mapping_profile_id = "ordinary_trade_mapping_v13"
+    pipe.valves.ordinary_trade_mapping_profile_id = "ordinary_trade_mapping_v21"
     pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
     pipe.valves.ordinary_trade_mapping_prompt_command = (
-        product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND
+        product_pipe.ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND
     )
 
     with pytest.raises(NdflWorkflowError) as rejected:
