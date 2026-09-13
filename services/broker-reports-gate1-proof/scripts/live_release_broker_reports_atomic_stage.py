@@ -13,7 +13,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -190,14 +190,34 @@ def _copy_payload(
         loader_payload_path,
         *(contract.bundle_path for contract in FUNCTION_CONTRACTS),
     ]
-    for path in paths:
-        if not path.is_file():
-            raise StageReleaseDriverError("stage_release_payload_file_missing")
-    destination = f"{ssh_target}:{remote_dir}/"
-    _run(
-        [*_scp_prefix(), *(str(path) for path in paths), destination],
-        timeout=240,
+    _copy_files_to_remote_staging(
+        ssh_target=ssh_target,
+        remote_dir=remote_dir,
+        paths=paths,
+        missing_code="stage_release_payload_file_missing",
     )
+
+
+def _copy_files_to_remote_staging(
+    *,
+    ssh_target: str,
+    remote_dir: str,
+    paths: Sequence[Path],
+    missing_code: str,
+) -> None:
+    """Copy every release artifact independently.
+
+    Windows OpenSSH has shown that a multi-source ``scp`` invocation can leave
+    a later file at zero bytes while reporting success.  The staging contract
+    needs every artifact byte-for-byte, so keep one transport invocation per
+    owned file.
+    """
+
+    if any(not path.is_file() for path in paths):
+        raise StageReleaseDriverError(missing_code)
+    destination = f"{ssh_target}:{remote_dir}/"
+    for path in paths:
+        _run([*_scp_prefix(), str(path), destination], timeout=240)
 
 
 def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> None:
@@ -236,12 +256,11 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
 def _copy_prompt_publication_payload(
     *, ssh_target: str, remote_dir: str, source_archive: Path
 ) -> None:
-    paths = (source_archive, PROMPT_HOST_SCRIPT, PROMPT_CONTAINER_SCRIPT)
-    if any(not path.is_file() for path in paths):
-        raise StageReleaseDriverError("stage_release_prompt_publication_payload_missing")
-    _run(
-        [*_scp_prefix(), *(str(path) for path in paths), f"{ssh_target}:{remote_dir}/"],
-        timeout=240,
+    _copy_files_to_remote_staging(
+        ssh_target=ssh_target,
+        remote_dir=remote_dir,
+        paths=(source_archive, PROMPT_HOST_SCRIPT, PROMPT_CONTAINER_SCRIPT),
+        missing_code="stage_release_prompt_publication_payload_missing",
     )
 
 
