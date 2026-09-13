@@ -1037,6 +1037,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             message="One mapping batch attempt is started.", mapping_batch_state=state,
             provider_calls_total=0, mapping_prompt_snapshot=snapshot,
         )
+        response = None
         try:
             response = await self._model_client.extract(
                 prompt=prompt,
@@ -1080,16 +1081,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
-            saved = self._cases.save_batch_state(
-                document_id=document_id,
-                context=context,
-                status="MAPPING_OUTPUT_INVALID",
-                message="The mapping batch response is invalid or unavailable.",
-                mapping_batch_state=state,
-                provider_calls_total=1,
-                mapping_prompt_snapshot=snapshot,
-                reason_code=_mapping_output_reason_code(exc, str(code)),
-            )
+            terminal_kwargs = {
+                "document_id": document_id,
+                "context": context,
+                "status": "MAPPING_OUTPUT_INVALID",
+                "message": "The mapping batch response is invalid or unavailable.",
+                "mapping_batch_state": state,
+                "provider_calls_total": 1,
+                "mapping_prompt_snapshot": snapshot,
+                "reason_code": _mapping_output_reason_code(exc, str(code)),
+            }
+            if response is not None:
+                terminal_kwargs["mapping_raw_response"] = response.content
+            saved = self._cases.save_batch_state(**terminal_kwargs)
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn + 1)
         if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
             state["pending_batch_id"] = next_batch["batch_id"]

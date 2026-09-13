@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import asyncio
+import logging
 from dataclasses import replace
 
 import pytest
@@ -20,6 +21,8 @@ import test_broker_reports_issue312_mapping_runtime as runtime_fixtures
 import broker_reports_gate1.ordinary_trade_semantic_mapping as semantic_module
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseError
+from broker_reports_gate1.ordinary_trade_mapping_case import MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
@@ -427,15 +430,42 @@ def test_stale_request_cannot_replay_completed_idle_batch(tmp_path, monkeypatch)
     asyncio.run(exercise())
 
 
-def test_invalid_batch_does_not_publish_or_retry(tmp_path, monkeypatch):
+def test_invalid_batch_preserves_private_raw_response_without_logging_it(
+    tmp_path, monkeypatch, caplog
+):
     store, context, document_id, client, runtime = _product_batches(tmp_path, monkeypatch)
-    client.outputs[1] = {}
+    private_response = {"provider_private_value": "batch-output-do-not-log"}
+    client.outputs[1] = private_response
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_case",
+    )
     result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
     assert result["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 2
     assert runtime._cases.qualified_material(document_id=document_id, context=context) is None
     assert asyncio.run(runtime.resolve(document_id=document_id, context=context))["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 2
+    raw_records = store.list_by_type(
+        context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    )
+    assert len(raw_records) == 1
+    raw_record = raw_records[0]
+    assert raw_record.visibility == "private_case"
+    assert raw_record.safe_metadata["contains_provider_response"] is True
+    raw = ArtifactResolver(store).resolve(raw_record.artifact_id, context)["payload"]
+    assert raw["response_content"] == private_response
+    receipt = [
+        record.message
+        for record in caplog.records
+        if "broker_reports_mapping_invalid_terminal" in record.message
+    ]
+    assert receipt == [
+        "broker_reports_mapping_invalid_terminal "
+        "reason_code=ordinary_trade_semantic_mapping_response_invalid "
+        "revision=5 provider_calls_total=2 raw_response_saved=True"
+    ]
+    assert "batch-output-do-not-log" not in caplog.text
 
 
 @pytest.mark.parametrize("restart", [False, True, "after_assertion", "resolver_fails_pending"])

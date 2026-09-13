@@ -369,6 +369,7 @@ class OrdinaryTradeMappingCaseRuntime:
         mapping_prompt_snapshot: dict[str, Any],
         pending_candidate: dict[str, Any] | None = None,
         reason_code: str | None = None,
+        mapping_raw_response: Any = _MAPPING_RAW_RESPONSE_UNSET,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         """Persist batch transport progress without publishing partial mappings."""
 
@@ -456,7 +457,12 @@ class OrdinaryTradeMappingCaseRuntime:
             mapping_batch_state=mapping_batch_state,
             reason_code=reason_code,
         )
-        return self._put(payload=payload, document_id=document_id, context=context)
+        return self._put(
+            payload=payload,
+            document_id=document_id,
+            context=context,
+            mapping_raw_response=mapping_raw_response,
+        )
 
     @staticmethod
     def validate_batch_currency_candidate(state, candidate) -> None:
