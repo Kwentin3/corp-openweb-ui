@@ -10,8 +10,11 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
     OrdinaryTradeGroupedMappingV20AdapterFactory,
 )
 from broker_reports_gate1.ordinary_trade_mapping_case import (
+    MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
     OrdinaryTradeMappingCaseFactory,
 )
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
@@ -89,6 +92,9 @@ def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> N
     assert projection_payload["qualified_table_resolutions"][0]["disposition"] == (
         "SECURITY_TRADES"
     )
+    assert store.list_by_type(
+        context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    ) == []
 
 
 @pytest.mark.parametrize("malformation", ["omit", "duplicate", "reorder", "invent"])
@@ -129,6 +135,36 @@ def test_v20_malformed_columns_stay_terminal_and_never_project(
         context.normalization_run_id,
         ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
     ) == []
+    raw_records = store.list_by_type(
+        context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    )
+    assert len(raw_records) == 1
+    raw_record = raw_records[0]
+    assert raw_record.visibility == "private_case"
+    assert raw_record.storage_backend == "project_artifact_payload"
+    assert raw_record.source_file_ref == OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[0].source_file_ref
+    assert raw_record.retention_policy == OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[0].retention_policy
+    raw = ArtifactResolver(store).resolve(raw_record.artifact_id, context)["payload"]
+    assert raw["schema_version"] == MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    assert raw["response_content"] == response
+    assert response["message"] not in json.dumps(saved, ensure_ascii=False)
+    with pytest.raises(ArtifactStoreError) as denied:
+        ArtifactResolver(store).resolve(
+            raw_record.artifact_id,
+            type(context)(
+                user_id="other-user",
+                normalization_run_id=context.normalization_run_id,
+                case_id=context.case_id,
+                chat_id=context.chat_id,
+                workspace_model_id=context.workspace_model_id,
+                allow_private=True,
+            ),
+        )
+    assert denied.value.code == "artifact_access_denied"
 
 
 def test_mapping_output_invalid_public_state_has_only_closed_failure_reason(

@@ -640,6 +640,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 ),
                 provider_calls_total=1,
                 mapping_prompt_snapshot=prompt_snapshot,
+                mapping_raw_response=response.content,
             )
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
