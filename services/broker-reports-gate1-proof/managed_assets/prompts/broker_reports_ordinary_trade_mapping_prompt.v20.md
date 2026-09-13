@@ -20,6 +20,12 @@ columns only; if an explicit currency column is absent use
 SECURITY_TRADES_INCOMPLETE. For NO_NAMED_CONSUMER and
 UNSUPPORTED_FINANCIAL_MEANING retain the schema's empty role collections.
 
+An exception_rows entry may name only a non-empty source row in that same
+table whose row number is strictly greater than that table's selected
+header_row. Never name header_row, a prior row, a blank row, or a row that is
+not present in that table. If no concrete non-trade source row exists, return
+exception_rows as [].
+
 DOCUMENT_OPENING provides document purpose only and never changes a row,
 header, table boundary or numeric value. Mark INSTRUCTIONAL_REFERENCE only
 when supplied content explicitly establishes explanatory purpose.
