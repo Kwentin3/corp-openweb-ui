@@ -170,13 +170,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_dialogue_context_sha256,
     public_dialogue_interpretation_messages,
     public_dialogue_interpretation_response_format,
-    public_dialogue_message_response_format,
-    public_dialogue_render_messages,
-    public_mapping_verification_messages,
-    public_mapping_verification_response_format,
     render_public_dialogue_fallback,
     validate_public_dialogue_interpretation,
-    validate_public_dialogue_message,
 )
 from broker_reports_gate1.openwebui_file_bytes import (
     OpenWebUIFileBytesError,
@@ -1180,6 +1175,11 @@ class Pipe:
                 done=True,
             )
         if artifact_context.workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID:
+            # The native Pipe return is the only public delivery of a newly
+            # completed NDFL workload.  Do not make a second presentation-model
+            # completion a post-result dependency: the owner-built context has
+            # a deterministic Russian rendering and the private XML link is
+            # already bound below.
             chat_content = await self._render_ndfl_public_dialogue(
                 result=ndfl_gate3,
                 user=__user__,
@@ -1714,61 +1714,12 @@ class Pipe:
             model_used = bool(existing.get("interpretation_model_used"))
         elif call_already_used:
             fallback_used = True
-        elif (
-            isinstance(context.get("current_question"), dict)
-            and context["current_question"].get("authority_kind")
-            in {
-                "source_choice_confirmation",
-                "declaration_case_bundle_confirmation",
-            }
-        ):
-            content = render_public_dialogue_fallback(context)
-        elif self.valves.ndfl_presentation_llm_enabled:
-            try:
-                system_content, user_content = public_dialogue_render_messages(context)
-                raw = await self._call_openwebui_presentation_completion(
-                    system_content=system_content,
-                    user_content=user_content,
-                    response_format=public_dialogue_message_response_format(
-                        context=context
-                    ),
-                    user=user,
-                    request=request,
-                    task="ordinary_trade_public_dialogue_render",
-                )
-                question = context.get("current_question")
-                mapping_verification = None
-                if (
-                    isinstance(question, dict)
-                    and question.get("authority_kind") == "source_choice"
-                ):
-                    verifier_system, verifier_user = (
-                        public_mapping_verification_messages(
-                            context=context, draft=raw
-                        )
-                    )
-                    mapping_verification = (
-                        await self._call_openwebui_presentation_completion(
-                            system_content=verifier_system,
-                            user_content=verifier_user,
-                            response_format=(
-                                public_mapping_verification_response_format()
-                            ),
-                            user=user,
-                            request=request,
-                            task="ordinary_trade_public_mapping_verification",
-                        )
-                    )
-                content = validate_public_dialogue_message(
-                    raw,
-                    context=context,
-                    mapping_verification=mapping_verification,
-                )
-                model_used = True
-            except Exception:
-                fallback_used = True
         if not content:
+            # The first-pass route intentionally never invokes a presentation
+            # completion.  This renderer carries no financial meaning: it only
+            # turns the owner-built public context into the Pipe's one string.
             content = render_public_dialogue_fallback(context)
+            fallback_used = True
         download = product.get("private_download")
         if (
             context["outcome"]["download_available"] is True

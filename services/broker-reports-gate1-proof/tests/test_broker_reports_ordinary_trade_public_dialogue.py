@@ -720,10 +720,7 @@ async def _mapping_verifier_failure_uses_runtime_fallback(verifier_result) -> No
     )
 
     assert visible == render_public_dialogue_fallback(context)
-    assert calls == [
-        "ordinary_trade_public_dialogue_render",
-        "ordinary_trade_public_mapping_verification",
-    ]
+    assert calls == []
     assert result["public_dialogue"]["presentation_fallback_used"] is True
     assert result["public_dialogue"]["presentation_model_used"] is False
 
@@ -1343,7 +1340,7 @@ def test_invalid_model_render_uses_same_context_fallback_without_new_meaning(
     assert "Tax Model" not in content
     assert result["public_dialogue"]["presentation_model_used"] is False
     assert result["public_dialogue"]["presentation_fallback_used"] is True
-    assert result["public_dialogue"]["presentation_llm_calls_total"] == 1
+    assert result["public_dialogue"]["presentation_llm_calls_total"] == 0
     assert result["public_dialogue"]["domain_provider_calls_total"] == 0
 
 
@@ -1378,7 +1375,7 @@ def test_stalled_presentation_model_is_bounded_and_uses_fallback(
         result["public_dialogue"]["context"]
     )
     assert result["public_dialogue"]["presentation_fallback_used"] is True
-    assert result["public_dialogue"]["presentation_llm_calls_total"] == 1
+    assert result["public_dialogue"]["presentation_llm_calls_total"] == 0
 
 
 def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
@@ -1568,35 +1565,21 @@ def test_presentation_http_response_is_byte_bounded(
         )
 
 
-def test_valid_model_render_is_the_primary_public_surface(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_first_pass_returns_owner_fallback_and_private_download_without_model() -> None:
     pipe = Pipe()
-    expected_context = build_public_dialogue_context(product=_product())
-    model_message = "Давайте продолжим спокойно.\n\n" + render_public_dialogue_fallback(
-        expected_context
-    )
+    product = _product(status="DECLARATION_XML_READY")
+    product["xml_created"] = True
+    product["private_download"] = {"url": "/api/v1/files/private-xml/content"}
+    product["preparation"]["final_note"]["filing_eligible"] = True
+    calls = 0
 
-    def completion(**_kwargs):
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps(
-                            _owner_context_payload(model_message),
-                            ensure_ascii=False,
-                        )
-                    }
-                }
-            ]
-        }
+    async def completion(**_kwargs):
+        nonlocal calls
+        calls += 1
+        raise AssertionError("first-pass public delivery must not call a model")
 
-    monkeypatch.setattr(
-        pipe,
-        "_openwebui_completion_dependencies",
-        lambda user_id: (completion, type("User", (), {"id": user_id})()),
-    )
-    result = {"provider_calls_total": 0, "product": _product(), "declaration": None}
+    pipe._call_openwebui_presentation_completion = completion
+    result = {"provider_calls_total": 0, "product": product, "declaration": None}
     content = asyncio.run(
         pipe._render_ndfl_public_dialogue(
             result=result,
@@ -1605,8 +1588,16 @@ def test_valid_model_render_is_the_primary_public_surface(
         )
     )
 
-    assert content == model_message
-    assert result["public_dialogue"]["presentation_model_used"] is True
-    assert result["public_dialogue"]["presentation_fallback_used"] is False
-    assert result["public_dialogue"]["presentation_llm_calls_total"] == 1
+    context = result["public_dialogue"]["context"]
+    assert isinstance(content, str)
+    assert content == "\n\n".join(
+        [
+            render_public_dialogue_fallback(context),
+            "[Скачать приватный XML](/api/v1/files/private-xml/content)",
+        ]
+    )
+    assert calls == 0
+    assert result["public_dialogue"]["presentation_model_used"] is False
+    assert result["public_dialogue"]["presentation_fallback_used"] is True
+    assert result["public_dialogue"]["presentation_llm_calls_total"] == 0
     assert result["public_dialogue"]["domain_provider_calls_total"] == 0
