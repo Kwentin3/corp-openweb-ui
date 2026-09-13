@@ -596,6 +596,100 @@ class OrdinaryTradeMappingPromptPublisher:
                 "ordinary_trade_mapping_prompt_publication_unavailable"
             ) from exc
 
+    async def read_current(self) -> OrdinaryTradeMappingPromptPublication:
+        """Return the current native pin without changing the Prompt."""
+
+        owners = self._native_owners()
+        try:
+            async with owners["get_async_db_context"]() as session:
+                row = await owners["prompts"].get_prompt_by_command(
+                    self._profile.command, db=session
+                )
+                if row is None:
+                    raise OrdinaryTradeMappingPromptPublicationError(
+                        "ordinary_trade_mapping_prompt_publication_pin_missing"
+                    )
+                model = _model_dict(row)
+                return await self._verified_publication(
+                    owners=owners,
+                    session=session,
+                    row=model,
+                    content=str(model.get("content") or ""),
+                    action="observed",
+                )
+        except OrdinaryTradeMappingPromptPublicationError:
+            raise
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptPublicationError(
+                "ordinary_trade_mapping_prompt_publication_unavailable"
+            ) from exc
+
+    async def rollback(
+        self, publication: OrdinaryTradeMappingPromptPublication
+    ) -> OrdinaryTradeMappingPromptPublication:
+        """Restore one previously observed native V20 Prompt history snapshot."""
+
+        if not isinstance(publication, OrdinaryTradeMappingPromptPublication):
+            raise OrdinaryTradeMappingPromptPublicationError(
+                "ordinary_trade_mapping_prompt_publication_pin_invalid"
+            )
+        owners = self._native_owners()
+        try:
+            async with owners["get_async_db_context"]() as session:
+                row = await owners["prompts"].get_prompt_by_command(
+                    publication.prompt_command, db=session
+                )
+                model = _model_dict(row) if row is not None else {}
+                actor_user_id = str(model.get("user_id") or "").strip()
+                history = await owners["prompt_histories"].get_history_entry_by_id(
+                    publication.prompt_history_id, db=session
+                )
+                snapshot = getattr(history, "snapshot", None)
+                if (
+                    not actor_user_id
+                    or str(model.get("id") or "") != publication.prompt_ref
+                    or str(getattr(history, "prompt_id", "") or "")
+                    != publication.prompt_ref
+                    or not isinstance(snapshot, dict)
+                    or not isinstance(snapshot.get("content"), str)
+                    or _profile_prompt_hash(
+                        snapshot["content"], profile=self._profile
+                    )
+                    != publication.prompt_hash
+                ):
+                    raise OrdinaryTradeMappingPromptPublicationError(
+                        "ordinary_trade_mapping_prompt_publication_rollback_invalid"
+                    )
+                content = snapshot["content"]
+            restored = await self.publish(
+                OrdinaryTradeMappingPromptPublicationInput(
+                    actor_user_id=actor_user_id,
+                    content=content,
+                    commit_message="Restore Broker Reports ordinary-trade mapping Prompt",
+                )
+            )
+            if (
+                restored.prompt_ref != publication.prompt_ref
+                or restored.prompt_command != publication.prompt_command
+                or restored.prompt_hash != publication.prompt_hash
+            ):
+                raise OrdinaryTradeMappingPromptPublicationError(
+                    "ordinary_trade_mapping_prompt_publication_rollback_drift"
+                )
+            return OrdinaryTradeMappingPromptPublication(
+                prompt_ref=restored.prompt_ref,
+                prompt_command=restored.prompt_command,
+                prompt_history_id=restored.prompt_history_id,
+                prompt_hash=restored.prompt_hash,
+                action="restored",
+            )
+        except OrdinaryTradeMappingPromptPublicationError:
+            raise
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptPublicationError(
+                "ordinary_trade_mapping_prompt_publication_unavailable"
+            ) from exc
+
     def _form(
         self,
         *,
