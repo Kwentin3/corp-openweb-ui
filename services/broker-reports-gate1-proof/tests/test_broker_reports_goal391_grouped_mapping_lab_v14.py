@@ -14,10 +14,8 @@ from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
-)
-from broker_reports_gate1.ordinary_trade_semantic_compiler import (
-    OrdinaryTradeSemanticCompilerError,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ordinary_trade_mapping_prompt_hash,
@@ -239,7 +237,10 @@ def test_grouped_trade_response_rejects_invalid_currency_bindings(tmp_path, muta
     response = _complete_grouped_trade_response(table, known)
     mutate(response["table_decisions"][0])
 
-    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+    # Invalid model output is rejected by the mapping owner before it can
+    # enter qualification/the compiler.  The downstream compiler error is no
+    # longer the observable contract for this model-admission boundary.
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
         _validate_complete_grouped_trade_response(
             context=context,
             canonical=canonical,
@@ -247,4 +248,4 @@ def test_grouped_trade_response_rejects_invalid_currency_bindings(tmp_path, muta
             response=response,
         )
 
-    assert exc.value.code == "ordinary_trade_mapping_currency_binding_invalid"
+    assert exc.value.code == "ordinary_trade_semantic_mapping_currency_binding_invalid"

@@ -3487,7 +3487,10 @@ def _validate_security_trade_amount_currency_bindings(
         if not is_valid:
             _fail("ordinary_trade_semantic_mapping_currency_binding_invalid")
         bound_amount_columns.append(amount_column)
-    if bound_amount_columns != required_amount_columns:
+    # The response is a set of source-bound relations, not an ordered list.
+    # Keep duplicate/foreign/missing bindings invalid while accepting a model
+    # response that lists the exact same relations in a different order.
+    if sorted(bound_amount_columns) != required_amount_columns:
         _fail("ordinary_trade_semantic_mapping_currency_binding_invalid")
 
 
