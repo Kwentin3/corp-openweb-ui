@@ -592,8 +592,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 response_format=self._mapping_response_format(),
             )
         except Exception as exc:
-            _audit_mapping_provider_call_failed()
-            code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
+            code = _mapping_provider_failure_reason_code(exc)
+            _audit_mapping_provider_call_failed(code)
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
@@ -1753,17 +1753,54 @@ def _audit_provider_mapping_output_invalid(reason_code: Any) -> None:
     _LOGGER.info("broker_reports_mapping_contract_rejected reason_code=%s", value)
 
 
-def _audit_mapping_provider_call_failed() -> None:
-    """Emit the fixed, body-free receipt for a failed provider call.
+def _mapping_provider_failure_reason_code(error: Exception) -> str:
+    """Translate a closed Gate 2 failure category at the mapping boundary.
+
+    Gate 2 remains the owner of provider error codes.  This coordinator owns
+    only its value-free terminal categories and deliberately reads no provider
+    message, failure class, raw body, or exception representation.
+    """
+
+    code = getattr(error, "code", None)
+    if code == "gate2_provider_configuration_blocked":
+        return "ordinary_trade_mapping_provider_configuration_unavailable"
+    if code in {
+        "gate2_model_provider_unavailable",
+        "gate2_model_provider_rate_limited",
+        "gate2_model_provider_quota_exceeded",
+        "gate2_model_provider_auth_failed",
+        "gate2_model_unavailable",
+    }:
+        return "ordinary_trade_mapping_provider_capacity_unavailable"
+    if code in {
+        "gate2_model_reasoning_control_rejected",
+        "gate2_model_schema_oneof_unsupported",
+        "gate2_model_schema_required_properties_invalid",
+        "gate2_model_schema_additional_properties_invalid",
+        "gate2_model_schema_type_key_missing",
+        "gate2_model_schema_nullable_type_invalid",
+        "gate2_model_schema_response_format_rejected",
+        "gate2_model_context_budget_exceeded",
+    }:
+        return "ordinary_trade_mapping_provider_request_rejected"
+    if code in {
+        "gate2_model_invalid_response",
+        "gate2_model_response_budget_exceeded",
+    }:
+        return "ordinary_trade_mapping_provider_response_invalid"
+    return "ordinary_trade_mapping_provider_call_failed"
+
+
+def _audit_mapping_provider_call_failed(reason_code: str) -> None:
+    """Emit a value-free receipt for a failed provider call.
 
     The provider exception may contain transport details or private provider
-    text.  This one-shot runtime boundary therefore records neither the
-    exception nor a provider-supplied code in logs.
+    text.  This one-shot runtime boundary records only its own closed terminal
+    category, never the exception or a provider-supplied code.
     """
 
     _LOGGER.info(
-        "broker_reports_mapping_provider_call_failed "
-        "reason_code=ordinary_trade_mapping_provider_call_failed"
+        "broker_reports_mapping_provider_call_failed reason_code=%s", reason_code
     )
 
 
