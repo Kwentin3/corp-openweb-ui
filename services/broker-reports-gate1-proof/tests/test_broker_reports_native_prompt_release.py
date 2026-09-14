@@ -65,9 +65,83 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
     assert python_call[-2:] == ["--profile", "ordinary_trade_mapping_v16"]
 
 
+def test_host_allows_only_the_exact_missing_current_terminal(tmp_path: Path):
+    archive = tmp_path / "ordinary_trade_mapping_prompt_source.zip"
+    runner = tmp_path / "broker_reports_native_prompt_publish_container.py"
+    archive.write_bytes(b"release-source")
+    runner.write_text("# runner", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def run(args, *, check=True):
+        calls.append(args)
+        if "python" in args:
+            return subprocess.CompletedProcess(
+                args,
+                1,
+                stdout=json.dumps(
+                    {
+                        "status": "error",
+                        "code": "ordinary_trade_mapping_prompt_publication_pin_missing",
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    with mock.patch.object(host, "_run", side_effect=run):
+        assert host.execute(
+            staging_dir=tmp_path,
+            verify_pin=None,
+            read_current=True,
+            allow_missing=True,
+            profile="ordinary_trade_mapping_v21",
+        ) is None
+
+    python_call = next(call for call in calls if "python" in call)
+    assert python_call[-3:] == [
+        "--profile",
+        "ordinary_trade_mapping_v21",
+        "--read-current",
+    ]
+    assert "--allow-missing" not in python_call
+
+
+def test_host_keeps_existing_current_readback_strict_when_allow_missing(tmp_path: Path):
+    archive = tmp_path / "ordinary_trade_mapping_prompt_source.zip"
+    runner = tmp_path / "broker_reports_native_prompt_publish_container.py"
+    archive.write_bytes(b"release-source")
+    runner.write_text("# runner", encoding="utf-8")
+
+    def run(args, *, check=True):
+        if "python" in args:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=json.dumps(
+                    {
+                        "schema_version": host.SAFE_SCHEMA_VERSION,
+                        "status": "observed",
+                        "action": "unchanged",
+                        **_PIN,
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    with mock.patch.object(host, "_run", side_effect=run):
+        assert host.execute(
+            staging_dir=tmp_path,
+            verify_pin=None,
+            read_current=True,
+            allow_missing=True,
+            profile="ordinary_trade_mapping_v21",
+        ) == _PIN
+
+
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v20",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v21",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -79,7 +153,7 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
 
 def test_production_gate1_valves_pin_only_financial_roles_and_disable_legacy_routes():
     assert release._production_gate1_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v20",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v21",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -335,6 +409,8 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     assert '"ordinary_trade_mapping_v16"' in container_source
     assert "ordinary_trade_mapping_v19" in container._PROFILE_IDS
     assert "ordinary_trade_mapping_v20" in container._PROFILE_IDS
+    assert "ordinary_trade_mapping_v21" in container._PROFILE_IDS
+    assert "ordinary_trade_mapping_v21" in host._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in host._PROFILE_IDS
     assert "document_metadata_passport_v1" in container._PROFILE_IDS

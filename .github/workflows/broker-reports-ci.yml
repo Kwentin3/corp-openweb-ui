@@ -132,7 +132,7 @@ jobs:
 
       - name: Run focused Broker Reports tests
         run: >-
-          python -m pytest -q
+          timeout 12m python -m pytest -q -vv
           tests/test_broker_reports_gate_architecture.py
           tests/test_broker_reports_kt1_architecture_stabilization.py
           tests/test_retired_pdf_engines_absent.py

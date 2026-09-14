@@ -2617,11 +2617,15 @@ def _model_table_surfaces(
             "physical_header_row": table["physical_header_row"],
             # This is a structural selector, not a financial interpretation.
             # It prevents the model from referring to a visual row number that
-            # does not exist in the Canonical table contract.
+            # does not exist in the Canonical table contract.  Headerless
+            # tables have no owner-supplied physical header, so their complete
+            # set of non-empty Canonical rows is the only model-selectable
+            # surface.  The response validator remains the authority that
+            # binds a returned selection to one of those source rows.
             "header_row_choices": (
                 [table["physical_header_row"]]
                 if table["physical_header_row"] is not None
-                else []
+                else [row["row"] for row in rows if row["cells"]]
             ),
             "rows": copy.deepcopy(rows),
             "rows_truncated": False,

@@ -64,12 +64,14 @@ def test_v20_header_selection_is_bound_to_a_nonempty_canonical_row_only() -> Non
             {"row": 2, "cells": [{"column": 1, "literal": "2026-01-01"}]},
         ],
     }
+    supplied_header_row_choices = [1, 2]
     decision = {
         "table_node_id": "table-a", "header_row": 1,
         "disposition": "NO_NAMED_CONSUMER", "columns": [],
         "amount_currency_bindings": [], "side_values": [], "row_dispositions": [],
         "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
     }
+    assert decision["header_row"] in supplied_header_row_choices
     assert _validate_table_decision(
         decision=decision, table=table, allow_model_selected_header=True
     )["header_row"] == 1
@@ -80,5 +82,6 @@ def test_v20_header_selection_is_bound_to_a_nonempty_canonical_row_only() -> Non
             allow_model_selected_header=True,
         )
     assert exc.value.code == "ordinary_trade_semantic_mapping_header_invalid"
+    assert 3 not in supplied_header_row_choices
     with pytest.raises(OrdinaryTradeSemanticMappingError):
         _validate_table_decision(decision=decision, table=table)

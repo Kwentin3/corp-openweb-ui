@@ -287,7 +287,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [
                 "observe",
                 "candidate_validate",
-                "publish:ordinary_trade_mapping_v20",
+                "publish:ordinary_trade_mapping_v21",
                 "atomic_apply",
                 "post_remote_verify",
             ],
@@ -297,6 +297,88 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(pin, receipt["ordinary_trade_mapping_prompt"]["pin"])
         self.assertNotIn("pdf_table_continuation_annotation_prompt", receipt)
         self.assertNotIn("document_metadata_passport_prompt", receipt)
+
+    def test_bootstrap_creates_and_verifies_missing_v21_without_a_rollback_pin(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        first_v21_pin = {
+            **MAPPING_PIN,
+            "prompt_ref": "prompt-v21-first",
+            "prompt_history_id": "history-v21-first",
+        }
+        events: list[str] = []
+
+        def native_publication(**kwargs):
+            self.assertEqual("ordinary_trade_mapping_v21", kwargs["profile"])
+            if kwargs.get("read_current"):
+                self.assertTrue(kwargs["allow_missing"])
+                events.append("missing")
+                return None
+            if kwargs.get("verify_pin") is not None:
+                self.assertEqual(first_v21_pin, kwargs["verify_pin"])
+                events.append("verify")
+                return first_v21_pin
+            events.append("publish")
+            return first_v21_pin
+
+        with (
+            mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
+            mock.patch.object(driver, "_prepare_remote_staging", return_value="/bootstrap"),
+            mock.patch.object(driver, "_copy_prompt_publication_payload"),
+            mock.patch.object(driver, "_run_native_prompt_publication", side_effect=native_publication),
+        ):
+            receipt = driver.bootstrap_ordinary_trade_mapping_prompt(
+                source_revision=revision,
+                ssh_target="validated-target",
+            )
+
+        self.assertEqual(["missing", "publish", "verify"], events)
+        self.assertEqual("created", receipt["status"])
+        self.assertEqual(first_v21_pin, receipt["pin"])
+
+    def test_bootstrap_keeps_existing_v21_readback_strict_and_does_not_publish(self):
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        existing_v21_pin = {
+            **MAPPING_PIN,
+            "prompt_ref": "prompt-v21-existing",
+            "prompt_history_id": "history-v21-existing",
+        }
+        calls = []
+
+        def native_publication(**kwargs):
+            calls.append(kwargs)
+            self.assertTrue(kwargs["read_current"])
+            self.assertTrue(kwargs["allow_missing"])
+            self.assertEqual("ordinary_trade_mapping_v21", kwargs["profile"])
+            return existing_v21_pin
+
+        with (
+            mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
+            mock.patch.object(driver, "_prepare_remote_staging", return_value="/bootstrap"),
+            mock.patch.object(driver, "_copy_prompt_publication_payload"),
+            mock.patch.object(driver, "_run_native_prompt_publication", side_effect=native_publication),
+        ):
+            receipt = driver.bootstrap_ordinary_trade_mapping_prompt(
+                source_revision=revision,
+                ssh_target="validated-target",
+            )
+
+        self.assertEqual(1, len(calls))
+        self.assertEqual("existing", receipt["status"])
+        self.assertEqual(existing_v21_pin, receipt["pin"])
 
     def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
         revision = subprocess.run(
@@ -360,6 +442,15 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 raise driver.StageReleaseDriverError("stage_release_remote_failed:health")
             return {"status": "validated"}
 
+        def native_publication(**kwargs):
+            self.assertEqual("ordinary_trade_mapping_v21", kwargs["profile"])
+            if kwargs.get("read_current"):
+                self.assertFalse(kwargs.get("allow_missing", False))
+                events.append("observe")
+            else:
+                events.append("publish")
+            return MAPPING_PIN
+
         with (
             mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
             mock.patch.object(driver, "_prepare_remote_staging", return_value="/atomic-staging"),
@@ -368,9 +459,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             mock.patch.object(
                 driver,
                 "_run_native_prompt_publication",
-                side_effect=lambda **kwargs: events.append(
-                    "observe" if kwargs.get("read_current") else "publish"
-                ) or MAPPING_PIN,
+                side_effect=native_publication,
             ),
             mock.patch.object(driver, "_run_remote_release", side_effect=remote_release),
             mock.patch.object(
