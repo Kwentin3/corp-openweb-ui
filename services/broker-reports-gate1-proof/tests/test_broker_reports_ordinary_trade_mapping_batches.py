@@ -31,6 +31,13 @@ from broker_reports_gate1.ordinary_trade_mapping_case import (
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeGroupedMappingV20AdapterFactory,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v23 import (
+    OrdinaryTradeGroupedMappingV23AdapterFactory,
+)
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V16_COMPACT_RESPONSE_SCHEMA_VERSION,
@@ -540,6 +547,69 @@ def test_invalid_batch_preserves_private_raw_response_without_logging_it(
         "revision=5 provider_calls_total=2 raw_response_saved=True"
     ]
     assert "batch-output-do-not-log" not in caplog.text
+
+
+def test_v23_batch_rejects_stale_v20_response_with_closed_safe_audit(
+    tmp_path, monkeypatch, caplog
+):
+    _store, context, document_id, client, runtime = _product_batches(
+        tmp_path, monkeypatch
+    )
+    runtime._mapping_response_adapter = OrdinaryTradeGroupedMappingV23AdapterFactory.create()
+    stale_response = client.outputs[0]
+    stale_response["schema_version"] = (
+        ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION
+    )
+    stale_response["message"] = "v20-private-body-do-not-log"
+    stale_response["explicit_header_source_claims"] = {
+        "schema_version": "broker_reports_ordinary_trade_explicit_header_source_response_v1",
+        "claims": [],
+    }
+    for decision in stale_response["table_decisions"]:
+        decision.pop("row_dispositions")
+        decision["row_policy"] = {
+            "default_disposition": "SECURITY_TRADES",
+            "exception_rows": [],
+        }
+    binding = runtime._cases.case_binding(
+        document_id=document_id, context=context
+    )
+    first_table_node_id = next(
+        node["node_id"]
+        for node in binding["canonical"]["nodes"]
+        if node["node_type"] == "TABLE"
+    )
+    v20_package = runtime._semantic.build_mapping_package(
+        canonical=binding["canonical"],
+        confirmed_understandings=[],
+        target_table_node_ids=[first_table_node_id],
+    )
+    OrdinaryTradeGroupedMappingV20AdapterFactory.create().expand_to_v13(
+        response=stale_response, package=v20_package
+    )
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["public_state"]["mapping_failure_reason"] == "mapping_output_invalid"
+    persisted = runtime._cases.current(document_id=document_id, context=context)[1]
+    assert persisted["reason_code"] == "ordinary_trade_grouped_mapping_v23_response_invalid"
+    assert len(client.calls) == 1
+    assert client.calls[0]["response_format"]["json_schema"]["name"].endswith("v23")
+    assert [
+        record.message
+        for record in caplog.records
+        if "broker_reports_mapping_contract_rejected" in record.message
+    ] == [
+        "broker_reports_mapping_contract_rejected "
+        "reason_code=ordinary_trade_grouped_mapping_v23_response_invalid"
+    ]
+    assert "v20-private-body-do-not-log" not in caplog.text
+    assert "v20-private-body-do-not-log" not in repr(result)
 
 
 def test_complete_batch_exposes_no_private_raw_response_ref(tmp_path, monkeypatch):

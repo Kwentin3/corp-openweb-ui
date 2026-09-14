@@ -1119,6 +1119,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
+            reason_code = _mapping_output_reason_code(exc, str(code))
+            _audit_provider_mapping_output_invalid(reason_code)
             terminal_kwargs = {
                 "document_id": document_id,
                 "context": context,
@@ -1127,7 +1129,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 "mapping_batch_state": state,
                 "provider_calls_total": 1,
                 "mapping_prompt_snapshot": snapshot,
-                "reason_code": _mapping_output_reason_code(exc, str(code)),
+                "reason_code": reason_code,
             }
             if response is not None:
                 terminal_kwargs["mapping_raw_response"] = response.content
