@@ -4,6 +4,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import logging
 from dataclasses import replace
 
 import pytest
@@ -2271,6 +2272,51 @@ def test_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> None:
 
 def test_instructional_table_and_trade_share_one_mapping_call(tmp_path) -> None:
     asyncio.run(_instructional_table_and_trade_share_one_mapping_call(tmp_path))
+
+
+def test_instructional_classifier_rejection_emits_only_closed_safe_audit(
+    tmp_path, caplog
+) -> None:
+    store, context, document_id, tables, _canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(_unknown_rows(suffix="instructional audit"),),
+    )
+    private_marker = "instructional-provider-body-do-not-log"
+    runtime = _runtime_with_instructional_classifier(
+        store, BoundaryModelClient([{"private_marker": private_marker}])
+    )
+    binding = runtime._cases.case_binding(
+        document_id=document_id, context=context
+    )
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    result = asyncio.run(
+        runtime._advance_instructional_preclassification(
+            document_id=document_id,
+            context=context,
+            binding=binding,
+            current=None,
+            target_table_node_ids=[tables[0]["node_id"]],
+        )
+    )
+
+    assert result["current"][1]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["current"][1]["reason_code"] == (
+        "ordinary_trade_instructional_instructional_classification_response_invalid"
+    )
+    assert [
+        record.message
+        for record in caplog.records
+        if "broker_reports_instructional_classification_contract_rejected"
+        in record.message
+    ] == [
+        "broker_reports_instructional_classification_contract_rejected "
+        "reason_code=ordinary_trade_instructional_instructional_classification_response_invalid"
+    ]
+    assert private_marker not in caplog.text
 
 
 def test_overflowed_scope_uses_bounded_batches(tmp_path) -> None:
