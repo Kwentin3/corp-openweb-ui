@@ -1052,6 +1052,7 @@ class _Gate2OpenWebUIProviderAdapter:
             "gate2_model_invalid_response",
             "Provider response has no structured content",
             raw_output=payload,
+            failure_class="provider_response_invalid",
         )
 
     def extract_prepared_content(

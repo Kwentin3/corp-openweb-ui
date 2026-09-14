@@ -74,6 +74,16 @@ _NATIVE_COMPLETION_PROBE_MODEL_ROUTE_UNAVAILABLE = (
 )
 _NATIVE_COMPLETION_PROBE_REQUEST_REJECTED = "NATIVE_BRIDGE_PROBE_REQUEST_REJECTED"
 _NATIVE_COMPLETION_PROBE_RESPONSE_INVALID = "NATIVE_BRIDGE_PROBE_RESPONSE_INVALID"
+_NATIVE_COMPLETION_PROBE_CONTENT_NOT_JSON = "NATIVE_BRIDGE_PROBE_CONTENT_NOT_JSON"
+_NATIVE_COMPLETION_PROBE_CONTENT_CONTRACT_MISMATCH = (
+    "NATIVE_BRIDGE_PROBE_CONTENT_CONTRACT_MISMATCH"
+)
+_NATIVE_COMPLETION_PROBE_RESPONSE_CONTAINER_INVALID = (
+    "NATIVE_BRIDGE_PROBE_RESPONSE_CONTAINER_INVALID"
+)
+_NATIVE_COMPLETION_PROBE_RESPONSE_BUDGET_EXCEEDED = (
+    "NATIVE_BRIDGE_PROBE_RESPONSE_BUDGET_EXCEEDED"
+)
 _NATIVE_COMPLETION_PROBE_CALL_FAILED = "NATIVE_BRIDGE_PROBE_CALL_FAILED"
 
 
@@ -1073,6 +1083,7 @@ class Gate2OpenWebUIStructuredModelClient:
                     "gate2_model_invalid_response",
                     self._invalid_body_message(),
                     raw_output=body_diagnostic,
+                    failure_class="provider_response_invalid",
                 ) from exc
             if isinstance(payload, dict):
                 return payload
@@ -1094,6 +1105,7 @@ class Gate2OpenWebUIStructuredModelClient:
                         "body_json_type": type(payload).__name__,
                     }
                 ),
+                failure_class="provider_response_invalid",
             )
         if isinstance(response, str):
             return {"content": response}
@@ -1101,6 +1113,7 @@ class Gate2OpenWebUIStructuredModelClient:
             "gate2_model_invalid_response",
             self._unsupported_response_message(),
             raw_output={"response_type": response.__class__.__name__},
+            failure_class="provider_response_invalid",
         )
 
     @staticmethod
@@ -1324,14 +1337,13 @@ class Gate2NativeCompletionProbe:
                 response_format=_native_completion_probe_response_format(),
             )
         except Gate2SourceFactRuntimeError as exc:
-            return _native_completion_probe_failure_terminal(exc.code)
+            return _native_completion_probe_failure_terminal(
+                exc.code,
+                failure_class=exc.failure_class,
+            )
         except Exception:
             return _NATIVE_COMPLETION_PROBE_CALL_FAILED
-        return (
-            _NATIVE_COMPLETION_PROBE_SUCCESS
-            if _native_completion_probe_response_is_valid(result.content)
-            else _NATIVE_COMPLETION_PROBE_RESPONSE_INVALID
-        )
+        return _native_completion_probe_response_terminal(result.content)
 
 
 def _native_completion_probe_prompt() -> Gate2ManagedPrompt:
@@ -1373,16 +1385,24 @@ def _native_completion_probe_response_format() -> dict[str, Any]:
     }
 
 
-def _native_completion_probe_response_is_valid(content: Any) -> bool:
+def _native_completion_probe_response_terminal(content: Any) -> str:
     if isinstance(content, str):
         try:
             content = json.loads(content)
         except json.JSONDecodeError:
-            return False
-    return content == {"status": "ok"}
+            return _NATIVE_COMPLETION_PROBE_CONTENT_NOT_JSON
+    return (
+        _NATIVE_COMPLETION_PROBE_SUCCESS
+        if content == {"status": "ok"}
+        else _NATIVE_COMPLETION_PROBE_CONTENT_CONTRACT_MISMATCH
+    )
 
 
-def _native_completion_probe_failure_terminal(code: Any) -> str:
+def _native_completion_probe_failure_terminal(
+    code: Any,
+    *,
+    failure_class: Any = None,
+) -> str:
     value = str(code or "")
     if value in {
         "gate2_model_unavailable",
@@ -1396,9 +1416,12 @@ def _native_completion_probe_failure_terminal(code: Any) -> str:
         "private_native_completion_probe_request_invalid",
     }:
         return _NATIVE_COMPLETION_PROBE_REQUEST_REJECTED
-    if value in {
-        "gate2_model_invalid_response",
-        "gate2_model_response_budget_exceeded",
-    }:
+    if value == "gate2_model_response_budget_exceeded":
+        return _NATIVE_COMPLETION_PROBE_RESPONSE_BUDGET_EXCEEDED
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_invalid"
+    ):
+        return _NATIVE_COMPLETION_PROBE_RESPONSE_CONTAINER_INVALID
+    if value == "gate2_model_invalid_response":
         return _NATIVE_COMPLETION_PROBE_RESPONSE_INVALID
     return _NATIVE_COMPLETION_PROBE_CALL_FAILED
