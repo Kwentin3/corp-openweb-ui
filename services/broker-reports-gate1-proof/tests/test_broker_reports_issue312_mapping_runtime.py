@@ -2304,6 +2304,50 @@ def test_one_shot_gate2_provider_failure_maps_to_closed_mapping_category(
     assert private_marker not in repr(result)
 
 
+def test_one_shot_gate2_request_preparation_failure_is_not_a_provider_call(
+    tmp_path, caplog
+) -> None:
+    private_marker = "request-preparation-private-value-do-not-log"
+    store, context, document_id = case_fixtures._unknown_case(tmp_path)[:3]
+    runtime = _runtime(
+        store,
+        BoundaryModelClient(
+            [
+                Gate2SourceFactRuntimeError(
+                    "gate2_model_request_preparation_failed",
+                    private_marker,
+                    raw_output={"private": private_marker},
+                    failure_class="request_preparation",
+                    safe_failure_category="request_preparation_request_build",
+                )
+            ]
+        ),
+    )
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+
+    saved = runtime._cases.current(document_id=document_id, context=context)[1]
+    assert result["status"] == "PROVIDER_UNAVAILABLE"
+    assert result["provider_calls_this_turn"] == 0
+    assert saved["provider_calls_total"] == 0
+    assert saved["reason_code"] == "ordinary_trade_mapping_provider_request_rejected"
+    assert [
+        record.message
+        for record in caplog.records
+        if "broker_reports_mapping_provider_call_failed" in record.message
+    ] == [
+        "broker_reports_mapping_provider_call_failed "
+        "reason_code=ordinary_trade_mapping_provider_request_rejected "
+        "failure_category=request_preparation_request_build"
+    ]
+    assert private_marker not in caplog.text
+    assert private_marker not in repr(result)
+
+
 @pytest.mark.parametrize(
     ("error_factory", "expected_failure_category"),
     [

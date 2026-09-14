@@ -32,6 +32,16 @@ GATE2_STRICT_STRUCTURED_OUTPUT_MODES = frozenset(
         "openwebui_anthropic_output_config_json_schema",
     }
 )
+GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES = frozenset(
+    {
+        "request_preparation_request_context",
+        "request_preparation_request_build",
+        "request_preparation_budget_prepare",
+        "request_preparation_execution_contract",
+        "request_preparation_model_validation",
+        "request_preparation_provider_request_prepare",
+    }
+)
 
 
 @dataclass(frozen=True)

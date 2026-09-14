@@ -17,6 +17,7 @@ from .gate2_model_contracts import (
     GATE2_COMPLETION_ACCESS_MODES,
     GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
     GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+    GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES,
     PROVIDER_STATUS_APPROVED,
     PROVIDER_STATUS_PROBE_REQUIRED,
     Gate2ProviderProfile,
@@ -46,7 +47,7 @@ from .gate2_provider_adapters import (
     Gate2ProviderAdapterFactory,
     provider_error_code,
 )
-from .gate2_source_fact_contracts import Gate2ManagedPrompt
+from .gate2_source_fact_contracts import Gate2ManagedPrompt, Gate2PromptError
 
 
 FACTORY_REQUIRED = "Gate2StructuredModelClientFactory.create is the only production Gate 2 model client entrypoint"
@@ -237,22 +238,31 @@ class Gate2OpenWebUIStructuredModelClient:
 
     async def extract(self, *, prompt, package, model_id, response_format):
         self._qualification_local_invocations_total += 1
-        user_id = self._validate_request_context()
-        form_data = self.request_builder.build(
-            prompt=prompt,
-            package=package,
-            model_id=model_id,
-            response_format=response_format,
+        user_id = self._request_preparation_stage(
+            "request_preparation_request_context",
+            self._validate_request_context,
+        )
+        form_data = self._request_preparation_stage(
+            "request_preparation_request_build",
+            lambda: self.request_builder.build(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            ),
         )
         budget_authorization = None
         if self.budget_session is not None:
             self._budget_operation_ordinal += 1
-            budget_authorization = self.budget_session.prepare_call(
-                form_data=form_data,
-                model_id=model_id,
-                provider_profile_id=self.provider_profile.profile_id,
-                operation_identity=(
-                    f"gate2-economy-operation-" f"{self._budget_operation_ordinal}"
+            budget_authorization = self._request_preparation_stage(
+                "request_preparation_budget_prepare",
+                lambda: self.budget_session.prepare_call(
+                    form_data=form_data,
+                    model_id=model_id,
+                    provider_profile_id=self.provider_profile.profile_id,
+                    operation_identity=(
+                        f"gate2-economy-operation-" f"{self._budget_operation_ordinal}"
+                    ),
                 ),
             )
             form_data = budget_authorization.prepared_form_data
@@ -261,11 +271,20 @@ class Gate2OpenWebUIStructuredModelClient:
             if budget_authorization is not None
             else model_id
         )
-        execution_contract = self.execution_contract(effective_model_id)
-        self.provider_adapter.validate_model(effective_model_id)
-        prepared_request = self.provider_adapter.prepare_form_data(
-            form_data=form_data,
-            response_format=response_format,
+        execution_contract = self._request_preparation_stage(
+            "request_preparation_execution_contract",
+            lambda: self.execution_contract(effective_model_id),
+        )
+        self._request_preparation_stage(
+            "request_preparation_model_validation",
+            lambda: self.provider_adapter.validate_model(effective_model_id),
+        )
+        prepared_request = self._request_preparation_stage(
+            "request_preparation_provider_request_prepare",
+            lambda: self.provider_adapter.prepare_form_data(
+                form_data=form_data,
+                response_format=response_format,
+            ),
         )
         result, _response_payload = await self._execute_prepared_once(
             user_id=user_id,
@@ -276,6 +295,24 @@ class Gate2OpenWebUIStructuredModelClient:
             content_extractor=self.provider_adapter.extract_content,
         )
         return result
+
+    @staticmethod
+    def _request_preparation_stage(stage: str, operation):
+        """Keep unexpected pre-dispatch faults inside Gate 2's safe contract."""
+
+        if stage not in GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES:
+            raise AssertionError("Unknown Gate 2 request-preparation stage")
+        try:
+            return operation()
+        except (Gate2SourceFactRuntimeError, Gate2PromptError):
+            raise
+        except Exception:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_preparation_failed",
+                "Gate 2 request preparation failed",
+                failure_class="request_preparation",
+                safe_failure_category=stage,
+            ) from None
 
     async def extract_context_v2_1_once(
         self,
