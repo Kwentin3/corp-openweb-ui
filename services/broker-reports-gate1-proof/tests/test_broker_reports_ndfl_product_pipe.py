@@ -75,7 +75,7 @@ def test_test_user_native_bridge_probe_uses_one_source_free_shared_completion(
         return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
 
     async def trusted_message(**_kwargs):
-        return "проверка нативного моста ndfl"
+        return product_pipe._NATIVE_BRIDGE_PROBE_TRIGGER
 
     def complete(
         *,
@@ -168,6 +168,42 @@ def test_native_bridge_probe_reports_content_contract_mismatch_without_product_f
     assert result == "NATIVE_BRIDGE_PROBE_CONTENT_CONTRACT_MISMATCH"
 
 
+def test_native_bridge_probe_reports_non_json_response_body_without_product_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The temporary diagnostic terminal is emitted before product work starts."""
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+    user = {"id": "native-bridge-test-user", "email": "test@test.ru", "role": "user"}
+
+    async def attested_metadata(**_kwargs):
+        return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+
+    async def trusted_message(**_kwargs):
+        return "РїСЂРѕРІРµСЂРєР° РЅР°С‚РёРІРЅРѕРіРѕ РјРѕСЃС‚Р° ndfl"
+
+    def complete(**_kwargs):
+        return SimpleNamespace(body=b"not-json")
+
+    def completion_dependencies(user_id: str):
+        return complete, SimpleNamespace(id=user_id, role="user")
+
+    async def forbidden_after_terminal(**_kwargs):
+        raise AssertionError("native bridge probe must not enter product flow")
+
+    monkeypatch.setattr(pipe, "_server_attested_runtime_metadata", attested_metadata)
+    monkeypatch.setattr(pipe, "_trusted_interaction_message", trusted_message)
+    monkeypatch.setattr(pipe, "_native_bridge_probe_requested", lambda **_kwargs: True)
+    monkeypatch.setattr(pipe, "_openwebui_completion_dependencies", completion_dependencies)
+    monkeypatch.setattr(pipe, "_server_attested_completed_turn_content", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_run_workload", forbidden_after_terminal)
+
+    result = asyncio.run(pipe.pipe({}, __user__=user, __request__=object()))
+
+    assert result == "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_NOT_JSON"
+
+
 def test_native_bridge_probe_cannot_be_requested_by_another_user() -> None:
     pipe = Pipe()
     pipe.valves.native_bridge_probe_enabled = True
@@ -189,6 +225,18 @@ def test_native_bridge_probe_classifies_safe_non_success_terminals() -> None:
     assert _native_completion_probe_response_terminal("```json\n{\"status\":\"ok\"}\n```") == (
         "NATIVE_BRIDGE_PROBE_CONTENT_MARKDOWN_FENCED"
     )
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_body_not_json",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_NOT_JSON"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_body_json_not_object",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_JSON_NOT_OBJECT"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_shape_unsupported",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_SHAPE_UNSUPPORTED"
     assert _native_completion_probe_failure_terminal(
         "gate2_model_invalid_response",
         failure_class="provider_response_invalid",
