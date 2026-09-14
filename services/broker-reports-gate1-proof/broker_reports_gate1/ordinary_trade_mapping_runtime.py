@@ -12,7 +12,10 @@ import secrets
 from typing import Any, Iterable, Mapping
 
 from .artifact_models import ArtifactAccessContext
-from .gate2_model_contracts import require_strict_json_schema_response
+from .gate2_model_contracts import (
+    GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES,
+    require_strict_json_schema_response,
+)
 from .ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
 )
@@ -593,6 +596,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         except Exception as exc:
             code = _mapping_provider_failure_reason_code(exc)
+            provider_calls = _mapping_provider_calls_total(exc)
             _audit_mapping_provider_call_failed(
                 code,
                 failure_category=_mapping_provider_failure_category(exc),
@@ -606,11 +610,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     "Модель semantic mapping сейчас недоступна. Сохранённый case "
                     "можно безопасно продолжить позже."
                 ),
-                provider_calls_total=1,
+                provider_calls_total=provider_calls,
                 mapping_prompt_snapshot=prompt_snapshot,
             )
             return self._result(
-                current=saved, context=context, provider_calls_this_turn=1
+                current=saved, context=context, provider_calls_this_turn=provider_calls
             )
         try:
             require_strict_json_schema_response(
@@ -1776,6 +1780,7 @@ def _mapping_provider_failure_reason_code(error: Exception) -> str:
     }:
         return "ordinary_trade_mapping_provider_capacity_unavailable"
     if code in {
+        "gate2_model_request_preparation_failed",
         "gate2_model_reasoning_control_rejected",
         "gate2_model_schema_oneof_unsupported",
         "gate2_model_schema_required_properties_invalid",
@@ -1797,12 +1802,23 @@ def _mapping_provider_failure_reason_code(error: Exception) -> str:
 def _mapping_provider_failure_category(error: Exception) -> str:
     """Expose only Gate 2's closed diagnostic category at this seam."""
 
+    category = getattr(error, "safe_failure_category", None)
+    if category == "completion_invocation_exception":
+        return category
+    if category in GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES:
+        return category
+    return "not_available"
+
+
+def _mapping_provider_calls_total(error: Exception) -> int:
+    """A Gate 2 pre-dispatch terminal has not crossed the provider boundary."""
+
     if (
         getattr(error, "safe_failure_category", None)
-        == "completion_invocation_exception"
+        in GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES
     ):
-        return "completion_invocation_exception"
-    return "not_available"
+        return 0
+    return 1
 
 
 def _audit_mapping_provider_call_failed(

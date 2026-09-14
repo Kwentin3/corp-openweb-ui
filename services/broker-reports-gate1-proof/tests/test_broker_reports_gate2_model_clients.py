@@ -1249,6 +1249,92 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["user"].id, "model-client-user")
 
+    def test_unexpected_request_preparation_faults_are_safe_and_pre_dispatch(self):
+        private_marker = "private-request-preparation-marker"
+
+        class UnexpectedUser:
+            @property
+            def id(self):
+                raise RuntimeError(private_marker)
+
+        class UnexpectedRequestBuilder:
+            def build(self, **_kwargs):
+                raise RuntimeError(private_marker)
+
+        class UnexpectedPrepareAdapter:
+            def __init__(self, delegate):
+                self._delegate = delegate
+
+            def execution_contract(self, model_id):
+                return self._delegate.execution_contract(model_id)
+
+            def validate_model(self, model_id):
+                return self._delegate.validate_model(model_id)
+
+            def prepare_form_data(self, **_kwargs):
+                raise RuntimeError(private_marker)
+
+        cases = (
+            (
+                "request_preparation_request_context",
+                lambda client: setattr(client, "user", UnexpectedUser()),
+            ),
+            (
+                "request_preparation_request_build",
+                lambda client: setattr(
+                    client, "request_builder", UnexpectedRequestBuilder()
+                ),
+            ),
+            (
+                "request_preparation_provider_request_prepare",
+                lambda client: setattr(
+                    client,
+                    "provider_adapter",
+                    UnexpectedPrepareAdapter(client.provider_adapter),
+                ),
+            ),
+        )
+        for expected_category, configure in cases:
+            with self.subTest(category=expected_category):
+                boundary = CompletionBoundary({"content": {"unexpected": True}})
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+                configure(client)
+
+                with self.assertRaises(Gate2SourceFactRuntimeError) as failed:
+                    self._extract(
+                        client,
+                        prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                        package=self._package(SOURCE_REQUEST_PROFILE),
+                    )
+
+                self.assertEqual(
+                    failed.exception.code, "gate2_model_request_preparation_failed"
+                )
+                self.assertEqual(
+                    failed.exception.message, "Gate 2 request preparation failed"
+                )
+                self.assertEqual(failed.exception.failure_class, "request_preparation")
+                self.assertEqual(
+                    failed.exception.safe_failure_category, expected_category
+                )
+                self.assertIsNone(failed.exception.raw_output)
+                self.assertIsNone(failed.exception.__cause__)
+                self.assertNotIn(private_marker, str(failed.exception))
+                self.assertNotIn("RuntimeError", str(failed.exception))
+                self.assertEqual(boundary.resolved_user_ids, [])
+                self.assertEqual(boundary.calls, [])
+                self.assertEqual(
+                    client.qualification_lifecycle_snapshot(),
+                    {
+                        "local_invocations_total": 1,
+                        "provider_submissions_total": 0,
+                        "provider_responses_total": 0,
+                    },
+                )
+
     def test_async_completion_timeout_is_a_terminal_provider_failure(self):
         async def never_returns(
             *, request, form_data, user, bypass_filter, bypass_system_prompt
