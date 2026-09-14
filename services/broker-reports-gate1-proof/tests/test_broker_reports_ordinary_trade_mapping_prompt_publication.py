@@ -27,6 +27,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_V19_PROFILE,
     ORDINARY_TRADE_MAPPING_V20_PROFILE,
     ORDINARY_TRADE_MAPPING_V21_PROFILE,
+    ORDINARY_TRADE_MAPPING_V22_PROFILE,
     PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     OrdinaryTradeMappingPromptPublication,
@@ -365,6 +366,37 @@ def test_v21_native_asset_limits_header_selection_to_supplied_choices(
     assert "header_row_choices is the complete allowed set" in content
     assert "Either select only a number" in content
     assert "header_row_choices as header_row" in content
+    assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_v22_native_asset_keeps_v21_header_contract_and_restores_only_consumer_currency_bindings(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V22_PROFILE
+    asset_root = _V14_PROMPT_ASSET.parent
+    content = (asset_root / profile.asset_filename).read_text(encoding="utf-8")
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    assert profile.profile_id == "ordinary_trade_mapping_v22"
+    assert profile.command != ORDINARY_TRADE_MAPPING_V21_PROFILE.command
+    assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V21_PROFILE.output_schema_id
+    assert "header_row_choices is the complete allowed set" in content
+    assert "gross_amount,\nbroker_commission, or exchange_commission exactly once" in content
+    assert "ascending amount_column\norder" in content
+    assert "Do not bind non-monetary columns and do not infer a currency" in content
+    assert "Do not create bindings for unit_price,\naccrued_interest, or any other role" in content
+    assert owner["prompts"].inserted.content == content
     assert result.safe_pin()["prompt_command"] == profile.command
 
 

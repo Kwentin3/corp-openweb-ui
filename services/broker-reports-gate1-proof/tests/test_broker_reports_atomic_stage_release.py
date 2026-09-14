@@ -287,7 +287,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [
                 "observe",
                 "candidate_validate",
-                "publish:ordinary_trade_mapping_v21",
+                "publish:ordinary_trade_mapping_v22",
                 "atomic_apply",
                 "post_remote_verify",
             ],
@@ -298,7 +298,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertNotIn("pdf_table_continuation_annotation_prompt", receipt)
         self.assertNotIn("document_metadata_passport_prompt", receipt)
 
-    def test_bootstrap_creates_and_verifies_missing_v21_without_a_rollback_pin(self):
+    def test_bootstrap_creates_and_verifies_missing_v22_without_a_rollback_pin(self):
         revision = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=ROOT,
@@ -307,25 +307,25 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             text=True,
             encoding="utf-8",
         ).stdout.strip()
-        first_v21_pin = {
+        first_v22_pin = {
             **MAPPING_PIN,
-            "prompt_ref": "prompt-v21-first",
-            "prompt_history_id": "history-v21-first",
+            "prompt_ref": "prompt-v22-first",
+            "prompt_history_id": "history-v22-first",
         }
         events: list[str] = []
 
         def native_publication(**kwargs):
-            self.assertEqual("ordinary_trade_mapping_v21", kwargs["profile"])
+            self.assertEqual("ordinary_trade_mapping_v22", kwargs["profile"])
             if kwargs.get("read_current"):
                 self.assertTrue(kwargs["allow_missing"])
                 events.append("missing")
                 return None
             if kwargs.get("verify_pin") is not None:
-                self.assertEqual(first_v21_pin, kwargs["verify_pin"])
+                self.assertEqual(first_v22_pin, kwargs["verify_pin"])
                 events.append("verify")
-                return first_v21_pin
+                return first_v22_pin
             events.append("publish")
-            return first_v21_pin
+            return first_v22_pin
 
         with (
             mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
@@ -340,9 +340,9 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(["missing", "publish", "verify"], events)
         self.assertEqual("created", receipt["status"])
-        self.assertEqual(first_v21_pin, receipt["pin"])
+        self.assertEqual(first_v22_pin, receipt["pin"])
 
-    def test_bootstrap_keeps_existing_v21_readback_strict_and_does_not_publish(self):
+    def test_bootstrap_keeps_existing_v22_readback_strict_and_does_not_publish(self):
         revision = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=ROOT,
@@ -351,10 +351,10 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             text=True,
             encoding="utf-8",
         ).stdout.strip()
-        existing_v21_pin = {
+        existing_v22_pin = {
             **MAPPING_PIN,
-            "prompt_ref": "prompt-v21-existing",
-            "prompt_history_id": "history-v21-existing",
+            "prompt_ref": "prompt-v22-existing",
+            "prompt_history_id": "history-v22-existing",
         }
         calls = []
 
@@ -362,8 +362,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             calls.append(kwargs)
             self.assertTrue(kwargs["read_current"])
             self.assertTrue(kwargs["allow_missing"])
-            self.assertEqual("ordinary_trade_mapping_v21", kwargs["profile"])
-            return existing_v21_pin
+            self.assertEqual("ordinary_trade_mapping_v22", kwargs["profile"])
+            return existing_v22_pin
 
         with (
             mock.patch.object(driver, "_assert_release_tree", return_value={"worktree_clean": True}),
@@ -378,7 +378,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual(1, len(calls))
         self.assertEqual("existing", receipt["status"])
-        self.assertEqual(existing_v21_pin, receipt["pin"])
+        self.assertEqual(existing_v22_pin, receipt["pin"])
 
     def test_post_remote_prompt_readback_failure_does_not_repeat_atomic_apply(self):
         revision = subprocess.run(
@@ -443,7 +443,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             return {"status": "validated"}
 
         def native_publication(**kwargs):
-            self.assertEqual("ordinary_trade_mapping_v21", kwargs["profile"])
+            self.assertEqual("ordinary_trade_mapping_v22", kwargs["profile"])
             if kwargs.get("read_current"):
                 self.assertFalse(kwargs.get("allow_missing", False))
                 events.append("observe")
