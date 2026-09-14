@@ -28,6 +28,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     ORDINARY_TRADE_MAPPING_V20_PROFILE,
     ORDINARY_TRADE_MAPPING_V21_PROFILE,
     ORDINARY_TRADE_MAPPING_V22_PROFILE,
+    ORDINARY_TRADE_MAPPING_V23_PROFILE,
     PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
     DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     OrdinaryTradeMappingPromptPublication,
@@ -396,6 +397,62 @@ def test_v22_native_asset_keeps_v21_header_contract_and_restores_only_consumer_c
     assert "ascending amount_column\norder" in content
     assert "Do not bind non-monetary columns and do not infer a currency" in content
     assert "Do not create bindings for unit_price,\naccrued_interest, or any other role" in content
+    assert owner["prompts"].inserted.content == content
+    assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_v23_native_asset_keeps_v22_currency_clause_and_requires_only_real_trade_continuation_claims(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V23_PROFILE
+    asset_root = _V14_PROMPT_ASSET.parent
+    v22_content = (asset_root / ORDINARY_TRADE_MAPPING_V22_PROFILE.asset_filename).read_text(
+        encoding="utf-8"
+    )
+    content = (asset_root / profile.asset_filename).read_text(encoding="utf-8")
+    (tmp_path / profile.asset_filename).write_text(content, encoding="utf-8")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            publication_input_from_asset(
+                actor_user_id="admin", asset_root=tmp_path, profile=profile
+            )
+        )
+    )
+
+    currency_clause = (
+        "For SECURITY_TRADES and SECURITY_TRADES_INCOMPLETE, row_policy must be exactly\n"
+        "{\"default_disposition\":\"SECURITY_TRADES\",\"exception_rows\":[]} when no\n"
+        "concrete non-trade source rows exist. Keep default_disposition exactly\n"
+        "SECURITY_TRADES; exceptions only name concrete non-trade source rows. Do not\n"
+        "enumerate ordinary trade rows or add fields to row_policy. For\n"
+        "SECURITY_TRADES, bind every column classified as gross_amount,\n"
+        "broker_commission, or exchange_commission exactly once in\n"
+        "amount_currency_bindings. Each binding must use that amount_column and the\n"
+        "currency_column classified as currency; list bindings in ascending amount_column\n"
+        "order. Do not bind non-monetary columns and do not infer a currency that is not\n"
+        "present in the supplied table. Do not create bindings for unit_price,\n"
+        "accrued_interest, or any other role. If no explicit currency column is\n"
+        "available, use SECURITY_TRADES_INCOMPLETE rather than COMPLETE."
+    )
+    continuation_clause = (
+        "Every HEADER_ABSENT table must set headerless_disposition to exactly STANDALONE\n"
+        "or CONTINUATION. Set CONTINUATION only when supplied source evidence identifies\n"
+        "that table as a continuation of a SECURITY_TRADES parent. For CONTINUATION,\n"
+        "emit exactly one explicit_header_source_claim binding that child to the actual\n"
+        "parent header. For STANDALONE, emit no explicit_header_source_claim. Do not\n"
+        "infer, invent, or emit a claim for unrelated tables."
+    )
+    assert profile.profile_id == "ordinary_trade_mapping_v23"
+    assert profile.command != ORDINARY_TRADE_MAPPING_V22_PROFILE.command
+    assert profile.output_schema_id != ORDINARY_TRADE_MAPPING_V22_PROFILE.output_schema_id
+    assert currency_clause in v22_content
+    assert currency_clause in content
+    assert continuation_clause not in v22_content
+    assert continuation_clause in content
     assert owner["prompts"].inserted.content == content
     assert result.safe_pin()["prompt_command"] == profile.command
 

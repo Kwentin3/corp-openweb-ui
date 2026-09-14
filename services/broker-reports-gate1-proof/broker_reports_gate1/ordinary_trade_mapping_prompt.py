@@ -31,6 +31,10 @@ from .ordinary_trade_grouped_mapping_v20 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeGroupedMappingV20AdapterFactory,
 )
+from .ordinary_trade_grouped_mapping_v23 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V23_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeGroupedMappingV23AdapterFactory,
+)
 from .ordinary_trade_grouped_mapping_v14 import OrdinaryTradeGroupedMappingV14AdapterFactory
 from .ordinary_trade_grouped_mapping_v15 import OrdinaryTradeGroupedMappingV15AdapterFactory
 from .ordinary_trade_grouped_mapping_v17 import OrdinaryTradeGroupedMappingV17AdapterFactory
@@ -229,6 +233,23 @@ ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG = (
 ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION = (
     ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION
 )
+# V23 retains V22's consumer-currency contract and adds one narrow instruction
+# for source-supported header inheritance by a headerless trade continuation.
+ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v23"
+)
+ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v23"
+)
+ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v23"
+)
+ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V23_RESPONSE_SCHEMA_VERSION
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 # A snapshot is an execution receipt, not a bag of independently optional
@@ -323,6 +344,15 @@ _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
         "output_schema_id": ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
         "output_schema_version": ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
         "required_tag": ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+        "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG,
         "input_schema_version": DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     },
 )
@@ -1105,6 +1135,9 @@ def ordinary_trade_mapping_wire_contract(
         ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION: (
             OrdinaryTradeGroupedMappingV20AdapterFactory
         ),
+        ORDINARY_TRADE_GROUPED_MAPPING_V23_RESPONSE_SCHEMA_VERSION: (
+            OrdinaryTradeGroupedMappingV23AdapterFactory
+        ),
     }.get(output_schema_id)
     if output_schema_id == ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION:
         adapter_factory = OrdinaryTradeGroupedMappingV17AdapterFactory
@@ -1237,6 +1270,11 @@ __all__ = [
     "ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG",
     "ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID",
     "ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND",
+    "ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND",
     "OUTPUT_SCHEMA_ID",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_COMMAND",
