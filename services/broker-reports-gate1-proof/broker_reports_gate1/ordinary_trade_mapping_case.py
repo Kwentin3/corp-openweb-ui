@@ -1477,7 +1477,15 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         if isinstance(binding, dict)
         else None,
     }
-    if schema_version in {_V6_MAPPING_CASE_ARTIFACT_TYPE, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}:
+    # V6 was the physical-sidecar receipt and stays strict.  V7 additionally
+    # admits a Canonical-bound semantic continuation produced on the native
+    # PDFPlumber route, where no physical sidecar exists.  A sidecar that is
+    # present in V7 remains part of the authenticated identity and is still
+    # validated exactly as before.
+    has_physical_binding = isinstance(binding, dict) and (
+        "physical_table_continuation_binding" in binding
+    )
+    if schema_version == _V6_MAPPING_CASE_ARTIFACT_TYPE or has_physical_binding:
         identity["physical_table_continuation_binding"] = (
             binding.get("physical_table_continuation_binding")
             if isinstance(binding, dict)
@@ -1488,13 +1496,13 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         "user_scope_sha256",
         "case_binding_sha256",
     }
-    if schema_version in {_V6_MAPPING_CASE_ARTIFACT_TYPE, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}:
+    if schema_version == _V6_MAPPING_CASE_ARTIFACT_TYPE or has_physical_binding:
         expected_binding_keys.add("physical_table_continuation_binding")
     if (
         not isinstance(binding, dict)
         or set(binding) != expected_binding_keys
         or (
-            schema_version in {_V6_MAPPING_CASE_ARTIFACT_TYPE, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}
+            (schema_version == _V6_MAPPING_CASE_ARTIFACT_TYPE or has_physical_binding)
             and not _valid_physical_table_continuation_binding(
                 binding.get("physical_table_continuation_binding")
             )
