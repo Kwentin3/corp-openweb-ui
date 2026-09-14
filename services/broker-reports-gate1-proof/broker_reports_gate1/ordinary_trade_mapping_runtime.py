@@ -592,6 +592,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 response_format=self._mapping_response_format(),
             )
         except Exception as exc:
+            _audit_mapping_provider_call_failed()
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
@@ -1750,6 +1751,20 @@ def _audit_provider_mapping_output_invalid(reason_code: Any) -> None:
     if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+(?::[a-z0-9_]+)?", value):
         value = "ordinary_trade_semantic_mapping_output_invalid"
     _LOGGER.info("broker_reports_mapping_contract_rejected reason_code=%s", value)
+
+
+def _audit_mapping_provider_call_failed() -> None:
+    """Emit the fixed, body-free receipt for a failed provider call.
+
+    The provider exception may contain transport details or private provider
+    text.  This one-shot runtime boundary therefore records neither the
+    exception nor a provider-supplied code in logs.
+    """
+
+    _LOGGER.info(
+        "broker_reports_mapping_provider_call_failed "
+        "reason_code=ordinary_trade_mapping_provider_call_failed"
+    )
 
 
 _INSTRUCTIONAL_CLASSIFICATION_AUDIT_REASON_CODES = frozenset(
