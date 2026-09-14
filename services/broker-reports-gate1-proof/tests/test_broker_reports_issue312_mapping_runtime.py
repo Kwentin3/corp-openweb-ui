@@ -2298,26 +2298,39 @@ def test_one_shot_gate2_provider_failure_maps_to_closed_mapping_category(
         if "broker_reports_mapping_provider_call_failed" in record.message
     ] == [
         "broker_reports_mapping_provider_call_failed "
-        f"reason_code={expected_reason_code}"
+        f"reason_code={expected_reason_code} failure_category=not_available"
     ]
     assert private_marker not in caplog.text
     assert private_marker not in repr(result)
 
 
 @pytest.mark.parametrize(
-    "error_factory",
+    ("error_factory", "expected_failure_category"),
     [
-        lambda marker: Gate2SourceFactRuntimeError(
-            "gate2_future_private_code",
-            marker,
-            raw_output={"private": marker},
-            failure_class=marker,
+        (
+            lambda marker: Gate2SourceFactRuntimeError(
+                "gate2_model_call_failed",
+                marker,
+                raw_output={"private": marker},
+                failure_class=marker,
+                safe_failure_category="completion_invocation_exception",
+            ),
+            "completion_invocation_exception",
         ),
-        lambda marker: RuntimeError(marker),
+        (
+            lambda marker: Gate2SourceFactRuntimeError(
+                "gate2_future_private_code",
+                marker,
+                raw_output={"private": marker},
+                failure_class=marker,
+            ),
+            "not_available",
+        ),
+        (lambda marker: RuntimeError(marker), "not_available"),
     ],
 )
 def test_one_shot_unknown_provider_failure_uses_closed_default_without_leak(
-    tmp_path, caplog, error_factory
+    tmp_path, caplog, error_factory, expected_failure_category
 ) -> None:
     private_marker = "provider-private-value-do-not-log"
     store, context, document_id = case_fixtures._unknown_case(tmp_path)[:3]
@@ -2346,7 +2359,8 @@ def test_one_shot_unknown_provider_failure_uses_closed_default_without_leak(
         if "broker_reports_mapping_provider_call_failed" in record.message
     ] == [
         "broker_reports_mapping_provider_call_failed "
-        f"reason_code={expected_reason_code}"
+        f"reason_code={expected_reason_code} "
+        f"failure_category={expected_failure_category}"
     ]
     assert private_marker not in caplog.text
     assert private_marker not in repr(result)

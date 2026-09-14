@@ -873,6 +873,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 raw_output=diagnostic,
                 execution_metadata=failure_metadata,
                 failure_class=exc.__class__.__name__,
+                safe_failure_category="completion_invocation_exception",
             )
             if capture_private_evidence:
                 failure.prepared_request = copy.deepcopy(prepared_request)
