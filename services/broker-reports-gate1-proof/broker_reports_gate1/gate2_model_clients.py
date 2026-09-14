@@ -14,6 +14,9 @@ from .gate2_economy_budget import (
     Gate2EconomyBudgetSessionFactory,
 )
 from .gate2_model_contracts import (
+    GATE2_COMPLETION_ACCESS_MODES,
+    GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
+    GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
     PROVIDER_STATUS_APPROVED,
     PROVIDER_STATUS_PROBE_REQUIRED,
     Gate2ProviderProfile,
@@ -110,6 +113,11 @@ class Gate2StructuredModelClientFactory:
                 "gate2_model_transport_unsupported",
                 "Unsupported Gate 2 model transport",
             )
+        if self.config.completion_access_mode not in GATE2_COMPLETION_ACCESS_MODES:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_completion_access_mode_invalid",
+                "Unsupported OpenWebUI completion access mode",
+            )
         request_builder = Gate2OpenWebUIRequestBuilder(
             request_profile=self.config.request_profile
         )
@@ -160,6 +168,7 @@ class Gate2StructuredModelClientFactory:
             request=self.request,
             completion_resolver=self.completion_resolver,
             budget_session=budget_session,
+            completion_access_mode=self.config.completion_access_mode,
         )
 
 
@@ -175,6 +184,7 @@ class Gate2OpenWebUIStructuredModelClient:
         request: Any,
         completion_resolver: CompletionResolver | None,
         budget_session: Gate2EconomyBudgetSession | None = None,
+        completion_access_mode: str = GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
     ) -> None:
         self.request_profile = request_profile
         self.provider_profile = provider_profile
@@ -186,6 +196,7 @@ class Gate2OpenWebUIStructuredModelClient:
             completion_resolver or self._resolve_openwebui_completion_dependencies
         )
         self.budget_session = budget_session
+        self.completion_access_mode = completion_access_mode
         self._budget_operation_ordinal = 0
         self._qualification_local_invocations_total = 0
         self._qualification_provider_submissions_total = 0
@@ -925,7 +936,7 @@ class Gate2OpenWebUIStructuredModelClient:
         return user_id
 
     def _invoke_completion_once(self, *, completion_fn, form_data, user_model):
-        variants = (
+        internal_bypass_variants = (
             (
                 (),
                 {
@@ -945,6 +956,22 @@ class Gate2OpenWebUIStructuredModelClient:
                 },
             ),
             ((self.request, form_data, user_model), {}),
+        )
+        ordinary_user_variants = (
+            (
+                (),
+                {
+                    "request": self.request,
+                    "form_data": form_data,
+                    "user": user_model,
+                },
+            ),
+            ((self.request, form_data, user_model), {}),
+        )
+        variants = (
+            ordinary_user_variants
+            if self.completion_access_mode == GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER
+            else internal_bypass_variants
         )
         try:
             signature = inspect.signature(completion_fn)

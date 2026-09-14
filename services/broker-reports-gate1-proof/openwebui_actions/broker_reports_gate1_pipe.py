@@ -190,12 +190,17 @@ from broker_reports_gate1.gate2_model_clients import (
     Gate2StructuredModelClientFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (
+    GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+    Gate2SourceFactRuntimeError,
     Gate2StructuredModelClientConfig,
 )
+from broker_reports_gate1.gate2_source_fact_contracts import Gate2ManagedPrompt
 from broker_reports_gate1.gate2_model_requests import (
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+    PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER,
+    PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE,
 )
 from broker_reports_gate1.gate3_ndfl_workflow import (
     NDFL_PROVIDER_MODEL_ID,
@@ -236,6 +241,16 @@ MAPPING_FORENSICS_PROJECTION_SCHEMA_VERSION = (
     "broker_reports_mapping_forensics_projection_v1"
 )
 MAPPING_FORENSICS_FILENAME = "mapping-response-forensics.json"
+_NATIVE_BRIDGE_PROBE_TEST_EMAIL = "test@test.ru"
+_NATIVE_BRIDGE_PROBE_TRIGGER = "проверка нативного моста ndfl"
+_NATIVE_BRIDGE_PROBE_SCHEMA_VERSION = "private_native_completion_probe_v1"
+_NATIVE_BRIDGE_PROBE_SUCCESS = "NATIVE_BRIDGE_PROBE_READY"
+_NATIVE_BRIDGE_PROBE_MODEL_ROUTE_UNAVAILABLE = (
+    "NATIVE_BRIDGE_PROBE_MODEL_ROUTE_UNAVAILABLE"
+)
+_NATIVE_BRIDGE_PROBE_REQUEST_REJECTED = "NATIVE_BRIDGE_PROBE_REQUEST_REJECTED"
+_NATIVE_BRIDGE_PROBE_RESPONSE_INVALID = "NATIVE_BRIDGE_PROBE_RESPONSE_INVALID"
+_NATIVE_BRIDGE_PROBE_CALL_FAILED = "NATIVE_BRIDGE_PROBE_CALL_FAILED"
 
 
 class _OrdinaryTradeMappingRouteProfile:
@@ -576,6 +591,13 @@ class Pipe:
                 "completion endpoint; never derived from request metadata."
             ),
         )
+        native_bridge_probe_enabled: bool = Field(
+            default=False,
+            description=(
+                "Temporary test@test.ru-only native nested-completion diagnostic. "
+                "It never reads documents or writes artifacts."
+            ),
+        )
         live_smoke_trigger_phrases: str = Field(
             default="artifactstore retention smoke,gate1 artifactstore smoke"
         )
@@ -627,6 +649,18 @@ class Pipe:
             metadata=metadata,
             user=__user__,
         )
+        if self._native_bridge_probe_requested(
+            body=safe_body,
+            metadata=metadata,
+            files_arg=(__files__ or kwargs.get("__files__")),
+            messages_arg=messages_arg,
+            user=__user__,
+            interaction_message=interaction_message,
+        ):
+            return await self._run_native_bridge_probe(
+                request=__request__,
+                user=__user__,
+            )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
         completed_turn = await self._server_attested_completed_turn_content(
@@ -817,6 +851,133 @@ class Pipe:
             raise
         finally:
             self._active_workload_session = None
+
+    def _native_bridge_probe_requested(
+        self,
+        *,
+        body: dict,
+        metadata: dict,
+        files_arg: Any,
+        messages_arg: Any,
+        user: Any,
+        interaction_message: str,
+    ) -> bool:
+        """Admit only the explicit, source-free test-user diagnostic turn."""
+
+        if not self.valves.native_bridge_probe_enabled:
+            return False
+        email = (
+            user.get("email") if isinstance(user, dict) else getattr(user, "email", "")
+        )
+        role = (
+            user.get("role") if isinstance(user, dict) else getattr(user, "role", "")
+        )
+        if (
+            not isinstance(email, str)
+            or email.casefold() != _NATIVE_BRIDGE_PROBE_TEST_EMAIL
+            or str(role or "").strip() != "user"
+            or metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID
+            or str(interaction_message or "").strip().casefold()
+            != _NATIVE_BRIDGE_PROBE_TRIGGER
+        ):
+            return False
+        return not self._collect_file_refs(body, metadata, files_arg, messages_arg)
+
+    async def _run_native_bridge_probe(self, *, request: Any, user: Any) -> str:
+        """Exercise the shared completion bridge once without product inputs."""
+
+        prompt_content = (
+            "Return exactly one JSON object with status equal to ok. "
+            + PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER
+        )
+        prompt = Gate2ManagedPrompt(
+            prompt_ref="private_native_completion_probe",
+            command=None,
+            version="v1",
+            content=prompt_content,
+            hash=hashlib.sha256(prompt_content.encode("utf-8")).hexdigest(),
+            source="code_bound_diagnostic",
+            template_id="private_native_completion_probe",
+            template_kind="diagnostic",
+            prompt_contract_id="private_native_completion_probe_v1",
+            input_schema_version=_NATIVE_BRIDGE_PROBE_SCHEMA_VERSION,
+            output_schema_id=_NATIVE_BRIDGE_PROBE_SCHEMA_VERSION,
+            output_schema_version="v1",
+            tags=(),
+            safe_metadata={},
+        )
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "private_native_completion_probe_v1",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {"status": {"type": "string", "enum": ["ok"]}},
+                    "required": ["status"],
+                },
+            },
+        }
+        try:
+            client = Gate2StructuredModelClientFactory(
+                config=Gate2StructuredModelClientConfig(
+                    request_profile=PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE,
+                    provider_profile_id=self.valves.ordinary_trade_mapping_provider_profile_id,
+                    capability_probe=False,
+                    economy_budget_enforcement=False,
+                    completion_access_mode=GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+                ),
+                user=user,
+                request=request,
+                completion_resolver=self._openwebui_completion_dependencies,
+            ).create()
+            result = await client.extract(
+                prompt=prompt,
+                package={"schema_version": _NATIVE_BRIDGE_PROBE_SCHEMA_VERSION},
+                model_id=self.valves.ordinary_trade_mapping_model_id,
+                response_format=response_format,
+            )
+        except Gate2SourceFactRuntimeError as exc:
+            return self._native_bridge_probe_failure_terminal(exc.code)
+        except Exception:
+            return _NATIVE_BRIDGE_PROBE_CALL_FAILED
+        return (
+            _NATIVE_BRIDGE_PROBE_SUCCESS
+            if self._native_bridge_probe_response_is_valid(result.content)
+            else _NATIVE_BRIDGE_PROBE_RESPONSE_INVALID
+        )
+
+    @staticmethod
+    def _native_bridge_probe_response_is_valid(content: Any) -> bool:
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                return False
+        return content == {"status": "ok"}
+
+    @staticmethod
+    def _native_bridge_probe_failure_terminal(code: Any) -> str:
+        value = str(code or "")
+        if value in {
+            "gate2_model_unavailable",
+            "gate2_no_strict_structured_provider_available",
+        }:
+            return _NATIVE_BRIDGE_PROBE_MODEL_ROUTE_UNAVAILABLE
+        if value in {
+            "gate2_model_reasoning_control_rejected",
+            "gate2_model_schema_oneof_unsupported",
+            "gate2_model_provider_error",
+            "private_native_completion_probe_request_invalid",
+        }:
+            return _NATIVE_BRIDGE_PROBE_REQUEST_REJECTED
+        if value in {
+            "gate2_model_invalid_response",
+            "gate2_model_response_budget_exceeded",
+        }:
+            return _NATIVE_BRIDGE_PROBE_RESPONSE_INVALID
+        return _NATIVE_BRIDGE_PROBE_CALL_FAILED
 
     @staticmethod
     def _canonical_workload_access(
