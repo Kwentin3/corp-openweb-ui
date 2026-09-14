@@ -96,6 +96,7 @@ class Gate2SourceFactRuntimeError(RuntimeError):
         raw_output: Any = None,
         execution_metadata: Gate2ProviderExecutionMetadata | None = None,
         failure_class: str | None = None,
+        safe_failure_category: str | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
@@ -103,6 +104,7 @@ class Gate2SourceFactRuntimeError(RuntimeError):
         self.raw_output = raw_output
         self.execution_metadata = execution_metadata
         self.failure_class = failure_class
+        self.safe_failure_category = safe_failure_category
 
 
 @dataclass(frozen=True)

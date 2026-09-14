@@ -1161,6 +1161,14 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(failed.exception.message, "TypeError")
         self.assertEqual(failed.exception.failure_class, "TypeError")
         self.assertEqual(
+            failed.exception.safe_failure_category,
+            "completion_invocation_exception",
+        )
+        self.assertNotIn(
+            "provider failed after invocation",
+            failed.exception.safe_failure_category,
+        )
+        self.assertEqual(
             failed.exception.raw_output,
             {
                 "error": {

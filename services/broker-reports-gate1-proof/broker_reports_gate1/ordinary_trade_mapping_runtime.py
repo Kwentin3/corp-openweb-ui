@@ -593,7 +593,10 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         except Exception as exc:
             code = _mapping_provider_failure_reason_code(exc)
-            _audit_mapping_provider_call_failed(code)
+            _audit_mapping_provider_call_failed(
+                code,
+                failure_category=_mapping_provider_failure_category(exc),
+            )
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
@@ -1791,16 +1794,33 @@ def _mapping_provider_failure_reason_code(error: Exception) -> str:
     return "ordinary_trade_mapping_provider_call_failed"
 
 
-def _audit_mapping_provider_call_failed(reason_code: str) -> None:
+def _mapping_provider_failure_category(error: Exception) -> str:
+    """Expose only Gate 2's closed diagnostic category at this seam."""
+
+    if (
+        getattr(error, "safe_failure_category", None)
+        == "completion_invocation_exception"
+    ):
+        return "completion_invocation_exception"
+    return "not_available"
+
+
+def _audit_mapping_provider_call_failed(
+    reason_code: str, *, failure_category: str
+) -> None:
     """Emit a value-free receipt for a failed provider call.
 
     The provider exception may contain transport details or private provider
     text.  This one-shot runtime boundary records only its own closed terminal
-    category, never the exception or a provider-supplied code.
+    category and Gate 2's finite safe technical category, never the exception,
+    raw body, prompt, provider message, or a provider-supplied code.
     """
 
     _LOGGER.info(
-        "broker_reports_mapping_provider_call_failed reason_code=%s", reason_code
+        "broker_reports_mapping_provider_call_failed reason_code=%s "
+        "failure_category=%s",
+        reason_code,
+        failure_category,
     )
 
 
