@@ -129,6 +129,7 @@ MODULE_ORDER = [
     "gate2_model_contracts",
     "instructional_table_classification",
     "gate2_model_requests",
+    "gate2_native_completion_probe",
     "gate2_economy_model_policy",
     "gate2_economy_workload_policy",
     "gate2_economy_provider_selection",
