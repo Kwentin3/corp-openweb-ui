@@ -846,7 +846,7 @@ class Pipe:
             ),
         )
         native_bridge_probe_enabled: bool = Field(
-            default=False,
+            default=True,
             description=(
                 "Temporary test@test.ru-only native nested-completion diagnostic. "
                 "It never reads documents or writes artifacts."
