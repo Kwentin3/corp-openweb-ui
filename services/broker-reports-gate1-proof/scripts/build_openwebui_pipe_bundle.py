@@ -135,7 +135,6 @@ MODULE_ORDER = [
     "gate2_economy_budget",
     "gate2_provider_adapters",
     "gate2_model_clients",
-    "gate2_native_completion_probe",
     "gate2_domain_routing",
     "gate2_candidate_binding",
     "gate2_candidate_binding_runtime",

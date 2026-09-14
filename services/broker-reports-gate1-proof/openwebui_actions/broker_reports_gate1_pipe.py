@@ -187,13 +187,11 @@ from broker_reports_gate1.openwebui_file_bytes import (
     OpenWebUIFileBytesResolverFactory,
 )
 from broker_reports_gate1.gate2_model_clients import (
+    Gate2NativeCompletionProbeFactory,
     Gate2StructuredModelClientFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (
     Gate2StructuredModelClientConfig,
-)
-from broker_reports_gate1.gate2_native_completion_probe import (
-    Gate2NativeCompletionProbeFactory,
 )
 from broker_reports_gate1.gate2_model_requests import (
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
