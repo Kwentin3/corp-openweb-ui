@@ -3417,6 +3417,20 @@ def _validate_table_decision(
         ]
     elif allow_user_currency and bindings:
         _fail("ordinary_trade_user_currency_request_invalid")
+    # This is the model-admission boundary.  Do not let a response reach case
+    # qualification merely because the compiler would reject its monetary
+    # bindings later.  Every tax-relevant amount role has one source-bound
+    # currency relation; non-monetary numeric columns are not such relations.
+    # An incomplete table and the pre-assertion user-currency path intentionally
+    # have no executable monetary relation yet.
+    if not incomplete and not (
+        allow_user_currency and user_currency_assertion is None
+    ):
+        _validate_security_trade_amount_currency_bindings(
+            bindings=bindings,
+            columns=columns,
+            user_currency_assertion=user_currency_assertion,
+        )
     return {
         "table_node_id": table["table_node_id"],
         "header_row": decision["header_row"],
@@ -3434,6 +3448,47 @@ def _validate_table_decision(
             else {}
         ),
     }
+
+
+def _validate_security_trade_amount_currency_bindings(
+    *,
+    bindings: list[dict[str, Any]],
+    columns: list[dict[str, Any]],
+    user_currency_assertion: dict[str, Any] | None,
+) -> None:
+    """Admit exactly the executable monetary roles for one security table."""
+
+    roles_by_column = {
+        item["column"]: item["semantic_role"] for item in columns
+    }
+    required_amount_columns = sorted(
+        column
+        for column, role in roles_by_column.items()
+        if role in {"gross_amount", "broker_commission", "exchange_commission"}
+    )
+    bound_amount_columns: list[int] = []
+    for binding in bindings:
+        if not isinstance(binding, dict) or not isinstance(
+            binding.get("amount_column"), int
+        ):
+            _fail("ordinary_trade_semantic_mapping_currency_binding_invalid")
+        amount_column = binding["amount_column"]
+        if user_currency_assertion is None:
+            is_valid = (
+                set(binding) == {"amount_column", "currency_column"}
+                and isinstance(binding.get("currency_column"), int)
+                and roles_by_column.get(binding["currency_column"]) == "currency"
+            )
+        else:
+            is_valid = (
+                set(binding) == {"amount_column", "currency_source"}
+                and binding.get("currency_source") == {"kind": "user_assertion"}
+            )
+        if not is_valid:
+            _fail("ordinary_trade_semantic_mapping_currency_binding_invalid")
+        bound_amount_columns.append(amount_column)
+    if bound_amount_columns != required_amount_columns:
+        _fail("ordinary_trade_semantic_mapping_currency_binding_invalid")
 
 
 def _validated_side_value_item(
