@@ -587,6 +587,14 @@ def evaluate_base_pipe_override(record: dict[str, Any] | None) -> dict[str, bool
 def evaluate_visible_routes(
     visible_models: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    """Read the admin model catalog without claiming it is an ordinary-user view.
+
+    ``/api/models`` under the publisher's admin token includes the non-global
+    Function base. Its presence is expected for that principal and cannot
+    prove that an ordinary user sees a technical route. Ordinary-user
+    visibility is therefore accepted only in the browser flow; this release
+    check still proves that the one public facade is registered.
+    """
     visible_ids = {
         str(item.get("id"))
         for item in visible_models
@@ -598,14 +606,15 @@ def evaluate_visible_routes(
         "visible_product_route_ids": sorted(
             visible_ids & {NDFL_WORKSPACE_MODEL_STABLE_ID}
         ),
-        "visible_internal_runtime_base_ids": sorted(internal_base_ids),
+        "admin_visible_internal_runtime_base_ids": sorted(internal_base_ids),
         "user_facing_ndfl_models": int(
             NDFL_WORKSPACE_MODEL_STABLE_ID in visible_ids
         ),
-        "legacy_or_competing_routes_visible": sorted(competing_ids),
+        "admin_visible_legacy_or_competing_route_ids": sorted(competing_ids),
         "passed": bool(
-            NDFL_WORKSPACE_MODEL_STABLE_ID in visible_ids and not competing_ids
+            NDFL_WORKSPACE_MODEL_STABLE_ID in visible_ids
         ),
+        "ordinary_user_visibility_proof": "browser_acceptance_required",
     }
 
 
