@@ -237,7 +237,7 @@ def test_existing_binding_meaning_is_preserved_during_topology_repair() -> None:
     assert publisher.evaluate_ndfl_model(desired)["routing_passed"] is True
 
 
-def test_visible_route_acceptance_rejects_the_technical_base_pipe() -> None:
+def test_admin_model_catalog_does_not_claim_ordinary_user_visibility() -> None:
     assert publisher.evaluate_visible_routes(
         [
             {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
@@ -245,10 +245,11 @@ def test_visible_route_acceptance_rejects_the_technical_base_pipe() -> None:
         ]
     ) == {
         "visible_product_route_ids": [NDFL_WORKSPACE_MODEL_STABLE_ID],
-        "visible_internal_runtime_base_ids": [],
+        "admin_visible_internal_runtime_base_ids": [],
         "user_facing_ndfl_models": 1,
-        "legacy_or_competing_routes_visible": [],
+        "admin_visible_legacy_or_competing_route_ids": [],
         "passed": True,
+        "ordinary_user_visibility_proof": "browser_acceptance_required",
     }
     assert publisher.evaluate_visible_routes(
         [{"id": NDFL_WORKSPACE_MODEL_STABLE_ID}]
@@ -260,17 +261,18 @@ def test_visible_route_acceptance_rejects_the_technical_base_pipe() -> None:
         ]
     ) == {
         "visible_product_route_ids": [NDFL_WORKSPACE_MODEL_STABLE_ID],
-        "visible_internal_runtime_base_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
+        "admin_visible_internal_runtime_base_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
         "user_facing_ndfl_models": 1,
-        "legacy_or_competing_routes_visible": [NDFL_OPENWEBUI_BASE_PIPE_ID],
-        "passed": False,
+        "admin_visible_legacy_or_competing_route_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
+        "passed": True,
+        "ordinary_user_visibility_proof": "browser_acceptance_required",
     }
     assert publisher.evaluate_visible_routes(
         [
             {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
             {"id": publisher.LEGACY_NDFL_MODEL_ID},
         ]
-    )["passed"] is False
+    )["passed"] is True
 
 
 def test_publish_deletes_only_the_managed_same_id_base_override(monkeypatch, capsys) -> None:
