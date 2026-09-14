@@ -1568,6 +1568,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 response=response_value,
             )
         except Exception as exc:
+            _audit_provider_instructional_classification_output_invalid(
+                _instructional_classification_output_reason_code(exc)
+            )
             saved = self._cases.save_instructional_classification_state(
                 document_id=document_id,
                 context=context,
@@ -1747,6 +1750,46 @@ def _audit_provider_mapping_output_invalid(reason_code: Any) -> None:
     if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+(?::[a-z0-9_]+)?", value):
         value = "ordinary_trade_semantic_mapping_output_invalid"
     _LOGGER.info("broker_reports_mapping_contract_rejected reason_code=%s", value)
+
+
+_INSTRUCTIONAL_CLASSIFICATION_AUDIT_REASON_CODES = frozenset(
+    {
+        "ordinary_trade_mapping_strict_output_required",
+        "ordinary_trade_instructional_response_json_invalid",
+        "ordinary_trade_instructional_response_shape_invalid",
+        "ordinary_trade_instructional_descriptor_invalid",
+        "ordinary_trade_instructional_descriptor_stale",
+        "ordinary_trade_instructional_instructional_classification_response_invalid",
+        "ordinary_trade_instructional_instructional_classification_header_invalid",
+        "ordinary_trade_instructional_instructional_classification_evidence_invalid",
+        "ordinary_trade_instructional_instructional_classification_evidence_coverage_invalid",
+    }
+)
+
+
+def _instructional_classification_output_reason_code(error: Exception) -> str:
+    """Reduce a rejected classifier response to one closed forensic code."""
+
+    code = str(getattr(error, "code", ""))
+    if code in _INSTRUCTIONAL_CLASSIFICATION_AUDIT_REASON_CODES:
+        return code
+    return "ordinary_trade_instructional_response_invalid"
+
+
+def _audit_provider_instructional_classification_output_invalid(
+    reason_code: str,
+) -> None:
+    """Emit only a closed diagnostic for a rejected classifier response.
+
+    Classifier response bodies, Canonical values, table identifiers, and
+    provider exception text remain outside the log stream.
+    """
+
+    _LOGGER.info(
+        "broker_reports_instructional_classification_contract_rejected "
+        "reason_code=%s",
+        reason_code,
+    )
 
 
 def _audit_mapping_request_preflight(receipt: Any) -> None:
