@@ -510,7 +510,7 @@ class Pipe:
             ),
         )
         ordinary_trade_semantic_mapping_enabled: bool = Field(
-        default=False,
+            default=True,
             description=(
                 "Resolve unknown schemas through one strict case-scoped semantic "
                 "mapping call; known exact schemas remain zero-call."
@@ -580,7 +580,7 @@ class Pipe:
             ),
         )
         native_bridge_probe_enabled: bool = Field(
-            default=True,
+            default=False,
             description=(
                 "Temporary test@test.ru-only native nested-completion diagnostic. "
                 "It never reads documents or writes artifacts."
