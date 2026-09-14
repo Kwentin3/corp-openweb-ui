@@ -46,6 +46,9 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v18 import (
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
     OrdinaryTradeGroupedMappingV20Adapter,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v23 import (
+    OrdinaryTradeGroupedMappingV23Adapter,
+)
 from broker_reports_gate1.openwebui_file_bytes import OpenWebUIOwnedFile
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -2152,6 +2155,15 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
             product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
             OrdinaryTradeGroupedMappingV20Adapter,
+        ),
+        (
+            "ordinary_trade_mapping_v23",
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV23Adapter,
         ),
     ],
 )

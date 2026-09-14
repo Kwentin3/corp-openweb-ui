@@ -2,7 +2,7 @@
 
 Status: `CURRENT AUTHORITY`
 
-Updated: 2026-08-27
+Updated: 2026-09-14
 
 ## Scope
 
@@ -93,6 +93,32 @@ Every Canonical table receives exactly one disposition:
   explicitly confirmed; model output alone stops for specialist review;
 - `UNSUPPORTED_FINANCIAL_MEANING` stops with a typed owner blocker;
 - ambiguity produces one bounded clarification and no mapping admission.
+
+### V23 headerless declaration
+
+V23 adds one closed response field for every `HEADER_ABSENT` decision:
+`headerless_disposition` is exactly `STANDALONE` or `CONTINUATION`. This is a
+model declaration of intent, not an authority to create, repair or infer a
+source relation.
+
+- `STANDALONE` carries no `explicit_header_source_claim` and preserves the
+  existing `HEADER_ABSENT` terminal: provenance-bound source observations and
+  zero runtime financial records.
+- `CONTINUATION` carries exactly one existing source-bound
+  `explicit_header_source_claim` for that headerless table. The claim must
+  identify one parent whose Canonical table has a physical header and whose
+  decision is `SECURITY_TRADES`; the existing source-binding validator, not
+  the response declaration, validates that parent and claim.
+
+There is exactly one declaration for every headerless table. A claim for a
+`STANDALONE` table, no or more than one claim for a `CONTINUATION` table, or a
+claim targeting any other table fails closed. Code must not supply the missing
+claim, select a parent, or infer a continuation from adjacency, page order,
+row values, row shape, or any neighbouring segment.
+
+V23 is additive and version-pinned. V20 and V22 responses retain their
+historical contracts: they neither require `headerless_disposition` nor gain a
+new inferred-continuation behavior.
 
 Until all relevant tables are confirmed and complete, Gate 4 publishes no
 partial Fact v2. Provider failure, invalid structured output, source-context

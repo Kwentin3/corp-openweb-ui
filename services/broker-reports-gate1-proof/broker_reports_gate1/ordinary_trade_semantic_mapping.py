@@ -124,6 +124,10 @@ _TABLE_DISPOSITIONS = {
     "NO_NAMED_CONSUMER",
     "UNSUPPORTED_FINANCIAL_MEANING",
 }
+_HEADERLESS_DISPOSITION_RESPONSE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_headerless_disposition_response_v1"
+)
+_HEADERLESS_DISPOSITIONS = {"STANDALONE", "CONTINUATION"}
 _NO_CONSUMER_KINDS = {
     "INSTRUCTIONAL_REFERENCE",
     "OTHER_NO_NAMED_CONSUMER",
@@ -1248,9 +1252,11 @@ class OrdinaryTradeSemanticMapping:
         frozen_mappings: Iterable[Mapping[str, Any]] = (),
         frozen_requalification_table_node_ids: Iterable[str] = (),
         explicit_header_source_response: Mapping[str, Any] | None = None,
+        headerless_disposition_response: Mapping[str, Any] | None = None,
         physical_table_continuation_context: Mapping[str, Any] | None = None,
         allow_source_bound_position_effect: bool = False,
         allow_model_selected_header: bool = False,
+        require_headerless_dispositions: bool = False,
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
         frozen_mapping_values = tuple(frozen_mappings)
@@ -1341,6 +1347,14 @@ class OrdinaryTradeSemanticMapping:
                 or len(ids) != len(set(ids))
             ):
                 _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+            _validate_headerless_disposition_admission(
+                decisions=decisions,
+                node_ids_by_ref=node_ids_by_ref,
+                tables=tables,
+                claims=validated_explicit_header_source_claims,
+                response=headerless_disposition_response,
+                required=require_headerless_dispositions,
+            )
             _reject_model_selected_headers_for_continuation_children(
                 decisions=decisions,
                 canonical=canonical,
@@ -1411,6 +1425,12 @@ class OrdinaryTradeSemanticMapping:
                     "explicit_header_source_response": copy.deepcopy(
                         explicit_header_source_response
                     ),
+                    "headerless_disposition_response": copy.deepcopy(
+                        headerless_disposition_response
+                    ),
+                    "require_headerless_dispositions": (
+                        require_headerless_dispositions
+                    ),
                     "execution_metadata": _execution_metadata_value(execution_metadata),
                     "table_node_ids": sorted(scoped),
                     # Model table_ref values are positional, so preserve the
@@ -1447,6 +1467,14 @@ class OrdinaryTradeSemanticMapping:
             or len(ids) != len(set(ids))
         ):
             _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+        _validate_headerless_disposition_admission(
+            decisions=decisions,
+            node_ids_by_ref=node_ids_by_ref,
+            tables=tables,
+            claims=validated_explicit_header_source_claims,
+            response=headerless_disposition_response,
+            required=require_headerless_dispositions,
+        )
         _reject_model_selected_headers_for_continuation_children(
             decisions=decisions,
             canonical=canonical,
@@ -1836,6 +1864,95 @@ def _reject_model_selected_headers_for_continuation_children(
             and isinstance(decision.get("header_row"), int)
         ):
             _fail("ordinary_trade_semantic_mapping_continuation_child_header_forbidden")
+
+
+def _validate_headerless_disposition_admission(
+    *,
+    decisions: Iterable[Mapping[str, Any]],
+    node_ids_by_ref: Mapping[str, str],
+    tables: Mapping[str, Mapping[str, Any]],
+    claims: Iterable[Mapping[str, Any]],
+    response: Mapping[str, Any] | None,
+    required: bool,
+) -> None:
+    """Validate V23's model-declared headerless intent without guessing links.
+
+    ``HEADER_ABSENT`` remains a valid standalone source terminal.  Only a
+    model-declared ``CONTINUATION`` may use a parent mapping, and it must name
+    that parent through the existing explicit source-claim contract.
+    """
+
+    if not required:
+        return
+    if (
+        not isinstance(response, Mapping)
+        or set(response) != {"schema_version", "dispositions"}
+        or response.get("schema_version")
+        != _HEADERLESS_DISPOSITION_RESPONSE_SCHEMA_VERSION
+        or not isinstance(response.get("dispositions"), list)
+    ):
+        _fail("ordinary_trade_semantic_mapping_headerless_disposition_invalid")
+    decisions_by_node_id = {
+        item.get("table_node_id"): item
+        for item in decisions
+        if isinstance(item, Mapping) and isinstance(item.get("table_node_id"), str)
+    }
+    headerless_ids = {
+        table_node_id
+        for table_node_id, decision in decisions_by_node_id.items()
+        if decision.get("disposition") == "HEADER_ABSENT"
+    }
+    declarations: dict[str, str] = {}
+    for item in response["dispositions"]:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != {"table_ref", "headerless_disposition"}
+            or not isinstance(item.get("table_ref"), str)
+            or item.get("headerless_disposition") not in _HEADERLESS_DISPOSITIONS
+        ):
+            _fail("ordinary_trade_semantic_mapping_headerless_disposition_invalid")
+        table_node_id = node_ids_by_ref.get(item["table_ref"])
+        if table_node_id is None or table_node_id in declarations:
+            _fail("ordinary_trade_semantic_mapping_headerless_disposition_invalid")
+        declarations[table_node_id] = item["headerless_disposition"]
+    if set(declarations) != headerless_ids:
+        _fail("ordinary_trade_semantic_mapping_headerless_disposition_invalid")
+
+    claims_by_target_id: dict[str, list[Mapping[str, Any]]] = {}
+    for claim in claims:
+        if not isinstance(claim, Mapping):
+            _fail("ordinary_trade_explicit_header_source_invalid")
+        target_id = node_ids_by_ref.get(claim.get("target_table_ref"))
+        parent_id = node_ids_by_ref.get(claim.get("header_source_table_ref"))
+        if target_id is None or parent_id is None:
+            _fail("ordinary_trade_explicit_header_source_invalid")
+        claims_by_target_id.setdefault(target_id, []).append(claim)
+
+    for table_node_id, disposition in declarations.items():
+        target_claims = claims_by_target_id.get(table_node_id, [])
+        if disposition == "STANDALONE":
+            if target_claims:
+                _fail("ordinary_trade_semantic_mapping_headerless_standalone_claim_forbidden")
+            continue
+        if len(target_claims) != 1:
+            _fail("ordinary_trade_semantic_mapping_headerless_continuation_claim_required")
+        parent_id = node_ids_by_ref[target_claims[0]["header_source_table_ref"]]
+        parent_decision = decisions_by_node_id.get(parent_id)
+        parent_table = tables.get(parent_id)
+        if (
+            parent_decision is None
+            or parent_decision.get("disposition") != "SECURITY_TRADES"
+            or not isinstance(parent_table, Mapping)
+            or not isinstance(parent_table.get("physical_header_row"), int)
+        ):
+            _fail("ordinary_trade_semantic_mapping_headerless_continuation_parent_invalid")
+
+    if set(claims_by_target_id) - {
+        table_node_id
+        for table_node_id, disposition in declarations.items()
+        if disposition == "CONTINUATION"
+    }:
+        _fail("ordinary_trade_semantic_mapping_headerless_claim_target_invalid")
 
 
 def _current_explicit_header_canonical_binding(
