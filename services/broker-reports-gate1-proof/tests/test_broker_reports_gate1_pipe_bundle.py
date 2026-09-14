@@ -195,6 +195,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("gate5_operation_set_demand_derivation", module._BUNDLED_MODULES)
         self.assertIn("ordinary_trade_production_runtime", module._BUNDLED_MODULES)
         self.assertIn("ordinary_trade_qualified_mappings", module._BUNDLED_MODULES)
+        self.assertIn("ordinary_trade_grouped_mapping_v23", module._BUNDLED_MODULES)
         self.assertLess(
             module._BUNDLED_MODULE_ORDER.index("gate5_real_tax_case_assembly"),
             module._BUNDLED_MODULE_ORDER.index("gate5_declaration_scope_resolution"),
@@ -321,6 +322,10 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         }
         self.assertFalse(retired_product_modules & set(module._BUNDLED_MODULES))
         bundled_order = module._BUNDLED_MODULE_ORDER
+        self.assertLess(
+            bundled_order.index("ordinary_trade_grouped_mapping_v23"),
+            bundled_order.index("ordinary_trade_mapping_prompt"),
+        )
         self.assertLess(
             bundled_order.index("pdf_document_ai"),
             bundled_order.index("full_source"),
