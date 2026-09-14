@@ -411,6 +411,8 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     assert "ordinary_trade_mapping_v20" in container._PROFILE_IDS
     assert "ordinary_trade_mapping_v21" in container._PROFILE_IDS
     assert "ordinary_trade_mapping_v21" in host._PROFILE_IDS
+    assert "ordinary_trade_mapping_v22" in container._PROFILE_IDS
+    assert "ordinary_trade_mapping_v22" in host._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in container._PROFILE_IDS
     assert "pdf_table_continuation_annotation_v3" in host._PROFILE_IDS
     assert "document_metadata_passport_v1" in container._PROFILE_IDS
@@ -442,5 +444,32 @@ def test_container_selects_the_closed_v19_profile_for_native_readback(monkeypatc
     )
 
     assert selected == [publication.ORDINARY_TRADE_MAPPING_V19_PROFILE]
+    assert result["status"] == "verified"
+    assert result["prompt_command"] == _PIN["prompt_command"]
+
+
+def test_container_selects_the_closed_v22_profile_for_native_readback(monkeypatch):
+    from broker_reports_gate1 import ordinary_trade_mapping_prompt_publication as publication
+
+    selected = []
+
+    class Publisher:
+        def __init__(self, *, profile):
+            selected.append(profile)
+
+        async def verify(self, value):
+            return value
+
+    monkeypatch.setattr(publication, "OrdinaryTradeMappingPromptPublisher", Publisher)
+
+    result = asyncio.run(
+        container._run(
+            asset_root=Path("unused"),
+            verify_pin=_PIN,
+            profile_id="ordinary_trade_mapping_v22",
+        )
+    )
+
+    assert selected == [publication.ORDINARY_TRADE_MAPPING_V22_PROFILE]
     assert result["status"] == "verified"
     assert result["prompt_command"] == _PIN["prompt_command"]
