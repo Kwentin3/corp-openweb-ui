@@ -25,6 +25,10 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NDFL_WORKSPACE_MODEL_STABLE_ID,
     NdflWorkflowError,
 )
+from broker_reports_gate1.gate2_model_clients import (
+    _native_completion_probe_failure_terminal,
+    _native_completion_probe_response_terminal,
+)
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     build_public_dialogue_context,
@@ -124,7 +128,7 @@ def test_test_user_native_bridge_probe_uses_one_source_free_shared_completion(
     assert "canonical" not in json.dumps(request, ensure_ascii=False).lower()
 
 
-def test_native_bridge_probe_reports_invalid_structured_reply_without_product_flow(
+def test_native_bridge_probe_reports_content_contract_mismatch_without_product_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipe = Pipe()
@@ -161,7 +165,7 @@ def test_native_bridge_probe_reports_invalid_structured_reply_without_product_fl
 
     result = asyncio.run(pipe.pipe({}, __user__=user, __request__=object()))
 
-    assert result == "NATIVE_BRIDGE_PROBE_RESPONSE_INVALID"
+    assert result == "NATIVE_BRIDGE_PROBE_CONTENT_CONTRACT_MISMATCH"
 
 
 def test_native_bridge_probe_cannot_be_requested_by_another_user() -> None:
@@ -176,6 +180,20 @@ def test_native_bridge_probe_cannot_be_requested_by_another_user() -> None:
         user={"id": "not-test-user", "email": "other@example.test", "role": "user"},
         interaction_message="проверка нативного моста ndfl",
     )
+
+
+def test_native_bridge_probe_classifies_safe_non_success_terminals() -> None:
+    assert _native_completion_probe_response_terminal("not-json") == (
+        "NATIVE_BRIDGE_PROBE_CONTENT_NOT_JSON"
+    )
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_invalid",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_CONTAINER_INVALID"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_response_budget_exceeded",
+        failure_class="response_budget",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_BUDGET_EXCEEDED"
 
 
 def test_persisted_ordinary_trade_xml_is_rechecked_before_native_delivery(tmp_path) -> None:
