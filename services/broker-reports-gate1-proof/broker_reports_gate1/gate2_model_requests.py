@@ -57,6 +57,16 @@ ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS = 65_536
 ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
     "ordinary_trade_mapping_answer_v1"
 )
+# A deliberately tiny, non-product request used only to diagnose whether a
+# native nested completion can resolve the selected provider from a Pipe
+# request.  It carries no Canonical, source reference or user facts.
+PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE = (
+    "private_native_completion_probe_v1"
+)
+PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER = (
+    "{{private_native_completion_probe_json}}"
+)
+PRIVATE_NATIVE_COMPLETION_PROBE_MAX_OUTPUT_TOKENS = 64
 # This is request transport syntax, not a dependency on the Workspace Prompt
 # adapter.  A focused contract test pins it to the adapter's stored-prompt
 # marker without pulling that mapping domain into Gate 2-only bundles.
@@ -95,6 +105,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
+    PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE,
 )
 
 
@@ -354,6 +365,13 @@ class Gate2OpenWebUIRequestBuilder:
                 model_id=model_id,
                 response_format=response_format,
             )
+        if self.request_profile == PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE:
+            return self._build_private_native_completion_probe(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
         if (
             self.request_profile
             == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
@@ -381,6 +399,55 @@ class Gate2OpenWebUIRequestBuilder:
             model_id=model_id,
             response_format=response_format,
         )
+
+    def _build_private_native_completion_probe(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Build the one fixed, source-free nested-completion diagnostic."""
+
+        if (
+            not isinstance(package, dict)
+            or package != {"schema_version": "private_native_completion_probe_v1"}
+            or not isinstance(getattr(prompt, "content", None), str)
+            or prompt.content.count(PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER) != 1
+            or not isinstance(model_id, str)
+            or not model_id
+            or not isinstance(response_format, dict)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "private_native_completion_probe_request_invalid",
+                "Native completion probe request is not closed",
+            )
+        system_content = prompt.content.replace(
+            PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER,
+            json.dumps(package, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {
+                    "role": "user",
+                    "content": '{"task":"private_native_completion_probe"}',
+                },
+            ],
+            "stream": False,
+            "max_tokens": PRIVATE_NATIVE_COMPLETION_PROBE_MAX_OUTPUT_TOKENS,
+            "response_format": copy.deepcopy(response_format),
+            "metadata": {
+                "broker_reports_gate2": {
+                    "private_native_completion_probe": True,
+                    "structured_output_mode": "openwebui_response_format_json_schema",
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
 
     def _build_ordinary_trade_semantic_request(
         self,

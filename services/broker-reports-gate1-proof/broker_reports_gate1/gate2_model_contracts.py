@@ -12,6 +12,14 @@ from .gate2_source_fact_contracts import Gate2ManagedPrompt
 PROVIDER_STATUS_APPROVED = "approved"
 PROVIDER_STATUS_PROBE_REQUIRED = "probe_required"
 PROVIDER_STATUS_UNSUPPORTED = "unsupported"
+GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS = "internal_bypass"
+GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER = "ordinary_user"
+GATE2_COMPLETION_ACCESS_MODES = frozenset(
+    {
+        GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
+        GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+    }
+)
 PROVIDER_AVAILABILITY_AVAILABLE = "available"
 PROVIDER_AVAILABILITY_UNAVAILABLE = "unavailable"
 PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED = "configuration_blocked"
@@ -658,3 +666,6 @@ class Gate2StructuredModelClientConfig:
     transport: str = "openwebui"
     capability_probe: bool = False
     economy_budget_enforcement: bool = False
+    # Existing production calls preserve their current bypass behavior. A
+    # diagnostic can explicitly exercise the ordinary-user ACL path instead.
+    completion_access_mode: str = GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS

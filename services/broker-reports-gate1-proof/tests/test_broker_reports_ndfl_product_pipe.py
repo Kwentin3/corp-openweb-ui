@@ -56,6 +56,128 @@ from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
 
 
+def test_test_user_native_bridge_probe_uses_one_source_free_shared_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The diagnostic terminal is reached before any product side effect."""
+
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+    calls: list[dict] = []
+    access_flags: list[tuple[bool, bool]] = []
+    user = {"id": "native-bridge-test-user", "email": "test@test.ru", "role": "user"}
+
+    async def attested_metadata(**_kwargs):
+        return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+
+    async def trusted_message(**_kwargs):
+        return "проверка нативного моста ndfl"
+
+    def complete(
+        *,
+        request,
+        form_data,
+        user,
+        bypass_filter=False,
+        bypass_system_prompt=False,
+    ):
+        access_flags.append((bypass_filter, bypass_system_prompt))
+        calls.append(copy.deepcopy(form_data))
+        return {
+            "id": "native-bridge-probe-response",
+            "model": pipe.valves.ordinary_trade_mapping_model_id,
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": {"status": "ok"}}}
+            ],
+        }
+
+    def completion_dependencies(user_id: str):
+        assert user_id == user["id"]
+        return complete, SimpleNamespace(id=user_id, role="user")
+
+    async def forbidden_after_terminal(**_kwargs):
+        raise AssertionError("native bridge probe must terminate before product flow")
+
+    monkeypatch.setattr(pipe, "_server_attested_runtime_metadata", attested_metadata)
+    monkeypatch.setattr(pipe, "_trusted_interaction_message", trusted_message)
+    monkeypatch.setattr(pipe, "_openwebui_completion_dependencies", completion_dependencies)
+    monkeypatch.setattr(pipe, "_server_attested_completed_turn_content", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_run_workload", forbidden_after_terminal)
+
+    result = asyncio.run(pipe.pipe({"messages": [{"role": "user", "content": "ignored"}]}, __user__=user, __request__=object()))
+
+    assert result == "NATIVE_BRIDGE_PROBE_READY"
+    assert len(calls) == 1
+    assert access_flags == [(False, False)]
+    request = calls[0]
+    assert request["model"] == pipe.valves.ordinary_trade_mapping_model_id
+    assert request["stream"] is False
+    assert request["max_tokens"] == 64
+    assert request["response_format"]["json_schema"]["schema"] == {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"status": {"type": "string", "enum": ["ok"]}},
+        "required": ["status"],
+    }
+    assert "canonical" not in json.dumps(request, ensure_ascii=False).lower()
+
+
+def test_native_bridge_probe_reports_invalid_structured_reply_without_product_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+    user = {"id": "native-bridge-test-user", "email": "test@test.ru", "role": "user"}
+
+    async def attested_metadata(**_kwargs):
+        return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+
+    async def trusted_message(**_kwargs):
+        return "проверка нативного моста ndfl"
+
+    def complete(**_kwargs):
+        return {
+            "id": "native-bridge-probe-response",
+            "model": pipe.valves.ordinary_trade_mapping_model_id,
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": {"status": "unexpected"}}}
+            ],
+        }
+
+    def completion_dependencies(user_id: str):
+        return complete, SimpleNamespace(id=user_id, role="user")
+
+    async def forbidden_after_terminal(**_kwargs):
+        raise AssertionError("native bridge probe must not enter product flow")
+
+    monkeypatch.setattr(pipe, "_server_attested_runtime_metadata", attested_metadata)
+    monkeypatch.setattr(pipe, "_trusted_interaction_message", trusted_message)
+    monkeypatch.setattr(pipe, "_openwebui_completion_dependencies", completion_dependencies)
+    monkeypatch.setattr(pipe, "_server_attested_completed_turn_content", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_run_workload", forbidden_after_terminal)
+
+    result = asyncio.run(pipe.pipe({}, __user__=user, __request__=object()))
+
+    assert result == "NATIVE_BRIDGE_PROBE_RESPONSE_INVALID"
+
+
+def test_native_bridge_probe_cannot_be_requested_by_another_user() -> None:
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+
+    assert not pipe._native_bridge_probe_requested(
+        body={},
+        metadata={"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID},
+        files_arg=None,
+        messages_arg=None,
+        user={"id": "not-test-user", "email": "other@example.test", "role": "user"},
+        interaction_message="проверка нативного моста ndfl",
+    )
+
+
 def test_persisted_ordinary_trade_xml_is_rechecked_before_native_delivery(tmp_path) -> None:
     runtime, context, _providers, store = declaration_fixtures._case(
         tmp_path, proceeds="60.00", include_store=True

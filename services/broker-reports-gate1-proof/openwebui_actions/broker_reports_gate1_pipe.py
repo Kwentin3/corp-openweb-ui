@@ -187,6 +187,7 @@ from broker_reports_gate1.openwebui_file_bytes import (
     OpenWebUIFileBytesResolverFactory,
 )
 from broker_reports_gate1.gate2_model_clients import (
+    Gate2NativeCompletionProbeFactory,
     Gate2StructuredModelClientFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (
@@ -236,6 +237,8 @@ MAPPING_FORENSICS_PROJECTION_SCHEMA_VERSION = (
     "broker_reports_mapping_forensics_projection_v1"
 )
 MAPPING_FORENSICS_FILENAME = "mapping-response-forensics.json"
+_NATIVE_BRIDGE_PROBE_TEST_EMAIL = "test@test.ru"
+_NATIVE_BRIDGE_PROBE_TRIGGER = "проверка нативного моста ndfl"
 
 
 class _OrdinaryTradeMappingRouteProfile:
@@ -576,6 +579,13 @@ class Pipe:
                 "completion endpoint; never derived from request metadata."
             ),
         )
+        native_bridge_probe_enabled: bool = Field(
+            default=False,
+            description=(
+                "Temporary test@test.ru-only native nested-completion diagnostic. "
+                "It never reads documents or writes artifacts."
+            ),
+        )
         live_smoke_trigger_phrases: str = Field(
             default="artifactstore retention smoke,gate1 artifactstore smoke"
         )
@@ -627,6 +637,18 @@ class Pipe:
             metadata=metadata,
             user=__user__,
         )
+        if self._native_bridge_probe_requested(
+            body=safe_body,
+            metadata=metadata,
+            files_arg=(__files__ or kwargs.get("__files__")),
+            messages_arg=messages_arg,
+            user=__user__,
+            interaction_message=interaction_message,
+        ):
+            return await self._run_native_bridge_probe(
+                request=__request__,
+                user=__user__,
+            )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
         completed_turn = await self._server_attested_completed_turn_content(
@@ -817,6 +839,46 @@ class Pipe:
             raise
         finally:
             self._active_workload_session = None
+
+    def _native_bridge_probe_requested(
+        self,
+        *,
+        body: dict,
+        metadata: dict,
+        files_arg: Any,
+        messages_arg: Any,
+        user: Any,
+        interaction_message: str,
+    ) -> bool:
+        """Admit only the explicit, source-free test-user diagnostic turn."""
+
+        if not self.valves.native_bridge_probe_enabled:
+            return False
+        email = (
+            user.get("email") if isinstance(user, dict) else getattr(user, "email", "")
+        )
+        role = (
+            user.get("role") if isinstance(user, dict) else getattr(user, "role", "")
+        )
+        if (
+            not isinstance(email, str)
+            or email.casefold() != _NATIVE_BRIDGE_PROBE_TEST_EMAIL
+            or str(role or "").strip() != "user"
+            or metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID
+            or str(interaction_message or "").strip().casefold()
+            != _NATIVE_BRIDGE_PROBE_TRIGGER
+        ):
+            return False
+        return not self._collect_file_refs(body, metadata, files_arg, messages_arg)
+
+    async def _run_native_bridge_probe(self, *, request: Any, user: Any) -> str:
+        return await Gate2NativeCompletionProbeFactory().create(
+            request=request,
+            user=user,
+            provider_profile_id=self.valves.ordinary_trade_mapping_provider_profile_id,
+            model_id=self.valves.ordinary_trade_mapping_model_id,
+            completion_resolver=self._openwebui_completion_dependencies,
+        ).execute()
 
     @staticmethod
     def _canonical_workload_access(
