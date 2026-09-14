@@ -557,6 +557,28 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=0
             )
         try:
+            # Python evaluates call arguments before entering Gate 2. Build the
+            # representation-owned response contract before the request receipt
+            # so a failure here cannot be mistaken for a provider submission.
+            response_format = self._mapping_response_format()
+        except Exception:
+            _audit_mapping_response_format_unavailable()
+            saved = self._cases.save_provider_terminal(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                reason_code="ordinary_trade_mapping_response_format_unavailable",
+                message=(
+                    "The mapping response contract is unavailable. No provider "
+                    "call was made."
+                ),
+                provider_calls_total=0,
+                mapping_prompt_snapshot=prompt_snapshot,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=0
+            )
+        try:
             request_receipt = self._semantic.preflight_mapping_request(
                 package=package,
                 canonical=binding["canonical"],
@@ -592,7 +614,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 prompt=prompt,
                 package=package,
                 model_id=self._model_id,
-                response_format=self._mapping_response_format(),
+                response_format=response_format,
             )
         except Exception as exc:
             code = _mapping_provider_failure_reason_code(exc)
@@ -1916,6 +1938,15 @@ def _audit_mapping_request_preflight_invalid(reason_code: Any) -> None:
     if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+", value):
         value = "ordinary_trade_mapping_request_preflight_invalid"
     _LOGGER.info("broker_reports_mapping_request_preflight_rejected reason_code=%s", value)
+
+
+def _audit_mapping_response_format_unavailable() -> None:
+    """Record the closed local preparation terminal without exception data."""
+
+    _LOGGER.info(
+        "broker_reports_mapping_response_format_unavailable "
+        "reason_code=ordinary_trade_mapping_response_format_unavailable"
+    )
 
 
 def _sha256_json(value: Any) -> str:
