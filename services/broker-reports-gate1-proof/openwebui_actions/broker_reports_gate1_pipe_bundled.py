@@ -776,7 +776,7 @@ class Pipe:
             ),
         )
         ordinary_trade_semantic_mapping_enabled: bool = Field(
-            default=True,
+        default=False,
             description=(
                 "Resolve unknown schemas through one strict case-scoped semantic "
                 "mapping call; known exact schemas remain zero-call."
