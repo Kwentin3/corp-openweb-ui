@@ -2144,6 +2144,15 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
             OrdinaryTradeGroupedMappingV20Adapter,
         ),
+        (
+            "ordinary_trade_mapping_v22",
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV20Adapter,
+        ),
     ],
 )
 def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(

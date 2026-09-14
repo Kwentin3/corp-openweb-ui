@@ -29,10 +29,10 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
-ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v21"
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v22"
 ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
-    "broker_reports_ordinary_trade_mapping_prompt.v21.md"
+    "broker_reports_ordinary_trade_mapping_prompt.v22.md"
 )
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -333,7 +333,7 @@ def _run_native_prompt_publication(
 def bootstrap_ordinary_trade_mapping_prompt(
     *, source_revision: str, ssh_target: str
 ) -> dict[str, Any]:
-    """Explicitly create and attest the immutable v21 Prompt before release."""
+    """Explicitly create and attest the immutable v22 Prompt before release."""
 
     local_checks = _assert_release_tree(source_revision)
     release_name = "broker-reports-" + hashlib.sha256(

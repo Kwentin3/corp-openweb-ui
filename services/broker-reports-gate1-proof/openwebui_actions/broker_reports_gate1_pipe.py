@@ -138,6 +138,11 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V21_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
@@ -384,6 +389,23 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
     ),
+    # V22 is a separate managed Prompt identity.  Its exact command is part of
+    # the release pin; V21 remains a readable historical route and is never a
+    # fallback for a V22 release.
+    "ordinary_trade_mapping_v22": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v22",
+        prompt_command=ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+    ),
 }
 
 
@@ -482,7 +504,7 @@ class Pipe:
             default="ordinary_trade_mapping_v13",
             description=(
                 "Sealed production mapping route profile. Only the released "
-                "v13, v14, v15, v16, v17, v18, v19, v20 and v21 profiles are admitted."
+                "v13, v14, v15, v16, v17, v18, v19, v20, v21 and v22 profiles are admitted."
             ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")
