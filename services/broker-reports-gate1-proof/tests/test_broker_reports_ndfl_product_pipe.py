@@ -118,7 +118,7 @@ def test_test_user_native_bridge_probe_uses_one_source_free_shared_completion(
     request = calls[0]
     assert request["model"] == pipe.valves.ordinary_trade_mapping_model_id
     assert request["stream"] is False
-    assert request["max_tokens"] == 64
+    assert request["max_tokens"] == 4_096
     assert request["response_format"]["json_schema"]["schema"] == {
         "type": "object",
         "additionalProperties": False,

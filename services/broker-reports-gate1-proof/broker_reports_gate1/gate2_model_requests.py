@@ -66,7 +66,10 @@ PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE = (
 PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER = (
     "{{private_native_completion_probe_json}}"
 )
-PRIVATE_NATIVE_COMPLETION_PROBE_MAX_OUTPUT_TOKENS = 64
+# Gemini 3 can spend its short 64-token allowance on thinking before emitting
+# the strict JSON control result.  Keep this source-free probe bounded, while
+# giving it a representative output budget independent from the mapping call.
+PRIVATE_NATIVE_COMPLETION_PROBE_MAX_OUTPUT_TOKENS = 4_096
 # This is request transport syntax, not a dependency on the Workspace Prompt
 # adapter.  A focused contract test pins it to the adapter's stored-prompt
 # marker without pulling that mapping domain into Gate 2-only bundles.
