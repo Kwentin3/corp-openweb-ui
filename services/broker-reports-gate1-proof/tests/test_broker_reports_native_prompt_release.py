@@ -94,13 +94,13 @@ def test_host_allows_only_the_exact_missing_current_terminal(tmp_path: Path):
             verify_pin=None,
             read_current=True,
             allow_missing=True,
-            profile="ordinary_trade_mapping_v22",
+            profile="ordinary_trade_mapping_v23",
         ) is None
 
     python_call = next(call for call in calls if "python" in call)
     assert python_call[-3:] == [
         "--profile",
-        "ordinary_trade_mapping_v22",
+        "ordinary_trade_mapping_v23",
         "--read-current",
     ]
     assert "--allow-missing" not in python_call
@@ -135,13 +135,13 @@ def test_host_keeps_existing_current_readback_strict_when_allow_missing(tmp_path
             verify_pin=None,
             read_current=True,
             allow_missing=True,
-            profile="ordinary_trade_mapping_v22",
+            profile="ordinary_trade_mapping_v23",
         ) == _PIN
 
 
 def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
     assert release._mapping_prompt_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v22",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v23",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
@@ -153,7 +153,7 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
 
 def test_production_gate1_valves_pin_only_financial_roles_and_disable_legacy_routes():
     assert release._production_gate1_valves(_PIN) == {
-        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v22",
+        "ordinary_trade_mapping_profile_id": "ordinary_trade_mapping_v23",
         "ordinary_trade_mapping_prompt_id": "prompt-1",
         "ordinary_trade_mapping_prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
         "ordinary_trade_mapping_prompt_version": "history-1",
