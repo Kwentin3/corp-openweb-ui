@@ -317,8 +317,10 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                headerless_disposition_response=_currency_plan_headerless_disposition_response(plan),
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=_currency_plan_requires_headerless_dispositions(plan),
             )
             instructional_state = current[1].get("instructional_classification_state")
             if instructional_state is not None and outcome["status"] == "COMPLETE":
@@ -619,6 +621,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
             explicit_header_source_response = self._explicit_header_source_response(
                 response=response
             )
+            headerless_disposition_response = self._headerless_disposition_response(
+                response=response
+            )
             contract_failure = self._semantic.mapping_response_contract_failure_code(
                 response_for_validation
             )
@@ -641,11 +646,15 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 frozen_mappings=self._frozen_mappings,
                 frozen_requalification_table_node_ids=frozen_requalification_table_node_ids,
                 explicit_header_source_response=explicit_header_source_response,
+                headerless_disposition_response=headerless_disposition_response,
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_source_bound_position_effect=(
                     self._allows_source_bound_position_effect()
                 ),
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=(
+                    self._requires_headerless_dispositions()
+                ),
             )
         except Exception as exc:
             code = getattr(
@@ -756,6 +765,28 @@ class OrdinaryTradeAutomaticMappingRuntime:
         if not isinstance(value, dict):
             raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
         return value
+
+    def _headerless_disposition_response(self, *, response: Any) -> dict[str, Any] | None:
+        extractor = getattr(self._mapping_response_adapter, "headerless_dispositions", None)
+        if extractor is None:
+            return None
+        if not callable(extractor):
+            raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
+        value = extractor(response=response)
+        if not isinstance(value, dict):
+            raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
+        return value
+
+    def _requires_headerless_dispositions(self) -> bool:
+        return bool(
+            self._mapping_response_adapter is not None
+            and getattr(
+                self._mapping_response_adapter,
+                "requires_headerless_dispositions",
+                False,
+            )
+            is True
+        )
 
     def _allows_source_bound_position_effect(self) -> bool:
         """Only the selected V18 response adapter enables this semantic seam."""
@@ -1054,6 +1085,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
             explicit_header_source_response = self._explicit_header_source_response(
                 response=response
             )
+            headerless_disposition_response = self._headerless_disposition_response(
+                response=response
+            )
             if self._semantic.mapping_response_contract_failure_code(validated_response) is not None:
                 raise OrdinaryTradeSemanticMappingError(
                     "ordinary_trade_semantic_mapping_response_invalid"
@@ -1076,8 +1110,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 explicit_header_source_response=explicit_header_source_response,
+                headerless_disposition_response=headerless_disposition_response,
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=(
+                    self._requires_headerless_dispositions()
+                ),
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
@@ -1216,8 +1254,10 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                headerless_disposition_response=_currency_plan_headerless_disposition_response(plan),
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=_currency_plan_requires_headerless_dispositions(plan),
             )
             if outcome["status"] != "COMPLETE":
                 raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_batch_currency_replay_incomplete")
@@ -1809,6 +1849,30 @@ def _currency_plan_explicit_header_source_response(
             "ordinary_trade_user_currency_request_invalid"
         )
     return copy.deepcopy(value)
+
+
+def _currency_plan_headerless_disposition_response(
+    plan: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Read V23's semantic-owner declaration for a strict currency replay."""
+
+    value = plan.get("headerless_disposition_response")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return copy.deepcopy(value)
+
+
+def _currency_plan_requires_headerless_dispositions(plan: dict[str, Any]) -> bool:
+    value = plan.get("require_headerless_dispositions", False)
+    if type(value) is not bool:
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return value
 
 
 def _confirmed_currency_code(
