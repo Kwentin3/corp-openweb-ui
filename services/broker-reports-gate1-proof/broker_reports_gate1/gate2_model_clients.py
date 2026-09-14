@@ -1083,7 +1083,7 @@ class Gate2OpenWebUIStructuredModelClient:
                     "gate2_model_invalid_response",
                     self._invalid_body_message(),
                     raw_output=body_diagnostic,
-                    failure_class="provider_response_invalid",
+                    failure_class="provider_response_body_not_json",
                 ) from exc
             if isinstance(payload, dict):
                 return payload
@@ -1105,7 +1105,7 @@ class Gate2OpenWebUIStructuredModelClient:
                         "body_json_type": type(payload).__name__,
                     }
                 ),
-                failure_class="provider_response_invalid",
+                failure_class="provider_response_body_json_not_object",
             )
         if isinstance(response, str):
             return {"content": response}
@@ -1113,7 +1113,7 @@ class Gate2OpenWebUIStructuredModelClient:
             "gate2_model_invalid_response",
             self._unsupported_response_message(),
             raw_output={"response_type": response.__class__.__name__},
-            failure_class="provider_response_invalid",
+            failure_class="provider_response_shape_unsupported",
         )
 
     @staticmethod
@@ -1420,6 +1420,18 @@ def _native_completion_probe_failure_terminal(
         return _NATIVE_COMPLETION_PROBE_REQUEST_REJECTED
     if value == "gate2_model_response_budget_exceeded":
         return _NATIVE_COMPLETION_PROBE_RESPONSE_BUDGET_EXCEEDED
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_body_not_json"
+    ):
+        return "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_NOT_JSON"
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_body_json_not_object"
+    ):
+        return "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_JSON_NOT_OBJECT"
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_shape_unsupported"
+    ):
+        return "NATIVE_BRIDGE_PROBE_RESPONSE_SHAPE_UNSUPPORTED"
     if value == "gate2_model_invalid_response" and str(failure_class or "") == (
         "provider_response_invalid"
     ):

@@ -1313,20 +1313,32 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                 self.assertEqual(len(boundary.calls), 1)
 
         invalid_cases = (
-            ("missing_content", {}, "gate2_model_invalid_response"),
+            (
+                "missing_content",
+                {},
+                "gate2_model_invalid_response",
+                "provider_response_invalid",
+            ),
             (
                 "invalid_body",
                 SimpleNamespace(body=b"not-json"),
                 "gate2_model_invalid_response",
+                "provider_response_body_not_json",
             ),
-            ("unsupported_shape", object(), "gate2_model_invalid_response"),
+            (
+                "unsupported_shape",
+                object(),
+                "gate2_model_invalid_response",
+                "provider_response_shape_unsupported",
+            ),
             (
                 "json_list_body",
                 SimpleNamespace(body=b'[{"type":"schema"}]'),
                 "gate2_model_invalid_response",
+                "provider_response_body_json_not_object",
             ),
         )
-        for name, response, expected_code in invalid_cases:
+        for name, response, expected_code, expected_failure_class in invalid_cases:
             with self.subTest(name=name):
                 boundary = CompletionBoundary(response)
                 client = self._factory(
@@ -1340,6 +1352,9 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         package=self._package(SOURCE_REQUEST_PROFILE),
                     )
                 self.assertEqual(rejected.exception.code, expected_code)
+                self.assertEqual(
+                    rejected.exception.failure_class, expected_failure_class
+                )
                 if name == "invalid_body":
                     self.assertEqual(
                         rejected.exception.raw_output,
