@@ -340,11 +340,17 @@ alternative engine may run as fallback. Exact rules are in
 [the current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 For a `provider_native_table_html` segment, Canonical records only the native
-`physical_header_state` (`PRESENT` or `ABSENT`). `ABSENT` permits exactly the
-mapping terminal `HEADER_ABSENT`: the physical rows remain source observations
-with their provenance, but create no financial runtime record. Supplying a
-neighbouring-page header, joining segments, or assigning financial roles to
-that headerless segment is forbidden.
+`physical_header_state` (`PRESENT` or `ABSENT`). `ABSENT` permits the mapping
+terminal `HEADER_ABSENT`. Under the V23 response profile, the model must also
+declare `headerless_disposition` as `STANDALONE` or `CONTINUATION` for every
+such terminal. `STANDALONE` retains the physical rows as source observations
+with their provenance and creates no financial runtime record. Only
+`CONTINUATION` carries exactly one existing source-bound claim to a parent
+whose physical header is present and whose decision is `SECURITY_TRADES`; the
+existing source-binding contract validates that claim. Code must not supply a
+neighbouring-page header, join segments, select a parent, or infer a claim from
+adjacency, row values, row shape or page order. V20 and V22 remain historical
+version-pinned behavior and do not acquire this V23 declaration or inference.
 
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
