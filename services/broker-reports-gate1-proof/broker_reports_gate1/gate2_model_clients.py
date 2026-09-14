@@ -1390,6 +1390,8 @@ def _native_completion_probe_response_terminal(content: Any) -> str:
         try:
             content = json.loads(content)
         except json.JSONDecodeError:
+            if content.strip().startswith("```"):
+                return "NATIVE_BRIDGE_PROBE_CONTENT_MARKDOWN_FENCED"
             return _NATIVE_COMPLETION_PROBE_CONTENT_NOT_JSON
     return (
         _NATIVE_COMPLETION_PROBE_SUCCESS

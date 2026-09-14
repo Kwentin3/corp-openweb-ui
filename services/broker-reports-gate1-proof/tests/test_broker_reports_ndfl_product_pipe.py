@@ -186,6 +186,9 @@ def test_native_bridge_probe_classifies_safe_non_success_terminals() -> None:
     assert _native_completion_probe_response_terminal("not-json") == (
         "NATIVE_BRIDGE_PROBE_CONTENT_NOT_JSON"
     )
+    assert _native_completion_probe_response_terminal("```json\n{\"status\":\"ok\"}\n```") == (
+        "NATIVE_BRIDGE_PROBE_CONTENT_MARKDOWN_FENCED"
+    )
     assert _native_completion_probe_failure_terminal(
         "gate2_model_invalid_response",
         failure_class="provider_response_invalid",
