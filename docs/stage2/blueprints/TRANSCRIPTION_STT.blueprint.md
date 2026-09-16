@@ -5,6 +5,32 @@
 Спланировать priority transcription scenario для audio/video на базе existing ffmpeg workflow и
 server-side STT proxy.
 
+## Current production workflow (2026-09-16)
+
+This section is authoritative for the deployed product. Earlier descriptions
+of a browser ffmpeg.wasm preparation flow and an attachment-level
+`Transcribe` button are historical research, not the current user path.
+
+```text
+Attach audio or video -> native OpenWebUI Send -> native Filter ->
+stage2-stt sidecar -> Lemonfox -> assistant response
+```
+
+- The selected ordinary chat model remains the user's model of choice.
+- Audio is sent to the sidecar directly. For video, the sidecar extracts and
+  normalizes the first audio stream with server-side ffmpeg.
+- The resulting audio is stored as an ordinary OpenWebUI File and replaces the
+  source-video attachment only after a successful transcript is stored.
+- On preparation or STT failure, the original video remains attached.
+- The assistant reply contains one-sentence summary followed by the formatted
+  full transcript. Native OpenWebUI suggestions and user Prompt slash commands
+  are the only post-transcript actions.
+- There is no custom browser transcribe button, browser ffmpeg.wasm runtime,
+  custom quick-action panel, or OpenWebUI Web Speech core patch.
+
+Operational acceptance and recovery procedure:
+[STT Native Media Transcription Runbook](../operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md).
+
 ## 2. PRD-1 requirements covered
 
 - Транскрибация - приоритетный сценарий заказчика.

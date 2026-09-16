@@ -4,8 +4,10 @@
 *
 !deploy/
 deploy/*
-!deploy/openwebui-native-web-stt-patch/
-!deploy/openwebui-native-web-stt-patch/**
+!deploy/openwebui-patches/
+!deploy/openwebui-patches/**
+!deploy/openwebui-media-lifecycle/
+!deploy/openwebui-media-lifecycle/**
 !deploy/openwebui-broker-reports-intake/
 !deploy/openwebui-broker-reports-intake/**
 !services/
