@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PATCH_PATH = (
     ROOT
     / "deploy"
-    / "openwebui-native-web-stt-patch"
+    / "openwebui-patches"
     / "apply_native_broker_pdf_upload_patch.py"
 )
 
@@ -56,13 +56,10 @@ def test_patch_rejects_ambiguous_pinned_signatures(tmp_path: Path):
         patch.patch_file(chunk, dry_run=False)
 
 
-def test_dockerfile_applies_broker_patch_after_existing_native_patch():
-    dockerfile = (
-        ROOT / "deploy" / "openwebui-native-web-stt-patch" / "Dockerfile"
-    ).read_text(encoding="utf-8")
-
-    existing = dockerfile.index("RUN python /usr/local/bin/apply_native_web_stt_patch.py")
-    broker = dockerfile.index(
-        "RUN python /usr/local/bin/apply_native_broker_pdf_upload_patch.py"
+def test_dockerfile_applies_broker_patch_without_the_retired_web_stt_patch():
+    dockerfile = (ROOT / "deploy" / "openwebui-patches" / "Dockerfile").read_text(
+        encoding="utf-8"
     )
-    assert existing < broker
+
+    assert "RUN python /usr/local/bin/apply_native_broker_pdf_upload_patch.py" in dockerfile
+    assert "apply_native_web_stt_patch.py" not in dockerfile

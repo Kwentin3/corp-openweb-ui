@@ -27,7 +27,7 @@ services:
   openwebui:
     build:
       context: ..
-      dockerfile: deploy/openwebui-native-web-stt-patch/Dockerfile
+      dockerfile: deploy/openwebui-patches/Dockerfile
       args:
         OPENWEBUI_BASE_IMAGE: ${OPENWEBUI_BASE_IMAGE:-ghcr.io/open-webui/open-webui:v0.9.6}
         BROKER_REPORTS_SOURCE_REVISION: ${BROKER_REPORTS_SOURCE_REVISION:-untracked}
@@ -62,7 +62,7 @@ services:
       YANDEX_WEB_SEARCH_CONFIG: ${YANDEX_WEB_SEARCH_CONFIG:-}
     volumes:
       - openwebui_data:/app/backend/data
-      - ../deploy/openwebui-static/loader.js:/app/backend/open_webui/static/loader.js:ro
+      - ../deploy/openwebui-static/loader.js:/app/build/static/loader.js:ro
       - ../deploy/openwebui-static/stage2-stt-normalization.json:/app/backend/open_webui/static/stage2-stt-normalization.json:ro
       - ../deploy/openwebui-static/stage2-assets:/app/backend/open_webui/static/stage2-assets:ro
     labels:
@@ -72,6 +72,14 @@ services:
       - traefik.http.routers.openwebui.tls=true
       - traefik.http.routers.openwebui.tls.certresolver=letsencrypt
       - traefik.http.services.openwebui.loadbalancer.server.port=8080
+      - traefik.http.routers.openwebui-loader.rule=Host(`${OPENWEBUI_HOST}`) && Path(`/static/loader.js`)
+      - traefik.http.routers.openwebui-loader.entrypoints=websecure
+      - traefik.http.routers.openwebui-loader.tls=true
+      - traefik.http.routers.openwebui-loader.tls.certresolver=letsencrypt
+      - traefik.http.routers.openwebui-loader.priority=100
+      - traefik.http.routers.openwebui-loader.service=openwebui
+      - traefik.http.routers.openwebui-loader.middlewares=openwebui-loader-no-store
+      - traefik.http.middlewares.openwebui-loader-no-store.headers.customresponseheaders.Cache-Control=no-store, max-age=0
     networks:
       - web
 

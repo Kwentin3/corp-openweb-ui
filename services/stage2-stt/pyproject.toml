@@ -26,4 +26,4 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.setuptools.packages.find]
-include = ["stage2_stt*", "openwebui_actions*"]
+include = ["stage2_stt*", "openwebui_actions*", "openwebui_filters*"]
