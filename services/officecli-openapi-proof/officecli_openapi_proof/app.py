@@ -11,6 +11,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings, load_settings
+from .docx_normalization import normalize_known_noncanonical_docx
 from .officecli import (
     OfficeCliExecutor,
     OfficeCliFailure,
@@ -374,6 +375,7 @@ class ApplyResponse(BaseModel):
     source_bytes_preserved: bool
     auto_resident_disabled: bool
     bounded_processes_completed: bool
+    docx_normalization: dict[str, Any] | None = None
 
 
 class CreateResponse(BaseModel):
@@ -683,7 +685,7 @@ def create_app(
                 source_after_path = workspace / "source-after-check.docx"
                 openwebui.download(source_file_id, bearer, source_path)
                 source_sha256 = sha256(source_path.read_bytes()).hexdigest()
-                result_path.write_bytes(source_path.read_bytes())
+                normalization = normalize_known_noncanonical_docx(source_path, result_path)
 
                 batch_output = officecli.run(
                     "batch",
@@ -738,6 +740,13 @@ def create_app(
             auto_resident_disabled=batch_output.auto_resident_disabled
             and validation_output.auto_resident_disabled,
             bounded_processes_completed=True,
+            docx_normalization={
+                "applied": normalization.applied,
+                "changed_parts": list(normalization.changed_parts),
+                "reordered_elements": normalization.reordered_elements,
+                "removed_false_no_wrap": normalization.removed_false_no_wrap,
+                "removed_vml_shapetype_type": normalization.removed_vml_shapetype_type,
+            },
         )
 
     @app.post(
