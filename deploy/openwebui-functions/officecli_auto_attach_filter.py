@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.6.1
+version: 0.6.2
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured Native chat models.
 """
@@ -21,6 +21,10 @@ OFFICECLI_INSTRUCTION = (
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
     "when they ask to create a new DOCX from the discussion, use the same official guidance and "
     "create tool. For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
+    "Treat the attached document as a fixed form unless the user explicitly asks to change its structure: "
+    "use only paths that the inspection actually reports, never invent a /tbl[N]/tr[R] or /tc[C] path, "
+    "never add rows to make a requested answer fit, and preserve headings, question labels, and unaffected cells. "
+    "If the inspection does not expose a place for an answer, ask the user rather than guessing. "
     "For XLSX work, obtain the official Excel skill and relevant help before applying a batch. "
     "When reporting a calculated XLSX value after creating or editing a workbook, inspect the returned "
     "workbook and report its actual formula value instead of calculating it yourself. "

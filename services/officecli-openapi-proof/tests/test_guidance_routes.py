@@ -303,6 +303,21 @@ def test_inspect_downloads_native_file_and_only_runs_annotated_view() -> None:
     assert executor.calls[0][2:] == ("annotated", "--json")
 
 
+def test_view_help_uses_officecli_top_level_view_command() -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+
+    response = client.post(
+        "/v1/officecli/help",
+        headers={"Authorization": "Bearer user-session"},
+        json={"topic": "docx view"},
+    )
+
+    assert response.status_code == 200
+    assert executor.calls == [("view", "--help")]
+
+
 def test_inspect_spreadsheet_resolves_only_xlsx_and_runs_annotated_view() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
