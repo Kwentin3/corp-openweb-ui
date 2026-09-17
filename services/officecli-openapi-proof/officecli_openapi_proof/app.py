@@ -564,8 +564,9 @@ def create_app(
         operation_id="inspect_office_document",
         description=(
             "Read the single nearest DOCX attachment from the native current-message ancestry and return "
-            "official annotated OfficeCLI output. When that message has multiple DOCX attachments, use an "
-            "explicit file_id rather than guessing. Use the exact paragraph path to plan an edit."
+            "official annotated OfficeCLI output plus a table row/cell inventory. When that message has "
+            "multiple DOCX attachments, use an explicit file_id rather than guessing. For a fixed form, "
+            "use only row and cell paths present in table_layout; do not infer extra rows."
         ),
     )
     def inspect_office_document(
@@ -590,18 +591,28 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.docx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
+                annotated_output = officecli.run(
                     "view", str(source), request.command_payload.mode, "--json"
                 )
-                result = _officecli_json(output, "view")
+                table_layout_output = officecli.run("query", str(source), "table", "--json")
+                result = {
+                    "annotated": _officecli_json(annotated_output, "view"),
+                    "table_layout": _officecli_json(table_layout_output, "query"),
+                }
+                result_sha256 = sha256(
+                    json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
             source=f"officecli v{active_settings.expected_version}",
             file_id=source_file_id,
             officecli_result=result,
-            officecli_result_sha256=output.content_sha256,
-            auto_resident_disabled=output.auto_resident_disabled,
+            officecli_result_sha256=result_sha256,
+            auto_resident_disabled=(
+                annotated_output.auto_resident_disabled
+                and table_layout_output.auto_resident_disabled
+            ),
         )
 
     @app.post(

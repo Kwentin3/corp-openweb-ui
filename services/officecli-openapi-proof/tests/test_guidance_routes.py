@@ -280,7 +280,7 @@ def test_fake_bearer_cannot_reach_officecli_guidance_or_execution() -> None:
     assert files.calls == []
 
 
-def test_inspect_downloads_native_file_and_only_runs_annotated_view() -> None:
+def test_inspect_downloads_native_file_and_returns_annotated_view_with_table_inventory() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
     client = TestClient(create_app(executor, files, settings()))
@@ -296,11 +296,16 @@ def test_inspect_downloads_native_file_and_only_runs_annotated_view() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json()["officecli_result"] == {"success": True, "data": {"operation": "view"}}
+    assert response.json()["officecli_result"] == {
+        "annotated": {"success": True, "data": {"operation": "view"}},
+        "table_layout": {"success": True, "data": {"operation": "query"}},
+    }
     assert response.json()["file_id"] == "resolved-file-id"
     assert files.calls == [("resolve", ("native-chat-id", "native-message-id")), ("download", "resolved-file-id")]
     assert executor.calls[0][0] == "view"
     assert executor.calls[0][2:] == ("annotated", "--json")
+    assert executor.calls[1][0] == "query"
+    assert executor.calls[1][2:] == ("table", "--json")
 
 
 def test_view_help_uses_officecli_top_level_view_command() -> None:
