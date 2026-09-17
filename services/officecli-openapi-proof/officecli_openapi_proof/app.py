@@ -11,6 +11,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings, load_settings
+from .docx_normalization import normalize_known_noncanonical_docx
 from .officecli import (
     OfficeCliExecutor,
     OfficeCliFailure,
@@ -374,6 +375,7 @@ class ApplyResponse(BaseModel):
     source_bytes_preserved: bool
     auto_resident_disabled: bool
     bounded_processes_completed: bool
+    docx_normalization: dict[str, Any] | None = None
 
 
 class CreateResponse(BaseModel):
@@ -395,12 +397,13 @@ HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "docx add markdown": ("help", "docx", "add", "markdown"),
     "docx table-row": ("help", "docx", "table-row"),
     "docx table-cell": ("help", "docx", "table-cell"),
-    "docx view": ("help", "docx", "view"),
+    # ``view`` is a top-level OfficeCLI command, not a DOCX element.
+    "docx view": ("view", "--help"),
     "xlsx": ("help", "xlsx"),
     "xlsx sheet": ("help", "xlsx", "sheet"),
     "xlsx cell": ("help", "xlsx", "cell"),
     "xlsx table": ("help", "xlsx", "table"),
-    "xlsx view": ("help", "xlsx", "view"),
+    "xlsx view": ("view", "--help"),
     "pptx": ("help", "pptx"),
     "pptx slide": ("help", "pptx", "slide"),
     "pptx shape": ("help", "pptx", "shape"),
@@ -561,8 +564,9 @@ def create_app(
         operation_id="inspect_office_document",
         description=(
             "Read the single nearest DOCX attachment from the native current-message ancestry and return "
-            "official annotated OfficeCLI output. When that message has multiple DOCX attachments, use an "
-            "explicit file_id rather than guessing. Use the exact paragraph path to plan an edit."
+            "official annotated OfficeCLI output plus a table row/cell inventory. When that message has "
+            "multiple DOCX attachments, use an explicit file_id rather than guessing. For a fixed form, "
+            "use only row and cell paths present in table_layout; do not infer extra rows."
         ),
     )
     def inspect_office_document(
@@ -587,18 +591,28 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.docx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
+                annotated_output = officecli.run(
                     "view", str(source), request.command_payload.mode, "--json"
                 )
-                result = _officecli_json(output, "view")
+                table_layout_output = officecli.run("query", str(source), "table", "--json")
+                result = {
+                    "annotated": _officecli_json(annotated_output, "view"),
+                    "table_layout": _officecli_json(table_layout_output, "query"),
+                }
+                result_sha256 = sha256(
+                    json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
             source=f"officecli v{active_settings.expected_version}",
             file_id=source_file_id,
             officecli_result=result,
-            officecli_result_sha256=output.content_sha256,
-            auto_resident_disabled=output.auto_resident_disabled,
+            officecli_result_sha256=result_sha256,
+            auto_resident_disabled=(
+                annotated_output.auto_resident_disabled
+                and table_layout_output.auto_resident_disabled
+            ),
         )
 
     @app.post(
@@ -683,7 +697,7 @@ def create_app(
                 source_after_path = workspace / "source-after-check.docx"
                 openwebui.download(source_file_id, bearer, source_path)
                 source_sha256 = sha256(source_path.read_bytes()).hexdigest()
-                result_path.write_bytes(source_path.read_bytes())
+                normalization = normalize_known_noncanonical_docx(source_path, result_path)
 
                 batch_output = officecli.run(
                     "batch",
@@ -738,6 +752,13 @@ def create_app(
             auto_resident_disabled=batch_output.auto_resident_disabled
             and validation_output.auto_resident_disabled,
             bounded_processes_completed=True,
+            docx_normalization={
+                "applied": normalization.applied,
+                "changed_parts": list(normalization.changed_parts),
+                "reordered_elements": normalization.reordered_elements,
+                "removed_false_no_wrap": normalization.removed_false_no_wrap,
+                "removed_vml_shapetype_type": normalization.removed_vml_shapetype_type,
+            },
         )
 
     @app.post(

@@ -51,6 +51,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert body["messages"][0]["content"].startswith("Keep this existing instruction.")
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
     assert "table-row" in body["messages"][0]["content"]
+    assert "never invent a /tbl[N]/tr[R] or /tc[C] path" in body["messages"][0]["content"]
+    assert "preserve headings, question labels, and unaffected cells" in body["messages"][0]["content"]
     assert "actual formula value" in body["messages"][0]["content"]
     assert "official PPTX skill" in body["messages"][0]["content"]
     assert "pptx table, pptx chart, or pptx picture help" in body["messages"][0]["content"]
