@@ -65,6 +65,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "do not ask the user to re-upload the existing Office document" in body["messages"][0]["content"]
     assert "result_file_id" in body["messages"][0]["content"]
     assert "create_office_document operation" in body["messages"][0]["content"]
+    assert "do not call load_officecli_skill or get_officecli_help first" in body["messages"][0]["content"]
+    assert '"parent":"/body","type":"markdown"' in body["messages"][0]["content"]
     assert "create_office_spreadsheet" in body["messages"][0]["content"]
     assert '"path":"/Sheet1/A1"' in body["messages"][0]["content"]
     assert "create_office_presentation" in body["messages"][0]["content"]

@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.7.0
+version: 0.7.1
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -33,12 +33,16 @@ OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
     "For a new file, route by format: DOCX uses create_office_document, XLSX uses "
     "create_office_spreadsheet, and PPTX uses create_office_presentation. Call the operation; do not "
+    "call load_officecli_skill or get_officecli_help first when a minimal new file can use the "
+    "known-valid shapes below; reserve guidance calls for non-trivial structures. Do not "
     "substitute code or a recipe. Do not claim that a file was created unless the execution response "
     "contains result_file_id and the native attachment is present. If execution fails, report that "
     "failure instead of describing the intended file as complete. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
-    "when they ask to create a new DOCX from the discussion, read the official guidance and then immediately "
-    "call the native create_office_document operation with output_name ending in .docx and a commands array. "
+    "when they ask to create a minimal new DOCX from the discussion, immediately call the native "
+    "create_office_document operation with output_name ending in .docx and this known-valid command "
+    "shape: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"markdown\","
+    "\"props\":{\"markdown\":\"# Title\\n\\nContent\"}}. "
     "Do not answer with a bash script, Python code, or a textual recipe in place of that operation. "
     "For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
     "Treat the attached document as a fixed form unless the user explicitly asks to change its structure: "
@@ -53,10 +57,11 @@ OFFICECLI_INSTRUCTION = (
     "When reporting a calculated XLSX value after creating or editing a workbook, inspect the returned "
     "workbook and report its actual formula value instead of calculating it yourself. "
     "For a new PPTX, call create_office_presentation and add each slide at parent / before its content "
-    "(for example, {\"command\":\"add\",\"parent\":\"/\",\"type\":\"slide\","
-    "\"props\":{\"layout\":\"blank\"}}). Never use /presentation as the parent. For an attached "
+    "(first {\"command\":\"add\",\"parent\":\"/\",\"type\":\"slide\","
+    "\"props\":{\"layout\":\"blank\"}}, then add a shape under /slide[1] with text and geometry). "
+    "Never use /presentation as the parent. For an attached "
     "PPTX, inspect it and use apply_office_presentation_batch. Obtain the official PPTX skill and "
-    "relevant help before creating or editing a "
+    "relevant help before creating a non-trivial structure or editing a "
     "presentation; inspect an attached presentation before editing it and preserve its existing template "
     "and unaffected slides. If a new presentation contains a table, chart, or picture, obtain the matching "
     "pptx table, pptx chart, or pptx picture help before its create batch. For a PPTX table, use the exact "

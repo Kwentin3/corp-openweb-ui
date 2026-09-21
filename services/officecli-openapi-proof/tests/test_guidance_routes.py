@@ -189,6 +189,13 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
     assert "/sheet[Sheet1]/cell[A1]" in spreadsheet_description
     assert "document root /" in presentation_description
     assert "/presentation is not a valid parent" in presentation_description
+    assert "may call this operation directly" in schema["paths"]["/v1/officecli/documents/create"]["post"][
+        "description"
+    ]
+    assert "may call this operation directly" in presentation_description
+    assert "/slide[1]" in schema["components"]["schemas"]["CreatePresentationRequest"]["properties"][
+        "commands"
+    ]["description"]
 
 
 def test_help_uses_only_a_whitelisted_official_topic() -> None:
