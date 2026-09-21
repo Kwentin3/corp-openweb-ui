@@ -19,7 +19,7 @@ def run_inlet(filter_instance, body, metadata):
 
 def configured_filter():
     instance = MODULE.Filter()
-    instance.valves = instance.Valves(target_model_ids="claude-opus-5,gpt-5.4-mini")
+    instance.valves = instance.Valves(target_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS)
     return instance
 
 
@@ -64,6 +64,19 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "most recent successful OfficeCLI batch" in body["messages"][0]["content"]
     assert "do not ask the user to re-upload the existing Office document" in body["messages"][0]["content"]
     assert "result_file_id" in body["messages"][0]["content"]
+    assert "create_office_document operation" in body["messages"][0]["content"]
+    assert "do not call load_officecli_skill or get_officecli_help first" in body["messages"][0]["content"]
+    assert '"parent":"/body","type":"markdown"' in body["messages"][0]["content"]
+    assert "create_office_spreadsheet" in body["messages"][0]["content"]
+    assert '"path":"/Sheet1/A1"' in body["messages"][0]["content"]
+    assert "create_office_presentation" in body["messages"][0]["content"]
+    assert '"parent":"/","type":"slide"' in body["messages"][0]["content"]
+    assert '"x":"2cm","y":"7cm","width":"29cm","height":"3cm"' in body["messages"][0]["content"]
+    assert "Do not claim that a file was created" in body["messages"][0]["content"]
+    assert "not evidence of an older test file" in body["messages"][0]["content"]
+    assert "state that creation succeeded" in body["messages"][0]["content"]
+    assert "Do not answer with a bash script" in body["messages"][0]["content"]
+    assert "officecli-gemini-compat-v2" not in body["messages"][0]["content"]
     assert "attachment://image" in body["messages"][0]["content"]
     assert "Never invent a local path" in body["messages"][0]["content"]
 
@@ -87,6 +100,39 @@ def test_unlisted_models_are_unchanged():
         run_inlet(filter_instance, body, metadata)
 
         assert body == before
+
+
+def test_default_direct_model_catalog_includes_gemini_but_not_specialized_models():
+    filter_instance = MODULE.Filter()
+
+    gemini_body = {**eligible_body(), "model": "models/gemini-3.5-flash"}
+    run_inlet(filter_instance, gemini_body, native_metadata())
+    assert gemini_body["tool_ids"] == ["server:other", "server:officecli"]
+    assert "officecli-gemini-compat-v2" in gemini_body["messages"][0]["content"]
+    assert '"parent":"/body"' in gemini_body["messages"][0]["content"]
+    assert '"path":"/Sheet1/A1"' in gemini_body["messages"][0]["content"]
+    assert '"parent":"/","type":"slide"' in gemini_body["messages"][0]["content"]
+    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in gemini_body["messages"][0]["content"]
+
+    specialized_body = {**eligible_body(), "model": "office-documents"}
+    before = copy.deepcopy(specialized_body)
+    run_inlet(filter_instance, specialized_body, native_metadata())
+    assert specialized_body == before
+
+
+def test_default_catalog_covers_exactly_the_eight_qualified_direct_models():
+    expected = {
+        "claude-opus-5",
+        "claude-sonnet-4-6",
+        "gpt-5.4-mini",
+        "gpt-5.6-luna",
+        "models/gemini-3.5-flash",
+        "models/gemini-3.6-flash",
+        "models/gemini-3.1-flash-lite",
+        "models/gemini-3.5-flash-lite",
+    }
+
+    assert MODULE._comma_separated_values(MODULE.DEFAULT_TARGET_MODEL_IDS) == expected
 
 
 def test_ordinary_chat_without_function_calling_metadata_receives_officecli():
@@ -114,10 +160,12 @@ def test_task_and_caller_supplied_tools_are_unchanged():
         assert body == before
 
 
-def test_empty_valve_is_disabled_by_default():
+def test_empty_valve_is_still_disabled():
     body = eligible_body()
     before = copy.deepcopy(body)
 
-    run_inlet(MODULE.Filter(), body, native_metadata())
+    filter_instance = MODULE.Filter()
+    filter_instance.valves = filter_instance.Valves(target_model_ids="")
+    run_inlet(filter_instance, body, native_metadata())
 
     assert body == before

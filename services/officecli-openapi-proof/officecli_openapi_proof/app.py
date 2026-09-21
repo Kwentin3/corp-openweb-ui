@@ -168,7 +168,8 @@ class CreateOfficeDocumentRequest(BaseModel):
         max_length=64,
         description=(
             "Official OfficeCLI batch items used to fill a newly created DOCX. Read the installed "
-            "OfficeCLI help before choosing element types and properties. The official help's --prop "
+            "OfficeCLI help before choosing non-trivial element types and properties; a minimal markdown "
+            "item may be added directly at /body. The official help's --prop "
             "flag may be supplied as prop and is translated to the batch JSON field props."
         ),
     )
@@ -269,7 +270,16 @@ class ApplyPresentationBatchRequest(NativePptxReference):
 
 class CreatePresentationRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=256)
+    commands: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=256,
+        description=(
+            "Ordered OfficeCLI batch items. For a minimal deck, first add a slide with parent /, "
+            "type slide, and layout blank; then add its text shape under /slide[1]. Shape geometry "
+            "must use explicit length units, for example x=2cm, y=7cm, width=29cm, height=3cm. Never use "
+            "/presentation as the parent."
+        ),
+    )
 
     @field_validator("commands")
     @classmethod
@@ -538,7 +548,10 @@ def create_app(
         "/v1/officecli/skills/load",
         response_model=GuidanceResponse,
         operation_id="load_officecli_skill",
-        description="Load the installed official OfficeCLI DOCX skill before planning DOCX work.",
+        description=(
+            "Load the installed official OfficeCLI Word, Excel, or PowerPoint skill before planning "
+            "non-trivial Office work. New-file requests may use the matching create operation directly."
+        ),
     )
     def load_officecli_skill(
         request: SkillRequest,
@@ -550,7 +563,10 @@ def create_app(
         "/v1/officecli/help",
         response_model=GuidanceResponse,
         operation_id="get_officecli_help",
-        description="Read installed OfficeCLI help for an allowed DOCX topic; do not guess command syntax.",
+        description=(
+            "Read installed OfficeCLI help for an allowed DOCX, XLSX, or PPTX topic; do not guess "
+            "command syntax."
+        ),
     )
     def get_officecli_help(
         request: HelpRequest,
@@ -768,8 +784,9 @@ def create_app(
         description=(
             "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
-            "user asks for a new document rather than an edit of an attached DOCX. Read OfficeCLI skill and "
-            "help first; this is the final execution operation, not a textual substitute."
+            "user asks for a new document rather than an edit of an attached DOCX. A minimal markdown "
+            "document may call this operation directly; use skill and help for non-trivial structures. "
+            "This is the final execution operation, not a textual substitute."
         ),
     )
     def create_office_document(
@@ -843,7 +860,8 @@ def create_app(
         operation_id="create_office_spreadsheet",
         description=(
             "Create, batch, validate, and attach a new XLSX from the chat request. "
-            "The workbook starts with Sheet1, so submit all initial work in one ordered "
+            "The workbook starts with Sheet1; address a cell as /Sheet1/A1, not as "
+            "/sheet[Sheet1]/cell[A1]. Submit all initial work in one ordered "
             "batch and add only additional sheets. For a later chat turn, use "
             "apply_office_spreadsheet_batch on the returned attachment."
         ),
@@ -1066,8 +1084,10 @@ def create_app(
         operation_id="create_office_presentation",
         description=(
             "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
-            "validate it, and attach the resulting PPTX to this assistant message. Read the official "
-            "PPTX skill and relevant help before execution. A picture may use only the "
+            "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
+            "at the document root / before adding content under /slide[N]; /presentation is not a valid "
+            "parent. A minimal slide and text shape may call this operation directly; read the official "
+            "PPTX skill and relevant help for non-trivial structures. A picture may use only the "
             "attachment://image source, which resolves exactly one native image attachment in this chat."
         ),
     )
