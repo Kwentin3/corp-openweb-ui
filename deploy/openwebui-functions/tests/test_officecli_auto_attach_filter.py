@@ -64,6 +64,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "most recent successful OfficeCLI batch" in body["messages"][0]["content"]
     assert "do not ask the user to re-upload the existing Office document" in body["messages"][0]["content"]
     assert "result_file_id" in body["messages"][0]["content"]
+    assert "create_office_document operation" in body["messages"][0]["content"]
+    assert "Do not answer with a bash script" in body["messages"][0]["content"]
     assert "attachment://image" in body["messages"][0]["content"]
     assert "Never invent a local path" in body["messages"][0]["content"]
 

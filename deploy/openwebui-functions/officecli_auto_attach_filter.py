@@ -32,8 +32,10 @@ DEFAULT_TARGET_MODEL_IDS = (
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
-    "when they ask to create a new DOCX from the discussion, use the same official guidance and "
-    "create tool. For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
+    "when they ask to create a new DOCX from the discussion, read the official guidance and then immediately "
+    "call the native create_office_document operation with output_name ending in .docx and a commands array. "
+    "Do not answer with a bash script, Python code, or a textual recipe in place of that operation. "
+    "For a DOCX table edit, obtain the table-row and table-cell help before applying a batch. "
     "Treat the attached document as a fixed form unless the user explicitly asks to change its structure: "
     "use only paths that the inspection actually reports, never invent a /tbl[N]/tr[R] or /tc[C] path, "
     "never add rows to make a requested answer fit, and preserve headings, question labels, and unaffected cells. "
