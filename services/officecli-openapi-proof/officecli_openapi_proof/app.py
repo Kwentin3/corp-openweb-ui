@@ -538,7 +538,10 @@ def create_app(
         "/v1/officecli/skills/load",
         response_model=GuidanceResponse,
         operation_id="load_officecli_skill",
-        description="Load the installed official OfficeCLI DOCX skill before planning DOCX work.",
+        description=(
+            "Load the installed official OfficeCLI Word, Excel, or PowerPoint skill before planning "
+            "non-trivial Office work. New-file requests may use the matching create operation directly."
+        ),
     )
     def load_officecli_skill(
         request: SkillRequest,
@@ -550,7 +553,10 @@ def create_app(
         "/v1/officecli/help",
         response_model=GuidanceResponse,
         operation_id="get_officecli_help",
-        description="Read installed OfficeCLI help for an allowed DOCX topic; do not guess command syntax.",
+        description=(
+            "Read installed OfficeCLI help for an allowed DOCX, XLSX, or PPTX topic; do not guess "
+            "command syntax."
+        ),
     )
     def get_officecli_help(
         request: HelpRequest,
@@ -843,7 +849,8 @@ def create_app(
         operation_id="create_office_spreadsheet",
         description=(
             "Create, batch, validate, and attach a new XLSX from the chat request. "
-            "The workbook starts with Sheet1, so submit all initial work in one ordered "
+            "The workbook starts with Sheet1; address a cell as /Sheet1/A1, not as "
+            "/sheet[Sheet1]/cell[A1]. Submit all initial work in one ordered "
             "batch and add only additional sheets. For a later chat turn, use "
             "apply_office_spreadsheet_batch on the returned attachment."
         ),
@@ -1066,7 +1073,9 @@ def create_app(
         operation_id="create_office_presentation",
         description=(
             "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
-            "validate it, and attach the resulting PPTX to this assistant message. Read the official "
+            "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
+            "at the document root / before adding content under /slide[N]; /presentation is not a valid "
+            "parent. Read the official "
             "PPTX skill and relevant help before execution. A picture may use only the "
             "attachment://image source, which resolves exactly one native image attachment in this chat."
         ),

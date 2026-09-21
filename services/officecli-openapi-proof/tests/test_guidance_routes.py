@@ -179,6 +179,16 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
     assert "bare verb" in schema["components"]["schemas"]["ApplyOfficeBatchRequest"]["properties"][
         "commands"
     ]["description"]
+    skill_description = schema["paths"]["/v1/officecli/skills/load"]["post"]["description"]
+    help_description = schema["paths"]["/v1/officecli/help"]["post"]["description"]
+    assert "Word, Excel, or PowerPoint" in skill_description
+    assert "DOCX, XLSX, or PPTX" in help_description
+    spreadsheet_description = schema["paths"]["/v1/officecli/spreadsheets/create"]["post"]["description"]
+    presentation_description = schema["paths"]["/v1/officecli/presentations/create"]["post"]["description"]
+    assert "/Sheet1/A1" in spreadsheet_description
+    assert "/sheet[Sheet1]/cell[A1]" in spreadsheet_description
+    assert "document root /" in presentation_description
+    assert "/presentation is not a valid parent" in presentation_description
 
 
 def test_help_uses_only_a_whitelisted_official_topic() -> None:

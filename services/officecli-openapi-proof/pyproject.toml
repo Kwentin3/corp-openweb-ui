@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "officecli-openapi-proof"
 version = "0.1.0"
-description = "Bounded OpenAPI proof surface for a native OfficeCLI DOCX edit flow."
+description = "Bounded OpenAPI surface for native OfficeCLI DOCX, XLSX, and PPTX workflows."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",
