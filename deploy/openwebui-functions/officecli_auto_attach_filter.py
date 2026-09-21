@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.7.1
+version: 0.7.2
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -37,7 +37,10 @@ OFFICECLI_INSTRUCTION = (
     "known-valid shapes below; reserve guidance calls for non-trivial structures. Do not "
     "substitute code or a recipe. Do not claim that a file was created unless the execution response "
     "contains result_file_id and the native attachment is present. If execution fails, report that "
-    "failure instead of describing the intended file as complete. "
+    "failure instead of describing the intended file as complete. A successful OfficeCLI tool result "
+    "returned during the current response is the receipt for the current execution, not evidence of an "
+    "older test file. When every requested create operation returns result_file_id, state that creation "
+    "succeeded and identify the attached files. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
     "when they ask to create a minimal new DOCX from the discussion, immediately call the native "
     "create_office_document operation with output_name ending in .docx and this known-valid command "

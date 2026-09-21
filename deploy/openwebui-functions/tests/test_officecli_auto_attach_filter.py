@@ -72,6 +72,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "create_office_presentation" in body["messages"][0]["content"]
     assert '"parent":"/","type":"slide"' in body["messages"][0]["content"]
     assert "Do not claim that a file was created" in body["messages"][0]["content"]
+    assert "not evidence of an older test file" in body["messages"][0]["content"]
+    assert "state that creation succeeded" in body["messages"][0]["content"]
     assert "Do not answer with a bash script" in body["messages"][0]["content"]
     assert "officecli-gemini-compat-v2" not in body["messages"][0]["content"]
     assert "attachment://image" in body["messages"][0]["content"]
