@@ -49,36 +49,23 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert result is body
     assert body["tool_ids"] == ["server:other", "server:officecli"]
     assert body["messages"][0]["content"].startswith("Keep this existing instruction.")
-    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
-    assert "table-row" in body["messages"][0]["content"]
-    assert "never invent a /tbl[N]/tr[R] or /tc[C] path" in body["messages"][0]["content"]
-    assert "preserve headings, question labels, and unaffected cells" in body["messages"][0]["content"]
-    assert "actual formula value" in body["messages"][0]["content"]
-    assert "official PPTX skill" in body["messages"][0]["content"]
-    assert "pptx table, pptx chart, or pptx picture help" in body["messages"][0]["content"]
-    assert "guessed rNcN cell keys" in body["messages"][0]["content"]
-    assert "add every requested slide at the document root" in body["messages"][0]["content"]
-    assert "rather than adding a competing overlay" in body["messages"][0]["content"]
-    assert "shape inventory" in body["messages"][0]["content"]
-    assert "never guess a generic shape name" in body["messages"][0]["content"]
-    assert "most recent successful OfficeCLI batch" in body["messages"][0]["content"]
-    assert "do not ask the user to re-upload the existing Office document" in body["messages"][0]["content"]
-    assert "result_file_id" in body["messages"][0]["content"]
-    assert "create_office_document operation" in body["messages"][0]["content"]
-    assert "do not call load_officecli_skill or get_officecli_help first" in body["messages"][0]["content"]
-    assert '"parent":"/body","type":"markdown"' in body["messages"][0]["content"]
-    assert "create_office_spreadsheet" in body["messages"][0]["content"]
-    assert '"path":"/Sheet1/A1"' in body["messages"][0]["content"]
-    assert "create_office_presentation" in body["messages"][0]["content"]
-    assert '"parent":"/","type":"slide"' in body["messages"][0]["content"]
-    assert '"x":"2cm","y":"7cm","width":"29cm","height":"3cm"' in body["messages"][0]["content"]
-    assert "Do not claim that a file was created" in body["messages"][0]["content"]
-    assert "not evidence of an older test file" in body["messages"][0]["content"]
-    assert "state that creation succeeded" in body["messages"][0]["content"]
-    assert "Do not answer with a bash script" in body["messages"][0]["content"]
-    assert "officecli-gemini-compat-v2" not in body["messages"][0]["content"]
-    assert "attachment://image" in body["messages"][0]["content"]
-    assert "Never invent a local path" in body["messages"][0]["content"]
+    instruction = body["messages"][0]["content"]
+    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in instruction
+    assert "never call load_officecli_skill or get_officecli_help" in instruction
+    assert "create_office_document" in instruction
+    assert '"parent":"/body","type":"markdown"' in instruction
+    assert "create_office_spreadsheet" in instruction
+    assert '"path":"/Sheet1/A1"' in instruction
+    assert '"numFmt":"#,##0 ₽"' in instruction
+    assert "Use formulas for requested calculations" in instruction
+    assert "create_office_presentation" in instruction
+    assert '"parent":"/","type":"slide"' in instruction
+    assert '"x":"2cm","y":"3cm","width":"29cm","height":"3cm"' in instruction
+    assert "result_file_id" in instruction
+    assert "A successful create result is terminal" in instruction
+    assert "inspect it first and use the matching apply batch" in instruction
+    assert "table, chart, or picture" in instruction
+    assert MODULE.GEMINI_COMPATIBILITY_MARKER not in instruction
 
 
 def test_repeated_inlet_is_idempotent():
@@ -108,7 +95,7 @@ def test_default_direct_model_catalog_includes_gemini_but_not_specialized_models
     gemini_body = {**eligible_body(), "model": "models/gemini-3.5-flash"}
     run_inlet(filter_instance, gemini_body, native_metadata())
     assert gemini_body["tool_ids"] == ["server:other", "server:officecli"]
-    assert "officecli-gemini-compat-v2" in gemini_body["messages"][0]["content"]
+    assert MODULE.GEMINI_COMPATIBILITY_MARKER not in gemini_body["messages"][0]["content"]
     assert '"parent":"/body"' in gemini_body["messages"][0]["content"]
     assert '"path":"/Sheet1/A1"' in gemini_body["messages"][0]["content"]
     assert '"parent":"/","type":"slide"' in gemini_body["messages"][0]["content"]

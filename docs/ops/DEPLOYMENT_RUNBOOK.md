@@ -194,6 +194,8 @@ OpenWebUI 0.9.6 пока не имеет per-model upload-processing policy. П�
 
 ## 14. Проверить LLM-ответ
 
+Если clean VPS должен включать OfficeCLI, после базовой проверки провайдера выполнить раздел **Clean VPS: порядок восстановления** из [officecli-openapi-docx-release.md](../infra-ops/officecli-openapi-docx-release.md). Source Filter и sidecar входят в skeleton репозитория; секреты и состояние OpenWebUI не входят.
+
 Администратор или тестовый пользователь задает простой рабочий вопрос.
 
 Ожидаемо:
