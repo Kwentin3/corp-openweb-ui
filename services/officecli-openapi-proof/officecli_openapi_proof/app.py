@@ -275,7 +275,8 @@ class CreatePresentationRequest(BaseModel):
         max_length=256,
         description=(
             "Ordered OfficeCLI batch items. For a minimal deck, first add a slide with parent /, "
-            "type slide, and layout blank; then add its text shape under /slide[1]. Never use "
+            "type slide, and layout blank; then add its text shape under /slide[1]. Shape geometry "
+            "must use explicit length units, for example x=2cm, y=7cm, width=29cm, height=3cm. Never use "
             "/presentation as the parent."
         ),
     )

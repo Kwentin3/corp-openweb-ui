@@ -71,6 +71,7 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert '"path":"/Sheet1/A1"' in body["messages"][0]["content"]
     assert "create_office_presentation" in body["messages"][0]["content"]
     assert '"parent":"/","type":"slide"' in body["messages"][0]["content"]
+    assert '"x":"2cm","y":"7cm","width":"29cm","height":"3cm"' in body["messages"][0]["content"]
     assert "Do not claim that a file was created" in body["messages"][0]["content"]
     assert "not evidence of an older test file" in body["messages"][0]["content"]
     assert "state that creation succeeded" in body["messages"][0]["content"]

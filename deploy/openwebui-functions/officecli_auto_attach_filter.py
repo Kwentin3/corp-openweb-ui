@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.7.2
+version: 0.7.3
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -61,7 +61,11 @@ OFFICECLI_INSTRUCTION = (
     "workbook and report its actual formula value instead of calculating it yourself. "
     "For a new PPTX, call create_office_presentation and add each slide at parent / before its content "
     "(first {\"command\":\"add\",\"parent\":\"/\",\"type\":\"slide\","
-    "\"props\":{\"layout\":\"blank\"}}, then add a shape under /slide[1] with text and geometry). "
+    "\"props\":{\"layout\":\"blank\"}}, then {\"command\":\"add\","
+    "\"parent\":\"/slide[1]\",\"type\":\"shape\",\"props\":{\"text\":\"Example\","
+    "\"x\":\"2cm\",\"y\":\"7cm\",\"width\":\"29cm\",\"height\":\"3cm\","
+    "\"font\":\"Calibri\",\"size\":\"36\",\"bold\":\"true\","
+    "\"align\":\"center\",\"color\":\"000000\"}}). "
     "Never use /presentation as the parent. For an attached "
     "PPTX, inspect it and use apply_office_presentation_batch. Obtain the official PPTX skill and "
     "relevant help before creating a non-trivial structure or editing a "
