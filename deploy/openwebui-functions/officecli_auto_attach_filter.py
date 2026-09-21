@@ -3,7 +3,7 @@ title: OfficeCLI Auto Attach
 author: Alpha Soft
 version: 0.6.2
 required_open_webui_version: 0.9.6
-description: Adds the existing OfficeCLI tool server only to explicitly configured Native chat models.
+description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
 
 from __future__ import annotations
@@ -16,6 +16,19 @@ from pydantic import BaseModel, Field
 
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v1]"
+# Keep the production default aligned with the current direct-model catalog.
+# Specialized Workspace/Pipe models stay opt-in by omission.
+DEFAULT_TARGET_MODEL_IDS = (
+    "claude-opus-5,"
+    "claude-sonnet-4-6,"
+    "deepseek-flash,"
+    "gpt-5.4-mini,"
+    "models/gemini-3.5-flash,"
+    "models/gemini-3.6-flash,"
+    "gpt-5.6-luna,"
+    "models/gemini-3.1-flash-lite,"
+    "models/gemini-3.5-flash-lite"
+)
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
     "When a user asks to edit an attached DOCX, use the available OfficeCLI guidance and tools; "
@@ -81,8 +94,11 @@ def _append_instruction(messages: list[Any]) -> None:
 class Filter:
     class Valves(BaseModel):
         target_model_ids: str = Field(
-            default="",
-            description="Comma-separated direct model IDs allowed to receive OfficeCLI. Empty means disabled.",
+            default=DEFAULT_TARGET_MODEL_IDS,
+            description=(
+                "Comma-separated direct model IDs allowed to receive OfficeCLI. "
+                "Empty means disabled; keep specialized Workspace/Pipe models out."
+            ),
         )
         priority: int = Field(default=0, description="Keep the standard filter order unless an admin has a reason to change it.")
 

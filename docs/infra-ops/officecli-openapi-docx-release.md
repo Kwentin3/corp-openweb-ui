@@ -17,7 +17,9 @@ OpenWebUI остаётся владельцем чатов, пользовате
 
 2. Импортировать `deploy/openwebui-functions/officecli_auto_attach_filter.py` как Filter, но до проверки оставить valves пустыми. Это единственный разрешённый автоподключающий слой: он добавляет существующий `server:officecli` до штатного разрешения tools и не вызывает OfficeCLI сам. В списке **Functions** включить оба независимых флага этой функции: основной switch строки (**Active**) и switch **Global** через меню `…`. Без Global inlet не участвует в обычных чатах; без Active функция не исполняется вообще.
 
-3. Для каждого профиля модели в **Advanced Parameters** явно выбрать **Function Calling: Native** и нажать **Save & Update**; не полагаться на значение `Default`. Затем в valves Filter указать только проверенные ID таких обычных моделей (для ограниченного запуска: `claude-opus-5,gpt-5.4-mini`). Пустое `target_model_ids` выключает Filter. Не добавлять `Office Documents`, Broker/NDFL/STT/Mistral или task models.
+3. Для каждого прямого профиля модели в **Advanced Parameters** явно выбрать **Function Calling: Native** и нажать **Save & Update**; не полагаться на значение `Default`. В valves Filter указать проверенный список прямых моделей текущего каталога:
+   `claude-opus-5,claude-sonnet-4-6,deepseek-flash,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite`.
+   Это расширяет native OfficeCLI на OpenAI, Claude, DeepSeek и Gemini. Пустое `target_model_ids` выключает Filter. Не добавлять `Office Documents`, Broker/NDFL/STT/Mistral или task models.
 
 4. Filter дописывает короткую идемпотентную инструкцию, не заменяя существующий system prompt. Штатное разрешение `tool_ids` затем сохраняет проверку доступа к global Tool Server; Filter не открывает чужие файлы и не обходит отключённый сервер.
 

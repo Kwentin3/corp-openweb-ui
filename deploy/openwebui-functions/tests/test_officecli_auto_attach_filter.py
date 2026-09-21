@@ -19,7 +19,7 @@ def run_inlet(filter_instance, body, metadata):
 
 def configured_filter():
     instance = MODULE.Filter()
-    instance.valves = instance.Valves(target_model_ids="claude-opus-5,gpt-5.4-mini")
+    instance.valves = instance.Valves(target_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS)
     return instance
 
 
@@ -89,6 +89,20 @@ def test_unlisted_models_are_unchanged():
         assert body == before
 
 
+def test_default_direct_model_catalog_includes_gemini_but_not_specialized_models():
+    filter_instance = MODULE.Filter()
+
+    gemini_body = {**eligible_body(), "model": "models/gemini-3.5-flash"}
+    run_inlet(filter_instance, gemini_body, native_metadata())
+    assert gemini_body["tool_ids"] == ["server:other", "server:officecli"]
+    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in gemini_body["messages"][0]["content"]
+
+    specialized_body = {**eligible_body(), "model": "office-documents"}
+    before = copy.deepcopy(specialized_body)
+    run_inlet(filter_instance, specialized_body, native_metadata())
+    assert specialized_body == before
+
+
 def test_ordinary_chat_without_function_calling_metadata_receives_officecli():
     body = eligible_body()
 
@@ -114,10 +128,12 @@ def test_task_and_caller_supplied_tools_are_unchanged():
         assert body == before
 
 
-def test_empty_valve_is_disabled_by_default():
+def test_empty_valve_is_still_disabled():
     body = eligible_body()
     before = copy.deepcopy(body)
 
-    run_inlet(MODULE.Filter(), body, native_metadata())
+    filter_instance = MODULE.Filter()
+    filter_instance.valves = filter_instance.Valves(target_model_ids="")
+    run_inlet(filter_instance, body, native_metadata())
 
     assert body == before
