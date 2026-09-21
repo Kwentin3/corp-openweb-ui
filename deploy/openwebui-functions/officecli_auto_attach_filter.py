@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v1]"
+GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v1]"
 # Keep the production default aligned with the current direct-model catalog.
 # Specialized Workspace/Pipe models stay opt-in by omission.
 DEFAULT_TARGET_MODEL_IDS = (
@@ -65,6 +66,14 @@ OFFICECLI_INSTRUCTION = (
     "and verify that the requested text is in the intended shape and the replaced text is gone. Do not "
     "report completion until that verification and the execution tool return a result_file_id."
 )
+GEMINI_COMPATIBILITY_INSTRUCTION = (
+    f"{GEMINI_COMPATIBILITY_MARKER} For Gemini direct models, do not call load_officecli_skill "
+    "before a new DOCX creation: use create_office_document directly. For its commands argument, "
+    "use this known-valid minimal OfficeCLI batch shape and adapt only the markdown text: "
+    "[{\"command\":\"add\",\"parent\":\"/body\",\"type\":\"markdown\","
+    "\"props\":{\"markdown\":\"# Invitation\\n\\n[content]\"}}]. "
+    "The operation runs the official OfficeCLI create, batch, and validate steps and attaches the DOCX."
+)
 
 
 def _comma_separated_values(value: str) -> set[str]:
@@ -91,6 +100,14 @@ def _append_instruction(messages: list[Any]) -> None:
             return
 
     messages.insert(0, {"role": "system", "content": OFFICECLI_INSTRUCTION})
+
+
+def _append_gemini_compatibility_instruction(messages: list[Any]) -> None:
+    for message in messages:
+        if isinstance(message, dict) and message.get("role") == "system" and isinstance(message.get("content"), str):
+            if GEMINI_COMPATIBILITY_MARKER not in message["content"]:
+                message["content"] = f"{message['content'].rstrip()}\n\n{GEMINI_COMPATIBILITY_INSTRUCTION}"
+            return
 
 
 class Filter:
@@ -142,5 +159,7 @@ class Filter:
         messages = body.get("messages")
         if isinstance(messages, list):
             _append_instruction(messages)
+            if body.get("model", "").startswith("models/gemini-"):
+                _append_gemini_compatibility_instruction(messages)
 
         return body

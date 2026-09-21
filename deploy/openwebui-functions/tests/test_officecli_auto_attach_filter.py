@@ -66,6 +66,7 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "result_file_id" in body["messages"][0]["content"]
     assert "create_office_document operation" in body["messages"][0]["content"]
     assert "Do not answer with a bash script" in body["messages"][0]["content"]
+    assert "officecli-gemini-compat-v1" not in body["messages"][0]["content"]
     assert "attachment://image" in body["messages"][0]["content"]
     assert "Never invent a local path" in body["messages"][0]["content"]
 
@@ -97,6 +98,8 @@ def test_default_direct_model_catalog_includes_gemini_but_not_specialized_models
     gemini_body = {**eligible_body(), "model": "models/gemini-3.5-flash"}
     run_inlet(filter_instance, gemini_body, native_metadata())
     assert gemini_body["tool_ids"] == ["server:other", "server:officecli"]
+    assert "officecli-gemini-compat-v1" in gemini_body["messages"][0]["content"]
+    assert '"parent":"/body"' in gemini_body["messages"][0]["content"]
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in gemini_body["messages"][0]["content"]
 
     specialized_body = {**eligible_body(), "model": "office-documents"}
