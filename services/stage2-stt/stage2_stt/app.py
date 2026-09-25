@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import secrets
+import shutil
+import tempfile
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 from pydantic import ValidationError
 
 from stage2_stt.config import OutputProfile, SttConfigError, load_stt_config
@@ -46,6 +51,7 @@ from stage2_stt.validation import validate_prepared_audio
 def create_app() -> FastAPI:
     app = FastAPI(title="OpenWebUI Stage 2 STT Backend", version="0.1.0")
     job_store = InMemoryTranscriptionJobStore()
+    media_prepare_semaphore = asyncio.Semaphore(1)
 
     @app.get(
         "/stage2-api/transcription/capabilities",
@@ -67,7 +73,7 @@ def create_app() -> FastAPI:
         envelope: str = Form(...),
         authorization: str | None = Header(default=None),
         x_stage2_internal_token: str | None = Header(default=None),
-    ) -> Response:
+    ) -> FileResponse:
         """Return normalized audio transiently; OpenWebUI owns durable Files."""
         config = _load_config_or_500()
         _require_internal_auth(
@@ -76,14 +82,18 @@ def create_app() -> FastAPI:
             x_stage2_internal_token=x_stage2_internal_token,
         )
         profile = _resolve_output_profile(_parse_envelope(envelope), config.output_profile)
+        work_dir = Path(tempfile.mkdtemp(prefix="stage2-media-"))
         try:
-            prepared = await asyncio.to_thread(
-                prepare_video_audio,
-                source_bytes=await source_media.read(),
-                source_filename=source_media.filename or "video",
-                output_profile=profile,
-            )
+            async with media_prepare_semaphore:
+                prepared = await asyncio.to_thread(
+                    prepare_video_audio,
+                    source_file=source_media.file,
+                    source_filename=source_media.filename or "video",
+                    output_profile=profile,
+                    work_dir=work_dir,
+                )
         except MediaPreparationError as exc:
+            shutil.rmtree(work_dir, ignore_errors=True)
             raise HTTPException(
                 status_code=422,
                 detail={
@@ -92,9 +102,13 @@ def create_app() -> FastAPI:
                     "retryable": exc.code not in {"source_has_no_audio_stream", "source_empty"},
                 },
             ) from exc
-        return Response(
-            content=prepared.audio_bytes,
+        except Exception:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            raise
+        return FileResponse(
+            path=prepared.audio_path,
             media_type=prepared.mime_type,
+            background=BackgroundTask(shutil.rmtree, work_dir, ignore_errors=True),
             headers={
                 # HTTP header values are latin-1 only. The durable attachment
                 # is an internal normalized artefact, not a source-file copy,
@@ -126,7 +140,9 @@ def create_app() -> FastAPI:
         parsed_envelope = _parse_envelope(envelope)
         output_profile = _resolve_output_profile(parsed_envelope, config.output_profile)
 
-        audio_bytes = await prepared_audio.read()
+        prepared_audio.file.seek(0, os.SEEK_END)
+        audio_size = prepared_audio.file.tell()
+        prepared_audio.file.seek(0)
         mime_type = prepared_audio.content_type
         if mime_type is None and parsed_envelope.file is not None:
             mime_type = parsed_envelope.file.mime_type
@@ -140,7 +156,7 @@ def create_app() -> FastAPI:
             capability=capability,
             output_profile=output_profile,
             mime_type=mime_type,
-            size_bytes=len(audio_bytes),
+            size_bytes=audio_size,
         )
         if not validation.accepted:
             raise HTTPException(
@@ -169,13 +185,13 @@ def create_app() -> FastAPI:
             source_media=SourceMediaMetadataV1(
                 file_name=prepared_audio.filename,
                 mime_type=mime_type,
-                size_bytes=len(audio_bytes),
+                size_bytes=audio_size,
                 stored=False,
             ),
             prepared_audio=PreparedAudioMetadataV1(
                 output_profile=output_profile.value,
                 mime_type=mime_type,
-                size_bytes=len(audio_bytes),
+                size_bytes=audio_size,
                 retention_days=config.prepared_audio_retention_days,
             ),
             storage_available=storage.available,
@@ -192,8 +208,8 @@ def create_app() -> FastAPI:
         job_store.put(StoredTranscriptionJob(job=job))
 
         try:
-            transcript = await adapter.transcribe_bytes(
-                audio_bytes=audio_bytes,
+            transcript = await adapter.transcribe_file(
+                audio_file=prepared_audio.file,
                 filename=prepared_audio.filename or "prepared-audio",
                 mime_type=mime_type,
                 output_profile=output_profile.value,

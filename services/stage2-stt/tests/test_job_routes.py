@@ -110,16 +110,18 @@ def test_job_route_rejects_prepared_audio_mime_mismatch(monkeypatch):
 
 def test_video_preparation_route_returns_audio_only_after_internal_auth(monkeypatch):
     _enable_internal_stub(monkeypatch)
+    def prepare(**kwargs):
+        output = kwargs["work_dir"] / "audio.mp3"
+        output.write_bytes(b"prepared-mp3")
+        return PreparedMedia(
+            filename="call.mp3", mime_type="audio/mpeg",
+            output_profile=OutputProfile.MP3_HIGH_COMPAT.value,
+            audio_path=output, size_bytes=output.stat().st_size,
+            sha256="a" * 64, duration_seconds=12.5,
+        )
     monkeypatch.setattr(
         "stage2_stt.app.prepare_video_audio",
-        lambda **kwargs: PreparedMedia(
-            filename="call.mp3",
-            mime_type="audio/mpeg",
-            output_profile=OutputProfile.MP3_HIGH_COMPAT.value,
-            audio_bytes=b"prepared-mp3",
-            sha256="a" * 64,
-            duration_seconds=12.5,
-        ),
+        prepare,
     )
     client = TestClient(create_app())
 
@@ -138,16 +140,18 @@ def test_video_preparation_route_returns_audio_only_after_internal_auth(monkeypa
 
 def test_video_preparation_route_uses_ascii_name_for_unicode_source_filename(monkeypatch):
     _enable_internal_stub(monkeypatch)
+    def prepare(**kwargs):
+        output = kwargs["work_dir"] / "audio.mp3"
+        output.write_bytes(b"prepared-mp3")
+        return PreparedMedia(
+            filename="Запись клиента.mp3", mime_type="audio/mpeg",
+            output_profile=OutputProfile.MP3_HIGH_COMPAT.value,
+            audio_path=output, size_bytes=output.stat().st_size,
+            sha256="a" * 64, duration_seconds=12.5,
+        )
     monkeypatch.setattr(
         "stage2_stt.app.prepare_video_audio",
-        lambda **kwargs: PreparedMedia(
-            filename="Запись клиента.mp3",
-            mime_type="audio/mpeg",
-            output_profile=OutputProfile.MP3_HIGH_COMPAT.value,
-            audio_bytes=b"prepared-mp3",
-            sha256="a" * 64,
-            duration_seconds=12.5,
-        ),
+        prepare,
     )
     client = TestClient(create_app())
 

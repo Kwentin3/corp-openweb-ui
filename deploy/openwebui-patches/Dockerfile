@@ -8,8 +8,12 @@ LABEL org.opencontainers.image.revision=${BROKER_REPORTS_SOURCE_REVISION}
 # extensions; this image does not patch the Web Speech/STT recorder.
 COPY deploy/openwebui-patches/apply_native_broker_pdf_upload_patch.py /usr/local/bin/apply_native_broker_pdf_upload_patch.py
 RUN python /usr/local/bin/apply_native_broker_pdf_upload_patch.py --root /app/build/_app/immutable/chunks
+COPY deploy/openwebui-patches/apply_stage2_video_composer_patch.py /usr/local/bin/apply_stage2_video_composer_patch.py
+RUN python /usr/local/bin/apply_stage2_video_composer_patch.py
+COPY deploy/openwebui-patches/apply_stage2_streaming_upload_patch.py /usr/local/bin/apply_stage2_streaming_upload_patch.py
+RUN python /usr/local/bin/apply_stage2_streaming_upload_patch.py
 
-# The only STT-specific overlay owns atomic replacement of a source-video
-# attachment with the OpenWebUI-managed normalized audio file.
+# OpenWebUI owns the derived audio File and atomic chat attachment replacement.
 COPY deploy/openwebui-media-lifecycle/stage2_media_lifecycle.py /app/backend/open_webui/services/stage2_media_lifecycle.py
-RUN python -m py_compile /app/backend/open_webui/services/stage2_media_lifecycle.py
+COPY deploy/openwebui-media-lifecycle/stage2_video_intake.py /app/backend/open_webui/services/stage2_video_intake.py
+RUN python -m py_compile /app/backend/open_webui/services/stage2_media_lifecycle.py /app/backend/open_webui/services/stage2_video_intake.py

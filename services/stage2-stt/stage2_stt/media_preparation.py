@@ -1,18 +1,14 @@
-"""Server-side, temporary extraction of an audio stream from uploaded video.
-
-This module deliberately owns no durable user file.  The OpenWebUI lifecycle
-overlay imports the returned bytes into the native File store; temporary files
-are removed before this function returns or raises.
-"""
+"""Bounded-memory extraction of the first audio track from uploaded video."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 
 from stage2_stt.config import OutputProfile
 from stage2_stt.output_profiles import OUTPUT_PROFILE_DEFINITIONS
@@ -29,53 +25,62 @@ class PreparedMedia:
     filename: str
     mime_type: str
     output_profile: str
-    audio_bytes: bytes
+    audio_path: Path
+    size_bytes: int
     sha256: str
     duration_seconds: float | None
 
 
-def prepare_video_audio(*, source_bytes: bytes, source_filename: str, output_profile: OutputProfile) -> PreparedMedia:
-    """Extract exactly the first audio stream with ffmpeg.
+COPY_CHUNK_SIZE = 1024 * 1024
 
-    No guessed codecs, fallback source upload, or persistence: a video without
-    an audio stream fails closed and leaves its native source untouched.
-    """
-    if not source_bytes:
-        raise MediaPreparationError("source_empty", "Source media is empty")
 
+def prepare_video_audio(*, source_file: BinaryIO, source_filename: str, output_profile: OutputProfile, work_dir: Path) -> PreparedMedia:
+    """Copy in bounded chunks, then let FFmpeg read and write on disk."""
     definition = OUTPUT_PROFILE_DEFINITIONS[output_profile]
-    with tempfile.TemporaryDirectory(prefix="stage2-media-") as temp_dir:
-        source_path = Path(temp_dir) / _safe_name(source_filename, "source")
-        output_path = Path(temp_dir) / f"audio.{definition.container}"
-        source_path.write_bytes(source_bytes)
-        duration = _probe_audio_duration(source_path)
-        command = [
-            "ffmpeg", "-nostdin", "-v", "error", "-i", str(source_path),
-            "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000",
-            "-c:a", definition.codec,
-        ]
-        if definition.container == "mp3":
-            command.extend(["-b:a", "64k"])
-        command.extend(["-f", definition.container, "-y", str(output_path)])
-        try:
-            completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=300)
-        except FileNotFoundError as exc:
-            raise MediaPreparationError("ffmpeg_unavailable", "Media processor is unavailable") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise MediaPreparationError("media_preparation_timeout", "Audio extraction timed out") from exc
-        if completed.returncode != 0 or not output_path.is_file():
-            raise MediaPreparationError("media_preparation_failed", "Audio track could not be extracted")
-        audio_bytes = output_path.read_bytes()
-        if not audio_bytes:
-            raise MediaPreparationError("prepared_audio_empty", "Extracted audio is empty")
+    source_path = work_dir / "source-media"
+    output_path = work_dir / f"audio.{definition.container}"
+    with source_path.open("wb") as destination:
+        shutil.copyfileobj(source_file, destination, length=COPY_CHUNK_SIZE)
+    if not source_path.stat().st_size:
+        raise MediaPreparationError("source_empty", "Source media is empty")
+    duration = _probe_audio_duration(source_path)
+    command = [
+        "ffmpeg", "-nostdin", "-v", "error", "-i", str(source_path),
+        "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000",
+        "-c:a", definition.codec,
+    ]
+    if definition.container == "mp3":
+        command.extend(["-b:a", "64k"])
+    command.extend(["-f", definition.container, "-y", str(output_path)])
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=300)
+    except FileNotFoundError as exc:
+        raise MediaPreparationError("ffmpeg_unavailable", "Media processor is unavailable") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise MediaPreparationError("media_preparation_timeout", "Audio extraction timed out") from exc
+    if completed.returncode != 0 or not output_path.is_file():
+        raise MediaPreparationError("media_preparation_failed", "Audio track could not be extracted")
+    source_path.unlink()
+    size_bytes = output_path.stat().st_size
+    if not size_bytes:
+        raise MediaPreparationError("prepared_audio_empty", "Extracted audio is empty")
     return PreparedMedia(
-        filename=f"{Path(_safe_name(source_filename, 'video')).stem}.mp3" if definition.container == "mp3" else f"{Path(_safe_name(source_filename, 'video')).stem}.{definition.container}",
+        filename=f"{Path(_safe_name(source_filename, 'video')).stem}.{definition.container}",
         mime_type=definition.mime_type,
         output_profile=output_profile.value,
-        audio_bytes=audio_bytes,
-        sha256=hashlib.sha256(audio_bytes).hexdigest(),
+        audio_path=output_path,
+        size_bytes=size_bytes,
+        sha256=_sha256_file(output_path),
         duration_seconds=duration,
     )
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(COPY_CHUNK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _probe_audio_duration(source_path: Path) -> float | None:

@@ -25,3 +25,5 @@ services/stage2-stt/*
 !services/officecli-openapi-proof/pyproject.toml
 !services/officecli-openapi-proof/officecli_openapi_proof/
 !services/officecli-openapi-proof/officecli_openapi_proof/**
+**/__pycache__/
+**/*.pyc

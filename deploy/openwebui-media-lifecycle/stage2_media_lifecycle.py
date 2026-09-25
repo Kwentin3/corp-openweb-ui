@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import hashlib
-import io
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -38,9 +37,9 @@ class DerivedAudioFile:
     size_bytes: int
 
 
-async def persist_prepared_audio(*, user_id: str, source_file_id: str, filename: str, mime_type: str, audio_bytes: bytes, source_sha256: str) -> DerivedAudioFile:
+async def persist_prepared_audio(*, user_id: str, source_file_id: str, filename: str, mime_type: str, audio_path: Path, source_sha256: str) -> DerivedAudioFile:
     """Create a normal OpenWebUI File; never persist media in the sidecar."""
-    if not user_id or not audio_bytes:
+    if not user_id or not audio_path.is_file() or not audio_path.stat().st_size:
         raise MediaLifecycleError("Derived audio is unavailable")
     source = await Files.get_file_by_id_and_user_id(source_file_id, user_id)
     if source is None:
@@ -49,12 +48,14 @@ async def persist_prepared_audio(*, user_id: str, source_file_id: str, filename:
     storage_name = f"{file_id}_{filename}"
     storage_path: str | None = None
     try:
-        _, storage_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(audio_bytes),
-            storage_name,
-            {"OpenWebUI-User-Id": user_id, "OpenWebUI-File-Id": file_id},
-        )
+        def store_audio() -> tuple[int, str, str]:
+            with audio_path.open("rb") as audio:
+                return Storage.upload_file_streaming(
+                    audio, storage_name,
+                    {"OpenWebUI-User-Id": user_id, "OpenWebUI-File-Id": file_id},
+                )
+
+        size_bytes, file_hash, storage_path = await asyncio.to_thread(store_audio)
         item = await Files.insert_new_file(
             user_id,
             FileForm(
@@ -71,8 +72,8 @@ async def persist_prepared_audio(*, user_id: str, source_file_id: str, filename:
                 meta={
                     "name": filename,
                     "content_type": mime_type,
-                    "size": len(audio_bytes),
-                    "file_hash": hashlib.sha256(audio_bytes).hexdigest(),
+                    "size": size_bytes,
+                    "file_hash": file_hash,
                 },
             ),
         )
@@ -89,7 +90,7 @@ async def persist_prepared_audio(*, user_id: str, source_file_id: str, filename:
         except Exception:
             pass
         raise MediaLifecycleError("Could not save normalized audio")
-    return DerivedAudioFile(file_id=file_id, filename=filename, mime_type=mime_type, size_bytes=len(audio_bytes))
+    return DerivedAudioFile(file_id=file_id, filename=filename, mime_type=mime_type, size_bytes=size_bytes)
 
 
 async def replace_source_video_with_audio(*, user_id: str, chat_id: str | None, message_id: str | None, source_file_id: str, audio_file_id: str, transcript_hash: str | None) -> None:

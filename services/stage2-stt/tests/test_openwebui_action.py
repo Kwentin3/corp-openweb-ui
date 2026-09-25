@@ -64,6 +64,7 @@ def test_action_returns_backward_compatible_flat_transcript_with_safe_ref(monkey
     upload_path.write_bytes(b"fake-mp3")
 
     async def fake_call_sidecar(**kwargs):
+        assert kwargs["audio_path"] == upload_path
         return {
             "result": {"text": "hello transcript"},
             "transcript_ref": "art_safe_reference",
