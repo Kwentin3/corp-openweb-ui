@@ -28,7 +28,7 @@ def _video_attachment(file_id: str = "video-1", filename: str = "call.mp4") -> d
 
 
 @pytest.mark.asyncio
-async def test_video_is_prepared_stored_as_native_audio_and_only_then_committed(monkeypatch):
+async def test_video_is_prepared_stored_as_native_audio_and_only_then_committed(monkeypatch, tmp_path):
     filter_ = Filter()
     filter_.valves.internal_api_key = "test-token"
     video = _video_attachment()
@@ -36,18 +36,25 @@ async def test_video_is_prepared_stored_as_native_audio_and_only_then_committed(
     metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [video]}
     persisted, committed = [], []
 
-    monkeypatch.setattr(filter_, "_read_native_upload", lambda *_: _async_value(b"video-bytes"))
+    source = tmp_path / "video.mp4"
+    source.write_bytes(b"video-bytes")
+    monkeypatch.setattr(filter_, "_native_upload_path", lambda *_: _async_value(source))
     monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
     monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))
     monkeypatch.setattr(filter_, "_mark_transcribed", lambda *_: _async_value(None))
-    monkeypatch.setattr(filter_, "_prepare_video", lambda **_: _async_value({"audio_bytes": b"mp3", "filename": "call.mp3", "mime_type": "audio/mpeg", "size_bytes": 3}))
+    async def prepare(**kwargs):
+        kwargs["output_path"].write_bytes(b"mp3")
+        return {"audio_path": kwargs["output_path"], "filename": "call.mp3", "mime_type": "audio/mpeg", "size_bytes": 3}
+
+    monkeypatch.setattr(filter_, "_prepare_video", prepare)
 
     async def store(**kwargs):
+        assert kwargs["prepared"]["audio_path"].read_bytes() == b"mp3"
         persisted.append(kwargs)
         return {"file_id": "audio-derived", "filename": "call.mp3", "mime_type": "audio/mpeg", "size_bytes": 3}
 
     async def sidecar(**kwargs):
-        assert kwargs["audio_bytes"] == b"mp3"
+        assert kwargs["audio_path"].read_bytes() == b"mp3"
         assert kwargs["filename"] == "call.mp3"
         return {"result": {"text": "transcript"}}
 
@@ -69,7 +76,7 @@ async def test_video_is_prepared_stored_as_native_audio_and_only_then_committed(
 
 
 @pytest.mark.asyncio
-async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_from_outbound_files(monkeypatch):
+async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_from_outbound_files(monkeypatch, tmp_path):
     audio = _audio_attachment()
     document = {"type": "file", "file": {"id": "pdf-1", "filename": "notes.pdf"}, "name": "notes.pdf", "content_type": "application/pdf"}
     body = {"messages": [{"role": "user", "content": "Что это за разговор?"}], "files": [audio, document]}
@@ -78,10 +85,12 @@ async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_fr
     filter_.valves.internal_api_key = "test-token"
     observed = {}
     statuses = []
+    source = tmp_path / "audio.wav"
+    source.write_bytes(b"RIFF")
 
     async def read_upload(file_id, user_id):
         assert (file_id, user_id) == ("audio-1", "user-1")
-        return b"RIFF"
+        return source
 
     async def call_sidecar(**kwargs):
         observed.update(kwargs)
@@ -90,7 +99,7 @@ async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_fr
     async def emitter(event):
         statuses.append(event)
 
-    monkeypatch.setattr(filter_, "_read_native_upload", read_upload)
+    monkeypatch.setattr(filter_, "_native_upload_path", read_upload)
     monkeypatch.setattr(filter_, "_call_sidecar", call_sidecar)
     monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
     monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))
@@ -105,7 +114,7 @@ async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_fr
     assert "Сформируй только краткое содержание транскрипции одним предложением." in body["messages"][-1]["content"]
     assert "предложи 2–3 уместных следующих шага" not in body["messages"][-1]["content"]
     assert observed["envelope"]["source_context"] == "openwebui"
-    assert observed["audio_bytes"] == b"RIFF"
+    assert observed["audio_path"] == source
     assert statuses[-1]["data"]["done"] is True
 
 
@@ -193,7 +202,7 @@ async def test_inlet_reuses_cached_transcript_without_sidecar_call(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_inlet_uses_latest_audio_from_follow_up_metadata(monkeypatch):
+async def test_inlet_uses_latest_audio_from_follow_up_metadata(monkeypatch, tmp_path):
     filter_ = Filter()
     filter_.valves.internal_api_key = "test-token"
     earlier_audio = _audio_attachment("audio-earlier", "earlier.wav")
@@ -207,16 +216,18 @@ async def test_inlet_uses_latest_audio_from_follow_up_metadata(monkeypatch):
         "files": [],
     }
     metadata = {"files": [earlier_audio, current_audio]}
+    source = tmp_path / "current.wav"
+    source.write_bytes(b"RIFF")
 
     async def read_upload(file_id, _user_id):
         assert file_id == "audio-current"
-        return b"RIFF"
+        return source
 
     async def call_sidecar(**kwargs):
         assert kwargs["filename"] == "current.wav"
         return {"result": {"text": "Текст второго аудио."}}
 
-    monkeypatch.setattr(filter_, "_read_native_upload", read_upload)
+    monkeypatch.setattr(filter_, "_native_upload_path", read_upload)
     monkeypatch.setattr(filter_, "_call_sidecar", call_sidecar)
     monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
     monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))

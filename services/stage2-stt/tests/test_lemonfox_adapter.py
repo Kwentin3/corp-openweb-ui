@@ -1,5 +1,41 @@
+from io import BytesIO
+
+import httpx
+import pytest
+
 from stage2_stt.config import load_stt_config
 from stage2_stt.lemonfox import LemonfoxSttAdapter
+
+
+@pytest.mark.asyncio
+async def test_lemonfox_upload_reads_large_audio_in_bounded_chunks(monkeypatch):
+    class BoundedReader(BytesIO):
+        def read(self, size=-1):
+            assert 0 < size <= 1024 * 1024
+            return super().read(size)
+
+    received = 0
+
+    async def handle(request):
+        nonlocal received
+        async for chunk in request.stream:
+            received += len(chunk)
+        return httpx.Response(200, json={"text": "hello"})
+
+    original_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        "stage2_stt.lemonfox.httpx.AsyncClient",
+        lambda **kwargs: original_client(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    adapter = LemonfoxSttAdapter(load_stt_config({"STAGE2_LEMONFOX_API_KEY": "test-key"}))
+    result = await adapter.transcribe_file(
+        audio_file=BoundedReader(b"a" * (3 * 1024 * 1024 + 1)),
+        filename="large.mp3", mime_type="audio/mpeg",
+        output_profile="mp3_high_compat", live=True,
+    )
+
+    assert result.text == "hello"
+    assert received > 3 * 1024 * 1024
 
 
 def test_lemonfox_adapter_capability_profile_exists():

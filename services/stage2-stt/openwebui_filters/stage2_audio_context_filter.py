@@ -1,7 +1,7 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.1
+version: 0.2.2
 required_open_webui_version: 0.9.6
 requirements: httpx,pydantic
 
@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -34,7 +35,7 @@ class Filter:
     class Valves(BaseModel):
         sidecar_base_url: str = Field(default="http://stage2-stt:8080")
         internal_api_key: str = Field(default="")
-        request_timeout_seconds: int = Field(default=180, ge=1)
+        request_timeout_seconds: int = Field(default=360, ge=1)
         initial_response_instruction: str = Field(
             default=DEFAULT_INITIAL_RESPONSE_INSTRUCTION,
             description=(
@@ -88,24 +89,33 @@ class Filter:
             )
 
         try:
-            audio_bytes = await self._read_native_upload(media["file_id"], (__user__ or {}).get("id"))
-            source_sha256 = hashlib.sha256(audio_bytes).hexdigest()
+            source_path = await self._native_upload_path(media["file_id"], (__user__ or {}).get("id"))
             stt_media = media
-            if media["is_video"]:
-                prepared = await self._prepare_video(token=token, envelope=self._build_envelope(__user__ or {}, metadata, media), source_bytes=audio_bytes, filename=media["filename"], mime_type=media["mime_type"])
-                derived = await self._persist_prepared_audio(
-                    user_id=(__user__ or {}).get("id"), source_file_id=media["file_id"],
-                    prepared=prepared, source_sha256=source_sha256,
+            audio_path = source_path
+            with tempfile.TemporaryDirectory(prefix="stage2-audio-") as work_dir:
+                if media["is_video"]:
+                    source_sha256 = await asyncio.to_thread(self._sha256_file, source_path)
+                    prepared = await self._prepare_video(
+                        token=token,
+                        envelope=self._build_envelope(__user__ or {}, metadata, media),
+                        source_path=source_path,
+                        filename=media["filename"],
+                        mime_type=media["mime_type"],
+                        output_path=Path(work_dir) / "prepared-audio",
+                    )
+                    derived = await self._persist_prepared_audio(
+                        user_id=(__user__ or {}).get("id"), source_file_id=media["file_id"],
+                        prepared=prepared, source_sha256=source_sha256,
+                    )
+                    stt_media = {"file_id": derived["file_id"], "filename": derived["filename"], "mime_type": derived["mime_type"], "size_bytes": derived["size_bytes"], "is_video": False}
+                    audio_path = prepared["audio_path"]
+                result = await self._call_sidecar(
+                    token=token,
+                    envelope=self._build_envelope(__user__ or {}, metadata, stt_media),
+                    audio_path=audio_path,
+                    filename=stt_media["filename"],
+                    mime_type=stt_media["mime_type"],
                 )
-                stt_media = {"file_id": derived["file_id"], "filename": derived["filename"], "mime_type": derived["mime_type"], "size_bytes": derived["size_bytes"], "is_video": False}
-                audio_bytes = prepared["audio_bytes"]
-            result = await self._call_sidecar(
-                token=token,
-                envelope=self._build_envelope(__user__ or {}, metadata, stt_media),
-                audio_bytes=audio_bytes,
-                filename=stt_media["filename"],
-                mime_type=stt_media["mime_type"],
-            )
         except httpx.HTTPStatusError as exc:
             message = self._format_sidecar_error(exc)
             return await self._inject_failure(body, metadata, __event_emitter__, message)
@@ -234,27 +244,36 @@ class Filter:
             return "mp3_high_compat"
         return None
 
-    async def _prepare_video(self, *, token: str, envelope: dict, source_bytes: bytes, filename: str, mime_type: str) -> dict:
+    async def _prepare_video(self, *, token: str, envelope: dict, source_path: Path, filename: str, mime_type: str, output_path: Path) -> dict:
         async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
-            response = await client.post(
-                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/media/prepare",
-                headers={"Authorization": f"Bearer {token}"},
-                data={"envelope": json.dumps(envelope)},
-                files={"source_media": (filename, source_bytes, mime_type)},
-            )
-            response.raise_for_status()
-        prepared_name = response.headers.get("X-Stage2-Prepared-Filename") or "audio.mp3"
-        prepared_mime = response.headers.get("content-type", "").split(";", 1)[0]
-        if not response.content or not prepared_mime.startswith("audio/"):
+            with source_path.open("rb") as source:
+                async with client.stream(
+                    "POST",
+                    f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/media/prepare",
+                    headers={"Authorization": f"Bearer {token}"},
+                    data={"envelope": json.dumps(envelope)},
+                    files={"source_media": (filename, source, mime_type)},
+                ) as response:
+                    if response.is_error:
+                        await response.aread()
+                        response.raise_for_status()
+                    prepared_name = response.headers.get("X-Stage2-Prepared-Filename") or "audio.mp3"
+                    prepared_mime = response.headers.get("content-type", "").split(";", 1)[0]
+                    if not prepared_mime.startswith("audio/"):
+                        raise RuntimeError("Video preparation returned no audio")
+                    with output_path.open("wb") as output:
+                        async for chunk in response.aiter_bytes(1024 * 1024):
+                            output.write(chunk)
+        if not output_path.stat().st_size:
             raise RuntimeError("Video preparation returned no audio")
-        return {"audio_bytes": response.content, "filename": prepared_name, "mime_type": prepared_mime, "size_bytes": len(response.content)}
+        return {"audio_path": output_path, "filename": prepared_name, "mime_type": prepared_mime, "size_bytes": output_path.stat().st_size}
 
     async def _persist_prepared_audio(self, *, user_id: str | None, source_file_id: str, prepared: dict, source_sha256: str) -> dict:
         if not user_id:
             raise RuntimeError("Missing authenticated user")
         from open_webui.services.stage2_media_lifecycle import persist_prepared_audio
 
-        derived = await persist_prepared_audio(user_id=user_id, source_file_id=source_file_id, filename=prepared["filename"], mime_type=prepared["mime_type"], audio_bytes=prepared["audio_bytes"], source_sha256=source_sha256)
+        derived = await persist_prepared_audio(user_id=user_id, source_file_id=source_file_id, filename=prepared["filename"], mime_type=prepared["mime_type"], audio_path=prepared["audio_path"], source_sha256=source_sha256)
         return {"file_id": derived.file_id, "filename": derived.filename, "mime_type": derived.mime_type, "size_bytes": derived.size_bytes}
 
     async def _commit_video_lifecycle(self, lifecycle: dict) -> None:
@@ -262,7 +281,7 @@ class Filter:
 
         await replace_source_video_with_audio(**lifecycle)
 
-    async def _read_native_upload(self, file_id: str, user_id: str | None) -> bytes:
+    async def _native_upload_path(self, file_id: str, user_id: str | None) -> Path:
         if not user_id:
             raise RuntimeError("Missing authenticated user")
         from open_webui.models.files import Files
@@ -274,7 +293,18 @@ class Filter:
         local_path = await asyncio.to_thread(Storage.get_file, record.path)
         if not local_path:
             raise RuntimeError("Uploaded file is unavailable")
-        return await asyncio.to_thread(Path(local_path).read_bytes)
+        path = Path(local_path)
+        if not path.is_file():
+            raise RuntimeError("Uploaded file is unavailable")
+        return path
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     async def _was_transcribed(self, file_id: str, user_id: str | None) -> bool:
         if not user_id:
@@ -354,9 +384,10 @@ class Filter:
             return str(nested["id"])
         return str(item["id"]) if item.get("id") else None
 
-    async def _call_sidecar(self, *, token: str, envelope: dict, audio_bytes: bytes, filename: str, mime_type: str) -> dict:
+    async def _call_sidecar(self, *, token: str, envelope: dict, audio_path: Path, filename: str, mime_type: str) -> dict:
         async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
-            response = await client.post(f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/jobs", headers={"Authorization": f"Bearer {token}"}, data={"envelope": json.dumps(envelope)}, files={"prepared_audio": (filename, audio_bytes, mime_type)})
+            with audio_path.open("rb") as audio:
+                response = await client.post(f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/jobs", headers={"Authorization": f"Bearer {token}"}, data={"envelope": json.dumps(envelope)}, files={"prepared_audio": (filename, audio, mime_type)})
             response.raise_for_status()
             return response.json()
 

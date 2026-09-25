@@ -89,6 +89,8 @@ services:
       dockerfile: services/stage2-stt/Dockerfile
     container_name: stage2-stt
     restart: unless-stopped
+    mem_limit: ${STAGE2_STT_MEMORY_LIMIT:-768m}
+    memswap_limit: ${STAGE2_STT_MEMORY_SWAP_LIMIT:-1g}
     environment:
       STAGE2_STT_PROVIDER: ${STAGE2_STT_PROVIDER:-lemonfox}
       STAGE2_STT_PROVIDER_ADAPTER: ${STAGE2_STT_PROVIDER_ADAPTER:-lemonfox}
