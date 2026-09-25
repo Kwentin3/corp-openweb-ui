@@ -19,6 +19,17 @@ The upload is not a transcription request: transcription begins on Send. The
 microphone/dictation route is separate from uploaded-media STT. There is no
 separate Transcribe button or browser ffmpeg.wasm conversion in this route.
 
+Large uploads pass through the Traefik `websecure` entrypoint. Its request-body
+read timeout is set to 30 minutes in `compose/openwebui.compose.yml`; the
+Traefik default of 60 seconds cut off a 772 MB WebM before OpenWebUI received
+the complete file. If an upload fails, check the browser's `/api/v1/files/`
+response and Traefik timing before investigating FFmpeg or STT. A gateway
+`502`/`504` with a non-JSON body is an upload failure, not an STT response.
+If the File is already MP3 on the server but the composer still shows WebM,
+check whether the browser loaded old cached `C7Lxt8YS.js` or `B56SVFjv.js`.
+Refresh with Ctrl+Shift+R before repeating the UI check; Ctrl+R can reuse
+those cached assets.
+
 ## Video lifecycle
 
 - OpenWebUI owns the native File row, attachment and chat. The upload hook
