@@ -18,6 +18,10 @@ source of truth for uploaded audio and video in ordinary chats.
 The upload is not a transcription request: transcription begins on Send. The
 microphone/dictation route is separate from uploaded-media STT. There is no
 separate Transcribe button or browser ffmpeg.wasm conversion in this route.
+For STT-supported audio MIME types, the upload hook marks the native File
+`completed` without invoking OpenWebUI's upload-time transcription and text
+indexing. The chat STT Filter processes the audio after Send, including long
+recordings.
 
 Large uploads pass through the Traefik `websecure` entrypoint. Its request-body
 read timeout is set to 30 minutes in `compose/openwebui.compose.yml`; the

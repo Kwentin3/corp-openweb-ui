@@ -97,6 +97,25 @@ VIDEO_ROUTE_NEW = """            if content_type and content_type.startswith('vi
             stt_supported = getattr(request.app.state.config, 'STT_SUPPORTED_CONTENT_TYPES', [])
 """
 
+AUDIO_ROUTE_OLD = """            stt_supported = getattr(request.app.state.config, 'STT_SUPPORTED_CONTENT_TYPES', [])
+
+            if content_type and strict_match_mime_type(stt_supported, content_type):
+"""
+AUDIO_ROUTE_NEW = """            stt_supported = getattr(request.app.state.config, 'STT_SUPPORTED_CONTENT_TYPES', [])
+
+            if content_type and content_type.startswith('audio/') and strict_match_mime_type(stt_supported, content_type):
+                # The chat STT Filter owns transcription on Send. Keep the
+                # native File available without pre-transcribing or indexing it.
+                await Files.update_file_data_by_id(
+                    file_item.id,
+                    {'status': 'completed'},
+                    db=db_session,
+                )
+                return
+
+            if content_type and strict_match_mime_type(stt_supported, content_type):
+"""
+
 ROUTER_OLD = "router = APIRouter()\n"
 ROUTER_NEW = """router = APIRouter()
 
@@ -162,6 +181,7 @@ def patch(storage_path: Path, files_path: Path, *, dry_run: bool = False) -> tup
     files, files_status = _replace_exact(files, UPLOAD_OLD, UPLOAD_NEW, "upload route")
     files, size_status = _replace_exact(files, "'size': len(contents),", "'size': size,", "upload size")
     files, video_status = _replace_exact(files, VIDEO_ROUTE_OLD, VIDEO_ROUTE_NEW, "video intake route")
+    files, audio_status = _replace_exact(files, AUDIO_ROUTE_OLD, AUDIO_ROUTE_NEW, "audio intake route")
     files, router_status = _replace_exact(files, ROUTER_OLD, ROUTER_NEW, "video intake startup")
     files, process_status = _replace_exact(files, PROCESS_OLD, PROCESS_NEW, "video intake process flag")
     files, content_type_status = _replace_exact(files, CONTENT_TYPE_OLD, CONTENT_TYPE_NEW, "video intake content type")
@@ -170,6 +190,8 @@ def patch(storage_path: Path, files_path: Path, *, dry_run: bool = False) -> tup
         raise RuntimeError("Incomplete streaming upload patch")
     if len({files_status, video_status, router_status, process_status, content_type_status, meta_type_status}) != 1:
         raise RuntimeError("Incomplete video intake patch")
+    if audio_status != files_status and not (files_status == "already_patched" and audio_status == "patched"):
+        raise RuntimeError("Incomplete audio intake patch")
     if not dry_run:
         storage_path.write_text(storage, encoding="utf-8")
         files_path.write_text(files, encoding="utf-8")

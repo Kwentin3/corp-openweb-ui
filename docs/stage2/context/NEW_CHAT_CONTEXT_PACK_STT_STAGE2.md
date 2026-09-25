@@ -53,6 +53,17 @@ video File rows and unreferenced video blobs at that audit point. Production
 domain smoke produced a transcript and removed its test upload. These are
 dated observations, not a guarantee about future uploads.
 
+The 2026-09-25 large-media recheck uploaded an 809,586,557-byte WebM through
+the public domain, converted it to a 29,705,228-byte MP3 and removed the video
+blob. Four short MP4 files from the project root completed the browser
+video-to-MP3-to-STT route. A 61-minute MP3 generated with the same server
+FFmpeg profile produced 308 transcript intervals through `1:01:53`. The
+large video's conversion and its long-audio STT were verified in separate
+runs; an exact single-chat large-video-to-STT replay remains unverified.
+Direct audio uploads now skip OpenWebUI's upload-time transcription and reach
+the native STT Filter on Send. Production image:
+`corp-openwebui/openwebui:media-intake-audio-release-20260925`.
+
 Before calling a new change accepted, verify an ordinary authenticated user
 at the public domain: audio upload and transcript; video-to-MP3 replacement
 before Send; Send during long conversion with waiting notice and eventual
