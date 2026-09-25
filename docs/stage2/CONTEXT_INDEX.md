@@ -8,6 +8,18 @@
 Статус: навигационный индекс. Не является разрешением на implementation,
 runtime changes, provider setup или использование customer data.
 
+## Current uploaded-media STT route (2026-09-25)
+
+Read [the native STT runbook](operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md),
+[the current media contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
+and [the new-session context pack](context/NEW_CHAT_CONTEXT_PACK_STT_STAGE2.md).
+Video converts to MP3 on upload before Send; the same File ID becomes audio and
+the video blob is deleted. Send waits for preparation, then the native Filter
+transcribes audio through the sidecar. Two immediate conversion attempts and a
+last attempt after 420 seconds precede deletion on failure. Older browser
+ffmpeg.wasm/Transcribe Action text in this index and dated reports is
+historical, not the active user route.
+
 ## Broker Reports active ordinary-trade route
 
 Read in this order:

@@ -1,5 +1,15 @@
 # STT Environment / Configuration Contract
 
+Current route note, 2026-09-25: uploaded video is prepared on the server at
+upload time, before Send, through the `stage2-stt` FFmpeg endpoint. The active
+video output is MP3 and the retry delay is 420 seconds in
+`deploy/openwebui-media-lifecycle/stage2_video_intake.py`. The browser
+ffmpeg.wasm keys and asset settings below describe the superseded June 2026
+candidate; they are not active video-intake controls. For current behavior and
+operator checks see the
+[media input contract](../contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
+and [runbook](../operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md).
+
 ## 1. Purpose
 
 This document defines the draft server-side environment/configuration contract

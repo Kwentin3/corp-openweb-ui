@@ -5,23 +5,26 @@
 Спланировать priority transcription scenario для audio/video на базе existing ffmpeg workflow и
 server-side STT proxy.
 
-## Current production workflow (2026-09-16)
+## Current production workflow (2026-09-25)
 
 This section is authoritative for the deployed product. Earlier descriptions
 of a browser ffmpeg.wasm preparation flow and an attachment-level
 `Transcribe` button are historical research, not the current user path.
 
 ```text
-Attach audio or video -> native OpenWebUI Send -> native Filter ->
-stage2-stt sidecar -> Lemonfox -> assistant response
+Attach video -> native upload -> server FFmpeg -> MP3 replaces video File
+-> native Send -> STT Filter -> stage2-stt -> Lemonfox -> assistant response
 ```
 
 - The selected ordinary chat model remains the user's model of choice.
-- Audio is sent to the sidecar directly. For video, the sidecar extracts and
-  normalizes the first audio stream with server-side ffmpeg.
-- The resulting audio is stored as an ordinary OpenWebUI File and replaces the
-  source-video attachment only after a successful transcript is stored.
-- On preparation or STT failure, the original video remains attached.
+- Uploaded audio reaches the STT Filter on Send. Video conversion begins at
+  upload, before Send; the sidecar extracts the first audio stream with FFmpeg.
+- The same OpenWebUI File ID becomes MP3. Source video is deleted before the
+  audio attachment is ready, independently of STT provider success.
+- Send during conversion shows a waiting notice and submits automatically
+  when audio is ready. Conversion gets two immediate attempts and one last
+  attempt after 420 seconds. After three failures, source video is deleted
+  and the attachment fails. A provider failure leaves the prepared MP3.
 - The assistant reply contains one-sentence summary followed by the formatted
   full transcript. Native OpenWebUI suggestions and user Prompt slash commands
   are the only post-transcript actions.
