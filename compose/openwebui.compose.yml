@@ -34,6 +34,8 @@ services:
     image: ${OPENWEBUI_IMAGE:-corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2}
     container_name: openwebui
     restart: unless-stopped
+    mem_limit: ${OPENWEBUI_MEMORY_LIMIT:-2g}
+    memswap_limit: ${OPENWEBUI_MEMORY_SWAP_LIMIT:-4g}
     environment:
       WEBUI_URL: https://${OPENWEBUI_HOST}
       WEBUI_NAME: ${WEBUI_NAME:-Alpha Soft AI Chat}
@@ -49,6 +51,7 @@ services:
       no_proxy: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080}
       NO_PROXY: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      STAGE2_STT_INTERNAL_API_KEY: ${STAGE2_STT_INTERNAL_API_KEY:-}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
       WEBUI_AUTH: ${WEBUI_AUTH:-true}
       ENABLE_SIGNUP: ${ENABLE_SIGNUP:-false}
@@ -87,6 +90,7 @@ services:
     build:
       context: ..
       dockerfile: services/stage2-stt/Dockerfile
+    image: ${STAGE2_STT_IMAGE:-compose-stage2-stt}
     container_name: stage2-stt
     restart: unless-stopped
     mem_limit: ${STAGE2_STT_MEMORY_LIMIT:-768m}
