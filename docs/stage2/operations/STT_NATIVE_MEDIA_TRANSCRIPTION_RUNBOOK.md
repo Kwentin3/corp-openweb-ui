@@ -34,6 +34,13 @@ check whether the browser loaded old cached `C7Lxt8YS.js` or `B56SVFjv.js`.
 Refresh with Ctrl+Shift+R before repeating the UI check; Ctrl+R can reuse
 those cached assets.
 
+Production checks on 2026-09-25 covered four short MP4 files through video
+upload, MP3 replacement, Send and STT; one 809,586,557-byte WebM through
+upload, MP3 replacement and source deletion; and a separately uploaded
+29,705,228-byte MP3 through Send and STT. The long transcript reached the end
+of the 61-minute-53-second recording. A single-chat end-to-end replay of that
+exact large WebM through STT was not performed.
+
 ## Video lifecycle
 
 - OpenWebUI owns the native File row, attachment and chat. The upload hook
@@ -78,3 +85,20 @@ preparation. The prepared audio remains the user attachment and can be sent
 again. Do not restore the source video as a recovery step. Check disk space,
 container memory and swap before a large-media investigation. Never print
 provider keys, internal tokens, authorization headers, or raw provider payloads.
+
+## Memory limits
+
+The 2026-09-25 production host has 8 GB nominal RAM and 2 GiB swap.
+OpenWebUI has a 3 GiB RAM limit and a 4 GiB combined RAM-plus-swap limit;
+`stage2-stt` remains at 768 MiB RAM and 1 GiB combined. The source defaults
+are in `compose/openwebui.compose.yml`. The live Compose file under
+`/opt/openwebui-prd0` and the running Docker cgroup must agree: editing only
+the source file or only the running container is not a durable change.
+
+Check `free -h`, `docker stats --no-stream openwebui stage2-stt`, Docker's
+effective memory limits, and `memory.events` before attributing an upload
+failure to OOM. The 3 GiB change was applied with `docker update` without
+restarting OpenWebUI, then recorded in the live Compose file. At verification,
+OpenWebUI remained healthy with no OOM event or restart and public `/health`
+returned HTTP 200. These checks describe that point in time; a fresh upload
+failure still needs its own logs and resource samples.

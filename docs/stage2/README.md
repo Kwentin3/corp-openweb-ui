@@ -1,7 +1,8 @@
 ﻿# Stage 2 Engineering Domain
 
-Этот домен не является реализацией Stage 2. Это инженерная карта, roadmap и research findings перед
-реализацией.
+Раздел содержит инженерную карту, исторические планы и ссылки на уже
+реализованные сценарии Stage 2. Актуальный порядок работы для каждого домена
+указан в профильных документах ниже.
 
 STT current-route update (2026-09-25): uploaded video is converted to MP3
 on the server immediately after attachment, before Send. The same File ID
@@ -140,7 +141,7 @@ provider setup, usage analytics and web-search.
 ## 7. Домены Stage 2
 
 1. Workspaces / RBAC / shared prompts.
-2. Transcription / STT / ffmpeg browser workflow.
+2. Transcription / STT / server-side media preparation.
 3. Broker reports / 3-НДФЛ.
 4. Web-search.
 5. Documents / OCR / VL OCR / Excel.

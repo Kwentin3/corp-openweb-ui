@@ -63,6 +63,10 @@ runs; an exact single-chat large-video-to-STT replay remains unverified.
 Direct audio uploads now skip OpenWebUI's upload-time transcription and reach
 the native STT Filter on Send. Production image:
 `corp-openwebui/openwebui:media-intake-audio-release-20260925`.
+The public upload timeout is 30 minutes. The running OpenWebUI container has
+3 GiB RAM and 4 GiB combined RAM-plus-swap limits; the VPS has 2 GiB swap.
+The source Compose defaults and deployed Compose file both carry the 3 GiB
+RAM limit. Check effective Docker limits after any future deployment.
 
 Before calling a new change accepted, verify an ordinary authenticated user
 at the public domain: audio upload and transcript; video-to-MP3 replacement
@@ -72,8 +76,11 @@ reload and File metadata consistency. Check container health, resource use,
 video remnants and cleanup of test artifacts. Do not substitute an isolated
 localhost test or an unauthenticated health request for this product route.
 
-The current working implementation was committed as `2364f901` on
-`agent/media-lifecycle-prod-20260925`. Verify the deployed image/source
-identity before future changes; another agent may be working in the original
-workspace. Historical reports under `docs/reports/2026-06-19/` and older
-planning documents remain dated evidence only.
+The current work is in [PR #523](https://github.com/Kwentin3/corp-openweb-ui/pull/523)
+on `agent/media-lifecycle-prod-20260925`. Its initial video upload change is
+`2364f901`; later changes `74a8a1c7` and `183f7d70` fixed large upload and
+direct-audio behavior, and `e0536253` raised the OpenWebUI memory limit.
+Verify deployed image and source identity before future changes; another agent
+may be working in the original workspace. Historical reports under
+`docs/reports/2026-06-19/` and older planning documents remain dated evidence
+only.

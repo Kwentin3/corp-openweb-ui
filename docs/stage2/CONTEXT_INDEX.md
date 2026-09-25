@@ -250,8 +250,9 @@ Comment:
   private sidecar, then fork only with proof and owner/ADR approval.
 - For STT, user-facing UX must remain inside OpenWebUI; the sidecar is
   backend-only.
-- MVP STT trigger is explicit `Transcribe` action on an audio/video media
-  attachment.
+- Current uploaded-media STT runs through the native Send and Filter route;
+  video preparation starts on upload. The explicit `Transcribe` action was
+  part of the historical June 2026 MVP.
 
 ## Selected stories / synthetic data / proof prep
 
@@ -552,6 +553,9 @@ Comment:
 - API keys never go to the browser.
 - STT proxy ADR still defines the backend boundary; ADR-0004 remains
   `Proposed`.
+- The browser ffmpeg.wasm, `Transcribe` Action and static-loader observations
+  below describe the June 2026 baseline. For current behavior use the runbook
+  linked at the top of this index.
 - Private sidecar job routes, the OpenWebUI media attachment `Transcribe`
   action and browser ffmpeg.wasm normalization are implemented/proven for the
   MVP path.
