@@ -1,0 +1,20 @@
+{
+  "utc": 1790446052.8972437,
+  "source_sha256": "02d489ac470cc6ecd6c07104fccd23e3ebacebd761ab20cb52e15103bff7aa19",
+  "unit_sha256": "2e17f2666d1a77c4e0215df61613aafa372a6be8a99814818274d79cc88736b9",
+  "unit_tests": 8,
+  "before_after_samples": true,
+  "card_completed_after_recorder_restart": true,
+  "secret_absent": true,
+  "manual_137_cause_unknown": true,
+  "kernel_oom_seen": true,
+  "primary": {
+    "id": "0fb174020e2dc8b157a8488b9882e542febcdec2ff132f88ccc552d7f37b0549",
+    "image": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
+    "restart_count": 1,
+    "memory": 6442450944,
+    "health": "healthy"
+  },
+  "proof_note": "Final source adds apply-batch/help route recognition after the live OOM; stream, incident and retention logic identical. Final source unit suite passed on Linux.",
+  "test_container_and_store_removed": true
+}
