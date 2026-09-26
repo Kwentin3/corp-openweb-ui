@@ -26,8 +26,44 @@ that behavior and avoids exposing a partially constructed workbook.
   It independently read every generated XLSX cell, including the final operation,
   for 66 and 256 commands. A failing last command left the workbook byte-identical
   despite a preceding change to A1. Both cases passed.
-- These checks establish adapter/CLI behavior, not a full model/chat acceptance
-  or completion of the original 29-workbook task.
+- These component checks alone do not establish model/chat acceptance.
+  The later live qualification below covers the 66-command create/edit path,
+  not completion of the original 29-workbook task.
+
+## Release and native chat acceptance
+
+[PR #531](https://github.com/Kwentin3/corp-openweb-ui/pull/531) merged as
+`8632281ddee0c818a570e5c75c5a74a2a684d9dd`; required CI passed in 18m13s.
+The unchanged native Function suite also passed (73 tests; 127 tests together
+with the adapter suite). The candidate's 54 adapter tests and real-CLI check
+were repeated inside the built Linux image before deployment.
+
+The deployed image is
+`sha256:330dc496d716fed302bc6e69e8d329a78086e4890b64fd9744761d6dfdd16362`.
+The Tool Server schema was refreshed using the native configuration endpoint;
+connection settings remained identical. Main OpenWebUI container, image and
+restart count were unchanged. See the [release runbook](../../infra-ops/officecli-openapi-docx-release.md)
+for deployment paths and rollback.
+
+GPT-6 Luna was exercised through the normal browser chat UI with an administrator
+session. This is not an ordinary-user permission-matrix retest.
+
+| Operation | Native result | Independent artifact check |
+| --- | --- | --- |
+| Create, 66 commands | One attached XLSX, downloaded through native files API | 33 named sheets with correct A1 values; default Sheet1 empty |
+| Follow-up edit, 66 commands | One apply-batch call and a new native attachment | All 66 A1/B1 values correct; original file hash unchanged |
+
+During creation the model made two invalid-syntax attempts, consulted official
+help, then succeeded. No partial file was published. This was successful recovery,
+not first-attempt success. Artifact SHA256 values:
+
+- Create: `529965cae13339407c7b8caa2fb950cd1e5ee5dc8de48e8928fc23ab5f349c04`.
+- Edit: `1444e289d1aad92b43f6a47aa252ab476f15770c9a5a5e5a92cdb9dbd80f2168`.
+
+All 12 supported profiles use the same server/schema. The other 11 profiles
+were not individually re-run for this limit change. Synthetic chat/files,
+staging archive, temporary worktree and task branch were removed after verification.
+Deployed source and the rollback image are intentionally retained.
 
 ## Remaining boundary of issue #527
 

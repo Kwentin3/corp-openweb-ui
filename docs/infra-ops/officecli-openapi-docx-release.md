@@ -141,6 +141,30 @@ Rollback: вернуть `corp-openwebui/openwebui:media-intake-audio-release-20
 не должен публиковаться частично. Проверка реального CLI и границы результата:
 [отчёт по лимиту XLSX](../reports/2026-09-26/OFFICECLI_XLSX_BATCH_LIMIT.report.md).
 
+PR #531 установлен 2026-09-26; merge `8632281ddee0c818a570e5c75c5a74a2a684d9dd`.
+Sidecar: `corp-openwebui/officecli-openapi-proof:xlsx-batch-df3c1ecf`,
+image ID `sha256:330dc496d716fed302bc6e69e8d329a78086e4890b64fd9744761d6dfdd16362`.
+Compose проекта `officecli451e7cede5` находится в
+`/opt/officecli-openapi-proof-531-df3c1ecf/compose/officecli-openapi-proof.compose.yml`;
+рядом с `compose/` сохранён `release.json` с результатами проверки.
+Основной OpenWebUI для этого обновления не перезапускался.
+
+После изменения OpenAPI обновить схему штатным сохранением существующего Tool Server
+в Admin Settings → Integrations. Эквивалент для администратора — прочитать
+`GET /api/v1/configs/tool_servers` и отправить неизменённую конфигурацию в
+`POST /api/v1/configs/tool_servers`; этот маршрут обновляет штатный кеш схемы.
+Не создавать второй сервер `officecli` и не менять session auth/access grants.
+
+Откат только sidecar: в его Compose вернуть image
+`corp-openwebui/officecli-openapi-proof:before-xlsx-batch-531`
+(`sha256:4a85142f866a43ba9a3678aff24816a5c97655827741c0e502a14ba2c751ac29`),
+выполнить `up -d --no-build --pull never --no-deps officecli-openapi-proof`
+с теми же project/file, затем штатно обновить схему. Старый образ сохранён.
+
+При неожиданном перезапуске или зависании начать с
+[самописца событий](openwebui-flight-recorder.md), сопоставляя точные container ID,
+время UTC и код HTTP. Не считать совпадение tool call и OOM доказанной причиной.
+
 ### Расширение каталога 26 сентября
 
 После отдельной проверки GPT 6 Luna, GPT 6 Sol и Claude Opus 5.5 оба модельных
