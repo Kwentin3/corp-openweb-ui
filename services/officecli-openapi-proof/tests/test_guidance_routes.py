@@ -1470,3 +1470,63 @@ def settings() -> Settings:
         expected_version="1.0.148",
         openwebui_base_url="http://openwebui:8080",
     )
+
+
+@pytest.mark.parametrize("operation", ["create", "apply-batch"])
+@pytest.mark.parametrize("count", [66, 256])
+def test_xlsx_large_batch_reaches_executor_intact(operation: str, count: int) -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+    commands = [
+        {"command": "set", "path": f"/Sheet1/A{i}", "props": {"value": str(i)}}
+        for i in range(1, count + 1)
+    ]
+    response = client.post(
+        f"/v1/officecli/spreadsheets/{operation}",
+        headers={"Authorization": "Bearer session", "X-OpenWebUI-Chat-Id": "chat",
+                 "X-OpenWebUI-Message-Id": "message"},
+        json={"output_name": "complete.xlsx", "commands": commands},
+    )
+    assert response.status_code == 200, response.text
+    batch_index = next(i for i, call in enumerate(executor.calls) if call[0] == "batch")
+    assert json.loads(executor.inputs[batch_index]) == commands
+    assert "--stop-on-error" in executor.calls[batch_index]
+    assert "--best-effort" not in executor.calls[batch_index]
+    assert response.json()["result_file_id"] == "result-file-id"
+    assert [call[0] for call in files.calls].count("attach") == 1
+
+
+@pytest.mark.parametrize("operation", ["create", "apply-batch"])
+def test_xlsx_over_limit_rejected_without_side_effects(operation: str) -> None:
+    executor = RecordingOfficeCli()
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+    response = client.post(
+        f"/v1/officecli/spreadsheets/{operation}",
+        headers={"Authorization": "Bearer session", "X-OpenWebUI-Chat-Id": "chat",
+                 "X-OpenWebUI-Message-Id": "message"},
+        json={"output_name": "complete.xlsx", "commands": [{"command": "set"}] * 257},
+    )
+    assert response.status_code == 422
+    assert executor.calls == []
+    assert files.calls == []
+    schema_name = "CreateSpreadsheetRequest" if operation == "create" else "ApplySpreadsheetBatchRequest"
+    schema = client.get("/openapi.json").json()
+    assert schema["components"]["schemas"][schema_name]["properties"]["commands"]["maxItems"] == 256
+
+
+@pytest.mark.parametrize("operation", ["create", "apply-batch"])
+def test_xlsx_large_failed_batch_is_never_published(operation: str) -> None:
+    executor = RecordingOfficeCli(batch_success=False)
+    files = RecordingOpenWebUi()
+    client = TestClient(create_app(executor, files, settings()))
+    response = client.post(
+        f"/v1/officecli/spreadsheets/{operation}",
+        headers={"Authorization": "Bearer session", "X-OpenWebUI-Chat-Id": "chat",
+                 "X-OpenWebUI-Message-Id": "message"},
+        json={"output_name": "complete.xlsx", "commands": [{"command": "set"}] * 66},
+    )
+    assert response.status_code == 502
+    assert files.uploaded is None
+    assert not any(call[0] in {"upload", "attach"} for call in files.calls)
