@@ -33,7 +33,14 @@ and seven task-created browser tabs closed. Server scratch was removed after
 moving rollback backups to a root-only state directory. See
 [cleanup receipt](artifacts/officecli-all-models/cleanup.json). Result binaries
 and content-free proof remain in this PR. The original unrelated worktree is
-preserved; the isolated PR worktree remains available for review.
+preserved. The isolated PR worktree is temporary and is removed after verified
+landing. Local task staging directories were removed through scoped Git cleanup;
+unrelated files and worktrees remain untouched.
+
+Required CI for the acceptance-evidence commit also passed:
+[run 36234534866](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/36234534866).
+The original causal audit is preserved as a historical snapshot in
+[the audit report](OFFICECLI_MULTI_FILE_CONTEXT_AUDIT.report.md).
 
 Mini to Gemini 3.5 switching and a Gemini follow-up after a browser reload also
 passed without re-uploading the original files. The saved history records the
