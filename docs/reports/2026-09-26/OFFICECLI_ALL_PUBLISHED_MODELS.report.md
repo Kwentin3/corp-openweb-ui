@@ -81,6 +81,24 @@ adaptation tests). Native replay additionally covers parallel indices, persisted
 history round trips, intact Google fields and unchanged existing OpenAI indices.
 The production main container and OfficeCLI sidecar have not been restarted.
 
+### First activation and scope regression
+
+After successful CI and explicit user approval, the first candidate was activated
+with preserved mounts. The first actual Gemini UI chat returned empty output.
+A temporary content-free stream probe showed a complete signed `create_tasks`
+call, so the provider had supplied a valid call. Inspection identified a Python
+scope error in the overlay: the native `response_handler` assigns `model_id` in
+its selected-model branch, making that name local and unbound on ordinary chunks.
+The earlier extracted-loop verifier incorrectly supplied a `model_id` parameter
+and concealed that binding.
+
+The correction reads the existing `form_data` owner directly. The verifier now
+retains the actual selected-model assignment in its scope; against the first
+candidate it fails with the same `UnboundLocalError`. The corrected patch uses
+marker V2 so an earlier V1 overlay is rejected rather than treated as qualified.
+The temporary probe was removed and the native model list restored to the five
+already qualified profiles while the corrected candidate is prepared.
+
 Activation requires the separate agreement explicitly required by
 [the release runbook](../../infra-ops/officecli-openapi-docx-release.md).
 After approval and required CI, update only the main image through its existing

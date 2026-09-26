@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 
-MARKER = "# ALPHASOFT_GOOGLE_TOOL_PROTOCOL_V1"
+MARKER = "# ALPHASOFT_GOOGLE_TOOL_PROTOCOL_V2"
 EXPECTED = {
     "middleware.py": "861978ea80b69c4201c0742d1401691834ea7202e75d4eb47250ac0c14af2ea9",
     "misc.py": "636d5aa53907733def4999677f1720d5d0a900934c67d3e88f115584d2ba9db8",
@@ -36,7 +36,7 @@ def transform(name: str, source: str) -> str:
         source = replace_once(source, old, old + "\n" + (
             "                                            if tool_call_index is None:\n"
             "                                                tool_call_index = google_tool_call_index(\n"
-            "                                                    model_id, delta_tool_call, response_tool_calls\n"
+            "                                                    form_data.get('model', ''), delta_tool_call, response_tool_calls\n"
             "                                                )\n"
             "                                                if tool_call_index is not None:\n"
             "                                                    delta_tool_call['index'] = tool_call_index"

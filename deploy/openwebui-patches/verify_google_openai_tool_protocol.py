@@ -45,10 +45,21 @@ def load_native_functions(root: Path):
         assert len(nodes) == 1, (target, len(nodes))
         wrapper = ast.parse(signature + ":\n    pass\n").body[0]
         wrapper.body = [copy.deepcopy(nodes[0]), ast.Return(value=ast.Name(id=result, ctx=ast.Load()))]
+        if target == "delta_tool_call":
+            # Preserve the actual response_handler's local binding: its selected
+            # model branch assigns model_id, so it is unbound on ordinary chunks.
+            # A wrapper parameter named model_id would conceal this runtime bug.
+            assignments = [node for node in ast.walk(middleware)
+                           if isinstance(node, ast.Assign)
+                           and any(isinstance(t, ast.Name) and t.id == "model_id" for t in node.targets)
+                           and isinstance(node.value, ast.Subscript)]
+            assert len(assignments) == 1
+            wrapper.body.insert(0, ast.If(test=ast.Constant(value=False),
+                                         body=[copy.deepcopy(assignments[0])], orelse=[]))
         module = ast.fix_missing_locations(ast.Module(body=[wrapper], type_ignores=[]))
         exec(compile(module, "installed-native-loop", "exec"), namespace)
 
-    install_loop("delta_tool_call", "def accumulate(model_id, delta_tool_calls, response_tool_calls)", "response_tool_calls")
+    install_loop("delta_tool_call", "def accumulate(form_data, delta_tool_calls, response_tool_calls)", "response_tool_calls")
     install_loop("tc", "def capture(response_tool_calls, output, existing_call_ids)", "output", "existing_call_ids")
     return namespace
 
@@ -57,7 +68,7 @@ def replay_native(root: Path, model: str, calls: list[dict]) -> list[dict]:
     native = load_native_functions(root)
     accumulated = []
     for call in calls:
-        native["accumulate"](model, [copy.deepcopy(call)], accumulated)
+        native["accumulate"]({"model": model}, [copy.deepcopy(call)], accumulated)
     assert len(accumulated) == len(calls), "Native stream discarded a complete call"
     assert len({call["index"] for call in accumulated}) == len(calls), "Merged distinct calls"
     output = native["capture"](accumulated, [], set())
