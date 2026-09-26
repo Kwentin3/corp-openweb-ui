@@ -5,6 +5,30 @@
 Он читает штатные Docker events/logs/inspect, cgroup v2 и kernel journal.
 Установка не пересоздаёт OpenWebUI и не меняет его образ, данные или лимиты.
 
+## Статус в этом проекте
+
+Установлен и включён на рабочем хосте проекта `corp-openweb-ui`.
+[PR #530](https://github.com/Kwentin3/corp-openweb-ui/pull/530) вошёл в `main`
+как `60d34f93336dd921df7c06590dc6c70849c854a4`.
+Повторная проверка 2026-09-26 подтвердила `active`, `enabled`, свежий `status.json`
+и совпадение установленных исходников с Git:
+
+- `/opt/openwebui-flight-recorder/recorder.py`:
+  `02d489ac470cc6ecd6c07104fccd23e3ebacebd761ab20cb52e15103bff7aa19`;
+- `/etc/systemd/system/openwebui-flight-recorder.service`:
+  `2e17f2666d1a77c4e0215df61613aafa372a6be8a99814818274d79cc88736b9`.
+
+Это доступный агенту и оператору диагностический инструмент через административный
+SSH на хост. Он не зарегистрирован как чат-инструмент OpenWebUI или MCP-сервер.
+Целевой SSH endpoint брать из приватного `local/INFRA_TARGET.local.md`, не из
+публичного отчёта. Для чтения не нужно запускать новый эксперимент, перезапускать
+контейнеры или включать дополнительный сборщик.
+
+Квалификация и восемь тестов сохранены в
+[receipt](../reports/2026-09-26/artifacts/flight-recorder/openwebui-recorder-qualification.json)
+и [результате изолированного OOM-теста](../reports/2026-09-26/artifacts/flight-recorder/openwebui-recorder-canary-oom.json).
+Контролируемые canary OOM относятся к тестовому контейнеру, а не к рабочему OpenWebUI.
+
 ## Что сохраняется
 
 - Каждые 10 секунд: память, swap, cumulative CPU time, memory pressure, OOM counters,
@@ -75,6 +99,41 @@ journalctl -u openwebui-flight-recorder --since '-1h' --no-pager
 соседние access/error-записи. `memory.current` включает cgroup accounting и может
 отличаться от отображаемого Docker working set; `cpu.stat` содержит накопительные
 микросекунды — нагрузку считать по разности двух снимков.
+
+### Как агенту восстановить цепочку событий
+
+1. Установить время проблемы в UTC и сервис. Сначала прочитать `status.json`:
+   несвежий сборщик означает возможный пробел в доказательствах.
+2. Выбрать карточку по `created_at` и `trigger.container`/`container_id`.
+   Посмотреть `trigger`, `cause`, `complete`, `omitted_rows`, `recent_buffer_full`.
+3. Прочитать её `timeline`: ресурсы до события, Docker/kernel, соседние access/error,
+   затем восстановление. Для большего окна читать соответствующие `history/*.jsonl`.
+4. Сверить текущий `docker inspect` и журнал развёртывания. Плановый `kill`/`stop`
+   при замене sidecar тоже создаёт карточку; значение `unknown` не означает OOM.
+5. Отдельно изложить подтверждённые события, гипотезу причины и недостающие данные.
+   Не выдавать отсутствие карточки или `complete=true` за доказательство отсутствия бага.
+
+Быстрый read-only список последних карточек (выполнять на хосте):
+
+```bash
+python3 - <<'PY'
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+cards = Path('/var/lib/openwebui-flight-recorder/incidents').glob('*.json')
+for path in sorted(cards, key=lambda p: p.stat().st_mtime, reverse=True)[:10]:
+    card = json.loads(path.read_text())
+    print(path.name, datetime.fromtimestamp(card['created_at'], timezone.utc).isoformat(),
+          card['trigger'], card['cause'], 'complete=', card['complete'],
+          'omitted=', card['omitted_rows'])
+PY
+```
+
+История и карточки остаются на хосте с retention. В Git включать только очищенные
+результаты квалификации и описание причины; не переносить живую историю целиком.
+Не удалять карточки планового обновления при «уборке мусора»: они объясняют смену
+container ID. Не добавлять выдуманный диагноз вместо `unknown`; операторскую
+классификацию при необходимости хранить отдельно от исходных событий.
 
 ## Установка / обновление
 

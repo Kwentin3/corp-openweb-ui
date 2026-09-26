@@ -446,6 +446,12 @@ bash scripts/smoke-test.sh --strict-tls
 
 ## Skeleton
 
+Актуальные эксплуатационные инструкции для возможностей, добавленных после PRD-0:
+
+- [OfficeCLI: подключение, поддерживаемые модели, обновление и откат](docs/infra-ops/officecli-openapi-docx-release.md).
+- [Самописец OpenWebUI: история перед перезапуском, OOM и диагностика](docs/infra-ops/openwebui-flight-recorder.md).
+  Уже установлен на рабочем хосте; читать через административный SSH, отдельного chat/MCP tool нет.
+
 - Compose: [compose/openwebui.compose.yml](compose/openwebui.compose.yml)
 - Env example: [.env.example](.env.example)
 - Preflight: [scripts/preflight.sh](scripts/preflight.sh)
