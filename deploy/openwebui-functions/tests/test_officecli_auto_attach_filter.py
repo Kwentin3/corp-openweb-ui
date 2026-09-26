@@ -22,7 +22,6 @@ def configured_filter():
     instance = MODULE.Filter()
     instance.valves = instance.Valves(
         target_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS,
-        multi_xlsx_native_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS,
     )
     return instance
 
@@ -57,7 +56,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in instruction
     assert "never call load_officecli_skill or get_officecli_help" in instruction
     assert "create_office_document" in instruction
-    assert '"parent":"/body","type":"markdown"' in instruction
+    assert '"parent":"/body","type":"paragraph"' in instruction
+    assert "Add one command per requested paragraph" in instruction
     assert "create_office_spreadsheet" in instruction
     assert '"path":"/Sheet1/A1"' in instruction
     assert '"numFmt":"#,##0 ₽"' in instruction
@@ -66,8 +66,10 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert '"parent":"/","type":"slide"' in instruction
     assert '"x":"2cm","y":"3cm","width":"29cm","height":"3cm"' in instruction
     assert "result_file_id" in instruction
-    assert "A successful create result is terminal" in instruction
-    assert "inspect it first and use the matching apply batch" in instruction
+    assert "A successful create result is terminal for that file" in instruction
+    assert "inspect_office_document for DOCX" in instruction
+    assert "inspect_office_presentation for PPTX" in instruction
+    assert "Continue creating other requested files" in instruction
     assert "table, chart, or picture" in instruction
     assert MODULE.GEMINI_COMPATIBILITY_MARKER not in instruction
 
@@ -188,14 +190,14 @@ def test_multiple_xlsx_select_native_owner_before_tool_resolution():
     assert "create_office_spreadsheet after reading" in instruction
 
 
-def test_single_duplicate_or_non_xlsx_references_do_not_change_execution_mode():
+def test_single_duplicate_or_non_xlsx_references_use_native_without_multi_xlsx_guidance():
     for files in ([xlsx_files()[0]], [xlsx_files()[0]] * 2,
                   [xlsx_files()[0], {"type": "file", "id": "word", "name": "a.docx"}],
                   [{"type": "folder", "id": "a", "name": "a.xlsx"}, xlsx_files()[0]]):
         body = {**eligible_body(), "files": files}
         metadata = {"params": {}}
         run_inlet(configured_filter(), body, metadata)
-        assert metadata["params"] == {}
+        assert metadata["params"] == {"function_calling": "native"}
         assert MODULE.MULTI_XLSX_INSTRUCTION_MARKER not in body["messages"][0]["content"]
 
 
@@ -215,16 +217,6 @@ def test_multiple_xlsx_do_not_override_task_explicit_tools_or_unqualified_model(
         assert metadata["params"] == {}
 
 
-def test_native_multi_xlsx_routing_can_be_disabled_without_disabling_officecli():
-    instance = configured_filter()
-    instance.valves.multi_xlsx_native_model_ids = ""
-    body = {**eligible_body(), "files": xlsx_files()}
-    metadata = {"params": {}}
-    run_inlet(instance, body, metadata)
-    assert "server:officecli" in body["tool_ids"]
-    assert metadata["params"] == {}
-
-
 def test_followup_with_files_retains_native_route_without_new_upload():
     body = {**eligible_body(), "files": xlsx_files()}
     body["messages"][-1]["content"] = "Recalculate the output using the same inputs."
@@ -236,7 +228,6 @@ def test_followup_with_files_retains_native_route_without_new_upload():
 def test_already_published_office_alias_can_be_explicitly_qualified():
     instance = configured_filter()
     instance.valves.target_model_ids += ",office-documents"
-    instance.valves.multi_xlsx_native_model_ids += ",office-documents"
     body = {**eligible_body(), "model": "office-documents", "files": xlsx_files(),
             "tool_ids": ["server:officecli"]}
     metadata = {"params": {}}
@@ -249,7 +240,6 @@ def test_already_published_office_alias_can_be_explicitly_qualified():
 @pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
 def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning(model):
     instance = configured_filter()
-    instance.valves.multi_xlsx_no_reasoning_model_ids = "gpt-5.6-luna,gpt-6-luna,gpt-6-sol"
     body = {**eligible_body(), "model": model, "files": xlsx_files()}
     run_inlet(instance, body, {"params": {}})
     assert body["reasoning_effort"] == "none"
@@ -259,4 +249,32 @@ def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requeste
     assert requested["reasoning_effort"] == "high"
     single = {**eligible_body(), "model": model, "files": [xlsx_files()[0]]}
     run_inlet(instance, single, {"params": {}})
-    assert "reasoning_effort" not in single
+    assert single["reasoning_effort"] == "none"
+
+
+@pytest.mark.parametrize("model", MODULE.DEFAULT_TARGET_MODEL_IDS.split(",") + ["office-documents"])
+@pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}],
+    [{"type": "file", "id": "deck", "name": "deck.pptx"}],
+    [{"type": "file", "id": "word", "name": "form.docx"}, {"type": "file", "id": "deck", "name": "deck.pptx"}]])
+def test_native_office_route_is_independent_of_format_and_attachment_count(model, files):
+    instance = configured_filter()
+    instance.valves.target_model_ids += ",office-documents"
+    body = {**eligible_body(), "model": model, "files": copy.deepcopy(files)}
+    metadata = {"params": {"temperature": 0.2, "function_calling": "default"}, "chat_id": "chat"}
+    run_inlet(instance, body, metadata)
+    assert metadata == {"params": {"temperature": 0.2, "function_calling": "native"}, "chat_id": "chat"}
+    assert body["files"] == files
+    assert body["tool_ids"] == ["server:other", "server:officecli"]
+
+
+@pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}],
+    [{"type": "file", "id": "deck", "name": "deck.pptx"}]])
+@pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
+def test_reasoning_rejection_precedes_mutation_for_every_office_format(model, files):
+    body = {**eligible_body(), "model": model, "files": files, "reasoning_effort": "high"}
+    metadata = {"params": {"function_calling": "default"}}
+    before = copy.deepcopy(body)
+    with pytest.raises(ValueError, match="cannot combine reasoning with Office tools"):
+        run_inlet(configured_filter(), body, metadata)
+    assert body == before
+    assert metadata == {"params": {"function_calling": "default"}}
