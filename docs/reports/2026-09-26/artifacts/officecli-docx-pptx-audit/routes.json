@@ -1,0 +1,927 @@
+{
+  "scope": "local replay, not a provider call or product acceptance",
+  "filter_sha256": "f60a19ffe34e2b54b7f65f7f2477360480b6ffb35caca1d75738482f7578081c",
+  "active": true,
+  "global": true,
+  "valves": {
+    "target_model_ids": "claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents,gpt-6-luna,gpt-6-sol,claude-opus-5-5",
+    "multi_xlsx_native_model_ids": "claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents,gpt-6-luna,gpt-6-sol,claude-opus-5-5",
+    "multi_xlsx_no_reasoning_model_ids": "gpt-5.6-luna,gpt-6-luna,gpt-6-sol"
+  },
+  "models": [
+    {
+      "id": "claude-opus-5",
+      "workspace_status": 200,
+      "function_calling": "native",
+      "base_model_id": null
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "workspace_status": 200,
+      "function_calling": "native",
+      "base_model_id": null
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "workspace_status": 200,
+      "function_calling": "native",
+      "base_model_id": null
+    },
+    {
+      "id": "models/gemini-3.5-flash",
+      "workspace_status": 200,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "models/gemini-3.6-flash",
+      "workspace_status": 200,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "workspace_status": 200,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "models/gemini-3.1-flash-lite",
+      "workspace_status": 200,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "models/gemini-3.5-flash-lite",
+      "workspace_status": 200,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "office-documents",
+      "workspace_status": 200,
+      "function_calling": "native",
+      "base_model_id": "claude-opus-5"
+    },
+    {
+      "id": "gpt-6-luna",
+      "workspace_status": 404,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "gpt-6-sol",
+      "workspace_status": 404,
+      "function_calling": null,
+      "base_model_id": null
+    },
+    {
+      "id": "claude-opus-5-5",
+      "workspace_status": 404,
+      "function_calling": null,
+      "base_model_id": null
+    }
+  ],
+  "routes": [
+    {
+      "model": "claude-opus-5",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": "none"
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": "none"
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "office-documents",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": "none"
+    },
+    {
+      "model": "gpt-6-luna",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": "none"
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": "none"
+    },
+    {
+      "model": "gpt-6-sol",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": "none"
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "create_without_attachment",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "single_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "multiple_docx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "single_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "multiple_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "mixed_docx_pptx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "mixed_docx_xlsx",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "single_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "default",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "two_xlsx_control",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    },
+    {
+      "model": "claude-opus-5-5",
+      "scenario": "pptx_with_two_xlsx",
+      "tool_attached": true,
+      "function_calling": "native",
+      "reasoning_effort": null
+    }
+  ]
+}

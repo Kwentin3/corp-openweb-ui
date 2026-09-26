@@ -1,0 +1,233 @@
+{
+  "chat": "2408be99-f270-46c4-9a45-50fe5b53c3d8",
+  "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+  "messages": [
+    {
+      "id": "13913355-cf0f-44c0-9342-19085d7f3a95",
+      "parentId": null,
+      "role": "user",
+      "files": [],
+      "final": "",
+      "calls": []
+    },
+    {
+      "id": "633c48bc-7402-4bcb-959a-164af0582dd0",
+      "parentId": "13913355-cf0f-44c0-9342-19085d7f3a95",
+      "role": "assistant",
+      "model": "gpt-5.4-mini",
+      "done": true,
+      "files": [
+        {
+          "id": "194e1e6a-3aca-4ba9-8f41-e48f210fdb24",
+          "name": "native-office.pptx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "bytes": 10666,
+          "sha256": "7150e23a4d779fd839ea9ee7028d0df3896e2e4ddd4c0f8a13386dd1ee725085",
+          "local_file": "mini-final-create-1.pptx"
+        },
+        {
+          "id": "f49d8aaf-f954-4e05-b6ab-bf3ae129a723",
+          "name": "native-office.docx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "bytes": 5260,
+          "sha256": "2ff048d3aac33bacbcf3d0b269993b2d74f05221d9c534d3fc4bd3365a58fa35",
+          "local_file": "mini-final-create-1.docx"
+        }
+      ],
+      "final": "Готово: файлы native-office.docx и native-office.pptx созданы и прикреплены.",
+      "calls": [
+        {
+          "name": "create_office_document",
+          "status": "completed",
+          "arguments": {
+            "output_name": "native-office.docx",
+            "commands": [
+              {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {
+                  "text": "Office Native Check"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {
+                  "text": "SOURCE ALPHA 41"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {
+                  "text": "KEEP WORD 73"
+                }
+              }
+            ]
+          },
+          "google_signature_present": false,
+          "result_file_id": "f49d8aaf-f954-4e05-b6ab-bf3ae129a723",
+          "result_sha256": "2ff048d3aac33bacbcf3d0b269993b2d74f05221d9c534d3fc4bd3365a58fa35",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100000]"
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100002]"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100004]"
+                }
+              ],
+              "summary": {
+                "total": 3,
+                "executed": 3,
+                "succeeded": 3,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        },
+        {
+          "name": "create_office_presentation",
+          "status": "completed",
+          "arguments": {
+            "output_name": "native-office.pptx",
+            "commands": [
+              {
+                "command": "add",
+                "parent": "/",
+                "type": "slide",
+                "props": {
+                  "layout": "blank"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/",
+                "type": "slide",
+                "props": {
+                  "layout": "blank"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/slide[1]",
+                "type": "shape",
+                "props": {
+                  "text": "SOURCE BETA 52",
+                  "x": "2cm",
+                  "y": "3cm",
+                  "width": "20cm",
+                  "height": "2cm"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/slide[2]",
+                "type": "shape",
+                "props": {
+                  "text": "KEEP SLIDE 84",
+                  "x": "2cm",
+                  "y": "3cm",
+                  "width": "20cm",
+                  "height": "2cm"
+                }
+              }
+            ]
+          },
+          "google_signature_present": false,
+          "result_file_id": "194e1e6a-3aca-4ba9-8f41-e48f210fdb24",
+          "result_sha256": "7150e23a4d779fd839ea9ee7028d0df3896e2e4ddd4c0f8a13386dd1ee725085",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Added slide at /slide[1]"
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Added slide at /slide[2]"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Added shape at /slide[1]/shape[@id=100000]"
+                },
+                {
+                  "index": 3,
+                  "success": true,
+                  "output": "Added shape at /slide[2]/shape[@id=100001]"
+                }
+              ],
+              "summary": {
+                "total": 4,
+                "executed": 4,
+                "succeeded": 4,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        }
+      ]
+    }
+  ]
+}

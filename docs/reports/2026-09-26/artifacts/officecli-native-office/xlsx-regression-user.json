@@ -1,0 +1,489 @@
+{
+  "chat": "7a76109a-81b7-4dab-a5f7-141777aac1e4",
+  "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+  "params": {},
+  "messages": [
+    {
+      "id": "446e3f53-372e-4f1c-a6c2-e4270a18f6a9",
+      "parentId": null,
+      "role": "user",
+      "files": [
+        {
+          "id": "2b0b0832-d56a-4108-98e0-e11ea512860c",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "c98b6dd6-50d5-404f-b39f-f36edd186f46",
+          "name": "feb.xlsx"
+        }
+      ],
+      "final": "",
+      "calls": []
+    },
+    {
+      "id": "03091b26-965b-4557-880e-cd63fb528582",
+      "parentId": "446e3f53-372e-4f1c-a6c2-e4270a18f6a9",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "done": true,
+      "files": [
+        {
+          "id": "64774295-741a-4c27-a193-0097883e181f",
+          "name": "sales-native-regression.xlsx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "bytes": 4561,
+          "sha256": "321595493de871700e76cbebd9041f0771343ec45f2e087b8db590e7bbe05236",
+          "local_file": "xlsx-regression-user.xlsx"
+        }
+      ],
+      "final": "Готов файл [sales-native-regression.xlsx](attachment://64774295-741a-4c27-a193-0097883e181f).",
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "arguments": {
+            "file_id": "2b0b0832-d56a-4108-98e0-e11ea512860c",
+            "command_payload": {
+              "command": "view",
+              "mode": "annotated"
+            }
+          },
+          "google_signature_present": false,
+          "response_keys": [
+            "source",
+            "file_id",
+            "officecli_result",
+            "officecli_result_sha256",
+            "auto_resident_disabled"
+          ]
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "arguments": {
+            "file_id": "c98b6dd6-50d5-404f-b39f-f36edd186f46",
+            "command_payload": {
+              "command": "view",
+              "mode": "annotated"
+            }
+          },
+          "google_signature_present": false,
+          "response_keys": [
+            "source",
+            "file_id",
+            "officecli_result",
+            "officecli_result_sha256",
+            "auto_resident_disabled"
+          ]
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "arguments": {
+            "output_name": "sales-native-regression.xlsx",
+            "commands": [
+              {
+                "command": "set",
+                "path": "/Sheet1",
+                "props": {
+                  "name": "Янв26"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/A1",
+                "props": {
+                  "value": "Product"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/B1",
+                "props": {
+                  "value": "Quantity"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/C1",
+                "props": {
+                  "value": "Price"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/D1",
+                "props": {
+                  "value": "Итого"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/A2",
+                "props": {
+                  "value": "A"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/B2",
+                "props": {
+                  "value": 2
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/C2",
+                "props": {
+                  "value": 100
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/D2",
+                "props": {
+                  "formula": "=B2*C2"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/A3",
+                "props": {
+                  "value": "B"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/B3",
+                "props": {
+                  "value": 3
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/C3",
+                "props": {
+                  "value": 50
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/D3",
+                "props": {
+                  "formula": "=B3*C3"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/A4",
+                "props": {
+                  "value": "Итого"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Янв26/D4",
+                "props": {
+                  "formula": "=SUM(D2:D3)"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/",
+                "type": "sheet",
+                "props": {
+                  "name": "Фев26"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/A1",
+                "props": {
+                  "value": "Product"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/B1",
+                "props": {
+                  "value": "Quantity"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/C1",
+                "props": {
+                  "value": "Price"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/D1",
+                "props": {
+                  "value": "Итого"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/A2",
+                "props": {
+                  "value": "A"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/B2",
+                "props": {
+                  "value": 4
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/C2",
+                "props": {
+                  "value": 120
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/D2",
+                "props": {
+                  "formula": "=B2*C2"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/A3",
+                "props": {
+                  "value": "B"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/B3",
+                "props": {
+                  "value": 1
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/C3",
+                "props": {
+                  "value": 70
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/D3",
+                "props": {
+                  "formula": "=B3*C3"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/A4",
+                "props": {
+                  "value": "Итого"
+                }
+              },
+              {
+                "command": "set",
+                "path": "/Фев26/D4",
+                "props": {
+                  "formula": "=SUM(D2:D3)"
+                }
+              }
+            ]
+          },
+          "google_signature_present": false,
+          "result_file_id": "64774295-741a-4c27-a193-0097883e181f",
+          "result_sha256": "321595493de871700e76cbebd9041f0771343ec45f2e087b8db590e7bbe05236",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Updated /Sheet1: name=Янв26"
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Updated /Янв26/A1: value=Product"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Updated /Янв26/B1: value=Quantity"
+                },
+                {
+                  "index": 3,
+                  "success": true,
+                  "output": "Updated /Янв26/C1: value=Price"
+                },
+                {
+                  "index": 4,
+                  "success": true,
+                  "output": "Updated /Янв26/D1: value=Итого"
+                },
+                {
+                  "index": 5,
+                  "success": true,
+                  "output": "Updated /Янв26/A2: value=A"
+                },
+                {
+                  "index": 6,
+                  "success": true,
+                  "output": "Updated /Янв26/B2: value=2"
+                },
+                {
+                  "index": 7,
+                  "success": true,
+                  "output": "Updated /Янв26/C2: value=100"
+                },
+                {
+                  "index": 8,
+                  "success": true,
+                  "output": "Updated /Янв26/D2: formula==B2*C2"
+                },
+                {
+                  "index": 9,
+                  "success": true,
+                  "output": "Updated /Янв26/A3: value=B"
+                },
+                {
+                  "index": 10,
+                  "success": true,
+                  "output": "Updated /Янв26/B3: value=3"
+                },
+                {
+                  "index": 11,
+                  "success": true,
+                  "output": "Updated /Янв26/C3: value=50"
+                },
+                {
+                  "index": 12,
+                  "success": true,
+                  "output": "Updated /Янв26/D3: formula==B3*C3"
+                },
+                {
+                  "index": 13,
+                  "success": true,
+                  "output": "Updated /Янв26/A4: value=Итого"
+                },
+                {
+                  "index": 14,
+                  "success": true,
+                  "output": "Updated /Янв26/D4: formula==SUM(D2:D3)"
+                },
+                {
+                  "index": 15,
+                  "success": true,
+                  "output": "Added sheet at /Фев26"
+                },
+                {
+                  "index": 16,
+                  "success": true,
+                  "output": "Updated /Фев26/A1: value=Product"
+                },
+                {
+                  "index": 17,
+                  "success": true,
+                  "output": "Updated /Фев26/B1: value=Quantity"
+                },
+                {
+                  "index": 18,
+                  "success": true,
+                  "output": "Updated /Фев26/C1: value=Price"
+                },
+                {
+                  "index": 19,
+                  "success": true,
+                  "output": "Updated /Фев26/D1: value=Итого"
+                },
+                {
+                  "index": 20,
+                  "success": true,
+                  "output": "Updated /Фев26/A2: value=A"
+                },
+                {
+                  "index": 21,
+                  "success": true,
+                  "output": "Updated /Фев26/B2: value=4"
+                },
+                {
+                  "index": 22,
+                  "success": true,
+                  "output": "Updated /Фев26/C2: value=120"
+                },
+                {
+                  "index": 23,
+                  "success": true,
+                  "output": "Updated /Фев26/D2: formula==B2*C2"
+                },
+                {
+                  "index": 24,
+                  "success": true,
+                  "output": "Updated /Фев26/A3: value=B"
+                },
+                {
+                  "index": 25,
+                  "success": true,
+                  "output": "Updated /Фев26/B3: value=1"
+                },
+                {
+                  "index": 26,
+                  "success": true,
+                  "output": "Updated /Фев26/C3: value=70"
+                },
+                {
+                  "index": 27,
+                  "success": true,
+                  "output": "Updated /Фев26/D3: formula==B3*C3"
+                },
+                {
+                  "index": 28,
+                  "success": true,
+                  "output": "Updated /Фев26/A4: value=Итого"
+                },
+                {
+                  "index": 29,
+                  "success": true,
+                  "output": "Updated /Фев26/D4: formula==SUM(D2:D3)"
+                }
+              ],
+              "summary": {
+                "total": 30,
+                "executed": 30,
+                "succeeded": 30,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.9.1-qualified-catalog
+version: 1.0.0-native-office
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v3-compact]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v4-native]"
 MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v1]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
@@ -39,14 +39,16 @@ OFFICECLI_INSTRUCTION = (
     "load_officecli_skill or get_officecli_help. Directly call the matching create operation once per "
     "requested file: DOCX uses create_office_document, XLSX uses create_office_spreadsheet, and PPTX "
     "uses create_office_presentation. Build commands from the request using these valid base shapes. "
-    "DOCX markdown: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"markdown\","
-    "\"props\":{\"markdown\":\"# Title\\n\\nContent\"}}; keep markdown inside props. "
+    "DOCX paragraph: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"paragraph\","
+    "\"props\":{\"text\":\"Title\"}}. Add one command per requested paragraph. "
+    "If markdown is needed, keep it inside props.markdown and use real newline characters, never literal backslash-n text. "
     "XLSX cell: {\"command\":\"set\",\"path\":\"/Sheet1/A1\",\"props\":{\"value\":\"Text\"}}. For requested money, put \"numFmt\":\"#,##0 ₽\" in each price, amount, and total cell props; preserve every requested label such as Итого. Use formulas for requested calculations. Do not add unrequested titles, merged cells, column widths, or styling. "
     "PPTX: add every slide first with {\"command\":\"add\",\"parent\":\"/\",\"type\":\"slide\","
     "\"props\":{\"layout\":\"blank\"}}, then add each basic text shape with flat props such as {\"command\":\"add\",\"parent\":\"/slide[1]\",\"type\":\"shape\",\"props\":{\"text\":\"Title\",\"x\":\"2cm\",\"y\":\"3cm\",\"width\":\"29cm\",\"height\":\"3cm\"}}. For basic shapes, never use nested geometry or font objects. Every requested slide title, subtitle, list item, date, and phrase must appear as visible shape text; do not summarize or omit them. "
     "Do not substitute code, a recipe, or a refusal for the tool call. Finish only after the current "
     "create result contains result_file_id and the native attachment is present; if execution fails, "
-    "report the failure. A successful create result is terminal: do not reopen, inspect, apply changes, call help, or recreate that new file in the same response. Return exactly its one attachment, then reply with one plain-language sentence naming that file; never echo tool JSON and never leave the final answer empty. For a file that was already attached by the user before this response, inspect it first and use the matching apply batch. "
+    "report the failure. A successful create result is terminal for that file: do not reopen, inspect, apply changes, call help, or recreate it in the same response. Continue creating other requested files and return each resulting native attachment once. Reply with a plain-language sentence naming the files; never echo tool JSON and never leave the final answer empty. "
+    "For existing files, obtain explicit file_id values from native attached_files blocks (their opaque url), or list_chat_files when needed; citation numbers are not file IDs. Prefer the latest user upload over earlier copies. Inspect each required source with the matching format operation: inspect_office_document for DOCX and inspect_office_spreadsheet for XLSX use command_payload={\"command\":\"view\",\"mode\":\"annotated\"}; inspect_office_presentation for PPTX uses command_payload={\"command\":\"query\",\"selector\":\"shape\"}. Then use the matching apply batch to edit an existing file, or create to produce a new file from the sources. Do not ask for re-uploading available files. "
     "Load only the format-specific skill or help needed for its exact existing structure, or for a new "
     "table, chart, or picture. Preserve unrelated content and never invent document paths."
 )
@@ -131,15 +133,11 @@ class Filter:
             ),
         )
         priority: int = Field(default=0, description="Keep the standard filter order unless an admin has a reason to change it.")
-        multi_xlsx_native_model_ids: str = Field(
-            default="",
-            description="Qualified direct models using native tool loops for multiple XLSX. Empty disables automatic routing.",
-        )
-        multi_xlsx_no_reasoning_model_ids: str = Field(
-            default="",
+        no_reasoning_model_ids: str = Field(
+            default="gpt-5.6-luna,gpt-6-luna,gpt-6-sol",
             description=(
                 "Models whose current Chat Completions provider requires reasoning_effort=none with tools. "
-                "Only applies to automatic multi-XLSX routing when no reasoning effort was explicitly requested."
+                "Applies whenever OfficeCLI is attached; explicit incompatible reasoning fails visibly."
             ),
         )
 
@@ -175,6 +173,23 @@ class Filter:
             tool_ids = []
         if not isinstance(tool_ids, list):
             return body
+
+        # The same provider restriction applies to every format, including new
+        # files with no attachments. Preserve explicit reasoning choices.
+        if body.get("model") in _comma_separated_values(valves.no_reasoning_model_ids):
+            if body.get("reasoning_effort") not in (None, "none"):
+                raise ValueError(
+                    "This model's current API cannot combine reasoning with Office tools. "
+                    "Select reasoning effort None or a model/API supporting reasoning with tools."
+                )
+            body["reasoning_effort"] = "none"
+
+        # OpenWebUI 0.9.6 processes params before Filter inlets. Mutate its
+        # shared metadata owner, which selects native file context and tool
+        # execution later in this request. Do not reconstruct file context.
+        if __metadata__ is not None:
+            metadata.setdefault("params", {})["function_calling"] = "native"
+
         if OFFICECLI_TOOL_ID not in tool_ids:
             body["tool_ids"] = [*tool_ids, OFFICECLI_TOOL_ID]
 
@@ -182,23 +197,7 @@ class Filter:
         if isinstance(messages, list):
             _append_instruction(messages)
 
-            # OpenWebUI 0.9.6 processes params before Filter inlets. Its metadata
-            # object is the native owner consumed by add_file_context and the
-            # tool loop later in the same request; changing body.params here
-            # would not select that route. No file context is reconstructed here.
-            if (
-                body.get("model") in _comma_separated_values(valves.multi_xlsx_native_model_ids)
-                and _has_multiple_xlsx(body.get("files"))
-                and __metadata__ is not None
-            ):
-                if body.get("model") in _comma_separated_values(valves.multi_xlsx_no_reasoning_model_ids):
-                    if body.get("reasoning_effort") not in (None, "none"):
-                        raise ValueError(
-                            "This model's current API cannot combine reasoning with Excel tools. "
-                            "Select reasoning effort None or a model/API supporting reasoning with tools."
-                        )
-                    body["reasoning_effort"] = "none"
-                metadata.setdefault("params", {})["function_calling"] = "native"
+            if _has_multiple_xlsx(body.get("files")):
                 _append_multi_xlsx_instruction(messages)
 
         return body
