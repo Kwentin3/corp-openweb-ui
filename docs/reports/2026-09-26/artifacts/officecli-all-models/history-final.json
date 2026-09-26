@@ -1,0 +1,321 @@
+{
+  "chat": "4991d2ff-fc58-4de6-ab9c-27c481d57048",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "804a03bf-0b74-4e19-be37-18ebac4bcbd1",
+      "role": "user",
+      "files": [
+        {
+          "id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "d6808836-3a83-4611-b219-6d69509c9241",
+      "role": "assistant",
+      "model": "gpt-5.4-mini",
+      "done": true,
+      "files": [
+        {
+          "id": "3ae62c0f-cc85-4cb2-898e-98ed2990fde8",
+          "name": "sales-mini-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4564
+        }
+      ],
+      "sources": [
+        {
+          "id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "2130fe3f-8d8d-417f-89b3-9c03279f55e3"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "dc0c53ba-522c-48b5-9460-c60bcc22facb"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "3ae62c0f-cc85-4cb2-898e-98ed2990fde8",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    },
+    {
+      "id": "592fe18a-cd5c-4ba1-9e11-f2eb3fcd5a49",
+      "role": "user",
+      "files": [],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "1affaf13-e0be-4fdc-921e-12242542a965",
+      "role": "assistant",
+      "model": "models/gemini-3.5-flash",
+      "done": true,
+      "files": [
+        {
+          "id": "8357a285-ab1d-4fae-b982-8cf2ca8eea4f",
+          "name": "sales-switch-g35.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4563,
+          "verification": {
+            "file": "sales-history-switch.xlsx",
+            "sha256": "d3f439488c6cc2ad37d5f135a82abd831b1287bb9f5b074b3e07e10db2a51003",
+            "sheets": [
+              "\u042f\u043d\u043226",
+              "\u0424\u0435\u043226"
+            ],
+            "totals": [
+              350,
+              550
+            ],
+            "passed": true
+          }
+        }
+      ],
+      "sources": [
+        {
+          "id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "2130fe3f-8d8d-417f-89b3-9c03279f55e3"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "dc0c53ba-522c-48b5-9460-c60bcc22facb"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "8357a285-ab1d-4fae-b982-8cf2ca8eea4f",
+          "commands_count": 30,
+          "google_signature_present": true
+        }
+      ]
+    },
+    {
+      "id": "333bee6c-8790-4c33-86f0-cb24b745539d",
+      "role": "user",
+      "files": [],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "3c0deec0-350e-4e30-877d-965bc756c745",
+      "role": "assistant",
+      "model": "gpt-5.4-mini",
+      "done": true,
+      "files": [
+        {
+          "id": "f58772c1-ce50-4eb5-95f6-ac65ec50b75a",
+          "name": "sales-g35-followup.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4564
+        }
+      ],
+      "sources": [
+        {
+          "id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "2130fe3f-8d8d-417f-89b3-9c03279f55e3"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "dc0c53ba-522c-48b5-9460-c60bcc22facb"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "f58772c1-ce50-4eb5-95f6-ac65ec50b75a",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    },
+    {
+      "id": "ecd47856-50a5-4854-9d33-3ff79fa2de85",
+      "role": "user",
+      "files": [],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "123474f3-43d7-4483-8129-50bf261c1aa0",
+      "role": "assistant",
+      "model": "models/gemini-3.5-flash",
+      "done": true,
+      "files": [
+        {
+          "id": "338043b1-8bd7-4777-997f-4d91c5ef0e33",
+          "name": "sales-g35-reloaded.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4563,
+          "verification": {
+            "file": "sales-history-reloaded.xlsx",
+            "sha256": "cc0ced37ad819aab1331255855b2a9f6604ae0a10e652cb48f901ba446cad7b0",
+            "sheets": [
+              "\u042f\u043d\u043226",
+              "\u0424\u0435\u043226"
+            ],
+            "totals": [
+              350,
+              550
+            ],
+            "passed": true
+          }
+        }
+      ],
+      "sources": [
+        {
+          "id": "2130fe3f-8d8d-417f-89b3-9c03279f55e3",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "2130fe3f-8d8d-417f-89b3-9c03279f55e3"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "dc0c53ba-522c-48b5-9460-c60bcc22facb",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "dc0c53ba-522c-48b5-9460-c60bcc22facb"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "338043b1-8bd7-4777-997f-4d91c5ef0e33",
+          "commands_count": 30,
+          "google_signature_present": true
+        }
+      ]
+    }
+  ]
+}

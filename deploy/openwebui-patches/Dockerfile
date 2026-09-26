@@ -17,3 +17,11 @@ RUN python /usr/local/bin/apply_stage2_streaming_upload_patch.py
 COPY deploy/openwebui-media-lifecycle/stage2_media_lifecycle.py /app/backend/open_webui/services/stage2_media_lifecycle.py
 COPY deploy/openwebui-media-lifecycle/stage2_video_intake.py /app/backend/open_webui/services/stage2_video_intake.py
 RUN python -m py_compile /app/backend/open_webui/services/stage2_media_lifecycle.py /app/backend/open_webui/services/stage2_video_intake.py
+
+# Google's compatible endpoint omits stream indices and requires opaque tool
+# signatures. Keep the native loop/state owner and reject unknown source bytes.
+COPY deploy/openwebui-patches/google_openai_tool_compat.py /app/backend/open_webui/utils/google_openai_tool_compat.py
+COPY deploy/openwebui-patches/apply_google_openai_tool_protocol_patch.py /usr/local/bin/apply_google_openai_tool_protocol_patch.py
+RUN python /usr/local/bin/apply_google_openai_tool_protocol_patch.py
+COPY deploy/openwebui-patches/verify_google_openai_tool_protocol.py /usr/local/bin/verify_google_openai_tool_protocol.py
+RUN python /usr/local/bin/verify_google_openai_tool_protocol.py

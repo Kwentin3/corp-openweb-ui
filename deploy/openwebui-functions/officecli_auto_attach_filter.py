@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.8.4-compact-context-experiment
+version: 0.9.0-multi-xlsx-native
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 OFFICECLI_TOOL_ID = "server:officecli"
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v3-compact]"
+MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v1]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
 # Specialized Workspace/Pipe models stay opt-in by omission.
@@ -46,6 +47,49 @@ OFFICECLI_INSTRUCTION = (
     "Load only the format-specific skill or help needed for its exact existing structure, or for a new "
     "table, chart, or picture. Preserve unrelated content and never invent document paths."
 )
+
+MULTI_XLSX_INSTRUCTION = (
+    f"{MULTI_XLSX_INSTRUCTION_MARKER} For work based on multiple attached Excel files, "
+    "use the native attached_files blocks to identify each source: the opaque file url is "
+    "its OpenWebUI file_id. Read each required workbook with inspect_office_spreadsheet "
+    "and that explicit file_id before deriving the result. A citation number is not a file_id. "
+    "Prefer the files in the latest user upload when earlier copies exist; do not ask for "
+    "renaming or re-uploading to resolve multiple attachments. If the tags are unavailable, "
+    "use the native list_chat_files tool to obtain IDs; never guess an ID. "
+    "For a requested new output based on these sources, call create_office_spreadsheet "
+    "after reading them; apply_office_spreadsheet_batch edits one existing workbook. "
+    "A new workbook starts with Sheet1: rename it with "
+    "{\"command\":\"set\",\"path\":\"/Sheet1\",\"props\":{\"name\":\"Jan 26\"}}, "
+    "then add another sheet with {\"command\":\"add\",\"parent\":\"/\",\"type\":\"sheet\","
+    "\"props\":{\"name\":\"Feb 26\"}}. Every add item requires parent; use the user's requested sheet names. "
+    "Preserve all requested data and use formulas for calculations. Only declare success "
+    "after result_file_id and its native attachment exist. Do not claim a faithful copy "
+    "of source sheets, drawings or styles when you have only read annotated cell data. "
+    "Reply with one plain sentence naming the attached file; never invent sandbox or download links."
+)
+
+
+def _has_multiple_xlsx(files: Any) -> bool:
+    """Recognize native XLSX references; file access stays with OpenWebUI."""
+    if not isinstance(files, list):
+        return False
+    ids = set()
+    for file in files:
+        if not isinstance(file, dict) or file.get("type", "file") != "file":
+            continue
+        name = file.get("name") or ""
+        file_id = file.get("id") or file.get("url")
+        if isinstance(name, str) and name.lower().endswith(".xlsx") and isinstance(file_id, str) and file_id:
+            ids.add(file_id)
+    return len(ids) > 1
+
+
+def _append_multi_xlsx_instruction(messages: list[Any]) -> None:
+    for message in messages:
+        if isinstance(message, dict) and message.get("role") == "system" and isinstance(message.get("content"), str):
+            if MULTI_XLSX_INSTRUCTION_MARKER not in message["content"]:
+                message["content"] += f"\n\n{MULTI_XLSX_INSTRUCTION}"
+            return
 
 
 def _comma_separated_values(value: str) -> set[str]:
@@ -84,6 +128,17 @@ class Filter:
             ),
         )
         priority: int = Field(default=0, description="Keep the standard filter order unless an admin has a reason to change it.")
+        multi_xlsx_native_model_ids: str = Field(
+            default="",
+            description="Qualified direct models using native tool loops for multiple XLSX. Empty disables automatic routing.",
+        )
+        multi_xlsx_no_reasoning_model_ids: str = Field(
+            default="",
+            description=(
+                "Models whose current Chat Completions provider requires reasoning_effort=none with tools. "
+                "Only applies to automatic multi-XLSX routing when no reasoning effort was explicitly requested."
+            ),
+        )
 
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -94,7 +149,7 @@ class Filter:
         __metadata__: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Attach an already-authorized tool server before OpenWebUI resolves tool IDs."""
-        metadata = __metadata__ or {}
+        metadata = __metadata__ if __metadata__ is not None else {}
         valves = getattr(self, "valves", self.Valves())
         target_model_ids = _comma_separated_values(valves.target_model_ids)
 
@@ -123,5 +178,24 @@ class Filter:
         messages = body.get("messages")
         if isinstance(messages, list):
             _append_instruction(messages)
+
+            # OpenWebUI 0.9.6 processes params before Filter inlets. Its metadata
+            # object is the native owner consumed by add_file_context and the
+            # tool loop later in the same request; changing body.params here
+            # would not select that route. No file context is reconstructed here.
+            if (
+                body.get("model") in _comma_separated_values(valves.multi_xlsx_native_model_ids)
+                and _has_multiple_xlsx(body.get("files"))
+                and __metadata__ is not None
+            ):
+                if body.get("model") in _comma_separated_values(valves.multi_xlsx_no_reasoning_model_ids):
+                    if body.get("reasoning_effort") not in (None, "none"):
+                        raise ValueError(
+                            "This model's current API cannot combine reasoning with Excel tools. "
+                            "Select reasoning effort None or a model/API supporting reasoning with tools."
+                        )
+                    body["reasoning_effort"] = "none"
+                metadata.setdefault("params", {})["function_calling"] = "native"
+                _append_multi_xlsx_instruction(messages)
 
         return body

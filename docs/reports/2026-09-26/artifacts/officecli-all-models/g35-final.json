@@ -1,0 +1,105 @@
+{
+  "chat": "3c9cd3c6-7ead-4f45-b070-3ef6da3ef1e0",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "a1205d3b-475a-4911-8843-a117a8ffe5be",
+      "role": "user",
+      "files": [
+        {
+          "id": "bb40dac7-c985-411c-a68a-4c8ba9c73cb1",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "2751bda7-3a42-4b22-b9f0-9defad54a215",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "48cd5222-8933-46ea-b59d-5233fb756815",
+      "role": "assistant",
+      "model": "models/gemini-3.5-flash",
+      "done": true,
+      "files": [
+        {
+          "id": "d96f6002-2e7a-41e9-88bf-3e41d01b79b8",
+          "name": "sales-g35-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4563
+        }
+      ],
+      "sources": [
+        {
+          "id": "bb40dac7-c985-411c-a68a-4c8ba9c73cb1",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "bb40dac7-c985-411c-a68a-4c8ba9c73cb1"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "2751bda7-3a42-4b22-b9f0-9defad54a215",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "2751bda7-3a42-4b22-b9f0-9defad54a215"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "tool_error": "HTTP error 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"command_payload\",\"mode\"],\"msg\":\"Input should be 'annotated'\",\"input\":\"sheet\",\"ctx\":{\"expected\":\"'annotated'\"}}]}",
+          "file_id": "bb40dac7-c985-411c-a68a-4c8ba9c73cb1",
+          "google_signature_present": true
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "tool_error": "HTTP error 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"command_payload\",\"mode\"],\"msg\":\"Input should be 'annotated'\",\"input\":\"sheet\",\"ctx\":{\"expected\":\"'annotated'\"}}]}",
+          "file_id": "2751bda7-3a42-4b22-b9f0-9defad54a215",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "bb40dac7-c985-411c-a68a-4c8ba9c73cb1",
+          "google_signature_present": true
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "2751bda7-3a42-4b22-b9f0-9defad54a215",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "d96f6002-2e7a-41e9-88bf-3e41d01b79b8",
+          "commands_count": 30,
+          "google_signature_present": true
+        }
+      ]
+    }
+  ]
+}

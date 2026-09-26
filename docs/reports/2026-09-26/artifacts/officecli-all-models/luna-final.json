@@ -1,0 +1,91 @@
+{
+  "chat": "655fb95a-4957-49e5-8ae0-6a2721cedf8a",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "941929da-96e9-441c-9de2-50173fc2062d",
+      "role": "user",
+      "files": [
+        {
+          "id": "73eec5e4-334b-4e9a-94b0-33b3503211b0",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "c510e4a4-59f0-4b6a-8f96-3567cf1b12af",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "2d9a05c6-21a6-4c38-a333-75bd788bc4bb",
+      "role": "assistant",
+      "model": "gpt-5.6-luna",
+      "done": true,
+      "files": [
+        {
+          "id": "f87a608a-d239-4de7-94eb-9609ef1190b9",
+          "name": "sales-luna-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 5088
+        }
+      ],
+      "sources": [
+        {
+          "id": "73eec5e4-334b-4e9a-94b0-33b3503211b0",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "73eec5e4-334b-4e9a-94b0-33b3503211b0"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "c510e4a4-59f0-4b6a-8f96-3567cf1b12af",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "c510e4a4-59f0-4b6a-8f96-3567cf1b12af"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "73eec5e4-334b-4e9a-94b0-33b3503211b0",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "c510e4a4-59f0-4b6a-8f96-3567cf1b12af",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "f87a608a-d239-4de7-94eb-9609ef1190b9",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    }
+  ]
+}

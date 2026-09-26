@@ -1,0 +1,67 @@
+[
+  {
+    "file": "sales-mini.xlsx",
+    "sha256": "d4c9b535827ad098e53001ae9d02427c84b63298da501292b7c4042c5d69daa0",
+    "sheets": [
+      "Янв26",
+      "Фев26"
+    ],
+    "totals": [
+      350,
+      550
+    ],
+    "passed": true
+  },
+  {
+    "file": "sales-gpt54.xlsx",
+    "sha256": "a8e418b4ee936d4ca791163dd060d2b1c9fb4b0ec036fd6da2c2da38b2489714",
+    "sheets": [
+      "Янв26",
+      "Фев26"
+    ],
+    "totals": [
+      350,
+      550
+    ],
+    "passed": true
+  },
+  {
+    "file": "sales-user-sonnet.xlsx",
+    "sha256": "4e4226e5489a4490c61976d4ebe849a140972a9c7bd59184089fd0ff68cf6cf3",
+    "sheets": [
+      "Янв26",
+      "Фев26"
+    ],
+    "totals": [
+      350,
+      550
+    ],
+    "passed": true
+  },
+  {
+    "file": "sales-user-luna.xlsx",
+    "sha256": "5f77d11b245c40ee8a541cd55ab963307c0dac2b9de8bde7734fb9a049f9507f",
+    "sheets": [
+      "Янв26",
+      "Фев26"
+    ],
+    "totals": [
+      350,
+      550
+    ],
+    "passed": true
+  },
+  {
+    "file": "sales-user-followup.xlsx",
+    "sha256": "54f2380b2ffde4a5ca13a7cff5d88a46e52a198be3952c9292574d10b0417b1a",
+    "sheets": [
+      "Янв26",
+      "Фев26"
+    ],
+    "totals": [
+      350,
+      550
+    ],
+    "passed": true
+  }
+]
