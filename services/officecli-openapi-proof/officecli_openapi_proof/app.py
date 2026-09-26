@@ -193,9 +193,9 @@ class ApplySpreadsheetBatchRequest(NativeXlsxReference):
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(
         min_length=1,
-        max_length=64,
+        max_length=256,
         description=(
-            "Ordered official OfficeCLI batch items for the current XLSX attachment. "
+            "Up to 256 ordered official OfficeCLI batch items for the current XLSX attachment. "
             "Use this operation for a later conversational edit; do not create a new "
             "workbook when continuing an existing one."
         ),
@@ -220,9 +220,9 @@ class CreateSpreadsheetRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(
         min_length=1,
-        max_length=64,
+        max_length=256,
         description=(
-            "One ordered official OfficeCLI batch for the whole initial workbook. "
+            "One ordered official OfficeCLI batch for the whole initial workbook (up to 256 items). "
             "A new XLSX already contains Sheet1: do not add, remove, or rename Sheet1 "
             "unless the user explicitly requests that change. Include new sheets, cell "
             "values, and cross-sheet formulas in this single batch. A failed batch rolls "
