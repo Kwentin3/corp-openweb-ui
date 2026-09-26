@@ -11,6 +11,8 @@ dependencies = [
   "fastapi>=0.115,<1",
   "httpx>=0.27,<1",
   "lxml>=5,<7",
+  "openpyxl==3.1.5",
+  "pillow==11.3.0",
   "pydantic>=2,<3",
   "uvicorn>=0.30,<1",
 ]

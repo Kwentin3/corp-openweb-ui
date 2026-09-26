@@ -36,6 +36,10 @@ class OpenWebUiClient(Protocol):
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
 
+    def resolve_nearest_xlsx_attachments(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> list[NativeAttachment]: ...
+
     def resolve_nearest_pptx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
@@ -111,6 +115,11 @@ class HttpOpenWebUiClient:
             chat_id, message_id, authorization, (".xlsx",)
         ).file_id
 
+    def resolve_nearest_xlsx_attachments(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> list[NativeAttachment]:
+        return self._resolve_nearest_attachments(chat_id, message_id, authorization, (".xlsx",))
+
     def resolve_nearest_pptx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str:
@@ -128,6 +137,17 @@ class HttpOpenWebUiClient:
     def _resolve_nearest_attachment(
         self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...]
     ) -> NativeAttachment:
+        matches = self._resolve_nearest_attachments(chat_id, message_id, authorization, suffixes)
+        if len(matches) != 1:
+            label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
+            raise OpenWebUiAmbiguousAttachment(
+                f"multiple {label} attachments exist in the nearest native message; use an explicit file_id"
+            )
+        return matches[0]
+
+    def _resolve_nearest_attachments(
+        self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...]
+    ) -> list[NativeAttachment]:
         response = self._request("GET", f"/api/v1/chats/{chat_id}", authorization)
         try:
             chat_record = response.json()
@@ -159,13 +179,8 @@ class HttpOpenWebUiClient:
                         and all(existing.file_id != file_id for existing in matching_files)
                     ):
                         matching_files.append(NativeAttachment(file_id=file_id, name=name))
-                if len(matching_files) == 1:
-                    return matching_files[0]
-                if len(matching_files) > 1:
-                    label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
-                    raise OpenWebUiAmbiguousAttachment(
-                        f"multiple {label} attachments exist in the nearest native message; use an explicit file_id"
-                    )
+                if matching_files:
+                    return matching_files
             parent_id = message.get("parentId")
             current_id = parent_id if isinstance(parent_id, str) else None
 
