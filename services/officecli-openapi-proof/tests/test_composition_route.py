@@ -121,3 +121,35 @@ def test_changed_native_source_prevents_publication(native_files):
         "/v1/officecli/spreadsheets/compose", headers=HEADERS, json=payload())
     assert response.status_code == 502
     assert not files.uploaded
+
+
+@pytest.mark.parametrize("new_upload", [False, True])
+def test_followup_completeness_uses_user_uploads_on_active_branch(monkeypatch, new_upload):
+    import httpx
+    from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient
+
+    messages = {
+        "upload": {"role": "user", "parentId": None, "files": [
+            {"id": "a", "name": "Jan.xlsx"}, {"id": "b", "name": "Feb.xlsx"}]},
+        "result": {"role": "assistant", "parentId": "upload", "files": [
+            {"id": "generated", "name": "combined.xlsx"}]},
+        "followup": {"role": "user", "parentId": "result", "files":
+            [{"id": "replacement", "name": "new.xlsx"}] if new_upload else []},
+        "now": {"role": "assistant", "parentId": "followup", "files": []},
+        "other-branch": {"role": "user", "parentId": "result", "files": [
+            {"id": "unrelated", "name": "other.xlsx"}]},
+    }
+
+    def request(method, url, **kwargs):
+        assert method == "GET" and url.endswith("/api/v1/chats/chat")
+        assert kwargs["headers"]["Authorization"] == "Bearer caller"
+        return httpx.Response(200, json={"chat": {"history": {"messages": messages}}},
+                              request=httpx.Request(method, url))
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+    sources = client.resolve_nearest_xlsx_attachments("chat", "now", "Bearer caller")
+    assert [f.file_id for f in sources] == (["replacement"] if new_upload else ["a", "b"])
+    # Editing still resolves the nearest generated file when no new upload exists.
+    assert client.resolve_nearest_xlsx_attachment("chat", "now", "Bearer caller") == (
+        "replacement" if new_upload else "generated")

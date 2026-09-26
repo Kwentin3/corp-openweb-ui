@@ -118,7 +118,9 @@ class HttpOpenWebUiClient:
     def resolve_nearest_xlsx_attachments(
         self, chat_id: str, message_id: str, authorization: str
     ) -> list[NativeAttachment]:
-        return self._resolve_nearest_attachments(chat_id, message_id, authorization, (".xlsx",))
+        return self._resolve_nearest_attachments(
+            chat_id, message_id, authorization, (".xlsx",), user_uploads_only=True
+        )
 
     def resolve_nearest_pptx_attachment(
         self, chat_id: str, message_id: str, authorization: str
@@ -146,7 +148,8 @@ class HttpOpenWebUiClient:
         return matches[0]
 
     def _resolve_nearest_attachments(
-        self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...]
+        self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...],
+        *, user_uploads_only: bool = False,
     ) -> list[NativeAttachment]:
         response = self._request("GET", f"/api/v1/chats/{chat_id}", authorization)
         try:
@@ -164,7 +167,10 @@ class HttpOpenWebUiClient:
             message = messages.get(current_id)
             if not isinstance(message, dict):
                 break
-            files = message.get("files", [])
+            # Composition completeness refers to the user's input set. A prior
+            # generated result must not replace it during a follow-up request.
+            # Single-file editing keeps its existing nearest-result behavior.
+            files = message.get("files", []) if not user_uploads_only or message.get("role") == "user" else []
             if isinstance(files, list):
                 matching_files: list[NativeAttachment] = []
                 for native_file in files:

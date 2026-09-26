@@ -157,7 +157,7 @@ class ComposeSpreadsheetsRequest(BaseModel):
     )
     require_all_attachments: bool = Field(
         default=True,
-        description="Require every XLSX in the nearest attachment message. Set false only when the user explicitly requests a subset.",
+        description="Require every XLSX in the nearest user upload on this conversation branch. Generated assistant results do not replace the source set. Set false only when the user explicitly selects another source set or subset.",
     )
 
     @field_validator("output_name")
