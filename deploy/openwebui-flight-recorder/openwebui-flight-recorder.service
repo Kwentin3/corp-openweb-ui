@@ -1,0 +1,32 @@
+[Unit]
+Description=OpenWebUI host flight recorder
+After=docker.service systemd-journald.service
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/openwebui-flight-recorder/recorder.py
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5
+KillMode=control-group
+StateDirectory=openwebui-flight-recorder
+StateDirectoryMode=0700
+UMask=0077
+User=root
+Nice=10
+CPUQuota=10%
+MemoryMax=192M
+TasksMax=128
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/lib/openwebui-flight-recorder
+
+[Install]
+WantedBy=multi-user.target
