@@ -1,0 +1,66 @@
+{
+  "model": "gpt-6-luna",
+  "role": "admin",
+  "source_workbooks": 29,
+  "first_call_source_count": 28,
+  "first_call_status": 422,
+  "first_call_reason": "source_set_incomplete",
+  "model_corrected_to": 29,
+  "native_attachment": true,
+  "downloaded_artifact": "PASS",
+  "sha256": "27f75779189046f1c322029d9e1cfb9fad3f2cd08626fdc399e6ce7d4fc3be54",
+  "receipt": {
+    "source_workbooks": 29,
+    "source_sheets": 467,
+    "copied_cells": 91357,
+    "formulas": 19435,
+    "pictures": 37,
+    "external_links": 18,
+    "source_error_cells": 37,
+    "layout": "source sheets stacked in original order with labelled blocks; column widths use the widest source column",
+    "verified": {
+      "cells": 72361,
+      "formulas": 19435,
+      "cached_values": 72361,
+      "pictures": 37,
+      "merged_ranges": 4517
+    }
+  },
+  "chronological_order_first_result": "FAIL: missing source appended at end",
+  "chronological_order_followup_move": "FAIL: zero-based index interpreted incorrectly",
+  "resources": {
+    "openwebui": {
+      "samples": 30,
+      "sample_peak_bytes": 3436871680,
+      "restart_counts": [
+        1
+      ],
+      "oom_killed": false,
+      "container_ids": [
+        "0fb174020e2d"
+      ]
+    },
+    "officecli451e7cede5-officecli-openapi-proof-1": {
+      "samples": 30,
+      "sample_peak_bytes": 319492096,
+      "restart_counts": [
+        0
+      ],
+      "oom_killed": false,
+      "container_ids": [
+        "8668ff0deffc"
+      ]
+    }
+  },
+  "explicit_order_recomposition": "PASS",
+  "final_sha256": "e424575f143d14acdd7071a42fa7ecc03680093f75a632c1b83963361a75f37c",
+  "final_source_set": 29,
+  "final_independent_verification": {
+    "cells": 72361,
+    "formulas": 19435,
+    "cached_values": 72361,
+    "pictures": 37,
+    "merged_ranges": 4517
+  },
+  "filename_to_month_mapping": "PASS"
+}
