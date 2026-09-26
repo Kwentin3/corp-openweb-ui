@@ -186,8 +186,9 @@ def test_multiple_xlsx_select_native_owner_before_tool_resolution():
     assert body["tool_ids"].count("server:officecli") == 1
     instruction = body["messages"][0]["content"]
     assert instruction.count(MODULE.MULTI_XLSX_INSTRUCTION_MARKER) == 1
-    assert "explicit file_id before deriving" in instruction
-    assert "create_office_spreadsheet after reading" in instruction
+    assert "sources=[{file_id,target_sheet},...]" in instruction
+    assert "compose_office_spreadsheets directly" in instruction
+    assert "Never accumulate complete annotated dumps" in instruction
 
 
 def test_single_duplicate_or_non_xlsx_references_use_native_without_multi_xlsx_guidance():

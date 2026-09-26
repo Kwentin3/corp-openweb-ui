@@ -31,6 +31,6 @@ def load_settings() -> Settings:
     return Settings(
         binary=os.environ.get("OFFICECLI_BINARY", "/usr/local/bin/officecli"),
         timeout_seconds=timeout_seconds,
-        expected_version=os.environ.get("OFFICECLI_EXPECTED_VERSION", "1.0.148"),
+        expected_version=os.environ.get("OFFICECLI_EXPECTED_VERSION", "1.0.152"),
         openwebui_base_url=openwebui_base_url.rstrip("/"),
     )

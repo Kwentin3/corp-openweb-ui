@@ -1,0 +1,34 @@
+{
+  "commit": "04f940c4212c4841962725ce77cdbe3fc01d2291",
+  "image_id": "sha256:cb1364c31d6e170a8200f7a2b976833e41ca70b8ee821c29f0d6e565bc3fa80b",
+  "modules": {
+    "openwebui_client.py": "6fde90320b94c2cb38a66c076fba4b5f8bfe79e33a19dc7ed26895089e29a071",
+    "xlsx_verification.py": "e3f54837d3b81c3f3671d408ec8c27419beb1c5f94579dce1b0db8825fb44d97",
+    "officecli.py": "bb35562235611746f9ff5b42885d4d1757b7a4614c8907ccfd909e5d049ee8c1",
+    "docx_normalization.py": "f30d21c5a1276179a14aab80bbc6e005deed7f6bf4d0878166c34c446819b6ca",
+    "__init__.py": "3f24c5ea4aceefc687100c3f4a060bcae712aa0959864acb89f4157ca65526d4",
+    "app.py": "71ea85618ca1c668e00cf05e132a3181d45e0187828a6acd0aa91ab147a15d66",
+    "xlsx_composition.py": "483133e4d7332fcfce42ec060364c1e3d0425f8ae81e4a089905f65dd1481b03",
+    "config.py": "5432a684f82b211eecc26fcb1a00b9c5ab558074c01fff15343384ba29ccac2e"
+  },
+  "installed_tests": 152,
+  "installed_tests_exit": 0,
+  "baseline_image": "sha256:405a0a5fa0cf284010dc0d97d3f61cb31f699eef8a0999f3026777d68d9c942e",
+  "changed_runtime_modules": [
+    "openwebui_client.py",
+    "app.py"
+  ],
+  "required_ci_run": 36272812192,
+  "required_ci": "success",
+  "deployed_container_id": "3c50363af2ff07ffbe16f71b0edcaf745daacfcef6bce2c470feea88e51aace5",
+  "main_container_id": "0fb174020e2dc8b157a8488b9882e542febcdec2ff132f88ccc552d7f37b0549",
+  "main_restart_count": 1,
+  "final_native_first_and_followup": "PASS",
+  "require_all_attachments": true,
+  "ordinary_user_files_cleaned": 32,
+  "ordinary_qa_user_removed": true,
+  "admin_synthetic_files_cleaned": 6,
+  "admin_synthetic_chats_cleaned": 2,
+  "function_sha256": "8f727e12d5f536fa6b305443de7be22031ed01de0637446b4c2ab8bc6b8ff04d",
+  "officecli_version": "1.0.152"
+}

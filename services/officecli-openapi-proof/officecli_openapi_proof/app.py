@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
+from threading import BoundedSemaphore
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -119,8 +122,59 @@ class InspectOfficeDocumentRequest(NativeDocxReference):
     command_payload: InspectCommandPayload
 
 
+class InspectSpreadsheetCommandPayload(BaseModel):
+    command: Literal["view"] = "view"
+    mode: Literal["outline", "text", "annotated"] = "outline"
+    range: str | None = Field(
+        default=None, max_length=160,
+        description="For text mode, an explicit sheet-qualified range, e.g. Sheet1!A1:H30. Read only the cells needed for the next decision.",
+    )
+
+    @field_validator("range")
+    @classmethod
+    def bounded_sheet_range(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(
+            r"[^\x00-\x1f!]{1,100}![A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?", value
+        ):
+            raise ValueError("range must be sheet-qualified, for example Sheet1!A1:H30")
+        return value
+
+
 class InspectSpreadsheetRequest(NativeXlsxReference):
-    command_payload: InspectCommandPayload
+    command_payload: InspectSpreadsheetCommandPayload = Field(default_factory=InspectSpreadsheetCommandPayload)
+
+
+class SpreadsheetCompositionSource(NativeXlsxReference):
+    file_id: str = Field(min_length=1, max_length=128)
+    target_sheet: str = Field(min_length=1, max_length=31)
+
+
+class ComposeSpreadsheetsRequest(BaseModel):
+    output_name: str = Field(min_length=6, max_length=120)
+    sources: list[SpreadsheetCompositionSource] = Field(
+        min_length=1, max_length=64,
+        description="One native file_id and requested destination sheet name per source workbook. All sheets inside each source are stacked in their original order; no cell contents are needed here.",
+    )
+    require_all_attachments: bool = Field(
+        default=True,
+        description="Require every XLSX in the nearest user upload on this conversation branch. Generated assistant results do not replace the source set. Set false only when the user explicitly selects another source set or subset.",
+    )
+
+    @field_validator("output_name")
+    @classmethod
+    def plain_output_name(cls, value: str) -> str:
+        if re.search(r"[/\\\x00-\x1f]", value) or not value.lower().endswith(".xlsx"):
+            raise ValueError("output_name must be a plain .xlsx filename")
+        return value
+
+    @field_validator("sources")
+    @classmethod
+    def unique_sources_and_sheets(cls, value):
+        if len({s.file_id for s in value}) != len(value):
+            raise ValueError("Each source file must occur exactly once")
+        if len({s.target_sheet.casefold() for s in value}) != len(value):
+            raise ValueError("Destination sheet names must be unique")
+        return value
 
 
 class InspectPresentationCommandPayload(BaseModel):
@@ -513,6 +567,7 @@ def create_app(
         active_settings.openwebui_base_url, active_settings.timeout_seconds
     )
     app = FastAPI(title="OfficeCLI OpenAPI proof", version="0.2.0")
+    composition_slot = BoundedSemaphore(1)
 
     def authenticated_bearer(authorization: str | None) -> str:
         bearer = _bearer(authorization)
@@ -635,7 +690,12 @@ def create_app(
         "/v1/officecli/spreadsheets/inspect",
         response_model=InspectionResponse,
         operation_id="inspect_office_spreadsheet",
-        description="Inspect the single nearest native XLSX attachment with official annotated OfficeCLI output.",
+        description=(
+            "Inspect XLSX structure first (default outline); then read only a needed sheet range "
+            "with mode=text and range=Sheet1!A1:H30. Use explicit file_id for multiple attachments. "
+            "Large cell results are withheld with an explicit notice, never silently truncated. "
+            "Do not read all source cells into chat to combine workbooks."
+        ),
     )
     def inspect_office_spreadsheet(
         request: InspectSpreadsheetRequest,
@@ -659,10 +719,25 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.xlsx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
-                    "view", str(source), request.command_payload.mode, "--json"
-                )
+                payload = request.command_payload
+                if payload.range and payload.mode != "text":
+                    raise HTTPException(status_code=422, detail="range requires mode=text")
+                if payload.mode == "text" and not payload.range:
+                    raise HTTPException(status_code=422, detail="text mode requires a sheet-qualified range; use outline first")
+                arguments = ["view", str(source), payload.mode, "--json"]
+                if payload.range:
+                    arguments.extend(["--range", payload.range])
+                output = officecli.run(*arguments)
                 result = _officecli_json(output, "view")
+                if len(json.dumps(result, ensure_ascii=False)) > 16000:
+                    # A bounded tool response, not a lossy view passed off as a full read.
+                    # The original workbook remains available through the native file ID.
+                    result = {
+                        "success": True,
+                        "content_included": False,
+                        "reason": "inspection_exceeds_context_budget",
+                        "next_action": "Use outline, then mode=text with a smaller sheet-qualified range. Source data has not been discarded.",
+                    }
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
@@ -672,6 +747,99 @@ def create_app(
             officecli_result_sha256=output.content_sha256,
             auto_resident_disabled=output.auto_resident_disabled,
         )
+
+    @app.post(
+        "/v1/officecli/spreadsheets/compose",
+        operation_id="compose_office_spreadsheets",
+        description=(
+            "Combine many native XLSX files into one workbook, one named destination sheet per source workbook. "
+            "Stacks ALL daily sheets from each source in original order, preserving values, live formulas, "
+            "dependencies, cached values, cell formatting, merged cells, and pictures. Original external links "
+            "stay external and are reported; source errors are preserved, not invented or repaired. "
+            "Use this source-backed operation for monthly consolidation instead of reading all cells or "
+            "rewriting them into create commands. No inspect call is required merely to copy all data. "
+            "Only file IDs and destination names are needed. Unsupported features fail before publication. "
+            "Returns a compact verification receipt and attaches the finished workbook."
+        ),
+    )
+    def compose_office_spreadsheets(
+        request: ComposeSpreadsheetsRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+    ) -> dict[str, Any]:
+        bearer = authenticated_bearer(authorization)
+        native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
+        if not composition_slot.acquire(blocking=False):
+            raise HTTPException(status_code=409, detail="A workbook composition is already running. No files were changed; retry after it finishes.")
+        native_file = None
+        try:
+            if request.require_all_attachments:
+                attached = openwebui.resolve_nearest_xlsx_attachments(native_chat_id, native_message_id, bearer)
+                expected = {f.file_id for f in attached}
+                received = {s.file_id for s in request.sources}
+                if expected != received:
+                    raise HTTPException(status_code=422, detail={
+                        "reason": "source_set_incomplete", "expected_count": len(expected),
+                        "missing_file_ids": sorted(expected - received),
+                        "unexpected_file_ids": sorted(received - expected),
+                    })
+            with TemporaryDirectory(prefix="officecli-compose-") as directory:
+                workspace = Path(directory)
+                plan = []
+                source_hashes = {}
+                total_bytes = 0
+                for index, source in enumerate(request.sources):
+                    path = workspace / f"source-{index:02}.xlsx"
+                    openwebui.download(source.file_id, bearer, path)
+                    total_bytes += path.stat().st_size
+                    if total_bytes > 64 * 1024 * 1024:
+                        raise HTTPException(status_code=422, detail="Combined source files exceed the 64 MiB processing limit")
+                    source_hashes[source.file_id] = sha256(path.read_bytes()).hexdigest()
+                    plan.append({"path": str(path), "target_sheet": source.target_sheet})
+                result = workspace / "result.xlsx"
+                plan_path = workspace / "plan.json"
+                plan_path.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+                try:
+                    completed = subprocess.run(
+                        [sys.executable, "-m", "officecli_openapi_proof.xlsx_composition", str(plan_path), str(result)],
+                        capture_output=True, text=True, encoding="utf-8", timeout=180, check=False,
+                    )
+                except subprocess.TimeoutExpired as error:
+                    raise HTTPException(status_code=504, detail="Workbook composition exceeded 180 seconds; no result was published") from error
+                if completed.returncode:
+                    detail = json.loads(completed.stdout) if completed.stdout.strip().startswith("{") else {"reason": "composition_failed"}
+                    raise HTTPException(status_code=422, detail=detail)
+                receipt = json.loads(completed.stdout)
+                if not result.is_file() or not receipt.get("verified"):
+                    raise OfficeCliFailure("Composition did not produce a verified workbook")
+                # Validate a copy: OfficeCLI may reconcile formula caches when opening/saving.
+                audit = workspace / "validation.xlsx"
+                audit.write_bytes(result.read_bytes())
+                validation = _officecli_json(officecli.run("validate", str(audit), "--json"), "validate")
+                source_after = workspace / "source-after-check.xlsx"
+                for source in request.sources:
+                    openwebui.download(source.file_id, bearer, source_after)
+                    if sha256(source_after.read_bytes()).hexdigest() != source_hashes[source.file_id]:
+                        raise OpenWebUiFailure("source file bytes changed during composition")
+                result_hash = sha256(result.read_bytes()).hexdigest()
+                native_file = openwebui.upload(result, request.output_name, bearer,
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                openwebui.attach(native_chat_id, native_message_id, native_file, bearer,
+                    request.output_name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            if native_file and isinstance(native_file.get("id"), str):
+                try:
+                    openwebui.delete(native_file["id"], bearer)
+                except OpenWebUiFailure:
+                    pass
+            raise _http_error(error) from error
+        finally:
+            composition_slot.release()
+        return {"result_file_id": native_file["id"], "result_sha256": result_hash,
+                "receipt": receipt, "source_sha256": source_hashes,
+                "validation_success": validation["success"],
+                "source_bytes_preserved": True}
 
     @app.post(
         "/v1/officecli/documents/apply-batch",

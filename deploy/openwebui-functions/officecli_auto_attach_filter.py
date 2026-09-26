@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.0.0-native-office
+version: 1.1.0-large-workbooks
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,8 +15,8 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v4-native]"
-MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v1]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v5-bounded]"
+MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v2]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
 # Specialized Workspace/Pipe models stay opt-in by omission.
@@ -48,7 +48,9 @@ OFFICECLI_INSTRUCTION = (
     "Do not substitute code, a recipe, or a refusal for the tool call. Finish only after the current "
     "create result contains result_file_id and the native attachment is present; if execution fails, "
     "report the failure. A successful create result is terminal for that file: do not reopen, inspect, apply changes, call help, or recreate it in the same response. Continue creating other requested files and return each resulting native attachment once. Reply with a plain-language sentence naming the files; never echo tool JSON and never leave the final answer empty. "
-    "For existing files, obtain explicit file_id values from native attached_files blocks (their opaque url), or list_chat_files when needed; citation numbers are not file IDs. Prefer the latest user upload over earlier copies. Inspect each required source with the matching format operation: inspect_office_document for DOCX and inspect_office_spreadsheet for XLSX use command_payload={\"command\":\"view\",\"mode\":\"annotated\"}; inspect_office_presentation for PPTX uses command_payload={\"command\":\"query\",\"selector\":\"shape\"}. Then use the matching apply batch to edit an existing file, or create to produce a new file from the sources. Do not ask for re-uploading available files. "
+    "For existing files, obtain explicit file_id values from native attached_files blocks (their opaque url), or list_chat_files when needed; citation numbers are not file IDs. Prefer the latest user upload over earlier copies. "
+    "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. A successful composition is terminal: report the attachment and any preserved source errors/external links from its receipt. "
+    "For other existing-file work, inspect only the structure and cells needed for the next step. inspect_office_document for DOCX uses command_payload={\"command\":\"view\",\"mode\":\"annotated\"}; inspect_office_spreadsheet for XLSX defaults to outline, then use command_payload={\"mode\":\"text\",\"range\":\"Sheet1!A1:H30\"} for a small range; inspect_office_presentation for PPTX uses command_payload={\"command\":\"query\",\"selector\":\"shape\"}. Then use the matching apply batch to edit an existing file, or create for a new derived file. Do not ask for re-uploading available files. "
     "Load only the format-specific skill or help needed for its exact existing structure, or for a new "
     "table, chart, or picture. Preserve unrelated content and never invent document paths."
 )
@@ -56,13 +58,14 @@ OFFICECLI_INSTRUCTION = (
 MULTI_XLSX_INSTRUCTION = (
     f"{MULTI_XLSX_INSTRUCTION_MARKER} For work based on multiple attached Excel files, "
     "use the native attached_files blocks to identify each source: the opaque file url is "
-    "its OpenWebUI file_id. Read each required workbook with inspect_office_spreadsheet "
-    "and that explicit file_id before deriving the result. A citation number is not a file_id. "
+    "its OpenWebUI file_id. A citation number is not a file_id. "
     "Prefer the files in the latest user upload when earlier copies exist; do not ask for "
     "renaming or re-uploading to resolve multiple attachments. If the tags are unavailable, "
     "use the native list_chat_files tool to obtain IDs; never guess an ID. "
-    "For a requested new output based on these sources, call create_office_spreadsheet "
-    "after reading them; apply_office_spreadsheet_batch edits one existing workbook. "
+    "For one output sheet per source workbook, use compose_office_spreadsheets directly: "
+    "it stacks all source sheets, preserves formulas and dependencies, verifies the file, and returns a native attachment. "
+    "For a different calculation or summary, inspect outlines and only necessary ranges before create_office_spreadsheet; "
+    "apply_office_spreadsheet_batch edits one existing workbook. Never accumulate complete annotated dumps of many workbooks. "
     "A new workbook starts with Sheet1: rename it with "
     "{\"command\":\"set\",\"path\":\"/Sheet1\",\"props\":{\"name\":\"Jan 26\"}}, "
     "then add another sheet with {\"command\":\"add\",\"parent\":\"/\",\"type\":\"sheet\","
