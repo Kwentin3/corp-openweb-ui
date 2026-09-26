@@ -1,0 +1,91 @@
+{
+  "chat": "29b83685-4913-4e19-8697-afb6fefe6fcd",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "8885dbb0-31e7-41db-9d55-bab14888eb08",
+      "role": "user",
+      "files": [
+        {
+          "id": "93dfefaf-ffd8-4f82-af48-459a65a8bb38",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "66b839df-d331-41cb-b34c-5ec76d956a3c",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "e5af2413-ae5c-450b-97fa-8ad90c8d9ffc",
+      "role": "assistant",
+      "model": "office-documents",
+      "done": true,
+      "files": [
+        {
+          "id": "1a9866ad-9ece-4efc-9e81-231d2d5874ca",
+          "name": "sales-office-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4560
+        }
+      ],
+      "sources": [
+        {
+          "id": "93dfefaf-ffd8-4f82-af48-459a65a8bb38",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "93dfefaf-ffd8-4f82-af48-459a65a8bb38"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "66b839df-d331-41cb-b34c-5ec76d956a3c",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "66b839df-d331-41cb-b34c-5ec76d956a3c"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "93dfefaf-ffd8-4f82-af48-459a65a8bb38",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "66b839df-d331-41cb-b34c-5ec76d956a3c",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "1a9866ad-9ece-4efc-9e81-231d2d5874ca",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    }
+  ]
+}

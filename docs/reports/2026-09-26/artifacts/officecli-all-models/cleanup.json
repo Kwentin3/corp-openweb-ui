@@ -1,0 +1,12 @@
+{
+  "temporary_role": "user",
+  "files_deleted": 44,
+  "chats_deleted": 15,
+  "failed_deletes": [],
+  "temporary_user_deleted": true,
+  "original_admin_session_restored": true,
+  "task_browser_tabs_closed": 7,
+  "temporary_stream_probe_removed": true,
+  "rollback_image_preserved": true,
+  "rollback_backups": "/root/.local/state/openwebui-releases/officecli-all-models-20260926"
+}

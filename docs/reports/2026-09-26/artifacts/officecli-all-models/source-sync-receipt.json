@@ -1,0 +1,22 @@
+[
+  {
+    "path": "deploy/openwebui-patches/Dockerfile",
+    "sha256": "7fb3f89b6bc0f1166bfc55bff5afd3dab96fe9cfa06c10a14fb5911b09d08e84"
+  },
+  {
+    "path": "deploy/openwebui-patches/google_openai_tool_compat.py",
+    "sha256": "7be9364d5cffb991426faeef8dab5f6da464534056fefdfc2f32822e3923b4fb"
+  },
+  {
+    "path": "deploy/openwebui-patches/apply_google_openai_tool_protocol_patch.py",
+    "sha256": "54be2dc803bf634aeb041bb806b974b5e46111b24f8029fce08aa71a5aa01ddd"
+  },
+  {
+    "path": "deploy/openwebui-patches/verify_google_openai_tool_protocol.py",
+    "sha256": "6a5e71005cbd3d192eb8f4e323f992f51f2cdf65f30818f2ed180f74f269dea8"
+  },
+  {
+    "path": "deploy/openwebui-media-lifecycle/sync_production_source.py",
+    "sha256": "6e4b00bbd512e6aa68671d865393701dd1205e37f0071a495f5aec3c3ee0fbe7"
+  }
+]

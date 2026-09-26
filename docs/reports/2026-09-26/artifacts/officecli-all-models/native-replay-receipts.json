@@ -1,7 +1,7 @@
 [
   {
     "model": "models/gemini-3.5-flash",
-    "image_id": "sha256:f715c1e64a9818fd79778772634ddf9e5b329cd51d8759001ff80b9dfb717772",
+    "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
     "native_parser": "pass",
     "native_output": "pass",
     "native_history_replay": "pass",
@@ -11,7 +11,7 @@
   },
   {
     "model": "models/gemini-3.6-flash",
-    "image_id": "sha256:f715c1e64a9818fd79778772634ddf9e5b329cd51d8759001ff80b9dfb717772",
+    "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
     "native_parser": "pass",
     "native_output": "pass",
     "native_history_replay": "pass",
@@ -21,7 +21,7 @@
   },
   {
     "model": "models/gemini-3.1-flash-lite",
-    "image_id": "sha256:f715c1e64a9818fd79778772634ddf9e5b329cd51d8759001ff80b9dfb717772",
+    "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
     "native_parser": "pass",
     "native_output": "pass",
     "native_history_replay": "pass",
@@ -31,7 +31,7 @@
   },
   {
     "model": "models/gemini-3.5-flash-lite",
-    "image_id": "sha256:f715c1e64a9818fd79778772634ddf9e5b329cd51d8759001ff80b9dfb717772",
+    "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
     "native_parser": "pass",
     "native_output": "pass",
     "native_history_replay": "pass",
