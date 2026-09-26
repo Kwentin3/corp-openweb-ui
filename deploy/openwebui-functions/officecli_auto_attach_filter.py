@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 0.9.0-multi-xlsx-native
+version: 0.9.1-qualified-catalog
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -28,7 +28,10 @@ DEFAULT_TARGET_MODEL_IDS = (
     "models/gemini-3.6-flash,"
     "gpt-5.6-luna,"
     "models/gemini-3.1-flash-lite,"
-    "models/gemini-3.5-flash-lite"
+    "models/gemini-3.5-flash-lite,"
+    "gpt-6-luna,"
+    "gpt-6-sol,"
+    "claude-opus-5-5"
 )
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "

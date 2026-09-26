@@ -15,13 +15,13 @@ OpenWebUI остаётся владельцем чатов, пользовате
    - соединение включено;
    - access grant — штатный доступ авторизованных пользователей OpenWebUI.
 
-2. Импортировать `deploy/openwebui-functions/officecli_auto_attach_filter.py` как Filter, но до проверки оставить valves пустыми. Файл в Git является source of truth; его LF-нормализованный SHA-256 для версии `0.9.0-multi-xlsx-native` — `b4ea612001ffabd3c9a130816d671427c5df09974a37a3c0a015878525238d1d`. Это единственный автоподключающий слой: он добавляет существующий `server:officecli` до штатного разрешения tools и не вызывает OfficeCLI сам. В списке **Functions** включить оба независимых флага этой функции: основной switch строки (**Active**) и switch **Global** через меню `…`. Без Global inlet не участвует в обычных чатах; без Active функция не исполняется вообще.
+2. Импортировать `deploy/openwebui-functions/officecli_auto_attach_filter.py` как Filter, но до проверки оставить valves пустыми. Файл в Git является source of truth; его LF-нормализованный SHA-256 для версии `0.9.1-qualified-catalog` — `f60a19ffe34e2b54b7f65f7f2477360480b6ffb35caca1d75738482f7578081c`. Это единственный автоподключающий слой: он добавляет существующий `server:officecli` до штатного разрешения tools и не вызывает OfficeCLI сам. В списке **Functions** включить оба независимых флага этой функции: основной switch строки (**Active**) и switch **Global** через меню `…`. Без Global inlet не участвует в обычных чатах; без Active функция не исполняется вообще.
 
-3. Для каждого прямого профиля модели в **Advanced Parameters** явно выбрать **Function Calling: Native** и нажать **Save & Update**; не полагаться на значение `Default`. В valves Filter оставить проверенный список прямых моделей текущего каталога:
-   `claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents`.
-   Это восемь прямых моделей и существующий профиль `office-documents`. У последнего включить `meta.capabilities.file_upload`, сохранив его базовую модель и Tool IDs. Пустое `target_model_ids` выключает Filter. Broker/NDFL/STT/Mistral и task models не добавлять.
+3. Для квалифицированных прямых профилей, имеющих Workspace-запись, в **Advanced Parameters** явно выбрать **Function Calling: Native** и нажать **Save & Update**; не полагаться на значение `Default`. При нескольких XLSX Native выбирает сам Filter по valve ниже. Для provider-профилей без Workspace-записи не создавать дубликат ради этой настройки. В valves Filter оставить проверенный список текущего каталога:
+   `claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents,gpt-6-luna,gpt-6-sol,claude-opus-5-5`.
+   Это одиннадцать прямых моделей и существующий профиль `office-documents`. У последнего включить `meta.capabilities.file_upload`, сохранив его базовую модель и Tool IDs. Пустое `target_model_ids` выключает Filter. Broker/NDFL/STT/Mistral и task models не добавлять. Три новых прямых профиля сейчас видны только администраторам; квалификация OfficeCLI не меняет их access grants. `models/antigravity-preview-latest` не включать: фактический провайдер отвергает function calling.
 
-4. Filter дописывает одну короткую идемпотентную инструкцию, общую для всех девяти профилей, не заменяя существующий system prompt. В ней есть только маршрутизация трёх create-операций, три минимальные формы команд, граница help для сложной структуры/правки и требование `result_file_id`. Отдельной Gemini-инструкции нет. Штатное разрешение `tool_ids` затем сохраняет проверку доступа к global Tool Server; Filter не открывает чужие файлы и не обходит отключённый сервер.
+4. Filter дописывает одну короткую идемпотентную инструкцию, общую для всех квалифицированных профилей, не заменяя существующий system prompt. В ней есть только маршрутизация трёх create-операций, три минимальные формы команд, граница help для сложной структуры/правки и требование `result_file_id`. Отдельной Gemini-инструкции нет. Штатное разрешение `tool_ids` затем сохраняет проверку доступа к global Tool Server; Filter не открывает чужие файлы и не обходит отключённый сервер.
 
 Не подключать инструмент вслепую к специализированным моделям Broker/NDFL/STT/Mistral. Список фактически проверенных моделей фиксируется в сдаче. Модель без native tool calling не объявлять поддержанной только потому, что Tool Server виден пользователю.
 
@@ -40,7 +40,7 @@ OpenWebUI остаётся владельцем чатов, пользовате
    ```
 
 3. Создать глобальный Tool Server `officecli` с внутренним URL из шага 1 раздела «Нативная конфигурация»; секреты и session state в Git не переносить.
-4. Для Gemini использовать квалифицированный основной образ с overlay V2 из раздела ниже. Импортировать Filter строго из `deploy/openwebui-functions/officecli_auto_attach_filter.py`, проверить версию и SHA-256, затем настроить оба модельных valve на девять ID из раздела «Нативная конфигурация». Для `office-documents` включить загрузку файлов; исключение reasoning настроить только на Luna.
+4. Для Gemini использовать квалифицированный основной образ с overlay V2 из раздела ниже. Импортировать Filter строго из `deploy/openwebui-functions/officecli_auto_attach_filter.py`, проверить версию и SHA-256, затем настроить оба модельных valve на двенадцать ID из раздела «Нативная конфигурация». Для `office-documents` включить загрузку файлов; исключение reasoning настроить на `gpt-5.6-luna,gpt-6-luna,gpt-6-sol`.
 5. Включить **Active** и **Global** только после read-only проверки карточки Function и одного успешного файла на тестовой модели. После включения выполнить полную матрицу из отчёта.
 
 Импорт Function и настройка Tool Server остаются нативной административной конфигурацией OpenWebUI. Репозиторий хранит воспроизводимый source и порядок действий, но не копию базы OpenWebUI, токены, cookies или credentials.
@@ -59,7 +59,7 @@ Source of truth инструкции — строка `OFFICECLI_INSTRUCTION` в
 ### Несколько XLSX в обычном чате
 
 Для OpenWebUI 0.9.6 отдельно настроить `multi_xlsx_native_model_ids`:
-Установить тот же список девяти ID, что и в `target_model_ids` выше.
+Установить тот же список двенадцати ID, что и в `target_model_ids` выше.
 По умолчанию этот valve пуст; Gemini требует квалифицированного overlay V2.
 При двух различных XLSX в штатном `body.files` Filter выбирает native tool loop
 через общий `metadata.params.function_calling`; ручная настройка Native пользователю
@@ -70,8 +70,8 @@ Filter не создаёт собственный реестр файлов. Н�
 Полный извлечённый контекст также предоставляет штатная обработка файлов OpenWebUI.
 
 Для текущего OpenAI Chat Completions установить
-`multi_xlsx_no_reasoning_model_ids=gpt-5.6-luna`: отсутствие явного effort
-переводится в `none` только для этого многофайлового пути. Явно выбранный другой
+`multi_xlsx_no_reasoning_model_ids=gpt-5.6-luna,gpt-6-luna,gpt-6-sol`: отсутствие явного effort
+переводится в `none` только для многофайлового пути этих профилей. Явно выбранный другой
 effort вызывает объяснимую ошибку, а не скрытое снижение. Для reasoning вместе
 с tools нужна отдельно квалифицированная Responses-конфигурация.
 
@@ -85,7 +85,7 @@ valve не изменяются. Это ограничение протокол�
 Для отключения только автоматического многофайлового пути очистить
 `multi_xlsx_native_model_ids`. Остальные valves и чаты остаются у своих владельцев.
 
-### Полный опубликованный каталог: квалифицированный release Gemini
+### Первоначальные девять профилей: квалифицированный release Gemini
 
 2026-09-26 после отдельного согласования и успешного CI установлен
 `corp-openwebui/openwebui:officecli-all-models-release-20260926`, image ID
@@ -130,6 +130,23 @@ Rollback: вернуть `corp-openwebui/openwebui:media-intake-audio-release-20
 патчирование предположительно похожего источника.
 
 ## Пользовательский результат
+
+### Расширение каталога 26 сентября
+
+После отдельной проверки GPT 6 Luna, GPT 6 Sol и Claude Opus 5.5 оба модельных
+valve содержат двенадцать профилей. Три новых профиля прошли обычный интерфейс
+чата под администратором, native inspect двух исходников, создание вложения,
+скачивание и строгую проверку значений, формул, итогов и отсутствия лишних листов.
+Они не видны обычному пользователю в текущем каталоге; grants не расширялись.
+Antigravity исключён после фактического HTTP 400 «Function calling is not enabled».
+Изменена только нативная Function и её valves; образ и sidecar не обновлялись.
+Отчёт: `docs/reports/2026-09-26/OFFICECLI_CATALOG_EXPANSION.report.md`.
+
+Продолжение копии старого чата с 29 XLSX остаётся **не квалифицированным**:
+после native вызовов получены 422 из-за 66 команд при лимите 64 и OOM основного
+OpenWebUI. Причина роста памяти не доказана; скачиваемого результата нет.
+Отдельная диагностика и приёмка: https://github.com/Kwentin3/corp-openweb-ui/issues/527.
+Простая двухфайловая матрица не доказывает объединение всех 29 финансовых книг.
 
 Пользователь видит короткие статусы и штатное вложение с новым или изменённым офисным файлом DOCX/XLSX/PPTX. JSON payload, внутренние ID, команды OfficeCLI и диагностический протокол не должны быть основным ответом.
 

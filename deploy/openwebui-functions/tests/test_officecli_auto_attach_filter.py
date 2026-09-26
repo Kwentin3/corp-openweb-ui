@@ -111,7 +111,7 @@ def test_default_direct_model_catalog_includes_gemini_but_not_specialized_models
     assert specialized_body == before
 
 
-def test_default_catalog_covers_exactly_the_eight_qualified_direct_models():
+def test_default_catalog_covers_exactly_the_eleven_qualified_direct_models():
     expected = {
         "claude-opus-5",
         "claude-sonnet-4-6",
@@ -121,6 +121,9 @@ def test_default_catalog_covers_exactly_the_eight_qualified_direct_models():
         "models/gemini-3.6-flash",
         "models/gemini-3.1-flash-lite",
         "models/gemini-3.5-flash-lite",
+        "gpt-6-luna",
+        "gpt-6-sol",
+        "claude-opus-5-5",
     }
 
     assert MODULE._comma_separated_values(MODULE.DEFAULT_TARGET_MODEL_IDS) == expected
@@ -243,16 +246,17 @@ def test_already_published_office_alias_can_be_explicitly_qualified():
     assert MODULE.MULTI_XLSX_INSTRUCTION_MARKER in body["messages"][0]["content"]
 
 
-def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning():
+@pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
+def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning(model):
     instance = configured_filter()
-    instance.valves.multi_xlsx_no_reasoning_model_ids = "gpt-5.6-luna"
-    body = {**eligible_body(), "model": "gpt-5.6-luna", "files": xlsx_files()}
+    instance.valves.multi_xlsx_no_reasoning_model_ids = "gpt-5.6-luna,gpt-6-luna,gpt-6-sol"
+    body = {**eligible_body(), "model": model, "files": xlsx_files()}
     run_inlet(instance, body, {"params": {}})
     assert body["reasoning_effort"] == "none"
-    requested = {**eligible_body(), "model": "gpt-5.6-luna", "files": xlsx_files(), "reasoning_effort": "high"}
+    requested = {**eligible_body(), "model": model, "files": xlsx_files(), "reasoning_effort": "high"}
     with pytest.raises(ValueError, match="cannot combine reasoning"):
         run_inlet(instance, requested, {"params": {"reasoning_effort": "high"}})
     assert requested["reasoning_effort"] == "high"
-    single = {**eligible_body(), "model": "gpt-5.6-luna", "files": [xlsx_files()[0]]}
+    single = {**eligible_body(), "model": model, "files": [xlsx_files()[0]]}
     run_inlet(instance, single, {"params": {}})
     assert "reasoning_effort" not in single
