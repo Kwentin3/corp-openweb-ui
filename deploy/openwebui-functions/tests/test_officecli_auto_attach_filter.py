@@ -230,6 +230,19 @@ def test_followup_with_files_retains_native_route_without_new_upload():
     assert metadata["params"]["function_calling"] == "native"
 
 
+def test_already_published_office_alias_can_be_explicitly_qualified():
+    instance = configured_filter()
+    instance.valves.target_model_ids += ",office-documents"
+    instance.valves.multi_xlsx_native_model_ids += ",office-documents"
+    body = {**eligible_body(), "model": "office-documents", "files": xlsx_files(),
+            "tool_ids": ["server:officecli"]}
+    metadata = {"params": {}}
+    run_inlet(instance, body, metadata)
+    assert body["tool_ids"] == ["server:officecli"]
+    assert metadata["params"]["function_calling"] == "native"
+    assert MODULE.MULTI_XLSX_INSTRUCTION_MARKER in body["messages"][0]["content"]
+
+
 def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning():
     instance = configured_filter()
     instance.valves.multi_xlsx_no_reasoning_model_ids = "gpt-5.6-luna"
