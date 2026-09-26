@@ -15,7 +15,7 @@ OpenWebUI остаётся владельцем чатов, пользовате
    - соединение включено;
    - access grant — штатный доступ авторизованных пользователей OpenWebUI.
 
-2. Импортировать `deploy/openwebui-functions/officecli_auto_attach_filter.py` как Filter, но до проверки оставить valves пустыми. Файл в Git является source of truth; его LF-нормализованный SHA-256 для версии `0.8.4-compact-context-experiment` — `f348a3e20f3bd2cd42785b461d029a505c7e39a61b15b0c6bc683a5f6c3fca93`. Это единственный разрешённый автоподключающий слой: он добавляет существующий `server:officecli` до штатного разрешения tools и не вызывает OfficeCLI сам. В списке **Functions** включить оба независимых флага этой функции: основной switch строки (**Active**) и switch **Global** через меню `…`. Без Global inlet не участвует в обычных чатах; без Active функция не исполняется вообще.
+2. Импортировать `deploy/openwebui-functions/officecli_auto_attach_filter.py` как Filter, но до проверки оставить valves пустыми. Файл в Git является source of truth; его LF-нормализованный SHA-256 для версии `0.9.0-multi-xlsx-native` — `b4ea612001ffabd3c9a130816d671427c5df09974a37a3c0a015878525238d1d`. Это единственный автоподключающий слой: он добавляет существующий `server:officecli` до штатного разрешения tools и не вызывает OfficeCLI сам. В списке **Functions** включить оба независимых флага этой функции: основной switch строки (**Active**) и switch **Global** через меню `…`. Без Global inlet не участвует в обычных чатах; без Active функция не исполняется вообще.
 
 3. Для каждого прямого профиля модели в **Advanced Parameters** явно выбрать **Function Calling: Native** и нажать **Save & Update**; не полагаться на значение `Default`. В valves Filter оставить проверенный список прямых моделей текущего каталога:
    `claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite`.
@@ -55,6 +55,33 @@ Source of truth инструкции — строка `OFFICECLI_INSTRUCTION` в
 - успех подтверждается `result_file_id` и штатным вложением, после чего лишние inspect/help/recreate в том же ответе запрещены.
 
 Пользователь не вводит эту инструкцию, не включает function calling и не называет инструмент. Не копировать парафраз из этого runbook в Admin UI: импортировать точный Python source. При нескольких офисных файлах в ближайшем сообщении адаптер не выбирает первый молча: модель должна использовать однозначный `file_id` из штатного контекста.
+
+### Несколько XLSX в обычном чате
+
+Для OpenWebUI 0.9.6 отдельно настроить `multi_xlsx_native_model_ids`:
+`gpt-5.6-luna,gpt-5.4-mini,claude-sonnet-4-6`. По умолчанию этот valve пуст.
+При двух различных XLSX в штатном `body.files` Filter выбирает native tool loop
+через общий `metadata.params.function_calling`; ручная настройка Native пользователю
+не требуется. Именно OpenWebUI добавляет `<attached_files>` с ID источников,
+проверяет права, выполняет последовательные tools и прикрепляет выходной файл.
+Filter не создаёт собственный реестр файлов. На последующих сообщениях интерфейс
+сохраняет исходные ссылки в `files`.
+
+Для текущего OpenAI Chat Completions установить
+`multi_xlsx_no_reasoning_model_ids=gpt-5.6-luna`: отсутствие явного effort
+переводится в `none` только для этого многофайлового пути. Явно выбранный другой
+effort вызывает объяснимую ошибку, а не скрытое снижение. Для reasoning вместе
+с tools нужна отдельно квалифицированная Responses-конфигурация.
+
+Gemini не включать в этот новый valve на текущем runtime: его streamed tool calls
+без `index` отбрасываются OpenWebUI; дополнительно требуется сохранение Google
+thought signature. Старый `target_model_ids` и остальные Office-сценарии этим
+valve не изменяются. Это ограничение протокола, а не потеря загруженных файлов.
+Проверка данных, формул, отсутствия лишних листов и ролей описана в
+`docs/reports/2026-09-26/OFFICECLI_MULTI_XLSX_PRODUCT.report.md`.
+
+Для отключения только автоматического многофайлового пути очистить
+`multi_xlsx_native_model_ids`. Остальные valves и чаты остаются у своих владельцев.
 
 ## Пользовательский результат
 

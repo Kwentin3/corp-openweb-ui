@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import importlib.util
+import pytest
 from pathlib import Path
 
 
@@ -19,7 +20,10 @@ def run_inlet(filter_instance, body, metadata):
 
 def configured_filter():
     instance = MODULE.Filter()
-    instance.valves = instance.Valves(target_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS)
+    instance.valves = instance.Valves(
+        target_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS,
+        multi_xlsx_native_model_ids=MODULE.DEFAULT_TARGET_MODEL_IDS,
+    )
     return instance
 
 
@@ -156,3 +160,86 @@ def test_empty_valve_is_still_disabled():
     run_inlet(filter_instance, body, native_metadata())
 
     assert body == before
+
+
+def xlsx_files():
+    return [
+        {"type": "file", "id": "jan-id", "url": "jan-id", "name": "January.xlsx"},
+        {"type": "file", "id": "feb-id", "url": "feb-id", "name": "February.xlsx"},
+    ]
+
+
+def test_multiple_xlsx_select_native_owner_before_tool_resolution():
+    body = {**eligible_body(), "files": xlsx_files()}
+    metadata = {"chat_id": "chat", "params": {"temperature": 0.2}}
+    files_before = copy.deepcopy(body["files"])
+    instance = configured_filter()
+    run_inlet(instance, body, metadata)
+    run_inlet(instance, body, metadata)
+    assert metadata["params"] == {"temperature": 0.2, "function_calling": "native"}
+    assert body["files"] == files_before
+    assert body["tool_ids"].count("server:officecli") == 1
+    instruction = body["messages"][0]["content"]
+    assert instruction.count(MODULE.MULTI_XLSX_INSTRUCTION_MARKER) == 1
+    assert "explicit file_id before deriving" in instruction
+    assert "create_office_spreadsheet after reading" in instruction
+
+
+def test_single_duplicate_or_non_xlsx_references_do_not_change_execution_mode():
+    for files in ([xlsx_files()[0]], [xlsx_files()[0]] * 2,
+                  [xlsx_files()[0], {"type": "file", "id": "word", "name": "a.docx"}],
+                  [{"type": "folder", "id": "a", "name": "a.xlsx"}, xlsx_files()[0]]):
+        body = {**eligible_body(), "files": files}
+        metadata = {"params": {}}
+        run_inlet(configured_filter(), body, metadata)
+        assert metadata["params"] == {}
+        assert MODULE.MULTI_XLSX_INSTRUCTION_MARKER not in body["messages"][0]["content"]
+
+
+def test_multiple_xlsx_do_not_override_task_explicit_tools_or_unqualified_model():
+    for model, task, tools in (("claude-opus-5", "title_generation", None),
+                                ("office-documents", None, None),
+                                ("claude-opus-5", None, [])):
+        body = {**eligible_body(), "model": model, "files": xlsx_files()}
+        if tools is not None:
+            body["tools"] = tools
+        metadata = {"params": {}}
+        if task:
+            metadata["task"] = task
+        before = copy.deepcopy(body)
+        run_inlet(configured_filter(), body, metadata)
+        assert body == before
+        assert metadata["params"] == {}
+
+
+def test_native_multi_xlsx_routing_can_be_disabled_without_disabling_officecli():
+    instance = configured_filter()
+    instance.valves.multi_xlsx_native_model_ids = ""
+    body = {**eligible_body(), "files": xlsx_files()}
+    metadata = {"params": {}}
+    run_inlet(instance, body, metadata)
+    assert "server:officecli" in body["tool_ids"]
+    assert metadata["params"] == {}
+
+
+def test_followup_with_files_retains_native_route_without_new_upload():
+    body = {**eligible_body(), "files": xlsx_files()}
+    body["messages"][-1]["content"] = "Recalculate the output using the same inputs."
+    metadata = {"params": {}}
+    run_inlet(configured_filter(), body, metadata)
+    assert metadata["params"]["function_calling"] == "native"
+
+
+def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning():
+    instance = configured_filter()
+    instance.valves.multi_xlsx_no_reasoning_model_ids = "gpt-5.6-luna"
+    body = {**eligible_body(), "model": "gpt-5.6-luna", "files": xlsx_files()}
+    run_inlet(instance, body, {"params": {}})
+    assert body["reasoning_effort"] == "none"
+    requested = {**eligible_body(), "model": "gpt-5.6-luna", "files": xlsx_files(), "reasoning_effort": "high"}
+    with pytest.raises(ValueError, match="cannot combine reasoning"):
+        run_inlet(instance, requested, {"params": {"reasoning_effort": "high"}})
+    assert requested["reasoning_effort"] == "high"
+    single = {**eligible_body(), "model": "gpt-5.6-luna", "files": [xlsx_files()[0]]}
+    run_inlet(instance, single, {"params": {}})
+    assert "reasoning_effort" not in single
