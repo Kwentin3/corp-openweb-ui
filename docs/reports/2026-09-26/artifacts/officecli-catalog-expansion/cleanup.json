@@ -1,0 +1,15 @@
+{
+  "deleted_task_files": 15,
+  "deleted_task_chats": 7,
+  "original_chat_status": 200,
+  "protected_original_files": [
+    {
+      "id": "78c06639-1978-4fd1-b719-d63790307045",
+      "status": 200
+    },
+    {
+      "id": "88be6011-c0ac-423b-a889-043a8e477e34",
+      "status": 200
+    }
+  ]
+}

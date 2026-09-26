@@ -1,0 +1,32 @@
+{
+  "chat": "826c071b-9ea4-4722-a9ff-f18974df62c2",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "5f3f93f1-0320-49e6-b55e-501cb8aa176b",
+      "role": "user",
+      "files": [
+        {
+          "id": "3d6f86f7-0ab3-4928-8010-9895503b1124",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "0cc138ad-fb58-4fa1-b0fa-634bd3334599",
+          "name": "feb.xlsx"
+        }
+      ],
+      "calls": []
+    },
+    {
+      "id": "d26d3463-991a-4a48-93c1-8b6c468dea6d",
+      "role": "assistant",
+      "model": "models/antigravity-preview-latest",
+      "done": false,
+      "error": {
+        "content": "[{'error': {'code': 400, 'message': 'Function calling is not enabled for models/antigravity-preview-latest', 'status': 'INVALID_ARGUMENT'}}]"
+      },
+      "files": [],
+      "calls": []
+    }
+  ]
+}

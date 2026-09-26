@@ -1,0 +1,239 @@
+{
+  "scope": "catalog visible to the authenticated admin; no provider calls",
+  "filter_active": true,
+  "filter_global": true,
+  "filter_sha256": "b4ea612001ffabd3c9a130816d671427c5df09974a37a3c0a015878525238d1d",
+  "native_attachment_count_in_replay": 29,
+  "valves": {
+    "target_model_ids": "claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents",
+    "multi_xlsx_native_model_ids": "claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents",
+    "multi_xlsx_no_reasoning_model_ids": "gpt-5.6-luna"
+  },
+  "models": [
+    {
+      "id": "arena-model",
+      "name": "Arena Model",
+      "category": "arena",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "broker_reports_gate1_pipe",
+      "name": "НДФЛ. Брокерские отчеты / Gate 1",
+      "category": "pipe",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "broker-reports-ndfl",
+      "name": "NDFL",
+      "category": "pipe",
+      "base_model_id": "broker_reports_gate1_pipe",
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": true
+    },
+    {
+      "id": "claude-opus-5",
+      "name": "Claude Opus 5",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "claude-sonnet-4-6",
+      "name": "Claude Sonnet 4.6",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "goal391_grouped_mapping_lab_v14",
+      "name": "Goal 391 grouped mapping lab",
+      "category": "pipe",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "goal391-grouped-mapping-lab-v14",
+      "name": "Goal 391 mapping lab",
+      "category": "pipe",
+      "base_model_id": "goal391_grouped_mapping_lab_v14",
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "name": "gpt-5.4-mini",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/gemini-3.5-flash",
+      "name": "models/gemini-3.5-flash",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/gemini-3.6-flash",
+      "name": "models/gemini-3.6-flash",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "office-documents",
+      "name": "Office Documents",
+      "category": "covered",
+      "base_model_id": "claude-opus-5",
+      "workspace_tools": [
+        "server:officecli"
+      ],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": true
+    },
+    {
+      "id": "broker_reports_goal516_candidate_pipe",
+      "name": "Broker Reports GOAL 516 Candidate",
+      "category": "pipe",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "claude-opus-5-5",
+      "name": "Claude Opus 5.5",
+      "category": "uncovered_chat",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "broker-reports-ndfl-goal516-candidate",
+      "name": "NDFL GOAL 516 Candidate",
+      "category": "pipe",
+      "base_model_id": "broker_reports_goal516_candidate_pipe",
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": true
+    },
+    {
+      "id": "gpt-5.6-luna",
+      "name": "gpt-5.6-luna",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "gpt-6-luna",
+      "name": "gpt-6-luna",
+      "category": "uncovered_chat",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "gpt-6-sol",
+      "name": "gpt-6-sol",
+      "category": "uncovered_chat",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/antigravity-preview-latest",
+      "name": "models/antigravity-preview-latest",
+      "category": "uncovered_chat",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/gemini-3.1-flash-lite",
+      "name": "models/gemini-3.1-flash-lite",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/gemini-3.5-flash-lite",
+      "name": "models/gemini-3.5-flash-lite",
+      "category": "covered",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": true,
+      "filter_selects_native_multi_xlsx": true,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/gemini-3.8-flash-lite-tts",
+      "name": "models/gemini-3.8-flash-lite-tts",
+      "category": "tts",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    },
+    {
+      "id": "models/gemini-3.8-flash-tts",
+      "name": "models/gemini-3.8-flash-tts",
+      "category": "tts",
+      "base_model_id": null,
+      "workspace_tools": [],
+      "filter_attaches_officecli": false,
+      "filter_selects_native_multi_xlsx": false,
+      "public_workspace_read": false
+    }
+  ],
+  "inactive_workspace_models": [
+    "test"
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "filter": {
+    "id": "officecli_auto_attach_filter",
+    "active": true,
+    "global": true,
+    "sha256": "f60a19ffe34e2b54b7f65f7f2477360480b6ffb35caca1d75738482f7578081c",
+    "valves": {
+      "target_model_ids": "claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents,gpt-6-luna,gpt-6-sol,claude-opus-5-5",
+      "multi_xlsx_native_model_ids": "claude-opus-5,claude-sonnet-4-6,gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,office-documents,gpt-6-luna,gpt-6-sol,claude-opus-5-5",
+      "multi_xlsx_no_reasoning_model_ids": "gpt-5.6-luna,gpt-6-luna,gpt-6-sol"
+    }
+  },
+  "history_probe": {
+    "chat": "7d958a20-78d0-4725-b00a-58083fdd8d0a",
+    "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+    "last_answer_done": false,
+    "original_file_ids": [
+      "ff5dd26c-9190-4738-917b-44ea4e8d0330",
+      "818b136c-6450-4f37-809a-2f40c0d70e0a",
+      "41fb9c89-6056-4870-be2d-d8738d906aac",
+      "b03d0815-8c39-4eaa-aa05-282df34e8d5b",
+      "56ff7fd9-0aad-4f61-b265-11700f6bfb69",
+      "f0a4dbe4-9eb5-420f-957d-4ddea1509c8a",
+      "282a208c-b3fa-4251-99ae-cc1d6e985fe1",
+      "c6221c13-b8d3-4f9d-bcef-2a28362fc17e",
+      "3eee9b77-0a1a-4793-bb3b-0b107153f4cf",
+      "88be6011-c0ac-423b-a889-043a8e477e34",
+      "5a1191ab-15e7-47f1-a1e0-dee22f0a9497",
+      "440a2da5-bbd9-4b5a-8995-627c265edd07",
+      "30773215-e563-4ec0-a1eb-ccd8de796f92",
+      "380da61a-3077-438f-b9b8-bb3299ba6222",
+      "a32429c1-34a6-443f-b6c3-2123d62fe65e",
+      "6f7be7bd-c978-459c-a179-20ab31befe81",
+      "9d731397-1bdb-40b9-bfd9-49fbb73c8500",
+      "69981111-3fee-4077-9629-5bf7e3851bf2",
+      "08169330-7dcf-4eca-b031-7b6763f43ac4",
+      "4b1d4545-de14-4714-a197-ebdf05248150",
+      "3f798aa3-723f-4e5d-bcb7-ebc39fde4f37",
+      "fdac6490-1bc9-4a8c-9d30-b8266162533f",
+      "e2b2b82a-6156-453c-994e-706484dad48f",
+      "660ba81a-2b50-465c-998d-f5243d6d3023",
+      "ae6309de-e45e-4955-b4a6-4b062d41040f",
+      "3df6bbed-ebda-4f70-8784-0b19173266cf",
+      "a69497ba-a61e-4126-9698-9db0d8651105",
+      "78c06639-1978-4fd1-b719-d63790307045",
+      "662fbf8e-d27b-4dae-b132-cc5c1f624a78"
+    ],
+    "last_answer_files": []
+  }
+}

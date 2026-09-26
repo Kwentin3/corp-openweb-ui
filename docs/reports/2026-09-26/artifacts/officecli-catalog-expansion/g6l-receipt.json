@@ -1,0 +1,58 @@
+{
+  "chat": "ddb964ab-92a8-4c40-a830-a021cfd1ea0b",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "fa4ac0d5-19bd-41c7-ad61-3f4f231843a0",
+      "role": "user",
+      "files": [
+        {
+          "id": "3b39536f-510d-455c-89d9-aa6747757b90",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "27b3e285-2cf1-4cf5-998a-916e3d7a9f58",
+          "name": "feb.xlsx"
+        }
+      ],
+      "calls": []
+    },
+    {
+      "id": "77ceeef6-30b6-425f-93e4-5a07797022d5",
+      "role": "assistant",
+      "model": "gpt-6-luna",
+      "done": true,
+      "files": [
+        {
+          "id": "629c638b-04cd-466f-b128-d791d5c91251",
+          "name": "sales-g6l-fixed.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+          "bytes": 4561
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "3b39536f-510d-455c-89d9-aa6747757b90",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "27b3e285-2cf1-4cf5-998a-916e3d7a9f58",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "629c638b-04cd-466f-b128-d791d5c91251",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    }
+  ]
+}

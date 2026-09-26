@@ -1,0 +1,58 @@
+{
+  "chat": "f17a6345-9bbd-4934-bc8e-0fdd1424dab6",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "d1272d8a-a603-4336-8ac4-a63d102c4110",
+      "role": "user",
+      "files": [
+        {
+          "id": "66d03d9d-2e3a-40c0-97cd-bd71c0dc1861",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "0621275d-c983-4c33-ac53-a2e4a11b95cd",
+          "name": "feb.xlsx"
+        }
+      ],
+      "calls": []
+    },
+    {
+      "id": "245119b3-d2e4-4ae5-972a-51977929f26b",
+      "role": "assistant",
+      "model": "claude-opus-5-5",
+      "done": true,
+      "files": [
+        {
+          "id": "8a7c163b-7300-4fd7-a426-23202444d933",
+          "name": "sales-c55.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+          "bytes": 4563
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "66d03d9d-2e3a-40c0-97cd-bd71c0dc1861",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "0621275d-c983-4c33-ac53-a2e4a11b95cd",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "8a7c163b-7300-4fd7-a426-23202444d933",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    }
+  ]
+}

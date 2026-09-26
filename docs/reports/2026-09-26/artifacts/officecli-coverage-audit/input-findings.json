@@ -1,0 +1,597 @@
+[
+  {
+    "file": "Ежедневка ИЮЛЬ 25 .xlsx",
+    "file_id": "88be6011-c0ac-423b-a889-043a8e477e34",
+    "http_status": 200,
+    "bytes": 130859,
+    "sha256": "2af0ca30e1a628db0b9bf51089b87fa691166fd47f7e14976db2aebef8f2640c",
+    "stored_hash_matches": true,
+    "sheets": [
+      {
+        "sheet": "03.07",
+        "rows": 37,
+        "columns": 17,
+        "nonempty": 122
+      },
+      {
+        "sheet": "04.07.",
+        "rows": 35,
+        "columns": 17,
+        "nonempty": 127
+      },
+      {
+        "sheet": "07.07",
+        "rows": 25,
+        "columns": 17,
+        "nonempty": 95
+      },
+      {
+        "sheet": "08.07",
+        "rows": 31,
+        "columns": 18,
+        "nonempty": 89
+      },
+      {
+        "sheet": "09.07",
+        "rows": 24,
+        "columns": 17,
+        "nonempty": 106
+      },
+      {
+        "sheet": "10.07",
+        "rows": 29,
+        "columns": 19,
+        "nonempty": 111
+      },
+      {
+        "sheet": "11.07",
+        "rows": 27,
+        "columns": 18,
+        "nonempty": 113
+      },
+      {
+        "sheet": "14.07",
+        "rows": 26,
+        "columns": 16,
+        "nonempty": 114
+      },
+      {
+        "sheet": "15.07",
+        "rows": 22,
+        "columns": 19,
+        "nonempty": 117
+      },
+      {
+        "sheet": "17.07",
+        "rows": 38,
+        "columns": 18,
+        "nonempty": 178
+      },
+      {
+        "sheet": "18.07",
+        "rows": 37,
+        "columns": 21,
+        "nonempty": 190
+      },
+      {
+        "sheet": "21.07",
+        "rows": 37,
+        "columns": 18,
+        "nonempty": 195
+      },
+      {
+        "sheet": "22.07",
+        "rows": 37,
+        "columns": 19,
+        "nonempty": 195
+      },
+      {
+        "sheet": "23.07",
+        "rows": 37,
+        "columns": 18,
+        "nonempty": 195
+      },
+      {
+        "sheet": "24.07",
+        "rows": 37,
+        "columns": 18,
+        "nonempty": 201
+      },
+      {
+        "sheet": "25.07",
+        "rows": 37,
+        "columns": 19,
+        "nonempty": 195
+      },
+      {
+        "sheet": "28.07",
+        "rows": 37,
+        "columns": 19,
+        "nonempty": 201
+      },
+      {
+        "sheet": "29.07",
+        "rows": 37,
+        "columns": 18,
+        "nonempty": 201
+      },
+      {
+        "sheet": "30.07",
+        "rows": 38,
+        "columns": 18,
+        "nonempty": 208
+      },
+      {
+        "sheet": "31.07",
+        "rows": 38,
+        "columns": 20,
+        "nonempty": 208
+      },
+      {
+        "sheet": "01.08",
+        "rows": 38,
+        "columns": 21,
+        "nonempty": 229
+      },
+      {
+        "sheet": "04.08",
+        "rows": 38,
+        "columns": 19,
+        "nonempty": 220
+      },
+      {
+        "sheet": "05.08",
+        "rows": 38,
+        "columns": 20,
+        "nonempty": 221
+      },
+      {
+        "sheet": "07.08",
+        "rows": 38,
+        "columns": 20,
+        "nonempty": 197
+      },
+      {
+        "sheet": "Лист2",
+        "rows": 55,
+        "columns": 16,
+        "nonempty": 709
+      },
+      {
+        "sheet": "Лист3",
+        "rows": 118,
+        "columns": 16,
+        "nonempty": 1504
+      }
+    ],
+    "keywords_in_workbook": {
+      "интервью": {
+        "count": 0,
+        "first_cells": []
+      },
+      "собеседован": {
+        "count": 0,
+        "first_cells": []
+      },
+      "crm": {
+        "count": 0,
+        "first_cells": []
+      },
+      "маржа": {
+        "count": 44,
+        "first_cells": [
+          [
+            "03.07",
+            "C2"
+          ],
+          [
+            "04.07.",
+            "C2"
+          ],
+          [
+            "07.07",
+            "C2"
+          ],
+          [
+            "08.07",
+            "C2"
+          ]
+        ]
+      },
+      "отгруз": {
+        "count": 4,
+        "first_cells": [
+          [
+            "Лист2",
+            "A1"
+          ],
+          [
+            "Лист2",
+            "M1"
+          ],
+          [
+            "Лист3",
+            "A1"
+          ],
+          [
+            "Лист3",
+            "M1"
+          ]
+        ]
+      },
+      "менеджер": {
+        "count": 0,
+        "first_cells": []
+      },
+      "план": {
+        "count": 96,
+        "first_cells": [
+          [
+            "03.07",
+            "M2"
+          ],
+          [
+            "03.07",
+            "N2"
+          ],
+          [
+            "03.07",
+            "D3"
+          ],
+          [
+            "03.07",
+            "G3"
+          ]
+        ]
+      },
+      "продлено": {
+        "count": 30,
+        "first_cells": [
+          [
+            "17.07",
+            "D32"
+          ],
+          [
+            "17.07",
+            "G32"
+          ],
+          [
+            "18.07",
+            "D32"
+          ],
+          [
+            "18.07",
+            "G32"
+          ]
+        ]
+      }
+    },
+    "saved_sources": [
+      {
+        "message": "b8a1c58d-722b-407c-a316-e95aaa001af7",
+        "model": "gpt-6-luna",
+        "characters": 2989,
+        "keywords": [
+          "отгруз"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "e196a92f-9b4d-4cfa-b213-55698b04b17f",
+        "model": "gpt-6-luna",
+        "characters": 1417,
+        "keywords": [
+          "продлено"
+        ],
+        "prefix_found_in_workbook": false
+      },
+      {
+        "message": "ed5288e7-4e8c-4223-ac3f-3ff98f9c3c50",
+        "model": "gpt-5.6-luna",
+        "characters": 2989,
+        "keywords": [
+          "отгруз"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "dfe70405-9bdf-482f-96fd-9784d2c486a2",
+        "model": "gpt-6-luna",
+        "characters": 2980,
+        "keywords": [
+          "отгруз"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "25ea3ca9-a3d6-46de-b784-ec4b140f0a0a",
+        "model": "gpt-6-luna",
+        "characters": 2980,
+        "keywords": [
+          "отгруз"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "80ac42c2-af94-48f2-bdd1-d125b30dc2db",
+        "model": "gpt-6-luna",
+        "characters": 2276,
+        "keywords": [
+          "отгруз"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "5c368767-6e89-4bb4-9247-bab69254fa0a",
+        "model": "gpt-6-luna",
+        "characters": 2626,
+        "keywords": [
+          "маржа",
+          "план"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "9992a5a7-505b-492d-b4c3-958f12bcff90",
+        "model": "gpt-6-luna",
+        "characters": 2276,
+        "keywords": [
+          "отгруз"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "8cdbad24-6ed2-4a5a-983b-53f3b2bf3960",
+        "model": "gpt-6-luna",
+        "characters": 2670,
+        "keywords": [
+          "маржа",
+          "план"
+        ],
+        "prefix_found_in_workbook": true
+      }
+    ],
+    "metadata_text_characters": 60537
+  },
+  {
+    "file": "Ежедневка Январь 2026.xlsx",
+    "file_id": "78c06639-1978-4fd1-b719-d63790307045",
+    "http_status": 200,
+    "bytes": 61096,
+    "sha256": "9bbe6a1fad13e8f157faa78a1cd8016412fe1dcc54052d1d1e86780b9cb706f1",
+    "stored_hash_matches": true,
+    "sheets": [
+      {
+        "sheet": "Лист1",
+        "rows": 38,
+        "columns": 16,
+        "nonempty": 179
+      },
+      {
+        "sheet": "Лист2",
+        "rows": 530,
+        "columns": 10,
+        "nonempty": 3919
+      },
+      {
+        "sheet": "Лист3",
+        "rows": 40,
+        "columns": 3,
+        "nonempty": 98
+      },
+      {
+        "sheet": "06.02",
+        "rows": 32,
+        "columns": 11,
+        "nonempty": 139
+      },
+      {
+        "sheet": "09.02",
+        "rows": 31,
+        "columns": 19,
+        "nonempty": 152
+      }
+    ],
+    "keywords_in_workbook": {
+      "интервью": {
+        "count": 1,
+        "first_cells": [
+          [
+            "Лист3",
+            "A1"
+          ]
+        ]
+      },
+      "собеседован": {
+        "count": 0,
+        "first_cells": []
+      },
+      "crm": {
+        "count": 2,
+        "first_cells": [
+          [
+            "Лист3",
+            "A38"
+          ],
+          [
+            "Лист3",
+            "C38"
+          ]
+        ]
+      },
+      "маржа": {
+        "count": 3,
+        "first_cells": [
+          [
+            "Лист1",
+            "C2"
+          ],
+          [
+            "06.02",
+            "C2"
+          ],
+          [
+            "09.02",
+            "C2"
+          ]
+        ]
+      },
+      "отгруз": {
+        "count": 0,
+        "first_cells": []
+      },
+      "менеджер": {
+        "count": 6,
+        "first_cells": [
+          [
+            "Лист3",
+            "A16"
+          ],
+          [
+            "Лист3",
+            "C16"
+          ],
+          [
+            "Лист3",
+            "A27"
+          ],
+          [
+            "Лист3",
+            "A36"
+          ]
+        ]
+      },
+      "план": {
+        "count": 16,
+        "first_cells": [
+          [
+            "Лист1",
+            "J2"
+          ],
+          [
+            "Лист1",
+            "K2"
+          ],
+          [
+            "Лист1",
+            "D3"
+          ],
+          [
+            "Лист1",
+            "G3"
+          ]
+        ]
+      },
+      "продлено": {
+        "count": 6,
+        "first_cells": [
+          [
+            "Лист1",
+            "D31"
+          ],
+          [
+            "Лист1",
+            "G31"
+          ],
+          [
+            "06.02",
+            "D25"
+          ],
+          [
+            "06.02",
+            "G25"
+          ]
+        ]
+      }
+    },
+    "saved_sources": [
+      {
+        "message": "b8a1c58d-722b-407c-a316-e95aaa001af7",
+        "model": "gpt-6-luna",
+        "characters": 2988,
+        "keywords": [
+          "менеджер"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "e196a92f-9b4d-4cfa-b213-55698b04b17f",
+        "model": "gpt-6-luna",
+        "characters": 2992,
+        "keywords": [],
+        "prefix_found_in_workbook": false
+      },
+      {
+        "message": "ed5288e7-4e8c-4223-ac3f-3ff98f9c3c50",
+        "model": "gpt-5.6-luna",
+        "characters": 2988,
+        "keywords": [
+          "менеджер"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "dfe70405-9bdf-482f-96fd-9784d2c486a2",
+        "model": "gpt-6-luna",
+        "characters": 2988,
+        "keywords": [
+          "интервью",
+          "менеджер"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "25ea3ca9-a3d6-46de-b784-ec4b140f0a0a",
+        "model": "gpt-6-luna",
+        "characters": 2990,
+        "keywords": [
+          "интервью",
+          "менеджер"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "80ac42c2-af94-48f2-bdd1-d125b30dc2db",
+        "model": "gpt-6-luna",
+        "characters": 2989,
+        "keywords": [
+          "менеджер"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "5c368767-6e89-4bb4-9247-bab69254fa0a",
+        "model": "gpt-6-luna",
+        "characters": 2981,
+        "keywords": [
+          "план"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "9992a5a7-505b-492d-b4c3-958f12bcff90",
+        "model": "gpt-6-luna",
+        "characters": 2641,
+        "keywords": [
+          "интервью",
+          "crm",
+          "менеджер",
+          "план"
+        ],
+        "prefix_found_in_workbook": true
+      },
+      {
+        "message": "8cdbad24-6ed2-4a5a-983b-53f3b2bf3960",
+        "model": "gpt-6-luna",
+        "characters": 2641,
+        "keywords": [
+          "crm",
+          "менеджер",
+          "план"
+        ],
+        "prefix_found_in_workbook": true
+      }
+    ],
+    "metadata_text_characters": 89986
+  }
+]
