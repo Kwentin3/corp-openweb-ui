@@ -659,6 +659,8 @@ def create_app(
             "Run the installed author's screenshot renderer and return an image to your vision context through native OpenWebUI. "
             "Inspect one DOCX page or PPTX slide at a time; fix layout problems and re-render as the loaded skill requires. "
             "XLSX shows ONLY its active sheet; never claim all sheets were visually checked. "
+            "The render belongs to the requested file_id; any source.ext label is temporary. "
+            "Use the image to verify the original task, then finish that task with its final attachment. "
             "The original file is unchanged. A failed render is not a visual pass; disclose 'not visually verified'."
         ),
     )

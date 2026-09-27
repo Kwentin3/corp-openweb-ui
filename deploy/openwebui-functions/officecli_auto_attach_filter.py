@@ -67,6 +67,7 @@ OFFICECLI_INSTRUCTION = (
     "Follow the authors' L1 read -> L2 DOM -> L3 raw strategy; use command=raw with an official part path when DOM readback cannot establish a requirement. "
     "Check each requested requirement on the final file with the relevant object/content readback. "
     "Use render_office_file for the skill's required visual audit; inspect its image, fix and re-render. It covers one Word page/PPTX slide or only the active XLSX sheet. "
+    "Tool-result images are verification evidence for the original user task, not a new request to caption an image. Their temporary source.ext label is not provenance: the render call's file_id identifies the artifact. After the visual audit, finish the original task and name its final attachment. "
     "Do not describe an unperformed or unavailable check as passed; disclose the remaining limitation. "
     "Finish only when every requirement is satisfied and the final native attachment exists. Do not ask for re-uploading available files."
 
