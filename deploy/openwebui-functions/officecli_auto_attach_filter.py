@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.2.1-capability-discovery
+version: 1.3.0-author-workflow
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v6-discovery]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v7-author-workflow]"
 MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v2]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
@@ -35,7 +35,10 @@ DEFAULT_TARGET_MODEL_IDS = (
 )
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
-    "For a simple new file using the base shapes below, directly call the matching create operation once per "
+    "Follow the installed authors' workflow: FIRST load_officecli_skill before creating or modifying an Office artifact. "
+    "Omit skill to discover the official catalog; choose its most specific match, otherwise word/excel/pptx. "
+    "Load one skill per artifact, once; its rules persist across turns. Read bundled references with skill and path from its manifest. "
+    "After loading the guide, call the matching create operation once per "
     "requested file: DOCX uses create_office_document, XLSX uses create_office_spreadsheet, and PPTX "
     "uses create_office_presentation. Build commands from the request using these valid base shapes. "
     "DOCX paragraph: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"paragraph\","
@@ -51,13 +54,19 @@ OFFICECLI_INSTRUCTION = (
     "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. Composition preserves pictures: if the user requests exclusions or further edits, continue with result_file_id and verify those changes. Every compose/create/apply publishes an attachment. When further edits are needed, give the first output a distinct intermediate filename; use the user's requested filename only for the verified final output. Report preserved source errors/external links from the receipt. "
     "Discover capabilities progressively: get_officecli_help topic=docx/xlsx/pptx lists the installed format's elements; "
     "then request FORMAT ELEMENT or FORMAT VERB ELEMENT for the exact operation (e.g. xlsx picture, xlsx remove picture). "
-    "Bare query/get/view/batch/validate gives command usage; FORMAT VERB lists its elements. Load the format skill only when broader workflow guidance is needed; do not repeatedly load full skills. "
+    "topic=help lists commands; FORMAT / gives document-level properties. Bare query/get/view/batch/validate/raw/raw-set gives command usage; FORMAT VERB lists its elements. Do not repeatedly load full skills. "
     "All three inspect operations support command_payload={\"command\":\"query\",\"selector\":\"picture\"} to discover actual paths across the file, "
     "and {\"command\":\"get\",\"path\":\"/\",\"depth\":0} for node properties. Follow next_offset pages until complete; a withheld result is not an empty result. "
     "For DOCX annotated text/table layout use view mode=annotated; for XLSX start with outline, then view mode=text and a small sheet-qualified range. "
     "A cell outline is not a drawing inventory. Inspect requested object types, never guess paths or indices; for repeated removals use descending indices per parent. "
     "Use the matching apply batch for existing-file edits. Preserve unrelated content, verify requested changes on the returned result_file_id, "
-    "and finish only when every requirement is satisfied and the final native attachment exists. Do not ask for re-uploading available files."
+    "and follow the loaded skill's delivery gate: schema validation alone does not prove task completion. "
+    "All three inspect tools support command=validate and command=view mode=issues/stats/outline for the final file. "
+    "Follow the authors' L1 read -> L2 DOM -> L3 raw strategy; use command=raw with an official part path when DOM readback cannot establish a requirement. "
+    "Check each requested requirement on the final file with the relevant object/content readback. "
+    "Use render_office_file for the skill's required visual audit; inspect its image, fix and re-render. It covers one Word page/PPTX slide or only the active XLSX sheet. "
+    "Do not describe an unperformed or unavailable check as passed; disclose the remaining limitation. "
+    "Finish only when every requirement is satisfied and the final native attachment exists. Do not ask for re-uploading available files."
 
 )
 

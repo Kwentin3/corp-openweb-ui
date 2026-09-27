@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings, load_settings
@@ -22,6 +23,7 @@ from .officecli import (
     OfficeCliOutput,
     SubprocessOfficeCliExecutor,
 )
+from .rendering import RenderOfficeRequest, checked_png
 from .openwebui_client import (
     HttpOpenWebUiClient,
     OpenWebUiAmbiguousAttachment,
@@ -39,7 +41,27 @@ PPTX_SLIDE_PATH = re.compile(r"^/slide\[([1-9][0-9]*)\](?:/|$)")
 
 
 class SkillRequest(BaseModel):
-    skill: Literal["word", "excel", "pptx"]
+    skill: str | None = Field(default=None, min_length=1, max_length=64,
+        description="Omit to discover the installed official skill catalog. Then select its most specific skill name; load one guide per artifact, once, as the authors recommend.")
+    path: str | None = Field(default=None, min_length=1, max_length=240,
+        description="Optional relative reference file from the loaded skill's manifest, e.g. reference/INDEX.md. The installed CLI owns the files.")
+
+    @field_validator("skill")
+    @classmethod
+    def skill_is_a_name(cls, value):
+        if value is not None and not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", value):
+            raise ValueError("skill must be a catalog name, not a command or path")
+        return value
+
+    @field_validator("path")
+    @classmethod
+    def reference_is_relative(cls, value):
+        if value is not None and (
+            not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_./-]{0,239}", value)
+            or any(segment in {"", ".", ".."} for segment in value.split("/"))
+        ):
+            raise ValueError("path must be a relative bundled reference, without traversal")
+        return value
 
 
 class HelpRequest(BaseModel):
@@ -47,7 +69,7 @@ class HelpRequest(BaseModel):
         "Installed CLI discovery: start with docx, xlsx, or pptx for the element catalog; "
         "then FORMAT ELEMENT or FORMAT VERB ELEMENT for exact properties and operations, "
         "e.g. xlsx picture, xlsx remove picture, docx table-cell, pptx chart. "
-        "Bare query/get/view/batch/validate returns command usage; FORMAT VERB lists its elements. Request only the needed topic."
+        "help lists all commands; FORMAT / lists document-level properties. Bare query/get/view/batch/validate/raw/raw-set returns command usage; FORMAT VERB lists its elements. Request only the needed topic."
     ))
 
     @field_validator("topic")
@@ -66,7 +88,7 @@ class GuidanceResponse(BaseModel):
 
 
 class InspectCommandPayload(ObjectReadPayload):
-    mode: Literal["annotated"] = "annotated"
+    mode: Literal["annotated", "outline", "text", "stats", "issues"] = "annotated"
 
 
 class NativeDocxReference(BaseModel):
@@ -115,8 +137,8 @@ class InspectOfficeDocumentRequest(NativeDocxReference):
 
 
 class InspectSpreadsheetCommandPayload(ObjectReadPayload):
-    command: Literal["view", "query", "get"] = "view"
-    mode: Literal["outline", "text", "annotated"] = "outline"
+    command: Literal["view", "query", "get", "validate", "raw"] = "view"
+    mode: Literal["outline", "text", "annotated", "stats", "issues"] = "outline"
     range: str | None = Field(
         default=None, max_length=160,
         description="For text mode, an explicit sheet-qualified range, e.g. Sheet1!A1:H30. Read only the cells needed for the next decision.",
@@ -170,7 +192,8 @@ class ComposeSpreadsheetsRequest(BaseModel):
 
 
 class InspectPresentationCommandPayload(ObjectReadPayload):
-    command: Literal["query", "get"] = "query"
+    command: Literal["query", "get", "view", "validate", "raw"] = "query"
+    mode: Literal["outline", "text", "annotated", "stats", "issues"] = "outline"
     selector: str | None = Field(default=None, min_length=1, max_length=512, description="Official selector, e.g. shape, picture, chart, table; query returns actual paths.")
 
 
@@ -537,6 +560,7 @@ def create_app(
     )
     app = FastAPI(title="OfficeCLI OpenAPI proof", version="0.2.0")
     composition_slot = BoundedSemaphore(1)
+    render_slot = BoundedSemaphore(1)
 
     def authenticated_bearer(authorization: str | None) -> str:
         bearer = _bearer(authorization)
@@ -573,15 +597,23 @@ def create_app(
         response_model=GuidanceResponse,
         operation_id="load_officecli_skill",
         description=(
-            "Load the installed official OfficeCLI Word, Excel, or PowerPoint skill before planning "
-            "non-trivial Office work. New-file requests may use the matching create operation directly."
+            "FIRST load the installed author's most specific skill before creating or modifying Word, Excel, or PowerPoint files. "
+            "Omit skill for the official catalog; skill selects a guide and its reference manifest; path reads one bundled reference. "
+            "Follow its help-first and delivery rules. Load one guide per artifact, once; do not stack or reload guides."
         ),
     )
     def load_officecli_skill(
         request: SkillRequest,
         authorization: Annotated[str | None, Header()] = None,
     ) -> GuidanceResponse:
-        return guidance_response_for(authorization, "load_skill", request.skill)
+        if request.path and not request.skill:
+            raise HTTPException(status_code=422, detail="A reference path requires a skill name")
+        arguments = ["load_skill"]
+        if request.skill:
+            arguments.append(request.skill)
+        if request.path:
+            arguments.extend(["--path", request.path])
+        return guidance_response_for(authorization, *arguments)
 
     @app.post(
         "/v1/officecli/help",
@@ -598,6 +630,44 @@ def create_app(
         authorization: Annotated[str | None, Header()] = None,
     ) -> GuidanceResponse:
         return guidance_response_for(authorization, *help_arguments(request.topic))
+
+    @app.post(
+        "/v1/officecli/render", operation_id="render_office_file",
+        response_class=Response,
+        responses={200: {"content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}}},
+        description=(
+            "Run the installed author's screenshot renderer and return an image to your vision context through native OpenWebUI. "
+            "Inspect one DOCX page or PPTX slide at a time; fix layout problems and re-render as the loaded skill requires. "
+            "XLSX shows ONLY its active sheet; never claim all sheets were visually checked. "
+            "The original file is unchanged. A failed render is not a visual pass; disclose 'not visually verified'."
+        ),
+    )
+    def render_office_file(
+        request: RenderOfficeRequest,
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> Response:
+        bearer = authenticated_bearer(authorization)
+        if request.format == "xlsx" and request.page != 1:
+            raise HTTPException(status_code=422, detail="XLSX screenshot covers the active sheet only; page is not a sheet selector")
+        if not render_slot.acquire(blocking=False):
+            raise HTTPException(status_code=409, detail="A screenshot is already running; retry after it finishes")
+        try:
+            with TemporaryDirectory(prefix="officecli-render-") as directory:
+                source = Path(directory) / f"source.{request.format}"
+                output = Path(directory) / "preview.png"
+                openwebui.download(request.file_id, bearer, source)
+                arguments = ["view", str(source), "screenshot", "-o", str(output)]
+                if request.format != "xlsx":
+                    arguments.extend(["--page", str(request.page)])
+                officecli.run(*arguments)
+                if not output.is_file():
+                    raise OfficeCliFailure("OfficeCLI did not produce a screenshot; document is not visually verified")
+                return Response(checked_png(output.read_bytes()), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            raise _http_error(error) from error
+        finally:
+            render_slot.release()
 
     @app.post(
         "/v1/officecli/documents/inspect",
@@ -634,7 +704,7 @@ def create_app(
                 source = Path(directory) / "source.docx"
                 openwebui.download(source_file_id, bearer, source)
                 payload = request.command_payload
-                if payload.command == "view":
+                if payload.command == "view" and payload.mode == "annotated":
                     annotated_output = officecli.run("view", str(source), payload.mode, "--json")
                     table_layout_output = officecli.run("query", str(source), "table", "--json")
                     result = {
@@ -925,9 +995,10 @@ def create_app(
         description=(
             "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
-            "user asks for a new document rather than an edit of an attached DOCX. A minimal markdown "
-            "document may call this operation directly; use skill and help for non-trivial structures. "
-            "This is the final execution operation, not a textual substitute."
+            "user asks for a new document rather than an edit of an attached DOCX. FIRST load the "
+            "appropriate official skill, then use exact help for properties before this operation. "
+            "This executes and publishes a validated attachment; continue the skill's required "
+            "verification on result_file_id before reporting completion."
         ),
     )
     def create_office_document(
@@ -1227,8 +1298,7 @@ def create_app(
             "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
             "at the document root / before adding content under /slide[N]; /presentation is not a valid "
-            "parent. A minimal slide and text shape may call this operation directly; read the official "
-            "PPTX skill and relevant help for non-trivial structures. A picture may use only the "
+            "parent. FIRST load the appropriate official PPTX skill and consult exact property help. A picture may use only the "
             "attachment://image source, which resolves exactly one native image attachment in this chat."
         ),
     )
