@@ -48,6 +48,18 @@ Optional future document:
 Use it only if a shorter one or two page customer summary is needed. Do not
 create it just to duplicate the primary customer-facing document.
 
+Additional delivery reports are maintained alongside the customer scope:
+
+- `OFFICE_TOOLS_COMPLETED_WORK_AUDIT_120H.md` preserves the Office baseline.
+- `OFFICE_TOOLS_ADDITIONAL_REFACTOR_COMPLETED_WORK.md` owns the subsequent Office
+  refactoring and separate incident-recorder estimate and evidence links.
+- `STT_VIDEO_INTAKE_REFACTOR_COMPLETED_WORK_48H.md` owns the later STT refactor.
+
+These are scoped delivery records, not a replacement for the Stage 2 hour map.
+The customer scope links to them; internal handoff repeats only their boundaries.
+Keep historical estimates intact, separate new work from baseline work, and
+label proposed estimates distinctly from agreed hours and measured timesheets.
+
 ## 4. Internal engineering documents
 
 Minimum internal set:

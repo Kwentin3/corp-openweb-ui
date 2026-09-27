@@ -7,6 +7,24 @@ Final verdict: `stage2_contract_handoff_context_updated_after_stt_v2_closure`.
 This document is not a contract, act, invoice or legal appendix. It is the
 evidence base for preparing those external documents later.
 
+## Subsequent delivery records — 2026-09-27
+
+The July scope snapshot below is not the complete September delivery ledger.
+For customer wording and hours, use the separate records linked from
+[the customer scope](STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md):
+
+- [Office Tools baseline](OFFICE_TOOLS_COMPLETED_WORK_AUDIT_120H.md): historical
+  120-hour engineering estimate through PR #521, recorded by PR #522.
+- [Additional Office refactoring and incident diagnostics](OFFICE_TOOLS_ADDITIONAL_REFACTOR_COMPLETED_WORK.md):
+  subsequent PR #526 and #528–#533; separate proposed estimates, not measured
+  timesheets or approved billing. Does not close the historical incident #527.
+- [STT video intake refactoring](STT_VIDEO_INTAKE_REFACTOR_COMPLETED_WORK_48H.md):
+  separately documented work, not part of the Office estimates.
+
+Do not add these records mechanically to the July timebox or count baseline
+work again because a later refactor revisits a closed feature. No broader
+Stage 2 status reconciliation is asserted by this documentation update.
+
 ## 1. Main Answer
 
 The current contract-scope candidate should be a limited Stage 2 slice, not the
