@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.3.0-author-workflow
+version: 1.3.1-author-workflow
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v7-author-workflow]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v8-operation-guidance]"
 MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v2]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
@@ -38,13 +38,15 @@ OFFICECLI_INSTRUCTION = (
     "Follow the installed authors' workflow: FIRST load_officecli_skill before creating or modifying an Office artifact. "
     "Omit skill to discover the official catalog; choose its most specific match, otherwise word/excel/pptx. "
     "Load one skill per artifact, once; its rules persist across turns. Read bundled references with skill and path from its manifest. "
+    "The adapter runs nonresident: each successful mutation flushes and validates the file before attaching it. Separate open/save/close commands are not batch items and are not needed here. "
+    "For a final download link, use only the download_url returned for the verified final result_file_id; never invent sandbox:/, attachment://, or /mnt/data links. A plain filename with its native attachment is also sufficient. "
     "After loading the guide, call the matching create operation once per "
     "requested file: DOCX uses create_office_document, XLSX uses create_office_spreadsheet, and PPTX "
     "uses create_office_presentation. Build commands from the request using these valid base shapes. "
     "DOCX paragraph: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"paragraph\","
     "\"props\":{\"text\":\"Title\"}}. Add one command per requested paragraph. "
     "If markdown is needed, keep it inside props.markdown and use real newline characters, never literal backslash-n text. "
-    "XLSX cell: {\"command\":\"set\",\"path\":\"/Sheet1/A1\",\"props\":{\"value\":\"Text\"}}. For requested money, put \"numFmt\":\"#,##0 ₽\" in each price, amount, and total cell props; preserve every requested label such as Итого. Use formulas for requested calculations. Do not add unrequested titles, merged cells, column widths, or styling. "
+    "XLSX cell: {\"command\":\"set\",\"path\":\"/Sheet1/A1\",\"props\":{\"value\":\"Text\"}}. For requested money, put \"numFmt\":\"#,##0 ₽\" in each price, amount, and total cell props; preserve every requested label such as Итого. Use formulas for requested calculations. Do not add unrequested titles or merged cells. Follow the official skill for readable column widths and number formats; explicit user constraints such as preserving source formatting take precedence. "
     "PPTX: add every slide first with {\"command\":\"add\",\"parent\":\"/\",\"type\":\"slide\","
     "\"props\":{\"layout\":\"blank\"}}, then add each basic text shape with flat props such as {\"command\":\"add\",\"parent\":\"/slide[1]\",\"type\":\"shape\",\"props\":{\"text\":\"Title\",\"x\":\"2cm\",\"y\":\"3cm\",\"width\":\"29cm\",\"height\":\"3cm\"}}. For basic shapes, never use nested geometry or font objects. Every requested slide title, subtitle, list item, date, and phrase must appear as visible shape text; do not summarize or omit them. "
     "Do not substitute code, a recipe, or a refusal for the tool call. Finish only after the current "
@@ -65,6 +67,7 @@ OFFICECLI_INSTRUCTION = (
     "Follow the authors' L1 read -> L2 DOM -> L3 raw strategy; use command=raw with an official part path when DOM readback cannot establish a requirement. "
     "Check each requested requirement on the final file with the relevant object/content readback. "
     "Use render_office_file for the skill's required visual audit; inspect its image, fix and re-render. It covers one Word page/PPTX slide or only the active XLSX sheet. "
+    "Tool-result images are verification evidence for the original user task, not a new request to caption an image. Their temporary source.ext label is not provenance: the render call's file_id identifies the artifact. After the visual audit, finish the original task and name its final attachment. "
     "Do not describe an unperformed or unavailable check as passed; disclose the remaining limitation. "
     "Finish only when every requirement is satisfied and the final native attachment exists. Do not ask for re-uploading available files."
 

@@ -12,7 +12,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from .config import Settings, load_settings
 from .discovery import ObjectReadPayload, bounded_result, help_arguments, object_arguments
@@ -26,6 +26,7 @@ from .officecli import (
 from .rendering import RenderOfficeRequest, checked_png
 from .openwebui_client import (
     HttpOpenWebUiClient,
+    native_file_content_path,
     OpenWebUiAmbiguousAttachment,
     OpenWebUiClient,
     OpenWebUiFailure,
@@ -38,6 +39,13 @@ ATTACHED_IMAGE_SOURCE = "attachment://image"
 PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 PPTX_TABLE_CELL_KEY = re.compile(r"r[1-9][0-9]*c[1-9][0-9]*")
 PPTX_SLIDE_PATH = re.compile(r"^/slide\[([1-9][0-9]*)\](?:/|$)")
+
+
+AUTHOR_WORKFLOW_TRIGGER = (
+    "FIRST load_officecli_skill with the most specific official skill before creating or modifying "
+    "this artifact, unless already loaded for it. Follow its content and visual delivery checks "
+    "on result_file_id before reporting completion. "
+)
 
 
 class SkillRequest(BaseModel):
@@ -456,6 +464,12 @@ class ApplyResponse(BaseModel):
     bounded_processes_completed: bool
     docx_normalization: dict[str, Any] | None = None
 
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        """Use the same native file route as authorized downloads."""
+        return native_file_content_path(self.result_file_id)
+
 
 class CreateResponse(BaseModel):
     source: str
@@ -467,6 +481,12 @@ class CreateResponse(BaseModel):
     result_sha256: str
     auto_resident_disabled: bool
     bounded_processes_completed: bool
+
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        """Use the same native file route as authorized downloads."""
+        return native_file_content_path(self.result_file_id)
 
 
 def _officecli_json(output: OfficeCliOutput, operation: str) -> Any:
@@ -639,6 +659,8 @@ def create_app(
             "Run the installed author's screenshot renderer and return an image to your vision context through native OpenWebUI. "
             "Inspect one DOCX page or PPTX slide at a time; fix layout problems and re-render as the loaded skill requires. "
             "XLSX shows ONLY its active sheet; never claim all sheets were visually checked. "
+            "The render belongs to the requested file_id; any source.ext label is temporary. "
+            "Use the image to verify the original task, then finish that task with its final attachment. "
             "The original file is unchanged. A failed render is not a visual pass; disclose 'not visually verified'."
         ),
     )
@@ -793,7 +815,7 @@ def create_app(
     @app.post(
         "/v1/officecli/spreadsheets/compose",
         operation_id="compose_office_spreadsheets",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Combine many native XLSX files into one workbook, one named destination sheet per source workbook. "
             "Stacks ALL daily sheets from each source in original order, preserving values, live formulas, "
             "dependencies, cached values, cell formatting, merged cells, and pictures. Original external links "
@@ -879,7 +901,9 @@ def create_app(
             raise _http_error(error) from error
         finally:
             composition_slot.release()
-        return {"result_file_id": native_file["id"], "result_sha256": result_hash,
+        return {"result_file_id": native_file["id"],
+                "download_url": native_file_content_path(native_file["id"]),
+                "result_sha256": result_hash,
                 "receipt": receipt, "source_sha256": source_hashes,
                 "validation_success": validation["success"],
                 "source_bytes_preserved": True}
@@ -888,12 +912,11 @@ def create_app(
         "/v1/officecli/documents/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_batch",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Complete a requested DOCX edit after inspection: apply official OfficeCLI batch items to "
             "the single nearest native DOCX attachment, validate it, and attach the resulting DOCX to this "
             "assistant message. Omit file_id only when that attachment is unambiguous; otherwise use an "
-            "explicit file_id rather than guessing. This is the final execution "
-            "operation; do not replace it with a textual explanation."
+            "explicit file_id rather than guessing. Execute the edit, then verify the published result."
         ),
     )
     def apply_office_batch(
@@ -992,13 +1015,11 @@ def create_app(
         "/v1/officecli/documents/create",
         response_model=CreateResponse,
         operation_id="create_office_document",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
-            "user asks for a new document rather than an edit of an attached DOCX. FIRST load the "
-            "appropriate official skill, then use exact help for properties before this operation. "
-            "This executes and publishes a validated attachment; continue the skill's required "
-            "verification on result_file_id before reporting completion."
+            "user asks for a new document rather than an edit of an attached DOCX. "
+            "Use exact help for properties before this operation."
         ),
     )
     def create_office_document(
@@ -1070,7 +1091,7 @@ def create_app(
         "/v1/officecli/spreadsheets/create",
         response_model=CreateResponse,
         operation_id="create_office_spreadsheet",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Create, batch, validate, and attach a new XLSX from the chat request. "
             "The workbook starts with Sheet1; address a cell as /Sheet1/A1, not as "
             "/sheet[Sheet1]/cell[A1]. Submit all initial work in one ordered "
@@ -1158,7 +1179,7 @@ def create_app(
         "/v1/officecli/spreadsheets/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_spreadsheet_batch",
-        description="Edit, validate, and attach the single nearest native XLSX attachment.",
+        description=AUTHOR_WORKFLOW_TRIGGER + "Edit, validate, and attach the single nearest native XLSX attachment.",
     )
     def apply_office_spreadsheet_batch(
         request: ApplySpreadsheetBatchRequest,
@@ -1294,11 +1315,11 @@ def create_app(
         "/v1/officecli/presentations/create",
         response_model=CreateResponse,
         operation_id="create_office_presentation",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
             "at the document root / before adding content under /slide[N]; /presentation is not a valid "
-            "parent. FIRST load the appropriate official PPTX skill and consult exact property help. A picture may use only the "
+            "parent. Consult exact property help. A picture may use only the "
             "attachment://image source, which resolves exactly one native image attachment in this chat."
         ),
     )
@@ -1381,9 +1402,9 @@ def create_app(
         "/v1/officecli/presentations/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_presentation_batch",
-        description=(
-            "Edit, validate, and attach the single nearest native PPTX attachment. This is the final "
-            "execution operation; do not replace it with a textual explanation. A picture may use only "
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Edit, validate, and attach the single nearest native PPTX attachment. Verify the published "
+            "result before completion. A picture may use only "
             "attachment://image, which resolves exactly one native image attachment in this chat."
         ),
     )

@@ -175,7 +175,7 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "create_office_presentation",
         "apply_office_presentation_batch",
     }
-    assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
+    assert "verify the published result" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
         "description"
     ]
     assert "bare verb" in schema["components"]["schemas"]["ApplyOfficeBatchRequest"]["properties"][

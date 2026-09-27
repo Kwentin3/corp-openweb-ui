@@ -59,6 +59,7 @@ def test_composition_runs_real_worker_and_publishes_verified_native_file(native_
     assert {k: p.read_bytes() for k, p in paths.items()} == before
     assert [c[0] for c in files.calls].count("upload") == 1
     assert [c[0] for c in files.calls].count("attach") == 1
+    assert response.json()["download_url"] == f"/api/v1/files/{response.json()['result_file_id']}/content"
     assert len(response.content) < 3000
 
 

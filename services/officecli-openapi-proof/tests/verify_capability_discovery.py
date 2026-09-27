@@ -129,6 +129,7 @@ class DiscoveryQualification(unittest.TestCase):
                                 "commands": [{"command": "remove", "path": path} for path in reversed(paths)]})
                         self.assertEqual(response.status_code, 200, response.text)
                         self.assertEqual(response.json()["result_file_id"], "synthetic-result")
+                        self.assertEqual(response.json()["download_url"], "/api/v1/files/synthetic-result/content")
                         self.assertEqual(files.attached, ["synthetic-result"])
                         final = root / "result.xlsx"
                         final.write_bytes(files.result)

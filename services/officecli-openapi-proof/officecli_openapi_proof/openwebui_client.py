@@ -7,6 +7,11 @@ from typing import Any, Protocol
 import httpx
 
 
+def native_file_content_path(file_id: str) -> str:
+    """Public native content route for an authorized file identity."""
+    return f"/api/v1/files/{file_id}/content"
+
+
 class OpenWebUiFailure(RuntimeError):
     pass
 
@@ -98,7 +103,7 @@ class HttpOpenWebUiClient:
         self._request("GET", "/api/v1/auths/", authorization)
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
-        response = self._request("GET", f"/api/v1/files/{file_id}/content", authorization)
+        response = self._request("GET", native_file_content_path(file_id), authorization)
         destination.write_bytes(response.content)
 
     def resolve_nearest_docx_attachment(
