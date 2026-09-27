@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.1.0-large-workbooks
+version: 1.2.0-capability-discovery
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v5-bounded]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v6-discovery]"
 MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v2]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
@@ -35,8 +35,7 @@ DEFAULT_TARGET_MODEL_IDS = (
 )
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
-    "For a new file made from text, spreadsheet cells, or basic slide shapes, never call "
-    "load_officecli_skill or get_officecli_help. Directly call the matching create operation once per "
+    "For a simple new file using the base shapes below, directly call the matching create operation once per "
     "requested file: DOCX uses create_office_document, XLSX uses create_office_spreadsheet, and PPTX "
     "uses create_office_presentation. Build commands from the request using these valid base shapes. "
     "DOCX paragraph: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"paragraph\","
@@ -47,12 +46,19 @@ OFFICECLI_INSTRUCTION = (
     "\"props\":{\"layout\":\"blank\"}}, then add each basic text shape with flat props such as {\"command\":\"add\",\"parent\":\"/slide[1]\",\"type\":\"shape\",\"props\":{\"text\":\"Title\",\"x\":\"2cm\",\"y\":\"3cm\",\"width\":\"29cm\",\"height\":\"3cm\"}}. For basic shapes, never use nested geometry or font objects. Every requested slide title, subtitle, list item, date, and phrase must appear as visible shape text; do not summarize or omit them. "
     "Do not substitute code, a recipe, or a refusal for the tool call. Finish only after the current "
     "create result contains result_file_id and the native attachment is present; if execution fails, "
-    "report the failure. A successful create result is terminal for that file: do not reopen, inspect, apply changes, call help, or recreate it in the same response. Continue creating other requested files and return each resulting native attachment once. Reply with a plain-language sentence naming the files; never echo tool JSON and never leave the final answer empty. "
+    "report the failure. Use result_file_id for any remaining requested edits or targeted verification; do not recreate a successful file unnecessarily. Continue creating other requested files and return each resulting native attachment once. Reply with a plain-language sentence naming the files; never echo tool JSON and never leave the final answer empty. "
     "For existing files, obtain explicit file_id values from native attached_files blocks (their opaque url), or list_chat_files when needed; citation numbers are not file IDs. Prefer the latest user upload over earlier copies. "
-    "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. A successful composition is terminal: report the attachment and any preserved source errors/external links from its receipt. "
-    "For other existing-file work, inspect only the structure and cells needed for the next step. inspect_office_document for DOCX uses command_payload={\"command\":\"view\",\"mode\":\"annotated\"}; inspect_office_spreadsheet for XLSX defaults to outline, then use command_payload={\"mode\":\"text\",\"range\":\"Sheet1!A1:H30\"} for a small range; inspect_office_presentation for PPTX uses command_payload={\"command\":\"query\",\"selector\":\"shape\"}. Then use the matching apply batch to edit an existing file, or create for a new derived file. Do not ask for re-uploading available files. "
-    "Load only the format-specific skill or help needed for its exact existing structure, or for a new "
-    "table, chart, or picture. Preserve unrelated content and never invent document paths."
+    "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. Composition preserves pictures: if the user requests exclusions or further edits, continue with result_file_id and verify those changes. Report preserved source errors/external links from the receipt. "
+    "Discover capabilities progressively: get_officecli_help topic=docx/xlsx/pptx lists the installed format's elements; "
+    "then request FORMAT ELEMENT or FORMAT VERB ELEMENT for the exact operation (e.g. xlsx picture, xlsx remove picture). "
+    "Bare query/get/view/batch/validate gives command usage; FORMAT VERB lists its elements. Load the format skill only when broader workflow guidance is needed; do not repeatedly load full skills. "
+    "All three inspect operations support command_payload={\"command\":\"query\",\"selector\":\"picture\"} to discover actual paths across the file, "
+    "and {\"command\":\"get\",\"path\":\"/\",\"depth\":0} for node properties. Follow next_offset pages until complete; a withheld result is not an empty result. "
+    "For DOCX annotated text/table layout use view mode=annotated; for XLSX start with outline, then view mode=text and a small sheet-qualified range. "
+    "A cell outline is not a drawing inventory. Inspect requested object types, never guess paths or indices; for repeated removals use descending indices per parent. "
+    "Use the matching apply batch for existing-file edits. Preserve unrelated content, verify requested changes on the returned result_file_id, "
+    "and finish only when every requirement is satisfied and the final native attachment exists. Do not ask for re-uploading available files."
+
 )
 
 MULTI_XLSX_INSTRUCTION = (

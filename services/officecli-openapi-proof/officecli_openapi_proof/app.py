@@ -14,6 +14,7 @@ from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from .config import Settings, load_settings
+from .discovery import ObjectReadPayload, bounded_result, help_arguments, object_arguments
 from .docx_normalization import normalize_known_noncanonical_docx
 from .officecli import (
     OfficeCliExecutor,
@@ -42,26 +43,18 @@ class SkillRequest(BaseModel):
 
 
 class HelpRequest(BaseModel):
-    topic: Literal[
-        "docx",
-        "docx paragraph",
-        "docx set paragraph",
-        "docx add markdown",
-        "docx table-row",
-        "docx table-cell",
-        "docx view",
-        "xlsx",
-        "xlsx sheet",
-        "xlsx cell",
-        "xlsx table",
-        "xlsx view",
-        "pptx",
-        "pptx slide",
-        "pptx shape",
-        "pptx table",
-        "pptx chart",
-        "pptx picture",
-    ]
+    topic: str = Field(min_length=3, max_length=140, description=(
+        "Installed CLI discovery: start with docx, xlsx, or pptx for the element catalog; "
+        "then FORMAT ELEMENT or FORMAT VERB ELEMENT for exact properties and operations, "
+        "e.g. xlsx picture, xlsx remove picture, docx table-cell, pptx chart. "
+        "Bare query/get/view/batch/validate returns command usage; FORMAT VERB lists its elements. Request only the needed topic."
+    ))
+
+    @field_validator("topic")
+    @classmethod
+    def official_help_topic(cls, value: str) -> str:
+        help_arguments(value)
+        return value
 
 
 class GuidanceResponse(BaseModel):
@@ -72,9 +65,8 @@ class GuidanceResponse(BaseModel):
     auto_resident_disabled: bool
 
 
-class InspectCommandPayload(BaseModel):
-    command: Literal["view"]
-    mode: Literal["annotated"]
+class InspectCommandPayload(ObjectReadPayload):
+    mode: Literal["annotated"] = "annotated"
 
 
 class NativeDocxReference(BaseModel):
@@ -122,8 +114,8 @@ class InspectOfficeDocumentRequest(NativeDocxReference):
     command_payload: InspectCommandPayload
 
 
-class InspectSpreadsheetCommandPayload(BaseModel):
-    command: Literal["view"] = "view"
+class InspectSpreadsheetCommandPayload(ObjectReadPayload):
+    command: Literal["view", "query", "get"] = "view"
     mode: Literal["outline", "text", "annotated"] = "outline"
     range: str | None = Field(
         default=None, max_length=160,
@@ -177,9 +169,9 @@ class ComposeSpreadsheetsRequest(BaseModel):
         return value
 
 
-class InspectPresentationCommandPayload(BaseModel):
-    command: Literal["query"]
-    selector: Literal["shape"]
+class InspectPresentationCommandPayload(ObjectReadPayload):
+    command: Literal["query", "get"] = "query"
+    selector: str | None = Field(default=None, min_length=1, max_length=512, description="Official selector, e.g. shape, picture, chart, table; query returns actual paths.")
 
 
 class InspectPresentationRequest(NativePptxReference):
@@ -454,29 +446,6 @@ class CreateResponse(BaseModel):
     bounded_processes_completed: bool
 
 
-HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "docx": ("help", "docx"),
-    "docx paragraph": ("help", "docx", "paragraph"),
-    "docx set paragraph": ("help", "docx", "set", "paragraph"),
-    "docx add markdown": ("help", "docx", "add", "markdown"),
-    "docx table-row": ("help", "docx", "table-row"),
-    "docx table-cell": ("help", "docx", "table-cell"),
-    # ``view`` is a top-level OfficeCLI command, not a DOCX element.
-    "docx view": ("view", "--help"),
-    "xlsx": ("help", "xlsx"),
-    "xlsx sheet": ("help", "xlsx", "sheet"),
-    "xlsx cell": ("help", "xlsx", "cell"),
-    "xlsx table": ("help", "xlsx", "table"),
-    "xlsx view": ("view", "--help"),
-    "pptx": ("help", "pptx"),
-    "pptx slide": ("help", "pptx", "slide"),
-    "pptx shape": ("help", "pptx", "shape"),
-    "pptx table": ("help", "pptx", "table"),
-    "pptx chart": ("help", "pptx", "chart"),
-    "pptx picture": ("help", "pptx", "picture"),
-}
-
-
 def _officecli_json(output: OfficeCliOutput, operation: str) -> Any:
     try:
         parsed = json.loads(output.text)
@@ -619,7 +588,8 @@ def create_app(
         response_model=GuidanceResponse,
         operation_id="get_officecli_help",
         description=(
-            "Read installed OfficeCLI help for an allowed DOCX, XLSX, or PPTX topic; do not guess "
+            "Discover installed OfficeCLI capabilities for DOCX, XLSX, or PPTX: format catalog, "
+            "element details, or verb-specific help. The installed CLI owns the catalog; do not guess "
             "command syntax."
         ),
     )
@@ -627,7 +597,7 @@ def create_app(
         request: HelpRequest,
         authorization: Annotated[str | None, Header()] = None,
     ) -> GuidanceResponse:
-        return guidance_response_for(authorization, *HELP_ARGUMENTS[request.topic])
+        return guidance_response_for(authorization, *help_arguments(request.topic))
 
     @app.post(
         "/v1/officecli/documents/inspect",
@@ -635,7 +605,8 @@ def create_app(
         operation_id="inspect_office_document",
         description=(
             "Read the single nearest DOCX attachment from the native current-message ancestry and return "
-            "official annotated OfficeCLI output plus a table row/cell inventory. When that message has "
+            "official annotated output with table layout (view), or query/get for other native objects. "
+            "Query selectors discover actual paths; get reads one path with bounded depth. Follow query pagination. When that message has "
             "multiple DOCX attachments, use an explicit file_id rather than guessing. For a fixed form, "
             "use only row and cell paths present in table_layout; do not infer extra rows."
         ),
@@ -662,14 +633,20 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.docx"
                 openwebui.download(source_file_id, bearer, source)
-                annotated_output = officecli.run(
-                    "view", str(source), request.command_payload.mode, "--json"
-                )
-                table_layout_output = officecli.run("query", str(source), "table", "--json")
-                result = {
-                    "annotated": _officecli_json(annotated_output, "view"),
-                    "table_layout": _officecli_json(table_layout_output, "query"),
-                }
+                payload = request.command_payload
+                if payload.command == "view":
+                    annotated_output = officecli.run("view", str(source), payload.mode, "--json")
+                    table_layout_output = officecli.run("query", str(source), "table", "--json")
+                    result = {
+                        "annotated": _officecli_json(annotated_output, "view"),
+                        "table_layout": _officecli_json(table_layout_output, "query"),
+                    }
+                    auto_resident_disabled = annotated_output.auto_resident_disabled and table_layout_output.auto_resident_disabled
+                else:
+                    annotated_output = officecli.run(*object_arguments(str(source), payload))
+                    result = _officecli_json(annotated_output, payload.command)
+                    auto_resident_disabled = annotated_output.auto_resident_disabled
+                result = bounded_result(result, payload)
                 result_sha256 = sha256(
                     json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
                 ).hexdigest()
@@ -680,10 +657,7 @@ def create_app(
             file_id=source_file_id,
             officecli_result=result,
             officecli_result_sha256=result_sha256,
-            auto_resident_disabled=(
-                annotated_output.auto_resident_disabled
-                and table_layout_output.auto_resident_disabled
-            ),
+            auto_resident_disabled=auto_resident_disabled,
         )
 
     @app.post(
@@ -691,7 +665,9 @@ def create_app(
         response_model=InspectionResponse,
         operation_id="inspect_office_spreadsheet",
         description=(
-            "Inspect XLSX structure first (default outline); then read only a needed sheet range "
+            "Inspect XLSX structure first (default outline). Use command=query with selector=picture/chart/etc "
+            "to discover actual object paths across ALL sheets; use command=get with path and depth=0 for properties. "
+            "Follow query pagination until next_offset is null. Then read only a needed sheet range "
             "with mode=text and range=Sheet1!A1:H30. Use explicit file_id for multiple attachments. "
             "Large cell results are withheld with an explicit notice, never silently truncated. "
             "Do not read all source cells into chat to combine workbooks."
@@ -720,24 +696,20 @@ def create_app(
                 source = Path(directory) / "source.xlsx"
                 openwebui.download(source_file_id, bearer, source)
                 payload = request.command_payload
-                if payload.range and payload.mode != "text":
-                    raise HTTPException(status_code=422, detail="range requires mode=text")
-                if payload.mode == "text" and not payload.range:
-                    raise HTTPException(status_code=422, detail="text mode requires a sheet-qualified range; use outline first")
-                arguments = ["view", str(source), payload.mode, "--json"]
-                if payload.range:
-                    arguments.extend(["--range", payload.range])
+                if payload.command == "view":
+                    if payload.range and payload.mode != "text":
+                        raise HTTPException(status_code=422, detail="range requires mode=text")
+                    if payload.mode == "text" and not payload.range:
+                        raise HTTPException(status_code=422, detail="text mode requires a sheet-qualified range; use outline first")
+                    arguments = ["view", str(source), payload.mode, "--json"]
+                    if payload.range:
+                        arguments.extend(["--range", payload.range])
+                else:
+                    if payload.range:
+                        raise HTTPException(status_code=422, detail="range is only supported for view")
+                    arguments = object_arguments(str(source), payload)
                 output = officecli.run(*arguments)
-                result = _officecli_json(output, "view")
-                if len(json.dumps(result, ensure_ascii=False)) > 16000:
-                    # A bounded tool response, not a lossy view passed off as a full read.
-                    # The original workbook remains available through the native file ID.
-                    result = {
-                        "success": True,
-                        "content_included": False,
-                        "reason": "inspection_exceeds_context_budget",
-                        "next_action": "Use outline, then mode=text with a smaller sheet-qualified range. Source data has not been discarded.",
-                    }
+                result = bounded_result(_officecli_json(output, payload.command), payload)
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
@@ -759,7 +731,8 @@ def create_app(
             "Use this source-backed operation for monthly consolidation instead of reading all cells or "
             "rewriting them into create commands. No inspect call is required merely to copy all data. "
             "Only file IDs and destination names are needed. Unsupported features fail before publication. "
-            "Returns a compact verification receipt and attaches the finished workbook."
+            "Returns a compact verification receipt and attaches the workbook. For additional requested "
+            "changes (e.g. remove pictures), inspect and apply to result_file_id, then verify the final result."
         ),
     )
     def compose_office_spreadsheets(
@@ -1208,7 +1181,8 @@ def create_app(
         operation_id="inspect_office_presentation",
         description=(
             "Inspect the single nearest native PPTX attachment with the official OfficeCLI "
-            "shape inventory, including stable shape paths, current text, and formatting required "
+            "query selector (shape, picture, chart, table, etc.) or get path with depth=0. "
+            "Follow query pagination. Includes stable paths, current text, and formatting required "
             "for an existing-shape edit."
         ),
     )
@@ -1232,10 +1206,9 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.pptx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
-                    "query", str(source), request.command_payload.selector, "--json"
-                )
-                result = _officecli_json(output, "query")
+                payload = request.command_payload
+                output = officecli.run(*object_arguments(str(source), payload))
+                result = bounded_result(_officecli_json(output, payload.command), payload)
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
