@@ -583,7 +583,9 @@ def test_spreadsheet_openapi_contract_explains_default_sheet_and_follow_up() -> 
 
     assert "starts with Sheet1" in create["description"]
     assert "one ordered official officecli batch" in create_commands.lower()
-    assert "do not add, remove, or rename Sheet1" in create_commands
+    assert "requests a sheet name, rename it" in create_commands
+    assert "reuse or rename the default sheet" in create["description"].lower()
+    assert "add only additional sheets" not in create["description"]
     assert "apply_office_spreadsheet_batch" in create_commands
     assert "later conversational edit" in apply_commands
 
