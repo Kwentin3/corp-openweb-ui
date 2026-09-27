@@ -54,7 +54,7 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert body["messages"][0]["content"].startswith("Keep this existing instruction.")
     instruction = body["messages"][0]["content"]
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in instruction
-    assert "never call load_officecli_skill or get_officecli_help" in instruction
+    assert "Discover capabilities progressively" in instruction
     assert "create_office_document" in instruction
     assert '"parent":"/body","type":"paragraph"' in instruction
     assert "Add one command per requested paragraph" in instruction
@@ -66,11 +66,11 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert '"parent":"/","type":"slide"' in instruction
     assert '"x":"2cm","y":"3cm","width":"29cm","height":"3cm"' in instruction
     assert "result_file_id" in instruction
-    assert "A successful create result is terminal for that file" in instruction
-    assert "inspect_office_document for DOCX" in instruction
-    assert "inspect_office_presentation for PPTX" in instruction
+    assert "verify requested changes on the returned result_file_id" in instruction
+    assert "All three inspect operations" in instruction
+    assert "a withheld result is not an empty result" in instruction
     assert "Continue creating other requested files" in instruction
-    assert "table, chart, or picture" in instruction
+    assert "xlsx remove picture" in instruction
     assert MODULE.GEMINI_COMPATIBILITY_MARKER not in instruction
 
 
