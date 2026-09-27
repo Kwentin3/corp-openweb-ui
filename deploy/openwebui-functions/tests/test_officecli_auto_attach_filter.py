@@ -286,3 +286,9 @@ def test_reasoning_rejection_precedes_mutation_for_every_office_format(model, fi
         run_inlet(configured_filter(), body, metadata)
     assert body == before
     assert metadata == {"params": {"function_calling": "default"}}
+
+
+def test_adapter_does_not_override_authors_readability_requirements():
+    assert "column widths, or styling" not in MODULE.OFFICECLI_INSTRUCTION
+    assert "Follow the official skill for readable column widths" in MODULE.OFFICECLI_INSTRUCTION
+    assert "explicit user constraints" in MODULE.OFFICECLI_INSTRUCTION

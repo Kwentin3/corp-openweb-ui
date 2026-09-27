@@ -10,6 +10,8 @@ Ordinary authenticated chats with gpt-6-luna exercised synthetic DOCX, XLSX and 
 
 The PPTX task loaded its guide, corrected an overflowing title, inspected issues and received an actual rendered slide as input_image. The XLSX task loaded the Excel guide, created formulas, identified and removed an unwanted empty sheet, and received two rendered previews. Independent downloads verified DOCX text and paragraph styles with zero pictures/media; the PPTX title lies inside slide bounds and the other text shape is unchanged; the XLSX contains only the requested sheet and three live formulas with cached results 2000, 4500 and 6500.
 
+Viewing the actual XLSX image exposed clipped headers. The inherited Filter banned unrequested column widths/styling, directly contradicting the installed Excel skill's required explicit widths and readable labels. Remove that adapter-level restriction for new work; explicit user formatting-preservation constraints still take precedence.
+
 Several final answers invented attachment:// or sandbox:/ download links despite native file attachments being present. Tool responses supplied an opaque result_file_id but no download route. Authenticated browser retrieval from the actual native /api/v1/files/{id}/content route succeeded.
 
 ## Narrow adaptations
@@ -17,10 +19,11 @@ Several final answers invented attachment:// or sandbox:/ download links despite
 - Every create/apply/compose tool description starts with the upstream imperative FIRST load_officecli_skill, unless already loaded for that artifact, and retains the author's content/visual delivery checks. This follows [SkillInstaller.BuildSkillTriggerSummary](https://github.com/iOfficeAI/OfficeCLI/blob/v1.0.152/src/officecli/Core/SkillInstaller.cs), rather than adding hidden skill state or mutation gates.
 - Remove the misleading description that apply is a final operation: required inspection follows the published result.
 - Mutation responses provide download_url derived from their actual result_file_id using the same native route as authorized file downloads. Native attachment identities and access control remain unchanged.
+- Remove the inherited prohibition on column widths that contradicted the official Excel guide. User-specified preservation still takes priority.
 - The existing Filter explains this adapter's nonresident execution and how to use the returned final download_url. It does not replace the official skills, add a lifecycle manager, or expose local paths as links.
 
 ## Candidate validation
 
-Final adapter/Filter tests: 221 passed; Ruff critical checks and git diff --check passed. Real installed-package qualification passed in 45.346 seconds on image sha256:05590b307644366dca3d6cc7a574ee9f8988da4337889be935ad317209a55986 under disabled network/read-only root/1 GiB memory cap. It covered official catalog/guides, native objects/raw parts, issues/validation, PNG rendering for all three formats, and multi-sheet XLSX picture removal with an actual result download_url and preserved source bytes/cells/formulas/order. Product findings above describe #537, not proof of this follow-up's release. Fresh ordinary-chat acceptance remains necessary after deployment, including honest disclosure of an unsupported requirement.
+Final adapter/Filter tests: 222 passed; Ruff critical checks and git diff --check passed. Real installed-package qualification passed in 45.346 seconds on image sha256:05590b307644366dca3d6cc7a574ee9f8988da4337889be935ad317209a55986 under disabled network/read-only root/1 GiB memory cap. It covered official catalog/guides, native objects/raw parts, issues/validation, PNG rendering for all three formats, and multi-sheet XLSX picture removal with an actual result download_url and preserved source bytes/cells/formulas/order. Product findings above describe #537, not proof of this follow-up's release. Fresh ordinary-chat acceptance remains necessary after deployment, including honest disclosure of an unsupported requirement.
 
 The original customer files and unrelated workspace changes were not modified. Public evidence uses synthetic documents and excludes private chat contents.
