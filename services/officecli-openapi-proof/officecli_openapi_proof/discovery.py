@@ -10,14 +10,22 @@ from pydantic import BaseModel, Field, model_validator
 
 
 READ_COMMANDS = {"view", "query", "get"}
-HELP_COMMANDS = READ_COMMANDS | {"add", "set", "remove", "move", "swap", "batch", "validate", "create"}
+HELP_COMMANDS = READ_COMMANDS | {"add", "set", "remove", "move", "swap", "batch", "validate", "create", "raw", "raw-set", "add-part", "dump", "merge", "save", "close", "load_skill"}
 
 
 def help_arguments(topic: str) -> tuple[str, ...]:
     """Validate tokens, never accept flags, filenames, or arbitrary CLI commands."""
     tokens = topic.split(" ")
+    if topic == "help":
+        return ("help",)
+    if topic in {"docx /", "xlsx /", "pptx /"}:
+        return ("help", *tokens)
+    if re.fullmatch(r"(?:docx|xlsx|pptx) [A-Za-z][A-Za-z0-9-]{0,63} /", topic):
+        return ("help", *tokens)
     if topic in HELP_COMMANDS:
         return topic, "--help"
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", topic):
+        return ("help", topic)
     if not re.fullmatch(r"(?:docx|xlsx|pptx)(?: [A-Za-z][A-Za-z0-9-]{0,63}){0,2}", topic):
         raise ValueError("Use FORMAT, FORMAT ELEMENT, or FORMAT VERB ELEMENT (docx, xlsx, pptx).")
     # Existing view aliases retain top-level usage; other format topics belong
@@ -28,11 +36,11 @@ def help_arguments(topic: str) -> tuple[str, ...]:
 
 
 class ObjectReadPayload(BaseModel):
-    command: Literal["view", "query", "get"]
+    command: Literal["view", "query", "get", "validate", "raw"]
     selector: str | None = Field(default=None, min_length=1, max_length=512,
         description="For query: official selector, e.g. picture, chart, table. Returns actual paths across the file; use these paths for edits.")
     path: str | None = Field(default=None, min_length=1, max_length=512,
-        description="For get: an actual OfficeCLI object path, or / for the document root.")
+        description="For get: an actual OfficeCLI object path, or /. For raw: an official part path from FORMAT raw help, e.g. /document or /workbook.")
     depth: int = Field(default=0, ge=0, le=2, description="For get: child depth; 0 reads only the node.")
     offset: int = Field(default=0, ge=0, description="For query: zero-based offset into the native result list.")
     limit: int = Field(default=50, ge=1, le=100, description="For query: page size. Follow next_offset until complete before making a file-wide claim.")
@@ -41,10 +49,10 @@ class ObjectReadPayload(BaseModel):
     def validate_object_read(self):
         if self.command == "query" and (not self.selector or self.path is not None):
             raise ValueError("query requires selector and does not accept path")
-        if self.command == "get" and (not self.path or not self.path.startswith("/") or self.selector is not None):
-            raise ValueError("get requires an absolute object path and does not accept selector")
-        if self.command == "view" and (self.selector is not None or self.path is not None):
-            raise ValueError("view does not accept selector or path")
+        if self.command in {"get", "raw"} and (not self.path or not self.path.startswith("/") or self.selector is not None):
+            raise ValueError("get/raw requires an absolute object/part path and does not accept selector")
+        if self.command in {"view", "validate"} and (self.selector is not None or self.path is not None):
+            raise ValueError("view/validate does not accept selector or path")
         for value in (self.selector, self.path):
             if value is not None and re.search(r"[\x00-\x1f\x7f]", value):
                 raise ValueError("object selectors and paths must not contain control characters")
@@ -52,6 +60,12 @@ class ObjectReadPayload(BaseModel):
 
 
 def object_arguments(source: str, payload: ObjectReadPayload) -> list[str]:
+    if payload.command == "raw":
+        return ["raw", source, payload.path, "--json"]
+    if payload.command == "validate":
+        return ["validate", source, "--json"]
+    if payload.command == "view":
+        return ["view", source, payload.mode, "--json"]
     if payload.command == "query":
         return ["query", source, payload.selector, "--json"]
     return ["get", source, payload.path, "--depth", str(payload.depth), "--json"]

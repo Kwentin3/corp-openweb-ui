@@ -55,6 +55,11 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     instruction = body["messages"][0]["content"]
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in instruction
     assert "Discover capabilities progressively" in instruction
+    assert "FIRST load_officecli_skill" in instruction
+    assert "Load one skill per artifact, once" in instruction
+    assert "render_office_file" in instruction
+    assert "schema validation alone does not prove task completion" in instruction
+    assert "only when broader workflow guidance is needed" not in instruction
     assert "create_office_document" in instruction
     assert '"parent":"/body","type":"paragraph"' in instruction
     assert "Add one command per requested paragraph" in instruction

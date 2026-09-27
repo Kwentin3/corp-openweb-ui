@@ -5,6 +5,7 @@ This is not a provider or authenticated OpenWebUI end-to-end test.
 """
 
 from hashlib import sha256
+from io import BytesIO
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -72,6 +73,14 @@ class DiscoveryQualification(unittest.TestCase):
                 executor.run("batch", str(sources[fmt]), "--stop-on-error", "--json", input_text=json.dumps(commands))
             files = LocalFileTransport(sources)
             client = TestClient(create_app(executor, files, settings))
+            catalog = client.post("/v1/officecli/skills/load", headers=headers, json={})
+            self.assertEqual(catalog.status_code, 200, catalog.text)
+            self.assertIn("word-form", catalog.json()["content"])
+            self.assertIn("financial-model", catalog.json()["content"])
+            for skill in ("word", "excel", "pptx", "word-form"):
+                guide = client.post("/v1/officecli/skills/load", headers=headers, json={"skill": skill})
+                self.assertEqual(guide.status_code, 200, guide.text)
+                self.assertEqual(guide.json()["content"], executor.run("load_skill", skill).text)
             for fmt, kind, count in (("xlsx", "spreadsheets", 9), ("docx", "documents", 1), ("pptx", "presentations", 1)):
                 with self.subTest(format=fmt):
                     before = sha256(sources[fmt].read_bytes()).hexdigest()
@@ -96,6 +105,24 @@ class DiscoveryQualification(unittest.TestCase):
                     self.assertEqual(response.json()["officecli_result"]["data"]["results"][0]["path"], paths[0])
                     self.assertIsNone(files.result)
                     self.assertEqual(files.attached, [])
+                    raw_path = {"xlsx": "/workbook", "docx": "/document", "pptx": "/presentation"}[fmt]
+                    raw = client.post(f"/v1/officecli/{kind}/inspect", headers=headers,
+                        json={"file_id": fmt, "command_payload": {"command": "raw", "path": raw_path}})
+                    self.assertEqual(raw.status_code, 200, raw.text)
+                    self.assertTrue(raw.json()["officecli_result"]["success"])
+                    for payload in ({"command": "view", "mode": "issues"}, {"command": "validate"}):
+                        check = client.post(f"/v1/officecli/{kind}/inspect", headers=headers,
+                            json={"file_id": fmt, "command_payload": payload})
+                        self.assertEqual(check.status_code, 200, check.text)
+                        self.assertTrue(check.json()["officecli_result"]["success"])
+                    screenshot = client.post("/v1/officecli/render", headers=headers,
+                        json={"file_id": fmt, "format": fmt})
+                    self.assertEqual(screenshot.status_code, 200, screenshot.text[:300] if screenshot.status_code != 200 else "")
+                    with Image.open(BytesIO(screenshot.content)) as rendered:
+                        self.assertEqual(rendered.format, "PNG")
+                        self.assertGreater(rendered.width, 100)
+                        self.assertGreater(rendered.height, 100)
+                        self.assertGreater(len(rendered.convert("RGB").resize((100, 100)).getcolors(10001)), 2)
                     if fmt == "xlsx":
                         response = client.post(f"/v1/officecli/{kind}/apply-batch", headers=headers,
                             json={"file_id": fmt, "output_name": "without-pictures.xlsx",
