@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.2.0-capability-discovery
+version: 1.2.1-capability-discovery
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -48,7 +48,7 @@ OFFICECLI_INSTRUCTION = (
     "create result contains result_file_id and the native attachment is present; if execution fails, "
     "report the failure. Use result_file_id for any remaining requested edits or targeted verification; do not recreate a successful file unnecessarily. Continue creating other requested files and return each resulting native attachment once. Reply with a plain-language sentence naming the files; never echo tool JSON and never leave the final answer empty. "
     "For existing files, obtain explicit file_id values from native attached_files blocks (their opaque url), or list_chat_files when needed; citation numbers are not file IDs. Prefer the latest user upload over earlier copies. "
-    "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. Composition preserves pictures: if the user requests exclusions or further edits, continue with result_file_id and verify those changes. Report preserved source errors/external links from the receipt. "
+    "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. Composition preserves pictures: if the user requests exclusions or further edits, continue with result_file_id and verify those changes. Every compose/create/apply publishes an attachment. When further edits are needed, give the first output a distinct intermediate filename; use the user's requested filename only for the verified final output. Report preserved source errors/external links from the receipt. "
     "Discover capabilities progressively: get_officecli_help topic=docx/xlsx/pptx lists the installed format's elements; "
     "then request FORMAT ELEMENT or FORMAT VERB ELEMENT for the exact operation (e.g. xlsx picture, xlsx remove picture). "
     "Bare query/get/view/batch/validate gives command usage; FORMAT VERB lists its elements. Load the format skill only when broader workflow guidance is needed; do not repeatedly load full skills. "

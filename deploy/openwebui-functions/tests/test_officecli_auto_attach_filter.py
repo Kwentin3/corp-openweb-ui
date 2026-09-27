@@ -71,6 +71,8 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert "a withheld result is not an empty result" in instruction
     assert "Continue creating other requested files" in instruction
     assert "xlsx remove picture" in instruction
+    assert "distinct intermediate filename" in instruction
+    assert "Every compose/create/apply publishes an attachment" in instruction
     assert MODULE.GEMINI_COMPATIBILITY_MARKER not in instruction
 
 
