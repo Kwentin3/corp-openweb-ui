@@ -50,6 +50,9 @@ create it just to duplicate the primary customer-facing document.
 
 Additional delivery reports are maintained alongside the customer scope:
 
+- `OFFICE_TOOLS_COMPLETED_WORK_SUMMARY.md` is the consolidated act-reference
+  and PR index for Office Tools and incident diagnostics. It summarizes the
+  scoped reports below; it does not establish new estimates or acceptance scope.
 - `OFFICE_TOOLS_COMPLETED_WORK_AUDIT_120H.md` preserves the Office baseline.
 - `OFFICE_TOOLS_ADDITIONAL_REFACTOR_COMPLETED_WORK.md` owns the subsequent Office
   refactoring and separate incident-recorder estimate and evidence links.
