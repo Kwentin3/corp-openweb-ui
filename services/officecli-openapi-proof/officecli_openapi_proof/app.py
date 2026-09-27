@@ -300,8 +300,9 @@ class CreateSpreadsheetRequest(BaseModel):
         max_length=256,
         description=(
             "One ordered official OfficeCLI batch for the whole initial workbook (up to 256 items). "
-            "A new XLSX already contains Sheet1: do not add, remove, or rename Sheet1 "
-            "unless the user explicitly requests that change. Include new sheets, cell "
+            "A new XLSX already contains Sheet1. Reuse it by default; when the user "
+            "requests a sheet name, rename it using the installed xlsx sheet help. "
+            "Include new sheets, cell "
             "values, and cross-sheet formulas in this single batch. A failed batch rolls "
             "back all of its operations; use apply_office_spreadsheet_batch, not another "
             "create call, for a later conversational edit."
@@ -1095,7 +1096,8 @@ def create_app(
             "Create, batch, validate, and attach a new XLSX from the chat request. "
             "The workbook starts with Sheet1; address a cell as /Sheet1/A1, not as "
             "/sheet[Sheet1]/cell[A1]. Submit all initial work in one ordered "
-            "batch and add only additional sheets. For a later chat turn, use "
+            "batch. Reuse or rename the default sheet to satisfy the requested sheet names; "
+            "add additional sheets only when requested. For follow-up edits or corrections, use "
             "apply_office_spreadsheet_batch on the returned attachment."
         ),
     )

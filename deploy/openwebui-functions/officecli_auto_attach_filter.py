@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.3.1-author-workflow
+version: 1.3.2-author-workflow
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v8-operation-guidance]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v9-operation-guidance]"
 MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v2]"
 GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
 # Keep the production default aligned with the current direct-model catalog.
@@ -67,7 +67,7 @@ OFFICECLI_INSTRUCTION = (
     "Follow the authors' L1 read -> L2 DOM -> L3 raw strategy; use command=raw with an official part path when DOM readback cannot establish a requirement. "
     "Check each requested requirement on the final file with the relevant object/content readback. "
     "Use render_office_file for the skill's required visual audit; inspect its image, fix and re-render. It covers one Word page/PPTX slide or only the active XLSX sheet. "
-    "Tool-result images are verification evidence for the original user task, not a new request to caption an image. Their temporary source.ext label is not provenance: the render call's file_id identifies the artifact. After the visual audit, finish the original task and name its final attachment. "
+    "Tool-result images are verification evidence for the original user task, not a new request to caption an image. Their temporary source.ext label is not provenance: the render call's file_id identifies the artifact. If a preview or readback reveals an unmet requirement, STOP and fix it with the matching apply operation, then rerun verification as the official skill requires. Merely reporting a fixable mismatch does not finish the task. After the visual audit, finish the original task and name its verified final attachment. "
     "Do not describe an unperformed or unavailable check as passed; disclose the remaining limitation. "
     "Finish only when every requirement is satisfied and the final native attachment exists. Do not ask for re-uploading available files."
 
