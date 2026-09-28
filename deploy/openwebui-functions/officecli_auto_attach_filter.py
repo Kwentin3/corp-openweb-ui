@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.0.0-native-workflow
+version: 2.0.1-verified-download-links
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -9,6 +9,8 @@ description: Adds the existing OfficeCLI tool server only to explicitly configur
 from __future__ import annotations
 
 from collections.abc import Iterable
+import json
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -39,8 +41,61 @@ OFFICECLI_INSTRUCTION = (
     "Native attached_files entries and list_chat_files provide file IDs; text-retrieval citations are not a complete document structure. "
     "Use explicit file_id when multiple inputs are available. Reads do not publish files; create/apply work on copies and return native attachments. "
     "This adapter uses nonresident CLI execution: each create/apply saves before returning, so separate open/save/close calls are unnecessary. "
-    "For a produced file, use its returned result_file_id and download_url."
+    "For a produced file, use its returned result_file_id and download_url verbatim; never prepend sandbox: or invent a path."
 )
+
+
+OFFICECLI_PUBLISH_TOOLS = {
+    "create_office_document", "apply_office_batch",
+    "create_office_spreadsheet", "apply_office_spreadsheet_batch",
+    "create_office_presentation", "apply_office_presentation_batch",
+}
+
+
+def _returned_download_urls(output: list[Any]) -> set[str]:
+    """Read successful native publication receipts from this assistant turn only."""
+    calls = {
+        item.get("call_id") for item in output
+        if isinstance(item, dict) and item.get("type") == "function_call"
+        and item.get("name") in OFFICECLI_PUBLISH_TOOLS
+        and item.get("status") == "completed"
+    }
+    urls = set()
+    for item in output:
+        if not isinstance(item, dict) or item.get("type") != "function_call_output":
+            continue
+        if item.get("call_id") not in calls or item.get("status") != "completed":
+            continue
+        blocks = item.get("output")
+        if not isinstance(blocks, list):
+            continue
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("type") != "input_text":
+                continue
+            try:
+                receipt = json.loads(block.get("text", ""))
+            except (ValueError, TypeError):
+                continue
+            if not isinstance(receipt, dict):
+                continue
+            file_id = receipt.get("result_file_id")
+            native_file = receipt.get("result_file")
+            if not isinstance(file_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,128}", file_id):
+                continue
+            if not isinstance(native_file, dict) or native_file.get("id") != file_id:
+                continue
+            url = receipt.get("download_url")
+            if url == f"/api/v1/files/{file_id}/content":
+                urls.add(url)
+    return urls
+
+
+def _repair_download_links(text: str, urls: set[str]) -> str:
+    # Correct only the observed malformed Markdown destination. Do not infer a
+    # file from its display name, alter unknown links, or rewrite tool evidence.
+    for url in urls:
+        text = text.replace(f"](sandbox:{url})", f"]({url})")
+    return text
 
 
 def _comma_separated_values(value: str) -> set[str]:
@@ -89,6 +144,42 @@ class Filter:
 
     def __init__(self) -> None:
         self.valves = self.Valves()
+
+    async def outlet(
+        self,
+        body: dict[str, Any],
+        __metadata__: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Adapt a proven file URL at the native response boundary, without I/O."""
+        if (__metadata__ or {}).get("task") is not None:
+            return body
+        if body.get("model") not in _comma_separated_values(self.valves.target_model_ids):
+            return body
+        messages = body.get("messages")
+        if not isinstance(messages, list) or not messages:
+            return body
+        message = messages[-1]
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            return body
+        if not body.get("id") or message.get("id") != body["id"]:
+            return body
+        output = message.get("output")
+        if not isinstance(output, list):
+            return body
+        urls = _returned_download_urls(output)
+        if not urls:
+            return body
+        if isinstance(message.get("content"), str):
+            message["content"] = _repair_download_links(message["content"], urls)
+        # OpenWebUI 0.9.6 reserializes changed output to persisted content; update
+        # only assistant prose, retaining original function calls and results.
+        for item in output:
+            if not isinstance(item, dict) or item.get("type") != "message" or item.get("role") != "assistant":
+                continue
+            for block in item.get("content", []):
+                if isinstance(block, dict) and block.get("type") == "output_text" and isinstance(block.get("text"), str):
+                    block["text"] = _repair_download_links(block["text"], urls)
+        return body
 
     async def inlet(
         self,

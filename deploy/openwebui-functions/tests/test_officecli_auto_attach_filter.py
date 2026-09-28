@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import importlib.util
 import pytest
 from pathlib import Path
@@ -16,6 +17,84 @@ SPEC.loader.exec_module(MODULE)
 
 def run_inlet(filter_instance, body, metadata):
     return asyncio.run(filter_instance.inlet(body, __metadata__=metadata))
+
+
+def publication_body():
+    url = "/api/v1/files/12345678-1234-1234-1234-123456789abc/content"
+    text = f"[Download](sandbox:{url})"
+    return {
+        "id": "answer", "model": "gpt-6-sol",
+        "messages": [{"id": "answer", "role": "assistant", "content": text, "output": [
+            {"type": "function_call", "call_id": "publish", "name": "create_office_document", "status": "completed"},
+            {"type": "function_call_output", "call_id": "publish", "status": "completed", "output": [
+                {"type": "input_text", "text": json.dumps({
+                    "result_file_id": "12345678-1234-1234-1234-123456789abc",
+                    "result_file": {"id": "12345678-1234-1234-1234-123456789abc"},
+                    "download_url": url,
+                })},
+            ]},
+            {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": text}]},
+        ]}],
+    }
+
+
+def test_outlet_repairs_proven_download_in_content_and_output_without_touching_receipt():
+    body = publication_body()
+    evidence = copy.deepcopy(body["messages"][0]["output"][:2])
+    instance = configured_filter()
+    for _ in range(2):
+        assert asyncio.run(instance.outlet(body)) is body
+    message = body["messages"][0]
+    expected = "[Download](/api/v1/files/12345678-1234-1234-1234-123456789abc/content)"
+    assert message["content"] == expected
+    assert message["output"][2]["content"][0]["text"] == expected
+    assert message["output"][:2] == evidence
+
+
+@pytest.mark.parametrize("mutation", ["unknown_tool", "failed", "foreign_call", "foreign_file", "foreign_url", "invalid_json", "wrong_turn", "user", "unlisted", "no_receipt"])
+def test_outlet_does_not_invent_or_repair_unproven_downloads(mutation):
+    body = publication_body()
+    message = body["messages"][0]
+    call, result, _ = message["output"]
+    receipt = json.loads(result["output"][0]["text"])
+    if mutation == "unknown_tool":
+        call["name"] = "web_search"
+    elif mutation == "failed":
+        result["status"] = "failed"
+    elif mutation == "foreign_call":
+        result["call_id"] = "elsewhere"
+    elif mutation == "foreign_file":
+        receipt["result_file"]["id"] = "other"
+    elif mutation == "foreign_url":
+        receipt["download_url"] = "https://elsewhere.example/download"
+    elif mutation == "wrong_turn":
+        body["id"] = "other"
+    elif mutation == "user":
+        message["role"] = "user"
+    elif mutation == "unlisted":
+        body["model"] = "specialized-pipe"
+    elif mutation == "no_receipt":
+        result["output"] = []
+    if result["output"]:
+        result["output"][0]["text"] = "not JSON" if mutation == "invalid_json" else json.dumps(receipt)
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().outlet(body))
+    assert body == before
+
+
+def test_outlet_scopes_to_current_message_and_preserves_unknown_links_and_auxiliary_tasks():
+    body = publication_body()
+    prior = copy.deepcopy(body["messages"][0])
+    prior["id"] = "prior"
+    body["messages"].insert(0, prior)
+    unknown = " [Other](sandbox:/api/v1/files/unknown/content) [Web](https://example.com)"
+    body["messages"][-1]["content"] += unknown
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().outlet(body, __metadata__={"task": "title_generation"}))
+    assert body == before
+    asyncio.run(configured_filter().outlet(body))
+    assert body["messages"][0] == before["messages"][0]
+    assert body["messages"][-1]["content"].endswith(unknown)
 
 
 def configured_filter():

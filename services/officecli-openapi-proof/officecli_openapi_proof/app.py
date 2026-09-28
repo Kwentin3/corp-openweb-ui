@@ -612,7 +612,9 @@ def create_app(
         responses={200: {"content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}}},
         description=(
             "Run the installed author's screenshot renderer and return an image to your vision context through native OpenWebUI. "
-            "Inspect one DOCX page or PPTX slide at a time; fix layout problems and re-render as the loaded skill requires. "
+            "Use grid for a whole DOCX/PPTX contact sheet, or inspect a page/slide. "
+            "For DOCX pagination use grid: the installed HTML renderer's single-page-1 shortcut skips pagination and can show false overflow. "
+            "Fix confirmed layout problems and re-render as the loaded skill requires. "
             "Without range, XLSX shows its active sheet; use a sheet-qualified range for a targeted view. "
             "The render belongs to the requested file_id; any source.ext label is temporary. "
             "Use the image to verify the original task, then finish that task with its final attachment. "
@@ -634,7 +636,9 @@ def create_app(
                 output = Path(directory) / "preview.png"
                 openwebui.download(request.file_id, bearer, source)
                 arguments = ["view", str(source), "screenshot", "-o", str(output)]
-                if request.format != "xlsx":
+                if request.grid is not None:
+                    arguments.extend(["--grid", str(request.grid)])
+                elif request.format != "xlsx":
                     arguments.extend(["--page", str(request.page)])
                 if request.range is not None:
                     arguments.extend(["--range", request.range])

@@ -113,6 +113,36 @@ def test_missing_screenshot_is_not_a_success_and_releases_the_slot():
     assert files.calls == [("download", "result-id")] * 2
 
 
+@pytest.mark.parametrize("kind", ["docx", "pptx"])
+def test_contact_sheet_uses_native_grid_without_single_page_filter_or_publication(kind):
+    class GridCli(RecordingOfficeCli):
+        def run(self, *args, input_text=None):
+            if args[0] == "view":
+                assert args[-2:] == ("--grid", "2")
+                assert "--page" not in args
+                Image.new("RGB", (32, 16), "blue").save(Path(args[4]))
+            return super().run(*args, input_text=input_text)
+
+    files = RecordingOpenWebUi()
+    response = TestClient(create_app(GridCli(), files, settings())).post(
+        "/v1/officecli/render", headers=HEADERS,
+        json={"file_id": "result-id", "format": kind, "grid": 2})
+    assert response.status_code == 200
+    with Image.open(BytesIO(response.content)) as image:
+        assert image.size == (32, 16)
+    assert files.calls == [("download", "result-id")]
+
+
+@pytest.mark.parametrize("extra", [{"format": "xlsx"}, {"page": 2}, {"range": "/body/tbl[1]"}, {"grid": 0}, {"grid": 7}])
+def test_grid_rejects_unsupported_or_ambiguous_scope_before_file_access(extra):
+    files, cli = RecordingOpenWebUi(), RecordingOfficeCli()
+    response = TestClient(create_app(cli, files, settings())).post(
+        "/v1/officecli/render", headers=HEADERS,
+        json={"file_id": "result-id", "format": "docx", "grid": 2, **extra})
+    assert response.status_code == 422
+    assert files.calls == cli.calls == []
+
+
 def test_xlsx_page_is_not_falsely_treated_as_a_sheet_selector():
     files = RecordingOpenWebUi()
     cli = RecordingOfficeCli()
