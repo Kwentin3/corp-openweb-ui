@@ -1,6 +1,10 @@
 # OfficeCLI native workflow refactor
 
-Status: release is not ready. The first candidate passed both CI jobs; the
+Status: the user authorized removal of the legacy Office Documents entry point
+and deferred the two direct Claude checks until provider funding is restored.
+The public scope is now eight direct models. The earlier nine-profile matrices
+below remain historical evidence; their retired Office Documents row is not a
+current release requirement. The first candidate passed both CI jobs; the
 always-visible workflow follow-up passed 210 local checks and three actual-CLI
 checks. Its ordinary-chat qualification is recorded separately below. Production
 remains unchanged. NDFL is excluded by explicit user scope.
@@ -215,8 +219,9 @@ the common bootstrap; qualify unsupported-command recovery and result verificati
 on GPT-5.4 Mini and completion on Gemini 3.5 Flash Lite. Trace the native provider
 request/context before changing prompts. Any correction must stay generic and be
 grounded in the installed author's workflow, not a spreadsheet-specific recipe.
-Private QA aliases/connection and synthetic evidence are retained while this work
-is unresolved. No global deployment or provider substitution was performed.
+Private QA aliases/connection were retained during that qualification and removed
+by the subsequent single-entry cleanup below. Synthetic evidence remains private.
+No provider substitution was performed.
 
 ### Qualification of the always-visible workflow follow-up
 
@@ -311,15 +316,39 @@ composition. Arbitrary lossless workbook consolidation is not claimed. Existing
 explicit transport bounds (batch sizes, object depth and attachment-image mapping)
 remain; this is not a claim that every CLI operation is remotely exposed.
 
-Release after CI and authorization:
+### Single-entry cleanup authorized by the user
+
+The user explicitly rejected the Office Documents wrapper and all legacy fallback
+paths, while deferring Claude testing until the account is funded. Native Models
+API deletion removed `office-documents` and twelve completed private QA profiles.
+Native Functions API deletion removed the inactive v0.7.3 backup and temporary
+context-receipt Function. The QA tool-server connection was removed; the sole
+production connection was compared unchanged. The existing Filter valves no longer
+contain `office-documents`; no alias, redirect or replacement prompt was installed.
+
+An ordinary role=user catalog now shows the eight direct public models and no
+OfficeCLI wrapper/QA profiles. Both NDFL profiles remain unchanged. Read-only
+database snapshots confirm that all three histories mentioning Office Documents
+have identical hashes and all 1605 original file records remain. Native model
+deletion removes model/access records, not chats or files.
+
+The runbook now describes only the current native entry point. Operational recipes
+for obsolete images, the old composition engine and Office Documents were removed;
+Git and dated reports preserve historical evidence. Positive tests for enabling
+the retired wrapper were removed, while unlisted-model rejection remains covered.
+205 local integration/Filter checks pass; the five removed cases covered the
+retired profile. This is not a change to the agent's document-task acceptance.
+
+Release after required CI:
 
 1. Preserve current image, Function source/valves/Active/Global, native tool-server
-   connection and `office-documents` parameters in a private rollback record.
+   connection in a private audit record. Do not restore the retired Office profile.
 2. Replace only the OfficeCLI sidecar and existing Filter, preserving model allowlist,
    native permissions and connection identity. Re-read and compare their identities.
-3. Remove the legacy DOCX-only `office-documents.params.system` instruction while
-   retaining its other settings; the shared Filter owns this integration context.
+3. Confirm only the shared Filter owns Office context and no retired profile or
+   fallback Function is present. Claude Opus/Sonnet remain explicitly unverified.
 4. Refresh the existing native connection's schema. Run a new ordinary direct-model
    chat for read-only discovery and a delivered/verified edit; check a follow-up turn.
-5. On failure restore the recorded sidecar, Function and model parameters. After
-   acceptance remove only task-created private QA connection/model/container.
+5. On failure disable the capability and fix the candidate; do not restore a legacy
+   route as a fallback. Remove only task-created QA containers after their purpose
+   ends, preserving user histories, files and the qualified image artifact.

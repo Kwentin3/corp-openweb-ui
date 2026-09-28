@@ -206,18 +206,6 @@ def test_followup_with_files_retains_native_route_without_new_upload():
     assert metadata["params"]["function_calling"] == "native"
 
 
-def test_already_published_office_alias_can_be_explicitly_qualified():
-    instance = configured_filter()
-    instance.valves.target_model_ids += ",office-documents"
-    body = {**eligible_body(), "model": "office-documents", "files": xlsx_files(),
-            "tool_ids": ["server:officecli"]}
-    metadata = {"params": {}}
-    run_inlet(instance, body, metadata)
-    assert body["tool_ids"] == ["server:officecli"]
-    assert metadata["params"]["function_calling"] == "native"
-    assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
-
-
 @pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
 def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning(model):
     instance = configured_filter()
@@ -233,13 +221,12 @@ def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requeste
     assert single["reasoning_effort"] == "none"
 
 
-@pytest.mark.parametrize("model", MODULE.DEFAULT_TARGET_MODEL_IDS.split(",") + ["office-documents"])
+@pytest.mark.parametrize("model", MODULE.DEFAULT_TARGET_MODEL_IDS.split(","))
 @pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}],
     [{"type": "file", "id": "deck", "name": "deck.pptx"}],
     [{"type": "file", "id": "word", "name": "form.docx"}, {"type": "file", "id": "deck", "name": "deck.pptx"}]])
 def test_native_office_route_is_independent_of_format_and_attachment_count(model, files):
     instance = configured_filter()
-    instance.valves.target_model_ids += ",office-documents"
     body = {**eligible_body(), "model": model, "files": copy.deepcopy(files)}
     metadata = {"params": {"temperature": 0.2, "function_calling": "default"}, "chat_id": "chat"}
     run_inlet(instance, body, metadata)
