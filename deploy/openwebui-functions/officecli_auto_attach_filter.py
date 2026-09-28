@@ -49,16 +49,18 @@ OFFICECLI_PUBLISH_TOOLS = {
     "create_office_document", "apply_office_batch",
     "create_office_spreadsheet", "apply_office_spreadsheet_batch",
     "create_office_presentation", "apply_office_presentation_batch",
+    "publish_terminal_file",
 }
 
 
 def _returned_download_urls(output: list[Any]) -> set[str]:
     """Read successful native publication receipts from this assistant turn only."""
     calls = {
-        item.get("call_id") for item in output
+        item.get("call_id"): item.get("name") for item in output
         if isinstance(item, dict) and item.get("type") == "function_call"
         and item.get("name") in OFFICECLI_PUBLISH_TOOLS
         and item.get("status") == "completed"
+        and isinstance(item.get("call_id"), str) and item["call_id"]
     }
     urls = set()
     for item in output:
@@ -77,6 +79,8 @@ def _returned_download_urls(output: list[Any]) -> set[str]:
             except (ValueError, TypeError):
                 continue
             if not isinstance(receipt, dict):
+                continue
+            if calls[item["call_id"]] == "publish_terminal_file" and receipt.get("status") != "published":
                 continue
             file_id = receipt.get("result_file_id")
             native_file = receipt.get("result_file")

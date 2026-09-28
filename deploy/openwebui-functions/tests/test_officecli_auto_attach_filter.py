@@ -38,8 +38,15 @@ def publication_body():
     }
 
 
-def test_outlet_repairs_proven_download_in_content_and_output_without_touching_receipt():
+@pytest.mark.parametrize("tool_name", ["create_office_document", "publish_terminal_file"])
+def test_outlet_repairs_proven_download_in_content_and_output_without_touching_receipt(tool_name):
     body = publication_body()
+    output = body["messages"][0]["output"]
+    output[0]["name"] = tool_name
+    if tool_name == "publish_terminal_file":
+        receipt = json.loads(output[1]["output"][0]["text"])
+        receipt["status"] = "published"
+        output[1]["output"][0]["text"] = json.dumps(receipt)
     evidence = copy.deepcopy(body["messages"][0]["output"][:2])
     instance = configured_filter()
     for _ in range(2):
@@ -51,7 +58,15 @@ def test_outlet_repairs_proven_download_in_content_and_output_without_touching_r
     assert message["output"][:2] == evidence
 
 
-@pytest.mark.parametrize("mutation", ["unknown_tool", "failed", "foreign_call", "foreign_file", "foreign_url", "invalid_json", "wrong_turn", "user", "unlisted", "no_receipt"])
+def test_outlet_does_not_treat_incomplete_terminal_publication_as_success():
+    body = publication_body()
+    body["messages"][0]["output"][0]["name"] = "publish_terminal_file"
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().outlet(body))
+    assert body == before
+
+
+@pytest.mark.parametrize("mutation", ["unknown_tool", "failed", "foreign_call", "missing_call", "foreign_file", "foreign_url", "invalid_json", "wrong_turn", "user", "unlisted", "no_receipt"])
 def test_outlet_does_not_invent_or_repair_unproven_downloads(mutation):
     body = publication_body()
     message = body["messages"][0]
@@ -63,6 +78,9 @@ def test_outlet_does_not_invent_or_repair_unproven_downloads(mutation):
         result["status"] = "failed"
     elif mutation == "foreign_call":
         result["call_id"] = "elsewhere"
+    elif mutation == "missing_call":
+        call.pop("call_id")
+        result.pop("call_id")
     elif mutation == "foreign_file":
         receipt["result_file"]["id"] = "other"
     elif mutation == "foreign_url":
