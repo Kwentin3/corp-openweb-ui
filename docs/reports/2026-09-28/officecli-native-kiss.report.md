@@ -174,7 +174,7 @@ alias results do not establish the post-release global Filter route.
 | office-documents (Claude Opus 5) | Blocked on shared Anthropic provider | Blocked on shared Anthropic provider |
 | gpt-5.6-luna | Read/Word/PPTX correct; summary sums prices, yielding 100/500 | Read and three artifacts pass; Excel recalculation correct, summary cache absent |
 | models/gemini-3.1-flash-lite | No structural read; wrong XLSX structure; no Word result | No structural read; incorrect XLSX, Word formatting and first slide changed |
-| models/gemini-3.5-flash-lite | No structural read; XLSX source-sheet provenance incorrect; Word/PPTX correct | Read correct; only XLSX delivered, zero monthly values and missing EUR formatting; no final answer |
+| models/gemini-3.5-flash-lite | No structural read; XLSX source-sheet provenance incorrect; Word/PPTX correct | Read correct; only XLSX delivered, zero monthly values; no final answer |
 
 These are single-run observations, not reliability estimates. Successful calls or
 artifact counts alone are not acceptance. Checks download the native attachments,
@@ -230,7 +230,7 @@ error; no retry or provider substitution is counted as acceptance.
 | models/gemini-3.6-flash | Structural read and all three artifacts pass; Excel recalculates 300/700 EUR |
 | gpt-5.4-mini | Structural tools used; XLSX Beta source sheet incorrect and detail amounts hardcoded; missing Word output and incorrect PPTX edit |
 | models/gemini-3.1-flash-lite | No structural read, incorrect claims about sheets/slides; unsupported edit commands and no outputs |
-| models/gemini-3.5-flash-lite | Structural read; only XLSX returned, missing EUR formatting and final answer |
+| models/gemini-3.5-flash-lite | Structural read; only XLSX returned, monthly values remain zero after Excel recalculation; no final answer |
 | gpt-5.6-luna | Read, Word and PPTX pass; XLSX omits the requested source-sheet provenance |
 
 The final artifact result is two passing profiles, four failed/incomplete profiles,
@@ -257,6 +257,27 @@ private Gemini 3.1 Lite profile, then restored it. The model used 13 structural 
 calls instead of zero and recovered sheet/slide names, but still omitted March data
 from one workbook. Competing extracted-text context is a supported hypothesis, not
 a proven universal cause or an accepted fix. Public RAG remains unchanged.
+
+The subsequent full-task diagnostic changed only the native `file_context`
+capability to false for the two private Lite aliases. It retained built-in tools,
+the same official guidance, source attachments and task, and the candidate Filter
+on every request. Both profiles used structural tools (11 and 17 read calls) and
+returned three files. Gemini 3.1 Lite still omitted March/Word-row content in its
+read answer and produced incorrect XLSX, Word and first-slide edits. Gemini 3.5
+Lite's read answer and all three artifacts passed; Excel independently recalculated
+300/700 EUR, with correct provenance and unchanged Word/slide elements.
+
+QA correction: the request specified EUR but did not require a currency number
+format. An explicit EUR column heading satisfies that requirement; the earlier
+format-only assertion was overstrict. The corrected assertion was reapplied to
+all saved matrices. The principal matrix remains two pass, four incomplete/failed,
+three provider-blocked. The tools-only diagnostic success is a separate configuration
+and must not be substituted into that matrix.
+
+Both private profiles were restored and the diagnostic Function disabled after
+the experiment. [Open WebUI documents this native tools-only mode](https://docs.openwebui.com/features/chat-conversations/rag/),
+but one successful diagnostic is not sufficient evidence to disable automatic file
+context across public general-purpose models or to promise all-model reliability.
 
 These results do not establish reliable support across all public models. Keep
 guidance shared and official; do not add model-specific document recipes to turn
