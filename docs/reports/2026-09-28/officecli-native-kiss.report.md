@@ -1,7 +1,9 @@
 # OfficeCLI native workflow refactor
 
-Status: implementation, isolated candidate acceptance and OfficeCLI CI passed;
-repository-wide CI and shared release pending. Production remains unchanged.
+Status: release is not ready. The first candidate passed both CI jobs; the
+always-visible workflow follow-up passed 210 local checks and three actual-CLI
+checks. Its ordinary-chat qualification is recorded separately below. Production
+remains unchanged. NDFL is excluded by explicit user scope.
 
 ## Goal and ownership
 
@@ -121,10 +123,145 @@ quote-handling recipe was added to the integration.
 
 ## Release boundary and remaining limits
 
-This covers all three formats on GPT and large-XLSX discovery/editing on Gemini,
-not a new qualification of every published model. The global Filter path still requires a direct-model smoke
-test after release; candidate chats test the native tool/file loop with the same
-bootstrap delivered by private model parameters.
+### Follow-up: restore the author's always-visible tool context
+
+The matrix exposed a methodological gap in this candidate: its bootstrap required
+the model to call `help workflow` to obtain even the base tool workflow. OfficeCLI
+v1.0.152 instead publishes the workflow, delivery gate and compact skill triggers
+directly in its MCP tool description; only detailed guides/schemas stay lazy.
+This is a verified delivery difference, not proof that it caused every model error.
+
+The follow-up reads the installed `tools/list` while building OpenAPI and places its
+unchanged description once in `get_officecli_help`, with an explicit transport
+mapping. The Filter points to this already-visible description. It does not embed
+business recipes or copy the text into every operation. Missing/malformed official
+instructions prevent publishing an incomplete schema. The transport bootstrap is
+915 characters; the official workflow is additional always-visible tool context,
+not a claim that the total prompt has shrunk to 915 characters. Local checks: 210
+passed. The rebuilt runtime image is
+`sha256:ce5b86c99f2966bddf4de1cf57d96b72fb4e0bef8b3cb9b16e547d045ce8e535`;
+three actual-CLI qualification tests passed in 68.816 seconds with network disabled,
+read-only root and the production-sized 128 MiB noexec temporary filesystem.
+Replaying the installed OpenWebUI `convert_openapi_to_tool_payload` and its native
+schema resolver on that image's schema preserves the 4507-character help description
+exactly, once across 13 operations (description SHA-256
+`2cc8138deb372e3d3e3a2fcb395d33a5ee55f97dd5d370f259a2e014be52da55`).
+This is native conversion evidence, not a captured outgoing provider request.
+The first matrix below predates this follow-up and cannot qualify the changed
+candidate; the separate follow-up matrix qualifies the rebuilt image.
+
+### Required model coverage
+
+Public scope was verified through `/api/models` authenticated as a disposable
+ordinary user, using native public read grants. There are **nine** non-NDFL public
+profiles. The two NDFL Pipes are explicitly excluded by the user. Admin-only GPT-6,
+Claude Opus 5.5, Antigravity, Arena and TTS entries are outside this public scope.
+
+Qualification used identical synthetic attachments and user prompts:
+read-only discovery of two three-sheet workbooks, a Word table and a two-slide deck;
+then a formula-based monthly workbook plus targeted Word and PowerPoint edits.
+Production uses actual public IDs. Candidate uses private native Workspace Model
+aliases on the same base providers and the identical candidate bootstrap. Candidate
+alias results do not establish the post-release global Filter route.
+
+| Public profile | Production observation | Candidate observation |
+| --- | --- | --- |
+| claude-opus-5 | Read correct; only XLSX delivered | Anthropic insufficient balance |
+| claude-sonnet-4-6 | Read correct; edit interrupted by Anthropic balance error | Blocked on same provider |
+| gpt-5.4-mini | No structural read; incomplete XLSX-only result | Structural tools used; no XLSX; wrong Word/PPTX targets and invalid links |
+| models/gemini-3.5-flash | Read correct; Word/PPTX correct; XLSX monthly values zero | All three downloaded artifacts pass content/preservation checks |
+| models/gemini-3.6-flash | All three downloaded artifacts pass content/preservation checks | Read and three artifacts pass; Excel recalculation correct, stored summary cache zero |
+| office-documents (Claude Opus 5) | Blocked on shared Anthropic provider | Blocked on shared Anthropic provider |
+| gpt-5.6-luna | Read/Word/PPTX correct; summary sums prices, yielding 100/500 | Read and three artifacts pass; Excel recalculation correct, summary cache absent |
+| models/gemini-3.1-flash-lite | No structural read; wrong XLSX structure; no Word result | No structural read; incorrect XLSX, Word formatting and first slide changed |
+| models/gemini-3.5-flash-lite | No structural read; XLSX source-sheet provenance incorrect; Word/PPTX correct | Read correct; only XLSX delivered, zero monthly values and missing EUR formatting; no final answer |
+
+These are single-run observations, not reliability estimates. Successful calls or
+artifact counts alone are not acceptance. Checks download the native attachments,
+resolve final-answer file references, compare original bytes, validate formula
+values and all source rows, and compare unaffected Word/slide XML. The compound
+three-output task is stricter than isolated per-format capability checks.
+
+Microsoft Excel 16.0 independently opened read-only local copies and recalculated
+formulas. Candidate Gemini 3.6 Flash and GPT-5.6 Luna produce 300/700 EUR after
+recalculation, despite zero/absent cached values. They are not formula failures.
+Production Gemini 3.5 Flash still produces zero (text wildcard against Excel dates);
+production GPT-5.6 Luna produces 100/500 (price column instead of amount).
+The two cache cases remain a preview limitation before an Excel recalculation.
+One interrupted Sonnet artifact could not be opened in the Excel check; no pass is
+claimed for that blocked run. This does not establish its failure's cause.
+
+Native attachments were downloadable under the ordinary user's authorization.
+Several answers nevertheless contain relative filename links or sandbox-prefixed
+links instead of the supplied download URL. Artifact correctness and answer-link
+quality are separate findings; the three successful artifact rows are not a claim
+that every aspect of their final text is correct. Source files stayed byte-identical.
+
+The native Anthropic response explicitly reports insufficient API credit. No
+provider substitution or further requests to that provider are used to mask it.
+For GPT-5.4 Mini the candidate exposes official help and actual structure, but the
+model still issues unsupported commands, selects wrong object paths and stops.
+No native tool-iteration-limit error was recorded. Do not add a task recipe or
+blindly raise loop limits on this evidence.
+
+KISS remains: installed OfficeCLI owns syntax/document semantics; native Open WebUI
+owns authentication, file access and chat attachments; the existing adapter owns
+transport limits only. No per-model business prompt, new client or core fork was
+introduced for this matrix. Full public-model acceptance remains incomplete.
+
+Next acceptance work: restore the existing Anthropic account and qualify its three
+profiles; investigate why Gemini 3.1 Flash Lite ignores structural tools despite
+the common bootstrap; qualify unsupported-command recovery and result verification
+on GPT-5.4 Mini and completion on Gemini 3.5 Flash Lite. Trace the native provider
+request/context before changing prompts. Any correction must stay generic and be
+grounded in the installed author's workflow, not a spreadsheet-specific recipe.
+Private QA aliases/connection and synthetic evidence are retained while this work
+is unresolved. No global deployment or provider substitution was performed.
+
+### Qualification of the always-visible workflow follow-up
+
+The same six accessible base models were exercised through private profiles on the
+rebuilt image. The three Anthropic profiles remain blocked by the explicit billing
+error; no retry or provider substitution is counted as acceptance.
+
+| Public base model | Follow-up observation |
+| --- | --- |
+| models/gemini-3.5-flash | Structural read and all three artifacts pass; Excel recalculates 300/700 EUR |
+| models/gemini-3.6-flash | Structural read and all three artifacts pass; Excel recalculates 300/700 EUR |
+| gpt-5.4-mini | Structural tools used; XLSX Beta source sheet incorrect and detail amounts hardcoded; missing Word output and incorrect PPTX edit |
+| models/gemini-3.1-flash-lite | No structural read, incorrect claims about sheets/slides; unsupported edit commands and no outputs |
+| models/gemini-3.5-flash-lite | Structural read; only XLSX returned, missing EUR formatting and final answer |
+| gpt-5.6-luna | Read, Word and PPTX pass; XLSX omits the requested source-sheet provenance |
+
+The final artifact result is two passing profiles, four failed/incomplete profiles,
+and three provider-blocked profiles. A blank default Sheet1 is recorded as a
+cosmetic observation, not a task failure: the prompt did not prohibit extra empty
+sheets. This correction to the QA assertion does not change the failed profiles;
+their source provenance or requested outputs remain incorrect/incomplete.
+
+Test validity: one run with a detached follow-up ancestry was excluded. Three more
+private-profile follow-ups lost OfficeCLI availability after page reload and are
+excluded from model-quality conclusions. A native metadata receipt proved that one
+diagnostic turn contained only built-in tools; another contained OfficeCLI with the
+exact 4507-character description. This establishes a QA route discrepancy, not its
+frontend cause or a general production defect.
+
+Those three cases were repeated using the candidate's existing Filter code on
+every request, targeting only the private aliases and candidate connection. Native
+metadata receipts for Gemini 3.6, 3.5 Lite and GPT-5.6 Luna prove the expected tool set and exact
+description hash on both read and edit turns. No public settings or Open WebUI core
+were changed. This temporary diagnostic Function is not a second production owner.
+
+A separate bounded read-only probe disabled native automatic file context on the
+private Gemini 3.1 Lite profile, then restored it. The model used 13 structural tool
+calls instead of zero and recovered sheet/slide names, but still omitted March data
+from one workbook. Competing extracted-text context is a supported hypothesis, not
+a proven universal cause or an accepted fix. Public RAG remains unchanged.
+
+These results do not establish reliable support across all public models. Keep
+guidance shared and official; do not add model-specific document recipes to turn
+the failing rows green. Native attachments, source preservation, file content and
+the final user answer remain separate acceptance checks.
 
 The removed `compose_office_spreadsheets` route is an intentional compatibility
 break. OfficeCLI's native `merge` is template substitution, not cross-workbook

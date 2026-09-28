@@ -43,6 +43,9 @@ class RecordingOfficeCli:
     def run(self, *arguments: str, input_text: str | None = None) -> OfficeCliOutput:
         self.calls.append(arguments)
         self.inputs.append(input_text)
+        if arguments[0] == "mcp":
+            return office_output(*arguments, payload={"result": {"tools": [
+                {"name": "officecli", "description": "Official test workflow from installed tools/list"}]}})
         if arguments[0] == "create":
             Path(arguments[1]).write_bytes(b"new DOCX bytes")
             return office_output(*arguments, payload={"success": True, "data": {"operation": "create"}})

@@ -514,6 +514,25 @@ def create_app(
     app = FastAPI(title="OfficeCLI for Open WebUI", version="2.0.0")
     render_slot = BoundedSemaphore(1)
 
+    def official_workflow() -> GuidanceResponse:
+        # The installed MCP tools/list owns the always-visible workflow. Detailed
+        # skills and command schemas remain lazy, as in the upstream MCP server.
+        try:
+            output = officecli.run("mcp", input_text=json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}) + "\n")
+            reply = next(json.loads(line) for line in output.text.splitlines()
+                         if line.strip().startswith("{"))
+            official_tool = next(tool for tool in reply["result"]["tools"] if tool["name"] == "officecli")
+            content = official_tool["description"]
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("Empty official tool description")
+        except (OfficeCliFailure, ValueError, KeyError, TypeError, StopIteration) as error:
+            raise HTTPException(status_code=502, detail="Installed OfficeCLI tool instructions could not be read") from error
+        return GuidanceResponse(source=f"officecli v{active_settings.expected_version}",
+            command=list(output.command), content=content,
+            content_sha256=sha256(content.encode("utf-8")).hexdigest(),
+            auto_resident_disabled=output.auto_resident_disabled, diagnostics=output.diagnostics)
+
     def authenticated_bearer(authorization: str | None) -> str:
         bearer = _bearer(authorization)
         try:
@@ -584,21 +603,7 @@ def create_app(
     ) -> GuidanceResponse:
         if request.topic == "workflow":
             authenticated_bearer(authorization)
-            # Read the installed author's public tools/list. Do not maintain a
-            # local rewrite of its strategy, skill triggers or delivery gate.
-            try:
-                output = officecli.run("mcp", input_text=json.dumps({
-                    "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}) + "\n")
-                reply = next(json.loads(line) for line in output.text.splitlines()
-                             if line.strip().startswith("{"))
-                official_tool = next(tool for tool in reply["result"]["tools"] if tool["name"] == "officecli")
-                content = official_tool["description"]
-            except (OfficeCliFailure, ValueError, KeyError, TypeError, StopIteration) as error:
-                raise HTTPException(status_code=502, detail="Installed OfficeCLI tool instructions could not be read") from error
-            return GuidanceResponse(source=f"officecli v{active_settings.expected_version}",
-                command=list(output.command), content=content,
-                content_sha256=sha256(content.encode("utf-8")).hexdigest(),
-                auto_resident_disabled=output.auto_resident_disabled, diagnostics=output.diagnostics)
+            return official_workflow()
         return guidance_response_for(authorization, *help_arguments(request.topic))
 
     @app.post(
@@ -1335,6 +1340,23 @@ def create_app(
             bounded_processes_completed=True,
         )
 
+    native_openapi = app.openapi
+
+    def openapi_with_official_workflow():
+        if app.openapi_schema is None:
+            workflow = official_workflow()
+            schema = native_openapi()
+            operation = schema["paths"]["/v1/officecli/help"]["post"]
+            operation["description"] += (
+                "\n\nInstalled OfficeCLI workflow (applies to all Office tools):\n"
+                + workflow.content
+                + "\n\nOpen WebUI transport: CLI examples map to the named inspect/create/apply/render tools "
+                "and their schemas; use native file_id instead of host paths. Each create/apply saves "
+                "a copy and returns result_file_id/download_url; separate save/close is unnecessary."
+            )
+        return app.openapi_schema
+
+    app.openapi = openapi_with_official_workflow
     return app
 
 

@@ -33,7 +33,7 @@ DEFAULT_TARGET_MODEL_IDS = (
 )
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI tools are available for reading, creating and editing DOCX, XLSX and PPTX. "
-    "For Office tasks, first get_officecli_help topic=workflow for the installed author's tool instructions, unless already loaded. "
+    "The get_officecli_help tool description includes the installed author's workflow for all Office tools. "
     "Use load_officecli_skill for official guides/references and get_officecli_help for command details. "
     "The installed documentation owns the workflow; tool schemas describe the file-transport mapping and its limits. "
     "Native attached_files entries and list_chat_files provide file IDs; text-retrieval citations are not a complete document structure. "

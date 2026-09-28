@@ -34,6 +34,26 @@ def test_workflow_uses_installed_tool_description_without_a_local_rewrite():
     assert response.json()["content"] == official
     assert files.calls == []
 
+    client = TestClient(create_app(ToolCatalog(), files, settings()))
+    schema = client.get("/openapi.json").json()
+    descriptions = [operation.get("description", "") for path in schema["paths"].values()
+                    for operation in path.values() if isinstance(operation, dict)]
+    assert sum(description.count(official) for description in descriptions) == 1
+    assert official in schema["paths"]["/v1/officecli/help"]["post"]["description"]
+    assert "native file_id" in schema["paths"]["/v1/officecli/help"]["post"]["description"]
+    assert files.calls == []
+
+
+def test_schema_does_not_advertise_tools_without_the_official_workflow():
+    class BrokenCatalog(RecordingOfficeCli):
+        def run(self, *arguments, input_text=None):
+            return office_output(*arguments, payload={"result": {"tools": []}})
+
+    app = create_app(BrokenCatalog(), RecordingOpenWebUi(), settings())
+    response = TestClient(app).get("/openapi.json")
+    assert response.status_code == 502
+    assert app.openapi_schema is None
+
 
 def test_all_sheet_names_remain_recoverable_in_order():
     names = [f"Sheet {i}" for i in range(537)]

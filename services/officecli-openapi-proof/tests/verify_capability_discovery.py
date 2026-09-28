@@ -109,6 +109,10 @@ class DiscoveryQualification(unittest.TestCase):
                 "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}) + "\n").text)
             official = next(t for t in native_tools["result"]["tools"] if t["name"] == "officecli")
             self.assertEqual(workflow.json()["content"], official["description"])
+            schema = client.get("/openapi.json").json()
+            description = schema["paths"]["/v1/officecli/help"]["post"]["description"]
+            self.assertIn(official["description"], description)
+            self.assertEqual(description.count(official["description"]), 1)
             catalog = client.post("/v1/officecli/skills/load", headers=headers, json={})
             self.assertEqual(catalog.status_code, 200, catalog.text)
             self.assertIn("word-form", catalog.json()["content"])
