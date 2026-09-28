@@ -6,9 +6,15 @@
 переписывать. Для продолжения старого чата пользователь выбирает доступную модель;
 скрытая подмена удалённого профиля запрещена.
 
-Этот runbook описывает кандидат native-workflow. Состояние установки и проверки
-фиксируется отдельно в [отчёте](../reports/2026-09-28/officecli-native-kiss.report.md).
-Наличие кода в Git не означает его выкладку.
+Этот runbook описывает выпущенный native-workflow. Текущее состояние установки и
+приёмки Open Terminal зафиксировано в
+[производственном отчёте](../reports/2026-09-28/open-terminal-production-acceptance.report.md).
+История квалификации OfficeCLI приведена в
+[отчёте кандидата](../reports/2026-09-28/officecli-native-kiss.report.md).
+[Дополнение для заказчика](../commercial/COMPLETED_WORK_2026-09-28_OPEN_TERMINAL_OFFICE_WORKFLOW.md)
+описывает тот же выпуск без операционных деталей.
+Наличие более нового кода в Git само по себе не означает его выкладку: при
+сопровождении сверять установленный release-state и фактические образы.
 
 ## Владельцы и конфигурация
 
@@ -69,23 +75,22 @@ Chat Completions. Явно выбранный несовместимый reasoni
 нормализация Word удалены. Нативный `merge` — подстановка шаблона, не обещание
 произвольного переноса книг без потерь.
 
-### Кандидат завершения многоэтапной работы
+### Завершение многоэтапной работы
 
 Универсальная инструкция находится в
 [`deploy/openwebui-skills/artifact-workflow.md`](../../deploy/openwebui-skills/artifact-workflow.md).
-Она загружается как штатный Skill и использует native Tasks для перечня частей,
-прогресса и проверки. Сначала квалифицировать приватно; не дублировать её в
-системных промптах всех моделей. Один план не обеспечивает перенос большого
-массива данных: полный Excel-прогон завершился после подключения штатного
-Open Terminal с серверным Linux-выполнением.
+Она установлена как штатный Skill и использует native Tasks для перечня частей,
+прогресса и проверки. Не дублировать её в системных промптах моделей. Один план
+не обеспечивает перенос большого массива данных: полный Excel-прогон завершился
+после подключения штатного Open Terminal с серверным Linux-выполнением.
 
-Open Terminal подключается через собственный раздел Integrations и штатный
-селектор чата. На проверенной 0.9.6 использовались загрузка во встроенный файловый
-менеджер и `display_file` для результата. Автоматическая передача обычных вложений
-чата в Terminal и обратно не квалифицирована. Файл в рабочей папке Terminal не
-является вложением OpenWebUI Files. Приватный однопользовательский пилот не
-подтверждает изоляцию файлов разных пользователей; не расширять его access grants
-на всех пользователей без проверки штатной модели изоляции и хранения.
+Open Terminal подключён через штатный раздел Integrations. На проверенной 0.9.6
+Tool `terminal_file_transfer` передаёт явно выбранное и разрешённое вложение чата
+в новую рабочую папку и публикует проверенный результат обратно в OpenWebUI Files.
+Файл, оставшийся только в рабочей папке Terminal, не является вложением чата.
+Права Tool, Skill и Terminal выданы всем пользователям после отдельного принятия
+границы доверенной команды. Два обычных пользователя получили разные домашние
+каталоги; общий контейнер не считается изоляцией взаимно недоверенных арендаторов.
 
 Кандидат операции `render_office_file` принимает `grid` для обзора всех страниц
 DOCX или слайдов PPTX. Для проверки пагинации Word использовать этот штатный
@@ -102,7 +107,7 @@ OfficeCLI в текущем ответе. Неизвестные адреса н
 
 ### Передача файлов в Linux
 
-Для установленной OpenWebUI 0.9.6 кандидат
+Для установленной OpenWebUI 0.9.6
 `deploy/openwebui-tools/terminal_file_transfer.py` связывает существующие Files API,
 выбранный Terminal и события вложений. `stage_chat_file` копирует доступное
 вложение в новую папку; `publish_terminal_file` сохраняет новый результат в Files
@@ -110,13 +115,15 @@ OfficeCLI в текущем ответе. Неизвестные адреса н
 не передаются через контекст модели. Временное чтение повторяется один раз;
 операция записи автоматически не повторяется.
 
-Обычный чат с двумя исходными книгами прошёл полный путь на Linux: 23 листа,
-все значения и изображения, публикация самим агентом. Это приватная проверка;
-Tool, Skill и Terminal не включены для всех пользователей. Перед общим выпуском
-нужно отдельно выбрать и проверить изоляцию пользовательских окружений.
-Обновление всей платформы ради более нового Filesystem upload требует своей
-проверки существующих расширений. Подробности — в
-[отчёте передачи файлов](../reports/2026-09-28/terminal-file-handoff.report.md).
+До выпуска обычный чат с двумя исходными книгами прошёл полный путь на Linux:
+23 листа, все значения и изображения, публикация самим агентом. После выпуска
+отдельный обычный пользователь прошёл XLSX, DOCX и PPTX через передачу, Linux-
+обработку и штатную публикацию; исходные хэши сохранились. Tool, Skill и Terminal
+включены для всех пользователей только на разрешённых прямых моделях и только при
+наличии Office-вложения. Обновление всей платформы ради более нового Filesystem
+upload требует своей проверки существующих расширений. Подробности — в
+[отчёте передачи файлов](../reports/2026-09-28/terminal-file-handoff.report.md) и
+[производственной приёмке](../reports/2026-09-28/open-terminal-production-acceptance.report.md).
 
 Общий OpenWebUI-слой устанавливается скриптом
 `deploy/openwebui-tools/office_workflow_release.py`. Он принимает два файла с
@@ -146,12 +153,12 @@ python deploy/openwebui-tools/office_workflow_release.py rollback \
 
 ### Trusted-team Open Terminal runtime
 
-Use `compose/open-terminal-office.compose.yml` only after explicitly confirming
-that every OpenWebUI user is trusted at the same level. It enables upstream
-multi-user mode and separate homes, keeps the service off host ports, pins the
-qualified full image, and joins only `openwebui_web`. The shared kernel,
-process list, network, root-capable system state and 2 GiB resource pool are not
-per-user isolation.
+`compose/open-terminal-office.compose.yml` is the accepted runtime after explicit
+confirmation that every current OpenWebUI user is trusted at the same level. It
+enables upstream multi-user mode and separate homes, keeps the service off host
+ports, pins the qualified full image, and joins only `openwebui_web`. The shared
+kernel, process list, network, root-capable system state and 2 GiB resource pool
+are not per-user isolation.
 
 Keep `OPEN_TERMINAL_API_KEY` in a server-local mode-0600 environment file. Build
 the release connection file with ID `office-linux`, URL
@@ -162,10 +169,13 @@ pass it to `office_workflow_release.py apply`; do not print either file.
 Apply in this order:
 
 1. Start the pinned Compose service and wait for its Docker health status.
-2. Run the common release installer. It switches the global Filter last.
-3. Run an ordinary-user Office chat, then a second synthetic-user separation
+2. Add `open-terminal-office` and `open-terminal-office:8000` to both `NO_PROXY`
+   and `no_proxy` for OpenWebUI. Without this entry the outbound proxy can return
+   HTTP 502 for the internal Terminal route.
+3. Run the common release installer. It switches the global Filter last.
+4. Run an ordinary-user Office chat, then a second synthetic-user separation
    check without private files.
-4. Verify OpenWebUI health, public HTTP, container restart counts, result
+5. Verify OpenWebUI health, public HTTP, container restart counts, result
    attachment download and unchanged source hashes.
 
 Rollback starts with `office_workflow_release.py rollback`, then stops the

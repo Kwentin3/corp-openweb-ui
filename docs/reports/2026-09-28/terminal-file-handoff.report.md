@@ -1,6 +1,12 @@
 # Native Terminal file handoff candidate
 
-Status: private end-to-end qualification passed; no shared deployment.
+> Historical candidate snapshot. The handoff described below was subsequently
+> released for the trusted production team and accepted through ordinary-user
+> XLSX, DOCX, and PPTX checks. The current state is recorded in the
+> [production acceptance report](open-terminal-production-acceptance.report.md).
+
+Status at this qualification point: private end-to-end qualification passed; no
+shared deployment had yet occurred.
 
 ## Shared-route candidate
 

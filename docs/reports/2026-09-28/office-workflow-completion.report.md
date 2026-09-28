@@ -1,6 +1,15 @@
 # Office workflow completion qualification
 
-Status: qualification completed with explicit delivery limits; candidate not deployed. No production OfficeCLI sidecar, shared Filter, provider connection or core has been replaced. Test chats retain their files and tool evidence. Local Windows is used for source editing/browser/SSH only; execution and document checks run on Linux.
+> Historical candidate snapshot. The candidate described below was subsequently
+> released for the trusted production team and accepted through ordinary-user
+> XLSX, DOCX, and PPTX checks. The current state is recorded in the
+> [production acceptance report](open-terminal-production-acceptance.report.md).
+
+Status at this qualification point: completed with explicit delivery limits;
+candidate not yet deployed. No production OfficeCLI sidecar, shared Filter,
+provider connection or core had been replaced at this point. Test chats retained
+their files and tool evidence. Local Windows was used for source editing,
+browser, and SSH only; execution and document checks ran on Linux.
 
 ## Accepted outcome and owners
 
