@@ -49,8 +49,8 @@ services:
       https_proxy: ${OPENWEBUI_OUTBOUND_PROXY:-}
       HTTP_PROXY: ${OPENWEBUI_OUTBOUND_PROXY:-}
       HTTPS_PROXY: ${OPENWEBUI_OUTBOUND_PROXY:-}
-      no_proxy: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080}
-      NO_PROXY: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080}
+      no_proxy: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080,open-terminal-office,open-terminal-office:8000}
+      NO_PROXY: ${OPENWEBUI_NO_PROXY:-localhost,127.0.0.1,::1,openwebui,traefik,openwebui-traefik,stage2-stt,stage2-stt:8080,open-terminal-office,open-terminal-office:8000}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
       STAGE2_STT_INTERNAL_API_KEY: ${STAGE2_STT_INTERNAL_API_KEY:-}
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
