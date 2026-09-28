@@ -44,6 +44,10 @@ class ObjectReadPayload(BaseModel):
     depth: int = Field(default=0, ge=0, le=2, description="For get: child depth; 0 reads only the node.")
     offset: int = Field(default=0, ge=0, description="For query: zero-based offset into the native result list.")
     limit: int = Field(default=50, ge=1, le=100, description="For query: page size. Follow next_offset until complete before making a file-wide claim.")
+    text_offset: int = Field(default=0, ge=0, description="Character offset for an oversized JSON result. Follow next_text_offset and concatenate content fragments to recover the complete native result.")
+    start: int | None = Field(default=None, ge=1, description="Native view --start.")
+    end: int | None = Field(default=None, ge=1, description="Native view --end.")
+    max_lines: int | None = Field(default=None, ge=1, description="Native view --max-lines; native output reports omitted content.")
 
     @model_validator(mode="after")
     def validate_object_read(self):
@@ -53,6 +57,8 @@ class ObjectReadPayload(BaseModel):
             raise ValueError("get/raw requires an absolute object/part path and does not accept selector")
         if self.command in {"view", "validate"} and (self.selector is not None or self.path is not None):
             raise ValueError("view/validate does not accept selector or path")
+        if self.command != "view" and any(v is not None for v in (self.start, self.end, self.max_lines)):
+            raise ValueError("start, end and max_lines require view")
         for value in (self.selector, self.path):
             if value is not None and re.search(r"[\x00-\x1f\x7f]", value):
                 raise ValueError("object selectors and paths must not contain control characters")
@@ -65,7 +71,12 @@ def object_arguments(source: str, payload: ObjectReadPayload) -> list[str]:
     if payload.command == "validate":
         return ["validate", source, "--json"]
     if payload.command == "view":
-        return ["view", source, payload.mode, "--json"]
+        arguments = ["view", source, payload.mode, "--json"]
+        for name in ("start", "end", "max_lines"):
+            value = getattr(payload, name)
+            if value is not None:
+                arguments.extend(["--" + name.replace("_", "-"), str(value)])
+        return arguments
     if payload.command == "query":
         return ["query", source, payload.selector, "--json"]
     return ["get", source, payload.path, "--depth", str(payload.depth), "--json"]
@@ -73,22 +84,27 @@ def object_arguments(source: str, payload: ObjectReadPayload) -> list[str]:
 
 def bounded_result(result, payload: ObjectReadPayload):
     """Keep native nodes intact; disclose pagination separately from native matches."""
-    if payload.command == "query" and isinstance(result, dict):
+    if isinstance(result, dict):
         data = result.get("data")
-        if isinstance(data, dict) and isinstance(data.get("results"), list):
-            nodes = data["results"]
+        key = "results" if payload.command == "query" else "sheets"
+        if isinstance(data, dict) and isinstance(data.get(key), list):
+            nodes = data[key]
             page = nodes[payload.offset:payload.offset + payload.limit]
             # Reduce whole-node pages to the context budget; never cut an object's properties.
-            while len(page) > 1 and len(json.dumps({**result, "data": {**data, "results": page}}, ensure_ascii=False)) > 15000:
+            while len(page) > 1 and len(json.dumps({**result, "data": {**data, key: page}}, ensure_ascii=False)) > 15000:
                 page = page[:-1]
             end = payload.offset + len(page)
-            result = {**result, "data": {**data, "results": page}, "pagination": {
+            result = {**result, "data": {**data, key: page}, "pagination": {
                 "offset": payload.offset, "returned": len(page), "total": len(nodes),
                 "complete": payload.offset == 0 and end >= len(nodes),
                 "next_offset": end if end < len(nodes) else None,
             }}
-    if len(json.dumps(result, ensure_ascii=False)) > 16000:
-        return {"success": True, "content_included": False,
-            "reason": "inspection_exceeds_context_budget",
-            "next_action": "Use a narrower query selector or get an actual object path with depth=0; for cells use outline then mode=text with a smaller sheet-qualified range. Source data has not been discarded."}
+    serialized = json.dumps(result, ensure_ascii=False)
+    if len(serialized) > 16000 or payload.text_offset:
+        end = min(payload.text_offset + 12000, len(serialized))
+        return {"encoding": "json-fragment", "content": serialized[payload.text_offset:end],
+            "pagination": {"text_offset": payload.text_offset, "total_characters": len(serialized),
+                "next_text_offset": end if end < len(serialized) else None,
+                "complete": payload.text_offset == 0 and end == len(serialized)},
+            "next_action": "Continue the same request with next_text_offset as text_offset; concatenate content fragments to recover the native JSON, including any node pagination."}
     return result

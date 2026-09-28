@@ -14,7 +14,9 @@ class RenderOfficeRequest(BaseModel):
         description="Native source/result file ID to inspect visually; this operation does not modify it.")
     format: Literal["docx", "xlsx", "pptx"]
     page: int = Field(default=1, ge=1, le=1000,
-        description="Single Word page or PowerPoint slide, 1-based. XLSX screenshots show only the active sheet: they do not verify all sheets.")
+        description="Single Word page or PowerPoint slide, 1-based. For XLSX use range to select a region; without range only the active sheet is shown.")
+    range: str | None = Field(default=None, min_length=1, max_length=512,
+        description="Native screenshot --range: a sheet-qualified cell range or an actual document element path. See installed view help.")
 
 
 def checked_png(data: bytes) -> bytes:

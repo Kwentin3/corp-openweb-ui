@@ -132,6 +132,6 @@ def test_empty_inventory_is_distinct_from_withheld_content():
     assert empty["pagination"]["total"] == 0
     withheld = bounded_result({"success": True, "data": {"matches": 1,
         "results": [{"path": "/body/p[1]", "text": "x" * 20000}]}}, payload)
-    assert withheld["content_included"] is False
+    assert withheld["encoding"] == "json-fragment"
     assert "data" not in withheld
-    assert "narrower query selector" in withheld["next_action"]
+    assert withheld["pagination"]["next_text_offset"] == 12000

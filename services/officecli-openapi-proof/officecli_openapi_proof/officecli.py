@@ -19,6 +19,7 @@ class OfficeCliOutput:
     text: str
     content_sha256: str
     auto_resident_disabled: bool
+    diagnostics: str = ""
 
 
 class OfficeCliExecutor(Protocol):
@@ -53,7 +54,7 @@ class SubprocessOfficeCliExecutor:
             raise OfficeCliFailure("officecli guidance command timed out") from error
 
         if completed.returncode != 0:
-            detail = completed.stderr.strip() or completed.stdout.strip() or "no output"
+            detail = "\n".join(part for part in (completed.stdout.strip(), completed.stderr.strip()) if part) or "no output"
             raise OfficeCliFailure(f"officecli guidance command failed: {detail}")
 
         text = completed.stdout
@@ -62,4 +63,5 @@ class SubprocessOfficeCliExecutor:
             text=text,
             content_sha256=sha256(text.encode("utf-8")).hexdigest(),
             auto_resident_disabled=True,
+            diagnostics=completed.stderr.strip(),
         )
