@@ -43,6 +43,36 @@ class LocalFileTransport:
 
 
 class DiscoveryQualification(unittest.TestCase):
+    def test_large_real_workbook_structure_is_complete_and_readonly(self):
+        settings = load_settings()
+        executor = SubprocessOfficeCliExecutor(settings)
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "many-sheets.xlsx"
+            workbook = Workbook()
+            names = [f"Actual sheet {i:03}" for i in range(137)]
+            for index, name in enumerate(names):
+                sheet = workbook.active if index == 0 else workbook.create_sheet()
+                sheet.title = name
+                sheet["A1"] = name
+            workbook.save(source)
+            before = source.read_bytes()
+            files = LocalFileTransport({"source": source})
+            client = TestClient(create_app(executor, files, settings))
+            headers = {"Authorization": "Bearer synthetic-session", "X-OpenWebUI-Chat-Id": "chat",
+                       "X-OpenWebUI-Message-Id": "message"}
+            offset, recovered = 0, []
+            while offset is not None:
+                response = client.post("/v1/officecli/spreadsheets/inspect", headers=headers,
+                    json={"file_id": "source", "command_payload": {"mode": "outline", "offset": offset}})
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()["officecli_result"]
+                recovered.extend(sheet["name"] for sheet in result["data"]["sheets"])
+                offset = result["pagination"]["next_offset"]
+            self.assertEqual(recovered, names)
+            self.assertEqual(source.read_bytes(), before)
+            self.assertIsNone(files.result)
+            self.assertEqual(files.attached, [])
+
     def test_official_help_and_objects_in_all_formats(self):
         settings = load_settings()
         executor = SubprocessOfficeCliExecutor(settings)
