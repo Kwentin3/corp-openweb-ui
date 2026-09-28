@@ -1,0 +1,32 @@
+name: OfficeCLI native integration
+
+on:
+  pull_request:
+    paths:
+      - 'services/officecli-openapi-proof/**'
+      - 'deploy/openwebui-functions/officecli_auto_attach_filter.py'
+      - 'deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py'
+      - '.github/workflows/officecli-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-officecli:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.11'
+      - run: python -m pip install './services/officecli-openapi-proof[test]'
+      - name: Native file transport and routing contracts
+        run: python -m pytest -q services/officecli-openapi-proof/tests deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py
+      - name: Build the production artifact
+        run: docker build -f services/officecli-openapi-proof/Dockerfile -t officecli-candidate .
+      - name: Qualify the installed package and pinned CLI
+        run: |
+          docker build -f services/officecli-openapi-proof/tests/Dockerfile --build-arg OFFICECLI_IMAGE=officecli-candidate -t officecli-qualification .
+          docker run --rm --network none --read-only --memory 1g --tmpfs /tmp:rw,nosuid,size=128m officecli-qualification

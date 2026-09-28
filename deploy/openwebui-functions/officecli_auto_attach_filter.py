@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 1.1.0-large-workbooks
+version: 2.0.0-native-workflow
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -15,9 +15,7 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
-OFFICECLI_INSTRUCTION_MARKER = "[officecli-auto-attach-v5-bounded]"
-MULTI_XLSX_INSTRUCTION_MARKER = "[officecli-multi-xlsx-v2]"
-GEMINI_COMPATIBILITY_MARKER = "[officecli-gemini-compat-v2]"
+OFFICECLI_INSTRUCTION_MARKER = "[officecli-native-workflow-v1]"
 # Keep the production default aligned with the current direct-model catalog.
 # Specialized Workspace/Pipe models stay opt-in by omission.
 DEFAULT_TARGET_MODEL_IDS = (
@@ -34,70 +32,15 @@ DEFAULT_TARGET_MODEL_IDS = (
     "claude-opus-5-5"
 )
 OFFICECLI_INSTRUCTION = (
-    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI is available for DOCX, XLSX, and PPTX work. "
-    "For a new file made from text, spreadsheet cells, or basic slide shapes, never call "
-    "load_officecli_skill or get_officecli_help. Directly call the matching create operation once per "
-    "requested file: DOCX uses create_office_document, XLSX uses create_office_spreadsheet, and PPTX "
-    "uses create_office_presentation. Build commands from the request using these valid base shapes. "
-    "DOCX paragraph: {\"command\":\"add\",\"parent\":\"/body\",\"type\":\"paragraph\","
-    "\"props\":{\"text\":\"Title\"}}. Add one command per requested paragraph. "
-    "If markdown is needed, keep it inside props.markdown and use real newline characters, never literal backslash-n text. "
-    "XLSX cell: {\"command\":\"set\",\"path\":\"/Sheet1/A1\",\"props\":{\"value\":\"Text\"}}. For requested money, put \"numFmt\":\"#,##0 ₽\" in each price, amount, and total cell props; preserve every requested label such as Итого. Use formulas for requested calculations. Do not add unrequested titles, merged cells, column widths, or styling. "
-    "PPTX: add every slide first with {\"command\":\"add\",\"parent\":\"/\",\"type\":\"slide\","
-    "\"props\":{\"layout\":\"blank\"}}, then add each basic text shape with flat props such as {\"command\":\"add\",\"parent\":\"/slide[1]\",\"type\":\"shape\",\"props\":{\"text\":\"Title\",\"x\":\"2cm\",\"y\":\"3cm\",\"width\":\"29cm\",\"height\":\"3cm\"}}. For basic shapes, never use nested geometry or font objects. Every requested slide title, subtitle, list item, date, and phrase must appear as visible shape text; do not summarize or omit them. "
-    "Do not substitute code, a recipe, or a refusal for the tool call. Finish only after the current "
-    "create result contains result_file_id and the native attachment is present; if execution fails, "
-    "report the failure. A successful create result is terminal for that file: do not reopen, inspect, apply changes, call help, or recreate it in the same response. Continue creating other requested files and return each resulting native attachment once. Reply with a plain-language sentence naming the files; never echo tool JSON and never leave the final answer empty. "
-    "For existing files, obtain explicit file_id values from native attached_files blocks (their opaque url), or list_chat_files when needed; citation numbers are not file IDs. Prefer the latest user upload over earlier copies. "
-    "For combining Excel workbooks into one output sheet per source workbook (including daily sheets stacked into monthly sheets), call compose_office_spreadsheets directly with sources=[{file_id,target_sheet},...] and output_name. Include ALL requested workbooks; require_all_attachments=true prevents omissions. This operation reads and verifies every source cell on the server, preserves live formulas/dependencies, and attaches the result; do not read all source cells or recreate them through create commands. A successful composition is terminal: report the attachment and any preserved source errors/external links from its receipt. "
-    "For other existing-file work, inspect only the structure and cells needed for the next step. inspect_office_document for DOCX uses command_payload={\"command\":\"view\",\"mode\":\"annotated\"}; inspect_office_spreadsheet for XLSX defaults to outline, then use command_payload={\"mode\":\"text\",\"range\":\"Sheet1!A1:H30\"} for a small range; inspect_office_presentation for PPTX uses command_payload={\"command\":\"query\",\"selector\":\"shape\"}. Then use the matching apply batch to edit an existing file, or create for a new derived file. Do not ask for re-uploading available files. "
-    "Load only the format-specific skill or help needed for its exact existing structure, or for a new "
-    "table, chart, or picture. Preserve unrelated content and never invent document paths."
+    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI tools are available for reading, creating and editing DOCX, XLSX and PPTX. "
+    "The get_officecli_help tool description includes the installed author's workflow for all Office tools. "
+    "Use load_officecli_skill for official guides/references and get_officecli_help for command details. "
+    "The installed documentation owns the workflow; tool schemas describe the file-transport mapping and its limits. "
+    "Native attached_files entries and list_chat_files provide file IDs; text-retrieval citations are not a complete document structure. "
+    "Use explicit file_id when multiple inputs are available. Reads do not publish files; create/apply work on copies and return native attachments. "
+    "This adapter uses nonresident CLI execution: each create/apply saves before returning, so separate open/save/close calls are unnecessary. "
+    "For a produced file, use its returned result_file_id and download_url."
 )
-
-MULTI_XLSX_INSTRUCTION = (
-    f"{MULTI_XLSX_INSTRUCTION_MARKER} For work based on multiple attached Excel files, "
-    "use the native attached_files blocks to identify each source: the opaque file url is "
-    "its OpenWebUI file_id. A citation number is not a file_id. "
-    "Prefer the files in the latest user upload when earlier copies exist; do not ask for "
-    "renaming or re-uploading to resolve multiple attachments. If the tags are unavailable, "
-    "use the native list_chat_files tool to obtain IDs; never guess an ID. "
-    "For one output sheet per source workbook, use compose_office_spreadsheets directly: "
-    "it stacks all source sheets, preserves formulas and dependencies, verifies the file, and returns a native attachment. "
-    "For a different calculation or summary, inspect outlines and only necessary ranges before create_office_spreadsheet; "
-    "apply_office_spreadsheet_batch edits one existing workbook. Never accumulate complete annotated dumps of many workbooks. "
-    "A new workbook starts with Sheet1: rename it with "
-    "{\"command\":\"set\",\"path\":\"/Sheet1\",\"props\":{\"name\":\"Jan 26\"}}, "
-    "then add another sheet with {\"command\":\"add\",\"parent\":\"/\",\"type\":\"sheet\","
-    "\"props\":{\"name\":\"Feb 26\"}}. Every add item requires parent; use the user's requested sheet names. "
-    "Preserve all requested data and use formulas for calculations. Only declare success "
-    "after result_file_id and its native attachment exist. Do not claim a faithful copy "
-    "of source sheets, drawings or styles when you have only read annotated cell data. "
-    "Reply with one plain sentence naming the attached file; never invent sandbox or download links."
-)
-
-
-def _has_multiple_xlsx(files: Any) -> bool:
-    """Recognize native XLSX references; file access stays with OpenWebUI."""
-    if not isinstance(files, list):
-        return False
-    ids = set()
-    for file in files:
-        if not isinstance(file, dict) or file.get("type", "file") != "file":
-            continue
-        name = file.get("name") or ""
-        file_id = file.get("id") or file.get("url")
-        if isinstance(name, str) and name.lower().endswith(".xlsx") and isinstance(file_id, str) and file_id:
-            ids.add(file_id)
-    return len(ids) > 1
-
-
-def _append_multi_xlsx_instruction(messages: list[Any]) -> None:
-    for message in messages:
-        if isinstance(message, dict) and message.get("role") == "system" and isinstance(message.get("content"), str):
-            if MULTI_XLSX_INSTRUCTION_MARKER not in message["content"]:
-                message["content"] += f"\n\n{MULTI_XLSX_INSTRUCTION}"
-            return
 
 
 def _comma_separated_values(value: str) -> set[str]:
@@ -199,8 +142,5 @@ class Filter:
         messages = body.get("messages")
         if isinstance(messages, list):
             _append_instruction(messages)
-
-            if _has_multiple_xlsx(body.get("files")):
-                _append_multi_xlsx_instruction(messages)
 
         return body

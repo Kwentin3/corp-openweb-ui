@@ -7,6 +7,11 @@ from typing import Any, Protocol
 import httpx
 
 
+def native_file_content_path(file_id: str) -> str:
+    """Public native content route for an authorized file identity."""
+    return f"/api/v1/files/{file_id}/content"
+
+
 class OpenWebUiFailure(RuntimeError):
     pass
 
@@ -35,10 +40,6 @@ class OpenWebUiClient(Protocol):
     def resolve_nearest_xlsx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
-
-    def resolve_nearest_xlsx_attachments(
-        self, chat_id: str, message_id: str, authorization: str
-    ) -> list[NativeAttachment]: ...
 
     def resolve_nearest_pptx_attachment(
         self, chat_id: str, message_id: str, authorization: str
@@ -98,7 +99,7 @@ class HttpOpenWebUiClient:
         self._request("GET", "/api/v1/auths/", authorization)
 
     def download(self, file_id: str, authorization: str, destination: Path) -> None:
-        response = self._request("GET", f"/api/v1/files/{file_id}/content", authorization)
+        response = self._request("GET", native_file_content_path(file_id), authorization)
         destination.write_bytes(response.content)
 
     def resolve_nearest_docx_attachment(
@@ -114,13 +115,6 @@ class HttpOpenWebUiClient:
         return self._resolve_nearest_attachment(
             chat_id, message_id, authorization, (".xlsx",)
         ).file_id
-
-    def resolve_nearest_xlsx_attachments(
-        self, chat_id: str, message_id: str, authorization: str
-    ) -> list[NativeAttachment]:
-        return self._resolve_nearest_attachments(
-            chat_id, message_id, authorization, (".xlsx",), user_uploads_only=True
-        )
 
     def resolve_nearest_pptx_attachment(
         self, chat_id: str, message_id: str, authorization: str
@@ -149,7 +143,6 @@ class HttpOpenWebUiClient:
 
     def _resolve_nearest_attachments(
         self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...],
-        *, user_uploads_only: bool = False,
     ) -> list[NativeAttachment]:
         response = self._request("GET", f"/api/v1/chats/{chat_id}", authorization)
         try:
@@ -167,10 +160,7 @@ class HttpOpenWebUiClient:
             message = messages.get(current_id)
             if not isinstance(message, dict):
                 break
-            # Composition completeness refers to the user's input set. A prior
-            # generated result must not replace it during a follow-up request.
-            # Single-file editing keeps its existing nearest-result behavior.
-            files = message.get("files", []) if not user_uploads_only or message.get("role") == "user" else []
+            files = message.get("files", [])
             if isinstance(files, list):
                 matching_files: list[NativeAttachment] = []
                 for native_file in files:

@@ -54,24 +54,10 @@ def test_eligible_native_model_adds_only_existing_tool_and_preserves_system_prom
     assert body["messages"][0]["content"].startswith("Keep this existing instruction.")
     instruction = body["messages"][0]["content"]
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in instruction
-    assert "never call load_officecli_skill or get_officecli_help" in instruction
-    assert "create_office_document" in instruction
-    assert '"parent":"/body","type":"paragraph"' in instruction
-    assert "Add one command per requested paragraph" in instruction
-    assert "create_office_spreadsheet" in instruction
-    assert '"path":"/Sheet1/A1"' in instruction
-    assert '"numFmt":"#,##0 ₽"' in instruction
-    assert "Use formulas for requested calculations" in instruction
-    assert "create_office_presentation" in instruction
-    assert '"parent":"/","type":"slide"' in instruction
-    assert '"x":"2cm","y":"3cm","width":"29cm","height":"3cm"' in instruction
-    assert "result_file_id" in instruction
-    assert "A successful create result is terminal for that file" in instruction
-    assert "inspect_office_document for DOCX" in instruction
-    assert "inspect_office_presentation for PPTX" in instruction
-    assert "Continue creating other requested files" in instruction
-    assert "table, chart, or picture" in instruction
-    assert MODULE.GEMINI_COMPATIBILITY_MARKER not in instruction
+    assert "load_officecli_skill" in instruction
+    assert "get_officecli_help" in instruction
+    assert body["messages"][-1] == eligible_body()["messages"][-1]
+
 
 
 def test_repeated_inlet_is_idempotent():
@@ -101,10 +87,6 @@ def test_default_direct_model_catalog_includes_gemini_but_not_specialized_models
     gemini_body = {**eligible_body(), "model": "models/gemini-3.5-flash"}
     run_inlet(filter_instance, gemini_body, native_metadata())
     assert gemini_body["tool_ids"] == ["server:other", "server:officecli"]
-    assert MODULE.GEMINI_COMPATIBILITY_MARKER not in gemini_body["messages"][0]["content"]
-    assert '"parent":"/body"' in gemini_body["messages"][0]["content"]
-    assert '"path":"/Sheet1/A1"' in gemini_body["messages"][0]["content"]
-    assert '"parent":"/","type":"slide"' in gemini_body["messages"][0]["content"]
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in gemini_body["messages"][0]["content"]
 
     specialized_body = {**eligible_body(), "model": "office-documents"}
@@ -185,10 +167,8 @@ def test_multiple_xlsx_select_native_owner_before_tool_resolution():
     assert body["files"] == files_before
     assert body["tool_ids"].count("server:officecli") == 1
     instruction = body["messages"][0]["content"]
-    assert instruction.count(MODULE.MULTI_XLSX_INSTRUCTION_MARKER) == 1
-    assert "sources=[{file_id,target_sheet},...]" in instruction
-    assert "compose_office_spreadsheets directly" in instruction
-    assert "Never accumulate complete annotated dumps" in instruction
+    assert instruction.count(MODULE.OFFICECLI_INSTRUCTION_MARKER) == 1
+    assert instruction == run_inlet(configured_filter(), eligible_body(), native_metadata())["messages"][0]["content"]
 
 
 def test_single_duplicate_or_non_xlsx_references_use_native_without_multi_xlsx_guidance():
@@ -199,7 +179,7 @@ def test_single_duplicate_or_non_xlsx_references_use_native_without_multi_xlsx_g
         metadata = {"params": {}}
         run_inlet(configured_filter(), body, metadata)
         assert metadata["params"] == {"function_calling": "native"}
-        assert MODULE.MULTI_XLSX_INSTRUCTION_MARKER not in body["messages"][0]["content"]
+        assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
 
 
 def test_multiple_xlsx_do_not_override_task_explicit_tools_or_unqualified_model():
@@ -226,18 +206,6 @@ def test_followup_with_files_retains_native_route_without_new_upload():
     assert metadata["params"]["function_calling"] == "native"
 
 
-def test_already_published_office_alias_can_be_explicitly_qualified():
-    instance = configured_filter()
-    instance.valves.target_model_ids += ",office-documents"
-    body = {**eligible_body(), "model": "office-documents", "files": xlsx_files(),
-            "tool_ids": ["server:officecli"]}
-    metadata = {"params": {}}
-    run_inlet(instance, body, metadata)
-    assert body["tool_ids"] == ["server:officecli"]
-    assert metadata["params"]["function_calling"] == "native"
-    assert MODULE.MULTI_XLSX_INSTRUCTION_MARKER in body["messages"][0]["content"]
-
-
 @pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
 def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requested_reasoning(model):
     instance = configured_filter()
@@ -253,13 +221,12 @@ def test_provider_compatibility_is_explicit_and_does_not_silently_lower_requeste
     assert single["reasoning_effort"] == "none"
 
 
-@pytest.mark.parametrize("model", MODULE.DEFAULT_TARGET_MODEL_IDS.split(",") + ["office-documents"])
+@pytest.mark.parametrize("model", MODULE.DEFAULT_TARGET_MODEL_IDS.split(","))
 @pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}],
     [{"type": "file", "id": "deck", "name": "deck.pptx"}],
     [{"type": "file", "id": "word", "name": "form.docx"}, {"type": "file", "id": "deck", "name": "deck.pptx"}]])
 def test_native_office_route_is_independent_of_format_and_attachment_count(model, files):
     instance = configured_filter()
-    instance.valves.target_model_ids += ",office-documents"
     body = {**eligible_body(), "model": model, "files": copy.deepcopy(files)}
     metadata = {"params": {"temperature": 0.2, "function_calling": "default"}, "chat_id": "chat"}
     run_inlet(instance, body, metadata)
@@ -279,3 +246,16 @@ def test_reasoning_rejection_precedes_mutation_for_every_office_format(model, fi
         run_inlet(configured_filter(), body, metadata)
     assert body == before
     assert metadata == {"params": {"function_calling": "default"}}
+
+
+@pytest.mark.parametrize("prompt", ["List the sheets without edits", "Analyze the uploaded report", "Create a document", "Edit slide 2"])
+def test_file_count_and_task_do_not_select_a_business_recipe(prompt):
+    results = []
+    for files in ([], xlsx_files()[:1], xlsx_files()):
+        body = {**eligible_body(), "files": files}
+        body["messages"][-1]["content"] = prompt
+        run_inlet(configured_filter(), body, native_metadata())
+        assert body["messages"][-1]["content"] == prompt
+        results.append(body["messages"][0]["content"])
+    assert len(set(results)) == 1
+    assert len(MODULE.OFFICECLI_INSTRUCTION) < 1500

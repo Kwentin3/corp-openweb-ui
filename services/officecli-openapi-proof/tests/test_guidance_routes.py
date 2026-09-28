@@ -43,6 +43,9 @@ class RecordingOfficeCli:
     def run(self, *arguments: str, input_text: str | None = None) -> OfficeCliOutput:
         self.calls.append(arguments)
         self.inputs.append(input_text)
+        if arguments[0] == "mcp":
+            return office_output(*arguments, payload={"result": {"tools": [
+                {"name": "officecli", "description": "Official test workflow from installed tools/list"}]}})
         if arguments[0] == "create":
             Path(arguments[1]).write_bytes(b"new DOCX bytes")
             return office_output(*arguments, payload={"success": True, "data": {"operation": "create"}})
@@ -163,18 +166,18 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
     assert operations == {
         "load_officecli_skill",
         "get_officecli_help",
+        "render_office_file",
         "inspect_office_document",
         "inspect_office_spreadsheet",
         "inspect_office_presentation",
         "apply_office_batch",
         "create_office_document",
         "create_office_spreadsheet",
-        "compose_office_spreadsheets",
         "apply_office_spreadsheet_batch",
         "create_office_presentation",
         "apply_office_presentation_batch",
     }
-    assert "final execution operation" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
+    assert "verify the published result" in schema["paths"]["/v1/officecli/documents/apply-batch"]["post"][
         "description"
     ]
     assert "bare verb" in schema["components"]["schemas"]["ApplyOfficeBatchRequest"]["properties"][
@@ -190,16 +193,11 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
     assert "/sheet[Sheet1]/cell[A1]" in spreadsheet_description
     assert "document root /" in presentation_description
     assert "/presentation is not a valid parent" in presentation_description
-    assert "may call this operation directly" in schema["paths"]["/v1/officecli/documents/create"]["post"][
+    assert "load_officecli_skill" in schema["paths"]["/v1/officecli/documents/create"]["post"][
         "description"
     ]
-    assert "may call this operation directly" in presentation_description
-    assert "/slide[1]" in schema["components"]["schemas"]["CreatePresentationRequest"]["properties"][
-        "commands"
-    ]["description"]
-    assert "width=29cm" in schema["components"]["schemas"]["CreatePresentationRequest"]["properties"][
-        "commands"
-    ]["description"]
+    assert "load_officecli_skill" in presentation_description
+
 
 
 def test_help_uses_only_a_whitelisted_official_topic() -> None:
@@ -301,7 +299,7 @@ def test_fake_bearer_cannot_reach_officecli_guidance_or_execution() -> None:
     assert files.calls == []
 
 
-def test_inspect_downloads_native_file_and_returns_annotated_view_with_table_inventory() -> None:
+def test_inspect_downloads_native_file_and_returns_only_requested_native_view() -> None:
     executor = RecordingOfficeCli()
     files = RecordingOpenWebUi()
     client = TestClient(create_app(executor, files, settings()))
@@ -317,16 +315,12 @@ def test_inspect_downloads_native_file_and_returns_annotated_view_with_table_inv
     )
 
     assert response.status_code == 200
-    assert response.json()["officecli_result"] == {
-        "annotated": {"success": True, "data": {"operation": "view"}},
-        "table_layout": {"success": True, "data": {"operation": "query"}},
-    }
+    assert response.json()["officecli_result"] == {"success": True, "data": {"operation": "view"}}
     assert response.json()["file_id"] == "resolved-file-id"
     assert files.calls == [("resolve", ("native-chat-id", "native-message-id")), ("download", "resolved-file-id")]
     assert executor.calls[0][0] == "view"
     assert executor.calls[0][2:] == ("annotated", "--json")
-    assert executor.calls[1][0] == "query"
-    assert executor.calls[1][2:] == ("table", "--json")
+    assert len(executor.calls) == 1
 
 
 def test_view_help_uses_officecli_top_level_view_command() -> None:
@@ -581,8 +575,8 @@ def test_spreadsheet_openapi_contract_explains_default_sheet_and_follow_up() -> 
     ]["commands"]["description"]
 
     assert "starts with Sheet1" in create["description"]
-    assert "one ordered official officecli batch" in create_commands.lower()
-    assert "do not add, remove, or rename Sheet1" in create_commands
+    assert "requests a sheet name, rename it" in create_commands
+    assert "add only additional sheets" not in create["description"]
     assert "apply_office_spreadsheet_batch" in create_commands
     assert "later conversational edit" in apply_commands
 
@@ -807,66 +801,8 @@ def test_create_presentation_rejects_an_invented_picture_path_before_execution()
     assert files.calls == []
 
 
-def test_create_presentation_rejects_guessed_table_cell_set_keys_before_execution() -> None:
-    executor = RecordingOfficeCli()
-    files = RecordingOpenWebUi()
-    client = TestClient(create_app(executor, files, settings()))
-
-    response = client.post(
-        "/v1/officecli/presentations/create",
-        headers={
-            "Authorization": "Bearer user-session",
-            "X-OpenWebUI-Chat-Id": "native-chat-id",
-            "X-OpenWebUI-Message-Id": "native-message-id",
-        },
-        json={
-            "output_name": "commercial-proposal.pptx",
-            "commands": [
-                {
-                    "command": "set",
-                    "path": "/slide[1]/table[1]",
-                    "props": {"r1c1": "Budget"},
-                }
-            ],
-        },
-    )
-
-    assert response.status_code == 422
-    assert "official data property" in response.text
-    assert executor.calls == []
-    assert files.calls == []
 
 
-def test_create_presentation_rejects_content_before_its_slide_exists() -> None:
-    executor = RecordingOfficeCli()
-    files = RecordingOpenWebUi()
-    client = TestClient(create_app(executor, files, settings()))
-
-    response = client.post(
-        "/v1/officecli/presentations/create",
-        headers={
-            "Authorization": "Bearer user-session",
-            "X-OpenWebUI-Chat-Id": "native-chat-id",
-            "X-OpenWebUI-Message-Id": "native-message-id",
-        },
-        json={
-            "output_name": "commercial-proposal.pptx",
-            "commands": [
-                {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
-                {
-                    "command": "add",
-                    "parent": "/slide[2]",
-                    "type": "shape",
-                    "props": {"text": "Pilot objective"},
-                },
-            ],
-        },
-    )
-
-    assert response.status_code == 422
-    assert "add /slide[N]" in response.text
-    assert executor.calls == []
-    assert files.calls == []
 
 
 def test_apply_spreadsheet_uses_xlsx_ancestry_preserves_source_and_attaches_xlsx() -> None:
