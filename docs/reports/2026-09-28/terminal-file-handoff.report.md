@@ -136,11 +136,20 @@ attachment and authenticated download returned HTTP 200 with the same SHA-256.
 The private Linux workspace remains as evidence, not a service.
 
 The exact current source also passed the existing Linux integration command in
-the deployed OpenWebUI image: **247 passed** (adapter, render, transfer and Filter
+the deployed OpenWebUI image: **256 passed** (adapter, render, transfer, release and Filter
 contracts; one existing Starlette/httpx deprecation warning). The transfer test
 now resides in the already collected `services/officecli-openapi-proof/tests`
 suite, with aiohttp 3.13.5 declared in that suite's test dependencies. This keeps
 the candidate covered without changing the GitHub workflow file.
+
+The common release layer now has an idempotent API installer with a server-local
+0600 rollback package. It installs dependencies before switching the global
+Filter, verifies exact source hashes and public-read grants, and rolls the Filter
+back before dependencies. Its tests cover mutation order, secret-free receipts,
+exclusive backup creation, strict connection validation and preservation of a
+concurrently added unrelated Terminal connection. The installer supports either
+a bearer-authenticated Open Terminal or a session-authenticated Orchestrator;
+the runtime choice remains deliberately outside this common layer.
 
 Reuse the upstream Filesystem upload branch if a separately qualified platform
 upgrade replaces staging. Remove publication adaptation only when an upstream

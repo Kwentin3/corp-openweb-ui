@@ -118,6 +118,36 @@ Tool, Skill и Terminal не включены для всех пользоват
 проверки существующих расширений. Подробности — в
 [отчёте передачи файлов](../reports/2026-09-28/terminal-file-handoff.report.md).
 
+Общий OpenWebUI-слой устанавливается скриптом
+`deploy/openwebui-tools/office_workflow_release.py`. Он принимает два файла с
+правами `0600`: короткоживущий admin token и полное описание уже выбранного
+Terminal-соединения. При `apply` порядок фиксирован: Terminal → Tool → Skill →
+глобальный Filter. До последнего шага пользовательский маршрут не переключается.
+Скрипт создаёт новый файл отката через exclusive create с правами `0600`; там
+находится прежняя конфигурация, включая прежний секрет соединения, поэтому этот
+файл нельзя класть в Git или выводить в журнал.
+
+```bash
+python deploy/openwebui-tools/office_workflow_release.py apply \
+  --base-url http://openwebui:8080 \
+  --token-file /run/secrets/openwebui-admin-token \
+  --terminal-connection-file /run/secrets/office-terminal-connection.json \
+  --backup-file /release-state/office-linux-before.json
+```
+
+Откат использует тот же base URL и token, но не принимает новое соединение:
+
+```bash
+python deploy/openwebui-tools/office_workflow_release.py rollback \
+  --base-url http://openwebui:8080 \
+  --token-file /run/secrets/openwebui-admin-token \
+  --backup-file /release-state/office-linux-before.json
+```
+
+Откат возвращает старый Filter первым, затем восстанавливает или удаляет только
+ресурсы с ID `terminal_file_transfer`, `artifact-workflow` и `office-linux`.
+Другие Terminal-соединения, включая добавленные после выпуска, сохраняются.
+
 ## Установка и выпуск
 
 1. Использовать существующий OpenWebUI и сеть `openwebui_web`. Ядро, volume и
