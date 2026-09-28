@@ -13,10 +13,26 @@ PATCH_PATH = (
     / "openwebui-patches"
     / "apply_native_broker_pdf_upload_patch.py"
 )
+TERMINAL_PATCH_PATH = (
+    ROOT
+    / "deploy"
+    / "openwebui-patches"
+    / "apply_terminal_proxy_security_patch.py"
+)
 
 
 def _module():
     spec = importlib.util.spec_from_file_location("native_broker_pdf_patch", PATCH_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _terminal_module():
+    spec = importlib.util.spec_from_file_location(
+        "terminal_proxy_security_patch", TERMINAL_PATCH_PATH
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -62,4 +78,34 @@ def test_dockerfile_applies_broker_patch_without_the_retired_web_stt_patch():
     )
 
     assert "RUN python /usr/local/bin/apply_native_broker_pdf_upload_patch.py" in dockerfile
+    assert "RUN python /usr/local/bin/apply_terminal_proxy_security_patch.py" in dockerfile
     assert "apply_native_web_stt_patch.py" not in dockerfile
+
+
+def test_terminal_patch_quotes_and_rejects_ambiguous_session_path_values():
+    patch = _terminal_module()
+    source = "async def route(ws, policy_id, ws_base, session_id):\n" + patch.OLD
+
+    result, status = patch.patch_source(source)
+
+    assert status == "patched"
+    assert "safe_session_id = urllib.parse.quote(session_id, safe='')" in result
+    assert "{safe_session_id}" in result
+    assert "{session_id}" not in result
+    assert "forbidden = '?#&/%\\\\'" in result
+    assert "any(ord(char) < 32 or ord(char) == 127" in result
+    compile(result, "terminals.py", "exec")
+
+
+def test_terminal_patch_is_idempotent_and_fails_on_source_drift():
+    patch = _terminal_module()
+    source = "async def route(ws, policy_id, ws_base, session_id):\n" + patch.OLD
+    once, assert_status = patch.patch_source(source)
+    assert assert_status == "patched"
+
+    twice, status = patch.patch_source(once)
+    assert status == "already_patched"
+    assert twice == once
+
+    with pytest.raises(RuntimeError, match="signature counts"):
+        patch.patch_source(source.replace("if policy_id:", "if bool(policy_id):"))

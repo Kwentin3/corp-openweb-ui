@@ -13,6 +13,7 @@ FILES = (
     "deploy/openwebui-patches/apply_native_broker_pdf_upload_patch.py",
     "deploy/openwebui-patches/apply_stage2_streaming_upload_patch.py",
     "deploy/openwebui-patches/apply_stage2_video_composer_patch.py",
+    "deploy/openwebui-patches/apply_terminal_proxy_security_patch.py",
     "deploy/openwebui-patches/google_openai_tool_compat.py",
     "deploy/openwebui-patches/apply_google_openai_tool_protocol_patch.py",
     "deploy/openwebui-patches/verify_google_openai_tool_protocol.py",

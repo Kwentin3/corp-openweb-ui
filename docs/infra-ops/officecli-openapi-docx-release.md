@@ -69,6 +69,118 @@ Chat Completions. Явно выбранный несовместимый reasoni
 нормализация Word удалены. Нативный `merge` — подстановка шаблона, не обещание
 произвольного переноса книг без потерь.
 
+### Кандидат завершения многоэтапной работы
+
+Универсальная инструкция находится в
+[`deploy/openwebui-skills/artifact-workflow.md`](../../deploy/openwebui-skills/artifact-workflow.md).
+Она загружается как штатный Skill и использует native Tasks для перечня частей,
+прогресса и проверки. Сначала квалифицировать приватно; не дублировать её в
+системных промптах всех моделей. Один план не обеспечивает перенос большого
+массива данных: полный Excel-прогон завершился после подключения штатного
+Open Terminal с серверным Linux-выполнением.
+
+Open Terminal подключается через собственный раздел Integrations и штатный
+селектор чата. На проверенной 0.9.6 использовались загрузка во встроенный файловый
+менеджер и `display_file` для результата. Автоматическая передача обычных вложений
+чата в Terminal и обратно не квалифицирована. Файл в рабочей папке Terminal не
+является вложением OpenWebUI Files. Приватный однопользовательский пилот не
+подтверждает изоляцию файлов разных пользователей; не расширять его access grants
+на всех пользователей без проверки штатной модели изоляции и хранения.
+
+Кандидат операции `render_office_file` принимает `grid` для обзора всех страниц
+DOCX или слайдов PPTX. Для проверки пагинации Word использовать этот штатный
+режим: в закреплённом OfficeCLI одиночная первая страница пропускает пагинацию и
+может показывать ложный перенос/наложение. Отдельные страницы остаются для деталей.
+Не повторять изменения документа ради дефекта, который исчезает при проверке
+того же файла другим штатным режимом просмотра.
+
+Кандидат Filter исправляет только добавленный моделью префикс `sandbox:` у
+Markdown-ссылки, если её адрес и ID подтверждены успешным результатом публикации
+OfficeCLI в текущем ответе. Неизвестные адреса не восстанавливаются по имени файла.
+Это не универсальная защита от вымышленных ссылок. Границы проверки и внедрения
+описаны в [отчёте кандидата](../reports/2026-09-28/office-workflow-completion.report.md).
+
+### Передача файлов в Linux
+
+Для установленной OpenWebUI 0.9.6 кандидат
+`deploy/openwebui-tools/terminal_file_transfer.py` связывает существующие Files API,
+выбранный Terminal и события вложений. `stage_chat_file` копирует доступное
+вложение в новую папку; `publish_terminal_file` сохраняет новый результат в Files
+и прикрепляет его к ответу. Исходники сохраняются. Содержимое файлов и секреты
+не передаются через контекст модели. Временное чтение повторяется один раз;
+операция записи автоматически не повторяется.
+
+Обычный чат с двумя исходными книгами прошёл полный путь на Linux: 23 листа,
+все значения и изображения, публикация самим агентом. Это приватная проверка;
+Tool, Skill и Terminal не включены для всех пользователей. Перед общим выпуском
+нужно отдельно выбрать и проверить изоляцию пользовательских окружений.
+Обновление всей платформы ради более нового Filesystem upload требует своей
+проверки существующих расширений. Подробности — в
+[отчёте передачи файлов](../reports/2026-09-28/terminal-file-handoff.report.md).
+
+Общий OpenWebUI-слой устанавливается скриптом
+`deploy/openwebui-tools/office_workflow_release.py`. Он принимает два файла с
+правами `0600`: короткоживущий admin token и полное описание уже выбранного
+Terminal-соединения. При `apply` порядок фиксирован: Terminal → Tool → Skill →
+глобальный Filter. До последнего шага пользовательский маршрут не переключается.
+Скрипт создаёт новый файл отката через exclusive create с правами `0600`; там
+находится прежняя конфигурация, включая прежний секрет соединения, поэтому этот
+файл нельзя класть в Git или выводить в журнал.
+
+```bash
+python deploy/openwebui-tools/office_workflow_release.py apply \
+  --base-url http://openwebui:8080 \
+  --token-file /run/secrets/openwebui-admin-token \
+  --terminal-connection-file /run/secrets/office-terminal-connection.json \
+  --backup-file /release-state/office-linux-before.json
+```
+
+Откат использует тот же base URL и token, но не принимает новое соединение:
+
+```bash
+python deploy/openwebui-tools/office_workflow_release.py rollback \
+  --base-url http://openwebui:8080 \
+  --token-file /run/secrets/openwebui-admin-token \
+  --backup-file /release-state/office-linux-before.json
+```
+
+### Trusted-team Open Terminal runtime
+
+Use `compose/open-terminal-office.compose.yml` only after explicitly confirming
+that every OpenWebUI user is trusted at the same level. It enables upstream
+multi-user mode and separate homes, keeps the service off host ports, pins the
+qualified full image, and joins only `openwebui_web`. The shared kernel,
+process list, network, root-capable system state and 2 GiB resource pool are not
+per-user isolation.
+
+Keep `OPEN_TERMINAL_API_KEY` in a server-local mode-0600 environment file. Build
+the release connection file with ID `office-linux`, URL
+`http://open-terminal-office:8000`, `auth_type` `bearer`, the same key,
+`config.enable=true`, and the `user:*:read` grant. Keep that JSON mode 0600 and
+pass it to `office_workflow_release.py apply`; do not print either file.
+
+Apply in this order:
+
+1. Start the pinned Compose service and wait for its Docker health status.
+2. Run the common release installer. It switches the global Filter last.
+3. Run an ordinary-user Office chat, then a second synthetic-user separation
+   check without private files.
+4. Verify OpenWebUI health, public HTTP, container restart counts, result
+   attachment download and unchanged source hashes.
+
+Rollback starts with `office_workflow_release.py rollback`, then stops the
+Compose service. Do not pass `--volumes` to `docker compose down`; the named home
+volume is preserved for a reviewed recovery or later deletion.
+
+For users who must be protected from one another, do not use this Compose file.
+Deploy licensed Terminals and pass its already qualified connection JSON to the
+same common installer. The Kubernetes backend plus NetworkPolicy is the upstream
+path when network isolation is required.
+
+Откат возвращает старый Filter первым, затем восстанавливает или удаляет только
+ресурсы с ID `terminal_file_transfer`, `artifact-workflow` и `office-linux`.
+Другие Terminal-соединения, включая добавленные после выпуска, сохраняются.
+
 ## Установка и выпуск
 
 1. Использовать существующий OpenWebUI и сеть `openwebui_web`. Ядро, volume и

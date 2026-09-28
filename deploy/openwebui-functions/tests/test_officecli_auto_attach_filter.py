@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import importlib.util
 import pytest
 from pathlib import Path
@@ -16,6 +17,102 @@ SPEC.loader.exec_module(MODULE)
 
 def run_inlet(filter_instance, body, metadata):
     return asyncio.run(filter_instance.inlet(body, __metadata__=metadata))
+
+
+def publication_body():
+    url = "/api/v1/files/12345678-1234-1234-1234-123456789abc/content"
+    text = f"[Download](sandbox:{url})"
+    return {
+        "id": "answer", "model": "gpt-6-sol",
+        "messages": [{"id": "answer", "role": "assistant", "content": text, "output": [
+            {"type": "function_call", "call_id": "publish", "name": "create_office_document", "status": "completed"},
+            {"type": "function_call_output", "call_id": "publish", "status": "completed", "output": [
+                {"type": "input_text", "text": json.dumps({
+                    "result_file_id": "12345678-1234-1234-1234-123456789abc",
+                    "result_file": {"id": "12345678-1234-1234-1234-123456789abc"},
+                    "download_url": url,
+                })},
+            ]},
+            {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": text}]},
+        ]}],
+    }
+
+
+@pytest.mark.parametrize("tool_name", ["create_office_document", "publish_terminal_file"])
+def test_outlet_repairs_proven_download_in_content_and_output_without_touching_receipt(tool_name):
+    body = publication_body()
+    output = body["messages"][0]["output"]
+    output[0]["name"] = tool_name
+    if tool_name == "publish_terminal_file":
+        receipt = json.loads(output[1]["output"][0]["text"])
+        receipt["status"] = "published"
+        output[1]["output"][0]["text"] = json.dumps(receipt)
+    evidence = copy.deepcopy(body["messages"][0]["output"][:2])
+    instance = configured_filter()
+    for _ in range(2):
+        assert asyncio.run(instance.outlet(body)) is body
+    message = body["messages"][0]
+    expected = "[Download](/api/v1/files/12345678-1234-1234-1234-123456789abc/content)"
+    assert message["content"] == expected
+    assert message["output"][2]["content"][0]["text"] == expected
+    assert message["output"][:2] == evidence
+
+
+def test_outlet_does_not_treat_incomplete_terminal_publication_as_success():
+    body = publication_body()
+    body["messages"][0]["output"][0]["name"] = "publish_terminal_file"
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().outlet(body))
+    assert body == before
+
+
+@pytest.mark.parametrize("mutation", ["unknown_tool", "failed", "foreign_call", "missing_call", "foreign_file", "foreign_url", "invalid_json", "wrong_turn", "user", "unlisted", "no_receipt"])
+def test_outlet_does_not_invent_or_repair_unproven_downloads(mutation):
+    body = publication_body()
+    message = body["messages"][0]
+    call, result, _ = message["output"]
+    receipt = json.loads(result["output"][0]["text"])
+    if mutation == "unknown_tool":
+        call["name"] = "web_search"
+    elif mutation == "failed":
+        result["status"] = "failed"
+    elif mutation == "foreign_call":
+        result["call_id"] = "elsewhere"
+    elif mutation == "missing_call":
+        call.pop("call_id")
+        result.pop("call_id")
+    elif mutation == "foreign_file":
+        receipt["result_file"]["id"] = "other"
+    elif mutation == "foreign_url":
+        receipt["download_url"] = "https://elsewhere.example/download"
+    elif mutation == "wrong_turn":
+        body["id"] = "other"
+    elif mutation == "user":
+        message["role"] = "user"
+    elif mutation == "unlisted":
+        body["model"] = "specialized-pipe"
+    elif mutation == "no_receipt":
+        result["output"] = []
+    if result["output"]:
+        result["output"][0]["text"] = "not JSON" if mutation == "invalid_json" else json.dumps(receipt)
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().outlet(body))
+    assert body == before
+
+
+def test_outlet_scopes_to_current_message_and_preserves_unknown_links_and_auxiliary_tasks():
+    body = publication_body()
+    prior = copy.deepcopy(body["messages"][0])
+    prior["id"] = "prior"
+    body["messages"].insert(0, prior)
+    unknown = " [Other](sandbox:/api/v1/files/unknown/content) [Web](https://example.com)"
+    body["messages"][-1]["content"] += unknown
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().outlet(body, __metadata__={"task": "title_generation"}))
+    assert body == before
+    asyncio.run(configured_filter().outlet(body))
+    assert body["messages"][0] == before["messages"][0]
+    assert body["messages"][-1]["content"].endswith(unknown)
 
 
 def configured_filter():
@@ -166,6 +263,10 @@ def test_multiple_xlsx_select_native_owner_before_tool_resolution():
     assert metadata["params"] == {"temperature": 0.2, "function_calling": "native"}
     assert body["files"] == files_before
     assert body["tool_ids"].count("server:officecli") == 1
+    assert body["tool_ids"].count("terminal_file_transfer") == 1
+    assert body["skill_ids"] == ["artifact-workflow"]
+    assert body["terminal_id"] == "office-linux"
+    assert metadata["terminal_id"] == "office-linux"
     instruction = body["messages"][0]["content"]
     assert instruction.count(MODULE.OFFICECLI_INSTRUCTION_MARKER) == 1
     assert instruction == run_inlet(configured_filter(), eligible_body(), native_metadata())["messages"][0]["content"]
@@ -204,6 +305,53 @@ def test_followup_with_files_retains_native_route_without_new_upload():
     metadata = {"params": {}}
     run_inlet(configured_filter(), body, metadata)
     assert metadata["params"]["function_calling"] == "native"
+    assert body["terminal_id"] == "office-linux"
+
+
+def test_office_handoff_is_generic_and_preserves_explicit_terminal_and_selections():
+    for name in ("book.XLSX", "letter.docx", "deck.pptx", "macros.xlsm"):
+        body = {**eligible_body(), "files": [{"type": "file", "id": "source", "name": name}],
+                "tool_ids": ["terminal_file_transfer"], "skill_ids": ["artifact-workflow"],
+                "terminal_id": "user-selected"}
+        metadata = {"params": {}}
+        run_inlet(configured_filter(), body, metadata)
+        assert body["tool_ids"] == ["terminal_file_transfer", "server:officecli"]
+        assert body["skill_ids"] == ["artifact-workflow"]
+        assert body["terminal_id"] == "user-selected"
+        assert "terminal_id" not in metadata
+
+
+def test_non_office_chat_does_not_receive_terminal_capability():
+    for files in ([], [{"type": "file", "id": "pdf", "name": "report.pdf"}],
+                  [{"type": "folder", "id": "folder", "name": "book.xlsx"}]):
+        body = {**eligible_body(), "files": files}
+        metadata = {"params": {}}
+        run_inlet(configured_filter(), body, metadata)
+        assert body["tool_ids"] == ["server:other", "server:officecli"]
+        assert "skill_ids" not in body
+        assert "terminal_id" not in body
+        assert "terminal_id" not in metadata
+
+
+def test_handoff_can_be_disabled_without_disabling_officecli():
+    instance = configured_filter()
+    instance.valves.terminal_transfer_tool_id = ""
+    instance.valves.artifact_workflow_skill_id = ""
+    instance.valves.default_terminal_id = ""
+    body = {**eligible_body(), "files": xlsx_files()}
+    run_inlet(instance, body, {"params": {}})
+    assert body["tool_ids"] == ["server:other", "server:officecli"]
+    assert "skill_ids" not in body
+    assert "terminal_id" not in body
+
+
+def test_invalid_skill_contract_stops_before_any_mutation():
+    body = {**eligible_body(), "files": xlsx_files(), "skill_ids": "not-a-list"}
+    metadata = {"params": {}}
+    before = copy.deepcopy(body)
+    run_inlet(configured_filter(), body, metadata)
+    assert body == before
+    assert metadata == {"params": {}}
 
 
 @pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
@@ -230,9 +378,19 @@ def test_native_office_route_is_independent_of_format_and_attachment_count(model
     body = {**eligible_body(), "model": model, "files": copy.deepcopy(files)}
     metadata = {"params": {"temperature": 0.2, "function_calling": "default"}, "chat_id": "chat"}
     run_inlet(instance, body, metadata)
-    assert metadata == {"params": {"temperature": 0.2, "function_calling": "native"}, "chat_id": "chat"}
+    assert metadata["params"] == {"temperature": 0.2, "function_calling": "native"}
+    assert metadata["chat_id"] == "chat"
     assert body["files"] == files
-    assert body["tool_ids"] == ["server:other", "server:officecli"]
+    if files:
+        assert metadata["terminal_id"] == "office-linux"
+        assert body["terminal_id"] == "office-linux"
+        assert body["tool_ids"] == ["server:other", "server:officecli", "terminal_file_transfer"]
+        assert body["skill_ids"] == ["artifact-workflow"]
+    else:
+        assert "terminal_id" not in metadata
+        assert "terminal_id" not in body
+        assert body["tool_ids"] == ["server:other", "server:officecli"]
+        assert "skill_ids" not in body
 
 
 @pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}],
