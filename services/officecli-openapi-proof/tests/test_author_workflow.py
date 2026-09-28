@@ -143,18 +143,11 @@ def test_raw_reads_the_official_part_without_publishing(kind):
     assert files.calls == [("download", "source")]
 
 
-def test_each_mutating_tool_carries_the_upstream_imperative_trigger():
-    schema = create_app(RecordingOfficeCli(), RecordingOpenWebUi(), settings()).openapi()
-    operations = {op["operationId"]: op for path in schema["paths"].values()
-                  for op in path.values() if isinstance(op, dict) and "operationId" in op}
-    for name in ("compose_office_spreadsheets", "apply_office_batch", "create_office_document",
-                 "create_office_spreadsheet", "apply_office_spreadsheet_batch",
-                 "create_office_presentation", "apply_office_presentation_batch"):
-        description = operations[name]["description"]
-        assert description.startswith("FIRST load_officecli_skill")
-        assert "unless already loaded for it" in description
-        assert "visual delivery checks" in description
-        assert "This is the final execution" not in description
+def test_scenario_composition_is_not_exposed():
+    app = create_app(RecordingOfficeCli(), RecordingOpenWebUi(), settings())
+    schema = app.openapi()
+    assert "/v1/officecli/spreadsheets/compose" not in schema["paths"]
+    assert TestClient(app).post("/v1/officecli/spreadsheets/compose", json={}).status_code == 404
 
 
 @pytest.mark.parametrize("kind", ["documents", "spreadsheets", "presentations"])

@@ -43,6 +43,36 @@ class LocalFileTransport:
 
 
 class DiscoveryQualification(unittest.TestCase):
+    def test_large_real_workbook_structure_is_complete_and_readonly(self):
+        settings = load_settings()
+        executor = SubprocessOfficeCliExecutor(settings)
+        with TemporaryDirectory() as directory:
+            source = Path(directory) / "many-sheets.xlsx"
+            workbook = Workbook()
+            names = [f"Actual sheet {i:03}" for i in range(137)]
+            for index, name in enumerate(names):
+                sheet = workbook.active if index == 0 else workbook.create_sheet()
+                sheet.title = name
+                sheet["A1"] = name
+            workbook.save(source)
+            before = source.read_bytes()
+            files = LocalFileTransport({"source": source})
+            client = TestClient(create_app(executor, files, settings))
+            headers = {"Authorization": "Bearer synthetic-session", "X-OpenWebUI-Chat-Id": "chat",
+                       "X-OpenWebUI-Message-Id": "message"}
+            offset, recovered = 0, []
+            while offset is not None:
+                response = client.post("/v1/officecli/spreadsheets/inspect", headers=headers,
+                    json={"file_id": "source", "command_payload": {"mode": "outline", "offset": offset}})
+                self.assertEqual(response.status_code, 200, response.text)
+                result = response.json()["officecli_result"]
+                recovered.extend(sheet["name"] for sheet in result["data"]["sheets"])
+                offset = result["pagination"]["next_offset"]
+            self.assertEqual(recovered, names)
+            self.assertEqual(source.read_bytes(), before)
+            self.assertIsNone(files.result)
+            self.assertEqual(files.attached, [])
+
     def test_official_help_and_objects_in_all_formats(self):
         settings = load_settings()
         executor = SubprocessOfficeCliExecutor(settings)
@@ -73,6 +103,16 @@ class DiscoveryQualification(unittest.TestCase):
                 executor.run("batch", str(sources[fmt]), "--stop-on-error", "--json", input_text=json.dumps(commands))
             files = LocalFileTransport(sources)
             client = TestClient(create_app(executor, files, settings))
+            workflow = client.post("/v1/officecli/help", headers=headers, json={})
+            self.assertEqual(workflow.status_code, 200, workflow.text)
+            native_tools = json.loads(executor.run("mcp", input_text=json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}) + "\n").text)
+            official = next(t for t in native_tools["result"]["tools"] if t["name"] == "officecli")
+            self.assertEqual(workflow.json()["content"], official["description"])
+            schema = client.get("/openapi.json").json()
+            description = schema["paths"]["/v1/officecli/help"]["post"]["description"]
+            self.assertIn(official["description"], description)
+            self.assertEqual(description.count(official["description"]), 1)
             catalog = client.post("/v1/officecli/skills/load", headers=headers, json={})
             self.assertEqual(catalog.status_code, 200, catalog.text)
             self.assertIn("word-form", catalog.json()["content"])
@@ -105,6 +145,17 @@ class DiscoveryQualification(unittest.TestCase):
                     self.assertEqual(response.json()["officecli_result"]["data"]["results"][0]["path"], paths[0])
                     self.assertIsNone(files.result)
                     self.assertEqual(files.attached, [])
+                    html = client.post(f"/v1/officecli/{kind}/inspect", headers=headers,
+                        json={"file_id": fmt, "command_payload": {"command": "view", "mode": "html"}})
+                    self.assertEqual(html.status_code, 200, html.text[:300])
+                    html_result = html.json()["officecli_result"]
+                    if html_result.get("encoding") != "json-fragment":
+                        self.assertEqual(html_result["format"], "html")
+                        self.assertIn("html", html_result["content"].lower())
+                    if fmt == "docx":
+                        forms = client.post(f"/v1/officecli/{kind}/inspect", headers=headers,
+                            json={"file_id": fmt, "command_payload": {"command": "view", "mode": "forms"}})
+                        self.assertEqual(forms.status_code, 200, forms.text)
                     raw_path = {"xlsx": "/workbook", "docx": "/document", "pptx": "/presentation"}[fmt]
                     raw = client.post(f"/v1/officecli/{kind}/inspect", headers=headers,
                         json={"file_id": fmt, "command_payload": {"command": "raw", "path": raw_path}})
@@ -124,6 +175,11 @@ class DiscoveryQualification(unittest.TestCase):
                         self.assertGreater(rendered.height, 100)
                         self.assertGreater(len(rendered.convert("RGB").resize((100, 100)).getcolors(10001)), 2)
                     if fmt == "xlsx":
+                        region = client.post("/v1/officecli/render", headers=headers,
+                            json={"file_id": fmt, "format": fmt, "range": "Actual B!A1:B1"})
+                        self.assertEqual(region.status_code, 200, region.text[:300] if region.status_code != 200 else "")
+                        with Image.open(BytesIO(region.content)) as cropped, Image.open(BytesIO(screenshot.content)) as full:
+                            self.assertLess(cropped.width * cropped.height, full.width * full.height)
                         response = client.post(f"/v1/officecli/{kind}/apply-batch", headers=headers,
                             json={"file_id": fmt, "output_name": "without-pictures.xlsx",
                                 "commands": [{"command": "remove", "path": path} for path in reversed(paths)]})
@@ -144,6 +200,25 @@ class DiscoveryQualification(unittest.TestCase):
                         files.result = None
                         files.attached.clear()
                     self.assertEqual(sha256(sources[fmt].read_bytes()).hexdigest(), before)
+
+    def test_native_pptx_validation_owns_rejected_commands(self):
+        settings = load_settings()
+        executor = SubprocessOfficeCliExecutor(settings)
+        files = LocalFileTransport({})
+        client = TestClient(create_app(executor, files, settings))
+        headers = {"Authorization": "Bearer synthetic-session", "X-OpenWebUI-Chat-Id": "chat",
+                   "X-OpenWebUI-Message-Id": "message"}
+        for commands in (
+            [{"command": "set", "path": "/slide[1]/table[1]", "props": {"r1c1": "Budget"}}],
+            [{"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+             {"command": "add", "parent": "/slide[2]", "type": "shape", "props": {"text": "Missing slide"}}],
+        ):
+            response = client.post("/v1/officecli/presentations/create", headers=headers,
+                json={"output_name": "invalid.pptx", "commands": commands})
+            self.assertEqual(response.status_code, 502, response.text)
+            self.assertIn("officecli", response.json()["detail"])
+            self.assertIsNone(files.result)
+            self.assertEqual(files.attached, [])
 
 
 if __name__ == "__main__":
