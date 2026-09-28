@@ -279,6 +279,27 @@ the experiment. [Open WebUI documents this native tools-only mode](https://docs.
 but one successful diagnostic is not sufficient evidence to disable automatic file
 context across public general-purpose models or to promise all-model reliability.
 
+The same bounded tools-only comparison was then applied to the private GPT-5.4
+Mini and GPT-5.6 Luna profiles. Both used 11 structural calls during the read phase
+and returned three document types. Independent checks still failed: Mini omitted
+Beta from spreadsheet details and produced an incorrect Word table; Luna's Word
+and PPTX passed, but Excel recalculated the monthly totals to zero and its final
+answer used invalid sandbox-prefixed download links. Both profiles were restored;
+the diagnostic Function was disabled. No automatic-file-context change is proposed
+for release on this evidence, and no additional retries are warranted without a
+new discriminating hypothesis or an external change.
+
+Release preparation, separate from acceptance: the candidate image's complete
+Python source tree matches commit `6b6f03e909fa5b7d2e8a5fd2a5c145df3e115052` after
+LF normalization. It has zero restarts, a read-only root and no public ports or
+mounts. The pinned-image Compose configuration and exact candidate Filter are
+staged at `/opt/officecli-openapi-proof-540-6b6f03e9/`, with status
+`STAGED_NOT_ACCEPTED_NOT_DEPLOYED`. `docker compose config` validates the existing
+network, read-only root, 1 GiB limit and no build/published ports. The stage does
+not run a deployment. The production image remains
+`sha256:0020118b8c9dd9247e28eb2faccef71de4084d1aba9e78bf9bdd8762802af69b`.
+Any later runtime-code change requires refreshing this identity before release.
+
 These results do not establish reliable support across all public models. Keep
 guidance shared and official; do not add model-specific document recipes to turn
 the failing rows green. Native attachments, source preservation, file content and
