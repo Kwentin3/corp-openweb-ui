@@ -22,6 +22,18 @@ the Enterprise Terminals Orchestrator. Shared activation therefore waits for an
 explicit isolation choice; the single-user QA container is not being relabelled
 as a multi-user service.
 
+Official release identities checked on 2026-09-28: Open Terminal `v0.14.0`
+(`ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c`)
+and Terminals `v0.2.4` (linux/amd64 manifest
+`sha256:e0d03626d75ac8232ab582b9f047715dd25d2eb4da9d743c28b9f1377499c5c4`).
+The full Open Terminal image contains LibreOffice, openpyxl 3.1.5,
+python-docx 1.2.0 and python-pptx 1.0.2. An isolated server probe of its free
+multi-user mode created distinct homes for two synthetic users and denied a
+cross-home file read with HTTP 403. It also confirmed the documented security
+boundary: the container requires a writable root and retains its default
+capabilities for dynamic account provisioning; the users still share one
+container. The probe had no network and was removed after the check.
+
 ## Need and native alternatives
 
 The full Excel pilot completed via native Open Terminal on Linux, but its sources
