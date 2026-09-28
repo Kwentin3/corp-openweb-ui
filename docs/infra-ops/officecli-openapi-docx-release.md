@@ -144,6 +144,39 @@ python deploy/openwebui-tools/office_workflow_release.py rollback \
   --backup-file /release-state/office-linux-before.json
 ```
 
+### Trusted-team Open Terminal runtime
+
+Use `compose/open-terminal-office.compose.yml` only after explicitly confirming
+that every OpenWebUI user is trusted at the same level. It enables upstream
+multi-user mode and separate homes, keeps the service off host ports, pins the
+qualified full image, and joins only `openwebui_web`. The shared kernel,
+process list, network, root-capable system state and 2 GiB resource pool are not
+per-user isolation.
+
+Keep `OPEN_TERMINAL_API_KEY` in a server-local mode-0600 environment file. Build
+the release connection file with ID `office-linux`, URL
+`http://open-terminal-office:8000`, `auth_type` `bearer`, the same key,
+`config.enable=true`, and the `user:*:read` grant. Keep that JSON mode 0600 and
+pass it to `office_workflow_release.py apply`; do not print either file.
+
+Apply in this order:
+
+1. Start the pinned Compose service and wait for its Docker health status.
+2. Run the common release installer. It switches the global Filter last.
+3. Run an ordinary-user Office chat, then a second synthetic-user separation
+   check without private files.
+4. Verify OpenWebUI health, public HTTP, container restart counts, result
+   attachment download and unchanged source hashes.
+
+Rollback starts with `office_workflow_release.py rollback`, then stops the
+Compose service. Do not pass `--volumes` to `docker compose down`; the named home
+volume is preserved for a reviewed recovery or later deletion.
+
+For users who must be protected from one another, do not use this Compose file.
+Deploy licensed Terminals and pass its already qualified connection JSON to the
+same common installer. The Kubernetes backend plus NetworkPolicy is the upstream
+path when network isolation is required.
+
 Откат возвращает старый Filter первым, затем восстанавливает или удаляет только
 ресурсы с ID `terminal_file_transfer`, `artifact-workflow` и `office-linux`.
 Другие Terminal-соединения, включая добавленные после выпуска, сохраняются.
