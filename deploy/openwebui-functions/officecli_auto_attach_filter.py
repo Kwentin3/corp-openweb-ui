@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.0.1-verified-download-links
+version: 2.1.0-native-terminal-handoff
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -17,6 +17,10 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
+TERMINAL_TRANSFER_TOOL_ID = "terminal_file_transfer"
+ARTIFACT_WORKFLOW_SKILL_ID = "artifact-workflow"
+DEFAULT_TERMINAL_ID = "office-linux"
+OFFICE_FILE_EXTENSIONS = (".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm")
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-native-workflow-v1]"
 # Keep the production default aligned with the current direct-model catalog.
 # Specialized Workspace/Pipe models stay opt-in by omission.
@@ -106,6 +110,18 @@ def _comma_separated_values(value: str) -> set[str]:
     return {item.strip() for item in value.split(",") if item.strip()}
 
 
+def _has_office_file(files: Any, extensions: set[str]) -> bool:
+    if not isinstance(files, list):
+        return False
+    for item in files:
+        if not isinstance(item, dict) or item.get("type", "file") != "file":
+            continue
+        name = item.get("name") or item.get("filename")
+        if isinstance(name, str) and any(name.lower().endswith(ext) for ext in extensions):
+            return True
+    return False
+
+
 def _has_instruction(messages: Iterable[Any]) -> bool:
     return any(
         isinstance(message, dict)
@@ -144,6 +160,22 @@ class Filter:
                 "Models whose current Chat Completions provider requires reasoning_effort=none with tools. "
                 "Applies whenever OfficeCLI is attached; explicit incompatible reasoning fails visibly."
             ),
+        )
+        terminal_transfer_tool_id: str = Field(
+            default=TERMINAL_TRANSFER_TOOL_ID,
+            description="Existing native Tool used only when an Office input file is present. Empty disables handoff.",
+        )
+        artifact_workflow_skill_id: str = Field(
+            default=ARTIFACT_WORKFLOW_SKILL_ID,
+            description="Existing native Skill loaded for Office input workflows. Empty disables automatic loading.",
+        )
+        default_terminal_id: str = Field(
+            default=DEFAULT_TERMINAL_ID,
+            description="System Terminal selected for Office inputs when the user did not select another one. Empty disables default selection.",
+        )
+        terminal_file_extensions: str = Field(
+            default=",".join(OFFICE_FILE_EXTENSIONS),
+            description="Comma-separated lower-case input extensions that activate the Linux handoff path.",
         )
 
     def __init__(self) -> None:
@@ -215,6 +247,15 @@ class Filter:
         if not isinstance(tool_ids, list):
             return body
 
+        office_input = _has_office_file(
+            body.get("files"),
+            {ext.lower() if ext.startswith(".") else f".{ext.lower()}"
+             for ext in _comma_separated_values(valves.terminal_file_extensions)},
+        )
+        skill_ids = body.get("skill_ids")
+        if office_input and skill_ids is not None and not isinstance(skill_ids, list):
+            return body
+
         # The same provider restriction applies to every format, including new
         # files with no attachments. Preserve explicit reasoning choices.
         if body.get("model") in _comma_separated_values(valves.no_reasoning_model_ids):
@@ -233,6 +274,27 @@ class Filter:
 
         if OFFICECLI_TOOL_ID not in tool_ids:
             body["tool_ids"] = [*tool_ids, OFFICECLI_TOOL_ID]
+
+        if office_input:
+            tool_ids = body.get("tool_ids", tool_ids)
+            transfer_tool_id = valves.terminal_transfer_tool_id.strip()
+            if transfer_tool_id and transfer_tool_id not in tool_ids:
+                body["tool_ids"] = [*tool_ids, transfer_tool_id]
+
+            workflow_skill_id = valves.artifact_workflow_skill_id.strip()
+            if workflow_skill_id:
+                skill_ids = skill_ids or []
+                if workflow_skill_id not in skill_ids:
+                    body["skill_ids"] = [*skill_ids, workflow_skill_id]
+
+            # Preserve an explicit user/model selection. For the default route,
+            # also update the shared pre-0.9.6 metadata snapshot consumed by
+            # local Tools; the middleware will later bind the same value into
+            # its authoritative replacement metadata.
+            if not body.get("terminal_id") and valves.default_terminal_id.strip():
+                body["terminal_id"] = valves.default_terminal_id.strip()
+                if __metadata__ is not None:
+                    metadata["terminal_id"] = body["terminal_id"]
 
         messages = body.get("messages")
         if isinstance(messages, list):

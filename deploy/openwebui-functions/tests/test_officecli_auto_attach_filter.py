@@ -263,6 +263,10 @@ def test_multiple_xlsx_select_native_owner_before_tool_resolution():
     assert metadata["params"] == {"temperature": 0.2, "function_calling": "native"}
     assert body["files"] == files_before
     assert body["tool_ids"].count("server:officecli") == 1
+    assert body["tool_ids"].count("terminal_file_transfer") == 1
+    assert body["skill_ids"] == ["artifact-workflow"]
+    assert body["terminal_id"] == "office-linux"
+    assert metadata["terminal_id"] == "office-linux"
     instruction = body["messages"][0]["content"]
     assert instruction.count(MODULE.OFFICECLI_INSTRUCTION_MARKER) == 1
     assert instruction == run_inlet(configured_filter(), eligible_body(), native_metadata())["messages"][0]["content"]
@@ -301,6 +305,53 @@ def test_followup_with_files_retains_native_route_without_new_upload():
     metadata = {"params": {}}
     run_inlet(configured_filter(), body, metadata)
     assert metadata["params"]["function_calling"] == "native"
+    assert body["terminal_id"] == "office-linux"
+
+
+def test_office_handoff_is_generic_and_preserves_explicit_terminal_and_selections():
+    for name in ("book.XLSX", "letter.docx", "deck.pptx", "macros.xlsm"):
+        body = {**eligible_body(), "files": [{"type": "file", "id": "source", "name": name}],
+                "tool_ids": ["terminal_file_transfer"], "skill_ids": ["artifact-workflow"],
+                "terminal_id": "user-selected"}
+        metadata = {"params": {}}
+        run_inlet(configured_filter(), body, metadata)
+        assert body["tool_ids"] == ["terminal_file_transfer", "server:officecli"]
+        assert body["skill_ids"] == ["artifact-workflow"]
+        assert body["terminal_id"] == "user-selected"
+        assert "terminal_id" not in metadata
+
+
+def test_non_office_chat_does_not_receive_terminal_capability():
+    for files in ([], [{"type": "file", "id": "pdf", "name": "report.pdf"}],
+                  [{"type": "folder", "id": "folder", "name": "book.xlsx"}]):
+        body = {**eligible_body(), "files": files}
+        metadata = {"params": {}}
+        run_inlet(configured_filter(), body, metadata)
+        assert body["tool_ids"] == ["server:other", "server:officecli"]
+        assert "skill_ids" not in body
+        assert "terminal_id" not in body
+        assert "terminal_id" not in metadata
+
+
+def test_handoff_can_be_disabled_without_disabling_officecli():
+    instance = configured_filter()
+    instance.valves.terminal_transfer_tool_id = ""
+    instance.valves.artifact_workflow_skill_id = ""
+    instance.valves.default_terminal_id = ""
+    body = {**eligible_body(), "files": xlsx_files()}
+    run_inlet(instance, body, {"params": {}})
+    assert body["tool_ids"] == ["server:other", "server:officecli"]
+    assert "skill_ids" not in body
+    assert "terminal_id" not in body
+
+
+def test_invalid_skill_contract_stops_before_any_mutation():
+    body = {**eligible_body(), "files": xlsx_files(), "skill_ids": "not-a-list"}
+    metadata = {"params": {}}
+    before = copy.deepcopy(body)
+    run_inlet(configured_filter(), body, metadata)
+    assert body == before
+    assert metadata == {"params": {}}
 
 
 @pytest.mark.parametrize("model", ["gpt-5.6-luna", "gpt-6-luna", "gpt-6-sol"])
@@ -327,9 +378,19 @@ def test_native_office_route_is_independent_of_format_and_attachment_count(model
     body = {**eligible_body(), "model": model, "files": copy.deepcopy(files)}
     metadata = {"params": {"temperature": 0.2, "function_calling": "default"}, "chat_id": "chat"}
     run_inlet(instance, body, metadata)
-    assert metadata == {"params": {"temperature": 0.2, "function_calling": "native"}, "chat_id": "chat"}
+    assert metadata["params"] == {"temperature": 0.2, "function_calling": "native"}
+    assert metadata["chat_id"] == "chat"
     assert body["files"] == files
-    assert body["tool_ids"] == ["server:other", "server:officecli"]
+    if files:
+        assert metadata["terminal_id"] == "office-linux"
+        assert body["terminal_id"] == "office-linux"
+        assert body["tool_ids"] == ["server:other", "server:officecli", "terminal_file_transfer"]
+        assert body["skill_ids"] == ["artifact-workflow"]
+    else:
+        assert "terminal_id" not in metadata
+        assert "terminal_id" not in body
+        assert body["tool_ids"] == ["server:other", "server:officecli"]
+        assert "skill_ids" not in body
 
 
 @pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}],

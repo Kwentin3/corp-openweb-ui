@@ -11,7 +11,10 @@ from aiohttp import web
 import pytest
 
 
-spec = importlib.util.spec_from_file_location("terminal_file_transfer", Path(__file__).parents[1] / "terminal_file_transfer.py")
+spec = importlib.util.spec_from_file_location(
+    "terminal_file_transfer",
+    Path(__file__).parents[3] / "deploy" / "openwebui-tools" / "terminal_file_transfer.py",
+)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

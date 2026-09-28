@@ -2,6 +2,26 @@
 
 Status: private end-to-end qualification passed; no shared deployment.
 
+## Shared-route candidate
+
+The global Office Filter now has a narrowly scoped activation contract for the
+handoff components. A request on an explicitly qualified direct model receives
+the transfer Tool, full artifact-workflow Skill and default system Terminal only
+when it carries an OOXML Office input (`docx`, `xlsx`, `pptx` and macro-enabled
+variants). An explicitly selected Terminal is preserved. Requests without an
+Office input, auxiliary tasks, caller-supplied tool schemas and unqualified
+models do not receive Terminal capabilities. Empty valves disable each binding
+independently without disabling the existing OfficeCLI route.
+
+The deployed instance currently has 23 accounts and closed signup. No
+`LICENSE_KEY` is configured. Official Open Terminal guidance permits the free
+built-in multi-user mode only for a small group whose users trust each other at
+the same level: homes are separate, while the kernel, processes, network and
+resource pool are shared. The production alternative is per-user containers via
+the Enterprise Terminals Orchestrator. Shared activation therefore waits for an
+explicit isolation choice; the single-user QA container is not being relabelled
+as a multi-user service.
+
 ## Need and native alternatives
 
 The full Excel pilot completed via native Open Terminal on Linux, but its sources
@@ -55,7 +75,7 @@ fail before I/O. The configured transfer-size bound is additional to native limi
 
 The transfer tests execute inside the exact existing OpenWebUI runtime image on
 Linux, with its installed aiohttp 3.13.5 and Pydantic 2.12.5. Transfer tests and
-the extended verified-link Filter tests: **103 passed**. The HTTP test fixture
+the extended verified-link Filter tests: **107 passed**. The HTTP test fixture
 checks forwarded identity and failure handling; it is not a replacement for
 real native access-control qualification.
 
@@ -102,6 +122,13 @@ were removed after qualification. Chat history, source files and published resul
 were preserved. After Terminal retirement, chat reload still showed the native
 attachment and authenticated download returned HTTP 200 with the same SHA-256.
 The private Linux workspace remains as evidence, not a service.
+
+The exact current source also passed the existing Linux integration command in
+the deployed OpenWebUI image: **247 passed** (adapter, render, transfer and Filter
+contracts; one existing Starlette/httpx deprecation warning). The transfer test
+now resides in the already collected `services/officecli-openapi-proof/tests`
+suite, with aiohttp 3.13.5 declared in that suite's test dependencies. This keeps
+the candidate covered without changing the GitHub workflow file.
 
 Reuse the upstream Filesystem upload branch if a separately qualified platform
 upgrade replaces staging. Remove publication adaptation only when an upstream
