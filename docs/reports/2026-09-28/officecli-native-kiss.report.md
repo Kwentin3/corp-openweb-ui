@@ -1,7 +1,7 @@
 # OfficeCLI native workflow refactor
 
-Status: implementation and isolated candidate acceptance passed; CI and shared
-release pending. Production remains unchanged.
+Status: implementation, isolated candidate acceptance and OfficeCLI CI passed;
+repository-wide CI and shared release pending. Production remains unchanged.
 
 ## Goal and ownership
 
@@ -57,7 +57,8 @@ native OpenAPI tools. Private chat/source evidence remains outside this reposito
 
 ## Delivered changes
 
-- The Filter's 939-character bootstrap directs the agent to the installed author's
+- The Filter's 939-character bootstrap (previously 6552 characters, plus a conditional
+  1528-character multi-XLSX instruction) directs the agent to the installed author's
   unchanged MCP tool description, lazy skills and targeted help. It describes file
   IDs, copy-on-edit and nonresident execution, without document/task recipes.
 - Removed the custom openpyxl composition engine and route, its validation owner,
@@ -85,6 +86,8 @@ native OpenAPI tools. Private chat/source evidence remains outside this reposito
   `4af043ba7ca8d3c91d245ba8c17bbba071c002d76a90d31b5396698a6cccac91`.
 - An earlier diagnostic run imported the old installed package and was discarded.
   The final qualification above exercises the freshly built installed candidate.
+- [OfficeCLI CI](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/36386957597)
+  passed on implementation head `11f218913705d4a7424c784a02464b6151ff5daa`.
 
 Ordinary authenticated UI chats used synthetic files, a private native OpenAPI
 connection to that image and a private Workspace Model based on `gpt-6-sol`.
@@ -98,14 +101,28 @@ connection, global Filter and public model configurations were not replaced.
 | Edit and extend an existing Word table | Beta quantity 5 and new Gamma quantity 7; Alpha, heading, Table Grid style and following paragraph retained; native attachment and rendered page checked; original bytes unchanged. |
 | Change one text on slide 2 | `Revenue 200`; first slide and all other package parts unchanged except OfficeCLI's modification timestamp. Slide 2 XML differs only in requested text; both slide images checked; original bytes unchanged. |
 
+A further ordinary-chat check used `models/gemini-3.5-flash-lite` through a private
+Workspace Model with the same instruction/connection. It identified all 137 sheets,
+the correct first/last three names and three raster images on sheets 000/070/136.
+On a follow-up it removed those images and delivered a native attachment. Independent
+download inspection confirmed all 137 names/order/cell values, no `xl/media/` parts
+or remaining sheet pictures, and byte-identical source. The model did not itself
+perform a post-edit inspection; do not confuse our artifact check with model QA.
+
+The initial Gemini test profile had an arbitrary ID and produced an empty response
+without tool calls. Live source inspection confirmed that the pre-existing Google
+protocol overlay recognizes IDs starting with `models/gemini-`. Repeating with an
+ID in that namespace succeeded. That existing alias limitation remains; no provider
+overlay or global routing was changed by this refactor.
+
 The XLSX agent initially used extra quotes around two sheet names, received native
 errors with available sheet names, corrected the requests and continued. No special
 quote-handling recipe was added to the integration.
 
 ## Release boundary and remaining limits
 
-This is candidate acceptance on one provider profile, not a new qualification of
-every published model. The global Filter path still requires a direct-model smoke
+This covers all three formats on GPT and large-XLSX discovery/editing on Gemini,
+not a new qualification of every published model. The global Filter path still requires a direct-model smoke
 test after release; candidate chats test the native tool/file loop with the same
 bootstrap delivered by private model parameters.
 
