@@ -13,6 +13,12 @@ RUN python /usr/local/bin/apply_stage2_video_composer_patch.py
 COPY deploy/openwebui-patches/apply_stage2_streaming_upload_patch.py /usr/local/bin/apply_stage2_streaming_upload_patch.py
 RUN python /usr/local/bin/apply_stage2_streaming_upload_patch.py
 
+# OpenWebUI 0.9.6 terminal session IDs can inject an upstream user_id query.
+# Backport the 0.10 path-segment fix and fail the build if the pinned source
+# drifts. Remove this overlay after upgrading the base image to >= 0.10.0.
+COPY deploy/openwebui-patches/apply_terminal_proxy_security_patch.py /usr/local/bin/apply_terminal_proxy_security_patch.py
+RUN python /usr/local/bin/apply_terminal_proxy_security_patch.py
+
 # OpenWebUI owns the derived audio File and atomic chat attachment replacement.
 COPY deploy/openwebui-media-lifecycle/stage2_media_lifecycle.py /app/backend/open_webui/services/stage2_media_lifecycle.py
 COPY deploy/openwebui-media-lifecycle/stage2_video_intake.py /app/backend/open_webui/services/stage2_video_intake.py

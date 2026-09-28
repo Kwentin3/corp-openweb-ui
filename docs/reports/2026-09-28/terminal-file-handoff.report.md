@@ -34,6 +34,22 @@ boundary: the container requires a writable root and retains its default
 capabilities for dynamic account provisioning; the users still share one
 container. The probe had no network and was removed after the check.
 
+`compose/open-terminal-office.compose.yml` is the pinned, private-network,
+no-host-port candidate for the trusted-team option. Compose validation passed on
+the Linux server, but the service is not active. For mutually untrusted users the
+correct native path is licensed Terminals, with Kubernetes and a NetworkPolicy
+when network isolation is required; substituting this free Compose file would
+misstate the boundary.
+
+OpenWebUI versions before 0.10.0 also have a high-severity Terminal proxy flaw
+(CVE-2026-59224): an encoded WebSocket session ID can inject another `user_id`
+into the upstream query. The candidate image applies a fail-fast 0.9.6 overlay
+that rejects ambiguous input and quotes the ID as one path segment. The exact
+Linux image built and booted, `/health` returned true, the patched module
+compiled, and its isolated patch tests passed 6/6. This overlay is removed when
+the base reaches 0.10.0 or newer; it does not change the shared-container trust
+boundary. Source: [GHSA-j657-m4c4-24jq](https://github.com/open-webui/open-webui/security/advisories/GHSA-j657-m4c4-24jq).
+
 ## Need and native alternatives
 
 The full Excel pilot completed via native Open Terminal on Linux, but its sources
