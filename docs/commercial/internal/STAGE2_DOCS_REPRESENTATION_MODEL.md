@@ -22,6 +22,7 @@
 | Сведения | Основной документ |
 | --- | --- |
 | Перечень поставок и навигация | [README](../README.md) |
+| Выпуск нативной интеграции OfficeCLI от 28.09.2026, ограничения моделей и отложенные проверки Claude | [Отчёт OfficeCLI](../COMPLETED_WORK_2026-09-28_OFFICECLI_NATIVE.md) |
 | Состав поставки от 27.09.2026, общая оценка, результаты и PR | [Датированный отчёт](../COMPLETED_WORK_2026-09-27_OFFICE_STT_DIAGNOSTICS.md) |
 | Подэтапы и обоснование первоначальных Office Tools | [Базовый отчёт](../OFFICE_TOOLS_COMPLETED_WORK_AUDIT_120H.md) |
 | Подэтапы дополнительных Office Tools и отдельно диагностики | [Дополнительный отчёт](../OFFICE_TOOLS_ADDITIONAL_REFACTOR_COMPLETED_WORK.md) |
