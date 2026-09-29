@@ -9,6 +9,22 @@ LLM-чат для 3-4 пользователей. Репозиторий так�
 Цель репозитория - blueprint, runbooks и skeleton для безопасного развертывания на домене
 `gpt.alpha-soft.ru`. Это не AI-платформа.
 
+## Актуальный Office-маршрут
+
+В production OpenWebUI подключены OfficeCLI и официальный Open Terminal. OfficeCLI
+выполняет штатные операции над Excel, Word и PowerPoint, а Open Terminal даёт
+агенту Linux-среду для многоэтапной обработки, которой нет среди готовых команд.
+Исходные файлы сохраняются, а проверенный результат возвращается обычным
+вложением OpenWebUI.
+
+- [Краткий отчёт для заказчика](docs/commercial/COMPLETED_WORK_2026-09-28_OPEN_TERMINAL_OFFICE_WORKFLOW.md)
+- [Техническая производственная приёмка](docs/reports/2026-09-28/open-terminal-production-acceptance.report.md)
+- [Инструкция эксплуатации и отката](docs/infra-ops/officecli-openapi-docx-release.md)
+- [Compose официального Open Terminal](compose/open-terminal-office.compose.yml)
+
+Решение использует штатную интеграцию OpenWebUI с Open Terminal и тонкий слой
+передачи файлов; форков OpenWebUI, Open Terminal или OfficeCLI нет.
+
 ## Scope PRD-0
 
 Входит:
@@ -448,11 +464,12 @@ bash scripts/smoke-test.sh --strict-tls
 
 Актуальные эксплуатационные инструкции для возможностей, добавленных после PRD-0:
 
-- [OfficeCLI: подключение, поддерживаемые модели, обновление и откат](docs/infra-ops/officecli-openapi-docx-release.md).
+- [OfficeCLI и Open Terminal: подключение, модели, обновление и откат](docs/infra-ops/officecli-openapi-docx-release.md).
 - [Самописец OpenWebUI: история перед перезапуском, OOM и диагностика](docs/infra-ops/openwebui-flight-recorder.md).
   Уже установлен на рабочем хосте; читать через административный SSH, отдельного chat/MCP tool нет.
 
-- Compose: [compose/openwebui.compose.yml](compose/openwebui.compose.yml)
+- Compose OpenWebUI: [compose/openwebui.compose.yml](compose/openwebui.compose.yml)
+- Compose Open Terminal: [compose/open-terminal-office.compose.yml](compose/open-terminal-office.compose.yml)
 - Env example: [.env.example](.env.example)
 - Preflight: [scripts/preflight.sh](scripts/preflight.sh)
 - Network hardening check: [scripts/network-hardening-check.sh](scripts/network-hardening-check.sh)
