@@ -45,6 +45,7 @@ OFFICECLI_INSTRUCTION = (
     "Native attached_files entries and list_chat_files provide file IDs; text-retrieval citations are not a complete document structure. "
     "Use explicit file_id when multiple inputs are available. Reads do not publish files; create/apply work on copies and return native attachments. "
     "For an attached PPTX template or previous version, edit its copy with apply_office_presentation_batch; create a blank deck only for an explicitly independent presentation. "
+    "If the selected PPTX fails validation, tell the user the concrete findings and offer a valid earlier source or repair of a copy; do not silently replace the source. "
     "For added template-style slides, check native OfficeCLI add/from cloning before Terminal. "
     "This adapter uses nonresident CLI execution: each create/apply saves before returning, so separate open/save/close calls are unnecessary. "
     "For a produced file, use its returned result_file_id and download_url verbatim; never prepend sandbox: or invent a path."

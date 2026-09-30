@@ -950,9 +950,54 @@ def test_apply_presentation_uses_pptx_ancestry_preserves_source_and_attaches_ppt
         "upload",
         "attach",
     ]
-    assert executor.calls[0][1].endswith("result.pptx")
+    assert [call[0] for call in executor.calls] == ["validate", "batch", "validate"]
+    assert executor.calls[0][1].endswith("source-input.pptx")
     assert files.upload_content_types == [PPTX_CONTENT_TYPE]
     assert files.attachment_content_types == [PPTX_CONTENT_TYPE]
+
+
+def test_invalid_pptx_source_is_reported_before_mutation_or_publication() -> None:
+    class InvalidSourceCli(RecordingOfficeCli):
+        def run(self, *arguments: str, input_text: str | None = None) -> OfficeCliOutput:
+            if arguments[0] == "validate":
+                self.calls.append(arguments)
+                self.inputs.append(input_text)
+                return office_output(*arguments, payload={
+                    "success": False,
+                    "data": {"count": 2, "errors": [
+                        {"type": "Semantic", "description": "Image relationship rId2 does not exist.",
+                         "part": "/ppt/slides/slide5.xml"},
+                        {"type": "Semantic", "description": "Image relationship rId3 does not exist.",
+                         "part": "/ppt/slides/slide6.xml"},
+                    ]},
+                })
+            return super().run(*arguments, input_text=input_text)
+
+    executor = InvalidSourceCli()
+    files = RecordingOpenWebUi(source=b"unchanged invalid PPTX bytes")
+    client = TestClient(create_app(executor, files, settings()))
+    headers = {"Authorization": "Bearer user-session", "X-OpenWebUI-Chat-Id": "chat",
+               "X-OpenWebUI-Message-Id": "message"}
+
+    inspection = client.post("/v1/officecli/presentations/inspect", headers=headers,
+                             json={"file_id": "bad-pptx", "command_payload": {"command": "validate"}})
+    assert inspection.status_code == 200, inspection.text
+    assert inspection.json()["officecli_result"]["success"] is False
+    assert "rId2" in inspection.json()["officecli_result"]["data"]["errors"][0]["description"]
+
+    response = client.post("/v1/officecli/presentations/apply-batch", headers=headers,
+                           json={"file_id": "bad-pptx", "output_name": "result.pptx",
+                                 "commands": [{"command": "add", "parent": "/", "from": "/slide[1]"}]})
+    assert response.status_code == 422, response.text
+    detail = response.json()["detail"]
+    assert detail["code"] == "PPTX_SOURCE_VALIDATION_FAILED"
+    assert detail["findings_total"] == 2
+    assert "rId2" in detail["findings"][0]
+    assert len(detail["options"]) == 2
+    assert [call[0] for call in executor.calls] == ["validate", "validate"]
+    assert files.source == b"unchanged invalid PPTX bytes"
+    assert files.uploaded is None
+    assert all(call[0] == "download" for call in files.calls)
 
 
 def test_apply_presentation_materializes_one_native_image_attachment() -> None:
@@ -980,7 +1025,7 @@ def test_apply_presentation_materializes_one_native_image_attachment() -> None:
     )
 
     assert response.status_code == 200
-    batch = json.loads(executor.inputs[0] or "[]")
+    batch = json.loads(executor.inputs[1] or "[]")
     assert batch[0]["props"]["src"].endswith("attached-image.jpg")
     assert [call[0] for call in files.calls] == [
         "resolve-pptx",
