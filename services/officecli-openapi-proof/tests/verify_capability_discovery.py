@@ -245,6 +245,27 @@ class DiscoveryQualification(unittest.TestCase):
                         executor.run("view", str(final), "screenshot", "--page", "3", "--render", "html", "--out", str(cloned))
                         self.assertEqual(source_second.read_bytes(), second.read_bytes())
                         self.assertEqual(second.read_bytes(), cloned.read_bytes())
+                        files.sources[response.json()["result_file_id"]] = final
+                        followup = client.post("/v1/officecli/presentations/apply-batch", headers=headers,
+                            json={"file_id": response.json()["result_file_id"],
+                                  "output_name": "edited-variant.pptx",
+                                  "commands": [{"command": "set", "path": "/slide[3]/shape[1]",
+                                                "props": {"text": "Visible variant"}}]})
+                        self.assertEqual(followup.status_code, 200, followup.text)
+                        self.assertEqual(followup.json()["source_file_id"], response.json()["result_file_id"])
+                        self.assertEqual(followup.json()["source_sha256"], sha256(final.read_bytes()).hexdigest())
+                        variant = root / "edited-variant.pptx"
+                        variant.write_bytes(files.result)
+                        with ZipFile(final) as previous, ZipFile(variant) as current:
+                            self.assertEqual(slide_objects(current, 2), slide_objects(previous, 2))
+                            self.assertIn(b"Visible variant", current.read("ppt/slides/slide3.xml"))
+                            self.assertEqual(
+                                {name: current.read(name) for name in current.namelist() if name.startswith("ppt/media/")},
+                                {name: previous.read(name) for name in previous.namelist() if name.startswith("ppt/media/")},
+                            )
+                        changed = root / "visible-variant.png"
+                        executor.run("view", str(variant), "screenshot", "--page", "3", "--render", "html", "--out", str(changed))
+                        self.assertNotEqual(cloned.read_bytes(), changed.read_bytes())
                         files.result = None
                         files.attached.clear()
                     self.assertEqual(sha256(sources[fmt].read_bytes()).hexdigest(), before)
