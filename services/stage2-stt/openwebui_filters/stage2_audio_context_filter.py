@@ -1,7 +1,7 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.2
+version: 0.2.3
 required_open_webui_version: 0.9.6
 requirements: httpx,pydantic
 
@@ -88,12 +88,13 @@ class Filter:
                 body, metadata, __event_emitter__, "Транскрибация сейчас не настроена."
             )
 
+        needs_preparation = self._direct_profile_for_mime(media["mime_type"]) is None
         try:
             source_path = await self._native_upload_path(media["file_id"], (__user__ or {}).get("id"))
             stt_media = media
             audio_path = source_path
             with tempfile.TemporaryDirectory(prefix="stage2-audio-") as work_dir:
-                if media["is_video"]:
+                if needs_preparation:
                     source_sha256 = await asyncio.to_thread(self._sha256_file, source_path)
                     prepared = await self._prepare_video(
                         token=token,
@@ -145,14 +146,14 @@ class Filter:
             metadata["_stage2_audio_display"],
         )
         self._append_context(body, transcript)
-        if media["is_video"]:
+        if needs_preparation:
             metadata["_stage2_video_lifecycle"] = {
                 "source_file_id": media["file_id"],
                 "audio_file_id": stt_media["file_id"],
                 "user_id": (__user__ or {}).get("id"),
                 "chat_id": metadata.get("chat_id"),
                 # At outlet OpenWebUI identifies the assistant response, while
-                # the uploaded video belongs to the preceding user message.
+                # the uploaded media belongs to the preceding user message.
                 # The lifecycle overlay resolves that owner from ChatFile.
                 "message_id": None,
                 "transcript_hash": hashlib.sha256(transcript.encode("utf-8")).hexdigest(),
@@ -185,7 +186,7 @@ class Filter:
             try:
                 await self._commit_video_lifecycle(lifecycle)
             except RuntimeError:
-                # The source video stays available. A failed cleanup must never
+                # The source media stays available. A failed cleanup must never
                 # hide a successful transcript or turn its source into a dead link.
                 pass
         return body
@@ -232,6 +233,14 @@ class Filter:
         )
 
     def _profile_for_mime(self, mime_type: str) -> str | None:
+        direct = self._direct_profile_for_mime(mime_type)
+        if direct:
+            return direct
+        if mime_type.startswith(("audio/", "video/")):
+            return "mp3_high_compat"
+        return None
+
+    def _direct_profile_for_mime(self, mime_type: str) -> str | None:
         if mime_type == "audio/mpeg":
             return "mp3_high_compat"
         if mime_type.startswith("audio/webm"):
@@ -240,8 +249,6 @@ class Filter:
             return "opus_ogg_compact"
         if mime_type in {"audio/wav", "audio/x-wav"}:
             return "wav_pcm_safe"
-        if mime_type.startswith("video/"):
-            return "mp3_high_compat"
         return None
 
     async def _prepare_video(self, *, token: str, envelope: dict, source_path: Path, filename: str, mime_type: str, output_path: Path) -> dict:
@@ -260,12 +267,12 @@ class Filter:
                     prepared_name = response.headers.get("X-Stage2-Prepared-Filename") or "audio.mp3"
                     prepared_mime = response.headers.get("content-type", "").split(";", 1)[0]
                     if not prepared_mime.startswith("audio/"):
-                        raise RuntimeError("Video preparation returned no audio")
+                        raise RuntimeError("Media preparation returned no audio")
                     with output_path.open("wb") as output:
                         async for chunk in response.aiter_bytes(1024 * 1024):
                             output.write(chunk)
         if not output_path.stat().st_size:
-            raise RuntimeError("Video preparation returned no audio")
+            raise RuntimeError("Media preparation returned no audio")
         return {"audio_path": output_path, "filename": prepared_name, "mime_type": prepared_mime, "size_bytes": output_path.stat().st_size}
 
     async def _persist_prepared_audio(self, *, user_id: str | None, source_file_id: str, prepared: dict, source_sha256: str) -> dict:
