@@ -45,6 +45,10 @@ class OpenWebUiClient(Protocol):
         self, chat_id: str, message_id: str, authorization: str
     ) -> str: ...
 
+    def has_nearest_pptx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> bool: ...
+
     def resolve_nearest_image_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> NativeAttachment: ...
@@ -123,6 +127,13 @@ class HttpOpenWebUiClient:
             chat_id, message_id, authorization, (".pptx",)
         ).file_id
 
+    def has_nearest_pptx_attachment(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> bool:
+        return bool(self._resolve_nearest_attachments(
+            chat_id, message_id, authorization, (".pptx",)
+        ))
+
     def resolve_nearest_image_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> NativeAttachment:
@@ -134,6 +145,9 @@ class HttpOpenWebUiClient:
         self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...]
     ) -> NativeAttachment:
         matches = self._resolve_nearest_attachments(chat_id, message_id, authorization, suffixes)
+        if not matches:
+            label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
+            raise OpenWebUiFailure(f"no {label} attachment exists in the native message ancestry")
         if len(matches) != 1:
             label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
             raise OpenWebUiAmbiguousAttachment(
@@ -159,7 +173,7 @@ class HttpOpenWebUiClient:
             visited.add(current_id)
             message = messages.get(current_id)
             if not isinstance(message, dict):
-                break
+                raise OpenWebUiFailure("OpenWebUI chat ancestry contains a missing native message")
             files = message.get("files", [])
             if isinstance(files, list):
                 matching_files: list[NativeAttachment] = []
@@ -180,8 +194,9 @@ class HttpOpenWebUiClient:
             parent_id = message.get("parentId")
             current_id = parent_id if isinstance(parent_id, str) else None
 
-        label = "image" if len(suffixes) > 1 else suffixes[0][1:].upper()
-        raise OpenWebUiFailure(f"no {label} attachment exists in the native message ancestry")
+        if current_id:
+            raise OpenWebUiFailure("OpenWebUI chat ancestry contains a cycle")
+        return []
 
     def upload(
         self, source: Path, output_name: str, authorization: str, content_type: str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"

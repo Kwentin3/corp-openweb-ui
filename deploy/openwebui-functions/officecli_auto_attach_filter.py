@@ -44,6 +44,7 @@ OFFICECLI_INSTRUCTION = (
     "The installed documentation owns the workflow; tool schemas describe the file-transport mapping and its limits. "
     "Native attached_files entries and list_chat_files provide file IDs; text-retrieval citations are not a complete document structure. "
     "Use explicit file_id when multiple inputs are available. Reads do not publish files; create/apply work on copies and return native attachments. "
+    "For an attached PPTX template or previous version, edit its copy with apply_office_presentation_batch; create a blank deck only for an explicitly independent presentation. "
     "This adapter uses nonresident CLI execution: each create/apply saves before returning, so separate open/save/close calls are unnecessary. "
     "For a produced file, use its returned result_file_id and download_url verbatim; never prepend sandbox: or invent a path."
 )

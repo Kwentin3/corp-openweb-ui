@@ -31,6 +31,9 @@ class LocalFileTransport:
     def verify_session(self, authorization):
         assert authorization == "Bearer synthetic-session"
 
+    def has_nearest_pptx_attachment(self, chat_id, message_id, authorization):
+        return False
+
     def download(self, file_id, authorization, destination):
         destination.write_bytes(self.sources[file_id].read_bytes())
 
@@ -97,7 +100,8 @@ class DiscoveryQualification(unittest.TestCase):
                 ("docx", [{"command": "add", "parent": "/body", "type": "paragraph", "props": {"text": "Keep document text"}},
                           {"command": "add", "parent": "/body/p[1]", "type": "picture", "props": {"src": str(image)}}]),
                 ("pptx", [{"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
-                          {"command": "add", "parent": "/slide[1]", "type": "picture", "props": {"src": str(image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}}]),
+                          {"command": "add", "parent": "/slide[1]", "type": "picture", "props": {"src": str(image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}},
+                          {"command": "add", "parent": "/slide[1]", "type": "shape", "props": {"text": "Original title"}}]),
             ):
                 executor.run("create", str(sources[fmt]), "--json")
                 executor.run("batch", str(sources[fmt]), "--stop-on-error", "--json", input_text=json.dumps(commands))
@@ -197,6 +201,25 @@ class DiscoveryQualification(unittest.TestCase):
                         self.assertEqual(updated.sheetnames, ["Empty", "Actual A", "Actual B"])
                         self.assertEqual([sheet["A1"].value for sheet in updated], ["Keep Empty", "Keep Actual A", "Keep Actual B"])
                         self.assertEqual([sheet["B1"].value for sheet in updated], ["=1+2"] * 3)
+                        files.result = None
+                        files.attached.clear()
+                    if fmt == "pptx":
+                        response = client.post("/v1/officecli/presentations/apply-batch", headers=headers,
+                            json={"file_id": fmt, "output_name": "edited-template.pptx",
+                                "commands": [{"command": "set", "path": "/slide[1]/shape[1]",
+                                              "props": {"text": "Updated title"}}]})
+                        self.assertEqual(response.status_code, 200, response.text)
+                        self.assertTrue(response.json()["source_bytes_preserved"])
+                        self.assertEqual(files.attached, ["synthetic-result"])
+                        final = root / "edited-template.pptx"
+                        final.write_bytes(files.result)
+                        with ZipFile(sources[fmt]) as original, ZipFile(final) as edited:
+                            original_media = {name: original.read(name) for name in original.namelist()
+                                              if name.startswith("ppt/media/")}
+                            edited_media = {name: edited.read(name) for name in edited.namelist()
+                                            if name.startswith("ppt/media/")}
+                            self.assertEqual(edited_media, original_media)
+                            self.assertIn(b"Updated title", edited.read("ppt/slides/slide1.xml"))
                         files.result = None
                         files.attached.clear()
                     self.assertEqual(sha256(sources[fmt].read_bytes()).hexdigest(), before)

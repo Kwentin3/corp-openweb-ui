@@ -310,6 +310,14 @@ class ApplyPresentationBatchRequest(NativePptxReference):
 
 class CreatePresentationRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
+    source_intent: Literal["new_independent_presentation"] | None = Field(
+        default=None,
+        description=(
+            "Set only when the user explicitly requests a new presentation independent of "
+            "any PPTX attached in this chat. For a template or previous version, use "
+            "apply_office_presentation_batch instead."
+        ),
+    )
     commands: list[dict[str, Any]] = Field(
         min_length=1,
         max_length=256,
@@ -1163,7 +1171,10 @@ def create_app(
         response_model=CreateResponse,
         operation_id="create_office_presentation",
         description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
+            "Create a blank PPTX only when there is no PPTX source or the user explicitly "
+            "requests an independent presentation. An attached corporate template or previous "
+            "version is a source for apply_office_presentation_batch, not this operation. "
+            "Use official OfficeCLI create and batch, "
             "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
             "at the document root / before adding content under /slide[N]; /presentation is not a valid "
             "parent. Consult exact property help. A picture may use only the "
@@ -1182,6 +1193,21 @@ def create_app(
         native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
         native_file: dict[str, Any] | None = None
         try:
+            if (
+                request.source_intent != "new_independent_presentation"
+                and openwebui.has_nearest_pptx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "A PPTX is attached in this chat. Use apply_office_presentation_batch "
+                        "to preserve its template and edit the latest version. Create a blank "
+                        "presentation only if the user explicitly requested an independent file; "
+                        "then set source_intent=new_independent_presentation."
+                    ),
+                )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result = Path(directory) / "created.pptx"
                 commands = _materialize_presentation_images(
@@ -1250,7 +1276,9 @@ def create_app(
         response_model=ApplyResponse,
         operation_id="apply_office_presentation_batch",
         description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Edit, validate, and attach the single nearest native PPTX attachment. Verify the published "
+            "Edit a copy of the nearest native PPTX template or previous version, preserving "
+            "unrequested slides, media, and editable objects. Validate and attach the result. "
+            "Verify the published "
             "result before completion. A picture may use only "
             "attachment://image, which resolves exactly one native image attachment in this chat."
         ),
