@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-fast, pinned v0.9.6 composer handoff for video intake."""
+"""Fail-fast, pinned v0.9.6 composer handoff for media preparation."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ from pathlib import Path
 
 
 API_OLD = 'if(i)throw i;return l},m=async(o,r)=>'
-API_NEW = ('if(i)throw i;if(e&&l&&l.meta?.content_type?.startsWith("video/"))'
+API_NEW = ('if(i)throw i;if(e&&l&&(l.meta?.content_type?.startsWith("video/")||'
+           '(l.meta?.content_type?.startsWith("audio/")&&l.meta.content_type!=="audio/mpeg")))'
            '{if(l.data?.status==="failed")throw l.data.error||"Не удалось подготовить аудио";'
            'const prepared=await B(o,l.id);if(prepared?.data?.status!=="completed"||'
            '!prepared?.meta?.content_type?.startsWith("audio/"))throw "Подготовка аудио не завершилась";'
