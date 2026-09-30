@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from zipfile import ZipFile
+from xml.etree import ElementTree
 
 from fastapi.testclient import TestClient
 from openpyxl import Workbook, load_workbook
@@ -219,6 +220,13 @@ class DiscoveryQualification(unittest.TestCase):
                         self.assertEqual(files.attached, ["synthetic-result"])
                         final = root / "edited-template.pptx"
                         final.write_bytes(files.result)
+                        def slide_objects(archive, slide_number):
+                            slide = ElementTree.fromstring(archive.read(f"ppt/slides/slide{slide_number}.xml"))
+                            presentation = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+                            drawing = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+                            return ({kind: len(slide.findall(f".//{presentation}{kind}"))
+                                     for kind in ("sp", "pic", "graphicFrame")},
+                                    [node.text for node in slide.findall(f".//{drawing}t")])
                         with ZipFile(sources[fmt]) as original, ZipFile(final) as edited:
                             original_media = {name: original.read(name) for name in original.namelist()
                                               if name.startswith("ppt/media/")}
@@ -226,13 +234,16 @@ class DiscoveryQualification(unittest.TestCase):
                                             if name.startswith("ppt/media/")}
                             self.assertEqual(edited_media, original_media)
                             self.assertIn(b"Updated title", edited.read("ppt/slides/slide1.xml"))
-                            self.assertEqual(edited.read("ppt/slides/slide2.xml"),
-                                             original.read("ppt/slides/slide2.xml"))
+                            self.assertEqual(slide_objects(edited, 2), slide_objects(original, 2))
+                            self.assertEqual(slide_objects(edited, 3), slide_objects(original, 2))
                             self.assertIn(b"Keep editable second slide", edited.read("ppt/slides/slide3.xml"))
+                        source_second = root / "source-template-slide.png"
                         second = root / "template-slide.png"
                         cloned = root / "cloned-slide.png"
+                        executor.run("view", str(sources[fmt]), "screenshot", "--page", "2", "--render", "html", "--out", str(source_second))
                         executor.run("view", str(final), "screenshot", "--page", "2", "--render", "html", "--out", str(second))
                         executor.run("view", str(final), "screenshot", "--page", "3", "--render", "html", "--out", str(cloned))
+                        self.assertEqual(source_second.read_bytes(), second.read_bytes())
                         self.assertEqual(second.read_bytes(), cloned.read_bytes())
                         files.result = None
                         files.attached.clear()
