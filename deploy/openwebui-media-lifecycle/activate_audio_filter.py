@@ -13,12 +13,15 @@ from open_webui.internal.db import get_async_db_context
 from open_webui.models.functions import Function, Functions
 
 
+FILTER_VERSION = "0.2.3"
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     source = Path("/tmp/stage2_audio_context_filter.py").read_text(encoding="utf-8")
-    if "version: 0.2.2" not in source or "file_handler =" in source:
+    if f"version: {FILTER_VERSION}" not in source or "file_handler =" in source:
         raise RuntimeError("Unexpected STT Filter source")
     async with get_async_db_context() as db:
         rows = (await db.execute(select(Function).where(Function.type == "filter"))).scalars().all()
@@ -30,11 +33,11 @@ async def main() -> None:
     if args.dry_run:
         print(json.dumps({"filter_id": row.id, "old_version": old_version, "candidate_sha256": hashlib.sha256(source.encode()).hexdigest()}))
         return
-    meta = {**(row.meta or {}), "manifest": {**(row.meta or {}).get("manifest", {}), "version": "0.2.2"}}
+    meta = {**(row.meta or {}), "manifest": {**(row.meta or {}).get("manifest", {}), "version": FILTER_VERSION}}
     updated = await Functions.update_function_by_id(row.id, {"content": source, "meta": meta})
     if updated is None or updated.content != source or not updated.is_active or not updated.is_global:
         raise RuntimeError("STT Filter update did not persist")
-    print(json.dumps({"filter_id": row.id, "old_version": old_version, "version": "0.2.2", "sha256": hashlib.sha256(source.encode()).hexdigest()}))
+    print(json.dumps({"filter_id": row.id, "old_version": old_version, "version": FILTER_VERSION, "sha256": hashlib.sha256(source.encode()).hexdigest()}))
 
 
 if __name__ == "__main__":

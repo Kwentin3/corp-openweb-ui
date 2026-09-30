@@ -1,8 +1,8 @@
-"""Prepare uploaded video before it can be attached to an ordinary chat.
+"""Prepare uploaded media before it can be attached to an ordinary chat.
 
 The native File retains its ID. Its path and metadata become audio only after
 FFmpeg returns a complete file. Retry state lives in File.data so a restart
-does not leave a pending video behind.
+does not leave pending source media behind.
 """
 
 from __future__ import annotations
@@ -93,7 +93,7 @@ async def _process(file_id: str) -> None:
             if current.get("state") == "cleanup_pending":
                 log.warning("Source deletion pending for %s: %s", file_id, exc)
                 return
-            log.warning("Video conversion attempt %s failed for %s: %s", attempts, file_id, exc)
+            log.warning("Media conversion attempt %s failed for %s: %s", attempts, file_id, exc)
             if attempts == 2:
                 await _state(file_id, state="retry_wait", attempt=attempts, next_due=time.time() + RETRY_DELAY_SECONDS, error=str(exc)[:300])
                 return
@@ -107,7 +107,7 @@ async def _convert(file_id: str) -> None:
     async with get_async_db_context() as db:
         row = await db.get(File, file_id)
         if row is None or not row.path:
-            raise RuntimeError("Source video is unavailable")
+            raise RuntimeError("Source media is unavailable")
         source_path = row.path
         name = row.filename
         user_id = row.user_id
@@ -115,7 +115,7 @@ async def _convert(file_id: str) -> None:
         size = (row.meta or {}).get("size")
     local_path = Path(await asyncio.to_thread(Storage.get_file, source_path))
     if not local_path.is_file():
-        raise RuntimeError("Source video is unavailable")
+        raise RuntimeError("Source media is unavailable")
     token = os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
     if not token:
         raise RuntimeError("Media preparation service is not configured")
@@ -150,7 +150,7 @@ async def _convert(file_id: str) -> None:
             async with get_async_db_context() as db:
                 row = await db.get(File, file_id)
                 if row is None or row.path != source_path:
-                    raise RuntimeError("Source video changed during conversion")
+                    raise RuntimeError("Source media changed during conversion")
                 marker = _marker(row)
                 marker.update({"state": "cleanup_pending", "source_path": source_path, "audio_path": audio_storage_path})
                 row.path = audio_storage_path
@@ -175,7 +175,7 @@ async def _cleanup_source(file_id: str, marker: dict) -> None:
     if source_path:
         await asyncio.to_thread(Storage.delete_file, source_path)
         if Path(Storage.get_file(source_path)).is_file():
-            raise RuntimeError("Source video survived deletion")
+            raise RuntimeError("Source media survived deletion")
     async with get_async_db_context() as db:
         row = await db.get(File, file_id)
         if row is None:
@@ -196,7 +196,7 @@ async def _finish_failure(file_id: str, marker: dict) -> None:
     if source_path:
         await asyncio.to_thread(Storage.delete_file, source_path)
         if Path(Storage.get_file(source_path)).is_file():
-            raise RuntimeError("Failed video survived deletion")
+            raise RuntimeError("Failed media survived deletion")
     async with get_async_db_context() as db:
         row = await db.get(File, file_id)
         if row is None:
@@ -204,7 +204,7 @@ async def _finish_failure(file_id: str, marker: dict) -> None:
         state = _marker(row)
         state.update({"state": "failed", "source_path": None})
         row.path = None
-        row.data = {**(row.data or {}), "status": "failed", "error": "Не удалось извлечь аудио из видео после трёх попыток; исходный файл удалён.", "stage2_video_intake": state}
+        row.data = {**(row.data or {}), "status": "failed", "error": "Не удалось подготовить аудио после трёх попыток; исходный файл удалён.", "stage2_video_intake": state}
         row.updated_at = int(time.time())
         await db.commit()
 
@@ -224,9 +224,9 @@ async def _sweep() -> None:
                     try:
                         await _process(file_id)
                     except Exception:
-                        log.exception("Video intake reconciliation failed for %s", file_id)
+                        log.exception("Media intake reconciliation failed for %s", file_id)
         except Exception:
-            log.exception("Video intake reconciliation failed")
+            log.exception("Media intake reconciliation failed")
         await asyncio.sleep(60)
 
 

@@ -76,6 +76,58 @@ async def test_video_is_prepared_stored_as_native_audio_and_only_then_committed(
 
 
 @pytest.mark.asyncio
+async def test_existing_m4a_is_prepared_as_mp3_before_stt(monkeypatch, tmp_path):
+    filter_ = Filter()
+    filter_.valves.internal_api_key = "test-token"
+    audio = _audio_attachment("m4a-1", "meeting.m4a")
+    audio["content_type"] = "audio/x-m4a"
+    audio["file"]["meta"]["content_type"] = "audio/x-m4a"
+    body = {"messages": [{"role": "user", "content": ""}], "files": [audio]}
+    metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [audio]}
+    source = tmp_path / "meeting.m4a"
+    source.write_bytes(b"source-m4a")
+    committed = []
+
+    async def prepare(**kwargs):
+        assert kwargs["mime_type"] == "audio/x-m4a"
+        assert kwargs["envelope"]["selected_output_profile"] == "mp3_high_compat"
+        kwargs["output_path"].write_bytes(b"prepared-mp3")
+        return {"audio_path": kwargs["output_path"], "filename": "meeting.mp3", "mime_type": "audio/mpeg", "size_bytes": 12}
+
+    async def store(**kwargs):
+        assert kwargs["source_file_id"] == "m4a-1"
+        assert kwargs["prepared"]["audio_path"].read_bytes() == b"prepared-mp3"
+        return {"file_id": "mp3-1", "filename": "meeting.mp3", "mime_type": "audio/mpeg", "size_bytes": 12}
+
+    async def transcribe(**kwargs):
+        assert kwargs["filename"] == "meeting.mp3"
+        assert kwargs["mime_type"] == "audio/mpeg"
+        assert kwargs["audio_path"].read_bytes() == b"prepared-mp3"
+        return {"result": {"text": "Meeting transcript"}}
+
+    async def commit(lifecycle):
+        committed.append(lifecycle)
+
+    monkeypatch.setattr(filter_, "_native_upload_path", lambda *_: _async_value(source))
+    monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
+    monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))
+    monkeypatch.setattr(filter_, "_prepare_video", prepare)
+    monkeypatch.setattr(filter_, "_persist_prepared_audio", store)
+    monkeypatch.setattr(filter_, "_call_sidecar", transcribe)
+    monkeypatch.setattr(filter_, "_mark_transcribed", lambda *_: _async_value(None))
+    monkeypatch.setattr(filter_, "_commit_video_lifecycle", commit)
+
+    await filter_.inlet(body, __user__={"id": "user-1"}, __metadata__=metadata)
+    assert body["files"] == []
+    assert metadata["files"] == []
+    assert metadata["_stage2_video_lifecycle"]["audio_file_id"] == "mp3-1"
+    body["messages"].append({"role": "assistant", "content": "Summary"})
+    await filter_.outlet(body, __metadata__=metadata)
+    assert committed[0]["source_file_id"] == "m4a-1"
+    assert committed[0]["audio_file_id"] == "mp3-1"
+
+
+@pytest.mark.asyncio
 async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_from_outbound_files(monkeypatch, tmp_path):
     audio = _audio_attachment()
     document = {"type": "file", "file": {"id": "pdf-1", "filename": "notes.pdf"}, "name": "notes.pdf", "content_type": "application/pdf"}

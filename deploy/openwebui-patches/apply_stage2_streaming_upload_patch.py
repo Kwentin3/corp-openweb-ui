@@ -69,7 +69,7 @@ UPLOAD_NEW = '''        storage_tags = {
                 Storage.upload_file_streaming, file.file, filename, storage_tags
             )
         else:
-            if video_type or (isinstance(file.content_type, str) and file.content_type.startswith('audio/')):
+            if media_type:
                 raise ValueError('Streaming media upload requires local storage')
             contents, file_path = await asyncio.to_thread(
                 Storage.upload_file, file.file, filename, storage_tags
@@ -84,14 +84,14 @@ UPLOAD_NEW = '''        storage_tags = {
 
 VIDEO_ROUTE_OLD = """            stt_supported = getattr(request.app.state.config, 'STT_SUPPORTED_CONTENT_TYPES', [])
 """
-VIDEO_ROUTE_NEW = """            if content_type and content_type.startswith('video/'):
+VIDEO_ROUTE_NEW = """            if content_type and _stage2_needs_preparation(content_type):
                 # Prepare before Send. Keep native File/status ownership and
                 # let its persistent reconciler finish an interrupted retry.
                 from open_webui.services.stage2_video_intake import prepare_uploaded_video
                 try:
                     await prepare_uploaded_video(file_item.id)
                 except Exception:
-                    log.exception('Video intake pending reconciliation for %s', file_item.id)
+                    log.exception('Media intake pending reconciliation for %s', file_item.id)
                 return
 
             stt_supported = getattr(request.app.state.config, 'STT_SUPPORTED_CONTENT_TYPES', [])
@@ -103,7 +103,7 @@ AUDIO_ROUTE_OLD = """            stt_supported = getattr(request.app.state.confi
 """
 AUDIO_ROUTE_NEW = """            stt_supported = getattr(request.app.state.config, 'STT_SUPPORTED_CONTENT_TYPES', [])
 
-            if content_type and content_type.startswith('audio/') and strict_match_mime_type(stt_supported, content_type):
+            if content_type and content_type.startswith('audio/'):
                 # The chat STT Filter owns transcription on Send. Keep the
                 # native File available without pre-transcribing or indexing it.
                 await Files.update_file_data_by_id(
@@ -120,21 +120,34 @@ ROUTER_OLD = "router = APIRouter()\n"
 ROUTER_NEW = """router = APIRouter()
 
 
-_STAGE2_VIDEO_EXTENSIONS = {
+_STAGE2_MEDIA_EXTENSIONS = {
     '.mp4': 'video/mp4', '.mov': 'video/quicktime',
     '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo',
     '.webm': 'video/webm', '.m4v': 'video/x-m4v',
     '.wmv': 'video/x-ms-wmv', '.mpeg': 'video/mpeg',
     '.mpg': 'video/mpeg',
+    '.mp3': 'audio/mpeg', '.m4a': 'audio/x-m4a',
+    '.aac': 'audio/aac', '.flac': 'audio/flac',
+    '.ogg': 'audio/ogg', '.oga': 'audio/ogg',
+    '.opus': 'audio/ogg', '.wav': 'audio/wav',
+    '.aif': 'audio/aiff', '.aiff': 'audio/aiff',
+    '.amr': 'audio/amr', '.wma': 'audio/x-ms-wma',
 }
 
 
-def _stage2_video_type(content_type: str | None, filename: str | None) -> str | None:
-    if isinstance(content_type, str) and content_type.startswith('audio/'):
+def _stage2_media_type(content_type: str | None, filename: str | None) -> str | None:
+    mime = content_type.split(';', 1)[0].strip().lower() if isinstance(content_type, str) else ''
+    if mime.startswith(('audio/', 'video/')):
+        return mime
+    if mime and mime not in ('application/octet-stream', 'binary/octet-stream'):
         return None
-    if isinstance(content_type, str) and content_type.startswith('video/'):
-        return content_type
-    return _STAGE2_VIDEO_EXTENSIONS.get(Path(filename or '').suffix.lower())
+    return _STAGE2_MEDIA_EXTENSIONS.get(Path(filename or '').suffix.lower())
+
+
+def _stage2_needs_preparation(content_type: str) -> bool:
+    return content_type.startswith('video/') or (
+        content_type.startswith('audio/') and content_type != 'audio/mpeg'
+    )
 
 
 @router.on_event('startup')
@@ -148,8 +161,8 @@ PROCESS_OLD = """    file_metadata = metadata if metadata else {}
     try:
 """
 PROCESS_NEW = """    file_metadata = metadata if metadata else {}
-    video_type = _stage2_video_type(file.content_type, file.filename)
-    if video_type:
+    media_type = _stage2_media_type(file.content_type, file.filename)
+    if media_type:
         process = True
 
     try:
@@ -161,7 +174,7 @@ CONTENT_TYPE_NEW = """            content_type = (file_item.meta or {}).get('con
 """
 
 META_TYPE_OLD = """'content_type': (file.content_type if isinstance(file.content_type, str) else None),"""
-META_TYPE_NEW = """'content_type': video_type or (file.content_type if isinstance(file.content_type, str) else None),"""
+META_TYPE_NEW = """'content_type': media_type or (file.content_type if isinstance(file.content_type, str) else None),"""
 
 
 def _replace_exact(source: str, old: str, new: str, label: str) -> tuple[str, str]:
