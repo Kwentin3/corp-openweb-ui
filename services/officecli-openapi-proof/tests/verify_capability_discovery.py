@@ -212,7 +212,8 @@ class DiscoveryQualification(unittest.TestCase):
                         response = client.post("/v1/officecli/presentations/apply-batch", headers=headers,
                             json={"file_id": fmt, "output_name": "edited-template.pptx",
                                 "commands": [{"command": "set", "path": "/slide[1]/shape[1]",
-                                              "props": {"text": "Updated title"}}]})
+                                              "props": {"text": "Updated title"}},
+                                             {"command": "add", "parent": "/", "from": "/slide[2]"}]})
                         self.assertEqual(response.status_code, 200, response.text)
                         self.assertTrue(response.json()["source_bytes_preserved"])
                         self.assertEqual(files.attached, ["synthetic-result"])
@@ -227,6 +228,12 @@ class DiscoveryQualification(unittest.TestCase):
                             self.assertIn(b"Updated title", edited.read("ppt/slides/slide1.xml"))
                             self.assertEqual(edited.read("ppt/slides/slide2.xml"),
                                              original.read("ppt/slides/slide2.xml"))
+                            self.assertIn(b"Keep editable second slide", edited.read("ppt/slides/slide3.xml"))
+                        second = root / "template-slide.png"
+                        cloned = root / "cloned-slide.png"
+                        executor.run("view", str(final), "screenshot", "--page", "2", "--render", "html", "--out", str(second))
+                        executor.run("view", str(final), "screenshot", "--page", "3", "--render", "html", "--out", str(cloned))
+                        self.assertEqual(second.read_bytes(), cloned.read_bytes())
                         files.result = None
                         files.attached.clear()
                     self.assertEqual(sha256(sources[fmt].read_bytes()).hexdigest(), before)

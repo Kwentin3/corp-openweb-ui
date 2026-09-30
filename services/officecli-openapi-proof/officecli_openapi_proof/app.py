@@ -1278,6 +1278,8 @@ def create_app(
         description=AUTHOR_WORKFLOW_TRIGGER + (
             "Edit a copy of the nearest native PPTX template or previous version, preserving "
             "unrequested slides, media, and editable objects. Validate and attach the result. "
+            "To add a slide in the source style, OfficeCLI batch can clone it with "
+            "an add item using parent=/ and from=/slide[N]; then edit the copied objects. "
             "Verify the published "
             "result before completion. A picture may use only "
             "attachment://image, which resolves exactly one native image attachment in this chat."
