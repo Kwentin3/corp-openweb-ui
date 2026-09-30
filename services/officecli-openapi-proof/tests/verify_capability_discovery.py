@@ -86,6 +86,8 @@ class DiscoveryQualification(unittest.TestCase):
             root = Path(directory)
             image = root / "image.png"
             Image.new("RGB", (16, 16), "blue").save(image)
+            second_image = root / "second-image.png"
+            Image.new("RGB", (16, 16), "green").save(second_image)
             sources = {fmt: root / f"source.{fmt}" for fmt in ("xlsx", "docx", "pptx")}
             workbook = Workbook()
             for index, name in enumerate(("Empty", "Actual A", "Actual B")):
@@ -101,7 +103,10 @@ class DiscoveryQualification(unittest.TestCase):
                           {"command": "add", "parent": "/body/p[1]", "type": "picture", "props": {"src": str(image)}}]),
                 ("pptx", [{"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
                           {"command": "add", "parent": "/slide[1]", "type": "picture", "props": {"src": str(image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}},
-                          {"command": "add", "parent": "/slide[1]", "type": "shape", "props": {"text": "Original title"}}]),
+                          {"command": "add", "parent": "/slide[1]", "type": "shape", "props": {"text": "Original title"}},
+                          {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+                          {"command": "add", "parent": "/slide[2]", "type": "picture", "props": {"src": str(second_image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}},
+                          {"command": "add", "parent": "/slide[2]", "type": "shape", "props": {"text": "Keep editable second slide"}}]),
             ):
                 executor.run("create", str(sources[fmt]), "--json")
                 executor.run("batch", str(sources[fmt]), "--stop-on-error", "--json", input_text=json.dumps(commands))
@@ -125,7 +130,7 @@ class DiscoveryQualification(unittest.TestCase):
                 guide = client.post("/v1/officecli/skills/load", headers=headers, json={"skill": skill})
                 self.assertEqual(guide.status_code, 200, guide.text)
                 self.assertEqual(guide.json()["content"], executor.run("load_skill", skill).text)
-            for fmt, kind, count in (("xlsx", "spreadsheets", 9), ("docx", "documents", 1), ("pptx", "presentations", 1)):
+            for fmt, kind, count in (("xlsx", "spreadsheets", 9), ("docx", "documents", 1), ("pptx", "presentations", 2)):
                 with self.subTest(format=fmt):
                     before = sha256(sources[fmt].read_bytes()).hexdigest()
                     for topic in (fmt, f"{fmt} picture", f"{fmt} remove picture", "query", "get"):
@@ -220,6 +225,8 @@ class DiscoveryQualification(unittest.TestCase):
                                             if name.startswith("ppt/media/")}
                             self.assertEqual(edited_media, original_media)
                             self.assertIn(b"Updated title", edited.read("ppt/slides/slide1.xml"))
+                            self.assertEqual(edited.read("ppt/slides/slide2.xml"),
+                                             original.read("ppt/slides/slide2.xml"))
                         files.result = None
                         files.attached.clear()
                     self.assertEqual(sha256(sources[fmt].read_bytes()).hexdigest(), before)
