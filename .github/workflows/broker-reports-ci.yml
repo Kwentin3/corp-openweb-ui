@@ -1,9 +1,7 @@
 name: Broker Reports CI
 
 on:
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,8 +15,8 @@ jobs:
     name: broker-reports-ci
     runs-on: ubuntu-24.04
     # The final Pipe guard is intentionally split into three complete,
-    # CPU-heavy local groups. Keep every guard mandatory and give their
-    # bounded sum room to reach a diagnostic terminal.
+    # CPU-heavy local groups. Keep every guard in the manual qualification
+    # and give their bounded sum room to reach a diagnostic terminal.
     timeout-minutes: 55
     defaults:
       run:

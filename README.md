@@ -168,19 +168,33 @@ OS-backed lease serializes the entire execute/resume section before auth,
 recovery or transport; descriptor close or process death releases only this
 transient lease. Persistent owner, tag and per-slot claims are never deleted.
 
-## Broker Reports CI
+## CI для активного кода
 
-Каждый pull request в `main` запускает
-[`.github/workflows/broker-reports-ci.yml`](.github/workflows/broker-reports-ci.yml).
-Стабильное имя GitHub check/job: `broker-reports-ci`. Workflow использует Python
+Каждый pull request в `main` запускает обязательный check `active-ci` из
+[`.github/workflows/active-ci.yml`](.github/workflows/active-ci.yml).
+Он проверяет точный commit и diff PR. При изменении OfficeCLI запускает его
+тесты, сборку production-образа и проверку установленного пакета; при изменении
+STT запускает его тесты. Изменение самого workflow запускает оба набора.
+Ручной запуск `active-ci` также выполняет оба набора целиком.
+
+## Замороженные Broker Reports, НДФЛ и XML
+
+Тесты сохранены в
+[`.github/workflows/broker-reports-ci.yml`](.github/workflows/broker-reports-ci.yml),
+но workflow больше не запускается на PR и не требуется для слияния в `main`.
+Для квалификации при возобновлении проекта его можно запустить вручную:
+
+```powershell
+gh workflow run broker-reports-ci.yml --ref main
+```
+
+Стабильное имя ручного check/job: `broker-reports-ci`. Workflow использует Python
 3.11 на `ubuntu-24.04`, read-only `GITHUB_TOKEN` и рабочий каталог
-`services/broker-reports-gate1-proof`.
-GOAL 12 additionally verifies that the PR is open and non-draft for the exact
-head, the check is owned by `github-actions` and linked to that PR, and the
-completed-success run is a `pull_request` run of exact workflow
-`Broker Reports CI` at `.github/workflows/broker-reports-ci.yml`.
+`services/broker-reports-gate1-proof`. Историческая приёмка GOAL 12 проверяла
+успешный `pull_request` run этого workflow для точного PR head; это условие
+относилось к закрытой работе и не является текущим правилом для новых PR.
 
-Локальное воспроизведение обязательного check из корня репозитория:
+Локальное воспроизведение набора проверок из корня репозитория:
 
 ```powershell
 cd services/broker-reports-gate1-proof
