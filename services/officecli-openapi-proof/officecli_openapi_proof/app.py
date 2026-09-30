@@ -310,6 +310,14 @@ class ApplyPresentationBatchRequest(NativePptxReference):
 
 class CreatePresentationRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
+    source_intent: Literal["new_independent_presentation"] | None = Field(
+        default=None,
+        description=(
+            "Set only when the user explicitly requests a new presentation independent of "
+            "any PPTX attached in this chat. For a template or previous version, use "
+            "apply_office_presentation_batch instead."
+        ),
+    )
     commands: list[dict[str, Any]] = Field(
         min_length=1,
         max_length=256,
@@ -414,16 +422,54 @@ class CreateResponse(BaseModel):
         return native_file_content_path(self.result_file_id)
 
 
-def _officecli_json(output: OfficeCliOutput, operation: str) -> Any:
+def _officecli_json(
+    output: OfficeCliOutput, operation: str, *, allow_failed_validation: bool = False
+) -> Any:
     try:
         parsed = json.loads(output.text)
     except json.JSONDecodeError as error:
         raise OfficeCliFailure(f"officecli {operation} did not return JSON") from error
-    if not isinstance(parsed, dict) or parsed.get("success") is not True:
+    if not isinstance(parsed, dict) or (
+        parsed.get("success") is not True
+        and not (allow_failed_validation and parsed.get("success") is False)
+    ):
         raise OfficeCliFailure(f"officecli {operation} reported failure: {output.text}")
     if output.diagnostics:
         parsed = {**parsed, "adapter_diagnostics": output.diagnostics}
     return parsed
+
+
+def _invalid_pptx_source_detail(validation: dict[str, Any]) -> dict[str, Any]:
+    data = validation.get("data")
+    errors = data.get("errors") if isinstance(data, dict) else None
+    native_findings = [
+        f"{error.get('type', 'Validation')}: {error.get('description', '')}"
+        + (f" ({error['part']})" if isinstance(error.get("part"), str) else "")
+        for error in errors if isinstance(error, dict)
+        and isinstance(error.get("description"), str)
+    ] if isinstance(errors, list) else []
+    warnings = validation.get("warnings")
+    messages = [
+        warning.get("message")
+        for warning in warnings if isinstance(warning, dict)
+        and isinstance(warning.get("message"), str)
+    ] if isinstance(warnings, list) else []
+    findings = native_findings or [message for message in messages if message.startswith("[")] or messages
+    count = data.get("count") if isinstance(data, dict) else None
+    summary = f"{count} OfficeCLI validation error(s)" if isinstance(count, int) else (
+        messages[0] if messages else str(validation.get("message") or "Validation failed")
+    )
+    return {
+        "code": "PPTX_SOURCE_VALIDATION_FAILED",
+        "message": "The selected PPTX already fails OfficeCLI validation before editing. No new file was published.",
+        "summary": summary[:500],
+        "findings": [message[:500] for message in findings[:8]],
+        "findings_total": max(len(findings), count) if isinstance(count, int) else len(findings),
+        "options": [
+            "Confirm a different valid PPTX from this chat as the base.",
+            "Repair a copy of this PPTX, validate it, and then continue editing.",
+        ],
+    }
 
 
 def _inspection_result(output: OfficeCliOutput, payload: ObjectReadPayload) -> Any:
@@ -1122,7 +1168,8 @@ def create_app(
             "Inspect the single nearest native PPTX attachment with the official OfficeCLI "
             "query selector (shape, picture, chart, table, etc.) or get path with depth=0. "
             "Follow query pagination. Includes stable paths, current text, and formatting required "
-            "for an existing-shape edit."
+            "for an existing-shape edit. Validate returns native findings even when the PPTX "
+            "fails validation; explain those findings to the user before choosing a repair path."
         ),
     )
     def inspect_office_presentation(
@@ -1147,7 +1194,11 @@ def create_app(
                 openwebui.download(source_file_id, bearer, source)
                 payload = request.command_payload
                 output = officecli.run(*object_arguments(str(source), payload))
-                result = bounded_result(_inspection_result(output, payload), payload)
+                result = bounded_result(
+                    _officecli_json(output, "validate", allow_failed_validation=True)
+                    if payload.command == "validate" else _inspection_result(output, payload),
+                    payload,
+                )
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
@@ -1163,7 +1214,10 @@ def create_app(
         response_model=CreateResponse,
         operation_id="create_office_presentation",
         description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
+            "Create a blank PPTX only when there is no PPTX source or the user explicitly "
+            "requests an independent presentation. An attached corporate template or previous "
+            "version is a source for apply_office_presentation_batch, not this operation. "
+            "Use official OfficeCLI create and batch, "
             "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
             "at the document root / before adding content under /slide[N]; /presentation is not a valid "
             "parent. Consult exact property help. A picture may use only the "
@@ -1182,6 +1236,21 @@ def create_app(
         native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
         native_file: dict[str, Any] | None = None
         try:
+            if (
+                request.source_intent != "new_independent_presentation"
+                and openwebui.has_nearest_pptx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "A PPTX is attached in this chat. Use apply_office_presentation_batch "
+                        "to preserve its template and edit the latest version. Create a blank "
+                        "presentation only if the user explicitly requested an independent file; "
+                        "then set source_intent=new_independent_presentation."
+                    ),
+                )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result = Path(directory) / "created.pptx"
                 commands = _materialize_presentation_images(
@@ -1250,7 +1319,14 @@ def create_app(
         response_model=ApplyResponse,
         operation_id="apply_office_presentation_batch",
         description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Edit, validate, and attach the single nearest native PPTX attachment. Verify the published "
+            "Edit a copy of the nearest native PPTX template or previous version, preserving "
+            "unrequested slides, media, and editable objects. Validate and attach the result. "
+            "If the source already fails OfficeCLI validation, no edit is published; "
+            "explain the findings and offer a valid earlier source or repair of a copy. "
+            "To add a slide in the source style, OfficeCLI batch can clone it with "
+            "an add item using parent=/ and from=/slide[N]; inspect the copied shape paths "
+            "before editing because shape IDs can change. "
+            "Verify the published "
             "result before completion. A picture may use only "
             "attachment://image, which resolves exactly one native image attachment in this chat."
         ),
@@ -1280,6 +1356,16 @@ def create_app(
                 source_after = workspace / "source-after-check.pptx"
                 openwebui.download(source_file_id, bearer, source)
                 source_sha256 = sha256(source.read_bytes()).hexdigest()
+                source_validation = _officecli_json(
+                    officecli.run("validate", str(source), "--json"),
+                    "validate",
+                    allow_failed_validation=True,
+                )
+                if source_validation["success"] is False:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=_invalid_pptx_source_detail(source_validation),
+                    )
                 result.write_bytes(source.read_bytes())
                 commands = _materialize_presentation_images(
                     request.commands,

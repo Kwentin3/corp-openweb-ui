@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import json
+import subprocess
 import sys
 
 from fastapi.testclient import TestClient
@@ -91,6 +92,20 @@ def test_failed_process_preserves_both_diagnostic_streams():
     with pytest.raises(OfficeCliFailure) as error:
         executor.run("-c", "import sys; print('native result'); print('native error',file=sys.stderr);sys.exit(1)")
     assert "native result" in str(error.value) and "native error" in str(error.value)
+
+
+def test_failed_native_validation_remains_readable_as_structured_findings(monkeypatch):
+    payload = {"success": False, "warnings": [{"message": "[Semantic] Missing image relationship"}]}
+
+    def failed_validation(command, **kwargs):
+        assert command[1] == "validate"
+        return subprocess.CompletedProcess(command, 1, json.dumps(payload), "")
+
+    monkeypatch.setattr("officecli_openapi_proof.officecli.subprocess.run", failed_validation)
+    executor = SubprocessOfficeCliExecutor(settings())
+
+    result = executor.run("validate", "source.pptx", "--json")
+    assert json.loads(result.text) == payload
 
 
 def test_docx_apply_receives_exact_original_bytes_without_a_repair_pass():

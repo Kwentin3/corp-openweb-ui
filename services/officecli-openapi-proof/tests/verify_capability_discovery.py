@@ -11,6 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from zipfile import ZipFile
+from xml.etree import ElementTree
 
 from fastapi.testclient import TestClient
 from openpyxl import Workbook, load_workbook
@@ -30,6 +31,9 @@ class LocalFileTransport:
 
     def verify_session(self, authorization):
         assert authorization == "Bearer synthetic-session"
+
+    def has_nearest_pptx_attachment(self, chat_id, message_id, authorization):
+        return False
 
     def download(self, file_id, authorization, destination):
         destination.write_bytes(self.sources[file_id].read_bytes())
@@ -83,6 +87,8 @@ class DiscoveryQualification(unittest.TestCase):
             root = Path(directory)
             image = root / "image.png"
             Image.new("RGB", (16, 16), "blue").save(image)
+            second_image = root / "second-image.png"
+            Image.new("RGB", (16, 16), "green").save(second_image)
             sources = {fmt: root / f"source.{fmt}" for fmt in ("xlsx", "docx", "pptx")}
             workbook = Workbook()
             for index, name in enumerate(("Empty", "Actual A", "Actual B")):
@@ -97,7 +103,13 @@ class DiscoveryQualification(unittest.TestCase):
                 ("docx", [{"command": "add", "parent": "/body", "type": "paragraph", "props": {"text": "Keep document text"}},
                           {"command": "add", "parent": "/body/p[1]", "type": "picture", "props": {"src": str(image)}}]),
                 ("pptx", [{"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
-                          {"command": "add", "parent": "/slide[1]", "type": "picture", "props": {"src": str(image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}}]),
+                          {"command": "add", "parent": "/slide[1]", "type": "picture", "props": {"src": str(image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}},
+                          {"command": "add", "parent": "/slide[1]", "type": "shape", "props": {"text": "Original title"}},
+                          {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
+                          {"command": "add", "parent": "/slide[2]", "type": "picture", "props": {"src": str(second_image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}},
+                          {"command": "add", "parent": "/slide[2]", "type": "shape", "props": {"text": "Keep editable second slide"}},
+                          {"command": "add", "parent": "/slide[2]", "type": "table",
+                           "props": {"data": "Item,Price;Template item,100", "x": "1cm", "y": "4cm", "width": "6cm", "height": "2cm"}}]),
             ):
                 executor.run("create", str(sources[fmt]), "--json")
                 executor.run("batch", str(sources[fmt]), "--stop-on-error", "--json", input_text=json.dumps(commands))
@@ -121,7 +133,7 @@ class DiscoveryQualification(unittest.TestCase):
                 guide = client.post("/v1/officecli/skills/load", headers=headers, json={"skill": skill})
                 self.assertEqual(guide.status_code, 200, guide.text)
                 self.assertEqual(guide.json()["content"], executor.run("load_skill", skill).text)
-            for fmt, kind, count in (("xlsx", "spreadsheets", 9), ("docx", "documents", 1), ("pptx", "presentations", 1)):
+            for fmt, kind, count in (("xlsx", "spreadsheets", 9), ("docx", "documents", 1), ("pptx", "presentations", 2)):
                 with self.subTest(format=fmt):
                     before = sha256(sources[fmt].read_bytes()).hexdigest()
                     for topic in (fmt, f"{fmt} picture", f"{fmt} remove picture", "query", "get"):
@@ -197,6 +209,68 @@ class DiscoveryQualification(unittest.TestCase):
                         self.assertEqual(updated.sheetnames, ["Empty", "Actual A", "Actual B"])
                         self.assertEqual([sheet["A1"].value for sheet in updated], ["Keep Empty", "Keep Actual A", "Keep Actual B"])
                         self.assertEqual([sheet["B1"].value for sheet in updated], ["=1+2"] * 3)
+                        files.result = None
+                        files.attached.clear()
+                    if fmt == "pptx":
+                        response = client.post("/v1/officecli/presentations/apply-batch", headers=headers,
+                            json={"file_id": fmt, "output_name": "edited-template.pptx",
+                                "commands": [{"command": "set", "path": "/slide[1]/shape[1]",
+                                              "props": {"text": "Updated title"}},
+                                             {"command": "add", "parent": "/", "from": "/slide[2]"}]})
+                        self.assertEqual(response.status_code, 200, response.text)
+                        self.assertTrue(response.json()["source_bytes_preserved"])
+                        self.assertEqual(files.attached, ["synthetic-result"])
+                        final = root / "edited-template.pptx"
+                        final.write_bytes(files.result)
+                        def slide_objects(archive, slide_number):
+                            slide = ElementTree.fromstring(archive.read(f"ppt/slides/slide{slide_number}.xml"))
+                            presentation = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+                            drawing = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+                            return ({kind: len(slide.findall(f".//{presentation}{kind}"))
+                                     for kind in ("sp", "pic", "graphicFrame")},
+                                    [node.text for node in slide.findall(f".//{drawing}t")])
+                        with ZipFile(sources[fmt]) as original, ZipFile(final) as edited:
+                            original_media = {name: original.read(name) for name in original.namelist()
+                                              if name.startswith("ppt/media/")}
+                            edited_media = {name: edited.read(name) for name in edited.namelist()
+                                            if name.startswith("ppt/media/")}
+                            self.assertEqual(edited_media, original_media)
+                            self.assertIn(b"Updated title", edited.read("ppt/slides/slide1.xml"))
+                            self.assertEqual(slide_objects(edited, 2), slide_objects(original, 2))
+                            self.assertEqual(slide_objects(edited, 3), slide_objects(original, 2))
+                            self.assertIn(b"Keep editable second slide", edited.read("ppt/slides/slide3.xml"))
+                        source_second = root / "source-template-slide.png"
+                        second = root / "template-slide.png"
+                        cloned = root / "cloned-slide.png"
+                        executor.run("view", str(sources[fmt]), "screenshot", "--page", "2", "--render", "html", "--out", str(source_second))
+                        executor.run("view", str(final), "screenshot", "--page", "2", "--render", "html", "--out", str(second))
+                        executor.run("view", str(final), "screenshot", "--page", "3", "--render", "html", "--out", str(cloned))
+                        self.assertEqual(source_second.read_bytes(), second.read_bytes())
+                        self.assertEqual(second.read_bytes(), cloned.read_bytes())
+                        files.sources[response.json()["result_file_id"]] = final
+                        followup = client.post("/v1/officecli/presentations/apply-batch", headers=headers,
+                            json={"file_id": response.json()["result_file_id"],
+                                  "output_name": "edited-variant.pptx",
+                                  "commands": [{"command": "set", "path": "/slide[3]/shape[1]",
+                                                "props": {"text": "Visible variant"}},
+                                               {"command": "set", "path": "/slide[3]/table[1]/tr[2]/tc[1]",
+                                                "props": {"text": "Variant item"}}]})
+                        self.assertEqual(followup.status_code, 200, followup.text)
+                        self.assertEqual(followup.json()["source_file_id"], response.json()["result_file_id"])
+                        self.assertEqual(followup.json()["source_sha256"], sha256(final.read_bytes()).hexdigest())
+                        variant = root / "edited-variant.pptx"
+                        variant.write_bytes(files.result)
+                        with ZipFile(final) as previous, ZipFile(variant) as current:
+                            self.assertEqual(slide_objects(current, 2), slide_objects(previous, 2))
+                            self.assertIn(b"Visible variant", current.read("ppt/slides/slide3.xml"))
+                            self.assertIn(b"Variant item", current.read("ppt/slides/slide3.xml"))
+                            self.assertEqual(
+                                {name: current.read(name) for name in current.namelist() if name.startswith("ppt/media/")},
+                                {name: previous.read(name) for name in previous.namelist() if name.startswith("ppt/media/")},
+                            )
+                        changed = root / "visible-variant.png"
+                        executor.run("view", str(variant), "screenshot", "--page", "3", "--render", "html", "--out", str(changed))
+                        self.assertNotEqual(cloned.read_bytes(), changed.read_bytes())
                         files.result = None
                         files.attached.clear()
                     self.assertEqual(sha256(sources[fmt].read_bytes()).hexdigest(), before)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
+import json
 import os
 import subprocess
 from typing import Protocol
@@ -54,6 +55,19 @@ class SubprocessOfficeCliExecutor:
             raise OfficeCliFailure("officecli guidance command timed out") from error
 
         if completed.returncode != 0:
+            if arguments[0] == "validate":
+                try:
+                    validation = json.loads(completed.stdout)
+                except json.JSONDecodeError:
+                    validation = None
+                if isinstance(validation, dict) and validation.get("success") is False:
+                    return OfficeCliOutput(
+                        command=command,
+                        text=completed.stdout,
+                        content_sha256=sha256(completed.stdout.encode("utf-8")).hexdigest(),
+                        auto_resident_disabled=True,
+                        diagnostics=completed.stderr.strip(),
+                    )
             detail = "\n".join(part for part in (completed.stdout.strip(), completed.stderr.strip()) if part) or "no output"
             raise OfficeCliFailure(f"officecli guidance command failed: {detail}")
 
