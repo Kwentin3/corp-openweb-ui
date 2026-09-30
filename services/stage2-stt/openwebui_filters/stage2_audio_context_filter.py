@@ -1,7 +1,7 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.2
+version: 0.2.3
 required_open_webui_version: 0.9.6
 requirements: httpx,pydantic
 
