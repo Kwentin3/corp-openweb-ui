@@ -107,7 +107,9 @@ class DiscoveryQualification(unittest.TestCase):
                           {"command": "add", "parent": "/slide[1]", "type": "shape", "props": {"text": "Original title"}},
                           {"command": "add", "parent": "/", "type": "slide", "props": {"layout": "blank"}},
                           {"command": "add", "parent": "/slide[2]", "type": "picture", "props": {"src": str(second_image), "x": "1cm", "y": "1cm", "width": "2cm", "height": "2cm"}},
-                          {"command": "add", "parent": "/slide[2]", "type": "shape", "props": {"text": "Keep editable second slide"}}]),
+                          {"command": "add", "parent": "/slide[2]", "type": "shape", "props": {"text": "Keep editable second slide"}},
+                          {"command": "add", "parent": "/slide[2]", "type": "table",
+                           "props": {"data": "Item,Price;Template item,100", "x": "1cm", "y": "4cm", "width": "6cm", "height": "2cm"}}]),
             ):
                 executor.run("create", str(sources[fmt]), "--json")
                 executor.run("batch", str(sources[fmt]), "--stop-on-error", "--json", input_text=json.dumps(commands))
@@ -250,7 +252,9 @@ class DiscoveryQualification(unittest.TestCase):
                             json={"file_id": response.json()["result_file_id"],
                                   "output_name": "edited-variant.pptx",
                                   "commands": [{"command": "set", "path": "/slide[3]/shape[1]",
-                                                "props": {"text": "Visible variant"}}]})
+                                                "props": {"text": "Visible variant"}},
+                                               {"command": "set", "path": "/slide[3]/table[1]/tr[2]/tc[1]",
+                                                "props": {"text": "Variant item"}}]})
                         self.assertEqual(followup.status_code, 200, followup.text)
                         self.assertEqual(followup.json()["source_file_id"], response.json()["result_file_id"])
                         self.assertEqual(followup.json()["source_sha256"], sha256(final.read_bytes()).hexdigest())
@@ -259,6 +263,7 @@ class DiscoveryQualification(unittest.TestCase):
                         with ZipFile(final) as previous, ZipFile(variant) as current:
                             self.assertEqual(slide_objects(current, 2), slide_objects(previous, 2))
                             self.assertIn(b"Visible variant", current.read("ppt/slides/slide3.xml"))
+                            self.assertIn(b"Variant item", current.read("ppt/slides/slide3.xml"))
                             self.assertEqual(
                                 {name: current.read(name) for name in current.namelist() if name.startswith("ppt/media/")},
                                 {name: previous.read(name) for name in previous.namelist() if name.startswith("ppt/media/")},
