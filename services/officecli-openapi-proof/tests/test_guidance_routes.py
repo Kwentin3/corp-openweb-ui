@@ -1349,6 +1349,33 @@ def test_http_client_checks_pptx_ancestry_and_prefers_latest_result(monkeypatch,
         assert client.resolve_nearest_pptx_attachment("chat", "assistant-now", "Bearer user-session") == "latest"
 
 
+@pytest.mark.parametrize(
+    ("messages", "error"),
+    [
+        ({"assistant-now": {"parentId": "missing", "files": []}}, "missing native message"),
+        ({"assistant-now": {"parentId": "assistant-now", "files": []}}, "contains a cycle"),
+    ],
+)
+def test_http_client_rejects_incomplete_pptx_ancestry(monkeypatch, messages, error) -> None:
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {"chat": {"history": {"messages": messages}}}
+
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        assert url == "http://openwebui:8080/api/v1/chats/chat"
+        return Response()
+
+    monkeypatch.setattr("officecli_openapi_proof.openwebui_client.httpx.request", request)
+    client = HttpOpenWebUiClient("http://openwebui:8080", 30)
+
+    with pytest.raises(OpenWebUiFailure, match=error):
+        client.has_nearest_pptx_attachment("chat", "assistant-now", "Bearer user-session")
+
+
 def test_http_client_rejects_multiple_docx_attachments_in_nearest_native_message(monkeypatch) -> None:
     class Response:
         def raise_for_status(self) -> None:
