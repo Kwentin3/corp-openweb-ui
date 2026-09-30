@@ -17,7 +17,9 @@ LLM-чат для 3-4 пользователей. Репозиторий так�
 Исходные файлы сохраняются, а проверенный результат возвращается обычным
 вложением OpenWebUI.
 
-- [Краткий отчёт для заказчика](docs/commercial/COMPLETED_WORK_2026-09-28_OPEN_TERMINAL_OFFICE_WORKFLOW.md)
+- [Отчёты для заказчика по поставкам](docs/commercial/README.md)
+- [Дополнение: работа с PPTX-шаблоном](docs/commercial/COMPLETED_WORK_2026-09-30_PPTX_TEMPLATE.md)
+- [Дополнение: Open Terminal](docs/commercial/COMPLETED_WORK_2026-09-28_OPEN_TERMINAL_OFFICE_WORKFLOW.md)
 - [Техническая производственная приёмка](docs/reports/2026-09-28/open-terminal-production-acceptance.report.md)
 - [Инструкция эксплуатации и отката](docs/infra-ops/officecli-openapi-docx-release.md)
 - [Compose официального Open Terminal](compose/open-terminal-office.compose.yml)
