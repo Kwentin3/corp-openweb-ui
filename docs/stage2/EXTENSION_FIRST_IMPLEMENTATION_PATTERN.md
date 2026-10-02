@@ -2,18 +2,65 @@
 
 ## 1. Principle
 
-New OpenWebUI-facing features should first be evaluated through OpenWebUI-native
-extension mechanisms before considering a fork.
+**Расширяем возможности OpenWebUI, не превращая его ядро в нашу кодовую базу.**
 
-Preferred order:
+Постоянное архитектурное правило для всех новых Tools, Functions, интеграций и
+пользовательских возможностей. Применяется с первого обсуждения задачи и
+постановки GOAL, а не только перед обновлением или после написания кода.
+Уточнено владельцем 2026-09-13 в контексте [#474](https://github.com/Kwentin3/corp-openweb-ui/issues/474).
 
-1. Native OpenWebUI configuration / workspace / model / prompt / knowledge
-   mechanisms.
-2. OpenWebUI Functions / Actions / Tools / OpenAPI Tool Servers.
-3. Thin static loader or minimal UI integration patch.
-4. Private backend/domain sidecar.
-5. Deep OpenWebUI fork only if all above are insufficient and a decision record
-   approves it.
+OpenWebUI остаётся upstream-продуктом. Наша предметная логика изолирована;
+подключение к оболочке минимально и использует предусмотренные контракты.
+Сохраняем пользовательский результат, а не каждый исторический обход.
+
+### Preferred order
+
+1. **Штатная возможность или настройка.** Проверить, не решает ли задачу сам
+   OpenWebUI, включая уже выпущенное исправление. Сверять документацию с
+   выбранной версией и поведением, не считать наличие функции доказательством
+   её пригодности для нашего сценария.
+2. **Предусмотренное расширение или API.** Functions / Actions / Filters /
+   Tools / OpenAPI Tool Servers и другие подтверждённые точки расширения.
+   Предметная логика живёт в изолированном модуле или существующем сервисе;
+   отдельный sidecar добавляется только при реальной необходимости.
+3. **Минимальный согласованный патч.** Только когда предыдущие варианты не
+   закрывают нужный результат либо требуют несоразмерной собственной системы.
+   Конкретное вмешательство сначала обосновать и отдельно согласовать по
+   разделу 6. Одобрение задачи или этого паттерна не одобряет будущие патчи.
+
+Нативность — способ снизить стоимость сопровождения, не требование нуля
+собственного кода любой ценой. Работающий движок не переписывается ради
+формальной чистоты; небольшая проблема не оправдывает новую платформу.
+
+### First design decision
+
+В существующей issue/PR кратко зафиксировать: **пользовательский результат →
+выбранная точка расширения → граница нашего модуля → зависимости от версии →
+как проверяются отключение и следующее обновление**. Для простого штатного
+подключения достаточно нескольких предложений; отдельный аудит, ADR или
+реестр на каждую возможность не нужен.
+
+Отключение расширения не должно ломать базовую работу OpenWebUI или соседние
+домены. Потеря самой отключённой возможности ожидаема; повреждение общих данных,
+прав или чужих сценариев — нет. Зависимости и ограничения объявляются явно.
+
+### Classify the actual coupling
+
+- **Штатное расширение:** подтверждённая точка подключения и её контракт.
+- **Зависимость от внутренних деталей:** прямое чтение таблиц БД, импорт
+  внутренних моделей/методов, обход структуры истории, DOM-селекторы. Даже без
+  изменения upstream-файлов это риск обновления: локализовать в тонком адаптере,
+  указать версию и проверку совместимости, предпочесть поддерживаемый API.
+- **Патч поведения:** изменение upstream backend/frontend, подмена
+  `window.fetch`, monkey-patch обработчиков, правка собранных chunks или
+  вмешательство при сборке/старте/работе вне предусмотренного контракта.
+  Применяются правила управляемого исключения из раздела 6.
+
+Отдельная папка, Function, loader, Docker-образ или sidecar сами по себе не
+доказывают нативность. Маленький размер кода также не делает патч расширением.
+Этот документ задаёт порядок выбора и согласования для упоминаемых в связанных
+документах `thin static/UI shims` и `minimal integration patches`; само такое
+упоминание не является разрешением вмешиваться в ядро.
 
 ## 2. Why
 
@@ -24,9 +71,16 @@ Preferred order:
 - Allows admin-side configuration through valves/settings where possible.
 - Reduces merge burden.
 
+**Критерий результата:** следующий агент воспроизводит комплект
+`upstream + расширения + согласованные исключения` по Git и короткой инструкции,
+а следующее обновление не начинается с расследования содержимого контейнера.
+Это не обещание отсутствия адаптаций между версиями.
+
 ## 3. STT Reference Implementation
 
-Stage 2 STT MVP confirms this pattern:
+Исторический STT MVP иллюстрирует разделение UI, Action, предметного сервиса и
+провайдера, но не является безусловным шаблоном для переноса loader на новые
+версии:
 
 ```text
 static loader UX shim + Action Function + private sidecar + provider adapter
@@ -45,30 +99,37 @@ OpenWebUI media attachment
 -> transcript returned to OpenWebUI composer/chat UX
 ```
 
-Status:
+Historical status:
 
 ```text
 Stage 2 STT MVP: implemented/proven/current-stage closed.
-Remaining STT work: testing/hardening, not architectural discovery.
 ```
+
+Не переоткрывать принятую продуктовую работу и не перепроектировать STT с нуля.
+При обновлении отдельно проверить способ подключения: наличие работавшего
+loader не доказывает стабильного контракта DOM/fetch. Проверка совместимости
+не даёт разрешения переписывать движок или менять production.
 
 ## 4. What Belongs Where
 
-OpenWebUI/static loader:
+OpenWebUI native UI / approved thin integration:
 
 - visible UX affordance;
 - browser-only preprocessing if needed;
 - progress/status;
-- calls OpenWebUI-native APIs.
+- calls through confirmed OpenWebUI APIs/events;
+- any non-contractual UI intervention is an explicit section 6 exception,
+  not a default loader requirement.
 
-Action Function:
+Function / Action / Tool / API adapter:
 
 - OpenWebUI context bridge;
-- admin-configured valves;
+- admin-configured valves/settings where available;
 - thin wrapper;
-- calls sidecar.
+- explicit input/output and authorization contract;
+- calls the isolated domain module or service.
 
-Sidecar:
+Domain module / sidecar when needed:
 
 - provider keys;
 - provider adapters;
@@ -91,16 +152,68 @@ Provider:
 - Hidden magic LLM trigger as only UX.
 - Reading OpenWebUI private storage/database as an undocumented product
   contract.
-- Broad rewrites of OpenWebUI UI when an Action/static loader hook is enough.
+- Broad rewrites of OpenWebUI UI when a supported Action/API is enough.
+- Calling a DOM/fetch interceptor native merely because it is loaded through
+  an existing script slot or packaged as a plugin.
+- Domain logic embedded in upstream files or shared browser interception.
+- Manual repairs or dependency installations inside a running container that
+  are absent from the versioned build recipe.
+- Automatically carrying old patches into a new release, silently skipping a
+  failed patch, or guessing a replacement signature.
+- A large custom subsystem built solely to avoid acknowledging one small,
+  justified patch.
 
-## 6. When A Fork May Be Acceptable
+## 6. Controlled Patch Exceptions
 
-A deep OpenWebUI fork may be considered only when:
+Патч допустим как узкое, видимое и воспроизводимое исключение. Его область —
+минимальный стык или исправление, необходимое для пользовательского результата;
+предметная логика остаётся за этим стыком в нашем модуле.
 
-- native mechanisms fail;
-- runtime proof shows the extension path is insufficient;
-- the patch cannot remain thin;
-- owner/ADR explicitly approves the fork.
+### Before application
 
-Until then, future Stage 2 features should start from the extension-first order
-above and keep backend/domain logic in isolated services or adapters.
+В существующей issue/PR либо коротком описании рядом с патчем сохранить:
+
+- **Зачем:** пользовательская проблема, проверенные штатные альтернативы и
+  почему они недостаточны; ссылка на решение владельца по конкретному патчу.
+- **Где:** устойчивый идентификатор патча, затронутые файлы/поведение, версия
+  upstream и точная проверенная идентичность сборки (commit или digest).
+- **Как:** воспроизводимое применение, проверка исходного состояния и результата,
+  узкие тесты нужного поведения и отсутствия нежелательного влияния на соседние
+  сценарии, способ отмены.
+- **Когда убрать:** проверяемое условие удаления; upstream issue/fix, если есть,
+  либо конкретный критерий появления штатной замены. Историю адаптаций и
+  проверенных версий сохранять в Git/PR, не только в переписке.
+
+Код патча, необходимые зависимости и рецепт сборки находятся в Git. Для
+небольшого набора патчей достаточно существующих файлов и коротких описаний;
+новая система учёта, отдельный сервис или тяжёлый реестр не требуются.
+
+### Application and upgrade
+
+1. Применять патч к закреплённому кандидату при сборке/подготовке, не ремонтировать
+   вручную рабочий контейнер. Проверять точную ожидаемую область изменения.
+2. Неизвестная версия, несовпадение исходного состояния, частичное применение или
+   неоднозначность останавливают подготовку/проверку. Нельзя молча пропустить
+   патч, расширить поиск «похожего» места или объявить комплект совместимым.
+   Повторный запуск допускает только проверенное состояние «уже применён» либо
+   явный отказ без побочных изменений.
+3. На каждой новой версии сначала проверить, нужен ли патч вообще. Если штатное
+   решение уже сохраняет нужный результат — удалить патч после проверки.
+   Иначе перенести/адаптировать явно, проверить на изолированном кандидате и
+   записать новую проверенную версию. Старое согласование не разрешает расширять
+   область вмешательства или выдавать совместимость без проверки.
+4. Перенос неизменного по смыслу и области согласованного патча выполняется в
+   рамках явно разрешённой задачи обновления; изменение смысла/области требует
+   нового согласования. Частные ограничения текущей задачи имеют приоритет.
+5. Откат возвращает весь согласованный комплект. Если изменились схема БД или
+   данные, снятие патча либо возврат Docker-тега не заменяет восстановление
+   совместимого снимка. Production, merge и миграции требуют своих полномочий.
+
+При невозможности сохранить патч узким требуется отдельное архитектурное
+решение владельца. Разрешение минимального патча не является разрешением
+глубокого форка или переноса предметной логики в upstream.
+
+Постоянное правило не запускает массовую переделку существующих интеграций.
+Существующие вмешательства пересматриваются в рамках явно поставленной задачи;
+проверки данных, прав и иных обязательных ограничений нельзя ослаблять ради
+нативности или патча.
