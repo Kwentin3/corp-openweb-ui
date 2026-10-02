@@ -1,0 +1,28 @@
+{
+  "version": "0.11.4",
+  "official_amd64_digest": "sha256:332438e079ad23bb11b0ab278b43e7c98b50e8cec14b0840281644e8a289f49f",
+  "upstream_commit": "8bd8b4fac5e059578ac0c74b3c18d11139f88b7d",
+  "patch_sha256": "e7d4be27abbfe57ef970f1074a3f861b9ebac74d44eaee39a9515bf765a236df",
+  "files": {
+    "backend/open_webui/storage/provider.py": {
+      "upstream_sha256": "a257c0800023a4d5bf424a07b7528bcec4f174af4bbfbedc840b241d3035f618",
+      "candidate_sha256": "02639cf482abd2f74f42ef29aedfb08ac67e0655612b6ac9d6b5968e6d91ddd6"
+    },
+    "backend/open_webui/routers/files.py": {
+      "upstream_sha256": "f9e1f6b72e8ebd356032656f09a8676b08f5b09f387e8adf61a323ff4502295f",
+      "candidate_sha256": "7cfa30636de4cf6aeb61022cbea5f25f9b16149283da602724624407df2de0c3"
+    },
+    "src/lib/apis/files/index.ts": {
+      "upstream_sha256": "3628a1c2ddcbb38930e6ee5b6c05c5d51a621b5ad4fcbbb7f3a70d45564a3dbf",
+      "candidate_sha256": "d7e6cd71a43af1bde23433ee70cfafa101efd2ab9129cc446ebe28e52f8a149e"
+    },
+    "src/lib/components/chat/MessageInput.svelte": {
+      "upstream_sha256": "d9ebd9b4534611c26ecf05a530b77571624e7a55b43acea032b54eed7547fbd3",
+      "candidate_sha256": "5c640eb67e1d385bfc286ffd0669cae4df21b1f97b7c18630f2abacabcdc3a69"
+    }
+  },
+  "existing_chat_queue_unchanged": true,
+  "supported_node_version": "v22.19.0",
+  "extension_source": "deploy/openwebui-functions/stage2_media_intake.py",
+  "scope": "Owner-approved staging trial; product acceptance and production release are separate."
+}

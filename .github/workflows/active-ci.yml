@@ -43,9 +43,11 @@ jobs:
         run: |
           officecli=false
           stt=false
+          staging=false
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
             officecli=true
             stt=true
+            staging=true
           else
             mapfile -t changed < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
             if (( ${#changed[@]} == 0 )); then
@@ -58,21 +60,39 @@ jobs:
                   officecli=true ;;
                 services/stage2-stt/*|deploy/openwebui-media-lifecycle/*|deploy/openwebui-patches/apply_stage2_*)
                   stt=true ;;
+                compose/openwebui.staging*.yml|scripts/verify-staging-compose.py)
+                  staging=true ;;
+                deploy/openwebui-functions/stage2_media_intake.py|deploy/openwebui-patches/media-upload-v0.11.4/*)
+                  stt=true
+                  staging=true ;;
                 .github/workflows/active-ci.yml)
                   officecli=true
-                  stt=true ;;
+                  stt=true
+                  staging=true ;;
               esac
             done
           fi
           echo "officecli=$officecli" >> "$GITHUB_OUTPUT"
           echo "stt=$stt" >> "$GITHUB_OUTPUT"
-          echo "Selected checks: OfficeCLI=$officecli STT=$stt"
+          echo "staging=$staging" >> "$GITHUB_OUTPUT"
+          echo "Selected checks: OfficeCLI=$officecli STT=$stt staging=$staging"
 
       - name: Set up Python
-        if: steps.scope.outputs.officecli == 'true' || steps.scope.outputs.stt == 'true'
+        if: steps.scope.outputs.officecli == 'true' || steps.scope.outputs.stt == 'true' || steps.scope.outputs.staging == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
+
+      - name: Validate resolved isolated staging Compose
+        if: steps.scope.outputs.staging == 'true'
+        run: python scripts/verify-staging-compose.py
+
+      - name: Qualify the approved installer against pinned upstream source
+        if: steps.scope.outputs.staging == 'true'
+        run: |
+          upstream="$(mktemp -d "$RUNNER_TEMP/openwebui-upstream.XXXXXX")"
+          git -c core.autocrlf=false clone --depth 1 --branch v0.11.4 https://github.com/open-webui/open-webui.git "$upstream"
+          python deploy/openwebui-patches/media-upload-v0.11.4/verify_installer_contract.py "$upstream"
 
       - name: Install OfficeCLI test dependencies
         if: steps.scope.outputs.officecli == 'true'

@@ -1,106 +1,96 @@
 # Extension-First Implementation Pattern
 
-## 1. Principle
+## Principle and current authority
 
-New OpenWebUI-facing features should first be evaluated through OpenWebUI-native
-extension mechanisms before considering a fork.
+Use the simplest existing owner that preserves the agreed user outcome and
+keeps OpenWebUI updates reproducible. The current upgrade scope and permissions
+are defined by [issue #474](https://github.com/Kwentin3/corp-openweb-ui/issues/474),
+revision 2026-10-02. Historical implementations are evidence, not instructions
+to carry their patches into a new version.
 
-Preferred order:
+Evaluate solutions in this order:
 
-1. Native OpenWebUI configuration / workspace / model / prompt / knowledge
-   mechanisms.
-2. OpenWebUI Functions / Actions / Tools / OpenAPI Tool Servers.
-3. Thin static loader or minimal UI integration patch.
-4. Private backend/domain sidecar.
-5. Deep OpenWebUI fork only if all above are insufficient and a decision record
-   approves it.
+1. Existing component and native OpenWebUI settings or capabilities.
+2. Documented Tools, Functions, OpenAPI connections, events and server APIs,
+   verified against the selected release.
+3. A thin adapter to an existing domain service where a real gap requires it.
+4. An existing external alternative when the native mechanism is insufficient.
+5. New code only for the remaining demonstrated gap.
 
-## 2. Why
+A loader, Function or sidecar name does not establish native compatibility.
+DOM/fetch interception, compiled frontend changes, route replacement, modules
+copied into the core and runtime dependency installation remain modifications
+or internal dependencies. Do not conceal them inside an extension.
 
-- Preserves OpenWebUI updateability.
-- Keeps users in native OpenWebUI UX.
-- Keeps domain logic isolated.
-- Avoids provider keys in browser.
-- Allows admin-side configuration through valves/settings where possible.
-- Reduces merge burden.
+## Ownership and boundaries
 
-## 3. STT Reference Implementation
+OpenWebUI owns authentication, permissions, chats, files, attachments and the
+model/tool loop. Use the context and access checks provided by the selected
+version's native extension contract. Keep an internal Python dependency inside
+one narrow adapter and state its supported versions.
 
-Stage 2 STT MVP confirms this pattern:
+Existing OfficeCLI, STT and Terminal services retain their domain work. Adapters
+translate transport and representations; they do not duplicate document
+semantics, provider dispatch, user registries or file storage. Prompts/Skills
+carry reusable instructions. A normal Prompt is sufficient for the transcript
+summary and meeting-minutes templates; do not add a catalog reader for them.
 
-```text
-static loader UX shim + Action Function + private sidecar + provider adapter
-```
+Do not introduce another agent loop, universal gateway or a service per small
+operation. Compatible components need no rewrite for architectural appearance.
 
-Implemented path:
+## Current STT reference and migration boundary
 
-```text
-OpenWebUI media attachment
--> static loader Transcribe action
--> browser ffmpeg.wasm normalization when needed
--> OpenWebUI process=false prepared-audio upload
--> OpenWebUI Action Function
--> private stage2-stt sidecar
--> Lemonfox adapter
--> transcript returned to OpenWebUI composer/chat UX
-```
-
-Status:
+The accepted source workflow is documented in
+[STT Native Media Transcription Runbook](operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md):
 
 ```text
-Stage 2 STT MVP: implemented/proven/current-stage closed.
-Remaining STT work: testing/hardening, not architectural discovery.
+ordinary chat attachment
+-> native File upload
+-> server preparation of recognized media into MP3 before Send
+-> wait for preparation when Send is pressed early
+-> ordinary-chat audio Filter
+-> existing STT service and Lemonfox provider
+-> persisted transcript and ordinary chat result
 ```
 
-## 4. What Belongs Where
+This is a source contract; deployed identity and product acceptance must be
+checked separately. Microphone dictation is a distinct workflow. The older
+Transcribe Action and browser ffmpeg.wasm implementation are historical and
+must not become the target specification.
 
-OpenWebUI/static loader:
+The current media preparation uses version-specific core/frontend overlays.
+For a new official image, first prove what its native mechanisms preserve:
+preparation before Send, waiting, agreed retries and cleanup, persistent
+attachments, cached transcription and recovery after interruption. A notification
+after upload does not by itself prove that processing can be intercepted before
+it happens. If a native replacement loses a guarantee, report the exact gap and
+minimal options before changing the contract.
 
-- visible UX affordance;
-- browser-only preprocessing if needed;
-- progress/status;
-- calls OpenWebUI-native APIs.
+## Changes requiring an owner decision
 
-Action Function:
+Issue #474 requires separate approval before introducing a new patch, including
+on staging. Supply the demonstrated gap, tested alternatives, exact diff and
+scope, pinned versions, Git history, reproducible application, test, rollback
+and removal condition. An approved exception remains an exception.
 
-- OpenWebUI context bridge;
-- admin-configured valves;
-- thin wrapper;
-- calls sidecar.
+Replace a historical path only after its replacement proves the same required
+result. A temporary Terminal link or preview does not replace a permanent chat
+attachment with permissions, download and continuation from the latest version.
+Remove obsolete integration hooks while retaining historical files and data.
 
-Sidecar:
+## Verification and updateability
 
-- provider keys;
-- provider adapters;
-- domain contracts;
-- validation;
-- storage/retention;
-- job state;
-- transcript/result normalization.
+Check a small complete slice through the ordinary user route and inspect its
+actual result. Administrative HTTP success, mocks and green CI alone do not
+qualify the user workflow. Respect auxiliary-task boundaries and the applicable
+provider budget; do not substitute another model to obtain a PASS.
 
-Provider:
+Pin the official image version and digest. Recreating that container and
+installing only declared extensions must reproduce the accepted state. Check
+that disabling an extension preserves ordinary chat and independent features.
+State any remaining internal dependencies and approved exceptions explicitly.
 
-- external service only.
-
-## 5. Anti-Patterns
-
-- Separate user-facing sidecar GUI for MVP.
-- Direct browser-to-provider calls.
-- Provider keys in frontend.
-- Deep fork as first move.
-- Hidden magic LLM trigger as only UX.
-- Reading OpenWebUI private storage/database as an undocumented product
-  contract.
-- Broad rewrites of OpenWebUI UI when an Action/static loader hook is enough.
-
-## 6. When A Fork May Be Acceptable
-
-A deep OpenWebUI fork may be considered only when:
-
-- native mechanisms fail;
-- runtime proof shows the extension path is insufficient;
-- the patch cannot remain thin;
-- owner/ADR explicitly approves the fork.
-
-Until then, future Stage 2 features should start from the extension-first order
-above and keep backend/domain logic in isolated services or adapters.
+Use the existing Compose/installers and deployment runbooks. Test restoration
+before migrating copied data. Production downtime, merge/CD and cutover require
+the release/window decision specified by #474. Keep the old compatible data
+and runtime for rollback; switching an image tag cannot undo a schema migration.

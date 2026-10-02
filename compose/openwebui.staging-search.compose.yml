@@ -1,0 +1,87 @@
+# Add to the three staging Compose files; never combine with production Compose.
+# Only the WebUI page loader and SearXNG receive outbound network access.
+services:
+  openwebui:
+    environment:
+      ENABLE_WEB_SEARCH: "true"
+      WEB_SEARCH_ENGINE: searxng
+      WEB_SEARCH_RESULT_COUNT: "3"
+      WEB_SEARCH_CONCURRENT_REQUESTS: "1"
+      WEB_LOADER_CONCURRENT_REQUESTS: "2"
+      WEB_SEARCH_TRUST_ENV: "true"
+      BYPASS_WEB_SEARCH_WEB_LOADER: "false"
+      BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL: "true"
+      SEARXNG_QUERY_URL: http://searxng:8080/search
+      SEARXNG_LANGUAGE: ru
+      http_proxy: ${STAGING_OUTBOUND_PROXY:?Set the existing approved page-loader proxy}
+      https_proxy: ${STAGING_OUTBOUND_PROXY:?Set the existing approved page-loader proxy}
+      HTTP_PROXY: ${STAGING_OUTBOUND_PROXY:?Set the existing approved page-loader proxy}
+      HTTPS_PROXY: ${STAGING_OUTBOUND_PROXY:?Set the existing approved page-loader proxy}
+      NO_PROXY: localhost,127.0.0.1,::1,openwebui,open-terminal-office,officecli-openapi-proof,searxng,searxng-valkey
+      no_proxy: localhost,127.0.0.1,::1,openwebui,open-terminal-office,officecli-openapi-proof,searxng,searxng-valkey
+    networks:
+      - isolated
+      - search-egress
+    depends_on:
+      searxng:
+        condition: service_healthy
+
+  searxng:
+    # Keep the accepted search artifacts; this goal upgrades OpenWebUI only.
+    image: docker.io/searxng/searxng@sha256:3f52dca114d96af03ab68c666614571395e1c1d9ac7b4eecf7f88ee5072a0942
+    restart: "no"
+    mem_limit: 512m
+    memswap_limit: 768m
+    cpus: 0.5
+    pids_limit: 256
+    environment:
+      SEARXNG_SECRET: ${STAGING_SEARXNG_SECRET:?Set a separate staging search secret}
+      SEARXNG_BASE_URL: ""
+      SEARXNG_LIMITER: "true"
+      SEARXNG_PUBLIC_INSTANCE: "false"
+      SEARXNG_IMAGE_PROXY: "false"
+      SEARXNG_VALKEY_URL: valkey://searxng-valkey:6379/0
+    expose:
+      - "8080"
+    volumes:
+      - searxng_config:/etc/searxng
+      - ${STAGING_SEARXNG_CONFIG_DIR:?Set the staging config directory}/settings.yml:/etc/searxng/settings.yml:ro
+      - ${STAGING_SEARXNG_CONFIG_DIR:?Set the staging config directory}/limiter.toml:/etc/searxng/limiter.toml:ro
+      - searxng_cache:/var/cache/searxng
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=5).read()\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - isolated
+      - search-egress
+
+  searxng-valkey:
+    image: docker.io/valkey/valkey@sha256:77643d152547b446fc15cbafaff22004545663fcd40c6b28038ad283837baa75
+    restart: "no"
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 0.25
+    pids_limit: 128
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    expose:
+      - "6379"
+    volumes:
+      - searxng_valkey:/data
+    networks:
+      - isolated
+
+volumes:
+  searxng_config:
+  searxng_cache:
+  searxng_valkey:
+
+networks:
+  search-egress:
+    internal: false
