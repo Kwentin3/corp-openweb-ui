@@ -1,0 +1,56 @@
+# Clean #474 development contour. Never combine with the production Compose file.
+# First boot deliberately has no external providers or legacy data/extensions.
+name: openwebui-474
+
+services:
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:v0.11.4@sha256:332438e079ad23bb11b0ab278b43e7c98b50e8cec14b0840281644e8a289f49f
+    platform: linux/amd64
+    restart: "no"
+    mem_limit: 1536m
+    memswap_limit: 2g
+    cpus: 0.5
+    pids_limit: 256
+    environment:
+      WEBUI_NAME: OpenWebUI 474 Staging
+      WEBUI_URL: http://127.0.0.1:18084
+      CORS_ALLOW_ORIGIN: http://127.0.0.1:18084
+      WEBUI_AUTH: "true"
+      WEBUI_SECRET_KEY: ${STAGING_WEBUI_SECRET_KEY:?Set a separate staging secret}
+      WEBUI_ADMIN_EMAIL: ${STAGING_ADMIN_EMAIL:?Set a synthetic staging administrator}
+      WEBUI_ADMIN_PASSWORD: ${STAGING_ADMIN_PASSWORD:?Set a separate staging password}
+      ENABLE_SIGNUP: "false"
+      DEFAULT_USER_ROLE: pending
+      ENABLE_OPENAI_API: "false"
+      ENABLE_OLLAMA_API: "false"
+      OPENAI_API_KEY: ""
+      OPENAI_API_BASE_URL: ""
+      OFFLINE_MODE: "true"
+      RAG_EMBEDDING_MODEL_AUTO_UPDATE: "false"
+      RAG_RERANKING_MODEL_AUTO_UPDATE: "false"
+      WHISPER_MODEL_AUTO_UPDATE: "false"
+      ENABLE_VERSION_UPDATE_CHECK: "false"
+      ENABLE_COMMUNITY_SHARING: "false"
+      ENABLE_WEB_SEARCH: "false"
+      http_proxy: ""
+      https_proxy: ""
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      NO_PROXY: localhost,127.0.0.1,::1,openwebui
+      no_proxy: localhost,127.0.0.1,::1,openwebui
+    # No published host port. SSH forwards to the inspected staging IP:8080.
+    expose:
+      - "8080"
+    volumes:
+      - data:/app/backend/data
+    labels:
+      traefik.enable: "false"
+    networks:
+      - isolated
+
+volumes:
+  data:
+
+networks:
+  isolated:
+    internal: true

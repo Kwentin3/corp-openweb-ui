@@ -1,0 +1,3 @@
+services:
+  openwebui:
+    image: ${STAGING_MEDIA_TRIAL_IMAGE:?Set the exact separately approved and qualified media image}

@@ -37,7 +37,8 @@ def test_prepare_video_audio_extracts_only_first_audio_track(monkeypatch, tmp_pa
 def test_prepare_video_audio_fails_closed_when_video_has_no_audio(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "stage2_stt.media_preparation.subprocess.run",
-        lambda command, **kwargs: subprocess.CompletedProcess(command, 1, "", "no stream"),
+        # FFprobe succeeds for a valid silent video and returns no audio streams.
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0, '{"streams":[]}', ""),
     )
 
     with pytest.raises(MediaPreparationError, match="Video has no audio stream") as raised:
