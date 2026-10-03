@@ -98,8 +98,27 @@ services have no published ports and belong only to the staging internal network
 OfficeCLI's callback is `http://openwebui:8080` inside that network.
 
 Configure native Tool Servers with ID `officecli`, Session authorization, and URL
-`http://officecli-openapi-proof:8080`, schema path `openapi.json`. Configure native
-Terminal ID `office-linux`, URL `http://open-terminal-office:8000`, bearer auth
+`http://officecli-openapi-proof:8080`, schema path `openapi.json`. On 0.11.4, set
+these native custom headers on this connection:
+
+```json
+{
+  "X-OpenWebUI-Chat-Id": "{{CHAT_ID}}",
+  "X-OpenWebUI-Message-Id": "{{MESSAGE_ID}}"
+}
+```
+
+Session auth forwards the token; it does not by itself forward the native chat
+and message IDs required for result publication. The installed native header
+builder resolves these placeholders from request metadata. Without them, a real
+ordinary-chat creation attempt returned HTTP 400 before publishing a file. Keep
+the existing fail-closed ownership check; do not ask the model to invent IDs or
+put them in document content. This per-connection setting requires no core patch
+or container recreation. For a streamed model that supports usage reporting,
+enable its native `meta.capabilities.usage` so the server requests and persists
+provider token counts; retain the full cost reserve if a failed run lacks usage.
+
+Configure native Terminal ID `office-linux`, URL `http://open-terminal-office:8000`, bearer auth
 using only the new staging key. Preserve the previously accepted trusted-team
 boundary and explicit native access grants. Register source from the selected
 revision using the existing Office workflow components; keep Filter/Skill inactive
@@ -130,6 +149,19 @@ The ordinary fixture owner then opened each saved chat in the browser and
 downloaded DOCX/XLSX/PPTX through the native attachment controls; each download
 hash matched its verified result. Native DOCX preview displayed both expected
 paragraphs. These are existing-result/browser checks, not model invocation.
+
+On 2026-10-03, after the connection-header correction above, an ordinary-user
+browser chat selected the existing direct model and created a new XLSX through
+OfficeCLI. Independent ZIP/XML inspection matched all six requested cells,
+including numeric types, with one sheet and no extra data. The native result
+attachment survived reload; the owner downloaded matching bytes and another
+user could not read the file or chat. MCP performed the model invocation and
+reload check; after its browser closed during download, a local Playwright
+fallback qualified only the same persisted attachment's download, with model
+dispatch blocked. Native aggregate input/output usage was retained privately.
+This accepts that small XLSX scenario only. The earlier failed DOCX run retains
+its worst-case cost reservation and is not accepted; the remaining Office,
+Terminal, search, STT and restoration scenarios still require qualification.
 
 A further synthetic PPTX fixture exercised the nearest attached template,
 native slide cloning and a follow-up from the last published result after
