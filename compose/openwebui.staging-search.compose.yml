@@ -8,10 +8,11 @@ services:
       WEB_SEARCH_RESULT_COUNT: "3"
       WEB_SEARCH_CONCURRENT_REQUESTS: "1"
       WEB_LOADER_CONCURRENT_REQUESTS: "2"
-      WEB_SEARCH_TRUST_ENV: "true"
+      WEB_SEARCH_TRUST_ENV: "false"
       BYPASS_WEB_SEARCH_WEB_LOADER: "false"
       BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL: "true"
-      SEARXNG_QUERY_URL: http://searxng:8080/search
+      # Use the installed DuckDuckGo JSON driver; HTML search currently returns CAPTCHA.
+      SEARXNG_QUERY_URL: http://searxng:8080/search?engines=duckduckgo%20web
       SEARXNG_LANGUAGE: ru
       http_proxy: ${STAGING_OUTBOUND_PROXY:?Set the existing approved page-loader proxy}
       https_proxy: ${STAGING_OUTBOUND_PROXY:?Set the existing approved page-loader proxy}

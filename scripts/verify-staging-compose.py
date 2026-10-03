@@ -4,6 +4,7 @@ import os
 import pathlib
 import subprocess
 import tempfile
+from urllib.parse import parse_qs, urlsplit
 
 repository = pathlib.Path(__file__).resolve().parents[1]
 manifest = json.loads((repository / 'deploy/openwebui-patches/media-upload-v0.11.4/manifest.json').read_text(encoding='utf-8'))
@@ -76,7 +77,11 @@ with tempfile.TemporaryDirectory(prefix='openwebui-staging-config-') as temporar
         if count >= 3:
             assert set(webui['networks']) == set(services['searxng']['networks']) == {'isolated', 'search-egress'}
             assert set(services['searxng-valkey']['networks']) == {'isolated'}
-            assert web_env['SEARXNG_QUERY_URL'] == 'http://searxng:8080/search'
+            search_url = urlsplit(web_env['SEARXNG_QUERY_URL'])
+            assert search_url.scheme == 'http' and search_url.netloc == 'searxng:8080'
+            assert search_url.path == '/search'
+            assert parse_qs(search_url.query) == {'engines': ['duckduckgo web']}
+            assert web_env['WEB_SEARCH_TRUST_ENV'] == 'false'
             assert web_env['http_proxy'] == environment['STAGING_OUTBOUND_PROXY']
         if count >= 4:
             stt = services['stage2-stt']

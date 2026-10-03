@@ -186,7 +186,8 @@ docker compose --env-file /private/staging.env -f compose/openwebui.staging.comp
 Check effective native Web Search settings after recreation: persistent database
 configuration takes precedence over bootstrap env. Use the native admin settings
 API/UI, not SQL edits. The intended page-loader path uses `searxng`, the internal
-`http://searxng:8080/search` URL, proxy trust enabled, web-loader bypass disabled
+`http://searxng:8080/search?engines=duckduckgo%20web` URL, search-loader proxy
+trust disabled, web-loader bypass disabled
 and search embedding/retrieval bypass enabled. This reads actual pages without
 introducing an embedding provider. A real search result alone does not prove
 page retrieval or an ordinary-chat answer with sources. Re-resolve the staging
@@ -227,6 +228,49 @@ no results: Brave rate limiting and DuckDuckGo/Startpage CAPTCHA were reproduced
 on both the new and existing SearXNG. The native outgoing-proxy alternative
 returned the same refusals and was reverted on staging. Do not mark search/answer
 with sources accepted from the successful independent page-fetch check.
+
+On 2026-10-03 the installed `duckduckgo web` JSON driver returned relevant
+English and Russian public-query results, including official Python pages.
+It is already declared in the pinned SearXNG defaults; the native query URL
+selects it explicitly without replacing SearXNG, adding a provider/key or
+changing its configuration. The installed OpenWebUI SearXNG client preserves
+the URL's engine parameter while adding the user's query. Keep this distinction
+from the CAPTCHA-failing `duckduckgo` HTML driver. Bing was rejected: irrelevant
+links were already present in its external HTML response; the existing proxy
+returned no usable links. Do not substitute nonzero result counts for relevance.
+
+Persist the selected URL through the native retrieval settings API/UI as well
+as Compose, then recreate only the owned WebUI with all currently installed
+staging overrides. Compare effective settings after recreation. Roll back by
+restoring `http://searxng:8080/search` and `WEB_SEARCH_TRUST_ENV=true` in both
+native settings and the staging Compose declaration; this restores the previous
+configuration, including its known search failures. No core patch or search-image
+rebuild is required. After
+selection, verify loaded page content and original source URLs via the ordinary
+fixture user's native search endpoint; model-generated answers/citations still
+require their separate browser acceptance and authorized budget.
+
+For this pinned image, the async `safe_web` connector rejects the private
+environment proxy, producing empty documents. The native
+`WEB_SEARCH_TRUST_ENV=false` setting uses the already declared staging egress
+network for public page requests; model connections retain the existing proxy
+environment and `NO_PROXY`. Do not enable local web fetch, weaken TLS or patch
+the address guard to accommodate the proxy. Check actual nonempty content,
+not `loaded_count`: upstream can count an empty failed document as loaded.
+Record any empty source URLs and qualify model citations only against pages
+whose content was actually retrieved.
+
+After reconciling those two native settings and recreating the same WebUI
+image on 2026-10-03, both ordinary-user search requests returned three nonempty
+pages. English page lengths were 4,293 / 35,491 / 871 characters; Russian page
+lengths were 15,119 / 22,198 / 132,129. The actual official Python source URLs
+returned by search were fetched independently through the native single-page
+endpoint, and their complete extracted content matched. Ranking selected a
+Python 3.10 page for the unversioned pathlib query; no fixed preferred URL was
+injected into the results. Both selected settings survived recreation, the
+other five staging container IDs and all seven production identities stayed
+unchanged, and no model/embedding provider was called. This qualifies native
+search and page retrieval, not the ordinary-browser model answer/citations.
 
 The existing host flight recorder is reused for staging with its own protected
 state directory and the six staging container names as `--targets`. The
