@@ -496,8 +496,31 @@ adapter, not another transcript owner or core patch. Replaying the actual respon
 through the installed native output reader matched persisted content, and a new
 ordinary-browser generation passed full transcript live/reload, native audio
 preview, byte-identical download and foreign chat/file denial. This accepts the
-short M4A recovery/cache scenario; an uninterrupted first-Send STT/model response,
-MP4 speech, early Send and dictation remain separate acceptance checks.
+short M4A recovery/cache scenario; the original M4A failure remains recorded.
+
+A subsequent short spoken MP4 passed ordinary browser upload/preparation and
+its first Send, one real STT request (15.789625 seconds) and the selected model's
+response. Full transcript, speaker/timestamps, reload, native player/download
+byte equality and foreign-access denial passed. Both transcripts survived STT
+recreation with the provider key disabled. The MP4 transcript differs from the
+written speech source only by Russian yo/e orthography; actual provider text
+was preserved without correction and all source facts matched. This accepts
+the short prepared MP4 scenario; Send during unfinished preparation, browser
+large-file upload, long speech and dictation remain separate checks.
+
+The existing summary and meeting-protocol Prompts were invoked through the native
+slash menu and resolved-variable dialog on the owned stored transcript, without
+new STT. The protocol preserved all five requested sections, facts and task
+owners with no invented deadlines. The summary preserved all four source facts
+but returned four bullets rather than the template's five to seven; that exact
+format is not marked accepted. Both model results survived reload and another
+ordinary user was denied access. DOCX creation from that protocol is still
+pending: one operator double-Escape cleared the Office selection, then a distinct
+correctly selected run exhausted the bounded three-iteration tool loop after
+two invalid help topics. Both failed responses and usage remain in the ledger.
+Escape in the composer clears selected tools; dismiss the tools menu by clicking
+the editor and verify the selection persists. Use one actual CLI help topic per
+call, such as `docx paragraph` or `docx add markdown`; `FORMAT` is a placeholder.
 
 For a deliberately tool-free bounded model check, temporarily disable the
 selected workspace model's native `builtin_tools` capability as well as explicit
