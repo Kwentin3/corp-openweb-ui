@@ -478,6 +478,35 @@ metadata stayed unchanged with no transcribed marker or temporary files. The
 Filter remained inactive; no provider, model, event or browser Send acceptance
 is implied by this guard check.
 
+The 2026-10-04 ordinary-browser M4A qualification used one real Lemonfox STT
+request (14.90725 seconds). Its exact synthetic source text, speaker label,
+timestamps, owned artifact and foreign-access denial matched. The first model
+response failed on native outbound proxy CONNECT HTTP 503; the transcript and
+prepared attachment remained available. After unpaid transport checks succeeded,
+separately reserved manual model generations reused the cached transcript,
+including after STT recreation with the provider key disabled. They made no
+further STT jobs and preserved the original failed response.
+
+That real response exposed a version boundary: full transcript in legacy
+`content`, summary only in structured `output`, and summary only in the browser
+before and after reload. Native audio-context Filter 0.2.4 projects its existing
+wrappers into the existing assistant output text parts and preserves provider
+text, annotations, IDs and tool/reasoning output. This is a representation
+adapter, not another transcript owner or core patch. Replaying the actual response
+through the installed native output reader matched persisted content, and a new
+ordinary-browser generation passed full transcript live/reload, native audio
+preview, byte-identical download and foreign chat/file denial. This accepts the
+short M4A recovery/cache scenario; an uninterrupted first-Send STT/model response,
+MP4 speech, early Send and dictation remain separate acceptance checks.
+
+For a deliberately tool-free bounded model check, temporarily disable the
+selected workspace model's native `builtin_tools` capability as well as explicit
+tools/Terminal and auxiliary tasks. In 0.11.4, empty `tool_ids` alone does not
+disable built-in tools. Restore the original capability through the native model
+API afterward and verify unchanged resource/principal/permission grants; native
+model updates recreate grant row UUIDs/timestamps. Keep provider dispatch disabled
+between checks. This qualification setting does not restrict product workflows.
+
 The source checks resolve all six Compose combinations without starting any
 containers and exercise the installer on a disposable checkout of the pinned
 upstream commit. Eight installer cases cover check-only, exact application,

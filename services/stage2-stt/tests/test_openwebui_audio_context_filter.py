@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 import pytest
 
 from openwebui_filters.stage2_audio_context_filter import Filter
@@ -305,6 +307,49 @@ async def test_outlet_places_summary_before_exact_transcript_once():
     assert "## Полная транскрипция\n\nПерезвоните мне после обеда." in body["messages"][-1]["content"]
     assert "<!-- stage2_audio_transcript -->" not in body["messages"][-1]["content"]
     assert "_stage2_audio_transcript" not in metadata
+
+
+@pytest.mark.asyncio
+async def test_outlet_projects_transcript_into_native_output_without_mutating_original():
+    # Same structured shape returned by the actual 0.11.4 ordinary-chat run.
+    original = [{"type": "message", "id": "msg-1", "status": "completed", "role": "assistant",
+                 "content": [{"type": "output_text", "text": "Summary.",
+                              "annotations": [{"type": "url_citation", "start_index": 0, "end_index": 7}]}]}]
+    before = copy.deepcopy(original)
+    message = {"role": "assistant", "content": "Summary.", "output": original}
+    body = {"messages": [message]}
+    metadata = {"_stage2_audio_transcript": "Exact transcript.",
+                "_stage2_audio_display": "[00:00-00:14] Speaker 1:\nExact transcript."}
+    await Filter().outlet(body, __metadata__=metadata)
+    visible = "".join(part["text"] for item in message["output"] for part in item["content"])
+    assert visible == message["content"]
+    assert "## Полная транскрипция\n\n[00:00-00:14] Speaker 1:\nExact transcript." in visible
+    assert message["output"][0]["content"][1] == before[0]["content"][0]
+    assert message["output"][0]["id"] == "msg-1"
+    assert original == before  # Native output_changed must see a different value.
+    result_before = copy.deepcopy(body)
+    await Filter().outlet(body, __metadata__=metadata)
+    assert body == result_before
+
+
+@pytest.mark.asyncio
+async def test_outlet_preserves_native_tool_and_reasoning_output_between_text_messages():
+    original = [
+        {"type": "message", "id": "first", "role": "assistant", "content": [{"type": "output_text", "text": "First."}]},
+        {"type": "reasoning", "id": "reason", "summary": [{"type": "summary_text", "text": "Reasoning."}]},
+        {"type": "function_call", "id": "call", "name": "example", "arguments": "{}", "status": "completed"},
+        {"type": "message", "id": "last", "role": "assistant", "content": [{"type": "output_text", "text": "Last."}]},
+    ]
+    before = copy.deepcopy(original)
+    message = {"role": "assistant", "content": "First.Last.", "output": original}
+    await Filter().outlet({"messages": [message]}, __metadata__={"_stage2_audio_transcript": "Transcript."})
+    projected = message["output"]
+    assert projected[1:3] == before[1:3]
+    assert projected[0]["content"][1] == before[0]["content"][0]
+    assert projected[-1]["content"][0] == before[-1]["content"][0]
+    assert projected[0]["content"][0]["text"] == "## Краткое содержание\n\n"
+    assert projected[-1]["content"][-1]["text"].endswith("## Полная транскрипция\n\nTranscript.")
+    assert original == before
 
 
 def test_transcript_display_groups_actual_speaker_segments_and_keeps_known_timestamps():

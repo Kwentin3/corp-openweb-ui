@@ -18,6 +18,16 @@ using these steps as production acceptance evidence.
 The upload is not a transcription request: transcription begins on Send. The
 microphone/dictation route is separate from uploaded-media STT. There is no
 separate Transcribe button or browser ffmpeg.wasm conversion in this route.
+
+The audio-context Filter 0.2.4 retains the summary and full transcript in both
+the legacy message `content` and native structured `output`. OpenWebUI 0.11.4
+renders structured output first; updating only `content` leaves the transcript
+saved but invisible. The Filter wraps the existing assistant text parts without
+changing their IDs, annotations, tool traces or reasoning. Changed containers
+are copied so the native outlet detects and persists the update. Check the full
+transcript in the browser immediately after the response and again after reload;
+an administrative chat response containing it is insufficient evidence.
+
 The upload hook recognizes audio and video MIME types, plus known media
 extensions when the MIME type is generic. During preparation, FFmpeg verifies
 that the source has an audio stream; a filename or MIME type alone does not

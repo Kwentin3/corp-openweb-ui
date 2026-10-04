@@ -1,7 +1,7 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.3
+version: 0.2.4
 required_open_webui_version: 0.9.6
 requirements: httpx,pydantic
 
@@ -175,11 +175,10 @@ class Filter:
                 continue
             if display_transcript:
                 summary = message["content"].strip()
-                message["content"] = (
-                    f"## Краткое содержание\n\n{summary}\n\n"
-                    f"---\n\n## Полная транскрипция\n\n"
-                    f"{display_transcript}"
-                )
+                prefix = "## Краткое содержание\n\n"
+                suffix = f"\n\n---\n\n## Полная транскрипция\n\n{display_transcript}"
+                message["content"] = prefix + summary + suffix
+                self._wrap_structured_output(message, prefix, suffix)
             break
         lifecycle = metadata.pop("_stage2_video_lifecycle", None)
         if isinstance(lifecycle, dict):
@@ -190,6 +189,35 @@ class Filter:
                 # hide a successful transcript or turn its source into a dead link.
                 pass
         return body
+
+    def _wrap_structured_output(self, message: dict, prefix: str, suffix: str) -> None:
+        # OpenWebUI 0.11 renders output blocks before the legacy content field.
+        # Wrap the existing text parts; keep their annotations, tool traces and
+        # IDs intact. Copy changed containers because the native outlet compares
+        # this result with the original output before persisting chat:outlet.
+        output = message.get("output")
+        if not isinstance(output, list):
+            return
+        positions = []
+        for index, item in enumerate(output):
+            if not isinstance(item, dict) or item.get("type") != "message":
+                continue
+            if item.get("role") not in (None, "assistant") or not isinstance(item.get("content"), list):
+                continue
+            for part_index, part in enumerate(item["content"]):
+                if isinstance(part, dict) and part.get("type") == "output_text" and isinstance(part.get("text"), str):
+                    positions.append((index, part_index))
+        if not positions:
+            return
+        first_index, first_part = positions[0]
+        last_index, last_part = positions[-1]
+        projected = list(output)
+        for index in {first_index, last_index}:
+            projected[index] = {**output[index], "content": list(output[index]["content"])}
+        projected[first_index]["content"].insert(first_part, {"type": "output_text", "text": prefix})
+        offset = 1 if first_index == last_index else 0
+        projected[last_index]["content"].insert(last_part + offset + 1, {"type": "output_text", "text": suffix})
+        message["output"] = projected
 
     async def _inject_failure(self, body: dict, metadata: dict, emitter, message: str) -> dict:
         metadata["_stage2_audio_transcript"] = None
