@@ -532,6 +532,22 @@ dictation trial with Chrome and a WAV-backed test microphone returned
 Its cause remains unresolved. This synthetic device trial proves neither
 successful dictation nor failure on a physical microphone.
 
+A 2026-10-05 diagnostic repeat with the same native voice button, source WAV
+and Chrome version returned `no-speech`. Browser audio logs distinguish two
+`FAKE` streams for the media-capture path from a separate default-device
+`PCM_LOW_LATENCY` input opened for recognition. Therefore the WAV-backed
+getUserMedia check does not establish what SpeechRecognition actually heard,
+and the earlier claim that test flags exclude physical input is unproven.
+The primary cause of the original `audio-capture` remains unknown; the error
+was not reproduced consistently. No recognition-result injection or core
+change was used. The composer/history remained empty, the browser closed,
+auth removed and paid accounting unchanged. Stop this automatic fake-device
+replay: accept dictation only after an ordinary browser/manual microphone check
+with a safe known phrase and no Send. Do not fix the native component merely
+to make this inadequate harness pass. Private diagnostic receipts and the
+browser audio log retain this distinction; no raw microphone recording is
+saved by the diagnostic operator.
+
 The 2026-10-05 outgoing-request check used the existing MP4 transcript in a
 native browser fork of the ordinary user's accepted chat. Native Regenerate
 passed the same MP3 File ID to the installed Filter. Its cached route required

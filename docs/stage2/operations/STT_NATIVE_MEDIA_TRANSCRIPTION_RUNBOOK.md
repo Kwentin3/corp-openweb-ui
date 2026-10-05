@@ -34,6 +34,20 @@ The MP3 remains the native user attachment. A later model failure must preserve
 both that attachment and the saved transcript. Meeting protocol remains a
 separate ordinary Prompt; the model's summary does not replace the transcript.
 
+Implementation entry points are the
+[reviewed upload diff](../../../deploy/openwebui-patches/media-upload-v0.11.4/proposed.patch),
+[Event Function](../../../deploy/openwebui-functions/stage2_media_intake.py)
+(`accept_upload`, preparation/replacement and cleanup using native Storage),
+[post-Send Filter](../../../services/stage2-stt/openwebui_filters/stage2_audio_context_filter.py)
+(`inlet`, cached transcript, outbound audio removal and `outlet` display), and
+[Lemonfox adapter](../../../services/stage2-stt/stage2_stt/lemonfox.py).
+The Filter uploads the prepared MP3 plus its envelope to
+`stage2-stt`'s `/stage2-api/transcription/jobs`; the adapter sends multipart
+`file` to Lemonfox `/v1/audio/transcriptions`. The ordinary LLM receives the
+resulting text through the separate native chat-model connection. Native File
+Storage owns the persistent MP3; the Filter stores its transcript/cache marker
+in that File's data. The qualified reload/recreation checks are linked below.
+
 The exception, pinned source/build identity, approvals, qualification and rollback
 are described in the existing
 [backup/upgrade runbook](../../ops/BACKUP_RESTORE_RUNBOOK.md#issue-474-media-component-and-approved-staging-bridge).
