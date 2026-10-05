@@ -543,10 +543,22 @@ was not reproduced consistently. No recognition-result injection or core
 change was used. The composer/history remained empty, the browser closed,
 auth removed and paid accounting unchanged. Stop this automatic fake-device
 replay: accept dictation only after an ordinary browser/manual microphone check
-with a safe known phrase and no Send. Do not fix the native component merely
+with a safe phrase and no Send. Do not fix the native component merely
 to make this inadequate harness pass. Private diagnostic receipts and the
 browser audio log retain this distinction; no raw microphone recording is
 saved by the diagnostic operator.
+
+That manual check was accepted on 2026-10-05. The owner operated the native voice
+button in ordinary visible Chrome 154, authenticated as the synthetic staging
+user, with the native `web` engine and automatic Send disabled. No fake device,
+recognition replacement or result injection was used. The composer contained
+27 characters after recording ended, and the owner confirmed that the microphone
+worked. This accepts native dictation to the composer, without claiming Send,
+a chat-model response, uploaded-media STT or an exact match to the operator's
+suggested phrase. No raw microphone audio or dictated content is published.
+Protected evidence is `owner-acceptance-20261005.json` and the private visible
+browser/observation receipts. The earlier synthetic failures remain diagnostic
+limitations rather than evidence of a current product failure.
 
 The 2026-10-05 outgoing-request check used the existing MP4 transcript in a
 native browser fork of the ordinary user's accepted chat. Native Regenerate
@@ -584,7 +596,8 @@ grants were restored. Native grant updates recreate technical row IDs; restore
 verification compares the actual resource/principal/permission contract.
 The MP3 and cached transcript, paid ledger and all seven production identities
 were unchanged. External model and STT provider calls were zero. Long-speech
-acceptance and dictation remain open; no new core diff or release was applied.
+acceptance remains open; the separate manual dictation acceptance is recorded
+above. No new core diff or release was applied.
 
 The existing summary and meeting-protocol Prompts were invoked through the native
 slash menu and resolved-variable dialog on the owned stored transcript, without
@@ -592,13 +605,49 @@ new STT. The protocol preserved all five requested sections, facts and task
 owners with no invented deadlines. The summary preserved all four source facts
 but returned four bullets rather than the template's five to seven; that exact
 format is not marked accepted. Both model results survived reload and another
-ordinary user was denied access. DOCX creation from that protocol is still
-pending: one operator double-Escape cleared the Office selection, then a distinct
-correctly selected run exhausted the bounded three-iteration tool loop after
-two invalid help topics. Both failed responses and usage remain in the ledger.
+ordinary user was denied access. Earlier DOCX attempts included an operator
+double-Escape clearing the Office selection and native iteration exhaustion;
+their failed responses and retained accounting remain in the ledger.
 Escape in the composer clears selected tools; dismiss the tools menu by clicking
 the editor and verify the selection persists. Use one actual CLI help topic per
 call, such as `docx paragraph` or `docx add markdown`; `FORMAT` is a placeholder.
+
+On 2026-10-05 a clean native browser fork of the accepted protocol produced
+`474-meeting-protocol.docx` through the model-selected Office skill, help and
+create operations. The owner had approved 80 total model requests within the
+existing USD8. Only the native staging tool-iteration allowance was raised to
+five; the same WebUI image and approved core patch were retained. The six-request
+upper bound was reserved before enabling the connection. Independent ZIP/XML
+inspection matched all 15 source paragraphs, all 5 native headings and all 9 native
+list items, with no extra table/text. The original protocol remained unchanged.
+The native Preview tab after reload rendered the source text; the browser's
+download matched the server SHA-256
+`5f7d0d7ee65af314e40d14d374d52834f8ff1fe6c88a2da486e5e88e2fa7868e`.
+Another ordinary user was denied both file and chat access. Provider dispatch was
+disabled once the native task completed. Model upper accounting is 46/80; retained
+costs/reserves including earlier failures and the previous STT reserve total
+USD5.43408004, leaving USD2.56591996. This is conservative operator accounting,
+not an invoice. Protected server/local receipts are
+`paid-office-protocol-loop-receipt.json` and
+`protocol-loop-browser-acceptance-receipt.json`.
+
+An initial browser guard aborted before the application API because it assumed
+the old `messages` request shape. The actual 0.11.4 thin browser request uses
+`user_message` and native server-owned history. On this Windows/CDP setup,
+`postDataJSON()` also exposed mojibake while `postDataBuffer()` matched the raw
+CDP bytes and original Russian prompt. Two captures were aborted before the API
+with the provider disabled. Correct the observer to parse those actual UTF-8
+bytes and verify the native thin request; do not rewrite the request or change
+the application. The eventual model run was the first external dispatch for
+this case, with no automatic paid retry.
+
+The owner also authorized a separate Lemonfox/STT ceiling of USD5 at USD0.17
+per audio hour: about 29h24m42s. The operator caps total audio at 105882 seconds,
+preserves the already used 30.696875 seconds and previous reservations, and counts
+failed/in-flight work before any fresh dispatch. This grant removes the earlier
+two-call/60-second STT limit; it does not raise the model's USD8 ceiling. Use
+measured prepared audio and sequential bounded checks, with no automatic paid
+retry. The monetary grant is not an instruction to transcribe the whole allowance.
 
 For a deliberately tool-free bounded model check, temporarily disable the
 selected workspace model's native `builtin_tools` capability as well as explicit
@@ -646,12 +695,20 @@ restarted after 516 seconds; the partial set is marked `INCOMPLETE` and must not
 be used as restoration evidence. No data migration or image switch occurred.
 This window is consumed; another production stop requires a new agreed window.
 
-Before the later data-migration rehearsal, prepare a consistent saved set after
-confirming idle work and obtaining the downtime window. Include exact deployed
+On 2026-10-05 the owner clarified the rehearsal data cutoff as **4 October**
+(the earlier reference to 4 September was corrected) and deferred the fresh
+consistent snapshot/downtime decision until cutover preparation. Do not stop
+production under the consumed first window. Establish the exact available source
+and its consistency before treating it as a historical saved set: neither the
+date correction nor `PRESEEDED_UNSEALED` proves a 4 October snapshot. Rehearsal
+data and proof of production rollback remain distinct.
+
+Before cutover, prepare the fresh consistent saved set after confirming idle
+work and obtaining the separate downtime window. Include exact deployed
 configuration/source and preserve changed runtime files. Restart the existing
-containers after the snapshot; compression, independent copying and
-isolated restoration need not extend the production downtime. Do not delete
-existing backups, data or images, or apply retention during this operation.
+containers after the snapshot; compression and independent copying need not
+extend the production downtime. Do not delete existing backups, data or images,
+or apply retention during this operation.
 
 Keep a hash-verified independent protected copy off the production disk before
 reusing the isolated data copy for migration. A protected operator-workstation
