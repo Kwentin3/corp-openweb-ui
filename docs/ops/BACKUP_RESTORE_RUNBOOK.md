@@ -352,11 +352,23 @@ the STT dependency before enabling the intake. Disable the intake and STT Filter
 together when removing the integration.
 No new gateway, user registry, Files store or copied core service module is used.
 
+`accept_upload` is our added hook, not a documented contract of the unchanged
+upstream. The four-file exception performs no media conversion or Lemonfox
+call. Event Function `stage2_media_intake` runs inside OpenWebUI and depends on
+its internal File models and Storage API; it owns replacement, cleanup and
+recovery while FFmpeg runs in the existing STT sidecar. The separate post-Send
+STT Filter obtains or reuses a transcript and supplies text to the selected
+ordinary model. Keeping an MP3 as a native user attachment does not authorize
+forwarding its bytes, media URL or base64 to that model. This remains an explicit
+core exception requiring a qualified custom image on updates. At the next
+upgrade, look for a native replacement first and repeat the affected product
+checks before deciding to retain the exception.
+
 Source inspection shows that v0.11.4 already queues messages while attachments
 upload and resumes through its native `onUpdate`/`processNextInQueue` path.
 Retain that implementation; do not port the retired compiled-chunk wait patch.
-Live early-Send, final failed-preparation cleanup and model-route acceptance
-still remain to be proved. Build frontend changes from exact upstream source;
+The subsequent checks below qualify specific queue, cleanup and model cases;
+they do not imply complete media acceptance. Build frontend changes from exact upstream source;
 never edit compiled chunks. Keep the upstream source hashes and exact diff in
 protected operator evidence; static AST and diff applicability checks do not
 replace image/build/product verification.
@@ -451,7 +463,15 @@ A synthetic valid MP4 padded to the accepted 809,586,557-byte upload volume
 passed the native server upload/conversion path. Sampled cgroup anonymous memory
 increased by about 4.4 MiB; total cgroup peak reached the 1.5 GiB limit through
 file cache, without OOM or restart. The padding proves byte-volume handling, not
-a long recording, public proxy upload or browser large-file acceptance.
+a long recording or public proxy upload. A subsequent ordinary-browser check of
+the same 809,586,557-byte volume on 2026-10-04 prepared a 9,363-byte MP3 under the
+same File ID and removed the source video. Pressing Send during preparation
+queued one draft and emitted one completion only after preparation completed.
+The deliberately disabled model connection then returned model-not-found; no
+model or STT provider call was made. The prepared attachment survived WebUI
+recreation. This accepts browser byte-volume and the early-Send queue, not
+long-speech transcription or a successful full large-media chain. Memory
+sampling covered part of the upload and is not a whole-upload peak measurement.
 
 A controlled SIGKILL of the owned staging WebUI after durable audio write but
 before native File path commit exposed an uncommitted-output collision. Event
@@ -505,8 +525,50 @@ byte equality and foreign-access denial passed. Both transcripts survived STT
 recreation with the provider key disabled. The MP4 transcript differs from the
 written speech source only by Russian yo/e orthography; actual provider text
 was preserved without correction and all source facts matched. This accepts
-the short prepared MP4 scenario; Send during unfinished preparation, browser
-large-file upload, long speech and dictation remain separate checks.
+the short prepared MP4 scenario. The separate byte-volume/early-Send check above
+does not qualify long speech through that full chain. The 2026-10-04 native
+dictation trial with Chrome and a WAV-backed test microphone returned
+`audio-capture` and no text; a separate MediaRecorder check received audio.
+Its cause remains unresolved. This synthetic device trial proves neither
+successful dictation nor failure on a physical microphone.
+
+The 2026-10-05 outgoing-request check used the existing MP4 transcript in a
+native browser fork of the ordinary user's accepted chat. Native Regenerate
+passed the same MP3 File ID to the installed Filter. Its cached route required
+no new STT job. The installed OpenAI client actually sent HTTP
+`POST /v1/chat/completions`, `Content-Type: application/json`, to a temporary
+credential-free receiver at `http://127.0.0.1:18085` inside the staging container.
+This was a diagnostic destination configured through the native connection API,
+not a new provider, replacement Filter, replay of a pure serializer or browser
+request substituted for server egress. Auxiliary tasks and built-in tools were
+disabled for this bounded check. The receiver returned HTTP503 deliberately,
+without forwarding the request or generating a model result.
+
+The emitted JSON selected `gpt-5.4-mini` and contained only `model`, `messages`,
+`stream`, `stream_options`, `max_completion_tokens`, `reasoning_effort` and
+`service_tier`. `messages` held one user message with string content including
+the entire cached transcript. No files/media fields, media URL or data/base64
+encoding were found; there was no authorization header or tool payload. The
+structural receipt excludes transcript content and secrets. This proves the
+actual native outgoing body for the cached MP4 route; it is not a historical
+capture of the earlier paid request to `api.openai.com`, nor a new successful
+model-response acceptance. The accepted real M4A/MP4 checks above establish the
+preceding STT and browser-result segments separately.
+
+The exact checked runtime was image
+`sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423`,
+container `6aa32396208bbb6980f5366bfeea20a8e099e3a5b864dae9be775842c7a58ca3`,
+with installed Filter SHA-256
+`9fe3a38f0a27dcd4dc9339f84741eba8a5dfc1cf37b280330a6b2247030fa856`.
+Protected operator evidence remains in `local/issue474-20261002/` (native egress
+receipt) and `corp-openweb-ui-474-private/` (browser receipt), with a server-side
+copy under `/opt/openwebui-upgrade-474/clean-staging/`. The temporary receiver
+and its files were removed; connection, Filter flags and model behavior/access
+grants were restored. Native grant updates recreate technical row IDs; restore
+verification compares the actual resource/principal/permission contract.
+The MP3 and cached transcript, paid ledger and all seven production identities
+were unchanged. External model and STT provider calls were zero. Long-speech
+acceptance and dictation remain open; no new core diff or release was applied.
 
 The existing summary and meeting-protocol Prompts were invoked through the native
 slash menu and resolved-variable dialog on the owned stored transcript, without
