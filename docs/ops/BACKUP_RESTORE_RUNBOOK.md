@@ -59,6 +59,12 @@ official OpenWebUI and bring in integration source/configuration incrementally.
 The owner-approved 2 October core-data restore/migration rehearsal passed on
 6 October; its exact scope and limits are recorded below. A fresh coherent
 cutover backup and migration of the current production data remain required.
+The owner's 6 October clarification narrows the target data set: preserve
+ordinary accounts, chats and attachments; exclude Broker Reports/NDFL data.
+Keep the broker code work in source control, with #516/NDFL frozen and its
+runtime processing inactive. This supersedes any earlier requirement to copy
+the financial corpus into the new installation; it does not authorize deleting
+the originals or existing backups.
 Production downtime requires approval of a concrete window. The general restore
 commands below describe production maintenance, not creation of the clean stand.
 
@@ -789,7 +795,7 @@ under resource limits; do not boot multiple heavy contours simultaneously.
 
 | Material | Observed connection | Restore requirement |
 | --- | --- | --- |
-| OpenWebUI | `openwebui_data`, about 16 GiB | SQLite with WAL, uploads, settings, extensions and retained Broker data |
+| OpenWebUI | Historical full `openwebui_data`, about 16 GiB | Restore ordinary accounts/chats/files/settings with coherent SQLite/WAL; exclude broker data from the target working copy under the 6 October decision |
 | STT | `stage2_stt_data`, about 9 MiB | Own SQLite stores and referenced payloads; suspend copied work and cleanup before boot |
 | Terminal | Compose-managed home volume, about 332 MiB | Preserve the exact inspected volume identity and permissions; use a separate restored home |
 | Runtime | OpenWebUI, STT, OfficeCLI, Terminal and search images | Preserve exact image IDs, deployed source, overlays, mounts, environment and writable-layer differences privately |
@@ -826,6 +832,24 @@ reusing the isolated data copy for migration. A protected operator-workstation
 destination with sufficient capacity has been prepared; no complete snapshot
 has yet been copied or accepted. Local archive presence, a live-volume tar and
 the historical media-only backup are insufficient restoration evidence.
+
+The read-only workstation transfer of both retained October copies was cancelled
+after the owner's data-scope clarification. Its partial archive is not an
+accepted backup; the server originals remain intact. Archiving the broker corpus
+and deleting those old copies are not prerequisites of the revised migration.
+The earlier full-volume capacity estimate must be replaced by an estimate for
+the agreed target data set.
+
+Before making that target copy, inventory broker membership using existing
+paths, file IDs and provenance, without exposing document or chat contents.
+Exclude `broker_reports_*` trees and broker-generated/source artifacts from
+the target. A path exclusion alone is insufficient: broker files may also be
+native uploads or chat attachments. Preserve ordinary accounts, chats, files,
+rights and their references; document ambiguous membership before filtering it.
+Do not classify by file extension or delete original records. Apply any necessary
+reference changes only to the isolated working copy and validate native access
+and downloads there. Regenerable caches, temporary files and duplicate backups
+are not target user data. A filtered restore has not yet been performed.
 
 Before booting restored data, remove production addresses from the working
 copy's callbacks/connections, suspend copied jobs and cleanup, and prevent
@@ -916,9 +940,10 @@ Copied provider keys were empty, post-processing/catalog disabled, hard expiry
 deletion disabled and the temporary internal network had no published ports.
 Temporary containers/network were removed; private copies and aggregate
 receipts remain under `/opt/openwebui-upgrade-474/owner-service-restore-20261006`.
-The financial corpus was not processed. #516 remains frozen. A fresh coherent complete
-set, protected independent copy, current-data delta and agreed rollback after
-new writes remain release requirements.
+The financial corpus was not processed. #516 remains frozen. These historical
+restore checks do not prove the newly agreed broker-excluding target copy.
+A fresh coherent set of the agreed data, protected independent copy, current-data
+delta and agreed rollback after new writes remain release requirements.
 
 At production cutover obtain a fresh consistent snapshot, repeat the rehearsed
 migration, and check the changes since rehearsal. Do not deploy the staging DB
@@ -1049,8 +1074,10 @@ separate checks.
 
 Snapshot/migration/release sequence, after separate approval:
 
-1. Recheck idle work, current identities, free space, the complete volume set and
-   actual deployed env/source/mounts. Prepare a separate working data seed and
+1. Recheck idle work, current identities, free space, the agreed data membership
+   and actual deployed env/source/mounts. Prepare a separate working data seed,
+   excluding broker data and regenerable debris while preserving ordinary
+   accounts/chats/attachments and their access/reference integrity, and a
    protected off-disk destination; the Oct2 rehearsal data is not release data.
    Estimate the cold delta before requesting a bounded stop window. Abort and
    resume the same old containers if the agreed window cannot be met.
@@ -1060,8 +1087,10 @@ Snapshot/migration/release sequence, after separate approval:
    and an independent protected copy before migrating the saved working set.
 3. Boot the fresh working set using the qualified image and native migration.
    Suspend copied work/providers/extensions initially; preserve backup records,
-   then replace/disable only the owned obsolete extension connections, removed
-   response-to-DOCX Action and old loader/Prompt-catalog path. Keep #516 frozen.
+   verify the broker exclusion, then replace/disable only the owned obsolete
+   extension connections, removed response-to-DOCX Action and old loader/Prompt
+   catalog path. Keep #516 frozen; retain its code in source control without
+   enabling broker processing.
    Install the accepted Tool/Skill/Filters/Event through native owners. Reconcile
    the exact IDs and source hashes with the fresh registry; do not bulk-delete it.
 4. Check current-data deltas, native settings/models/prices, owner password login,
