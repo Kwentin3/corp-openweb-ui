@@ -1001,16 +1001,51 @@ Whole candidate topology has not yet been booted or accepted on fresh data.
 
 The recipe proposes the already qualified eight-iteration native tool cap;
 prices and model definitions are preserved. Review this setting with the release.
+For the selected `gpt-5.4-mini`, a scoped native Responses connection can be
+prepended with `model_ids: ["gpt-5.4-mini"]` and no prefix, reusing the current
+OpenAI URL/key. Move every original URL/key/config entry together by one index
+without changing its values. The pinned native catalog keeps the first matching
+model ID, preserving other models' original protocols and the selected public ID.
+The existing `/openai/config/update` clears its native model caches; use that
+owner and check numeric config keys rather than silently losing legacy keys.
+A provider-disabled API trial accepted/read back the exact five-entry config,
+preserved models and all other exported settings, then restored the original
+stand config. An offline installed-code probe checked the selection rule. Actual
+ordinary-user model dispatch on this profile remains pending, and this is not
+qualification of every preserved provider/model. Change only the selected
+Workspace Model's qualified parameters; do not copy fixture global/user defaults.
+Check the actual saved-chat request before dispatch: a null model default does
+not remove an explicitly supplied legacy `reasoning_effort` parameter.
+
 The scoped native connections change their service addresses:
 Office server `officecli` to `http://officecli-0114:8080`, Terminal `office-linux`
 to `http://open-terminal-0114:8000`; Office callback already points at
 `http://openwebui-0114:8080`. Preserve Session auth, native chat/message custom
 headers, API keys, access grants and the transfer Tool's native local callback.
-The accepted Media Event Function keeps its existing `stage2-stt` hostname via
-an alias on the new service network. **Stop old STT before starting this candidate**:
-while both old and new STT are active, the new WebUI's two networks can expose
-two owners of that hostname. Rollback stops all four new services before old
-services resume. Do not boot this recipe beside running old STT for testing.
+The Media Event Function v0.1.2 reads `STAGE2_STT_BASE_URL`; its default remains
+`http://stage2-stt:8080` for the existing stand. The release recipe sets the
+unique `http://stage2-stt-0114:8080` address. Set the existing STT Filter's native
+`sidecar_base_url` Valve to the same address, preserving its remaining settings.
+The new STT has no `stage2-stt` alias, so isolated preflight does not require
+stopping old STT to avoid two DNS owners. Check memory/disk headroom and suspend
+copied providers/tasks before booting a private working set. This setting changes
+only our registered extension; the approved upstream bridge/image are unchanged.
+Production stop/cutover still requires its separate approval. Rollback stops all
+four new services before the retained old application set resumes.
+
+When overriding the preparation address on a stand, preserve its current
+`NO_PROXY`/`no_proxy` exclusions and append the selected internal hostname.
+On 6 October, v0.1.2 was installed through the native Function API and only the
+stand WebUI was recreated on the same qualified image. A normal user's native
+file input prepared a one-second M4A tone through a unique STT container name,
+showing the resulting MP3 before Send with the same File ID. Downloaded bytes
+matched native size/SHA, independent FFprobe confirmed MP3 audio, and a second
+valid ordinary user received HTTP404 for metadata and content. Source/pending
+paths cleared, the source fixture and ledger stayed unchanged, and all five
+other stand and seven production containers remained unchanged. No model or
+transcription provider was called. This qualifies the configurable preparation
+address; fresh data, whole release topology and the final model route remain
+separate checks.
 
 Snapshot/migration/release sequence, after separate approval:
 

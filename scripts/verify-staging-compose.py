@@ -135,7 +135,7 @@ def verify_release_recipe():
                 assert int(service['mem_limit']) > 0 and service['pids_limit'] > 0
                 assert 'services' in service['networks']
                 aliases = {key: (network or {}).get('aliases', []) for key, network in service['networks'].items()}
-                assert aliases == ({'services': ['stage2-stt'], 'existing-web': []} if name == 'stage2-stt-0114' else {key: [] for key in service['networks']})
+                assert aliases == {key: [] for key in service['networks']}
                 for mount in service.get('volumes', []):
                     assert mount['type'] == 'volume' and mount['source'] in config['volumes']
                 if name != 'openwebui-0114':
@@ -151,6 +151,7 @@ def verify_release_recipe():
             assert 'OAUTH_CLIENT_INFO_ENCRYPTION_KEY' not in web['environment']
             assert web['environment']['OPENAI_API_KEY'] == fixtures['WEBUI']['OPENAI_API_KEY']
             assert web['environment']['NO_PROXY'] == web['environment']['no_proxy'] == environment['RELEASE_WEBUI_NO_PROXY']
+            assert web['environment']['STAGE2_STT_BASE_URL'] == 'http://stage2-stt-0114:8080'
             assert not any(k in web['environment'] for k in ('ENABLE_PERSISTENT_CONFIG', 'DEFAULT_MODELS', 'WEBUI_ADMIN_PASSWORD'))
             assert web['labels']['traefik.enable'] == str(routed).lower()
             assert not any('loader' in key for key in web['labels'])

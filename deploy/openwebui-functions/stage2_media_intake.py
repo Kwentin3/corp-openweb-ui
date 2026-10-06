@@ -1,7 +1,7 @@
 """
 title: Media intake through native Files and Events
 author: Alpha Soft
-version: 0.1.1
+version: 0.1.2
 required_open_webui_version: 0.11.4
 
 Uses the separately approved file-upload bridge and local streaming storage.
@@ -123,13 +123,14 @@ async def _convert(file_id: str) -> None:
     token = os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
     if not token:
         raise RuntimeError("Media preparation service is not configured")
+    base_url = os.environ.get("STAGE2_STT_BASE_URL", "http://stage2-stt:8080").rstrip("/")
     envelope = {"source_context": "openwebui", "user_id": user_id, "file": {"file_id": file_id, "filename": name, "mime_type": mime, "size_bytes": size}, "selected_output_profile": "mp3_high_compat"}
     with tempfile.TemporaryDirectory(prefix="stage2-upload-audio-") as work:
         audio_path = Path(work) / "audio.mp3"
         async with httpx.AsyncClient(timeout=httpx.Timeout(900.0, connect=15.0)) as client:
             with local_path.open("rb") as source:
                 async with client.stream(
-                    "POST", "http://stage2-stt:8080/stage2-api/media/prepare",
+                    "POST", f"{base_url}/stage2-api/media/prepare",
                     headers={"Authorization": f"Bearer {token}"},
                     data={"envelope": json.dumps(envelope)},
                     files={"source_media": (name, source, mime)},

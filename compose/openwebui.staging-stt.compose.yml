@@ -3,6 +3,7 @@ services:
   openwebui:
     environment:
       STAGE2_STT_INTERNAL_API_KEY: ${STAGING_STT_INTERNAL_API_KEY:?Set a separate staging STT key}
+      STAGE2_STT_BASE_URL: ${STAGING_STT_BASE_URL:-http://stage2-stt:8080}
       NO_PROXY: localhost,127.0.0.1,::1,openwebui,open-terminal-office,officecli-openapi-proof,searxng,searxng-valkey,stage2-stt
       no_proxy: localhost,127.0.0.1,::1,openwebui,open-terminal-office,officecli-openapi-proof,searxng,searxng-valkey,stage2-stt
 
