@@ -950,6 +950,62 @@ migration, and check the changes since rehearsal. Do not deploy the staging DB
 with stale or synthetic records. Agree rollback after new writes before opening
 production writes; retain both the old compatible set and the new state.
 
+### Issue #474: broker-excluding partial data rehearsal, 6 October
+
+The owner clarified one mixed-chat exception: retain the ordinary-model message
+text, including text about broker attachments, but omit the broker-model turns
+and broker attachment descriptors. This is an explicit decision for that chat,
+not permission to classify every conversation by its topic. Both native chat
+JSON and normalized `chat_message` records were reconciled: eight retained
+messages still use `gpt-5.4-nano`; the two broker turns are absent.
+
+An isolated working copy of the selected Oct2 `PRESEEDED_UNSEALED` data now has
+449 chats, 1311 native File records, 23 persisted user records and 15 auth
+records. These are stored account counts, not active-user counts. There are
+1266 selected upload payloads (1,491,447,210 bytes), all copied with independent
+SHA-256 readback. The exclusion also covers 93 differently identified files
+whose bytes match reviewed broker reports or broker fixtures. Only their new
+working copies were removed; source data and old backups remain intact.
+
+The remaining 55 ambiguous references include ten references that already lack
+a source native File row. The owner decision therefore concerns 45 existing
+files: their working File records are retained, but their payloads have not been
+copied. This rehearsal is partial and must not be used as the final release set.
+
+The pinned `c4ba3bda` image performed the native 0.9.6 -> 0.11.4 migration in an
+internal network with no published ports, empty provider keys and SAFE_MODE.
+Accounts/password hashes, model definitions/prices, prompts, folders, grants,
+tool/function source and all 178 native config values/history were verified.
+Expected working-copy changes were limited to native schema additions,
+authenticated-user activity timestamps, SAFE_MODE function deactivation and
+native browser timezone/tool-permission metadata. The previously implicit
+default tool permission is recorded by the new UI; message text/ancestry and
+attachment identities are preserved.
+
+Ordinary-user browser checks opened the designated old chat and mixed ordinary
+chat after reload, downloaded both designated attachments through native
+controls with exact source hashes and rejected an authenticated different user.
+These checks used short-lived native signed sessions; original-password signin
+is still unverified. No model/STT calls or production changes occurred.
+
+The native vector selection contains 477 agreed ordinary collections; 45
+collections linked to ambiguous attachments await the same owner decision.
+The copied native index was pruned through `delete_collection`, retaining the
+existing ordinary segment IDs/graphs. All selected collection/segment/embedding
+and embedding-metadata SQL records match the source. The 297 excluded or
+regenerable collections, their queue topics and 296 leftover segment directories
+are absent; both working SQLite databases were compacted and integrity checked.
+Five native search samples passed, including the exact source-query regression.
+These backend checks reuse existing vectors and make no embedding-provider call;
+they do not claim a paid browser RAG route. A separate API rebuild was rejected
+because its native search differed despite matching readback records; its failed
+evidence was retained rather than reported as successful.
+
+Earlier whole-corpus and service restore evidence does not establish acceptance
+of this new partial set. Fresh coherent release data, a protected independent
+copy, current-data delta, original-password signin, final topology/recorder checks
+and separately approved cutover remain required.
+
 ### Issue #474: final shared model route, 6 October
 
 The affected DOCX, XLSX, Terminal, search and full-transcript continuation were
@@ -1089,8 +1145,8 @@ Snapshot/migration/release sequence, after separate approval:
    Suspend copied work/providers/extensions initially; preserve backup records,
    verify the broker exclusion, then replace/disable only the owned obsolete
    extension connections, removed response-to-DOCX Action and old loader/Prompt
-   catalog path. Keep #516 frozen; retain its code in source control without
-   enabling broker processing.
+   catalog path. Keep #516 frozen; preserve its source and the existing private
+   #525 archive without enabling broker processing.
    Install the accepted Tool/Skill/Filters/Event through native owners. Reconcile
    the exact IDs and source hashes with the fresh registry; do not bulk-delete it.
 4. Check current-data deltas, native settings/models/prices, owner password login,
