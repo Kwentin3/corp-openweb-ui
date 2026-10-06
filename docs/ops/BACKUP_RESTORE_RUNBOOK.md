@@ -1200,6 +1200,40 @@ The owned four-service candidate, internal network, guard and tunnel were closed
 with the installed working data retained. This is not original-password login,
 fresh-data, external-provider-route or whole release acceptance.
 
+The existing staging recorder was subsequently selected to observe the four
+actual new targets, retaining its six old targets, root/history/cursors and single
+writer. Exact IDs in start/stop events, native HTTP access logs and fresh resource
+samples passed. The original source delivered stop events with up to 141.024
+seconds of delay under staging limits of 128 MiB / 5% CPU; its first long-lived
+process stop hit the native 90-second timeout. The timeout cause remains unproven.
+
+A measured one-line atomic JSON encoding improvement retained flush/fsync,
+replace, file format and privacy/retention semantics. On 779 actual diagnostic
+rows and 12 events, differential native Store replay produced byte-identical
+cards and reduced profiled CPU time from 30.34 to 3.14 seconds. Candidate source
+SHA-256 is `1ae147e06dc3c48c37d1bac64469ffe93190262a2fd6a1d5aa8ce6bf854c9da0`.
+Ten native tests passed separately. The prepared Active CI addition could not be
+published because GitHub rejected workflow updates without the OAuth `workflow`
+scope. It remains a local proposal; current CI does not run recorder tests.
+
+A bounded live trial used that separate source file in the same staging unit
+and root, leaving the shared installed source and production recorder untouched.
+All four healthy qualified services produced start/access/resource evidence;
+maximum start delay was 0.119 seconds and stop delay 87.907 seconds. All twelve
+stop cards completed with exact full before/after windows against native history,
+zero omitted rows and no buffer overflow. No collector OOM occurred, but memory
+limit hits and CPU throttling remained. This is a partial improvement, not
+latency/capacity acceptance or long-running fault closure.
+
+The candidate writer stopped normally, the original staging source/unit/targets
+were restored with fresh collection, and all owned applications/network/guard
+were closed. Cold native config and registry matched the accepted installation;
+all thirteen prior container identities/restarts and the production recorder
+unit/PID remained unchanged. Working data was retained and no paid calls made.
+See the [recorder operations instructions](../infra-ops/openwebui-flight-recorder.md)
+for the scoped update/rollback procedure. Production source/target installation
+still requires the separately approved release and final qualification.
+
 Snapshot/migration/release sequence, after separate approval:
 
 1. Recheck idle work, current identities, free space, the agreed data membership

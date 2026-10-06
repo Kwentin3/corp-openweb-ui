@@ -21,7 +21,7 @@ def stamp(t=None):
 def atomic(path, value):
     tmp = path.with_suffix('.tmp')
     with tmp.open('w', encoding='utf-8') as f:
-        json.dump(value, f, ensure_ascii=True)
+        f.write(json.dumps(value, ensure_ascii=True))
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
