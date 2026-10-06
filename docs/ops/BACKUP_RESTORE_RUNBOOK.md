@@ -1234,6 +1234,29 @@ See the [recorder operations instructions](../infra-ops/openwebui-flight-recorde
 for the scoped update/rollback procedure. Production source/target installation
 still requires the separately approved release and final qualification.
 
+A follow-up targeted change removed per-event refresh of every pending card.
+Each new event immediately fills its own card; all pending cards still refresh
+and complete in the existing sampling cycle. SHA-256 source:
+`15f32b01afac4ceae6a35985e4ecb567906a3bdab96768e775d1e9e958c4344d`.
+The same actual-row differential replay retained byte-identical completed cards
+and reduced profiled CPU further from 3.20 to 0.86 seconds. Eleven native tests
+passed both locally and on the host, including a twelve-event burst with immediate
+before history, durable restart and complete before/after windows.
+
+Under the same staging 128 MiB / 5% CPU limits, a second actual four-service trial
+observed all start/access/resource identities and all twelve stop events. Maximum
+start delay was 1.458 seconds; maximum delay across the entire twelve-stop-event
+set was 20.469 seconds. The early four-identity observation was 13.184 seconds
+and is not the complete-event maximum. All twelve cards completed with exact full
+windows against native history, no omitted rows and no buffer overflow. The writer
+stopped normally, original staging source/unit/root/targets were restored, owned
+temporary resources were closed and cold config/registry matched. All thirteen
+old containers and the production recorder remained untouched; no paid calls.
+Memory limit hits persisted without OOM, so long-running headroom is not claimed.
+The prepared workflow inclusion covers eleven tests and remains unpublished
+pending the missing GitHub OAuth scope. Final production target/resource
+qualification remains part of the separately approved release.
+
 Snapshot/migration/release sequence, after separate approval:
 
 1. Recheck idle work, current identities, free space, the agreed data membership

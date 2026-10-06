@@ -140,12 +140,13 @@ class Store:
                           'note': 'Temporal correlation does not establish the operation responsible. Exit 137 alone is not OOM proof.',
                           'after_until': now + 120, 'complete': False, 'timeline': []})
             self.pending.add(path)
-            self.finish_cards(now)
+            # Existing cards refresh on the sampling cycle, not on every new event.
+            self.finish_cards(now, paths=(path,))
 
-    def finish_cards(self, now=None):
+    def finish_cards(self, now=None, paths=None):
         now = time.time() if now is None else now
         with self.lock:
-            for p in list(self.pending):
+            for p in list(self.pending) if paths is None else paths:
                 if not p.exists():
                     self.pending.discard(p)
                     continue
