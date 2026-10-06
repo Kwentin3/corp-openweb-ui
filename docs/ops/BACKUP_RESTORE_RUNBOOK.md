@@ -837,8 +837,23 @@ The read-only workstation transfer of both retained October copies was cancelled
 after the owner's data-scope clarification. Its partial archive is not an
 accepted backup; the server originals remain intact. Archiving the broker corpus
 and deleting those old copies are not prerequisites of the revised migration.
-The earlier full-volume capacity estimate must be replaced by an estimate for
-the agreed target data set.
+The earlier whole-volume capacity estimate does not describe the selected
+ordinary working set. A read-only measurement at 20:38 UTC on 6 October found
+2,721,419,264 allocated bytes (2.53 GiB) across the retained WebUI, STT and
+Terminal data. WebUI accounts for 2,364,067,840 bytes, including 1,494,155,264
+bytes of uploads and 510,885,888 bytes of native vectors. STT uses 9,449,472
+bytes and Terminal 347,901,952 bytes. These selected roots were not mounted by
+any running container. The disk had 762,003,456 bytes free (727 MiB), so another
+complete local copy would not fit, even before an operating reserve. Reuse of
+the isolated seed still requires the protected independent copy described
+above; this observation does not authorize removing old backups or originals.
+
+The 45 unresolved attachments total 684,291 bytes in existing File metadata;
+this is an estimate, not a physical payload measurement or a membership
+decision. Their payloads remain absent from the selected copy. Final release
+capacity remains pending the owner-selected membership, fresh coherent data,
+current-data delta and destination. This measurement concerns the Oct2
+`PRESEEDED_UNSEALED` rehearsal only, not the final release set.
 
 Before making that target copy, inventory broker membership using existing
 paths, file IDs and provenance, without exposing document or chat contents.
@@ -849,7 +864,8 @@ rights and their references; document ambiguous membership before filtering it.
 Do not classify by file extension or delete original records. Apply any necessary
 reference changes only to the isolated working copy and validate native access
 and downloads there. Regenerable caches, temporary files and duplicate backups
-are not target user data. A filtered restore has not yet been performed.
+are not target user data. The partial filtered rehearsal is described below;
+the complete agreed filtered restore has not yet been accepted.
 
 Before booting restored data, remove production addresses from the working
 copy's callbacks/connections, suspend copied jobs and cleanup, and prevent
