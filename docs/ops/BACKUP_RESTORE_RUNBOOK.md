@@ -1078,7 +1078,39 @@ An isolated synthetic native Compose create/inspect check proved the exact
 runtime value; that container was never started and was removed. No actual
 secret was printed. The release validator resolves both Compose forms without
 starting services; server inspection also confirmed every pinned local image.
-Whole candidate topology has not yet been booted or accepted on fresh data.
+The four-service recipe was also booted in a bounded private rehearsal on the
+partial Oct2 selection. Production routing and fresh-data acceptance remain open.
+
+The 6 October rehearsal used the exact `d8410533` recipe (`29b4702d` SHA prefix)
+and the four qualified images, with an operational overlay that suspended
+providers/old Functions, removed the external network and host ports, disabled
+automatic restarts and limited log growth. Only native `webui.db` and its WAL/SHM,
+uploads, vector index and cache were moved within the existing working copy into
+`native-data/`; file hashes/inodes were preserved. Env files, tokens and proof
+controls remain outside the application data mount. STT and Terminal use their
+already selected private contexts, without another full data copy.
+
+All four services became healthy without OOM/restarts. The WebUI resolved each
+new service name to its exact new container, and OfficeCLI's actual help request
+validated an ordinary user's session through the new WebUI callback; an invalid
+forwarded session was rejected. The existing staging recorder sampled all four
+exact new IDs without another recorder or history root. Its selected log/event
+targets were not changed; their final release qualification remains pending.
+
+Native browser opening/reload of both retained chats, both designated downloads
+and valid foreign-user denials passed on this topology. STT's database and all
+294 existing Terminal files retained their hashes, owners and permissions after
+boot. This was not another model tool-loop or transcription test, original
+password signin, external provider/search-route proof or full filtered-set
+acceptance. The 45 shared files remain pending. The four temporary containers,
+internal network and bounded guard were closed; the native working data remains
+available at its recorded private path. All 13 existing production/main-stage
+container identities and restart counts stayed unchanged. No paid calls occurred.
+
+The initial operator create selected an earlier server recipe lacking the new
+STT address; it was rejected before startup. The recorded latest source hash,
+resolved values and actual container env were reconciled before boot. A dated
+server directory or older validation receipt is not the release source identity.
 
 The recipe proposes the already qualified eight-iteration native tool cap;
 prices and model definitions are preserved. Review this setting with the release.
