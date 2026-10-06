@@ -56,7 +56,9 @@ The [2026-10-02 upgrade scope](https://github.com/Kwentin3/corp-openweb-ui/issue
 permits preparation and isolated restoration. The owner's subsequent direction
 separates clean-platform development from full data copying: start an empty
 official OpenWebUI and bring in integration source/configuration incrementally.
-Proven backup/restore and fresh data migration remain required before cutover.
+The owner-approved 2 October core-data restore/migration rehearsal passed on
+6 October; its exact scope and limits are recorded below. A fresh coherent
+cutover backup and migration of the current production data remain required.
 Production downtime requires approval of a concrete window. The general restore
 commands below describe production maintenance, not creation of the clean stand.
 
@@ -160,8 +162,8 @@ reload check; after its browser closed during download, a local Playwright
 fallback qualified only the same persisted attachment's download, with model
 dispatch blocked. Native aggregate input/output usage was retained privately.
 This accepts that small XLSX scenario only. The earlier failed DOCX run retains
-its worst-case cost reservation and is not accepted; the remaining Office,
-Terminal, search, STT and restoration scenarios still require qualification.
+its worst-case cost reservation and is not accepted. This describes the initial
+checkpoint; subsequent ordinary-chat acceptance is recorded below.
 
 A further synthetic PPTX fixture exercised the nearest attached template,
 native slide cloning and a follow-up from the last published result after
@@ -596,8 +598,9 @@ grants were restored. Native grant updates recreate technical row IDs; restore
 verification compares the actual resource/principal/permission contract.
 The MP3 and cached transcript, paid ledger and all seven production identities
 were unchanged. External model and STT provider calls were zero. Long-speech
-acceptance remains open; the separate manual dictation acceptance is recorded
-above. No new core diff or release was applied.
+acceptance was still open at this egress checkpoint; its subsequent acceptance
+and the separate manual dictation check are recorded below. No new core diff or
+release was applied.
 
 The existing summary and meeting-protocol Prompts were invoked through the native
 slash menu and resolved-variable dialog on the owned stored transcript, without
@@ -649,6 +652,115 @@ two-call/60-second STT limit; it does not raise the model's USD8 ceiling. Use
 measured prepared audio and sequential bounded checks, with no automatic paid
 retry. The monetary grant is not an instruction to transcribe the whole allowance.
 
+#### Current ordinary-chat acceptance, 2026-10-06
+
+These results supersede the pending states in the earlier dated component
+checkpoints. They were exercised with the selected `gpt-5.4-mini`, native tools
+and ordinary-user browser controls; no hidden model substitution or second tool
+loop was added. Private content, raw requests and tokens stay outside Git.
+
+- DOCX: the native meeting-protocol Prompt produced the source text, OfficeCLI
+  created the document, and the latest published document was edited after
+  reload. Paragraphs, headings, numbering/styles, source preservation and native
+  preview/download checks passed.
+- Two-source XLSX: both inputs were read, numeric values 17/23 and total 40 were
+  verified independently; editing the latest output after reload produced
+  17/25/42 with numeric types and bold headings preserved. Both original inputs
+  and the previous result remained unchanged. Wait for loading and select the
+  native Preview tab before diagnosing a missing preview.
+- Terminal: native model execution and permanent File publication passed, then
+  the next edit after reload passed. Recreating Terminal with the same image and
+  home volume preserved the old result and the subsequent model edit also
+  passed: exact source bytes plus the requested suffix, unchanged source, native
+  inline open and separate `attachment=true` download. Separate homes are not
+  claimed as complete multiuser isolation.
+- Search: native `search_web` returned official Python documentation, then
+  `fetch_url` executed on that returned page; the answer and source link survived
+  reload. The existing search provider/proxy configuration was retained.
+- Long MP4: early Send waited for preparation under the same File ID. One real
+  597.9629375-second STT job returned 61 timestamped segments and all 12 declared
+  source facts. After STT recreation and model transport recovery, deliberate
+  native regeneration reused the stored transcript without another STT job.
+  Full original text survives in native content/structured output, with the MP3
+  player/download after reload. The regeneration browser request capture is
+  missing; native usage/caps, no auxiliary tasks/tools and unchanged STT jobs
+  establish the bounded execution, not a claimed wire capture.
+- The native summary Prompt initially returned seven bullets with 11/12 facts.
+  An explicit ordinary-chat clarification preserved seven bullets and all
+  twelve facts, verified after reload. Preserve the first incomplete result;
+  this does not establish automatic first-answer completeness.
+- Another ordinary user's valid identity/role was checked before and after
+  chat/file denials (401/404). An unauthenticated 401 alone is not ownership
+  evidence. Short M4A/MP4 and the owner's physical microphone check were already
+  accepted; they were not repeated for this report.
+
+On 6 October the owner doubled the model allowance to **240 conservative
+request upper bounds within USD16**. The separate STT allowance remains USD5 at
+USD0.17/hour; measured usage is 628.6598125 seconds in three historical calls,
+with no new STT in this continuation. Earlier request counts and unknown cost
+holds remain; this is conservative operator accounting, not an invoice. Reserve
+one whole bounded case before enabling the model connection, reconcile actual
+native usage afterward and disable dispatch when tasks finish. A failure with
+missing usage keeps its full reservation. Qualification caps are test settings,
+not product requirements.
+
+PPTX native cloning followed by an explicit ordinary-chat edit of the latest
+published result after reload passed on 6 October. Earlier model attempts chose
+the old source or reconstructed the slide; later attempts used the correct
+latest stored attachment but still reconstructed it. A low-reasoning attempt
+through Chat Completions was rejected before any tool call, with missing usage
+and its full hold retained. The installed native Responses API route accepted
+the same model and low reasoning, then emitted whole-slide copying, but the
+five-iteration qualification limit stopped before the mutation's paired tool
+output. An emitted call with `status=completed` is not proof of tool execution.
+Those initial attempts remain failed. Raising only the native qualification
+allowance from five to eight iterations and using the same model with native
+Responses/medium reasoning and an 8000-token cap published an exact four-slide
+clone, but that first turn reached the cap before changing its heading/final
+answer. It remains a partial failed turn, not a successful one-shot request.
+After reload, an explicit ordinary request selected that latest stored File
+through the native picker without re-upload and changed only slide four's title.
+The latter model turn completed without error, including inspection and render.
+Independent ZIP/XML verified the unchanged first three slides, layouts/theme and
+media, two editable shapes with preserved geometry/styles and one unchanged
+embedded image. Source and intermediate files remained unchanged. Native browser
+reload/title download matched the final SHA-256
+`622904a01e81316c329e14e90e9d9bde0b1eff467f7a048a8de4021c8846ba7a`;
+valid-user foreign denials passed. The already completed native render was reused
+for independent visual review of the changed fourth slide: readable title/body,
+intact picture and no visible clipping/overlap. Original slides have exact
+preserved XML and prior accepted source renders; no fresh all-slide render is
+claimed. Protected receipts are `paid-pptx-medium-result-receipt.json`,
+`paid-pptx-latest-edit-result-receipt.json`, `pptx-latest-browser-acceptance.json`
+and `pptx-latest-native-render-receipt.json` under the existing private/ignored
+evidence roots.
+
+The latest-edit guard first incorrectly assumed the thin request's whole
+`files` list contained only the new attachment. It actually includes distinct
+historical chat files; `user_message.files` contained exactly the latest result.
+That Send was aborted before the application API, with no new server assistant,
+completion log entry or task. The guard was corrected against the exact owned
+ancestor IDs, retaining the original full reservation, and the subsequent native
+Send reached the model once. No application request was rewritten. Guard failures
+are operator evidence, not a platform defect or another paid model attempt.
+
+At this checkpoint all 39 paid batches are terminal, with **177/240** conservative
+request upper bounds retained. The USD16 model allowance holds USD8.22299221 and
+has USD7.77700779 available, including all earlier unknown holds. No new core
+patch/image or production release was made. DOCX/XLSX/Terminal/search/media model
+checks and the PPTX route above used the explicitly recorded native qualification
+settings; do not claim they all ran on one identical final provider configuration.
+
+For a Responses connection use native `OPENAI_API_CONFIGS[index].api_type =
+"responses"`. In the pinned 0.11.4 converter, the Chat parameter
+`reasoning_effort` is not renamed; configure it as null and use native model
+parameters such as `reasoning: {"effort": "medium"}`, `store: false` and a bounded
+`max_tokens`. The native converter maps the cap to `max_output_tokens` and
+converts existing function-tool schemas. Installed pure converters were checked
+against actual synthetic chat ancestors and current Office OpenAPI before the
+paid browser request. This is a narrow configuration qualification, not approval
+to change production model routes or an excuse for a new gateway/core patch.
+
 For a deliberately tool-free bounded model check, temporarily disable the
 selected workspace model's native `builtin_tools` capability as well as explicit
 tools/Terminal and auxiliary tasks. In 0.11.4, empty `tool_ids` alone does not
@@ -695,13 +807,12 @@ restarted after 516 seconds; the partial set is marked `INCOMPLETE` and must not
 be used as restoration evidence. No data migration or image switch occurred.
 This window is consumed; another production stop requires a new agreed window.
 
-On 2026-10-05 the owner clarified the rehearsal data cutoff as **4 October**
-(the earlier reference to 4 September was corrected) and deferred the fresh
-consistent snapshot/downtime decision until cutover preparation. Do not stop
-production under the consumed first window. Establish the exact available source
-and its consistency before treating it as a historical saved set: neither the
-date correction nor `PRESEEDED_UNSEALED` proves a 4 October snapshot. Rehearsal
-data and proof of production rollback remain distinct.
+On 2026-10-06 the owner explicitly selected the available **2 October**
+`PRESEEDED_UNSEALED` copy for rehearsal, replacing the earlier 4 October request.
+The fresh consistent snapshot/downtime decision remains deferred to cutover
+preparation. Do not stop production under the consumed first window. The selected
+copy is a checked rehearsal source, not a sealed coherent production backup;
+its successful core-data restoration does not retroactively change that status.
 
 Before cutover, prepare the fresh consistent saved set after confirming idle
 work and obtaining the separate downtime window. Include exact deployed
@@ -727,13 +838,220 @@ Acceptance requires real restore from the saved set, login, an authorized old
 chat/attachment, required results and permission checks. Use an owner-designated
 example; do not browse other users' chats for the report. Then migrate this
 restored working copy with the installation already qualified on clean staging.
-The clean development stand is not an accepted user-data migration. Current status:
-`RESTORE_NOT_YET_VALIDATED`.
+The clean development stand alone is not an accepted user-data migration. On
+6 October the separate real-data rehearsal completed with status
+`ACTUAL_OWNER_CORE_RESTORE_AND_MIGRATION_VERIFIED`:
+
+- The 16.7 GB original OpenWebUI data copy was mounted as a read-only lower
+  filesystem; OverlayFS held all working writes separately. SQLite DB/WAL/SHM
+  were copied up, recovered and checkpointed, with integrity checks passing.
+  This is an old-data working copy, not a clone of the running old container.
+- The exact old image `sha256:8da17a365a83bde8f999bab94b2a6c497ef733ad9ba44cd655cf87a16fdc2d44`
+  booted OpenWebUI 0.9.6 at Alembic `461111b60977`. After stopping this isolated
+  app and taking a cold SQLite backup of its working DB, the already qualified
+  target image `sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423`
+  ran the native 0.11.4 migration to `d4c1a8e37b62`.
+- All 23 users, 728 chats, 1718 Files, 207 models, 64 Prompts and seven folders
+  survived. Exact selected-field comparisons covered roles, password hashes,
+  original user settings, model parameters/metadata/prices and saved
+  Prompt/Function/Tool content and valves. The native config migration preserved
+  `config_old`; all 178 flattened/renamed values matched the installed migration
+  exactly. Inspect the actual schema: old `config(id,data)` becomes
+  `config(key,value)`; quoted nonexistent SQLite columns can return literals.
+- The owner-designated chat retained semantic message content, IDs, graph and
+  attachment references. Native browser reload and title-click downloads of both
+  actual attachments matched their full sizes/SHA-256 on old and new versions.
+  A distinct existing ordinary user's valid authenticated session was checked
+  before/after foreign chat/file denials on each version.
+- Short-lived controlled native sessions used the preserved signing key and
+  existing identities. Original password hashes survived; signing in with the
+  owner's original password was not exercised. Native browser timezone and
+  unchanged saved chat-parameter writes were allowed only on the working copy;
+  message content/graph/File IDs were checked afterward. First-login changelog
+  and FileModal title links must be handled through their native controls.
+- Original DB/WAL/SHM and the two inspected uploads retained their hashes,
+  sizes, inodes and modification/change timestamps; original vector SQLite hash
+  was unchanged. All seven production container IDs/images/start/restart values
+  remained unchanged. No production stop or paid model/STT call occurred.
+
+Reproduce the isolation: internal Docker network, no published ports/proxy,
+explicit resource limits, bounded lifetime, preserved key presence, provider
+keys/routes and auxiliary tasks disabled, persistent config disabled and
+`SAFE_MODE=true` for copied extensions. Keep optional OAuth encryption keys
+absent when absent in the inspected old environment; explicitly empty strings
+disable its native fallback to `WEBUI_SECRET_KEY`. Do not generate replacement
+production signing/encryption keys to make the restore boot. First vector-store
+copy-up exceeded a native connection timeout; a single same-container restart
+after copy-up completed succeeded with matching source/working SQLite hashes.
+Copy-up delay is the observed working hypothesis, not proof of every timeout's
+cause. Preserve initial failed startup evidence alongside the successful proof.
+
+The owned restore containers, network and mounts were removed after validation;
+private working upper, cold old DB and receipts remain under
+`/opt/openwebui-upgrade-474/owner-native-restore-20261006`. Original secrets,
+sessions, chat contents and raw diagnostics are not committed. Copied extensions
+were preserved but inactive; their product paths were exercised separately on
+clean staging. A separate bounded rehearsal subsequently restored the Oct2
+STT store and exact Terminal home volume as private working copies, without
+production stops or provider calls. Both the inspected old STT image and the
+qualified target image read the same 275 artifact records, 209 edges and
+66 transcript-index rows. Every transcript passed the native contract and
+content-checksum comparison; the complete table-content digest was unchanged.
+The same native policy returned 15 readable transcripts, 50 expired and one
+deleted/not-found record on both images. No expiry timestamps were extended or
+deleted records revived. Owner-scoped native transcript API reads retained
+their original success/expiry results; 15 readable records rejected a different
+access context through the native store. These backend access checks complement
+the clean-staging product checks; they are not browser acceptance for every
+historical transcript.
+
+The pinned Terminal image booted against the separately copied home. Native
+health, home listing and execution of a new harmless canary in a dedicated
+rehearsal identity passed. All 294 existing files retained their exact bytes;
+original ownership and modes survived. This did not replay private customer
+commands or claim stronger user isolation than the existing native boundary.
+The original STT/Terminal trees retained full content and metadata manifests;
+all existing containers retained their identities/images/start/restart values.
+Copied provider keys were empty, post-processing/catalog disabled, hard expiry
+deletion disabled and the temporary internal network had no published ports.
+Temporary containers/network were removed; private copies and aggregate
+receipts remain under `/opt/openwebui-upgrade-474/owner-service-restore-20261006`.
+The financial corpus was not processed. #516 remains frozen. A fresh coherent complete
+set, protected independent copy, current-data delta and agreed rollback after
+new writes remain release requirements.
 
 At production cutover obtain a fresh consistent snapshot, repeat the rehearsed
 migration, and check the changes since rehearsal. Do not deploy the staging DB
 with stale or synthetic records. Agree rollback after new writes before opening
 production writes; retain both the old compatible set and the new state.
+
+### Issue #474: final shared model route, 6 October
+
+The affected DOCX, XLSX, Terminal, search and full-transcript continuation were
+checked through ordinary browser chats using the same pinned artifacts and
+`gpt-5.4-mini`, native Responses, medium reasoning, an 8000-token output cap and
+eight native tool-loop iterations. The previously accepted final PPTX clone/edit
+already used this configuration and was not repeated. This is qualification of
+the selected staging route, not a change to every production model/provider.
+
+- DOCX changed only the requested last paragraph; the other 14 paragraphs,
+  styles and numbering were preserved. XLSX retained numeric 17/26/43, bold
+  headers and all other cells/styles. Both used the latest existing native File,
+  produced a separate result, and passed native preview, exact download and reload.
+- Terminal staged the selected source, ran the requested edit and published
+  exactly the original bytes plus the requested suffix. Native inline opening,
+  attachment download and reload passed. Sources remained unchanged.
+- Search acceptance requires a nonempty returned list and fetching a URL from
+  that list. The first check returned `[]` and then fetched a known official URL;
+  its original verifier conclusion was corrected and retained as failed. The
+  next query returned results without the required official source and remained
+  failed. A representative preflight through the actual native ordinary-user
+  search API preceded the final paid check. That check found the official Python
+  pathlib page, fetched the returned URL and answered correctly with its link;
+  reload and a valid foreign-user denial passed. Direct SearXNG output alone is
+  not qualification of the native model's result list.
+- The final full-transcript continuation produced exactly seven bullets with all
+  twelve source agreements, checked individually against the original text, and
+  no additional facts. The exact complete transcript remained in native ancestry.
+  Reload passed; the STT store hash and job count were unchanged. This was a plain
+  continuation of the existing accepted Prompt/source, with no new upload, STT
+  call, cache-inlet dispatch or fresh slash-picker acceptance claim.
+- Valid distinct-user identities and denied access were checked for each chat
+  and, for file cases, each result. Browser checks made no model/STT requests.
+
+The 0.11.4 browser sends chat/parent references; the server assembles history.
+Native `body.files` retains saved chat files only while they are referenced in
+history, then adds current non-image attachments and deduplicates. It is not
+every assistant-published ancestor file. Two overly strict operator guards
+stopped requests before the application API; absent server messages, unchanged
+parents, empty tasks and absent completion logs proved zero provider calls.
+Original abort receipts were kept, then the qualified native Send reused its
+existing reservation without rewriting the request or changing product code.
+
+All 46 paid batches are terminal. The conservative model bound is **240/240**;
+the USD16 allowance holds **USD8.60631031**, with **USD7.39368969** available.
+These figures include earlier unknown-cost holds and are not an invoice. The
+separate USD5 STT allowance and three historical STT jobs remain unchanged;
+there were no new STT calls in this continuation. Model dispatch and the STT
+Filter are disabled between checks; native tasks are empty. Protected final
+evidence is `shared-final-route-acceptance.json` in the existing operator/server
+evidence directories. Do not rerun paid checks after the count ceiling.
+
+### Issue #474: separate release recipe, prepared but not deployed
+
+[`openwebui.staging-release-0114.compose.yml`](../../compose/openwebui.staging-release-0114.compose.yml)
+declares the four new application services, qualified immutable images and new
+`openwebui-0114_{data,stt_data,terminal_home}` volumes. It has no legacy loader
+mounts, STT read of the WebUI SQLite volume, automatic build/pull or host ports.
+The current Traefik/TLS, SearXNG/Valkey and proxy remain their existing owners.
+The service network permits the existing Terminal egress behavior; this does
+not strengthen the agreed trusted-team isolation boundary.
+
+Private env files preserve the actual runtime values, including signing keys,
+provider/storage/TTL settings and the absence of optional OAuth keys. The
+required `RELEASE_WEBUI_NO_PROXY` and `RELEASE_STT_NO_PROXY` values preserve each
+service's actual exclusions and append its new service names; do not replace
+custom storage/internal-domain exclusions with only the staging list. The
+`format: raw` env input prevents a second interpolation of literal `$` values.
+An isolated synthetic native Compose create/inspect check proved the exact
+runtime value; that container was never started and was removed. No actual
+secret was printed. The release validator resolves both Compose forms without
+starting services; server inspection also confirmed every pinned local image.
+Whole candidate topology has not yet been booted or accepted on fresh data.
+
+The recipe proposes the already qualified eight-iteration native tool cap;
+prices and model definitions are preserved. Review this setting with the release.
+The scoped native connections change their service addresses:
+Office server `officecli` to `http://officecli-0114:8080`, Terminal `office-linux`
+to `http://open-terminal-0114:8000`; Office callback already points at
+`http://openwebui-0114:8080`. Preserve Session auth, native chat/message custom
+headers, API keys, access grants and the transfer Tool's native local callback.
+The accepted Media Event Function keeps its existing `stage2-stt` hostname via
+an alias on the new service network. **Stop old STT before starting this candidate**:
+while both old and new STT are active, the new WebUI's two networks can expose
+two owners of that hostname. Rollback stops all four new services before old
+services resume. Do not boot this recipe beside running old STT for testing.
+
+Snapshot/migration/release sequence, after separate approval:
+
+1. Recheck idle work, current identities, free space, the complete volume set and
+   actual deployed env/source/mounts. Prepare a separate working data seed and
+   protected off-disk destination; the Oct2 rehearsal data is not release data.
+   Estimate the cold delta before requesting a bounded stop window. Abort and
+   resume the same old containers if the agreed window cannot be met.
+2. Stop only the four old application containers, capture their coherent final
+   delta including SQLite WAL/SHM, STT payloads and Terminal home permissions, and
+   retain exact original state. Search, Traefik and proxy stay running. Seal hashes
+   and an independent protected copy before migrating the saved working set.
+3. Boot the fresh working set using the qualified image and native migration.
+   Suspend copied work/providers/extensions initially; preserve backup records,
+   then replace/disable only the owned obsolete extension connections, removed
+   response-to-DOCX Action and old loader/Prompt-catalog path. Keep #516 frozen.
+   Install the accepted Tool/Skill/Filters/Event through native owners. Reconcile
+   the exact IDs and source hashes with the fresh registry; do not bulk-delete it.
+4. Check current-data deltas, native settings/models/prices, owner password login,
+   designated old chat/files, service callback/DNS and required ordinary product
+   routes. A staging-only Responses setting does not authorize blanket changes
+   to preserved production connections, user params or 207 model definitions.
+5. Update the existing host recorder's explicit targets to the new four generated
+   Compose names, retaining its root/history and current old targets for rollback.
+   Verify collection from the new identities. Do not start another writer on the
+   same root. Rollback restores the previous selector, not the diagnostic history.
+6. Apply [`openwebui.staging-release-0114.route.compose.yml`](../../compose/openwebui.staging-release-0114.route.compose.yml)
+   only after the accepted fresh migration and approved cutover. It reuses the
+   existing `openwebui` Traefik router/TLS owner; the old WebUI must already be
+   stopped. Keep production writes closed until owner checks pass.
+7. Before new production writes, rollback stops the candidate and restarts the
+   retained old containers/volumes/config. After any new writes, first preserve
+   the complete new state and reconcile its delta; do not attach a migrated
+   SQLite database to 0.9.6 or silently discard new chats/files. Agree this
+   consequence with the owner before reopening writes.
+
+The recipe is reviewable source preparation, not permission to stop, merge,
+deploy or switch the product. Fresh snapshot/off-disk acceptance, current-data
+migration, password login and post-write rollback agreement remain open.
+
+### Older production restoration recipe
 
 1. Остановить сервисы:
 
