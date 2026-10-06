@@ -1160,6 +1160,46 @@ transcription provider was called. This qualifies the configurable preparation
 address; fresh data, whole release topology and the final model route remain
 separate checks.
 
+The accepted native registry was also installed on that partial working set,
+then checked after an intentional WebUI restart. Office Filter, Terminal Tool
+and Artifact Workflow Skill already matched the qualified sources after LF
+normalization; their original settings and grants were retained. Only the STT
+Filter source/service Valve needed updating, and the Media Event Function needed
+adding. Native tool/terminal configuration kept the original IDs, authentication,
+keys and grants while selecting the unique new service addresses and Office chat
+and message headers. The other Functions remained untouched and inactive; frozen
+broker code was neither loaded nor invoked.
+
+On pinned 0.11.4, `open_webui.models.config.Config.upsert` persists settings only
+when persistent configuration is enabled. API writes with persistence disabled
+update in-memory defaults and do not qualify a durable install. Before booting
+the restored copy with persistence enabled, use the native Config model owner
+on the cold working copy, with database migrations disabled, original WebUI
+secret and no network, to suspend only `openai.enable` and `ollama.enable`.
+Do not import another application or edit production data. Confirm all copied
+Functions are inactive, keep provider keys unavailable and isolate the network;
+then install the approved extension/configuration through native admin APIs.
+`SAFE_MODE=true` deactivates Functions at startup, so it cannot be used to prove
+that their enabled state survives restart. Reconcile the copied inactive registry
+before the bounded normal-mode rehearsal. Preserve the private original settings
+and registry for comparison and rollback.
+
+The native persistent startup renamed 63 `rag.web.*` settings to `web.*` without
+changing their values and seeded missing defaults. Verify the native mapping
+rather than recreating obsolete keys; OAuth settings can remain environment-owned
+and appear in export without corresponding persisted rows. The complete installed
+config/Function/Tool/Skill state survived restart and matched the cold copy after
+shutdown. A real existing ordinary account used the native file picker: the same
+File became a completed MP3 in one preparation attempt. Bytes, hash, size, MIME,
+actual codec and a distinct valid foreign user's metadata/download denial passed.
+Office help accepted that ordinary native session through the new WebUI callback
+and rejected an invalid session. The synthetic File was removed through its native
+API after verification. No Send, model, transcription or embedding call occurred;
+the STT artifact-store hash and all 13 previous container identities were preserved.
+The owned four-service candidate, internal network, guard and tunnel were closed,
+with the installed working data retained. This is not original-password login,
+fresh-data, external-provider-route or whole release acceptance.
+
 Snapshot/migration/release sequence, after separate approval:
 
 1. Recheck idle work, current identities, free space, the agreed data membership
