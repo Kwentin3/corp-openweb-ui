@@ -1257,6 +1257,24 @@ The prepared workflow inclusion covers eleven tests and remains unpublished
 pending the missing GitHub OAuth scope. Final production target/resource
 qualification remains part of the separately approved release.
 
+The same published recorder source then passed a bounded four-service trial
+with the production recorder's observed resource/stop profile: 192 MiB, 10% CPU,
+128 tasks and TimeoutStopSec=5s. Actual staging properties matched those read
+from production. Maximum delay across all twelve stop events was 7.132 seconds;
+all twelve cards completed with exact full before/after history and no omissions.
+Memory peaked at 138.875 MiB with zero memory/pids limit hits, OOM or swap.
+Collector stop returned native Result=success; the measured stop-command duration
+was 0.282 seconds, within the configured five-second deadline.
+
+The original staging source/unit/targets/root were restored with fresh collection,
+owned temporary applications/network/guard closed and cold native config/registry
+preserved. All thirteen old container identities and the production recorder
+unit/PID/source stayed unchanged; no paid calls. This accepts the bounded
+lifecycle on the actual production resource profile, not sustained-load capacity,
+complete production unit hardening or installation in production. The original
+long-lived writer timeout cause remains unproven. Final source/target installation
+still belongs to the separately approved release.
+
 Snapshot/migration/release sequence, after separate approval:
 
 1. Recheck idle work, current identities, free space, the agreed data membership
