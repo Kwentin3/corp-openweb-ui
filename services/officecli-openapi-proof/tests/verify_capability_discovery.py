@@ -6,6 +6,7 @@ This is not a provider or authenticated OpenWebUI end-to-end test.
 
 from hashlib import sha256
 from io import BytesIO
+import importlib.metadata
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -47,6 +48,12 @@ class LocalFileTransport:
 
 
 class DiscoveryQualification(unittest.TestCase):
+    def test_installed_dependencies_match_production_lock(self):
+        for line in Path("/app/requirements.lock").read_text().splitlines():
+            if line and not line.startswith("#"):
+                name, version = line.split("==")
+                self.assertEqual(importlib.metadata.version(name), version, name)
+
     def test_large_real_workbook_structure_is_complete_and_readonly(self):
         settings = load_settings()
         executor = SubprocessOfficeCliExecutor(settings)

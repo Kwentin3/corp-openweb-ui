@@ -1118,6 +1118,51 @@ and removal condition; this release is not an unmodified official image.
 Native SearXNG is verified; Brave configuration is preserved but Brave live
 acceptance is not claimed. NDFL #516 remains frozen.
 
+### Follow-up: STT cleanup and pinned service builds, 7 October (not deployed)
+
+The follow-up source removes the STT Filter's obsolete video preparation and
+outlet cleanup branch. Filter v0.2.5 requires 0.11.4, consumes ready audio or its
+native saved transcript, rejects unprepared media without STT, and skips native
+auxiliary tasks. The existing Event Function retains preparation, same-ID
+replacement, retry, cleanup and restart recovery. The approved core patch is
+unchanged. This paragraph is source handoff, not production acceptance.
+
+Office/STT Dockerfiles now pin the existing Python 3.11 base index digest
+`sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9`.
+Each service's `requirements.lock` records its own resolved production Python
+dependencies, including build tools, from the accepted images above. The
+different FastAPI versions remain separate. Docker installs the lock first,
+then the local package with `--no-build-isolation --no-deps`, followed by
+`pip check`; missing/conflicting dependencies fail the build. Standard package
+metadata remains the declared compatibility range, while the lock selects the
+release. Avoid bare `pip install .` when rebuilding a release.
+
+Debian and Debian-security repositories use the immutable
+`20261007T000000Z` snapshot; signed metadata/package hash verification remains
+enabled. Only expired snapshot metadata's `Check-Valid-Until` is disabled.
+This fixes package selection, not Docker timestamps or bit-identical image IDs.
+Registry/PyPI/snapshot availability remains an external build dependency.
+Security updates require deliberately advancing the digest/snapshot/locks and
+checking the affected artifact; freezing versions is not automatic security upkeep.
+
+Build using the existing service Dockerfiles. Active CI builds both Linux
+artifacts and qualifies installed OfficeCLI/dependencies and real offline
+MP4/M4A-to-MP3 conversion. It also rejects valid silent video without contacting
+a provider. Fresh CI is recorded on the follow-up PR. Component tests do not
+replace ordinary-user acceptance after installation.
+
+Before release, preserve the current Function source/Valves and service image
+IDs. Install v0.2.5 through the native Function API, preserving its ID, enablement
+and Valves. Any new service images require isolated qualification and an approved
+release; these source edits do not switch production. Rollback is the previous
+Function source and unchanged Valves plus the previous qualified service images,
+preserving all new native chats/files. No schema change or data cleanup is needed.
+
+The public-safe upstream Discussion draft is
+[colocated with the exception](../../deploy/openwebui-patches/media-upload-v0.11.4/UPSTREAM_DISCUSSION.md).
+It separates the generic handoff/metadata gap from bounded local upload writes;
+no upstream PR, publication or maintainer acceptance is claimed.
+
 ### Issue #474: historical release preparation, 7 October (completed above)
 
 The following records the preparation state before the accepted release above.

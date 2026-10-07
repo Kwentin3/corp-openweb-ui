@@ -1,22 +1,21 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.4
-required_open_webui_version: 0.9.6
+version: 0.2.5
+required_open_webui_version: 0.11.4
 requirements: httpx,pydantic
 
 Transcribes an audio attachment before the selected ordinary model is called.
-The Filter deliberately does not declare ``file_handler``: in OpenWebUI 0.9.6
-that flag disables native file processing for every attachment, not audio only.
+Media intake prepares uploads before Send; this Filter only transcribes ready
+audio. It deliberately does not declare ``file_handler``, which disables native
+file processing for every attachment, not audio only.
 """
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import os
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +55,8 @@ class Filter:
         **_: Any,
     ) -> dict:
         metadata = __metadata__ if isinstance(__metadata__, dict) else body.get("metadata") or {}
+        if metadata.get("task") is not None:
+            return body
         media = self._latest_supported_audio(self._collect_files(body, metadata))
         if media is None:
             return body
@@ -81,6 +82,14 @@ class Filter:
         # original attachment still remains in the persisted user message.
         self._remove_processed_audio(body, metadata, media["file_id"])
 
+        # Conversion, retries and source cleanup belong to media intake, never
+        # to the chat Filter. Reject a bypassed/incomplete upload before STT.
+        if self._direct_profile_for_mime(media["mime_type"]) is None:
+            return await self._inject_failure(
+                body, metadata, __event_emitter__,
+                "Подготовка медиа не завершена. Дождитесь её завершения или загрузите файл заново.",
+            )
+
         await self._emit(__event_emitter__, "Транскрибирую аудио…", done=False)
         token = self.valves.internal_api_key or os.environ.get("STAGE2_STT_INTERNAL_API_KEY", "")
         if not token:
@@ -88,35 +97,15 @@ class Filter:
                 body, metadata, __event_emitter__, "Транскрибация сейчас не настроена."
             )
 
-        needs_preparation = self._direct_profile_for_mime(media["mime_type"]) is None
         try:
-            source_path = await self._native_upload_path(media["file_id"], (__user__ or {}).get("id"))
-            stt_media = media
-            audio_path = source_path
-            with tempfile.TemporaryDirectory(prefix="stage2-audio-") as work_dir:
-                if needs_preparation:
-                    source_sha256 = await asyncio.to_thread(self._sha256_file, source_path)
-                    prepared = await self._prepare_video(
-                        token=token,
-                        envelope=self._build_envelope(__user__ or {}, metadata, media),
-                        source_path=source_path,
-                        filename=media["filename"],
-                        mime_type=media["mime_type"],
-                        output_path=Path(work_dir) / "prepared-audio",
-                    )
-                    derived = await self._persist_prepared_audio(
-                        user_id=(__user__ or {}).get("id"), source_file_id=media["file_id"],
-                        prepared=prepared, source_sha256=source_sha256,
-                    )
-                    stt_media = {"file_id": derived["file_id"], "filename": derived["filename"], "mime_type": derived["mime_type"], "size_bytes": derived["size_bytes"], "is_video": False}
-                    audio_path = prepared["audio_path"]
-                result = await self._call_sidecar(
-                    token=token,
-                    envelope=self._build_envelope(__user__ or {}, metadata, stt_media),
-                    audio_path=audio_path,
-                    filename=stt_media["filename"],
-                    mime_type=stt_media["mime_type"],
-                )
+            audio_path = await self._native_upload_path(media["file_id"], (__user__ or {}).get("id"))
+            result = await self._call_sidecar(
+                token=token,
+                envelope=self._build_envelope(__user__ or {}, metadata, media),
+                audio_path=audio_path,
+                filename=media["filename"],
+                mime_type=media["mime_type"],
+            )
         except httpx.HTTPStatusError as exc:
             message = self._format_sidecar_error(exc)
             return await self._inject_failure(body, metadata, __event_emitter__, message)
@@ -140,29 +129,19 @@ class Filter:
         metadata["_stage2_audio_transcript"] = transcript
         metadata["_stage2_audio_display"] = self._format_transcript(result)
         await self._mark_transcribed(
-            stt_media["file_id"],
+            media["file_id"],
             (__user__ or {}).get("id"),
             transcript,
             metadata["_stage2_audio_display"],
         )
         self._append_context(body, transcript)
-        if needs_preparation:
-            metadata["_stage2_video_lifecycle"] = {
-                "source_file_id": media["file_id"],
-                "audio_file_id": stt_media["file_id"],
-                "user_id": (__user__ or {}).get("id"),
-                "chat_id": metadata.get("chat_id"),
-                # At outlet OpenWebUI identifies the assistant response, while
-                # the uploaded media belongs to the preceding user message.
-                # The lifecycle overlay resolves that owner from ChatFile.
-                "message_id": None,
-                "transcript_hash": hashlib.sha256(transcript.encode("utf-8")).hexdigest(),
-            }
         await self._emit(__event_emitter__, "Транскрипция готова. Готовлю ответ…", done=True)
         return body
 
     async def outlet(self, body: dict, __metadata__=None, **_: Any) -> dict:
         metadata = __metadata__ if isinstance(__metadata__, dict) else body.get("metadata") or {}
+        if metadata.get("task") is not None:
+            return body
         transcript = metadata.pop("_stage2_audio_transcript", None)
         display_transcript = metadata.pop("_stage2_audio_display", None)
         if not isinstance(transcript, str) or not transcript:
@@ -180,14 +159,6 @@ class Filter:
                 message["content"] = prefix + summary + suffix
                 self._wrap_structured_output(message, prefix, suffix)
             break
-        lifecycle = metadata.pop("_stage2_video_lifecycle", None)
-        if isinstance(lifecycle, dict):
-            try:
-                await self._commit_video_lifecycle(lifecycle)
-            except RuntimeError:
-                # The source media stays available. A failed cleanup must never
-                # hide a successful transcript or turn its source into a dead link.
-                pass
         return body
 
     def _wrap_structured_output(self, message: dict, prefix: str, suffix: str) -> None:
@@ -248,7 +219,7 @@ class Filter:
             if not file_id or not filename or str(file_id) in seen_ids:
                 continue
             seen_ids.add(str(file_id))
-            files.append({"file_id": str(file_id), "filename": str(filename), "mime_type": str(mime_type), "size_bytes": item.get("size") or file_meta.get("size"), "is_video": str(mime_type).startswith("video/")})
+            files.append({"file_id": str(file_id), "filename": str(filename), "mime_type": str(mime_type), "size_bytes": item.get("size") or file_meta.get("size")})
         return files
 
     def _latest_supported_audio(self, files: list[dict]) -> dict | None:
@@ -279,43 +250,6 @@ class Filter:
             return "wav_pcm_safe"
         return None
 
-    async def _prepare_video(self, *, token: str, envelope: dict, source_path: Path, filename: str, mime_type: str, output_path: Path) -> dict:
-        async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
-            with source_path.open("rb") as source:
-                async with client.stream(
-                    "POST",
-                    f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/media/prepare",
-                    headers={"Authorization": f"Bearer {token}"},
-                    data={"envelope": json.dumps(envelope)},
-                    files={"source_media": (filename, source, mime_type)},
-                ) as response:
-                    if response.is_error:
-                        await response.aread()
-                        response.raise_for_status()
-                    prepared_name = response.headers.get("X-Stage2-Prepared-Filename") or "audio.mp3"
-                    prepared_mime = response.headers.get("content-type", "").split(";", 1)[0]
-                    if not prepared_mime.startswith("audio/"):
-                        raise RuntimeError("Media preparation returned no audio")
-                    with output_path.open("wb") as output:
-                        async for chunk in response.aiter_bytes(1024 * 1024):
-                            output.write(chunk)
-        if not output_path.stat().st_size:
-            raise RuntimeError("Media preparation returned no audio")
-        return {"audio_path": output_path, "filename": prepared_name, "mime_type": prepared_mime, "size_bytes": output_path.stat().st_size}
-
-    async def _persist_prepared_audio(self, *, user_id: str | None, source_file_id: str, prepared: dict, source_sha256: str) -> dict:
-        if not user_id:
-            raise RuntimeError("Missing authenticated user")
-        from open_webui.services.stage2_media_lifecycle import persist_prepared_audio
-
-        derived = await persist_prepared_audio(user_id=user_id, source_file_id=source_file_id, filename=prepared["filename"], mime_type=prepared["mime_type"], audio_path=prepared["audio_path"], source_sha256=source_sha256)
-        return {"file_id": derived.file_id, "filename": derived.filename, "mime_type": derived.mime_type, "size_bytes": derived.size_bytes}
-
-    async def _commit_video_lifecycle(self, lifecycle: dict) -> None:
-        from open_webui.services.stage2_media_lifecycle import replace_source_video_with_audio
-
-        await replace_source_video_with_audio(**lifecycle)
-
     async def _native_upload_path(self, file_id: str, user_id: str | None) -> Path:
         if not user_id:
             raise RuntimeError("Missing authenticated user")
@@ -332,14 +266,6 @@ class Filter:
         if not path.is_file():
             raise RuntimeError("Uploaded file is unavailable")
         return path
-
-    @staticmethod
-    def _sha256_file(path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as source:
-            for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
 
     async def _was_transcribed(self, file_id: str, user_id: str | None) -> bool:
         if not user_id:
@@ -395,9 +321,7 @@ class Filter:
         await Files.update_file_data_by_id(file_id, data)
 
     def _build_envelope(self, user: dict, metadata: dict, media: dict) -> dict:
-        # ``is_video`` is Filter-internal routing state. The sidecar contract
-        # deliberately rejects undeclared fields, so project only the native
-        # file reference here.
+        # The sidecar rejects undeclared fields; pass only its file reference.
         file_reference = {
             key: media.get(key)
             for key in ("file_id", "filename", "mime_type", "size_bytes")

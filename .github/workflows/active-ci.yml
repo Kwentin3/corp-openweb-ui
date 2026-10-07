@@ -129,3 +129,12 @@ jobs:
       - name: Run STT tests
         if: steps.scope.outputs.stt == 'true'
         run: python -m pytest -q services/stage2-stt/tests
+
+      - name: Build and qualify the installed STT artifact without providers
+        if: steps.scope.outputs.stt == 'true'
+        run: |
+          docker build -f services/stage2-stt/Dockerfile -t stt-candidate .
+          docker run --rm --network none --read-only --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,size=64m \
+            -v "$PWD/services/stage2-stt/tests/verify_runtime_media.py:/verify_runtime_media.py:ro" \
+            stt-candidate python /verify_runtime_media.py
