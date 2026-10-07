@@ -16,6 +16,7 @@ services/*
 services/stage2-stt/*
 !services/stage2-stt/Dockerfile
 !services/stage2-stt/pyproject.toml
+!services/stage2-stt/requirements.lock
 !services/stage2-stt/stage2_stt/
 !services/stage2-stt/stage2_stt/**
 !services/stage2-stt/openwebui_actions/

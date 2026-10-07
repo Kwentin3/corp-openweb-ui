@@ -25,8 +25,12 @@ def main():
         root = Path(directory)
         for suffix in ("mp4", "m4a"):
             source = root / f"source.{suffix}"
-            run("ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
-                "sine=frequency=440:duration=1", "-c:a", "aac", str(source))
+            command = ["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
+                       "sine=frequency=440:duration=1"]
+            if suffix == "mp4":
+                command += ["-f", "lavfi", "-i", "color=black:size=16x16:duration=1",
+                            "-c:v", "mpeg4", "-shortest"]
+            run(*command, "-c:a", "aac", str(source))
             work = root / suffix
             work.mkdir()
             with source.open("rb") as stream:
