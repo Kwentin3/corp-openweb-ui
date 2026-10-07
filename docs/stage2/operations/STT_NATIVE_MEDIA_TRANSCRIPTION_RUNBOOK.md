@@ -40,8 +40,11 @@ the only preparation owner. Ready MP3/WAV/Opus can be transcribed; a bypassed
 unprepared MP4/M4A receives `Подготовка медиа не завершена` without preparation,
 replacement or STT calls from the Filter. Cached transcripts remain reusable.
 Native `metadata.task` auxiliary requests leave attachments and transcript
-metadata untouched. These are source changes awaiting release; the accepted
-7 October production deployment described below remains v0.2.4 until installation.
+metadata untouched. Filter v0.2.5 passed an ordinary-user staging upload/Send/reload
+check with one STT job and one primary model request. The current production
+deployment remains v0.2.4 until this follow-up release is approved and installed;
+artifact identities and narrow rollback are in the follow-up section of the
+existing backup/upgrade runbook.
 
 Implementation entry points are the
 [reviewed upload diff](../../../deploy/openwebui-patches/media-upload-v0.11.4/proposed.patch),

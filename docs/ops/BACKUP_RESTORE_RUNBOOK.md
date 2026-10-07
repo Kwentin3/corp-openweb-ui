@@ -1118,14 +1118,15 @@ and removal condition; this release is not an unmodified official image.
 Native SearXNG is verified; Brave configuration is preserved but Brave live
 acceptance is not claimed. NDFL #516 remains frozen.
 
-### Follow-up: STT cleanup and pinned service builds, 7 October (not deployed)
+### Follow-up: STT cleanup and pinned service builds, 7 October (staging qualified)
 
 The follow-up source removes the STT Filter's obsolete video preparation and
 outlet cleanup branch. Filter v0.2.5 requires 0.11.4, consumes ready audio or its
 native saved transcript, rejects unprepared media without STT, and skips native
 auxiliary tasks. The existing Event Function retains preparation, same-ID
 replacement, retry, cleanup and restart recovery. The approved core patch is
-unchanged. This paragraph is source handoff, not production acceptance.
+unchanged. Production still uses v0.2.4 until this follow-up release is approved
+and installed; the original migration acceptance above remains historical evidence.
 
 Office/STT Dockerfiles now pin the existing Python 3.11 base index digest
 `sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9`.
@@ -1150,6 +1151,35 @@ artifacts and qualifies installed OfficeCLI/dependencies and real offline
 MP4/M4A-to-MP3 conversion. It also rejects valid silent video without contacting
 a provider. Fresh CI is recorded on the follow-up PR. Component tests do not
 replace ordinary-user acceptance after installation.
+
+The server-built artifacts use source revision
+`045660d08b31c77fd4947b23c42ecf3a7114af3a`:
+
+- STT: `sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8`.
+- Office: `sha256:ae3b56ad0634dabd0da9e431282db28aa024f835dad500c91401af134bff0c67`.
+- Filter v0.2.5 LF SHA256: `6173fb28481d14ced78e56108385621b7bc08a00c703372e3cd1807f31597b25`.
+
+The release Compose and its existing verifier select these qualified artifacts;
+WebUI and Terminal image selections are unchanged. Both image archives and the
+current production Function/configuration backup are preserved off-host in
+`corp-openweb-ui-474-private/native-debt-release-20261007/`.
+
+Installed STT/dependency/media qualification passed without network access.
+Four real OfficeCLI artifact checks passed with the unchanged production profile:
+0.5 CPU, 1 GiB RAM, 256 PIDs and a 60-second native command timeout. An initial
+operator check using the default 30-second timeout stopped on XLSX range rendering.
+The same representative workbook rendered correctly in both old and candidate
+images with the working 60-second limit; the candidate crop took 40.115 seconds.
+No product timeout/resource setting or test assertion was changed.
+
+On isolated staging, a native password-form session with role `user` uploaded a
+10-second MP4 and used one ordinary Send with tools/search/background tasks off.
+The same File ID became MP3, source cleanup completed, one STT job ran, and the
+short summary plus full cached transcript survived reload. A second valid user
+could not access the File or chat. Model usage was 2,920 input / 66 output tokens;
+the conservative model hold is USD 0.0032175 and unknown STT cost retains USD 0.01.
+Temporary paid-provider access and Filter activation were restored afterwards.
+These checks qualify the staged candidate, not an unperformed production release.
 
 Before release, preserve the current Function source/Valves and service image
 IDs. Install v0.2.5 through the native Function API, preserving its ID, enablement
