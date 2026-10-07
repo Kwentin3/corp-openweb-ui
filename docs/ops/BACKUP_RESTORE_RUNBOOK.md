@@ -1118,10 +1118,19 @@ about 1.65 GB after removal of unused new cache exports. No paid provider call
 or production mutation occurred in these checks.
 
 Current native SearXNG preparation preserves the existing search owner and
-Brave key. One native retrieval returned two nonempty pages and one empty page;
-this is partial evidence, not full search acceptance. Brave was not called.
-Remaining release steps include this search gap, the quiesced delta, recorder
-installation, merge/CD, public routing and a brief product/owner check.
+Brave key. The empty third page was an HTTP 302 with an empty body: the pinned
+native loader defaults to `AIOHTTP_CLIENT_ALLOW_REDIRECTS=false`. The new
+environment sets this supported option to `true`; the native SSRF-safe connector
+remains in use. On the same qualified image, all three original public URLs then
+returned content. A single subsequent native search API request returned two
+nonempty pages, including the official Python `read_text` documentation. Search
+ranking changed to the Python 3.10 URL; an assertion requiring the exact prior
+URL failed and is not reported as passed. No repeat search was needed to inspect
+and verify the actual response. Configuration and database integrity/FK checks
+passed after shutdown. This is native backend evidence; ordinary browser search
+on the released route remains to be checked. Brave was not called.
+Remaining release steps include the quiesced delta, recorder installation,
+merge/CD, public routing and a brief product/owner check.
 
 ### Issue #474: historical partial data rehearsal, 6 October (superseded membership)
 
