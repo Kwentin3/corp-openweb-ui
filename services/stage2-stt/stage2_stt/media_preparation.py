@@ -95,7 +95,9 @@ def _probe_audio_duration(source_path: Path) -> float | None:
         raise MediaPreparationError("source_has_no_audio_stream", "Video has no audio stream")
     try:
         streams = json.loads(completed.stdout).get("streams") or []
-        raw = streams[0].get("duration") if streams else None
+        if not streams:
+            raise MediaPreparationError("source_has_no_audio_stream", "Video has no audio stream")
+        raw = streams[0].get("duration")
         return float(raw) if raw is not None else None
     except (IndexError, TypeError, ValueError, json.JSONDecodeError):
         return None

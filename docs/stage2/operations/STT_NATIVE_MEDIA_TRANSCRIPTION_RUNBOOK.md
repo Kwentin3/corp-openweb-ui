@@ -18,6 +18,68 @@ using these steps as production acceptance evidence.
 The upload is not a transcription request: transcription begins on Send. The
 microphone/dictation route is separate from uploaded-media STT. There is no
 separate Transcribe button or browser ffmpeg.wasm conversion in this route.
+
+There are three implementation owners. The approved four-file OpenWebUI 0.11.4
+exception adds our `accept_upload` handoff, bounded local upload write/hash and
+native attachment metadata/error refresh. `accept_upload` is a custom hook
+added by that diff, not an existing unmodified upstream contract; the patch
+performs neither FFmpeg conversion nor Lemonfox calls.
+`stage2_media_intake` is an Event Function running **inside OpenWebUI**, using
+its internal File models and Storage API to own preparation, same-ID replacement,
+cleanup and restart recovery. FFmpeg runs in the existing `stage2-stt` service.
+After Send, `stage2_audio_context_filter` obtains the transcript from that
+service/Lemonfox or reuses the stored transcript, removes the processed audio
+from outbound file collections and gives the ordinary chat model text.
+The MP3 remains the native user attachment. A later model failure must preserve
+both that attachment and the saved transcript. Meeting protocol remains a
+separate ordinary Prompt; the model's summary does not replace the transcript.
+
+Implementation entry points are the
+[reviewed upload diff](../../../deploy/openwebui-patches/media-upload-v0.11.4/proposed.patch),
+[Event Function](../../../deploy/openwebui-functions/stage2_media_intake.py)
+(`accept_upload`, preparation/replacement and cleanup using native Storage),
+[post-Send Filter](../../../services/stage2-stt/openwebui_filters/stage2_audio_context_filter.py)
+(`inlet`, cached transcript, outbound audio removal and `outlet` display), and
+[Lemonfox adapter](../../../services/stage2-stt/stage2_stt/lemonfox.py).
+The Filter uploads the prepared MP3 plus its envelope to
+`stage2-stt`'s `/stage2-api/transcription/jobs`; the adapter sends multipart
+`file` to Lemonfox `/v1/audio/transcriptions`. The ordinary LLM receives the
+resulting text through the separate native chat-model connection. Native File
+Storage owns the persistent MP3; the Filter stores its transcript/cache marker
+in that File's data. The qualified reload/recreation checks are linked below.
+
+The exception, pinned source/build identity, approvals, qualification and rollback
+are described in the existing
+[backup/upgrade runbook](../../ops/BACKUP_RESTORE_RUNBOOK.md#issue-474-media-component-and-approved-staging-bridge).
+This is a conscious core exception. Each future upgrade must first look for a
+native replacement, then qualify necessity, compatibility and the reproducible
+custom build if the exception remains. The current image is not an unmodified
+official image, and the extension's separate source file does not make its
+internal OpenWebUI dependencies an independent runtime.
+
+For #474 on 2026-10-05, a native browser regeneration in a fork of the accepted
+short MP4 chat reused its cached transcript. A temporary credential-free
+loopback receiver captured the **actual HTTP JSON from the installed native
+OpenAI client**, rather than the browser's pre-Filter Send body. The request to
+`/v1/chat/completions` selected `gpt-5.4-mini`, contained one user message with
+string content including the complete transcript, and contained no media/file
+payload, media URL or data/base64 encoding. The receiver intentionally returned
+HTTP503 and forwarded nothing: zero external model/STT calls, no new model
+answer acceptance. This checks current cached-route egress; it is not a wire
+capture of the previously accepted paid M4A/MP4 calls. Configuration was restored
+and the MP3/cache preserved. See the linked runbook for identity, evidence and
+remaining acceptance boundaries. Do not repeat the accepted STT cases merely
+to produce another report.
+
+The audio-context Filter 0.2.4 retains the summary and full transcript in both
+the legacy message `content` and native structured `output`. OpenWebUI 0.11.4
+renders structured output first; updating only `content` leaves the transcript
+saved but invisible. The Filter wraps the existing assistant text parts without
+changing their IDs, annotations, tool traces or reasoning. Changed containers
+are copied so the native outlet detects and persists the update. Check the full
+transcript in the browser immediately after the response and again after reload;
+an administrative chat response containing it is insufficient evidence.
+
 The upload hook recognizes audio and video MIME types, plus known media
 extensions when the MIME type is generic. During preparation, FFmpeg verifies
 that the source has an audio stream; a filename or MIME type alone does not

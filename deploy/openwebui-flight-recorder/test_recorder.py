@@ -12,6 +12,27 @@ spec.loader.exec_module(r)
 
 
 class RecorderTests(unittest.TestCase):
+    def test_atomic_replaces_large_json_without_changing_its_values(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'incident.json'
+            path.write_text('{"previous": true}', encoding='utf-8')
+            value = {'complete': False, 'timeline': [
+                {'kind': 'resources', 'label': 'перезапуск', 'cpu': 1.25, 'missing': None}
+                for _ in range(10000)
+            ]}
+            r.atomic(path, value)
+            self.assertEqual(json.loads(path.read_text(encoding='utf-8')), value)
+            self.assertFalse(path.with_suffix('.tmp').exists())
+
+    def test_atomic_serialization_failure_preserves_previous_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'incident.json'
+            previous = b'{"complete": true, "timeline": []}'
+            path.write_bytes(previous)
+            with self.assertRaises(TypeError):
+                r.atomic(path, {'unsupported': object()})
+            self.assertEqual(path.read_bytes(), previous)
+
     def test_access_does_not_save_payload_query_or_arbitrary_paths(self):
         line = 'INFO: 127.0.0.1 - "POST /v1/officecli/documents/create?token=SECRET HTTP/1.1" 422 Unprocessable Entity PROMPT'
         self.assertEqual(r.access_record(line), {'method': 'POST', 'route': 'documents.create', 'status': 422})
@@ -57,6 +78,34 @@ class RecorderTests(unittest.TestCase):
             store.incident({'action': 'oom', 'container_id': 'test'})
             card = json.loads(next(store.incidents.glob('*.json')).read_text())
             self.assertEqual(card['cause'], 'confirmed_container_oom')
+
+    def test_burst_cards_keep_before_after_history_across_restart(self):
+        with tempfile.TemporaryDirectory() as temp:
+            store = r.Store(temp)
+            before = store.add('access', {'route': 'health', 'status': 200})
+            events = [{'action': action, 'container_id': str(container), 'time_ns': sequence}
+                      for sequence, (container, action) in enumerate(
+                          (container, action) for container in range(4)
+                          for action in ('kill', 'die', 'stop'))]
+            for event in events:
+                store.add('docker', event)
+                store.incident(event)
+                card = next(json.loads(p.read_text()) for p in store.incidents.glob('*.json')
+                            if json.loads(p.read_text())['trigger'] == event)
+                self.assertIn(before, card['timeline'])
+                self.assertFalse(card['complete'])
+            store.add('resources', {'state': 'stopped'})
+            expected = list(store.recent)
+            store = r.Store(temp)
+            store.finish_cards(time.time() + 121)
+            cards = [json.loads(p.read_text()) for p in store.incidents.glob('*.json')]
+            self.assertCountEqual([card['trigger'] for card in cards], events)
+            for card in cards:
+                self.assertTrue(card['complete'])
+                self.assertEqual(card['timeline'], expected)
+                self.assertEqual(card['omitted_rows'], 0)
+                self.assertFalse(card['recent_buffer_full'])
+                self.assertEqual(card['cause'], 'unknown')
 
     def test_retention_removes_expired_and_over_budget_files_only(self):
         with tempfile.TemporaryDirectory() as temp:

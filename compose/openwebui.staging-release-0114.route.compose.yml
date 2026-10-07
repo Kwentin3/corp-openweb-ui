@@ -1,0 +1,13 @@
+# Apply only after release approval, accepted fresh migration and stopping the
+# old WebUI. Existing Traefik/TLS/search remain their current owners.
+services:
+  openwebui-0114:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: openwebui_web
+      traefik.http.routers.openwebui.rule: Host(`${OPENWEBUI_HOST:?Set the existing production hostname}`)
+      traefik.http.routers.openwebui.entrypoints: websecure
+      traefik.http.routers.openwebui.tls: "true"
+      traefik.http.routers.openwebui.tls.certresolver: letsencrypt
+      traefik.http.routers.openwebui.service: openwebui
+      traefik.http.services.openwebui.loadbalancer.server.port: "8080"

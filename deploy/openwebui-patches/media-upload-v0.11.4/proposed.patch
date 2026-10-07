@@ -1,0 +1,163 @@
+--- a/backend/open_webui/storage/provider.py
++++ b/backend/open_webui/storage/provider.py
+@@ -1,3 +1,4 @@
++import hashlib
+ import logging
+ import os
+ import re
+@@ -61,6 +62,28 @@
+ 
+ class LocalStorageProvider(StorageProvider):
+     @staticmethod
++    def upload_file_streaming(file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[int, str, str]:
++        """Persist a native local upload without retaining the whole input."""
++        path = os.path.join(UPLOAD_DIR, filename)
++        digest = hashlib.sha256()
++        size = 0
++        created = False
++        try:
++            with open(path, 'xb') as output:
++                created = True
++                for chunk in iter(lambda: file.read(1024 * 1024), b''):
++                    output.write(chunk)
++                    digest.update(chunk)
++                    size += len(chunk)
++            if not size:
++                raise ValueError(ERROR_MESSAGES.EMPTY_CONTENT)
++        except Exception:
++            if created and os.path.exists(path):
++                os.remove(path)
++            raise
++        return size, digest.hexdigest(), path
++
++    @staticmethod
+     def upload_file(file: BinaryIO, filename: str, tags: Dict[str, str]) -> Tuple[bytes, str]:
+         contents = file.read()
+         if not contents:
+--- a/backend/open_webui/routers/files.py
++++ b/backend/open_webui/routers/files.py
+@@ -42,7 +42,7 @@
+ from open_webui.retrieval.vector.async_client import ASYNC_VECTOR_DB_CLIENT
+ from open_webui.routers.audio import transcribe
+ from open_webui.routers.retrieval import ProcessFileForm, process_file
+-from open_webui.storage.provider import Storage
++from open_webui.storage.provider import LocalStorageProvider, Storage
+ from open_webui.utils.auth import get_admin_user, get_verified_user
+ from open_webui.utils.misc import strict_match_mime_type
+ from pydantic import BaseModel
+@@ -123,6 +123,13 @@
+     if supported is None:
+         return content_extraction_engine == 'external'
+     return bool(content_extraction_engine and _matches_configured_mime_type(supported, content_type))
++
++
++async def _store_upload(file, filename, tags):
++    if isinstance(Storage, LocalStorageProvider):
++        return await asyncio.to_thread(Storage.upload_file_streaming, file, filename, tags)
++    contents, path = await asyncio.to_thread(Storage.upload_file, file, filename, tags)
++    return len(contents), hashlib.sha256(contents).hexdigest(), path
+ 
+ 
+ async def process_uploaded_file(
+@@ -361,6 +368,16 @@
+                     detail=ERROR_MESSAGES.DEFAULT(f'File type {file_extension} is not allowed'),
+                 )
+ 
++        upload_hooks = []
++        if process:
++            from open_webui.models.functions import Functions
++            from open_webui.utils.plugin import get_function_module_from_cache
++            for function in await Functions.get_functions_by_type('event', active_only=True):
++                module, _, _ = await get_function_module_from_cache(request, function.id, function=function)
++                hook = getattr(module, 'accept_upload', None)
++                if callable(hook):
++                    upload_hooks.append(hook)
++
+         # Prefer readable storage names for admins, but fall back if the filesystem rejects it.
+         id = str(uuid.uuid4())
+         name = filename
+@@ -372,7 +389,7 @@
+             'OpenWebUI-File-Id': id,
+         }
+         try:
+-            contents, file_path = await asyncio.to_thread(Storage.upload_file, file.file, filename, tags)
++            size_bytes, computed_hash, file_path = await _store_upload(file.file, filename, tags)
+         except OSError as e:
+             if e.errno != errno.ENAMETOOLONG:
+                 log.exception(e)
+@@ -384,7 +401,7 @@
+             file.file.seek(0)
+             filename = f'{id}.{file_extension}' if file_extension else id
+             try:
+-                contents, file_path = await asyncio.to_thread(Storage.upload_file, file.file, filename, tags)
++                size_bytes, computed_hash, file_path = await _store_upload(file.file, filename, tags)
+             except OSError as e:
+                 log.exception(e)
+                 raise HTTPException(
+@@ -392,7 +409,7 @@
+                     detail=ERROR_MESSAGES.DEFAULT(e.strerror or 'Error uploading file'),
+                 )
+         max_size = await Config.get('rag.file.max_size')
+-        if max_size and len(contents) > int(max_size) * 1024 * 1024:
++        if max_size and size_bytes > int(max_size) * 1024 * 1024:
+             await asyncio.to_thread(Storage.delete_file, file_path)
+             raise HTTPException(
+                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+@@ -401,9 +418,7 @@
+ 
+         # SHA-256 of raw uploaded bytes for incremental sync diffing.
+         # If the client pre-computed and sent file_hash, use that.
+-        file_hash = file_metadata.get('file_hash') or await asyncio.to_thread(
+-            lambda: hashlib.sha256(contents).hexdigest()
+-        )
++        file_hash = file_metadata.get('file_hash') or computed_hash
+ 
+         file_item = await Files.insert_new_file(
+             user.id,
+@@ -418,7 +433,7 @@
+                     'meta': {
+                         'name': name,
+                         'content_type': (file.content_type if isinstance(file.content_type, str) else None),
+-                        'size': len(contents),
++                        'size': size_bytes,
+                         'file_hash': file_hash,
+                         'data': file_metadata,
+                     },
+@@ -433,6 +448,10 @@
+                 await Channels.add_file_to_channel_by_id(channel.id, file_item.id, user.id, db=db)
+ 
+         if process:
++            for hook in upload_hooks:
++                if await hook(file_item.id, user.id):
++                    # Native file.uploaded dispatch starts the registered Event function.
++                    return {'status': True, **file_item.model_dump()}
+             if background_tasks and process_in_background:
+                 background_tasks.add_task(
+                     process_uploaded_file,
+--- a/src/lib/apis/files/index.ts
++++ b/src/lib/apis/files/index.ts
+@@ -92,6 +92,13 @@
+ 		throw error;
+ 	}
+ 
++	if (res && stream && process !== false) {
++		const current = await getFileById(token, res.id);
++		if (current?.data?.stage2_video_intake?.state === 'failed') {
++			throw current.data.error || 'Media preparation failed';
++		}
++		return { ...current, error: res.error };
++	}
+ 	return res;
+ };
+ 
+--- a/src/lib/components/chat/MessageInput.svelte
++++ b/src/lib/components/chat/MessageInput.svelte
+@@ -1029,6 +1029,8 @@
+ 
+ 					fileItem.status = 'uploaded';
+ 					fileItem.file = uploadedFile;
++					fileItem.name = uploadedFile.filename ?? fileItem.name;
++					fileItem.size = uploadedFile.meta?.size ?? fileItem.size;
+ 					fileItem.id = uploadedFile.id;
+ 					fileItem.collection_name =
+ 						uploadedFile?.meta?.collection_name || uploadedFile?.collection_name;

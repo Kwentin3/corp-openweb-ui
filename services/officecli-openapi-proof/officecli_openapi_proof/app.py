@@ -71,6 +71,9 @@ class HelpRequest(BaseModel):
         "Installed CLI discovery: start with docx, xlsx, or pptx for the element catalog; "
         "then FORMAT ELEMENT or FORMAT VERB ELEMENT for exact properties and operations, "
         "e.g. xlsx picture, xlsx remove picture, docx table-cell, pptx chart. "
+        "FORMAT is a placeholder for docx, xlsx or pptx, never a literal topic word: "
+        "use docx paragraph or docx add markdown. Request one topic per call; do not combine "
+        "multiple elements, properties or commands into a single topic. "
         "help lists all commands; FORMAT / lists document-level properties. Bare query/get/view/batch/validate/raw/raw-set returns command usage; FORMAT VERB lists its elements. Request only the needed topic."
     ))
 
