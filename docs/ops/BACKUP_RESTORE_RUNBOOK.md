@@ -1065,6 +1065,64 @@ hold is USD0.17090172; total conservative holds are USD8.77721203, including
 unknown historical costs. The separate USD5 STT allowance is unchanged. Evidence
 is `scoped-route-final-20261007.json` in the existing private operator directory.
 
+### Issue #474: current release preparation, 7 October (cutover pending)
+
+The owner approved the concrete release window of up to 45 minutes, provided
+there is no active work. This approval replaces the pending window approval
+above. Preparation has not started production downtime: the old four services
+remain running; the new four services are stopped with their prepared state
+preserved and public routing disabled. Post-write rollback policy still awaits
+the owner's answer before opening public writes, as required by the main issue.
+
+A fresh source-compatible account/code seed was captured from the running
+0.9.6 source: 23,052,288 bytes, with historical chats, files and corpora omitted.
+Ten protected source/configuration/Compose files totaling 23,127,637 bytes were
+copied off the host and checked byte-for-byte by SHA-256. The final quiesced
+delta is still required; this running-source capture is not its substitute.
+Native 0.11.4 migration preserved the scoped source fields and effective grants.
+The accepted extension registry, unique new service addresses and scoped
+Responses connection were installed through native owners. Original owner
+password sign-in passed on this current target without resets or hash changes.
+
+Model assets need their own restore step. The initial native Hugging Face
+refresh downloaded unused ONNX/OpenVINO/TF/Rust variants of the configured
+`sentence-transformers/all-MiniLM-L6-v2`. Only task-created, unreferenced exports
+in the new model cache were removed; original data and backups were untouched.
+The new environment sets `RAG_EMBEDDING_MODEL_AUTO_UPDATE=false` and
+`RAG_RERANKING_MODEL_AUTO_UPDATE=false`. Native configuration
+`rag.embedding_model` and environment `RAG_EMBEDDING_MODEL` both use the existing
+supported local path:
+
+```text
+/app/backend/data/cache/embedding/models/models--sentence-transformers--all-MiniLM-L6-v2/snapshots/1110a243fdf4706b3f48f1d95db1a4f5529b4d41
+```
+
+This preserves the exact MiniLM snapshot and weights; it is not a new core
+patch or migration of old vectors. For a clean restore, populate that directory
+before boot. Use the pinned image's existing Hugging Face download utility with
+repository `sentence-transformers/all-MiniLM-L6-v2`, revision
+`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`, and `allow_patterns` limited to
+`config.json`, `config_sentence_transformers.json`, `sentence_bert_config.json`,
+`modules.json`, `model.safetensors`, `tokenizer.json`, `tokenizer_config.json`,
+`special_tokens_map.json`, `vocab.txt` and `1_Pooling/config.json`. Preserve the
+relative file layout. A partial repository cache is not sufficient for the
+installed Hugging Face repository-ID resolver, which checks the full snapshot;
+the native local-path resolver avoids that requirement. Restoring SQL and the
+environment alone does not restore these public model assets.
+
+The installed native local-path resolver and actual CPU embedding forward
+(one finite, nonzero 384-dimensional vector) passed with networking disabled.
+Actual OpenWebUI 0.11.4 startup then passed on the same prepared volume and
+qualified image, after which the new service was stopped. Free host disk was
+about 1.65 GB after removal of unused new cache exports. No paid provider call
+or production mutation occurred in these checks.
+
+Current native SearXNG preparation preserves the existing search owner and
+Brave key. One native retrieval returned two nonempty pages and one empty page;
+this is partial evidence, not full search acceptance. Brave was not called.
+Remaining release steps include this search gap, the quiesced delta, recorder
+installation, merge/CD, public routing and a brief product/owner check.
+
 ### Issue #474: historical partial data rehearsal, 6 October (superseded membership)
 
 The owner clarified one mixed-chat exception: retain the ordinary-model message
