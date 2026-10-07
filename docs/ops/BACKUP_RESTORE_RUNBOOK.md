@@ -1118,6 +1118,106 @@ and removal condition; this release is not an unmodified official image.
 Native SearXNG is verified; Brave configuration is preserved but Brave live
 acceptance is not claimed. NDFL #516 remains frozen.
 
+### Follow-up: STT cleanup and pinned service builds, 7 October (production accepted)
+
+The follow-up source removes the STT Filter's obsolete video preparation and
+outlet cleanup branch. Filter v0.2.5 requires 0.11.4, consumes ready audio or its
+native saved transcript, rejects unprepared media without STT, and skips native
+auxiliary tasks. The existing Event Function retains preparation, same-ID
+replacement, retry, cleanup and restart recovery. The approved core patch is
+unchanged. Production now uses v0.2.5 and the qualified STT/Office images below;
+the original migration acceptance above remains historical evidence.
+
+Office/STT Dockerfiles now pin the existing Python 3.11 base index digest
+`sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9`.
+Each service's `requirements.lock` records its own resolved production Python
+dependencies, including build tools, from the accepted images above. The
+different FastAPI versions remain separate. Docker installs the lock first,
+then the local package with `--no-build-isolation --no-deps`, followed by
+`pip check`; missing/conflicting dependencies fail the build. Standard package
+metadata remains the declared compatibility range, while the lock selects the
+release. Avoid bare `pip install .` when rebuilding a release.
+
+Debian and Debian-security repositories use the immutable
+`20261007T000000Z` snapshot; signed metadata/package hash verification remains
+enabled. Only expired snapshot metadata's `Check-Valid-Until` is disabled.
+This fixes package selection, not Docker timestamps or bit-identical image IDs.
+Registry/PyPI/snapshot availability remains an external build dependency.
+Security updates require deliberately advancing the digest/snapshot/locks and
+checking the affected artifact; freezing versions is not automatic security upkeep.
+
+Build using the existing service Dockerfiles. Active CI builds both Linux
+artifacts and qualifies installed OfficeCLI/dependencies and real offline
+MP4/M4A-to-MP3 conversion. It also rejects valid silent video without contacting
+a provider. Fresh CI is recorded on the follow-up PR. Component tests do not
+replace ordinary-user acceptance after installation.
+
+The server-built artifacts use source revision
+`045660d08b31c77fd4947b23c42ecf3a7114af3a`:
+
+- STT: `sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8`.
+- Office: `sha256:ae3b56ad0634dabd0da9e431282db28aa024f835dad500c91401af134bff0c67`.
+- Filter v0.2.5 LF SHA256: `6173fb28481d14ced78e56108385621b7bc08a00c703372e3cd1807f31597b25`.
+
+The release Compose and its existing verifier select these qualified artifacts;
+WebUI and Terminal image selections are unchanged. Both image archives and the
+current production Function/configuration backup are preserved off-host in
+`corp-openweb-ui-474-private/native-debt-release-20261007/`.
+
+Installed STT/dependency/media qualification passed without network access.
+Four real OfficeCLI artifact checks passed with the unchanged production profile:
+0.5 CPU, 1 GiB RAM, 256 PIDs and a 60-second native command timeout. An initial
+operator check using the default 30-second timeout stopped on XLSX range rendering.
+The same representative workbook rendered correctly in both old and candidate
+images with the working 60-second limit; the candidate crop took 40.115 seconds.
+No product timeout/resource setting or test assertion was changed.
+
+On isolated staging, a native password-form session with role `user` uploaded a
+10-second MP4 and used one ordinary Send with tools/search/background tasks off.
+The same File ID became MP3, source cleanup completed, one STT job ran, and the
+short summary plus full cached transcript survived reload. A second valid user
+could not access the File or chat. Model usage was 2,920 input / 66 output tokens;
+the conservative model hold is USD 0.0032175 and unknown STT cost retains USD 0.01.
+Temporary paid-provider access and Filter activation were restored afterwards.
+These checks qualify the staged candidate. The owner subsequently approved this
+specific production release and a window of up to 10 minutes, conditional on no
+active work. The release started at 14:56 UTC on 7 October after native chat tasks,
+pending media and Office processes were confirmed idle. Only the STT and Office
+containers were recreated; native Function source was updated through its API.
+The rollout took 16.876 seconds. WebUI/Terminal container IDs, routes, volumes,
+Function owner/enablement/Valves and native configuration remained unchanged.
+
+The existing owner account signed in through the public site's password form,
+attached an already accepted cached MP3 through the native file picker and used
+one ordinary Send with search/tools off. Summary and full transcript remained
+visible after reload; File bytes and transcript cache were unchanged. No new STT
+job ran. The main model used 9,794 input / 68 output tokens. Native title/tag/
+follow-up settings stayed enabled; their unknown costs retain the full reservation.
+The installed Office image also passed the native OpenWebUI session callback and
+official XLSX help check, without a model call. All four services were healthy,
+with no restarts or OOM. The existing flight recorder recorded both new container
+start events and their exact IDs in fresh resource samples; its source was unchanged.
+
+Before release, preserve the current Function source/Valves and service image
+IDs. For a future release, install Function source through the native API,
+preserving its ID, enablement and Valves. Any new service images require isolated
+qualification and an approved release. This release's narrow rollback uses Filter
+v0.2.4 plus STT `ee7444df...` and Office `3009ae13...`, whose full image IDs are in
+the accepted migration record above and the private window backup. Preserve new
+native chats/files when reverting these two images and Function source; do not
+roll back the database. No schema change or data cleanup was part of this release.
+
+Owned qualification containers and the unused follow-up qualification image were
+removed after their logs/receipts were preserved. Release/rollback images, off-host
+archives, old data and previous working copies were retained. The root filesystem
+still has only about 1 GiB free; broader cleanup needs an explicit selection of
+retained migration archives/data copies and is not claimed complete here.
+
+The public-safe upstream Discussion draft is
+[colocated with the exception](../../deploy/openwebui-patches/media-upload-v0.11.4/UPSTREAM_DISCUSSION.md).
+It separates the generic handoff/metadata gap from bounded local upload writes;
+no upstream PR, publication or maintainer acceptance is claimed.
+
 ### Issue #474: historical release preparation, 7 October (completed above)
 
 The following records the preparation state before the accepted release above.

@@ -30,108 +30,62 @@ def _video_attachment(file_id: str = "video-1", filename: str = "call.mp4") -> d
 
 
 @pytest.mark.asyncio
-async def test_video_is_prepared_stored_as_native_audio_and_only_then_committed(monkeypatch, tmp_path):
+@pytest.mark.parametrize("mime_type", ["video/mp4", "audio/x-m4a"])
+async def test_unprepared_media_fails_without_storage_or_provider_work(monkeypatch, mime_type):
     filter_ = Filter()
     filter_.valves.internal_api_key = "test-token"
     video = _video_attachment()
+    video["content_type"] = mime_type
+    video["file"]["meta"]["content_type"] = mime_type
     body = {"messages": [{"role": "user", "content": ""}], "files": [video]}
     metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [video]}
-    persisted, committed = [], []
-
-    source = tmp_path / "video.mp4"
-    source.write_bytes(b"video-bytes")
-    monkeypatch.setattr(filter_, "_native_upload_path", lambda *_: _async_value(source))
+    original_attachment = copy.deepcopy(video)
+    statuses = []
     monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
     monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))
-    monkeypatch.setattr(filter_, "_mark_transcribed", lambda *_: _async_value(None))
-    async def prepare(**kwargs):
-        kwargs["output_path"].write_bytes(b"mp3")
-        return {"audio_path": kwargs["output_path"], "filename": "call.mp3", "mime_type": "audio/mpeg", "size_bytes": 3}
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("Unprepared media must not read/replace files or invoke STT")
 
-    monkeypatch.setattr(filter_, "_prepare_video", prepare)
+    async def emit(event):
+        statuses.append(event)
 
-    async def store(**kwargs):
-        assert kwargs["prepared"]["audio_path"].read_bytes() == b"mp3"
-        persisted.append(kwargs)
-        return {"file_id": "audio-derived", "filename": "call.mp3", "mime_type": "audio/mpeg", "size_bytes": 3}
+    monkeypatch.setattr(filter_, "_native_upload_path", forbidden)
+    monkeypatch.setattr(filter_, "_call_sidecar", forbidden)
+    monkeypatch.setattr(filter_, "_mark_transcribed", forbidden)
 
-    async def sidecar(**kwargs):
-        assert kwargs["audio_path"].read_bytes() == b"mp3"
-        assert kwargs["filename"] == "call.mp3"
-        return {"result": {"text": "transcript"}}
-
-    async def commit(lifecycle):
-        committed.append(lifecycle)
-
-    monkeypatch.setattr(filter_, "_persist_prepared_audio", store)
-    monkeypatch.setattr(filter_, "_call_sidecar", sidecar)
-    monkeypatch.setattr(filter_, "_commit_video_lifecycle", commit)
-
-    await filter_.inlet(body, __user__={"id": "user-1"}, __metadata__=metadata)
-    assert persisted[0]["source_file_id"] == "video-1"
-    assert metadata["_stage2_video_lifecycle"]["audio_file_id"] == "audio-derived"
-    assert not committed
-    body["messages"].append({"role": "assistant", "content": "summary"})
-    await filter_.outlet(body, __metadata__=metadata)
-    assert committed[0]["source_file_id"] == "video-1"
-    assert committed[0]["audio_file_id"] == "audio-derived"
-
-
-@pytest.mark.asyncio
-async def test_existing_m4a_is_prepared_as_mp3_before_stt(monkeypatch, tmp_path):
-    filter_ = Filter()
-    filter_.valves.internal_api_key = "test-token"
-    audio = _audio_attachment("m4a-1", "meeting.m4a")
-    audio["content_type"] = "audio/x-m4a"
-    audio["file"]["meta"]["content_type"] = "audio/x-m4a"
-    body = {"messages": [{"role": "user", "content": ""}], "files": [audio]}
-    metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [audio]}
-    source = tmp_path / "meeting.m4a"
-    source.write_bytes(b"source-m4a")
-    committed = []
-
-    async def prepare(**kwargs):
-        assert kwargs["mime_type"] == "audio/x-m4a"
-        assert kwargs["envelope"]["selected_output_profile"] == "mp3_high_compat"
-        kwargs["output_path"].write_bytes(b"prepared-mp3")
-        return {"audio_path": kwargs["output_path"], "filename": "meeting.mp3", "mime_type": "audio/mpeg", "size_bytes": 12}
-
-    async def store(**kwargs):
-        assert kwargs["source_file_id"] == "m4a-1"
-        assert kwargs["prepared"]["audio_path"].read_bytes() == b"prepared-mp3"
-        return {"file_id": "mp3-1", "filename": "meeting.mp3", "mime_type": "audio/mpeg", "size_bytes": 12}
-
-    async def transcribe(**kwargs):
-        assert kwargs["filename"] == "meeting.mp3"
-        assert kwargs["mime_type"] == "audio/mpeg"
-        assert kwargs["audio_path"].read_bytes() == b"prepared-mp3"
-        return {"result": {"text": "Meeting transcript"}}
-
-    async def commit(lifecycle):
-        committed.append(lifecycle)
-
-    monkeypatch.setattr(filter_, "_native_upload_path", lambda *_: _async_value(source))
-    monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
-    monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))
-    monkeypatch.setattr(filter_, "_prepare_video", prepare)
-    monkeypatch.setattr(filter_, "_persist_prepared_audio", store)
-    monkeypatch.setattr(filter_, "_call_sidecar", transcribe)
-    monkeypatch.setattr(filter_, "_mark_transcribed", lambda *_: _async_value(None))
-    monkeypatch.setattr(filter_, "_commit_video_lifecycle", commit)
-
-    await filter_.inlet(body, __user__={"id": "user-1"}, __metadata__=metadata)
+    await filter_.inlet(body, __user__={"id": "user-1"}, __metadata__=metadata, __event_emitter__=emit)
     assert body["files"] == []
     assert metadata["files"] == []
-    assert metadata["_stage2_video_lifecycle"]["audio_file_id"] == "mp3-1"
-    body["messages"].append({"role": "assistant", "content": "Summary"})
-    await filter_.outlet(body, __metadata__=metadata)
-    assert committed[0]["source_file_id"] == "m4a-1"
-    assert committed[0]["audio_file_id"] == "mp3-1"
+    assert video == original_attachment
+    assert "Подготовка медиа не завершена" in body["messages"][-1]["content"]
+    assert metadata["_stage2_audio_transcript"] is None
+    assert statuses[-1]["data"]["done"] is True
 
 
 @pytest.mark.asyncio
-async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_from_outbound_files(monkeypatch, tmp_path):
+@pytest.mark.parametrize("task", ["title_generation", "tags_generation", "follow_up_generation", "query_generation"])
+async def test_auxiliary_tasks_leave_media_and_transcript_metadata_untouched(monkeypatch, task):
+    filter_ = Filter()
+    body = {"messages": [{"role": "user", "content": ""}], "files": [_video_attachment()]}
+    metadata = {"task": task, "files": body["files"], "_stage2_audio_transcript": "saved"}
+    before = copy.deepcopy((body, metadata))
+
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("Auxiliary task must not read files, emit statuses or invoke STT")
+
+    monkeypatch.setattr(filter_, "_cached_transcript", forbidden)
+    monkeypatch.setattr(filter_, "_call_sidecar", forbidden)
+    await filter_.inlet(body, __metadata__=metadata, __event_emitter__=forbidden)
+    await filter_.outlet(body, __metadata__=metadata)
+    assert (body, metadata) == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mime_type", ["audio/mpeg", "audio/wav", "audio/webm; codecs=opus", "audio/ogg"])
+async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_from_outbound_files(monkeypatch, tmp_path, mime_type):
     audio = _audio_attachment()
+    audio["content_type"] = mime_type
+    audio["file"]["meta"]["content_type"] = mime_type
     document = {"type": "file", "file": {"id": "pdf-1", "filename": "notes.pdf"}, "name": "notes.pdf", "content_type": "application/pdf"}
     body = {"messages": [{"role": "user", "content": "Что это за разговор?"}], "files": [audio, document]}
     metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [audio, document]}
