@@ -1065,8 +1065,62 @@ hold is USD0.17090172; total conservative holds are USD8.77721203, including
 unknown historical costs. The separate USD5 STT allowance is unchanged. Evidence
 is `scoped-route-final-20261007.json` in the existing private operator directory.
 
-### Issue #474: current release preparation, 7 October (cutover pending)
+### Issue #474: production release accepted, 7 October
 
+The approved release is deployed at `https://gpt.alpha-soft.ru`: the native
+version endpoint returns 0.11.4. PR #551 was merged as
+`323a3a302929a87cac129ec3c6e6df1b6b1bdc03`; its exact reviewed head
+`cc8c1dfd7fd119bbf7261692da0bea552c7fb2de` passed Active CI run 37593190174.
+The existing Traefik/TLS router selects the qualified new WebUI; the four
+qualified release image IDs and separate volumes are unchanged. The original
+four applications are stopped and retained with their original data and copies.
+The release window completed in about 30 minutes; measured application downtime
+until the public native version endpoint recovered was 638 seconds.
+
+Immediately after stopping old writes, native SQLite backup captured the final
+consistent 0.9.6 accounts/code source, including WAL. Five protected files
+totaling 23,104,240 bytes were copied off-host and verified by size and SHA-256.
+Preserved source fields matched the prepared native migration; only activity
+timestamps differed. Password hashes, effective grants, Prompts, Tools and
+Skills were checked against this final source. Historical test chats and
+attachments were omitted; original old data and backups remain untouched.
+The independent protected recovery sets are under the operator's existing
+`corp-openweb-ui-474-private/production-release-backup-20261007/`, including
+`final-quiesced-source/` and `current-native-0114/`. These contain private data
+and are not repository artifacts. Reuse the public model-asset recipe below
+when restoring the native target; SQL/env alone are insufficient.
+
+The existing `openwebui-flight-recorder.service` now runs the qualified source
+SHA-256 `15f32b01afac4ceae6a35985e4ecb567906a3bdab96768e775d1e9e958c4344d`
+with `474-targets.conf`. Its original root/history and resource profile remain.
+Fresh resource samples contain all four current application IDs. Original
+recorder source/unit/drop-ins are preserved in the protected release directory.
+This proves collection, not elimination of every historical overload cause.
+
+One ordinary public browser Send verified original-password form sign-in,
+native search, an official Python source, synthetic attachment content,
+and persistence of the answer/source/file after reload. The owner confirmed
+their ordinary scenario works. All four applications are healthy and database
+integrity/FK checks passed. Temporary title/tag/follow-up task settings and the
+test task-model override were restored through the native config API; normal
+provider enablement remains on. No STT call or repeated Office acceptance suite
+was needed at cutover. Budget accounting retains unknown costs: reserved model
+slots total 259/440, not measured calls, and conservative holds total
+USD9.27434152 within USD16. STT remains a separate USD5 allowance.
+
+After new writes, preserve all new state and repair the new installation first.
+An urgent return to the old product requires a separate owner decision; do not
+automatically discard new chats/files or feed the 0.11.4 database to 0.9.6.
+For later updates, follow the existing pinned-image, isolated-check, backup,
+native-migration and route-switch procedure in this runbook. The separately
+approved media patch remains an explicit exception with its pinned installer
+and removal condition; this release is not an unmodified official image.
+Native SearXNG is verified; Brave configuration is preserved but Brave live
+acceptance is not claimed. NDFL #516 remains frozen.
+
+### Issue #474: historical release preparation, 7 October (completed above)
+
+The following records the preparation state before the accepted release above.
 The owner approved the concrete release window of up to 45 minutes, provided
 there is no active work. This approval replaces the pending window approval
 above. Preparation has not started production downtime: the old four services
