@@ -41,9 +41,12 @@ unprepared MP4/M4A receives `Подготовка медиа не заверше
 replacement or STT calls from the Filter. Cached transcripts remain reusable.
 Native `metadata.task` auxiliary requests leave attachments and transcript
 metadata untouched. Filter v0.2.5 passed an ordinary-user staging upload/Send/reload
-check with one STT job and one primary model request. The current production
-deployment remains v0.2.4 until this follow-up release is approved and installed;
-artifact identities and narrow rollback are in the follow-up section of the
+check with one STT job and one primary model request. The owner-approved production
+follow-up then installed v0.2.5 and the qualified pinned STT image on 7 October.
+A native public-browser Send with an existing cached MP3 preserved the File bytes/
+cache and displayed summary/full transcript after reload, with zero new STT jobs.
+Native auxiliary-task settings and Function Valves were preserved; artifact
+identities and narrow rollback are in the follow-up section of the
 existing backup/upgrade runbook.
 
 Implementation entry points are the

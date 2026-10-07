@@ -1118,15 +1118,15 @@ and removal condition; this release is not an unmodified official image.
 Native SearXNG is verified; Brave configuration is preserved but Brave live
 acceptance is not claimed. NDFL #516 remains frozen.
 
-### Follow-up: STT cleanup and pinned service builds, 7 October (staging qualified)
+### Follow-up: STT cleanup and pinned service builds, 7 October (production accepted)
 
 The follow-up source removes the STT Filter's obsolete video preparation and
 outlet cleanup branch. Filter v0.2.5 requires 0.11.4, consumes ready audio or its
 native saved transcript, rejects unprepared media without STT, and skips native
 auxiliary tasks. The existing Event Function retains preparation, same-ID
 replacement, retry, cleanup and restart recovery. The approved core patch is
-unchanged. Production still uses v0.2.4 until this follow-up release is approved
-and installed; the original migration acceptance above remains historical evidence.
+unchanged. Production now uses v0.2.5 and the qualified STT/Office images below;
+the original migration acceptance above remains historical evidence.
 
 Office/STT Dockerfiles now pin the existing Python 3.11 base index digest
 `sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88740aed1b95ba9`.
@@ -1179,14 +1179,39 @@ short summary plus full cached transcript survived reload. A second valid user
 could not access the File or chat. Model usage was 2,920 input / 66 output tokens;
 the conservative model hold is USD 0.0032175 and unknown STT cost retains USD 0.01.
 Temporary paid-provider access and Filter activation were restored afterwards.
-These checks qualify the staged candidate, not an unperformed production release.
+These checks qualify the staged candidate. The owner subsequently approved this
+specific production release and a window of up to 10 minutes, conditional on no
+active work. The release started at 14:56 UTC on 7 October after native chat tasks,
+pending media and Office processes were confirmed idle. Only the STT and Office
+containers were recreated; native Function source was updated through its API.
+The rollout took 16.876 seconds. WebUI/Terminal container IDs, routes, volumes,
+Function owner/enablement/Valves and native configuration remained unchanged.
+
+The existing owner account signed in through the public site's password form,
+attached an already accepted cached MP3 through the native file picker and used
+one ordinary Send with search/tools off. Summary and full transcript remained
+visible after reload; File bytes and transcript cache were unchanged. No new STT
+job ran. The main model used 9,794 input / 68 output tokens. Native title/tag/
+follow-up settings stayed enabled; their unknown costs retain the full reservation.
+The installed Office image also passed the native OpenWebUI session callback and
+official XLSX help check, without a model call. All four services were healthy,
+with no restarts or OOM. The existing flight recorder recorded both new container
+start events and their exact IDs in fresh resource samples; its source was unchanged.
 
 Before release, preserve the current Function source/Valves and service image
-IDs. Install v0.2.5 through the native Function API, preserving its ID, enablement
-and Valves. Any new service images require isolated qualification and an approved
-release; these source edits do not switch production. Rollback is the previous
-Function source and unchanged Valves plus the previous qualified service images,
-preserving all new native chats/files. No schema change or data cleanup is needed.
+IDs. For a future release, install Function source through the native API,
+preserving its ID, enablement and Valves. Any new service images require isolated
+qualification and an approved release. This release's narrow rollback uses Filter
+v0.2.4 plus STT `ee7444df...` and Office `3009ae13...`, whose full image IDs are in
+the accepted migration record above and the private window backup. Preserve new
+native chats/files when reverting these two images and Function source; do not
+roll back the database. No schema change or data cleanup was part of this release.
+
+Owned qualification containers and the unused follow-up qualification image were
+removed after their logs/receipts were preserved. Release/rollback images, off-host
+archives, old data and previous working copies were retained. The root filesystem
+still has only about 1 GiB free; broader cleanup needs an explicit selection of
+retained migration archives/data copies and is not claimed complete here.
 
 The public-safe upstream Discussion draft is
 [colocated with the exception](../../deploy/openwebui-patches/media-upload-v0.11.4/UPSTREAM_DISCUSSION.md).
