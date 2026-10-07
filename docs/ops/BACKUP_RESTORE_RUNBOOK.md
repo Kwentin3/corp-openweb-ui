@@ -1312,7 +1312,8 @@ cards and reduced profiled CPU time from 30.34 to 3.14 seconds. Candidate source
 SHA-256 is `1ae147e06dc3c48c37d1bac64469ffe93190262a2fd6a1d5aa8ce6bf854c9da0`.
 Ten native tests passed separately. The prepared Active CI addition could not be
 published because GitHub rejected workflow updates without the OAuth `workflow`
-scope. It remains a local proposal; current CI does not run recorder tests.
+scope at that trial. The proposal was subsequently published through the
+existing GitHub connection on 7 October; Active CI now includes recorder tests.
 
 A bounded live trial used that separate source file in the same staging unit
 and root, leaving the shared installed source and production recorder untouched.
@@ -1351,8 +1352,7 @@ stopped normally, original staging source/unit/root/targets were restored, owned
 temporary resources were closed and cold config/registry matched. All thirteen
 old containers and the production recorder remained untouched; no paid calls.
 Memory limit hits persisted without OOM, so long-running headroom is not claimed.
-The prepared workflow inclusion covers eleven tests and remains unpublished
-pending the missing GitHub OAuth scope. Final production target/resource
+The published workflow inclusion covers eleven tests. Final production target/resource
 qualification remains part of the separately approved release.
 
 The same published recorder source then passed a bounded four-service trial
