@@ -1074,6 +1074,8 @@ version endpoint returns 0.11.4. PR #551 was merged as
 The existing Traefik/TLS router selects the qualified new WebUI; the four
 qualified release image IDs and separate volumes are unchanged. The original
 four applications are stopped and retained with their original data and copies.
+This records the cutover state; the later owner-approved retirement below
+supersedes retention of the old runtime, volumes and bulk data copies.
 The release window completed in about 30 minutes; measured application downtime
 until the public native version endpoint recovered was 638 seconds.
 
@@ -1212,11 +1214,64 @@ removed after their logs/receipts were preserved. Release/rollback images, off-h
 archives, old data and previous working copies were retained. The root filesystem
 still has only about 1 GiB free; broader cleanup needs an explicit selection of
 retained migration archives/data copies and is not claimed complete here.
+This records the follow-up release state before the retirement below. Previous
+service image IDs are historical identities; their local Docker presence is no
+longer a rollback assumption after unused-image cleanup.
 
 The public-safe upstream Discussion draft is
 [colocated with the exception](../../deploy/openwebui-patches/media-upload-v0.11.4/UPSTREAM_DISCUSSION.md).
 It separates the generic handoff/metadata gap from bounded local upload writes;
 no upstream PR, publication or maintainer acceptance is claimed.
+
+### Issue #474: owner-approved retirement and final handoff, 7 October
+
+After accepting production, the owner authorized removal of the old test
+environment, historical attachments/corpora and obsolete migration copies.
+Current code/build/Compose recipes are in merged PRs
+[#551](https://github.com/Kwentin3/corp-openweb-ui/pull/551),
+[#556](https://github.com/Kwentin3/corp-openweb-ui/pull/556) and
+[#557](https://github.com/Kwentin3/corp-openweb-ui/pull/557).
+Issue #474 is closed. NDFL remains frozen; its retained code is not an active
+runtime. The approved media exception remains explicit debt, with an upstream
+reply draft only.
+
+Before deletion, protected off-host retention preserved current native SQLite,
+configuration and credentials, complete Git bundles, unpublished patches and
+frozen source snapshots. Archive sizes and SHA-256 values, every retained member,
+and SQLite integrity/foreign keys were verified. These private recovery assets
+are outside public Git. Current media volumes were preserved; this retirement
+does **not** claim a new complete off-host backup of their media payloads.
+
+The two cleanup stages removed six large migration copies, then 30 stopped
+containers, three old volumes, unused images/build cache and obsolete source/
+backup directories. The old 0.9.6 stack and bulk original data are retired and
+cannot be resumed by restarting containers. An incomplete image archive was
+removed as incomplete, not counted as a verified recovery asset.
+
+Shared Traefik/SearXNG/Valkey Compose declarations were retained with exactly
+the same resolved service configurations; only retired application/volume
+declarations were removed. No current container was recreated or restarted.
+All 13 production/staging/shared container identities, images, start/restart
+values and health were preserved; the public version endpoint returned 0.11.4.
+The recorder now targets only the four current production applications. Its
+qualified source and history are preserved; its host service was restarted to
+apply that target list. There were no new model or STT calls.
+
+Final measured root usage was about 31.4 GB used and 69.9 GB available (decimal),
+including filesystem reserve separately. The second stage gained 43.4 GB
+available, after the first stage gained 25.5 GB. Native Docker accounting showed
+seven active images (20.34 GB), 13 active containers and 13 active volumes, with
+no reclaimable images or volumes. Do not add shared build-cache figures twice.
+Swap and recorder history remain useful current assets.
+
+For recovery, preserve current writes and restore the accepted 0.11.4 source/
+image/extension/configuration set using the protected native database and the
+existing model-asset recipe. Verify the chosen backup's date and media coverage
+before restoring: the compact database/code recovery set alone cannot restore
+media payloads. Do not assume the historical two-image rollback or old-product
+restart instructions still have their retired local assets. Returning to 0.9.6
+would require a separate rebuild and compatible historical data decision.
+Future releases need their own fresh backup and rollback selection.
 
 ### Issue #474: historical release preparation, 7 October (completed above)
 

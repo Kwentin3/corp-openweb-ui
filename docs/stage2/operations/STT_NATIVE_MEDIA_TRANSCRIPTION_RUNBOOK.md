@@ -147,12 +147,21 @@ exact large WebM through STT was not performed.
 
 ## Operator checks
 
-From `/opt/openwebui-prd0` on the VPS:
+For the current 0.11.4 production containers on the VPS:
 
 ```text
-docker compose --env-file .env -f compose/openwebui.compose.yml ps openwebui stage2-stt
-docker compose --env-file .env -f compose/openwebui.compose.yml logs --since 15m openwebui stage2-stt
+docker inspect --format '{{.Name}} {{.State.Status}} {{.State.Health.Status}}' openwebui-0114-openwebui-0114-1 openwebui-0114-stage2-stt-0114-1
+docker logs --since 15m openwebui-0114-openwebui-0114-1
+docker logs --since 15m openwebui-0114-stage2-stt-0114-1
 ```
+
+The old `openwebui`/`stage2-stt` applications and their volumes were retired
+with owner approval on 7 October. `/opt/openwebui-prd0` now retains shared
+infrastructure configuration, not those applications. Current release Compose
+is under `/opt/openwebui-upgrade-474/production-release-20261007/compose/`;
+use the pinned release recipe and the current private environment/route overlay
+for lifecycle operations. See the existing
+[retirement and recovery handoff](../../ops/BACKUP_RESTORE_RUNBOOK.md#issue-474-owner-approved-retirement-and-final-handoff-7-october).
 
 Verify the user route through `https://gpt.alpha-soft.ru/` with an ordinary
 account: attach a small M4A and a small video with speech in separate chats,
@@ -169,6 +178,10 @@ container memory and swap before a large-media investigation. Never print
 provider keys, internal tokens, authorization headers, or raw provider payloads.
 
 ## Memory limits
+
+The following is historical 0.9.6 incident evidence, not the current 0.11.4
+deployment recipe. Inspect the current container names above and their native
+cgroup limits, current release Compose and recorder samples for a new incident.
 
 The 2026-09-25 production host has 8 GB nominal RAM and 2 GiB swap.
 OpenWebUI has a 3 GiB RAM limit and a 4 GiB combined RAM-plus-swap limit;
