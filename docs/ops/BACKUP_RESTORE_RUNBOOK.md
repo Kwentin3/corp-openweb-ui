@@ -998,8 +998,8 @@ service DNS and the Office callback resolved to this exact new topology.
 
 A new synthetic file uploaded and downloaded through native routes with exact
 bytes; another ordinary user was denied access. Native deletion returned the
-File count to zero. This proves the backend file lifecycle on the empty seed,
-not owner-password signin or the remaining ordinary browser/provider route.
+File count to zero. This proves the backend file lifecycle on the empty seed;
+the remaining ordinary browser/provider route is a separate acceptance check.
 All four temporary containers, their network and guard were closed; the seed
 was retained. All 13 old container identities stayed unchanged. No paid calls
 or production changes occurred. Final WebUI allocation was 23,416,832 bytes;
@@ -1010,9 +1010,31 @@ inputs and receipts transferred eight files totaling 23,177,402 bytes. SHA-256
 and size readback matched; server source metadata stayed unchanged. The parent
 and all resulting file ACLs permit only the operator, SYSTEM and Administrators.
 The independent database opens with matching account/code counts, empty
-chat/file tables, successful integrity and foreign-key checks. This accepts the
-protected copy and its database readability, not a fresh production snapshot or
-an application boot restored from the workstation copy.
+chat/file tables, successful integrity and foreign-key checks. This is the
+protected rehearsal copy, not a fresh production snapshot.
+
+Those exact eight files were then returned from the protected workstation copy
+to a separate restore root. Hashes and sizes matched before rebasing the private
+Compose/env paths to that root. The tracked release recipe and the same four
+qualified images booted successfully with fresh STT/Terminal directories.
+Native account/code/configuration, service DNS, Office callback, file lifecycle
+and authorization checks passed on the restored installation. This proves
+actual native application recovery from the independent copy, rather than only
+SQLite readability or a server-local working copy.
+
+The designated retained owner's original password succeeded through the native
+signin API and then the actual browser email/password form. The returned account
+and role matched; the browser session survived a reload. No password reset,
+account creation, signed-session injection or localStorage injection was used
+for this signin check. All retained auth/password hashes stayed unchanged.
+Credentials and tokens were used only in memory and were not logged, exported
+or included in public evidence. No model/STT requests were dispatched.
+
+The restored four containers, network, guard and dedicated temporary tunnel
+were closed; the restored data and protected original copy remain intact. All
+13 existing container identities were unchanged. Existing browser contexts and
+the main staging tunnel were preserved. Cold integrity/FK and account/code
+checks passed after shutdown; the restored database remained 23,162,880 bytes.
 
 For a fresh Terminal bind at `/home`, initialize its empty directory for the
 qualified image's native `user` UID/GID (observed 1000:1000) before boot. A
@@ -1022,8 +1044,8 @@ copy old homes or make the directory world-writable. Named-volume initialization
 and private bind preparation remain the native deployment owner's concern.
 
 The fresh release delta concerns accounts, code and configuration. Historical
-chat/file membership is no longer a release gate. Owner-password signin, the
-remaining scoped provider/browser acceptance, protected current release data,
+chat/file membership is no longer a release gate. The remaining scoped
+provider/browser acceptance, protected current release data,
 post-write rollback and separate release/window approval remain required.
 
 ### Issue #474: historical partial data rehearsal, 6 October (superseded membership)
