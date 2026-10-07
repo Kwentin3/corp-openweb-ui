@@ -59,8 +59,13 @@ official OpenWebUI and bring in integration source/configuration incrementally.
 The owner-approved 2 October core-data restore/migration rehearsal passed on
 6 October; its exact scope and limits are recorded below. A fresh coherent
 cutover backup and migration of the current production data remain required.
-The owner's 6 October clarification narrows the target data set: preserve
-ordinary accounts, chats and attachments; exclude Broker Reports/NDFL data.
+The owner's 7 October decision replaces the earlier data membership: preserve
+accounts, password hashes, roles/groups and effective rights, plus Skills,
+Prompts, Harness, Tools/Functions and necessary model/configuration settings.
+Do not transfer historical test chats, notes, result folders, any old
+attachments/transcripts, document corpora, vectors or Terminal working files.
+The previous 45-file ambiguity and mixed-chat exception are superseded.
+New chats/files and transcription still require ordinary product acceptance.
 Keep the broker code work in source control, with #516/NDFL frozen and its
 runtime processing inactive. This supersedes any earlier requirement to copy
 the financial corpus into the new installation; it does not authorize deleting
@@ -966,7 +971,62 @@ migration, and check the changes since rehearsal. Do not deploy the staging DB
 with stale or synthetic records. Agree rollback after new writes before opening
 production writes; retain both the old compatible set and the new state.
 
-### Issue #474: broker-excluding partial data rehearsal, 6 October
+### Issue #474: accounts and code rehearsal, 7 October
+
+The current target is an accounts/code seed, not the older partial chat/file
+selection below. A native-schema working copy from the retained Oct2 rehearsal
+preserves 23 user rows, 15 auth rows/password hashes, two groups, 207 model
+definitions, 64 Prompts with 109 history rows, two Tools, two Skills, 13 Functions
+and native configuration. Account/code rows match the source; the three
+previously accepted Functions remain active and the frozen broker path remains
+inactive. Native resource grants are preserved, except two grants to discarded
+shared chats. One pre-existing membership referencing a missing user/group is
+omitted; all effective memberships for existing accounts/groups match exactly.
+Foreign-key and integrity checks pass. Originals and earlier copies remain
+unchanged.
+
+The compact database is 23,162,880 bytes. Chats, files, chat messages, notes,
+result folders, jobs and historical artifact tables are empty. No old uploads,
+vectors, STT artifacts or Terminal working files were copied. The four qualified
+images and unchanged release recipe booted on their own internal network, with
+no host ports, empty provider keys and provider flags off. All four services
+became healthy. Existing admin/ordinary native signed sessions retained their
+roles; the ordinary user was denied admin config export. Native config export
+matches the accepted registry installation, including its environment-only
+OAuth keys. The ordinary Prompt catalog and accepted Functions were available;
+service DNS and the Office callback resolved to this exact new topology.
+
+A new synthetic file uploaded and downloaded through native routes with exact
+bytes; another ordinary user was denied access. Native deletion returned the
+File count to zero. This proves the backend file lifecycle on the empty seed,
+not owner-password signin or the remaining ordinary browser/provider route.
+All four temporary containers, their network and guard were closed; the seed
+was retained. All 13 old container identities stayed unchanged. No paid calls
+or production changes occurred. Final WebUI allocation was 23,416,832 bytes;
+fresh STT/Terminal storage used 4,096/24,576 bytes, with 737,411,072 bytes free.
+
+A cold protected workstation copy of the database, three env files, Compose
+inputs and receipts transferred eight files totaling 23,177,402 bytes. SHA-256
+and size readback matched; server source metadata stayed unchanged. The parent
+and all resulting file ACLs permit only the operator, SYSTEM and Administrators.
+The independent database opens with matching account/code counts, empty
+chat/file tables, successful integrity and foreign-key checks. This accepts the
+protected copy and its database readability, not a fresh production snapshot or
+an application boot restored from the workstation copy.
+
+For a fresh Terminal bind at `/home`, initialize its empty directory for the
+qualified image's native `user` UID/GID (observed 1000:1000) before boot. A
+root-owned mode-0700 bind caused a verified permission-denied exit; correcting
+only the new empty bind/working directory restored the same container. Do not
+copy old homes or make the directory world-writable. Named-volume initialization
+and private bind preparation remain the native deployment owner's concern.
+
+The fresh release delta concerns accounts, code and configuration. Historical
+chat/file membership is no longer a release gate. Owner-password signin, the
+remaining scoped provider/browser acceptance, protected current release data,
+post-write rollback and separate release/window approval remain required.
+
+### Issue #474: historical partial data rehearsal, 6 October (superseded membership)
 
 The owner clarified one mixed-chat exception: retain the ordinary-model message
 text, including text about broker attachments, but omit the broker-model turns
@@ -1293,17 +1353,20 @@ still belongs to the separately approved release.
 
 Snapshot/migration/release sequence, after separate approval:
 
-1. Recheck idle work, current identities, free space, the agreed data membership
-   and actual deployed env/source/mounts. Prepare a separate working data seed,
-   excluding broker data and regenerable debris while preserving ordinary
-   accounts/chats/attachments and their access/reference integrity, and a
-   protected off-disk destination; the Oct2 rehearsal data is not release data.
+1. Recheck idle work, current identities, free space and actual deployed
+   env/source/mounts. Prepare the agreed accounts/code seed and a protected
+   off-disk destination. Preserve account/password/role/right and integration
+   semantics; historical chats/files/vectors/service artifacts are excluded.
+   The Oct2 rehearsal data is not current release data.
    Estimate the cold delta before requesting a bounded stop window. Abort and
    resume the same old containers if the agreed window cannot be met.
-2. Stop only the four old application containers, capture their coherent final
-   delta including SQLite WAL/SHM, STT payloads and Terminal home permissions, and
-   retain exact original state. Search, Traefik and proxy stay running. Seal hashes
-   and an independent protected copy before migrating the saved working set.
+2. In the separately approved window, stop only the four old application
+   containers and capture the coherent selected account/code/configuration
+   delta, including committed SQLite WAL state. Keep old chats, STT payloads,
+   Terminal homes and existing backups intact on the old side. Search, Traefik
+   and proxy stay running. Seal hashes and an independent protected copy before
+   migrating the selected working set; do not archive the discarded corpus as a
+   prerequisite of this migration.
 3. Boot the fresh working set using the qualified image and native migration.
    Suspend copied work/providers/extensions initially; preserve backup records,
    verify the broker exclusion, then replace/disable only the owned obsolete
@@ -1312,8 +1375,8 @@ Snapshot/migration/release sequence, after separate approval:
    #525 archive without enabling broker processing.
    Install the accepted Tool/Skill/Filters/Event through native owners. Reconcile
    the exact IDs and source hashes with the fresh registry; do not bulk-delete it.
-4. Check current-data deltas, native settings/models/prices, owner password login,
-   designated old chat/files, service callback/DNS and required ordinary product
+4. Check current account/code deltas, native settings/models/prices, owner
+   password login, new allowed test chats/files, service callback/DNS and ordinary product
    routes. A staging-only Responses setting does not authorize blanket changes
    to preserved production connections, user params or 207 model definitions.
 5. Update the existing host recorder's explicit targets to the new four generated
