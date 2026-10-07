@@ -1,0 +1,105 @@
+{
+  "chat": "3821eb0e-abb6-4b5b-87fe-ac1a5a5d3c8b",
+  "original_chat": "3ae7c644-68a9-4857-8d3b-4476f3e14a7e",
+  "done": true,
+  "files": [
+    {
+      "id": "5f732749-2889-4f4e-9071-ee986cc17beb",
+      "bytes": 77103,
+      "sha256": "9a1e532323e98e72e856ee432ca3abf4646fa4580c64d04b4b82de016781bf4f"
+    },
+    {
+      "id": "c27c0023-965b-4512-b43a-7372ee629bf8",
+      "bytes": 76151,
+      "sha256": "30350f70d3977572f07daf73402d6f1b78483a9923b7c79572f4fb3fbcc7be07"
+    }
+  ],
+  "calls": [
+    {
+      "name": "inspect_office_document",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb"
+    },
+    {
+      "name": "load_officecli_skill"
+    },
+    {
+      "name": "inspect_office_document",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb",
+      "error": "HTTP error 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"command_payload\",\"mode\"],\"msg\":\"Input should be 'annotated'\",\"input\":\"text\",\"ctx\":{\"expected\":\"'annotated'\"}}]}"
+    },
+    {
+      "name": "inspect_office_document",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb",
+      "error": "HTTP error 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"command_payload\",\"command\"],\"msg\":\"Input should be 'view'\",\"input\":\"get \\\"/body/tbl[1]\\\" --depth 3\",\"ctx\":{\"expected\":\"'view'\"}}]}"
+    },
+    {
+      "name": "view_knowledge_file",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb"
+    },
+    {
+      "name": "get_officecli_help"
+    },
+    {
+      "name": "get_officecli_help"
+    },
+    {
+      "name": "grep_knowledge_files",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb"
+    },
+    {
+      "name": "view_knowledge_file",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb"
+    },
+    {
+      "name": "view_knowledge_file",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb"
+    },
+    {
+      "name": "get_officecli_help"
+    },
+    {
+      "name": "view_knowledge_file",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb"
+    },
+    {
+      "name": "apply_office_batch",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb",
+      "commands_count": 48,
+      "error": "Atomic rollback after an unobserved paragraph path; native model corrected the next call"
+    },
+    {
+      "name": "apply_office_batch",
+      "file_id": "5f732749-2889-4f4e-9071-ee986cc17beb",
+      "commands_count": 48,
+      "result_file_id": "c27c0023-965b-4512-b43a-7372ee629bf8",
+      "source_file_id": "5f732749-2889-4f4e-9071-ee986cc17beb",
+      "result_sha256": "30350f70d3977572f07daf73402d6f1b78483a9923b7c79572f4fb3fbcc7be07"
+    }
+  ],
+  "checks": {
+    "paragraphs": 178,
+    "tables": 10,
+    "rows": 50,
+    "cells": 129,
+    "preserved_question_cells": 47,
+    "changed_first_column_answer_cells": [
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        3
+      ],
+      [
+        9,
+        2
+      ]
+    ],
+    "fake_candidate_present": true,
+    "table_cell_formatting_preserved": true,
+    "body_headings_preserved": true,
+    "protected_package_parts_preserved": true
+  },
+  "scope": "Original private binaries are excluded from Git; native history and private download were inspected locally."
+}

@@ -1,219 +1,150 @@
 # Extension-First Implementation Pattern
 
-## 1. Principle
+## Principle and current authority
 
-**Расширяем возможности OpenWebUI, не превращая его ядро в нашу кодовую базу.**
+Use the simplest existing owner that preserves the agreed user outcome and
+keeps OpenWebUI updates reproducible. The current upgrade scope and permissions
+are defined by [issue #474](https://github.com/Kwentin3/corp-openweb-ui/issues/474),
+revision 2026-10-02. Historical implementations are evidence, not instructions
+to carry their patches into a new version.
 
-Постоянное архитектурное правило для всех новых Tools, Functions, интеграций и
-пользовательских возможностей. Применяется с первого обсуждения задачи и
-постановки GOAL, а не только перед обновлением или после написания кода.
-Уточнено владельцем 2026-09-13 в контексте [#474](https://github.com/Kwentin3/corp-openweb-ui/issues/474).
+This is a standing rule for new Tools, Functions, integrations and user features,
+starting with the first design discussion, as agreed by the owner on 13 September
+in #474. It does not authorize a mass rewrite of accepted integrations or grant
+production, provider, patch or merge permissions for another task.
 
-OpenWebUI остаётся upstream-продуктом. Наша предметная логика изолирована;
-подключение к оболочке минимально и использует предусмотренные контракты.
-Сохраняем пользовательский результат, а не каждый исторический обход.
+Evaluate solutions in this order:
 
-### Preferred order
+1. Existing component and native OpenWebUI settings or capabilities.
+2. Documented Tools, Functions, OpenAPI connections, events and server APIs,
+   verified against the selected release.
+3. A thin adapter to an existing domain service where a real gap requires it.
+4. An existing external alternative when the native mechanism is insufficient.
+5. New code only for the remaining demonstrated gap.
 
-1. **Штатная возможность или настройка.** Проверить, не решает ли задачу сам
-   OpenWebUI, включая уже выпущенное исправление. Сверять документацию с
-   выбранной версией и поведением, не считать наличие функции доказательством
-   её пригодности для нашего сценария.
-2. **Предусмотренное расширение или API.** Functions / Actions / Filters /
-   Tools / OpenAPI Tool Servers и другие подтверждённые точки расширения.
-   Предметная логика живёт в изолированном модуле или существующем сервисе;
-   отдельный sidecar добавляется только при реальной необходимости.
-3. **Минимальный согласованный патч.** Только когда предыдущие варианты не
-   закрывают нужный результат либо требуют несоразмерной собственной системы.
-   Конкретное вмешательство сначала обосновать и отдельно согласовать по
-   разделу 6. Одобрение задачи или этого паттерна не одобряет будущие патчи.
+A loader, Function or sidecar name does not establish native compatibility.
+DOM/fetch interception, compiled frontend changes, route replacement, modules
+copied into the core and runtime dependency installation remain modifications
+or internal dependencies. Do not conceal them inside an extension.
 
-Нативность — способ снизить стоимость сопровождения, не требование нуля
-собственного кода любой ценой. Работающий движок не переписывается ради
-формальной чистоты; небольшая проблема не оправдывает новую платформу.
+Distinguish a supported extension contract, an internal dependency such as a
+native model/Storage import or direct table read, and a behavior patch such as
+frontend interception or monkey-patching. A small file or separate directory
+does not change that classification. Prefer a supported API and isolate any
+necessary internal dependency in one version-specific adapter.
 
-### First design decision
+In the existing issue/PR, briefly connect the user outcome, extension seam,
+domain owner, version dependencies, disablement and next-upgrade check. A few
+sentences suffice for a simple integration; do not create a parallel registry
+or ADR for every feature. Disabling a capability may remove that capability,
+but must preserve ordinary chat, shared data, permissions and independent domains.
 
-В существующей issue/PR кратко зафиксировать: **пользовательский результат →
-выбранная точка расширения → граница нашего модуля → зависимости от версии →
-как проверяются отключение и следующее обновление**. Для простого штатного
-подключения достаточно нескольких предложений; отдельный аудит, ADR или
-реестр на каждую возможность не нужен.
+## Ownership and boundaries
 
-Отключение расширения не должно ломать базовую работу OpenWebUI или соседние
-домены. Потеря самой отключённой возможности ожидаема; повреждение общих данных,
-прав или чужих сценариев — нет. Зависимости и ограничения объявляются явно.
+OpenWebUI owns authentication, permissions, chats, files, attachments and the
+model/tool loop. Use the context and access checks provided by the selected
+version's native extension contract. Keep an internal Python dependency inside
+one narrow adapter and state its supported versions.
 
-### Classify the actual coupling
+Existing OfficeCLI, STT and Terminal services retain their domain work. Adapters
+translate transport and representations; they do not duplicate document
+semantics, provider dispatch, user registries or file storage. Prompts/Skills
+carry reusable instructions. A normal Prompt is sufficient for the transcript
+summary and meeting-minutes templates; do not add a catalog reader for them.
 
-- **Штатное расширение:** подтверждённая точка подключения и её контракт.
-- **Зависимость от внутренних деталей:** прямое чтение таблиц БД, импорт
-  внутренних моделей/методов, обход структуры истории, DOM-селекторы. Даже без
-  изменения upstream-файлов это риск обновления: локализовать в тонком адаптере,
-  указать версию и проверку совместимости, предпочесть поддерживаемый API.
-- **Патч поведения:** изменение upstream backend/frontend, подмена
-  `window.fetch`, monkey-patch обработчиков, правка собранных chunks или
-  вмешательство при сборке/старте/работе вне предусмотренного контракта.
-  Применяются правила управляемого исключения из раздела 6.
+Do not introduce another agent loop, universal gateway or a service per small
+operation. Compatible components need no rewrite for architectural appearance.
 
-Отдельная папка, Function, loader, Docker-образ или sidecar сами по себе не
-доказывают нативность. Маленький размер кода также не делает патч расширением.
-Этот документ задаёт порядок выбора и согласования для упоминаемых в связанных
-документах `thin static/UI shims` и `minimal integration patches`; само такое
-упоминание не является разрешением вмешиваться в ядро.
+## Current STT reference and migration boundary
 
-## 2. Why
-
-- Preserves OpenWebUI updateability.
-- Keeps users in native OpenWebUI UX.
-- Keeps domain logic isolated.
-- Avoids provider keys in browser.
-- Allows admin-side configuration through valves/settings where possible.
-- Reduces merge burden.
-
-**Критерий результата:** следующий агент воспроизводит комплект
-`upstream + расширения + согласованные исключения` по Git и короткой инструкции,
-а следующее обновление не начинается с расследования содержимого контейнера.
-Это не обещание отсутствия адаптаций между версиями.
-
-## 3. STT Reference Implementation
-
-Исторический STT MVP иллюстрирует разделение UI, Action, предметного сервиса и
-провайдера, но не является безусловным шаблоном для переноса loader на новые
-версии:
+The accepted source workflow is documented in
+[STT Native Media Transcription Runbook](operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md):
 
 ```text
-static loader UX shim + Action Function + private sidecar + provider adapter
+ordinary chat attachment
+-> native File upload
+-> server preparation of recognized media into MP3 before Send
+-> wait for preparation when Send is pressed early
+-> ordinary-chat audio Filter
+-> existing STT service and Lemonfox provider
+-> persisted transcript and ordinary chat result
 ```
 
-Implemented path:
+This is a source contract; deployed identity and product acceptance must be
+checked separately. Microphone dictation is a distinct workflow. The older
+Transcribe Action and browser ffmpeg.wasm implementation are historical and
+must not become the target specification.
 
-```text
-OpenWebUI media attachment
--> static loader Transcribe action
--> browser ffmpeg.wasm normalization when needed
--> OpenWebUI process=false prepared-audio upload
--> OpenWebUI Action Function
--> private stage2-stt sidecar
--> Lemonfox adapter
--> transcript returned to OpenWebUI composer/chat UX
-```
+The current media preparation uses version-specific core/frontend overlays.
+For a new official image, first prove what its native mechanisms preserve:
+preparation before Send, waiting, agreed retries and cleanup, persistent
+attachments, cached transcription and recovery after interruption. A notification
+after upload does not by itself prove that processing can be intercepted before
+it happens. If a native replacement loses a guarantee, report the exact gap and
+minimal options before changing the contract.
 
-Historical status:
+The accepted 0.11.4 release uses the approved four-file media exception and
+`stage2_media_intake` Event Function, with Filter v0.2.5 consuming prepared audio
+or its stored transcript. The Event Function is the only preparation/retry/
+cleanup owner. This remains an exception requiring a custom image and internal
+File/Storage compatibility checks; upstream publication or acceptance is not
+claimed. Current acceptance and retained recovery assets are recorded in the
+[backup/upgrade runbook](../ops/BACKUP_RESTORE_RUNBOOK.md).
 
-```text
-Stage 2 STT MVP: implemented/proven/current-stage closed.
-```
+## Changes requiring an owner decision
 
-Не переоткрывать принятую продуктовую работу и не перепроектировать STT с нуля.
-При обновлении отдельно проверить способ подключения: наличие работавшего
-loader не доказывает стабильного контракта DOM/fetch. Проверка совместимости
-не даёт разрешения переписывать движок или менять production.
+Issue #474 requires separate approval before introducing a new patch, including
+on staging. Supply the demonstrated gap, tested alternatives, exact diff and
+scope, pinned versions, Git history, reproducible application, test, rollback
+and removal condition. An approved exception remains an exception.
 
-## 4. What Belongs Where
+For every controlled exception, retain its stable identifier, affected files
+and behavior, owner decision, upstream version and exact commit/image digest.
+Keep the patch, required dependencies and reproducible build recipe in Git.
+Record focused checks, rollback and a concrete condition for removal alongside
+the patch or in the existing PR, preserving adaptation history in Git.
 
-OpenWebUI native UI / approved thin integration:
+Apply the patch to the pinned candidate during preparation/build. Unknown
+versions, ambiguous signatures, partial application or a mismatched starting
+state must stop preparation; never silently skip a patch or repair a running
+container by hand. Reapplication must recognize the exact already-applied state
+or fail without partial changes.
 
-- visible UX affordance;
-- browser-only preprocessing if needed;
-- progress/status;
-- calls through confirmed OpenWebUI APIs/events;
-- any non-contractual UI intervention is an explicit section 6 exception,
-  not a default loader requirement.
+On every upgrade, first check whether a native replacement now preserves the
+required outcome. Remove a redundant exception after a focused check; otherwise
+explicitly qualify its necessity and compatibility on the isolated candidate.
+An unchanged-scope transfer may be covered by an explicitly authorized upgrade,
+but #474's separate-patch approval rule takes precedence for that task. Expanding
+meaning or scope requires a new decision. A deep fork needs a separate owner
+decision; approval of a narrow patch does not authorize one.
 
-Function / Action / Tool / API adapter:
+Keep domain semantics outside upstream files. Native integration is a means of
+reducing maintenance, not a reason to build a large replacement subsystem merely
+to avoid acknowledging a small justified exception.
 
-- OpenWebUI context bridge;
-- admin-configured valves/settings where available;
-- thin wrapper;
-- explicit input/output and authorization contract;
-- calls the isolated domain module or service.
+Replace a historical path only after its replacement proves the same required
+result. A temporary Terminal link or preview does not replace a permanent chat
+attachment with permissions, download and continuation from the latest version.
+Remove obsolete integration hooks while retaining historical files and data.
+Retirement of historical data/runtime follows the owner's explicit selection;
+the completed #474 retirement is recorded in the backup/upgrade runbook.
 
-Domain module / sidecar when needed:
+## Verification and updateability
 
-- provider keys;
-- provider adapters;
-- domain contracts;
-- validation;
-- storage/retention;
-- job state;
-- transcript/result normalization.
+Check a small complete slice through the ordinary user route and inspect its
+actual result. Administrative HTTP success, mocks and green CI alone do not
+qualify the user workflow. Respect auxiliary-task boundaries and the applicable
+provider budget; do not substitute another model to obtain a PASS.
 
-Provider:
+Pin the official image version and digest. Recreating that container and
+installing only declared extensions must reproduce the accepted state. Check
+that disabling an extension preserves ordinary chat and independent features.
+State any remaining internal dependencies and approved exceptions explicitly.
 
-- external service only.
-
-## 5. Anti-Patterns
-
-- Separate user-facing sidecar GUI for MVP.
-- Direct browser-to-provider calls.
-- Provider keys in frontend.
-- Deep fork as first move.
-- Hidden magic LLM trigger as only UX.
-- Reading OpenWebUI private storage/database as an undocumented product
-  contract.
-- Broad rewrites of OpenWebUI UI when a supported Action/API is enough.
-- Calling a DOM/fetch interceptor native merely because it is loaded through
-  an existing script slot or packaged as a plugin.
-- Domain logic embedded in upstream files or shared browser interception.
-- Manual repairs or dependency installations inside a running container that
-  are absent from the versioned build recipe.
-- Automatically carrying old patches into a new release, silently skipping a
-  failed patch, or guessing a replacement signature.
-- A large custom subsystem built solely to avoid acknowledging one small,
-  justified patch.
-
-## 6. Controlled Patch Exceptions
-
-Патч допустим как узкое, видимое и воспроизводимое исключение. Его область —
-минимальный стык или исправление, необходимое для пользовательского результата;
-предметная логика остаётся за этим стыком в нашем модуле.
-
-### Before application
-
-В существующей issue/PR либо коротком описании рядом с патчем сохранить:
-
-- **Зачем:** пользовательская проблема, проверенные штатные альтернативы и
-  почему они недостаточны; ссылка на решение владельца по конкретному патчу.
-- **Где:** устойчивый идентификатор патча, затронутые файлы/поведение, версия
-  upstream и точная проверенная идентичность сборки (commit или digest).
-- **Как:** воспроизводимое применение, проверка исходного состояния и результата,
-  узкие тесты нужного поведения и отсутствия нежелательного влияния на соседние
-  сценарии, способ отмены.
-- **Когда убрать:** проверяемое условие удаления; upstream issue/fix, если есть,
-  либо конкретный критерий появления штатной замены. Историю адаптаций и
-  проверенных версий сохранять в Git/PR, не только в переписке.
-
-Код патча, необходимые зависимости и рецепт сборки находятся в Git. Для
-небольшого набора патчей достаточно существующих файлов и коротких описаний;
-новая система учёта, отдельный сервис или тяжёлый реестр не требуются.
-
-### Application and upgrade
-
-1. Применять патч к закреплённому кандидату при сборке/подготовке, не ремонтировать
-   вручную рабочий контейнер. Проверять точную ожидаемую область изменения.
-2. Неизвестная версия, несовпадение исходного состояния, частичное применение или
-   неоднозначность останавливают подготовку/проверку. Нельзя молча пропустить
-   патч, расширить поиск «похожего» места или объявить комплект совместимым.
-   Повторный запуск допускает только проверенное состояние «уже применён» либо
-   явный отказ без побочных изменений.
-3. На каждой новой версии сначала проверить, нужен ли патч вообще. Если штатное
-   решение уже сохраняет нужный результат — удалить патч после проверки.
-   Иначе перенести/адаптировать явно, проверить на изолированном кандидате и
-   записать новую проверенную версию. Старое согласование не разрешает расширять
-   область вмешательства или выдавать совместимость без проверки.
-4. Перенос неизменного по смыслу и области согласованного патча выполняется в
-   рамках явно разрешённой задачи обновления; изменение смысла/области требует
-   нового согласования. Частные ограничения текущей задачи имеют приоритет.
-5. Откат возвращает весь согласованный комплект. Если изменились схема БД или
-   данные, снятие патча либо возврат Docker-тега не заменяет восстановление
-   совместимого снимка. Production, merge и миграции требуют своих полномочий.
-
-При невозможности сохранить патч узким требуется отдельное архитектурное
-решение владельца. Разрешение минимального патча не является разрешением
-глубокого форка или переноса предметной логики в upstream.
-
-Постоянное правило не запускает массовую переделку существующих интеграций.
-Существующие вмешательства пересматриваются в рамках явно поставленной задачи;
-проверки данных, прав и иных обязательных ограничений нельзя ослаблять ради
-нативности или патча.
+Use the existing Compose/installers and deployment runbooks. Test restoration
+before migrating copied data. Production downtime, merge/CD and cutover require
+the release/window decision specified by #474. Keep the old compatible data
+and runtime through the agreed rollback window; switching an image tag cannot
+undo a schema migration. After the owner authorizes retirement, use the verified
+retained recovery set and current source/build recipe. The removed 0.9.6 stack
+is no longer a restart target. Preserve new writes before any recovery.

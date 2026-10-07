@@ -1,0 +1,58 @@
+{
+  "chat": "5ccf3224-2676-4d4c-a62f-f66f090e7fdd",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "0df9cfa0-2328-413d-9a3a-4587d6fdc9ef",
+      "role": "user",
+      "files": [
+        {
+          "id": "a1074740-e56d-49bf-8c09-891311dfaddd",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "edf7dccf-2489-4ecc-aed1-def30c139b53",
+          "name": "feb.xlsx"
+        }
+      ],
+      "calls": []
+    },
+    {
+      "id": "45c4ff43-5aa4-4da7-ae5d-6e83ee202afa",
+      "role": "assistant",
+      "model": "gpt-6-sol",
+      "done": true,
+      "files": [
+        {
+          "id": "6c12a972-7d61-4f23-9d41-842bc073ef20",
+          "name": "sales-g6s-fixed.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+          "bytes": 4561
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "a1074740-e56d-49bf-8c09-891311dfaddd",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "edf7dccf-2489-4ecc-aed1-def30c139b53",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "6c12a972-7d61-4f23-9d41-842bc073ef20",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    }
+  ]
+}

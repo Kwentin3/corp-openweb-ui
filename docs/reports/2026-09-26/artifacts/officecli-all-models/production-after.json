@@ -1,0 +1,23 @@
+{
+  "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
+  "image": "corp-openwebui/openwebui:officecli-all-models-release-20260926",
+  "state": "running",
+  "health": "healthy",
+  "started": "2026-09-26T09:28:10.024142081Z",
+  "restart_count": 0,
+  "mounts_preserved": true,
+  "officecli_started": "2026-09-25T07:12:10.924851271Z",
+  "officecli_restarts": 0,
+  "protocol": {
+    "runtime": "OpenWebUI 0.9.6",
+    "original": {
+      "middleware.py": "861978ea80b69c4201c0742d1401691834ea7202e75d4eb47250ac0c14af2ea9",
+      "misc.py": "636d5aa53907733def4999677f1720d5d0a900934c67d3e88f115584d2ba9db8"
+    },
+    "patched": {
+      "middleware.py": "4351fa40adc5818d9ade0021d85b809c887b854db358c9830a644e358979e8ff",
+      "misc.py": "9b61093979226fcf55ebedba835d35856afdf58dc6a8413aef8c088fa0d081ce"
+    },
+    "helper_sha256": "7be9364d5cffb991426faeef8dab5f6da464534056fefdfc2f32822e3923b4fb"
+  }
+}

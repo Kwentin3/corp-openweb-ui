@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "model": "gpt-6-luna",
+      "role": "admin",
+      "receipt": "g6l-receipt.json",
+      "workbook": "sales-g6l-fixed.xlsx",
+      "sha256": "fb2000b9db1c9b5f740eb3ee5428e8771f683f8dee878340a22e30e3a9963372",
+      "source_cells_formulas_topology_totals": "PASS",
+      "totals": [
+        350,
+        550
+      ]
+    },
+    {
+      "model": "gpt-6-sol",
+      "role": "admin",
+      "receipt": "g6s-receipt.json",
+      "workbook": "sales-g6s-fixed.xlsx",
+      "sha256": "1ed989d7a21e8543cc2c952ba1a3827ee307c64e9a44df258f3218bab8b9de9c",
+      "source_cells_formulas_topology_totals": "PASS",
+      "totals": [
+        350,
+        550
+      ]
+    },
+    {
+      "model": "claude-opus-5-5",
+      "role": "admin",
+      "receipt": "c55-receipt.json",
+      "workbook": "sales-c55.xlsx",
+      "sha256": "bbf48c70ce8ca1f275751cc2d0063a13ffaa50dab86e341d6e0282aa53f880e2",
+      "source_cells_formulas_topology_totals": "PASS",
+      "totals": [
+        350,
+        550
+      ]
+    }
+  ]
+}

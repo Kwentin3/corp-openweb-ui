@@ -1,0 +1,91 @@
+{
+  "chat": "b14feb04-91ca-4a18-9b3d-de4e72c4f070",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "9ecf2522-692c-4c3c-a286-0933a097d564",
+      "role": "user",
+      "files": [
+        {
+          "id": "af16d76f-288a-4e5f-9d80-d6dad8a2376b",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "e76ac275-7126-44e2-9a01-72e4b8d8f514",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "27d19886-6b16-40a8-9e9a-88418e776581",
+      "role": "assistant",
+      "model": "claude-sonnet-4-6",
+      "done": true,
+      "files": [
+        {
+          "id": "49b67529-6c50-49c6-87a9-33b01c51ad53",
+          "name": "sales-sonnet-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 4565
+        }
+      ],
+      "sources": [
+        {
+          "id": "af16d76f-288a-4e5f-9d80-d6dad8a2376b",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "af16d76f-288a-4e5f-9d80-d6dad8a2376b"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "e76ac275-7126-44e2-9a01-72e4b8d8f514",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "e76ac275-7126-44e2-9a01-72e4b8d8f514"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "af16d76f-288a-4e5f-9d80-d6dad8a2376b",
+          "google_signature_present": false
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "e76ac275-7126-44e2-9a01-72e4b8d8f514",
+          "google_signature_present": false
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "49b67529-6c50-49c6-87a9-33b01c51ad53",
+          "commands_count": 30,
+          "google_signature_present": false
+        }
+      ]
+    }
+  ]
+}

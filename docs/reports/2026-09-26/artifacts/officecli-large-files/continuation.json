@@ -1,0 +1,12 @@
+{
+  "from_model": "gpt-5.4-mini",
+  "to_model": "claude-sonnet-4-6",
+  "same_chat": true,
+  "reupload": false,
+  "native_tool_calls": [
+    "compose_office_spreadsheets"
+  ],
+  "downloaded_artifact": "PASS",
+  "attachment_after_reload": true,
+  "other_user_heavy_file_http_status": 404
+}

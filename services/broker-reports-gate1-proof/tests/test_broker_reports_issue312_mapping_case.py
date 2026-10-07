@@ -167,8 +167,18 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
     actual_scope = cases.case_binding(document_id=document_id, context=context)[
         "user_scope_sha256"
     ]
+    response = _complete(table, mapping)
+    decision = response["table_decisions"][0]
+    roles_by_column = {
+        item["column"]: item["semantic_role"] for item in decision["columns"]
+    }
+    assert [item["amount_column"] for item in decision["amount_currency_bindings"]] == [
+        column
+        for column, role in roles_by_column.items()
+        if role in {"gross_amount", "broker_commission", "exchange_commission"}
+    ]
     outcome = semantic.validate_mapping_response(
-        response=_complete(table, mapping),
+        response=response,
         canonical=canonical,
         canonical_binding=binding,
         model_id="models/gemini-3.5-flash",
@@ -201,6 +211,47 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
     assert projection["qualified_table_resolutions"][0]["disposition"] == (
         "SECURITY_TRADES"
     )
+
+
+def test_mapping_boundary_rejects_extra_non_tax_amount_currency_bindings(
+    tmp_path,
+) -> None:
+    """The model response stops before qualification when it binds non-tax amounts."""
+
+    _store, context, document_id, canonical, binding, table, mapping = _unknown_case(
+        tmp_path
+    )
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    cases = OrdinaryTradeMappingCaseFactory(store=_store, read_enabled=True).create()
+    actual_scope = cases.case_binding(document_id=document_id, context=context)[
+        "user_scope_sha256"
+    ]
+    response = _complete(table, mapping)
+    decision = response["table_decisions"][0]
+    columns_by_role = {
+        item["semantic_role"]: item["column"] for item in decision["columns"]
+    }
+    decision["amount_currency_bindings"].extend(
+        {
+            "amount_column": columns_by_role[role],
+            "currency_column": columns_by_role["currency"],
+        }
+        for role in ("unit_price", "accrued_interest")
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as error:
+        semantic.validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256=actual_scope,
+        )
+
+    assert error.value.code == "ordinary_trade_semantic_mapping_currency_binding_invalid"
 
 
 def test_recognized_incomplete_trade_is_retained_as_source_gap_not_pipeline_defect(

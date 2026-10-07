@@ -194,6 +194,8 @@ OpenWebUI 0.9.6 пока не имеет per-model upload-processing policy. П�
 
 ## 14. Проверить LLM-ответ
 
+Если clean VPS должен включать OfficeCLI, после базовой проверки провайдера выполнить раздел **Clean VPS: порядок восстановления** из [officecli-openapi-docx-release.md](../infra-ops/officecli-openapi-docx-release.md). Source Filter и sidecar входят в skeleton репозитория; секреты и состояние OpenWebUI не входят.
+
 Администратор или тестовый пользователь задает простой рабочий вопрос.
 
 Ожидаемо:
@@ -203,6 +205,35 @@ OpenWebUI 0.9.6 пока не имеет per-model upload-processing policy. П�
 - ответ сохраняется в истории.
 
 ## 15. Проверить persistence
+
+### Профиль памяти рабочего хоста
+
+После увеличения RAM хоста до 8 ГиБ рабочий OpenWebUI 2026-09-26 получил
+`mem_limit: 6g`, `memswap_limit: 7g`, `mem_reservation: 1g`.
+Это подтверждено и в `docker inspect`, и в сохранённом
+`/opt/openwebui-prd0/compose/openwebui.compose.yml`. `memswap_limit` задаёт сумму
+RAM и swap, то есть контейнеру доступен максимум 1 ГиБ swap сверх RAM.
+Reservation — мягкий порог, а не дополнительная память.
+
+При восстановлении этого хоста из skeleton явно задать в приватном `.env`
+`OPENWEBUI_MEMORY_LIMIT=6g` и `OPENWEBUI_MEMORY_SWAP_LIMIT=7g`, а reservation
+сохранить как `mem_reservation: 1g` в deployment override для сервиса `openwebui`.
+Общие defaults репозитория (3g/4g) не являются профилем этого увеличенного хоста.
+Для другого размера хоста лимиты выбирать отдельно, оставляя память ОС и sidecars.
+Сверять сохранённый Compose с текущим контейнером: один `docker update` не обновляет
+декларацию следующего запуска. Ради проверки документации рабочий контейнер
+перезапускать не нужно.
+
+### Самописец и проверка сохранности
+
+На новом хосте до проверки restart установить
+[самописец OpenWebUI](../infra-ops/openwebui-flight-recorder.md#установка--обновление)
+и убедиться, что `status.json` обновляется. Это отдельный host systemd service;
+он сохраняет историю ресурсов, Docker/kernel-событий и карточки до/после перезапуска.
+Для уже работающей системы использовать раздел «Просмотр» того же runbook;
+повторять restart ради диагностики не требуется. Историю инцидентов не включать
+в публичный Git. При переносе хоста заново установить сервис из исходников;
+живая история остаётся приватными эксплуатационными данными.
 
 ```bash
 docker compose --env-file .env -f compose/openwebui.compose.yml restart openwebui

@@ -1,0 +1,542 @@
+{
+  "filter_sha256": "0cf225ff80feda14820fe600294a2f5b37d2c1363c7ad3d8566f1e8bc5cb3d04",
+  "models": 12,
+  "qualified_output_files": 48,
+  "fixture_sha256": {
+    ".docx": "ea9460aba209d68f8afaee6b4f0be74f0f8a7769dbe079d34df8644bf6fd16e2",
+    ".pptx": "b99c5cd1a8ff99d8ce09248f06e070ba9da92bcdedbfa5121af92869d4dff419"
+  },
+  "creation_on_final_instruction": true,
+  "edit_contract_unchanged_by_final_paragraph_example": true,
+  "rows": [
+    {
+      "model": "claude-opus-5",
+      "role": "user",
+      "creation_receipt": "opus-final-create.json",
+      "edit_receipt": "opus-final.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "96128195-80f9-4fe2-a484-a853901533fe",
+        "message": "c7385f99-b0f8-428e-aac1-c60e5aa5308d",
+        "files": [
+          {
+            "id": "25f1fea5-8a29-46d3-9d41-517c59865364",
+            "local_file": "opus-final-create-1.pptx",
+            "sha256": "c6feb3dde50caa57ef72d5c036f354399cf39bcb4b36d9c007298ec45c7ce8e8",
+            "bytes": 10674
+          },
+          {
+            "id": "fabe7d43-5f7a-4381-9f8c-780ef87fed6e",
+            "local_file": "opus-final-create-1.docx",
+            "sha256": "3c5ef02269fd5acb0bf3969f53655a7dc36319205274d61e2f0c1dd0f7ff1f91",
+            "bytes": 5262
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "cda982b1-147f-479e-a723-5801e48be253",
+        "message": "65b9bf64-3947-43a1-aabc-04267b9e557e",
+        "files": [
+          {
+            "id": "d005d7e6-f4a1-4b79-849a-a48a3f31730d",
+            "local_file": "opus-final-3.pptx",
+            "sha256": "52f792f05727e5f4d44421358379c3e44f00175770d02dca1f42e0f0ec11ffce",
+            "bytes": 10670
+          },
+          {
+            "id": "9277c55b-22da-4298-b4ff-63bcaf9bd04e",
+            "local_file": "opus-final-3.docx",
+            "sha256": "717e39697b54d74ce81c9127905b4091bc4a5fea1bb9d69f90fb40db9bee0c00",
+            "bytes": 38249
+          }
+        ]
+      }
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "role": "user",
+      "creation_receipt": "sonnet-final-create.json",
+      "edit_receipt": "sonnet-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "7e51fb90-94b7-4769-b9ae-0a80baadf316",
+        "message": "0fd12003-2de9-4c00-91db-abb25ccf9d59",
+        "files": [
+          {
+            "id": "1fe3a749-52d0-46cb-b45f-dd005441af1d",
+            "local_file": "sonnet-final-create-1.pptx",
+            "sha256": "179275a84d46f72c72fabe364a9e30cc1541075b3ea03d7687ebd93f24c29ea3",
+            "bytes": 10677
+          },
+          {
+            "id": "223392fd-b253-4768-9748-4a5b24768430",
+            "local_file": "sonnet-final-create-1.docx",
+            "sha256": "916610f95ab158c0f4ff27b032615db7358b85b954d86b32aa7c81eace64f16a",
+            "bytes": 5282
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "97e8cafd-d7ca-4091-94ed-96b711dc6769",
+        "message": "f6ce5484-614b-42c1-b923-125a0fe14ab6",
+        "files": [
+          {
+            "id": "77fe9494-cf30-486c-9c31-8618313c527c",
+            "local_file": "sonnet-user-3.pptx",
+            "sha256": "06b0ea18b2f1499130e00204baa4c53c42a3f3289d3396599513ba6bc649dcc7",
+            "bytes": 10670
+          },
+          {
+            "id": "04e49f3e-2ab6-4310-bd96-69c8dc9d68cb",
+            "local_file": "sonnet-user-3.docx",
+            "sha256": "78682743e97e6ce89c5791f44461e567d6fb8c472786e74f9805a048dece2a1e",
+            "bytes": 38247
+          }
+        ]
+      }
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "role": "user",
+      "creation_receipt": "mini-final-create.json",
+      "edit_receipt": "mini-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "2408be99-f270-46c4-9a45-50fe5b53c3d8",
+        "message": "633c48bc-7402-4bcb-959a-164af0582dd0",
+        "files": [
+          {
+            "id": "194e1e6a-3aca-4ba9-8f41-e48f210fdb24",
+            "local_file": "mini-final-create-1.pptx",
+            "sha256": "7150e23a4d779fd839ea9ee7028d0df3896e2e4ddd4c0f8a13386dd1ee725085",
+            "bytes": 10666
+          },
+          {
+            "id": "f49d8aaf-f954-4e05-b6ab-bf3ae129a723",
+            "local_file": "mini-final-create-1.docx",
+            "sha256": "2ff048d3aac33bacbcf3d0b269993b2d74f05221d9c534d3fc4bd3365a58fa35",
+            "bytes": 5260
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "3cf2a6a8-2b48-4c6e-bdc9-af363a4a931a",
+        "message": "7ccc0996-4dd3-4cba-9d42-3c5c450b45b8",
+        "files": [
+          {
+            "id": "a01b6d2b-af40-4999-9fa6-3eb2a78b03d6",
+            "local_file": "mini-user-3.docx",
+            "sha256": "c49dbab89cd817d6b95e02ce2a3b3d9730bb51eed72fc27422e73198bf0f2a01",
+            "bytes": 38247
+          },
+          {
+            "id": "00b63b8c-c093-4c33-9b59-f60a4488aca8",
+            "local_file": "mini-user-3.pptx",
+            "sha256": "dd28577581bdcd95d8375e209a0f54ea35f5aa6f0964c6ffb493a6fedd38b1a7",
+            "bytes": 10670
+          }
+        ]
+      }
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "role": "user",
+      "creation_receipt": "luna-final-create.json",
+      "edit_receipt": "luna-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "eb927194-0ce0-496e-abc7-c548e7ec604a",
+        "message": "68864429-3949-4f14-bb54-23de88cb39b3",
+        "files": [
+          {
+            "id": "0c4724ec-560e-4a25-92e9-752d295631c6",
+            "local_file": "luna-final-create-1.pptx",
+            "sha256": "6382975cb66d04dd52141f8e88285f196991931efe40a9f407b25d72efffc470",
+            "bytes": 10665
+          },
+          {
+            "id": "330e6dba-d587-418d-94c7-28d109be4928",
+            "local_file": "luna-final-create-1.docx",
+            "sha256": "c9550ccefa2ca7e95f9a7b19ac8885fba4f4ac7fba86ba2a5d5c686e4a186815",
+            "bytes": 5262
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "9836ea35-54ae-4cac-9e29-59217d4bb52d",
+        "message": "e99988c8-08d5-41ac-ba47-c1c888db1c12",
+        "files": [
+          {
+            "id": "e6f36b8e-9e63-48cd-bb69-38e86c9489ce",
+            "local_file": "luna-user-3.pptx",
+            "sha256": "9d33c930cd594cc12ec8fd28e4e3df47984e6b188c60a3b1886434b44a527fb7",
+            "bytes": 10671
+          },
+          {
+            "id": "f7ce427a-7091-4032-8c08-87a195a78ca8",
+            "local_file": "luna-user-3.docx",
+            "sha256": "4a7ff0d8269a22b8b756dfe4bdcc97a0e0461d0e798c8c09fcc7cf5ca4c755a0",
+            "bytes": 38248
+          }
+        ]
+      }
+    },
+    {
+      "model": "models/gemini-3.5-flash",
+      "role": "user",
+      "creation_receipt": "g35-fixed-create.json",
+      "edit_receipt": "g35-edit-only.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "906fec4e-be70-4eaa-9511-279c570e11fc",
+        "message": "8d91e73b-70cf-45c5-a84b-65b748fb7e51",
+        "files": [
+          {
+            "id": "f4487cbc-93ae-4d6a-8b64-4521d3740a04",
+            "local_file": "g35-fixed-create-1.pptx",
+            "sha256": "2d5539ff480af4928e255b13eef9b6fedb15e948a085a648b5a99f298685530d",
+            "bytes": 10668
+          },
+          {
+            "id": "89c09fb0-90df-4e00-ab57-5a9bca22d34b",
+            "local_file": "g35-fixed-create-1.docx",
+            "sha256": "efce22b335a012d9ab6981c96d5a00e8911cdbbcb34506dea88d18f4a42bc71b",
+            "bytes": 5261
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "ecd4e0e6-5c59-43d0-9c30-5a4e7091acf5",
+        "message": "25170ad3-57a3-4496-9ed7-b3882165d328",
+        "files": [
+          {
+            "id": "59471f34-03d7-47d2-8a99-66a5eabfc210",
+            "local_file": "g35-edit-only-1.pptx",
+            "sha256": "7aacf8c0e7da68c5ea325f54beef6061e3dee60834eed15d9595c68289fb7251",
+            "bytes": 10670
+          },
+          {
+            "id": "fdd6aa96-2bb2-49dd-b017-dc2b5aafb412",
+            "local_file": "g35-edit-only-1.docx",
+            "sha256": "0481aea9697f815b2780e8667c30ceeda99db6f0233ac6a294fc85083e46e73d",
+            "bytes": 38248
+          }
+        ]
+      }
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "role": "user",
+      "creation_receipt": "g36-user.json",
+      "edit_receipt": "g36-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "f928975e-983e-4446-974e-116896c44177",
+        "message": "6c522e6d-8516-458f-b9d8-3240b37faebb",
+        "files": [
+          {
+            "id": "abed0161-d023-42a7-81da-e278d15d0d32",
+            "local_file": "g36-user-1.pptx",
+            "sha256": "ac0837316c9a089607a9edc01541ea719152d9746386647a177ab355ad33fb63",
+            "bytes": 10661
+          },
+          {
+            "id": "efa597fd-f435-44ee-bb7c-ac99b65d13eb",
+            "local_file": "g36-user-1.docx",
+            "sha256": "357ecf272d6802ce11c7470d2165ca8c2166cd8083ef9678f4addaba93a7b9bd",
+            "bytes": 5260
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "f928975e-983e-4446-974e-116896c44177",
+        "message": "46a7225b-df15-49a2-b743-fa8bfd62dc31",
+        "files": [
+          {
+            "id": "8203fd3a-773d-4098-8d30-59c654eafb05",
+            "local_file": "g36-user-3.pptx",
+            "sha256": "b3b9ef44a5b8b794d4172f5b3479fc2dfc30c2eaec0028b5d2063b8869209ff4",
+            "bytes": 10670
+          },
+          {
+            "id": "a8cbf98c-f73c-4c93-b41d-b3e364d8d02d",
+            "local_file": "g36-user-3.docx",
+            "sha256": "bf6ac5c10c33edd2a3998da2a271004e2c6600d879792621c924f6a355f19b00",
+            "bytes": 38248
+          }
+        ]
+      }
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "role": "user",
+      "creation_receipt": "g31l-user.json",
+      "edit_receipt": "g31l-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "ed29b8d2-18cb-49a4-b6b8-55c51ef742a5",
+        "message": "020b1a6b-89cc-43bd-8d17-5a25d71a85d2",
+        "files": [
+          {
+            "id": "f5a44942-46f2-4952-ba07-893d08d9ec9c",
+            "local_file": "g31l-user-1.pptx",
+            "sha256": "80b667e55622356df2e2fb7a992127d60597aa2be3be633dcae6c7c21a568be0",
+            "bytes": 10671
+          },
+          {
+            "id": "81de60cd-1e91-42b4-8adb-3089086ab9c3",
+            "local_file": "g31l-user-1.docx",
+            "sha256": "e5e8e40ebbe6b24e276c20ddc57ec52c00763b5e4cbf0ac8db24e10a86aedd8d",
+            "bytes": 5262
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "ed29b8d2-18cb-49a4-b6b8-55c51ef742a5",
+        "message": "5d31f425-72d5-4ea6-b0ac-03089c129bc6",
+        "files": [
+          {
+            "id": "c90f5269-7b6b-4e7c-8770-7f128d1f876a",
+            "local_file": "g31l-user-3.pptx",
+            "sha256": "089d198450d0d89e00e433a4b01c40b865e1bcb459dfd9870797b56b79e259b8",
+            "bytes": 10670
+          },
+          {
+            "id": "db38d976-2ed5-4b14-9600-89218a66cce8",
+            "local_file": "g31l-user-3.docx",
+            "sha256": "a75560ca2566f8f7725ba826b8ed4a817a34299c131c87624979a80d25d55106",
+            "bytes": 38248
+          }
+        ]
+      }
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "role": "user",
+      "creation_receipt": "g35l-user.json",
+      "edit_receipt": "g35l-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "ef9801c8-1ca5-4aea-b121-609156e44a00",
+        "message": "5d427663-f3ea-423d-91cd-1f035fb82c05",
+        "files": [
+          {
+            "id": "9195720a-956c-4e62-9794-a6d925d40923",
+            "local_file": "g35l-user-1.pptx",
+            "sha256": "4c4c685e51b17252ae4d145d4312759a5a8a7437b5c6f21e984a95a69371fbf8",
+            "bytes": 10670
+          },
+          {
+            "id": "f756c9ea-cd78-461c-ba4d-ead23037ed15",
+            "local_file": "g35l-user-1.docx",
+            "sha256": "7778338f3feb2d07d8567db558ac0b2c086d6582d227f09e0dadf001e8488797",
+            "bytes": 5260
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "ef9801c8-1ca5-4aea-b121-609156e44a00",
+        "message": "d811d576-f5ca-4a2c-808f-d1e9b95ecadb",
+        "files": [
+          {
+            "id": "6f8d2f87-73a8-4d6f-a80e-a1654703166c",
+            "local_file": "g35l-user-3.pptx",
+            "sha256": "50efe4b6ad257ca592a5b2257b49a1ee2ce8f8c33872faf17385db8fee5b5f52",
+            "bytes": 10670
+          },
+          {
+            "id": "0a1581e9-5ce3-4755-bde5-084b3a6eb01f",
+            "local_file": "g35l-user-3.docx",
+            "sha256": "6518784227ac8e14b17932eee71d5ed5c6f8d28c39f7b14f1058befdaf23353b",
+            "bytes": 38246
+          }
+        ]
+      }
+    },
+    {
+      "model": "office-documents",
+      "role": "user",
+      "creation_receipt": "office-user.json",
+      "edit_receipt": "office-user.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "f2852c81-7852-4cb6-b684-0dd5d6ed0b08",
+        "message": "621b8c05-8cce-475c-9bf9-309de18985c8",
+        "files": [
+          {
+            "id": "f0a56492-fb54-4bbe-b1d1-88211b7e4a24",
+            "local_file": "office-user-1.pptx",
+            "sha256": "2101155ded3273b343678bd10905103ee95fe99991246d35d510e9004eae354d",
+            "bytes": 10676
+          },
+          {
+            "id": "8bac7018-297e-49ea-a4c8-56063dcc4f3d",
+            "local_file": "office-user-1.docx",
+            "sha256": "9a29a63b16f4c4a91d3c872f044c29d552ab57334dda189af80c5e06a1e7580f",
+            "bytes": 5261
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "f2852c81-7852-4cb6-b684-0dd5d6ed0b08",
+        "message": "533a9374-cc67-4f31-b177-9def0e36f85f",
+        "files": [
+          {
+            "id": "3462d052-4e9a-43d0-bd3f-33a5ebbe4267",
+            "local_file": "office-user-3.pptx",
+            "sha256": "994e41c92a6c2e019ab41d1e9318f1b97cd8ee4cd37e0aff36c78ea9c32cf570",
+            "bytes": 10670
+          },
+          {
+            "id": "f486d420-a101-4d55-8cec-c218de0f8a31",
+            "local_file": "office-user-3.docx",
+            "sha256": "4eb17d9f4d350734bd510ff14d5aaeba0d5d737ff8490f8a35f21cf40aec9e67",
+            "bytes": 38247
+          }
+        ]
+      }
+    },
+    {
+      "model": "gpt-6-luna",
+      "role": "admin",
+      "creation_receipt": "g6l-final-create.json",
+      "edit_receipt": "g6l.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "41f09897-a40f-431a-9e52-854fe683f03a",
+        "message": "1ae51012-5753-4999-b55b-94a0b14f6edf",
+        "files": [
+          {
+            "id": "c40d0def-ae0c-46b1-8ed3-d663e0134e59",
+            "local_file": "g6l-final-create-1.pptx",
+            "sha256": "7b030b6b99fe93dc97e0e4eda1fe2701ac16371b67f357c5de296a026e553d0e",
+            "bytes": 10667
+          },
+          {
+            "id": "fa1f1195-9aee-417c-b38f-d1c33ce62d8a",
+            "local_file": "g6l-final-create-1.docx",
+            "sha256": "18bf27c18a6a070f19ed3103d4bb14d7ce94fa485d487021af9280fa0d2b8406",
+            "bytes": 5262
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "2c009a0f-407e-4929-8796-0176a8753d17",
+        "message": "87354a96-100b-46dc-87aa-7dd5a1e32800",
+        "files": [
+          {
+            "id": "e39100ae-ae2d-4dcf-9d6b-76a14fe13ff3",
+            "local_file": "g6l-1.pptx",
+            "sha256": "bb40a02d5d72201522da7d359dc0f594d09c5d4e371feba25dfb47d5d5c46db3",
+            "bytes": 10670
+          },
+          {
+            "id": "e27af4e7-273a-4d35-9471-208033ce21a2",
+            "local_file": "g6l-1.docx",
+            "sha256": "1486c0fc67fa58dea5ea3ffa52ea7540a994c939ea8eaea071d94a97f0acc9f7",
+            "bytes": 38247
+          }
+        ]
+      }
+    },
+    {
+      "model": "gpt-6-sol",
+      "role": "admin",
+      "creation_receipt": "g6s-final-create.json",
+      "edit_receipt": "g6s-edit.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "5e80bd60-af7e-4ce5-8b5c-9aa2b5d39577",
+        "message": "dc0b58ad-172b-4add-b14e-6961c0a24ae0",
+        "files": [
+          {
+            "id": "4cb38000-2374-47ce-b71a-67e5782ebd13",
+            "local_file": "g6s-final-create-1.pptx",
+            "sha256": "2e4639fd6006085b8a54b067c1258c44416bf468dfd1da283136718fe56fc060",
+            "bytes": 10670
+          },
+          {
+            "id": "e697f689-b511-408a-8be4-73568ccc080c",
+            "local_file": "g6s-final-create-1.docx",
+            "sha256": "bb8c05641092721fc6984def1d10e8db2cd5310e86c9a1309660b2d417a47e4b",
+            "bytes": 5261
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "0327d771-2643-4114-b76c-5b145d406f7e",
+        "message": "c9e97960-b319-45c3-841b-31bcd5d53feb",
+        "files": [
+          {
+            "id": "9419adea-3c86-41dd-ad49-303136c909df",
+            "local_file": "g6s-edit-3.pptx",
+            "sha256": "ed1cd3b3cb5b98e4ea0a5a7bebe91267cabfb6afead5845c2644f82c7bb9ff72",
+            "bytes": 10671
+          },
+          {
+            "id": "5619b89e-3b5c-4d5c-940f-7681ba5a34c8",
+            "local_file": "g6s-edit-3.docx",
+            "sha256": "42bb866a36c2c0f45787b60e3b20ddef50ca55c86eacc9a380fad8c919bd0dcb",
+            "bytes": 38248
+          }
+        ]
+      }
+    },
+    {
+      "model": "claude-opus-5-5",
+      "role": "admin",
+      "creation_receipt": "c55-final-create.json",
+      "edit_receipt": "c55-final.json",
+      "creation": {
+        "status": "PASS",
+        "chat": "5c5bc889-00b2-4998-b1b5-e0264fd9cfe2",
+        "message": "74e7b548-642a-49e0-9014-77a41d0515fe",
+        "files": [
+          {
+            "id": "9ab45af8-2f25-4a54-9a3a-c57ebf0f5062",
+            "local_file": "c55-final-create-1.pptx",
+            "sha256": "ebd6ac70989516cf3fd580cb11491c058d317190393932f92d4d1c79262f45a2",
+            "bytes": 10674
+          },
+          {
+            "id": "90153a75-9051-4c0d-86c7-a16271247a4b",
+            "local_file": "c55-final-create-1.docx",
+            "sha256": "d7c8ae90320756288bc63bb238f25fa05e8716b958ffa2f4bf4a0842c3df2d13",
+            "bytes": 5285
+          }
+        ]
+      },
+      "edit": {
+        "status": "PASS",
+        "chat": "2478c1c1-9936-48a4-a5e2-3f01909c7877",
+        "message": "c67460ab-c560-4dde-9f3c-4b5375ba8336",
+        "files": [
+          {
+            "id": "f806003e-bd63-49dc-b509-5f522281ef78",
+            "local_file": "c55-final-1.pptx",
+            "sha256": "cfe20307931460b1e219db1fa9cdbb23a08f5b945637d5d0d269ec2ec6da9bf2",
+            "bytes": 10670
+          },
+          {
+            "id": "b7a3ce98-40f3-4d38-b958-049d31d129ff",
+            "local_file": "c55-final-1.docx",
+            "sha256": "22acdbee26f2fcce7950b2fec4a8e3a98250074259702b0e4ff510ef4bd08560",
+            "bytes": 38235
+          }
+        ]
+      }
+    }
+  ],
+  "private_file_cross_user_status": 404
+}

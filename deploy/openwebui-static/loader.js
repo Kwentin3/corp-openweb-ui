@@ -370,23 +370,6 @@
 		};
 	}
 
-	function withProcessFalse(input) {
-		const rawUrl = requestUrl(input);
-		if (!rawUrl) {
-			return input;
-		}
-		const url = new URL(rawUrl, window.location.origin);
-		url.searchParams.set('process', 'false');
-		const nextUrl = url.pathname + url.search + url.hash;
-		if (input instanceof Request) {
-			return new Request(nextUrl, input);
-		}
-		if (input instanceof URL) {
-			return new URL(nextUrl, window.location.origin);
-		}
-		return nextUrl;
-	}
-
 	function normalizeUploadedFile(uploaded, fallbackFile, options) {
 		if (!uploaded || !uploaded.id) {
 			return null;
@@ -427,24 +410,14 @@
 		state.originalFetch = window.fetch.bind(window);
 		window.fetch = async function patchedFetch(input, init) {
 			let uploadFile = null;
-			let sttUploadFile = null;
 			const gate2Route = await bindBrokerGate2RequestToActiveChat(input, init);
 			let nextInput = gate2Route.input;
 			let nextInit = gate2Route.init;
 			if (isFileUpload(input, init)) {
 				uploadFile = uploadFormDataFile(requestBody(input, init));
-				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
-				if (sttUploadFile) {
-					nextInput = withProcessFalse(input);
-				}
 			}
 
 			const response = await state.originalFetch(nextInput, nextInit);
-			if (sttUploadFile && response.ok) {
-				response.clone().json().then((uploaded) => {
-					rememberFile(normalizeUploadedFile(uploaded, sttUploadFile));
-				}).catch(() => {});
-			}
 			return response;
 		};
 	}
@@ -456,7 +429,6 @@
 		state.scanQueued = true;
 		window.requestAnimationFrame(async () => {
 			state.scanQueued = false;
-			scanAttachmentCards();
 			scanMessageDocxButtons();
 		});
 	}
@@ -527,9 +499,6 @@
 			const file = findCardFile(card);
 			if (!file) {
 				continue;
-			}
-			if (isCandidateMedia(file.filename, file.mime_type) && card.dataset.stage2SttCard !== '1') {
-				installCardAction(card, file);
 			}
 		}
 	}

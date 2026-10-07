@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import BinaryIO, Protocol
 
 from stage2_stt.config import SttConfig, SttConfigError
 from stage2_stt.contracts import SttProviderCapabilityProfileV1, TranscriptResultV1
@@ -14,10 +14,10 @@ class SttProviderAdapter(Protocol):
     def capabilities(self) -> SttProviderCapabilityProfileV1:
         ...
 
-    async def transcribe_bytes(
+    async def transcribe_file(
         self,
         *,
-        audio_bytes: bytes,
+        audio_file: BinaryIO,
         filename: str,
         mime_type: str,
         output_profile: str,

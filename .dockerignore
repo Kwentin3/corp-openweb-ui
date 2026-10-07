@@ -4,8 +4,10 @@
 *
 !deploy/
 deploy/*
-!deploy/openwebui-native-web-stt-patch/
-!deploy/openwebui-native-web-stt-patch/**
+!deploy/openwebui-patches/
+!deploy/openwebui-patches/**
+!deploy/openwebui-media-lifecycle/
+!deploy/openwebui-media-lifecycle/**
 !deploy/openwebui-broker-reports-intake/
 !deploy/openwebui-broker-reports-intake/**
 !services/
@@ -14,6 +16,7 @@ services/*
 services/stage2-stt/*
 !services/stage2-stt/Dockerfile
 !services/stage2-stt/pyproject.toml
+!services/stage2-stt/requirements.lock
 !services/stage2-stt/stage2_stt/
 !services/stage2-stt/stage2_stt/**
 !services/stage2-stt/openwebui_actions/
@@ -23,3 +26,5 @@ services/stage2-stt/*
 !services/officecli-openapi-proof/pyproject.toml
 !services/officecli-openapi-proof/officecli_openapi_proof/
 !services/officecli-openapi-proof/officecli_openapi_proof/**
+**/__pycache__/
+**/*.pyc

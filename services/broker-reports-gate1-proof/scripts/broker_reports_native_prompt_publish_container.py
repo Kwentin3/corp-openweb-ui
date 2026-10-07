@@ -32,6 +32,9 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v18",
         "ordinary_trade_mapping_v19",
         "ordinary_trade_mapping_v20",
+        "ordinary_trade_mapping_v21",
+        "ordinary_trade_mapping_v22",
+        "ordinary_trade_mapping_v23",
         "pdf_table_continuation_annotation_v3",
         "document_metadata_passport_v1",
     }
@@ -69,6 +72,8 @@ async def _run(
     *,
     asset_root: Path,
     verify_pin: dict[str, str] | None,
+    read_current: bool = False,
+    rollback_pin: dict[str, str] | None = None,
     profile_id: str,
 ) -> dict[str, str]:
     from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
@@ -80,6 +85,9 @@ async def _run(
         ORDINARY_TRADE_MAPPING_V18_PROFILE,
         ORDINARY_TRADE_MAPPING_V19_PROFILE,
         ORDINARY_TRADE_MAPPING_V20_PROFILE,
+        ORDINARY_TRADE_MAPPING_V21_PROFILE,
+        ORDINARY_TRADE_MAPPING_V22_PROFILE,
+        ORDINARY_TRADE_MAPPING_V23_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
         DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
@@ -98,6 +106,9 @@ async def _run(
         ORDINARY_TRADE_MAPPING_V18_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V18_PROFILE,
         ORDINARY_TRADE_MAPPING_V19_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V19_PROFILE,
         ORDINARY_TRADE_MAPPING_V20_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V20_PROFILE,
+        ORDINARY_TRADE_MAPPING_V21_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V21_PROFILE,
+        ORDINARY_TRADE_MAPPING_V22_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V22_PROFILE,
+        ORDINARY_TRADE_MAPPING_V23_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V23_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE.profile_id: PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
         DOCUMENT_METADATA_PASSPORT_V1_PROFILE.profile_id: DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     }
@@ -105,6 +116,17 @@ async def _run(
     if profile is None:
         raise RuntimeError("ordinary_trade_mapping_prompt_release_profile_invalid")
     publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    if read_current:
+        return _safe_output(status="observed", publication=await publisher.read_current())
+    if rollback_pin is not None:
+        publication = OrdinaryTradeMappingPromptPublication(
+            prompt_ref=rollback_pin["prompt_ref"],
+            prompt_command=rollback_pin["prompt_command"],
+            prompt_history_id=rollback_pin["prompt_history_id"],
+            prompt_hash=rollback_pin["prompt_hash"],
+            action="observed",
+        )
+        return _safe_output(status="restored", publication=await publisher.rollback(publication))
     if verify_pin is not None:
         publication = OrdinaryTradeMappingPromptPublication(
             prompt_ref=verify_pin["prompt_ref"],
@@ -141,10 +163,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-archive", required=True)
     parser.add_argument("--verify-pin-json", default=None)
+    parser.add_argument("--rollback-pin-json", default=None)
+    parser.add_argument("--read-current", action="store_true")
     parser.add_argument(
         "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v16"
     )
     args = parser.parse_args()
+    modes = int(bool(args.read_current)) + int(args.verify_pin_json is not None) + int(
+        args.rollback_pin_json is not None
+    )
+    if modes > 1:
+        raise RuntimeError("ordinary_trade_mapping_prompt_release_mode_invalid")
     archive = Path(args.source_archive)
     if not archive.is_file() or archive.is_symlink():
         raise RuntimeError("ordinary_trade_mapping_prompt_release_archive_invalid")
@@ -164,6 +193,8 @@ def main() -> int:
         print(json.dumps(asyncio.run(_run(
             asset_root=service_root / "managed_assets" / "prompts",
             verify_pin=_pin(args.verify_pin_json),
+            read_current=bool(args.read_current),
+            rollback_pin=_pin(args.rollback_pin_json),
             profile_id=args.profile,
         )), ensure_ascii=False, sort_keys=True))
         return 0

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, BinaryIO
 
 import httpx
 
@@ -67,10 +67,10 @@ class LemonfoxSttAdapter:
             ],
         )
 
-    async def transcribe_bytes(
+    async def transcribe_file(
         self,
         *,
-        audio_bytes: bytes,
+        audio_file: BinaryIO,
         filename: str,
         mime_type: str,
         output_profile: str,
@@ -88,7 +88,7 @@ class LemonfoxSttAdapter:
             return self._stub_result(output_profile)
 
         form = self._request_form()
-        files = {"file": (filename, audio_bytes, mime_type)}
+        files = {"file": (filename, audio_file, mime_type)}
         headers = {"Authorization": f"Bearer {self.config.lemonfox.api_key}"}
 
         try:

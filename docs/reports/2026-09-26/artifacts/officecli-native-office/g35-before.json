@@ -1,0 +1,10 @@
+{
+  "model": "models/gemini-3.5-flash",
+  "chat": "ecd4e0e6-5c59-43d0-9c30-5a4e7091acf5",
+  "file_id": "998c461d-6292-4a8c-98e7-ba3ea104aa2a",
+  "sha256": "47391d9a19c17884e814a4bac1b89d84a97590b89ab4bb84e73b541f4e46af45",
+  "local_file": "g35-before.docx",
+  "status": "FAIL",
+  "reason": "Literal backslash-n text instead of separate requested paragraphs",
+  "fixed_by": "Official add paragraph commands, without an extra escaped markdown layer"
+}

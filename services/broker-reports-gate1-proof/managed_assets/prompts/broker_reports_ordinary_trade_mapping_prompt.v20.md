@@ -13,10 +13,12 @@ If physical_table_continuation_links identifies a table as a child, never
 select any child row as header_row. Return HEADER_ABSENT for that child; only
 the separate explicit_header_source_claims contract can bind its parent header.
 
-For SECURITY_TRADES and SECURITY_TRADES_INCOMPLETE, use row_policy with
-default_disposition SECURITY_TRADES and exceptions only for concrete non-trade
-source rows. Do not enumerate ordinary trade rows. Bind explicit monetary
-columns only; if an explicit currency column is absent use
+For SECURITY_TRADES and SECURITY_TRADES_INCOMPLETE, row_policy must be exactly
+{"default_disposition":"SECURITY_TRADES","exception_rows":[]} when no
+concrete non-trade source rows exist. Keep default_disposition exactly
+SECURITY_TRADES; exceptions only name concrete non-trade source rows. Do not
+enumerate ordinary trade rows or add fields to row_policy. Bind explicit
+monetary columns only; if an explicit currency column is absent use
 SECURITY_TRADES_INCOMPLETE. For NO_NAMED_CONSUMER and
 UNSUPPORTED_FINANCIAL_MEANING retain the schema's empty role collections.
 

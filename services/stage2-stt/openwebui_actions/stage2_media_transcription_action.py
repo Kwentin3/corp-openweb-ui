@@ -1,7 +1,7 @@
 """
 title: Stage 2 Media Transcription
 author: Alpha Soft
-version: 0.1.0
+version: 0.1.1
 required_open_webui_version: 0.9.6
 requirements: httpx,pydantic
 """
@@ -99,10 +99,9 @@ class Action:
 
         try:
             audio_path = self._uploaded_file_path(media)
-            audio_bytes = audio_path.read_bytes()
         except Exception as exc:
-            await self._emit(__event_emitter__, "Unable to access uploaded media bytes.", done=True)
-            return {"content": f"Unable to access uploaded media bytes safely: {exc}"}
+            await self._emit(__event_emitter__, "Unable to access uploaded media.", done=True)
+            return {"content": f"Unable to access uploaded media safely: {exc}"}
 
         envelope = self._build_envelope(
             user=__user__ or {},
@@ -116,11 +115,11 @@ class Action:
             result = await self._call_sidecar(
                 token=token,
                 envelope=envelope,
-                audio_bytes=audio_bytes,
+                audio_path=audio_path,
                 filename=media["filename"],
                 mime_type=media["mime_type"],
             )
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, OSError) as exc:
             await self._emit(__event_emitter__, "STT sidecar request failed.", done=True)
             return {"content": f"STT sidecar request failed: {exc}"}
 
@@ -632,17 +631,18 @@ class Action:
         *,
         token: str,
         envelope: dict,
-        audio_bytes: bytes,
+        audio_path: Path,
         filename: str,
         mime_type: str,
     ) -> dict:
         async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
-            response = await client.post(
-                f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/jobs",
-                headers={"Authorization": f"Bearer {token}"},
-                data={"envelope": json.dumps(envelope)},
-                files={"prepared_audio": (filename, audio_bytes, mime_type)},
-            )
+            with audio_path.open("rb") as audio:
+                response = await client.post(
+                    f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/jobs",
+                    headers={"Authorization": f"Bearer {token}"},
+                    data={"envelope": json.dumps(envelope)},
+                    files={"prepared_audio": (filename, audio, mime_type)},
+                )
             response.raise_for_status()
             return response.json()
 

@@ -1165,5 +1165,28 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("forged/client/path", content)
         self.assertNotIn("synthetic_gate1_operations.csv", content)
 
+    def test_mapping_invalid_audit_logs_only_public_control_state(self):
+        with self.assertLogs(
+            "openwebui_actions.broker_reports_gate1_pipe", level="INFO"
+        ) as captured:
+            Pipe._audit_mapping_terminal(
+                {
+                    "status": "MAPPING_OUTPUT_INVALID",
+                    "provider_calls_this_turn": 1,
+                    "provider_raw_response": "provider-private-value-987654321",
+                    "public_state": {
+                        "mapping_failure_reason": "mapping_columns_invalid",
+                        "provider_calls_total": 1,
+                    },
+                }
+            )
+
+        line = "\n".join(captured.output)
+        self.assertIn("status=MAPPING_OUTPUT_INVALID", line)
+        self.assertIn("mapping_failure_reason=mapping_columns_invalid", line)
+        self.assertIn("provider_calls_this_turn=1", line)
+        self.assertIn("provider_calls_total=1", line)
+        self.assertNotIn("provider-private-value-987654321", line)
+
 if __name__ == "__main__":
     unittest.main()

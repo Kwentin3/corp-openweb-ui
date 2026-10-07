@@ -1,0 +1,9 @@
+{
+  "equal": true,
+  "unchanged_native_owners": {
+    "/app/backend/open_webui/routers/files.py": "025c1519b2333bd6880b5c5934b43b5cee386beff8ef719c5d69c27d4f57c52b",
+    "/app/backend/open_webui/storage/provider.py": "7d4349f703b2c8496d4913b355646b545c7fa0b157aca7fc397b058c24d9ba9d",
+    "frontend_tree_sha256": "71e88b99b1e27cf2d0131623e6974ef316b8296aeedc587660a66f79e5676c89",
+    "frontend_files": 5603
+  }
+}

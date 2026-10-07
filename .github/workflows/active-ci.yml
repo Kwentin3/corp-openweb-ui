@@ -1,0 +1,140 @@
+name: Active CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: active-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  active-ci:
+    name: active-ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checked-out commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Check pull request diff
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE_SHA...$HEAD_SHA"
+
+      - name: Select active domain checks
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          officecli=false
+          stt=false
+          staging=false
+          recorder=false
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            officecli=true
+            stt=true
+            staging=true
+            recorder=true
+          else
+            mapfile -t changed < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+            if (( ${#changed[@]} == 0 )); then
+              echo 'No changed files in the pull request diff' >&2
+              exit 1
+            fi
+            for path in "${changed[@]}"; do
+              case "$path" in
+                services/officecli-openapi-proof/*|deploy/openwebui-functions/officecli_auto_attach_filter.py|deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py|deploy/openwebui-skills/artifact-workflow.md)
+                  officecli=true ;;
+                services/stage2-stt/*|deploy/openwebui-media-lifecycle/*|deploy/openwebui-patches/apply_stage2_*)
+                  stt=true ;;
+                compose/openwebui.staging*.yml|scripts/verify-staging-compose.py)
+                  staging=true ;;
+                deploy/openwebui-flight-recorder/*)
+                  recorder=true ;;
+                deploy/openwebui-functions/stage2_media_intake.py|deploy/openwebui-patches/media-upload-v0.11.4/*)
+                  stt=true
+                  staging=true ;;
+                .github/workflows/active-ci.yml)
+                  officecli=true
+                  stt=true
+                  staging=true
+                  recorder=true ;;
+              esac
+            done
+          fi
+          echo "officecli=$officecli" >> "$GITHUB_OUTPUT"
+          echo "stt=$stt" >> "$GITHUB_OUTPUT"
+          echo "staging=$staging" >> "$GITHUB_OUTPUT"
+          echo "recorder=$recorder" >> "$GITHUB_OUTPUT"
+          echo "Selected checks: OfficeCLI=$officecli STT=$stt staging=$staging recorder=$recorder"
+
+      - name: Set up Python
+        if: steps.scope.outputs.officecli == 'true' || steps.scope.outputs.stt == 'true' || steps.scope.outputs.staging == 'true' || steps.scope.outputs.recorder == 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Verify native recorder persistence and privacy contracts
+        if: steps.scope.outputs.recorder == 'true'
+        run: python deploy/openwebui-flight-recorder/test_recorder.py
+
+      - name: Validate resolved isolated staging Compose
+        if: steps.scope.outputs.staging == 'true'
+        run: python scripts/verify-staging-compose.py
+
+      - name: Qualify the approved installer against pinned upstream source
+        if: steps.scope.outputs.staging == 'true'
+        run: |
+          upstream="$(mktemp -d "$RUNNER_TEMP/openwebui-upstream.XXXXXX")"
+          git -c core.autocrlf=false clone --depth 1 --branch v0.11.4 https://github.com/open-webui/open-webui.git "$upstream"
+          python deploy/openwebui-patches/media-upload-v0.11.4/verify_installer_contract.py "$upstream"
+
+      - name: Install OfficeCLI test dependencies
+        if: steps.scope.outputs.officecli == 'true'
+        run: python -m pip install './services/officecli-openapi-proof[test]'
+
+      - name: Native file transport and routing contracts
+        if: steps.scope.outputs.officecli == 'true'
+        run: python -m pytest -q services/officecli-openapi-proof/tests deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py
+
+      - name: Build the OfficeCLI production artifact
+        if: steps.scope.outputs.officecli == 'true'
+        run: docker build -f services/officecli-openapi-proof/Dockerfile -t officecli-candidate .
+
+      - name: Qualify the installed package and pinned CLI
+        if: steps.scope.outputs.officecli == 'true'
+        run: |
+          docker build -f services/officecli-openapi-proof/tests/Dockerfile --build-arg OFFICECLI_IMAGE=officecli-candidate -t officecli-qualification .
+          docker run --rm --network none --read-only --memory 1g --tmpfs /tmp:rw,nosuid,size=128m officecli-qualification
+
+      - name: Install STT test dependencies
+        if: steps.scope.outputs.stt == 'true'
+        run: python -m pip install './services/stage2-stt[test]'
+
+      - name: Run STT tests
+        if: steps.scope.outputs.stt == 'true'
+        run: python -m pytest -q services/stage2-stt/tests
+
+      - name: Build and qualify the installed STT artifact without providers
+        if: steps.scope.outputs.stt == 'true'
+        run: |
+          docker build -f services/stage2-stt/Dockerfile -t stt-candidate .
+          docker run --rm --network none --read-only --memory 512m --pids-limit 128 \
+            --tmpfs /tmp:rw,nosuid,size=64m \
+            -v "$PWD/services/stage2-stt/tests/verify_runtime_media.py:/verify_runtime_media.py:ro" \
+            stt-candidate python /verify_runtime_media.py

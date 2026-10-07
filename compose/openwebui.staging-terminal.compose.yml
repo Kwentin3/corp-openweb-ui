@@ -1,0 +1,35 @@
+# Merge only with openwebui.staging.compose.yml. Production Compose is excluded.
+services:
+  open-terminal-office:
+    image: ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c
+    restart: "no"
+    environment:
+      OPEN_TERMINAL_API_KEY: ${STAGING_TERMINAL_API_KEY:?Set a separate staging Terminal key}
+      OPEN_TERMINAL_MULTI_USER: "true"
+    volumes:
+      - terminal_home:/home
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import json, urllib.request;
+          assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)).get('status') in (True, 'ok')
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    mem_limit: 768m
+    memswap_limit: 1g
+    cpus: 0.5
+    pids_limit: 256
+    labels:
+      traefik.enable: "false"
+    networks:
+      - isolated
+
+volumes:
+  terminal_home:

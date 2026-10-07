@@ -1,7 +1,16 @@
 ﻿# Stage 2 Engineering Domain
 
-Этот домен не является реализацией Stage 2. Это инженерная карта, roadmap и research findings перед
-реализацией.
+Раздел содержит инженерную карту, исторические планы и ссылки на уже
+реализованные сценарии Stage 2. Актуальный порядок работы для каждого домена
+указан в профильных документах ниже.
+
+STT current-route update (2026-09-25): uploaded video is converted to MP3
+on the server immediately after attachment, before Send. The same File ID
+becomes audio and the source video is deleted. See the
+[native STT runbook](operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md) and
+[media input contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md).
+The June 2026 browser ffmpeg.wasm/Transcribe Action sections below are
+historical snapshots, not the current user workflow.
 
 ## Current Broker Reports implementation
 
@@ -132,7 +141,7 @@ provider setup, usage analytics and web-search.
 ## 7. Домены Stage 2
 
 1. Workspaces / RBAC / shared prompts.
-2. Transcription / STT / ffmpeg browser workflow.
+2. Transcription / STT / server-side media preparation.
 3. Broker reports / 3-НДФЛ.
 4. Web-search.
 5. Documents / OCR / VL OCR / Excel.
@@ -209,7 +218,7 @@ Finding:
 
 - Lemonfox подходит как priority candidate, но PRD-1 workflow требует server-side STT proxy/adapter.
 
-Current implementation baseline, 2026-06-19:
+Historical implementation baseline, 2026-06-19:
 
 - Private `stage2-stt` sidecar job routes, `LemonfoxSttAdapter`, internal auth,
   OpenWebUI static `Transcribe` action and browser ffmpeg.wasm normalization
@@ -271,7 +280,7 @@ Finding:
 - Owner/operator proof accepts the workflow for ADR planning across two
   same-stack projects, including mobile and large-file cases.
 
-Current implementation:
+Historical browser implementation (superseded by the 2026-09-25 route above):
 
 - Use [STT media input normalization contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
   and the browser normalization report as the current implementation record.

@@ -1,0 +1,6 @@
+{
+  "model": "models/gemini-3.5-flash",
+  "positive_status": 200,
+  "content": "The sum of jan and feb is 900 (350 + 550).",
+  "negative_status": 400
+}

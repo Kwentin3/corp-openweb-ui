@@ -8,6 +8,18 @@
 Статус: навигационный индекс. Не является разрешением на implementation,
 runtime changes, provider setup или использование customer data.
 
+## Current uploaded-media STT route (2026-09-25)
+
+Read [the native STT runbook](operations/STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md),
+[the current media contract](contracts/STT_MEDIA_INPUT_NORMALIZATION_CONTRACT.md)
+and [the new-session context pack](context/NEW_CHAT_CONTEXT_PACK_STT_STAGE2.md).
+Video converts to MP3 on upload before Send; the same File ID becomes audio and
+the video blob is deleted. Send waits for preparation, then the native Filter
+transcribes audio through the sidecar. Two immediate conversion attempts and a
+last attempt after 420 seconds precede deletion on failure. Older browser
+ffmpeg.wasm/Transcribe Action text in this index and dated reports is
+historical, not the active user route.
+
 ## Broker Reports active ordinary-trade route
 
 Read in this order:
@@ -238,8 +250,9 @@ Comment:
   private sidecar, then fork only with proof and owner/ADR approval.
 - For STT, user-facing UX must remain inside OpenWebUI; the sidecar is
   backend-only.
-- MVP STT trigger is explicit `Transcribe` action on an audio/video media
-  attachment.
+- Current uploaded-media STT runs through the native Send and Filter route;
+  video preparation starts on upload. The explicit `Transcribe` action was
+  part of the historical June 2026 MVP.
 
 ## Selected stories / synthetic data / proof prep
 
@@ -540,6 +553,9 @@ Comment:
 - API keys never go to the browser.
 - STT proxy ADR still defines the backend boundary; ADR-0004 remains
   `Proposed`.
+- The browser ffmpeg.wasm, `Transcribe` Action and static-loader observations
+  below describe the June 2026 baseline. For current behavior use the runbook
+  linked at the top of this index.
 - Private sidecar job routes, the OpenWebUI media attachment `Transcribe`
   action and browser ffmpeg.wasm normalization are implemented/proven for the
   MVP path.

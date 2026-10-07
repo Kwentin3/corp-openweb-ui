@@ -3,6 +3,8 @@ import json
 from fastapi.testclient import TestClient
 
 from stage2_stt.app import create_app
+from stage2_stt.config import OutputProfile
+from stage2_stt.media_preparation import PreparedMedia
 
 
 INTERNAL_TOKEN = "unit-test-internal-token"
@@ -104,6 +106,64 @@ def test_job_route_rejects_prepared_audio_mime_mismatch(monkeypatch):
 
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "unsupported_input_format"
+
+
+def test_video_preparation_route_returns_audio_only_after_internal_auth(monkeypatch):
+    _enable_internal_stub(monkeypatch)
+    def prepare(**kwargs):
+        output = kwargs["work_dir"] / "audio.mp3"
+        output.write_bytes(b"prepared-mp3")
+        return PreparedMedia(
+            filename="call.mp3", mime_type="audio/mpeg",
+            output_profile=OutputProfile.MP3_HIGH_COMPAT.value,
+            audio_path=output, size_bytes=output.stat().st_size,
+            sha256="a" * 64, duration_seconds=12.5,
+        )
+    monkeypatch.setattr(
+        "stage2_stt.app.prepare_video_audio",
+        prepare,
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/stage2-api/media/prepare",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        data={"envelope": _envelope()},
+        files={"source_media": ("call.mp4", b"video", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/mpeg"
+    assert response.headers["x-stage2-prepared-filename"] == "transcription-audio.mp3"
+    assert response.content == b"prepared-mp3"
+
+
+def test_video_preparation_route_uses_ascii_name_for_unicode_source_filename(monkeypatch):
+    _enable_internal_stub(monkeypatch)
+    def prepare(**kwargs):
+        output = kwargs["work_dir"] / "audio.mp3"
+        output.write_bytes(b"prepared-mp3")
+        return PreparedMedia(
+            filename="Запись клиента.mp3", mime_type="audio/mpeg",
+            output_profile=OutputProfile.MP3_HIGH_COMPAT.value,
+            audio_path=output, size_bytes=output.stat().st_size,
+            sha256="a" * 64, duration_seconds=12.5,
+        )
+    monkeypatch.setattr(
+        "stage2_stt.app.prepare_video_audio",
+        prepare,
+    )
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/stage2-api/media/prepare",
+        headers={"Authorization": f"Bearer {INTERNAL_TOKEN}"},
+        data={"envelope": _envelope()},
+        files={"source_media": ("Запись клиента.mp4", b"video", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-stage2-prepared-filename"] == "transcription-audio.mp3"
 
 
 def test_job_route_creates_completed_stub_job_and_exposes_result(monkeypatch):

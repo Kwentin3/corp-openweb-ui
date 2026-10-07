@@ -12,6 +12,14 @@ from .gate2_source_fact_contracts import Gate2ManagedPrompt
 PROVIDER_STATUS_APPROVED = "approved"
 PROVIDER_STATUS_PROBE_REQUIRED = "probe_required"
 PROVIDER_STATUS_UNSUPPORTED = "unsupported"
+GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS = "internal_bypass"
+GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER = "ordinary_user"
+GATE2_COMPLETION_ACCESS_MODES = frozenset(
+    {
+        GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
+        GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+    }
+)
 PROVIDER_AVAILABILITY_AVAILABLE = "available"
 PROVIDER_AVAILABILITY_UNAVAILABLE = "unavailable"
 PROVIDER_AVAILABILITY_CONFIGURATION_BLOCKED = "configuration_blocked"
@@ -22,6 +30,16 @@ GATE2_STRICT_STRUCTURED_OUTPUT_MODES = frozenset(
     {
         "openwebui_response_format_json_schema",
         "openwebui_anthropic_output_config_json_schema",
+    }
+)
+GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES = frozenset(
+    {
+        "request_preparation_request_context",
+        "request_preparation_request_build",
+        "request_preparation_budget_prepare",
+        "request_preparation_execution_contract",
+        "request_preparation_model_validation",
+        "request_preparation_provider_request_prepare",
     }
 )
 
@@ -88,6 +106,7 @@ class Gate2SourceFactRuntimeError(RuntimeError):
         raw_output: Any = None,
         execution_metadata: Gate2ProviderExecutionMetadata | None = None,
         failure_class: str | None = None,
+        safe_failure_category: str | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
@@ -95,6 +114,7 @@ class Gate2SourceFactRuntimeError(RuntimeError):
         self.raw_output = raw_output
         self.execution_metadata = execution_metadata
         self.failure_class = failure_class
+        self.safe_failure_category = safe_failure_category
 
 
 @dataclass(frozen=True)
@@ -658,3 +678,6 @@ class Gate2StructuredModelClientConfig:
     transport: str = "openwebui"
     capability_probe: bool = False
     economy_budget_enforcement: bool = False
+    # Existing production calls preserve their current bypass behavior. A
+    # diagnostic can explicitly exercise the ordinary-user ACL path instead.
+    completion_access_mode: str = GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS

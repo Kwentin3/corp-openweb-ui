@@ -1,0 +1,240 @@
+{
+  "chat": "5c5bc889-00b2-4998-b1b5-e0264fd9cfe2",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "ce358df1-e824-4013-a579-0445a96a8e2e",
+      "parentId": null,
+      "role": "user",
+      "files": [],
+      "final": "",
+      "calls": []
+    },
+    {
+      "id": "74e7b548-642a-49e0-9014-77a41d0515fe",
+      "parentId": "ce358df1-e824-4013-a579-0445a96a8e2e",
+      "role": "assistant",
+      "model": "claude-opus-5-5",
+      "done": true,
+      "files": [
+        {
+          "id": "9ab45af8-2f25-4a54-9a3a-c57ebf0f5062",
+          "name": "native-office.pptx",
+          "status": 200,
+          "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+          "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "bytes": 10674,
+          "sha256": "ebd6ac70989516cf3fd580cb11491c058d317190393932f92d4d1c79262f45a2",
+          "local_file": "c55-final-create-1.pptx"
+        },
+        {
+          "id": "90153a75-9051-4c0d-86c7-a16271247a4b",
+          "name": "native-office.docx",
+          "status": 200,
+          "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+          "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "bytes": 5285,
+          "sha256": "d7c8ae90320756288bc63bb238f25fa05e8716b958ffa2f4bf4a0842c3df2d13",
+          "local_file": "c55-final-create-1.docx"
+        }
+      ],
+      "final": "Оба файла прикреплены, проверка ошибок не выявила.\n\n- **native-office.docx** — заголовок «Office Native Check», затем два отдельных абзаца: «SOURCE ALPHA 41» и «KEEP WORD 73». Заголовку назначен стиль «Heading1», но в пустом документе такого стиля нет. Поэтому, скорее всего, заголовок будет выглядеть как обычный текст, а не крупным шрифтом.\n- **native-office.pptx** — два слайда: на первом виден текст «SOURCE BETA 52», на втором — «KEEP SLIDE 84».",
+      "calls": [
+        {
+          "name": "create_office_document",
+          "status": "completed",
+          "arguments": {
+            "commands": [
+              {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {
+                  "text": "Office Native Check",
+                  "style": "Heading1"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {
+                  "text": "SOURCE ALPHA 41"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/body",
+                "type": "paragraph",
+                "props": {
+                  "text": "KEEP WORD 73"
+                }
+              }
+            ],
+            "output_name": "native-office.docx"
+          },
+          "google_signature_present": false,
+          "result_file_id": "90153a75-9051-4c0d-86c7-a16271247a4b",
+          "result_sha256": "d7c8ae90320756288bc63bb238f25fa05e8716b958ffa2f4bf4a0842c3df2d13",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100000]",
+                  "warnings": [
+                    {
+                      "message": "style 'Heading1' not found in styles part — will be referenced as-is",
+                      "code": "advisory"
+                    }
+                  ]
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100002]"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100004]"
+                }
+              ],
+              "summary": {
+                "total": 3,
+                "executed": 3,
+                "succeeded": 3,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        },
+        {
+          "name": "create_office_presentation",
+          "status": "completed",
+          "arguments": {
+            "commands": [
+              {
+                "command": "add",
+                "parent": "/",
+                "type": "slide",
+                "props": {
+                  "layout": "blank"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/",
+                "type": "slide",
+                "props": {
+                  "layout": "blank"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/slide[1]",
+                "type": "shape",
+                "props": {
+                  "text": "SOURCE BETA 52",
+                  "x": "2cm",
+                  "y": "7cm",
+                  "width": "29cm",
+                  "height": "3cm"
+                }
+              },
+              {
+                "command": "add",
+                "parent": "/slide[2]",
+                "type": "shape",
+                "props": {
+                  "text": "KEEP SLIDE 84",
+                  "x": "2cm",
+                  "y": "7cm",
+                  "width": "29cm",
+                  "height": "3cm"
+                }
+              }
+            ],
+            "output_name": "native-office.pptx"
+          },
+          "google_signature_present": false,
+          "result_file_id": "9ab45af8-2f25-4a54-9a3a-c57ebf0f5062",
+          "result_sha256": "ebd6ac70989516cf3fd580cb11491c058d317190393932f92d4d1c79262f45a2",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Added slide at /slide[1]"
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Added slide at /slide[2]"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Added shape at /slide[1]/shape[@id=100000]"
+                },
+                {
+                  "index": 3,
+                  "success": true,
+                  "output": "Added shape at /slide[2]/shape[@id=100001]"
+                }
+              ],
+              "summary": {
+                "total": 4,
+                "executed": 4,
+                "succeeded": 4,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        }
+      ]
+    }
+  ]
+}

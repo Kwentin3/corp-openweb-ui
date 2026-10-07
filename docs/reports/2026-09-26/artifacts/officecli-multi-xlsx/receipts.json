@@ -1,0 +1,311 @@
+{
+  "matrix-downloads.json": [
+    {
+      "id": "5fcbe360-0b36-45c6-82a7-c5c650a496f5",
+      "model": "gpt-5.6-luna",
+      "files": [
+        {
+          "id": "a0c0abe3-2650-41bf-8692-634c27678c0c",
+          "name": "sales-mini.xlsx",
+          "status": 200
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "args": {
+            "file_id": "7fa83732-b89c-4627-9725-c96067e4b692",
+            "command_payload": {
+              "command": "view",
+              "mode": "annotated"
+            }
+          }
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "args": {
+            "file_id": "c6c40eae-949a-4147-9061-566680addd2c",
+            "command_payload": {
+              "command": "view",
+              "mode": "annotated"
+            }
+          }
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "args": {
+            "output_name": "sales-mini.xlsx",
+            "commands": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": "f2831874-857e-4494-8072-c9fcd5db28a9",
+      "model": "gpt-5.4-mini",
+      "files": [
+        {
+          "id": "fd4cfaeb-d9b6-4255-b303-36b595ad5db8",
+          "name": "sales-gpt54.xlsx",
+          "status": 200
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "args": {
+            "file_id": "7fa83732-b89c-4627-9725-c96067e4b692",
+            "command_payload": {
+              "command": "view",
+              "mode": "annotated"
+            }
+          }
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "args": {
+            "file_id": "c6c40eae-949a-4147-9061-566680addd2c",
+            "command_payload": {
+              "command": "view",
+              "mode": "annotated"
+            }
+          }
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "args": {
+            "output_name": "sales-gpt54.xlsx",
+            "commands": 30
+          }
+        }
+      ]
+    }
+  ],
+  "user-downloads.json": {
+    "private_other_user_file_status": 404,
+    "chats": [
+      {
+        "id": "001170ea-b8f3-4331-aa0d-87e859520e82",
+        "messages": [
+          {
+            "role": "user",
+            "files": [
+              {
+                "id": "26669369-0bd5-4a29-b7e6-f93c988ffb34",
+                "name": "jan.xlsx"
+              },
+              {
+                "id": "f839f9c9-21e4-4135-91f1-b0c406c96feb",
+                "name": "feb.xlsx"
+              }
+            ],
+            "calls": []
+          },
+          {
+            "role": "assistant",
+            "model": "models/gemini-3.5-flash",
+            "done": true,
+            "files": [],
+            "calls": []
+          },
+          {
+            "role": "user",
+            "files": [],
+            "calls": []
+          },
+          {
+            "role": "assistant",
+            "model": "gpt-5.4-mini",
+            "done": true,
+            "files": [
+              {
+                "id": "2ef08eae-9a36-4c46-9102-a1cae2989014",
+                "name": "sales-user-gpt.xlsx",
+                "status": 200
+              }
+            ],
+            "calls": [
+              {
+                "name": "create_office_spreadsheet",
+                "args": {
+                  "output_name": "sales-user-gpt.xlsx",
+                  "commands": 30
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "1e063ca9-0662-49bd-89f2-73487a7d98a1",
+        "messages": [
+          {
+            "role": "user",
+            "files": [
+              {
+                "id": "4d59b010-f0ff-46bb-8fc9-322137212915",
+                "name": "jan.xlsx"
+              },
+              {
+                "id": "c67500c4-dd56-4355-97f4-30759d98dfa8",
+                "name": "feb.xlsx"
+              }
+            ],
+            "calls": []
+          },
+          {
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "done": true,
+            "files": [
+              {
+                "id": "fd760e03-6059-4a0a-8dfa-b3516ff02c60",
+                "name": "sales-user-sonnet.xlsx",
+                "status": 200
+              }
+            ],
+            "calls": [
+              {
+                "name": "inspect_office_spreadsheet",
+                "args": {
+                  "command_payload": {
+                    "command": "view",
+                    "mode": "annotated"
+                  },
+                  "file_id": "4d59b010-f0ff-46bb-8fc9-322137212915"
+                }
+              },
+              {
+                "name": "inspect_office_spreadsheet",
+                "args": {
+                  "command_payload": {
+                    "command": "view",
+                    "mode": "annotated"
+                  },
+                  "file_id": "c67500c4-dd56-4355-97f4-30759d98dfa8"
+                }
+              },
+              {
+                "name": "create_office_spreadsheet",
+                "args": {
+                  "output_name": "sales-user-sonnet.xlsx",
+                  "commands": 30
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "user-luna-download.json": {
+    "id": "5fec0959-5bf5-4958-b712-26be87e38e06",
+    "request": {
+      "model": "gpt-5.6-luna",
+      "params": {},
+      "files": [
+        {
+          "id": "ed39e687-c9be-4869-a442-1535aedabc79",
+          "name": "jan.xlsx",
+          "type": "file"
+        },
+        {
+          "id": "9d15d908-e0f2-4ea5-b6db-966def192906",
+          "name": "feb.xlsx",
+          "type": "file"
+        }
+      ]
+    },
+    "messages": [
+      {
+        "role": "user",
+        "files": [
+          {
+            "id": "ed39e687-c9be-4869-a442-1535aedabc79",
+            "name": "jan.xlsx"
+          },
+          {
+            "id": "9d15d908-e0f2-4ea5-b6db-966def192906",
+            "name": "feb.xlsx"
+          }
+        ],
+        "calls": []
+      },
+      {
+        "role": "assistant",
+        "model": "gpt-5.6-luna",
+        "done": true,
+        "files": [
+          {
+            "id": "faebfdd1-2dfe-4be4-8699-a65a85daf0b8",
+            "name": "sales-user-luna.xlsx",
+            "status": 200
+          }
+        ],
+        "calls": [
+          {
+            "name": "inspect_office_spreadsheet",
+            "args": {
+              "file_id": "ed39e687-c9be-4869-a442-1535aedabc79",
+              "command_payload": {
+                "command": "view",
+                "mode": "annotated"
+              }
+            }
+          },
+          {
+            "name": "inspect_office_spreadsheet",
+            "args": {
+              "file_id": "9d15d908-e0f2-4ea5-b6db-966def192906",
+              "command_payload": {
+                "command": "view",
+                "mode": "annotated"
+              }
+            }
+          },
+          {
+            "name": "create_office_spreadsheet",
+            "args": {
+              "output_name": "sales-user-luna.xlsx",
+              "commands": 30
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "followup-download.json": {
+    "status": 200,
+    "id": "987b04dc-9246-4e69-8d60-17305c1c9634",
+    "name": "sales-user-followup.xlsx",
+    "calls": [
+      {
+        "name": "inspect_office_spreadsheet",
+        "args": {
+          "file_id": "ed39e687-c9be-4869-a442-1535aedabc79",
+          "command_payload": {
+            "command": "view",
+            "mode": "annotated"
+          }
+        }
+      },
+      {
+        "name": "inspect_office_spreadsheet",
+        "args": {
+          "file_id": "9d15d908-e0f2-4ea5-b6db-966def192906",
+          "command_payload": {
+            "command": "view",
+            "mode": "annotated"
+          }
+        }
+      },
+      {
+        "name": "create_office_spreadsheet",
+        "args": {
+          "output_name": "sales-user-followup.xlsx",
+          "commands": 30
+        }
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 import sys
 
@@ -126,8 +127,9 @@ def test_display_name_rename_does_not_change_behavioral_binding() -> None:
     )
 
 
-def test_retired_technical_pipe_overrides_are_inactive() -> None:
-    for pipe_id in publisher.TECHNICAL_PIPE_IDS:
+def test_only_legacy_technical_pipe_overrides_are_inactive() -> None:
+    assert NDFL_OPENWEBUI_BASE_PIPE_ID not in publisher.HIDDEN_TECHNICAL_PIPE_IDS
+    for pipe_id in publisher.HIDDEN_TECHNICAL_PIPE_IDS:
         desired = publisher.desired_hidden_pipe_model(
             pipe_id,
             previous=None,
@@ -137,8 +139,14 @@ def test_retired_technical_pipe_overrides_are_inactive() -> None:
         assert desired["base_model_id"] is None
         assert desired["is_active"] is False
 
+    legacy_override = publisher.desired_hidden_pipe_model(
+        publisher.LEGACY_PIPE_IDS[0],
+        previous=None,
+    )
+    assert legacy_override["access_grants"] == []
+
     existing_acl_override = {
-        "id": publisher.TECHNICAL_PIPE_IDS[0],
+        "id": publisher.HIDDEN_TECHNICAL_PIPE_IDS[0],
         "base_model_id": None,
         "name": "human title",
         "meta": {
@@ -150,17 +158,15 @@ def test_retired_technical_pipe_overrides_are_inactive() -> None:
     }
     assert publisher._is_safe_existing_pipe_override(
         existing_acl_override,
-        publisher.TECHNICAL_PIPE_IDS[0],
+        publisher.HIDDEN_TECHNICAL_PIPE_IDS[0],
     )
-
-
-def test_required_runtime_base_model_and_function_are_fail_closed() -> None:
-    base_model = {
-        "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
-        "base_model_id": None,
-        "is_active": True,
-        "access_grants": [publisher.ORDINARY_USER_READ_GRANT],
+    assert publisher.evaluate_base_pipe_override(None) == {
+        "absent": True,
+        "passed": True,
     }
+
+
+def test_required_runtime_base_function_is_fail_closed() -> None:
     base_function = {
         "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
         "type": "pipe",
@@ -168,15 +174,14 @@ def test_required_runtime_base_model_and_function_are_fail_closed() -> None:
         "is_global": False,
     }
 
-    assert publisher.evaluate_required_base_model(base_model)["passed"] is True
     assert (
         publisher.evaluate_required_base_function(base_function)["passed"]
         is True
     )
-    inactive_model = {**base_model, "is_active": False}
+    inactive_function = {**base_function, "is_active": False}
     global_function = {**base_function, "is_global": True}
     assert (
-        publisher.evaluate_required_base_model(inactive_model)["passed"]
+        publisher.evaluate_required_base_function(inactive_function)["passed"]
         is False
     )
     assert (
@@ -232,7 +237,7 @@ def test_existing_binding_meaning_is_preserved_during_topology_repair() -> None:
     assert publisher.evaluate_ndfl_model(desired)["routing_passed"] is True
 
 
-def test_visible_route_acceptance_allows_the_required_internal_base() -> None:
+def test_admin_model_catalog_does_not_claim_ordinary_user_visibility() -> None:
     assert publisher.evaluate_visible_routes(
         [
             {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
@@ -240,10 +245,11 @@ def test_visible_route_acceptance_allows_the_required_internal_base() -> None:
         ]
     ) == {
         "visible_product_route_ids": [NDFL_WORKSPACE_MODEL_STABLE_ID],
-        "visible_internal_runtime_base_ids": [],
+        "admin_visible_internal_runtime_base_ids": [],
         "user_facing_ndfl_models": 1,
-        "legacy_or_competing_routes_visible": [],
+        "admin_visible_legacy_or_competing_route_ids": [],
         "passed": True,
+        "ordinary_user_visibility_proof": "browser_acceptance_required",
     }
     assert publisher.evaluate_visible_routes(
         [{"id": NDFL_WORKSPACE_MODEL_STABLE_ID}]
@@ -255,20 +261,154 @@ def test_visible_route_acceptance_allows_the_required_internal_base() -> None:
         ]
     ) == {
         "visible_product_route_ids": [NDFL_WORKSPACE_MODEL_STABLE_ID],
-        "visible_internal_runtime_base_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
+        "admin_visible_internal_runtime_base_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
         "user_facing_ndfl_models": 1,
-        "legacy_or_competing_routes_visible": [],
+        "admin_visible_legacy_or_competing_route_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
         "passed": True,
+        "ordinary_user_visibility_proof": "browser_acceptance_required",
     }
     assert publisher.evaluate_visible_routes(
         [
             {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
             {"id": publisher.LEGACY_NDFL_MODEL_ID},
         ]
-    )["passed"] is False
+    )["passed"] is True
 
 
-def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
+def test_publish_deletes_only_the_managed_same_id_base_override(monkeypatch, capsys) -> None:
+    facade = publisher.desired_ndfl_model(previous=None, legacy=_legacy_model())
+    managed_base_override = publisher.desired_hidden_pipe_model(
+        NDFL_OPENWEBUI_BASE_PIPE_ID,
+        previous=None,
+    )
+    legacy_overrides = {
+        pipe_id: publisher.desired_hidden_pipe_model(pipe_id, previous=None)
+        for pipe_id in publisher.HIDDEN_TECHNICAL_PIPE_IDS
+    }
+    previous_by_id = {
+        NDFL_WORKSPACE_MODEL_STABLE_ID: facade,
+        NDFL_OPENWEBUI_BASE_PIPE_ID: managed_base_override,
+        publisher.LEGACY_NDFL_MODEL_ID: None,
+        publisher.LEGACY_WORKSPACE_MODEL_ID: None,
+        **legacy_overrides,
+    }
+    current_by_id = copy.deepcopy(previous_by_id)
+    reads: dict[str, int] = {}
+    deleted: list[str] = []
+
+    class _Session:
+        def __init__(self) -> None:
+            self.headers: dict[str, str] = {}
+
+    def fake_get_model(_session, _base_url, stable_id):
+        reads[stable_id] = reads.get(stable_id, 0) + 1
+        source = previous_by_id if reads[stable_id] == 1 else current_by_id
+        return copy.deepcopy(source[stable_id])
+
+    def fake_delete_model(_session, _base_url, *, stable_id):
+        assert stable_id == NDFL_OPENWEBUI_BASE_PIPE_ID
+        assert publisher._is_managed_hidden_route(
+            previous_by_id[stable_id], stable_id
+        )
+        current_by_id[stable_id] = None
+        deleted.append(stable_id)
+        return "deleted"
+
+    monkeypatch.setattr(publisher.requests, "Session", _Session)
+    monkeypatch.setattr(publisher, "_read_env", lambda _path: {})
+    monkeypatch.setattr(publisher, "_base_url", lambda _env: "https://invalid")
+    monkeypatch.setattr(publisher, "_signin", lambda *_args: "token")
+    monkeypatch.setattr(publisher, "_get_model", fake_get_model)
+    monkeypatch.setattr(
+        publisher,
+        "_get_function",
+        lambda *_args: {
+            "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
+            "type": "pipe",
+            "is_active": True,
+            "is_global": False,
+        },
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_publish_model",
+        lambda *_args, **_kwargs: pytest.fail("base override must not be republished"),
+    )
+    monkeypatch.setattr(publisher, "_delete_model", fake_delete_model)
+    monkeypatch.setattr(
+        publisher,
+        "_get_visible_models",
+        lambda *_args: [{"id": NDFL_WORKSPACE_MODEL_STABLE_ID}],
+    )
+    monkeypatch.setattr(sys, "argv", ["publisher", "--publish"])
+
+    assert publisher.main() == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert deleted == [NDFL_OPENWEBUI_BASE_PIPE_ID]
+    assert result["actions"][NDFL_OPENWEBUI_BASE_PIPE_ID] == "deleted"
+    assert result["checks"]["base_model_override"] == {
+        "absent": True,
+        "passed": True,
+    }
+    assert result["checks"]["required_base_function"]["passed"] is True
+    assert result["checks"]["ndfl_workspace_model"]["routing_passed"] is True
+    assert result["checks"]["visible_routes"]["passed"] is True
+
+
+def test_unmanaged_same_id_base_override_fails_before_delete(monkeypatch) -> None:
+    facade = publisher.desired_ndfl_model(previous=None, legacy=_legacy_model())
+    previous_by_id = {
+        NDFL_WORKSPACE_MODEL_STABLE_ID: facade,
+        NDFL_OPENWEBUI_BASE_PIPE_ID: {
+            "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
+            "base_model_id": None,
+            "meta": {},
+            "params": {},
+        },
+        publisher.LEGACY_NDFL_MODEL_ID: None,
+        publisher.LEGACY_WORKSPACE_MODEL_ID: None,
+        **{pipe_id: None for pipe_id in publisher.HIDDEN_TECHNICAL_PIPE_IDS},
+    }
+
+    class _Session:
+        def __init__(self) -> None:
+            self.headers: dict[str, str] = {}
+
+    monkeypatch.setattr(publisher.requests, "Session", _Session)
+    monkeypatch.setattr(publisher, "_read_env", lambda _path: {})
+    monkeypatch.setattr(publisher, "_base_url", lambda _env: "https://invalid")
+    monkeypatch.setattr(publisher, "_signin", lambda *_args: "token")
+    monkeypatch.setattr(
+        publisher,
+        "_get_model",
+        lambda _session, _base_url, stable_id: copy.deepcopy(previous_by_id[stable_id]),
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_get_function",
+        lambda *_args: {
+            "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
+            "type": "pipe",
+            "is_active": True,
+            "is_global": False,
+        },
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_delete_model",
+        lambda *_args, **_kwargs: pytest.fail("unmanaged override must not be deleted"),
+    )
+    monkeypatch.setattr(sys, "argv", ["publisher", "--publish"])
+
+    with pytest.raises(
+        publisher.NdflWorkspacePublishError,
+        match="technical_route_override_id_collision:broker_reports_gate1_pipe",
+    ):
+        publisher.main()
+
+
+def test_postdelete_failure_restores_previous_managed_base_override(monkeypatch) -> None:
     previous_facade = publisher.desired_ndfl_model(
         previous=None,
         legacy=_legacy_model(),
@@ -278,31 +418,27 @@ def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
         previous=previous_facade,
         legacy=None,
     )
-    base_model = {
-        "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
-        "base_model_id": None,
-        "name": NDFL_OPENWEBUI_BASE_PIPE_ID,
-        "meta": {},
-        "params": {},
-        "access_grants": [publisher.ORDINARY_USER_READ_GRANT],
-        "is_active": True,
-    }
     retired_models = {
         pipe_id: publisher.desired_hidden_pipe_model(pipe_id, previous=None)
-        for pipe_id in publisher.TECHNICAL_PIPE_IDS
+        for pipe_id in publisher.LEGACY_PIPE_IDS
     }
+    previous_base_override = publisher.desired_hidden_pipe_model(
+        NDFL_OPENWEBUI_BASE_PIPE_ID,
+        previous=None,
+    )
     previous_by_id = {
         NDFL_WORKSPACE_MODEL_STABLE_ID: previous_facade,
-        NDFL_OPENWEBUI_BASE_PIPE_ID: base_model,
+        NDFL_OPENWEBUI_BASE_PIPE_ID: previous_base_override,
         publisher.LEGACY_NDFL_MODEL_ID: None,
         publisher.LEGACY_WORKSPACE_MODEL_ID: None,
         **retired_models,
     }
     current_by_id = {
-        **previous_by_id,
+        **copy.deepcopy(previous_by_id),
         NDFL_WORKSPACE_MODEL_STABLE_ID: desired_facade,
     }
     reads: dict[str, int] = {}
+    deleted: list[str] = []
     restored: list[tuple[str, dict | None]] = []
 
     class _Session:
@@ -316,8 +452,14 @@ def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
 
     def fake_publish_model(_session, _base_url, *, desired, previous):
         assert desired["id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
-        assert previous == previous_facade
+        current_by_id[desired["id"]] = copy.deepcopy(desired)
         return "updated"
+
+    def fake_delete_model(_session, _base_url, *, stable_id):
+        assert stable_id == NDFL_OPENWEBUI_BASE_PIPE_ID
+        current_by_id[stable_id] = None
+        deleted.append(stable_id)
+        return "deleted"
 
     def fake_restore_model(
         _session,
@@ -327,6 +469,7 @@ def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
         previous,
     ) -> None:
         restored.append((stable_id, previous))
+        current_by_id[stable_id] = copy.deepcopy(previous)
 
     monkeypatch.setattr(publisher.requests, "Session", _Session)
     monkeypatch.setattr(publisher, "_read_env", lambda _path: {})
@@ -344,6 +487,7 @@ def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
         },
     )
     monkeypatch.setattr(publisher, "_publish_model", fake_publish_model)
+    monkeypatch.setattr(publisher, "_delete_model", fake_delete_model)
     monkeypatch.setattr(publisher, "_restore_model", fake_restore_model)
     monkeypatch.setattr(publisher, "_get_visible_models", lambda *_args: [])
     monkeypatch.setattr(sys, "argv", ["publisher", "--publish"])
@@ -354,9 +498,13 @@ def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
     ):
         publisher.main()
 
+    assert deleted == [NDFL_OPENWEBUI_BASE_PIPE_ID]
     assert restored == [
+        (NDFL_OPENWEBUI_BASE_PIPE_ID, previous_base_override),
         (NDFL_WORKSPACE_MODEL_STABLE_ID, previous_facade),
     ]
+    assert current_by_id[NDFL_OPENWEBUI_BASE_PIPE_ID] == previous_base_override
+    assert current_by_id[NDFL_WORKSPACE_MODEL_STABLE_ID] == previous_facade
 
 
 def test_publisher_routes_by_id_and_does_not_mutate_runtime_or_meaning() -> None:
@@ -366,6 +514,7 @@ def test_publisher_routes_by_id_and_does_not_mutate_runtime_or_meaning() -> None
     assert "/api/v1/models/model?id={stable_id}" in source
     assert "/api/v1/models/model/update" in source
     assert "/api/v1/models/create" in source
+    assert "/api/v1/models/model/delete" in source
     assert "get_by_name" not in source
     assert "find_model_by_name" not in source
     assert '"provider_calls": 0' in source

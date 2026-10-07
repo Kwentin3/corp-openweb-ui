@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import re
 from dataclasses import replace
 from typing import Any, Mapping
@@ -47,6 +48,9 @@ from .ordinary_trade_semantic_compiler import (
 MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v7"
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
 MAPPING_RAW_OUTPUT_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_raw_output_v1"
+MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_mapping_raw_output_ref_v1"
+)
 _V6_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v6"
 _LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
 _V3_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v3"
@@ -54,6 +58,8 @@ _V4_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v4"
 _V5_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v5"
 _MAPPING_RAW_RESPONSE_UNSET = object()
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_CLOSED_REASON_CODE = re.compile(r"ordinary_trade_[a-z0-9_]+(?::[a-z0-9_]+)?")
+_LOGGER = logging.getLogger(__name__)
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
     "persistence and continuation entrypoint"
@@ -366,6 +372,7 @@ class OrdinaryTradeMappingCaseRuntime:
         mapping_prompt_snapshot: dict[str, Any],
         pending_candidate: dict[str, Any] | None = None,
         reason_code: str | None = None,
+        mapping_raw_response: Any = _MAPPING_RAW_RESPONSE_UNSET,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         """Persist batch transport progress without publishing partial mappings."""
 
@@ -453,7 +460,12 @@ class OrdinaryTradeMappingCaseRuntime:
             mapping_batch_state=mapping_batch_state,
             reason_code=reason_code,
         )
-        return self._put(payload=payload, document_id=document_id, context=context)
+        return self._put(
+            payload=payload,
+            document_id=document_id,
+            context=context,
+            mapping_raw_response=mapping_raw_response,
+        )
 
     @staticmethod
     def validate_batch_currency_candidate(state, candidate) -> None:
@@ -984,6 +996,59 @@ class OrdinaryTradeMappingCaseRuntime:
             ),
         }
 
+    def invalid_mapping_raw_output_ref(
+        self, *, document_id: str, context: ArtifactAccessContext
+    ) -> dict[str, str] | None:
+        """Return the current invalid-output raw artifact reference, if any.
+
+        This is an internal forensic seam. The MappingCase remains the sole
+        owner of both the failed case receipt and its atomically persisted raw
+        provider response; callers receive neither the response nor a
+        derivable artifact identifier.
+        """
+
+        current = self.current(document_id=document_id, context=context)
+        if current is None or current[1]["status"] != "MAPPING_OUTPUT_INVALID":
+            return None
+        mapping_record = current[0]
+        matches: list[ArtifactRecord] = []
+        for candidate in self._resolver.catalog_case(context):
+            if (
+                candidate.artifact_type != MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+                or candidate.document_id != document_id
+            ):
+                continue
+            candidate_context = replace(
+                context, normalization_run_id=candidate.normalization_run_id
+            )
+            raw_record = self._resolver.resolve_record(
+                candidate.artifact_id, candidate_context
+            )
+            if (
+                raw_record.safe_metadata.get("mapping_case_artifact_id")
+                != mapping_record.artifact_id
+            ):
+                continue
+            if (
+                raw_record.user_id != mapping_record.user_id
+                or raw_record.case_id != mapping_record.case_id
+                or raw_record.chat_id != mapping_record.chat_id
+                or raw_record.workspace_model_id != mapping_record.workspace_model_id
+                or raw_record.normalization_run_id
+                != mapping_record.normalization_run_id
+            ):
+                _fail("ordinary_trade_mapping_case_raw_output_scope_invalid")
+            matches.append(raw_record)
+        if len(matches) > 1:
+            _fail("ordinary_trade_mapping_case_raw_output_ambiguous")
+        if not matches:
+            return None
+        return {
+            "schema_version": MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+            "artifact_ref": matches[0].artifact_id,
+            "mapping_case_artifact_id": mapping_record.artifact_id,
+        }
+
     def public_state(
         self, *, document_id: str, context: ArtifactAccessContext
     ) -> dict[str, Any] | None:
@@ -1249,7 +1314,43 @@ class OrdinaryTradeMappingCaseRuntime:
                     "ordinary_trade_mapping_case_concurrent_answer"
                 ) from exc
             raise
+        _audit_mapping_output_invalid_terminal(
+            payload=payload,
+            raw_response_saved=(mapping_raw_response is not _MAPPING_RAW_RESPONSE_UNSET),
+        )
         return stored, copy.deepcopy(payload)
+
+
+def _audit_mapping_output_invalid_terminal(
+    *, payload: Mapping[str, Any], raw_response_saved: bool
+) -> None:
+    """Emit one body-free receipt when an invalid mapping terminal is persisted.
+
+    The mapping case is the single persistence owner shared by one-shot, batch,
+    and resume paths.  This line deliberately contains only closed technical
+    metadata; source data, prompt text, provider output, identities, and
+    artifact identifiers remain private-case data.
+    """
+
+    if payload.get("status") != "MAPPING_OUTPUT_INVALID":
+        return
+    reason_code = str(payload.get("reason_code") or "")
+    if _CLOSED_REASON_CODE.fullmatch(reason_code) is None:
+        reason_code = "ordinary_trade_mapping_output_invalid"
+    revision = payload.get("revision")
+    provider_calls_total = payload.get("provider_calls_total")
+    if not isinstance(revision, int) or revision < 1:
+        return
+    if not isinstance(provider_calls_total, int) or provider_calls_total < 0:
+        return
+    _LOGGER.info(
+        "broker_reports_mapping_invalid_terminal reason_code=%s revision=%s "
+        "provider_calls_total=%s raw_response_saved=%s",
+        reason_code,
+        revision,
+        provider_calls_total,
+        raw_response_saved,
+    )
 
 
 def _validate_payload(payload: Any, *, authority: Any) -> None:
@@ -1376,7 +1477,15 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         if isinstance(binding, dict)
         else None,
     }
-    if schema_version in {_V6_MAPPING_CASE_ARTIFACT_TYPE, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}:
+    # V6 was the physical-sidecar receipt and stays strict.  V7 additionally
+    # admits a Canonical-bound semantic continuation produced on the native
+    # PDFPlumber route, where no physical sidecar exists.  A sidecar that is
+    # present in V7 remains part of the authenticated identity and is still
+    # validated exactly as before.
+    has_physical_binding = isinstance(binding, dict) and (
+        "physical_table_continuation_binding" in binding
+    )
+    if schema_version == _V6_MAPPING_CASE_ARTIFACT_TYPE or has_physical_binding:
         identity["physical_table_continuation_binding"] = (
             binding.get("physical_table_continuation_binding")
             if isinstance(binding, dict)
@@ -1387,13 +1496,13 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         "user_scope_sha256",
         "case_binding_sha256",
     }
-    if schema_version in {_V6_MAPPING_CASE_ARTIFACT_TYPE, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}:
+    if schema_version == _V6_MAPPING_CASE_ARTIFACT_TYPE or has_physical_binding:
         expected_binding_keys.add("physical_table_continuation_binding")
     if (
         not isinstance(binding, dict)
         or set(binding) != expected_binding_keys
         or (
-            schema_version in {_V6_MAPPING_CASE_ARTIFACT_TYPE, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}
+            (schema_version == _V6_MAPPING_CASE_ARTIFACT_TYPE or has_physical_binding)
             and not _valid_physical_table_continuation_binding(
                 binding.get("physical_table_continuation_binding")
             )
@@ -1822,6 +1931,7 @@ __all__ = [
     "MAPPING_CASE_ARTIFACT_TYPE",
     "MAPPING_CASE_RECEIPT_SCHEMA_VERSION",
     "MAPPING_RAW_OUTPUT_ARTIFACT_TYPE",
+    "MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION",
     "OrdinaryTradeMappingCaseError",
     "OrdinaryTradeMappingCaseFactory",
     "OrdinaryTradeMappingCaseRuntime",

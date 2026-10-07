@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-26",
+  "timezone": "UTC",
+  "model": "gpt-6-luna",
+  "role": "admin",
+  "original_chat_unchanged": true,
+  "probe_chat": "7d958a20-78d0-4725-b00a-58083fdd8d0a",
+  "reuploaded_inputs": false,
+  "manually_supplied_file_ids": false,
+  "result": "FAIL: no persisted native output attachment",
+  "events": [
+    {"time": "12:05:26.210", "source": "openwebui access log", "route": "/api/chat/completions", "status": 200},
+    {"time": "12:08:54.831", "source": "openwebui native tool execution log", "status": 422, "validation_type": "too_long", "field": "body.commands", "actual_items": 66, "maximum_items": 64},
+    {"time": "12:10:20", "source": "kernel journal", "constraint": "CONSTRAINT_MEMCG", "container_id": "0fb174020e2dc8b157a8488b9882e542febcdec2ff132f88ccc552d7f37b0549", "killed_process": "python3", "pid": 181578, "memory_usage_kib": 3145728, "memory_limit_kib": 3145728, "swap_usage_kib": 1048576, "swap_limit_kib": 1048576},
+    {"time": "12:10:24.696801719", "source": "docker inspect", "automatic_restart": true, "restart_count": 1, "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097"}
+  ],
+  "memory_growth_cause": "NOT_ESTABLISHED",
+  "heavy_probe_repeated": false,
+  "follow_up": "https://github.com/Kwentin3/corp-openweb-ui/issues/527"
+}

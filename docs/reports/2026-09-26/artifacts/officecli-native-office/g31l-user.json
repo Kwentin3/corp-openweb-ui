@@ -1,0 +1,442 @@
+{
+  "chat": "ed29b8d2-18cb-49a4-b6b8-55c51ef742a5",
+  "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+  "messages": [
+    {
+      "id": "765dd16f-248b-4bd9-ad3c-077a9dbd3d11",
+      "parentId": null,
+      "role": "user",
+      "files": [],
+      "final": "",
+      "calls": []
+    },
+    {
+      "id": "020b1a6b-89cc-43bd-8d17-5a25d71a85d2",
+      "parentId": "765dd16f-248b-4bd9-ad3c-077a9dbd3d11",
+      "role": "assistant",
+      "model": "models/gemini-3.1-flash-lite",
+      "done": true,
+      "files": [
+        {
+          "id": "f5a44942-46f2-4952-ba07-893d08d9ec9c",
+          "name": "native-office.pptx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "bytes": 10671,
+          "sha256": "80b667e55622356df2e2fb7a992127d60597aa2be3be633dcae6c7c21a568be0",
+          "local_file": "g31l-user-1.pptx"
+        },
+        {
+          "id": "81de60cd-1e91-42b4-8adb-3089086ab9c3",
+          "name": "native-office.docx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "bytes": 5262,
+          "sha256": "e5e8e40ebbe6b24e276c20ddc57ec52c00763b5e4cbf0ac8db24e10a86aedd8d",
+          "local_file": "g31l-user-1.docx"
+        }
+      ],
+      "final": "Файлы native-office.docx и native-office.pptx созданы и прикреплены к сообщению.",
+      "calls": [
+        {
+          "name": "create_office_document",
+          "status": "completed",
+          "arguments": {
+            "output_name": "native-office.docx",
+            "commands": [
+              {
+                "parent": "/body",
+                "props": {
+                  "text": "Office Native Check"
+                },
+                "command": "add",
+                "type": "paragraph"
+              },
+              {
+                "parent": "/body",
+                "command": "add",
+                "type": "paragraph",
+                "props": {
+                  "text": "SOURCE ALPHA 41"
+                }
+              },
+              {
+                "type": "paragraph",
+                "parent": "/body",
+                "command": "add",
+                "props": {
+                  "text": "KEEP WORD 73"
+                }
+              }
+            ]
+          },
+          "google_signature_present": true,
+          "result_file_id": "81de60cd-1e91-42b4-8adb-3089086ab9c3",
+          "result_sha256": "e5e8e40ebbe6b24e276c20ddc57ec52c00763b5e4cbf0ac8db24e10a86aedd8d",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100000]"
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100002]"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Added paragraph at /body/p[@paraId=00100004]"
+                }
+              ],
+              "summary": {
+                "total": 3,
+                "executed": 3,
+                "succeeded": 3,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        },
+        {
+          "name": "create_office_presentation",
+          "status": "completed",
+          "arguments": {
+            "output_name": "native-office.pptx",
+            "commands": [
+              {
+                "props": {
+                  "layout": "blank"
+                },
+                "parent": "/",
+                "command": "add",
+                "type": "slide"
+              },
+              {
+                "parent": "/slide[1]",
+                "type": "shape",
+                "command": "add",
+                "props": {
+                  "x": "2cm",
+                  "y": "3cm",
+                  "height": "3cm",
+                  "text": "SOURCE BETA 52",
+                  "width": "29cm"
+                }
+              },
+              {
+                "props": {
+                  "layout": "blank"
+                },
+                "parent": "/",
+                "type": "slide",
+                "command": "add"
+              },
+              {
+                "props": {
+                  "height": "3cm",
+                  "text": "KEEP SLIDE 84",
+                  "width": "29cm",
+                  "x": "2cm",
+                  "y": "3cm"
+                },
+                "parent": "/slide[2]",
+                "type": "shape",
+                "command": "add"
+              }
+            ]
+          },
+          "google_signature_present": false,
+          "result_file_id": "f5a44942-46f2-4952-ba07-893d08d9ec9c",
+          "result_sha256": "80b667e55622356df2e2fb7a992127d60597aa2be3be633dcae6c7c21a568be0",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Added slide at /slide[1]"
+                },
+                {
+                  "index": 1,
+                  "success": true,
+                  "output": "Added shape at /slide[1]/shape[@id=100000]"
+                },
+                {
+                  "index": 2,
+                  "success": true,
+                  "output": "Added slide at /slide[2]"
+                },
+                {
+                  "index": 3,
+                  "success": true,
+                  "output": "Added shape at /slide[2]/shape[@id=100001]"
+                }
+              ],
+              "summary": {
+                "total": 4,
+                "executed": 4,
+                "succeeded": 4,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "result_file_id",
+            "result_file",
+            "create_result",
+            "batch_result",
+            "validation_result",
+            "result_sha256",
+            "auto_resident_disabled",
+            "bounded_processes_completed"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "01d299d9-3b03-45ea-bd21-0df871feb996",
+      "parentId": "020b1a6b-89cc-43bd-8d17-5a25d71a85d2",
+      "role": "user",
+      "files": [
+        {
+          "id": "9106284f-30f5-4793-bd65-64ff562a990b",
+          "name": "template.docx"
+        },
+        {
+          "id": "18515e37-fc48-4013-87e2-84e9ea3b1523",
+          "name": "template.pptx"
+        }
+      ],
+      "final": "",
+      "calls": []
+    },
+    {
+      "id": "5d31f425-72d5-4ea6-b0ac-03089c129bc6",
+      "parentId": "01d299d9-3b03-45ea-bd21-0df871feb996",
+      "role": "assistant",
+      "model": "models/gemini-3.1-flash-lite",
+      "done": true,
+      "files": [
+        {
+          "id": "c90f5269-7b6b-4e7c-8770-7f128d1f876a",
+          "name": "template_edited.pptx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "bytes": 10670,
+          "sha256": "089d198450d0d89e00e433a4b01c40b865e1bcb459dfd9870797b56b79e259b8",
+          "local_file": "g31l-user-3.pptx"
+        },
+        {
+          "id": "db38d976-2ed5-4b14-9600-89218a66cce8",
+          "name": "template_edited.docx",
+          "status": 200,
+          "user_id": "aab4ce00-08ed-4dd1-98bc-bedb921a3924",
+          "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "bytes": 38248,
+          "sha256": "a75560ca2566f8f7725ba826b8ed4a817a34299c131c87624979a80d25d55106",
+          "local_file": "g31l-user-3.docx"
+        }
+      ],
+      "final": "Файлы успешно обновлены. В `template_edited.docx` значение SOURCE ALPHA 41 было изменено на EDITED ALPHA 91, при этом всё остальное содержимое (включая KEEP WORD 73, таблицу и колонтитулы) сохранено [1]. В `template_edited.pptx` текст первого слайда был изменён на EDITED BETA 92, а второй слайд с содержанием KEEP SLIDE 84 остался без изменений [2].",
+      "calls": [
+        {
+          "name": "inspect_office_document",
+          "status": "completed",
+          "arguments": {
+            "file_id": "9106284f-30f5-4793-bd65-64ff562a990b",
+            "command_payload": {
+              "mode": "annotated",
+              "command": "view"
+            }
+          },
+          "google_signature_present": true,
+          "response_keys": [
+            "source",
+            "file_id",
+            "officecli_result",
+            "officecli_result_sha256",
+            "auto_resident_disabled"
+          ]
+        },
+        {
+          "name": "inspect_office_presentation",
+          "status": "completed",
+          "arguments": {
+            "file_id": "18515e37-fc48-4013-87e2-84e9ea3b1523",
+            "command_payload": {
+              "command": "query",
+              "selector": "shape"
+            }
+          },
+          "google_signature_present": false,
+          "response_keys": [
+            "source",
+            "file_id",
+            "officecli_result",
+            "officecli_result_sha256",
+            "auto_resident_disabled"
+          ]
+        },
+        {
+          "name": "apply_office_batch",
+          "status": "completed",
+          "arguments": {
+            "commands": [
+              {
+                "path": "/body/p[2]",
+                "props": {
+                  "text": "EDITED ALPHA 91"
+                },
+                "command": "set"
+              }
+            ],
+            "file_id": "9106284f-30f5-4793-bd65-64ff562a990b",
+            "output_name": "template_edited.docx"
+          },
+          "google_signature_present": true,
+          "result_file_id": "db38d976-2ed5-4b14-9600-89218a66cce8",
+          "source_file_id": "9106284f-30f5-4793-bd65-64ff562a990b",
+          "result_sha256": "a75560ca2566f8f7725ba826b8ed4a817a34299c131c87624979a80d25d55106",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Updated /body/p[2]: text=EDITED ALPHA 91"
+                }
+              ],
+              "summary": {
+                "total": 1,
+                "executed": 1,
+                "succeeded": 1,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "source_file_id",
+            "result_file_id",
+            "result_file",
+            "batch_result",
+            "validation_result",
+            "source_sha256",
+            "result_sha256",
+            "source_bytes_preserved",
+            "auto_resident_disabled",
+            "bounded_processes_completed",
+            "docx_normalization"
+          ]
+        },
+        {
+          "name": "apply_office_presentation_batch",
+          "status": "completed",
+          "arguments": {
+            "commands": [
+              {
+                "command": "set",
+                "path": "/slide[1]/shape[@id=100000]",
+                "props": {
+                  "text": "EDITED BETA 92"
+                }
+              }
+            ],
+            "file_id": "18515e37-fc48-4013-87e2-84e9ea3b1523",
+            "output_name": "template_edited.pptx"
+          },
+          "google_signature_present": false,
+          "result_file_id": "c90f5269-7b6b-4e7c-8770-7f128d1f876a",
+          "source_file_id": "18515e37-fc48-4013-87e2-84e9ea3b1523",
+          "result_sha256": "089d198450d0d89e00e433a4b01c40b865e1bcb459dfd9870797b56b79e259b8",
+          "batch_result": {
+            "success": true,
+            "data": {
+              "results": [
+                {
+                  "index": 0,
+                  "success": true,
+                  "output": "Updated /slide[1]/shape[@id=100000]: text=EDITED BETA 92"
+                }
+              ],
+              "summary": {
+                "total": 1,
+                "executed": 1,
+                "succeeded": 1,
+                "failed": 0,
+                "skipped": 0
+              }
+            }
+          },
+          "validation_result": {
+            "success": true,
+            "data": {
+              "count": 0,
+              "errors": []
+            }
+          },
+          "response_keys": [
+            "source",
+            "source_file_id",
+            "result_file_id",
+            "result_file",
+            "batch_result",
+            "validation_result",
+            "source_sha256",
+            "result_sha256",
+            "source_bytes_preserved",
+            "auto_resident_disabled",
+            "bounded_processes_completed",
+            "docx_normalization"
+          ]
+        }
+      ]
+    }
+  ]
+}

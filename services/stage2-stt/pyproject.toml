@@ -19,6 +19,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
   "pytest>=8,<9",
+  "pytest-asyncio>=0.23,<1",
 ]
 
 [tool.pytest.ini_options]
@@ -26,4 +27,4 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.setuptools.packages.find]
-include = ["stage2_stt*", "openwebui_actions*"]
+include = ["stage2_stt*", "openwebui_actions*", "openwebui_filters*"]

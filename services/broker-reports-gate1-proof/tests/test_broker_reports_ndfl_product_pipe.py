@@ -25,6 +25,10 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NDFL_WORKSPACE_MODEL_STABLE_ID,
     NdflWorkflowError,
 )
+from broker_reports_gate1.gate2_model_clients import (
+    _native_completion_probe_failure_terminal,
+    _native_completion_probe_response_terminal,
+)
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     build_public_dialogue_context,
@@ -43,11 +47,204 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v15 import (
 from broker_reports_gate1.ordinary_trade_grouped_mapping_v18 import (
     OrdinaryTradeGroupedMappingV18Adapter,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
+    OrdinaryTradeGroupedMappingV20Adapter,
+)
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v23 import (
+    OrdinaryTradeGroupedMappingV23Adapter,
+)
 from broker_reports_gate1.openwebui_file_bytes import OpenWebUIOwnedFile
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
+
+
+def test_test_user_native_bridge_probe_uses_one_source_free_shared_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The diagnostic terminal is reached before any product side effect."""
+
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+    calls: list[dict] = []
+    access_flags: list[tuple[bool, bool]] = []
+    user = {"id": "native-bridge-test-user", "email": "test@test.ru", "role": "user"}
+
+    async def attested_metadata(**_kwargs):
+        return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+
+    async def trusted_message(**_kwargs):
+        return product_pipe._NATIVE_BRIDGE_PROBE_TRIGGER
+
+    def complete(
+        *,
+        request,
+        form_data,
+        user,
+        bypass_filter=False,
+        bypass_system_prompt=False,
+    ):
+        access_flags.append((bypass_filter, bypass_system_prompt))
+        calls.append(copy.deepcopy(form_data))
+        return {
+            "id": "native-bridge-probe-response",
+            "model": pipe.valves.ordinary_trade_mapping_model_id,
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": {"status": "ok"}}}
+            ],
+        }
+
+    def completion_dependencies(user_id: str):
+        assert user_id == user["id"]
+        return complete, SimpleNamespace(id=user_id, role="user")
+
+    async def forbidden_after_terminal(**_kwargs):
+        raise AssertionError("native bridge probe must terminate before product flow")
+
+    monkeypatch.setattr(pipe, "_server_attested_runtime_metadata", attested_metadata)
+    monkeypatch.setattr(pipe, "_trusted_interaction_message", trusted_message)
+    monkeypatch.setattr(pipe, "_openwebui_completion_dependencies", completion_dependencies)
+    monkeypatch.setattr(pipe, "_server_attested_completed_turn_content", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_run_workload", forbidden_after_terminal)
+
+    result = asyncio.run(pipe.pipe({"messages": [{"role": "user", "content": "ignored"}]}, __user__=user, __request__=object()))
+
+    assert result == "NATIVE_BRIDGE_PROBE_READY"
+    assert len(calls) == 1
+    assert access_flags == [(False, False)]
+    request = calls[0]
+    assert request["model"] == pipe.valves.ordinary_trade_mapping_model_id
+    assert request["stream"] is False
+    assert request["max_tokens"] == 4_096
+    assert request["response_format"]["json_schema"]["schema"] == {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {"status": {"type": "string", "enum": ["ok"]}},
+        "required": ["status"],
+    }
+    assert "canonical" not in json.dumps(request, ensure_ascii=False).lower()
+
+
+def test_native_bridge_probe_reports_content_contract_mismatch_without_product_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+    user = {"id": "native-bridge-test-user", "email": "test@test.ru", "role": "user"}
+
+    async def attested_metadata(**_kwargs):
+        return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+
+    async def trusted_message(**_kwargs):
+        return "проверка нативного моста ndfl"
+
+    def complete(**_kwargs):
+        return {
+            "id": "native-bridge-probe-response",
+            "model": pipe.valves.ordinary_trade_mapping_model_id,
+            "choices": [
+                {"finish_reason": "stop", "message": {"content": {"status": "unexpected"}}}
+            ],
+        }
+
+    def completion_dependencies(user_id: str):
+        return complete, SimpleNamespace(id=user_id, role="user")
+
+    async def forbidden_after_terminal(**_kwargs):
+        raise AssertionError("native bridge probe must not enter product flow")
+
+    monkeypatch.setattr(pipe, "_server_attested_runtime_metadata", attested_metadata)
+    monkeypatch.setattr(pipe, "_trusted_interaction_message", trusted_message)
+    monkeypatch.setattr(pipe, "_openwebui_completion_dependencies", completion_dependencies)
+    monkeypatch.setattr(pipe, "_server_attested_completed_turn_content", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_run_workload", forbidden_after_terminal)
+
+    result = asyncio.run(pipe.pipe({}, __user__=user, __request__=object()))
+
+    assert result == "NATIVE_BRIDGE_PROBE_CONTENT_CONTRACT_MISMATCH"
+
+
+def test_native_bridge_probe_reports_non_json_response_body_without_product_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The temporary diagnostic terminal is emitted before product work starts."""
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+    user = {"id": "native-bridge-test-user", "email": "test@test.ru", "role": "user"}
+
+    async def attested_metadata(**_kwargs):
+        return {"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+
+    async def trusted_message(**_kwargs):
+        return "РїСЂРѕРІРµСЂРєР° РЅР°С‚РёРІРЅРѕРіРѕ РјРѕСЃС‚Р° ndfl"
+
+    def complete(**_kwargs):
+        return SimpleNamespace(body=b"not-json")
+
+    def completion_dependencies(user_id: str):
+        return complete, SimpleNamespace(id=user_id, role="user")
+
+    async def forbidden_after_terminal(**_kwargs):
+        raise AssertionError("native bridge probe must not enter product flow")
+
+    monkeypatch.setattr(pipe, "_server_attested_runtime_metadata", attested_metadata)
+    monkeypatch.setattr(pipe, "_trusted_interaction_message", trusted_message)
+    monkeypatch.setattr(pipe, "_native_bridge_probe_requested", lambda **_kwargs: True)
+    monkeypatch.setattr(pipe, "_openwebui_completion_dependencies", completion_dependencies)
+    monkeypatch.setattr(pipe, "_server_attested_completed_turn_content", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_after_terminal)
+    monkeypatch.setattr(pipe, "_run_workload", forbidden_after_terminal)
+
+    result = asyncio.run(pipe.pipe({}, __user__=user, __request__=object()))
+
+    assert result == "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_NOT_JSON"
+
+
+def test_native_bridge_probe_cannot_be_requested_by_another_user() -> None:
+    pipe = Pipe()
+    pipe.valves.native_bridge_probe_enabled = True
+
+    assert not pipe._native_bridge_probe_requested(
+        body={},
+        metadata={"model_id": NDFL_WORKSPACE_MODEL_STABLE_ID},
+        files_arg=None,
+        messages_arg=None,
+        user={"id": "not-test-user", "email": "other@example.test", "role": "user"},
+        interaction_message="проверка нативного моста ndfl",
+    )
+
+
+def test_native_bridge_probe_classifies_safe_non_success_terminals() -> None:
+    assert _native_completion_probe_response_terminal("not-json") == (
+        "NATIVE_BRIDGE_PROBE_CONTENT_NOT_JSON"
+    )
+    assert _native_completion_probe_response_terminal("```json\n{\"status\":\"ok\"}\n```") == (
+        "NATIVE_BRIDGE_PROBE_CONTENT_MARKDOWN_FENCED"
+    )
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_body_not_json",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_NOT_JSON"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_body_json_not_object",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_JSON_NOT_OBJECT"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_shape_unsupported",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_SHAPE_UNSUPPORTED"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_invalid_response",
+        failure_class="provider_response_invalid",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_CONTAINER_INVALID"
+    assert _native_completion_probe_failure_terminal(
+        "gate2_model_response_budget_exceeded",
+        failure_class="response_budget",
+    ) == "NATIVE_BRIDGE_PROBE_RESPONSE_BUDGET_EXCEEDED"
 
 
 def test_persisted_ordinary_trade_xml_is_rechecked_before_native_delivery(tmp_path) -> None:
@@ -2132,6 +2329,33 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
             product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
             OrdinaryTradeGroupedMappingV18Adapter,
         ),
+        (
+            "ordinary_trade_mapping_v21",
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV20Adapter,
+        ),
+        (
+            "ordinary_trade_mapping_v22",
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV20Adapter,
+        ),
+        (
+            "ordinary_trade_mapping_v23",
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+            product_pipe.ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+            product_pipe.ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+            OrdinaryTradeGroupedMappingV23Adapter,
+        ),
     ],
 )
 def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
@@ -2271,10 +2495,10 @@ def test_mapping_route_profile_rejects_lab_or_arbitrary_selector(profile_id: str
 
 def test_mapping_route_profile_rejects_command_not_pinned_to_profile() -> None:
     pipe = Pipe()
-    pipe.valves.ordinary_trade_mapping_profile_id = "ordinary_trade_mapping_v13"
+    pipe.valves.ordinary_trade_mapping_profile_id = "ordinary_trade_mapping_v21"
     pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
     pipe.valves.ordinary_trade_mapping_prompt_command = (
-        product_pipe.ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND
+        product_pipe.ORDINARY_TRADE_MAPPING_V20_PROMPT_COMMAND
     )
 
     with pytest.raises(NdflWorkflowError) as rejected:

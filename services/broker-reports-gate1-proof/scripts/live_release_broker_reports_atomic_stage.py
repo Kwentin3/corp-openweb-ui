@@ -13,7 +13,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -29,10 +29,10 @@ PROMPT_PIN_KEYS = {
     "prompt_history_id",
     "prompt_hash",
 }
-ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v20"
+ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE = "ordinary_trade_mapping_v23"
 ORDINARY_TRADE_MAPPING_PRODUCTION_ASSET = (
     "services/broker-reports-gate1-proof/managed_assets/prompts/"
-    "broker_reports_ordinary_trade_mapping_prompt.v20.md"
+    "broker_reports_ordinary_trade_mapping_prompt.v23.md"
 )
 
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -190,14 +190,34 @@ def _copy_payload(
         loader_payload_path,
         *(contract.bundle_path for contract in FUNCTION_CONTRACTS),
     ]
-    for path in paths:
-        if not path.is_file():
-            raise StageReleaseDriverError("stage_release_payload_file_missing")
-    destination = f"{ssh_target}:{remote_dir}/"
-    _run(
-        [*_scp_prefix(), *(str(path) for path in paths), destination],
-        timeout=240,
+    _copy_files_to_remote_staging(
+        ssh_target=ssh_target,
+        remote_dir=remote_dir,
+        paths=paths,
+        missing_code="stage_release_payload_file_missing",
     )
+
+
+def _copy_files_to_remote_staging(
+    *,
+    ssh_target: str,
+    remote_dir: str,
+    paths: Sequence[Path],
+    missing_code: str,
+) -> None:
+    """Copy every release artifact independently.
+
+    Windows OpenSSH has shown that a multi-source ``scp`` invocation can leave
+    a later file at zero bytes while reporting success.  The staging contract
+    needs every artifact byte-for-byte, so keep one transport invocation per
+    owned file.
+    """
+
+    if any(not path.is_file() for path in paths):
+        raise StageReleaseDriverError(missing_code)
+    destination = f"{ssh_target}:{remote_dir}/"
+    for path in paths:
+        _run([*_scp_prefix(), str(path), destination], timeout=240)
 
 
 def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> None:
@@ -236,12 +256,11 @@ def _write_prompt_source_archive(*, source_revision: str, destination: Path) -> 
 def _copy_prompt_publication_payload(
     *, ssh_target: str, remote_dir: str, source_archive: Path
 ) -> None:
-    paths = (source_archive, PROMPT_HOST_SCRIPT, PROMPT_CONTAINER_SCRIPT)
-    if any(not path.is_file() for path in paths):
-        raise StageReleaseDriverError("stage_release_prompt_publication_payload_missing")
-    _run(
-        [*_scp_prefix(), *(str(path) for path in paths), f"{ssh_target}:{remote_dir}/"],
-        timeout=240,
+    _copy_files_to_remote_staging(
+        ssh_target=ssh_target,
+        remote_dir=remote_dir,
+        paths=(source_archive, PROMPT_HOST_SCRIPT, PROMPT_CONTAINER_SCRIPT),
+        missing_code="stage_release_prompt_publication_payload_missing",
     )
 
 
@@ -259,7 +278,17 @@ def _run_native_prompt_publication(
     remote_dir: str,
     profile: str,
     verify_pin: Mapping[str, str] | None,
-) -> dict[str, str]:
+    read_current: bool = False,
+    allow_missing: bool = False,
+    rollback_pin: Mapping[str, str] | None = None,
+) -> dict[str, str] | None:
+    modes = int(bool(read_current)) + int(verify_pin is not None) + int(
+        rollback_pin is not None
+    )
+    if modes > 1:
+        raise StageReleaseDriverError("stage_release_prompt_publication_mode_invalid")
+    if allow_missing and not read_current:
+        raise StageReleaseDriverError("stage_release_prompt_publication_mode_invalid")
     command = [
         *_ssh_prefix(ssh_target),
         "python3",
@@ -269,7 +298,18 @@ def _run_native_prompt_publication(
         "--profile",
         profile,
     ]
-    if verify_pin is not None:
+    if read_current:
+        command.append("--read-current")
+        if allow_missing:
+            command.append("--allow-missing")
+    elif rollback_pin is not None:
+        command.extend(
+            [
+                "--rollback-pin-json",
+                shlex.quote(json.dumps(dict(rollback_pin), sort_keys=True)),
+            ]
+        )
+    elif verify_pin is not None:
         # ssh joins trailing argv items into a remote POSIX shell command.  Quote
         # JSON explicitly so Windows OpenSSH cannot split it at spaces/quotes.
         command.extend(
@@ -285,7 +325,72 @@ def _run_native_prompt_publication(
         value = json.loads(completed.stdout)
     except ValueError as exc:
         raise StageReleaseDriverError("stage_release_prompt_publication_receipt_invalid") from exc
+    if allow_missing and value == {"status": "absent"}:
+        return None
     return _validated_prompt_pin(value)
+
+
+def bootstrap_ordinary_trade_mapping_prompt(
+    *, source_revision: str, ssh_target: str
+) -> dict[str, Any]:
+    """Explicitly create and attest the immutable v23 Prompt before release."""
+
+    local_checks = _assert_release_tree(source_revision)
+    release_name = "broker-reports-" + hashlib.sha256(
+        ("prompt-bootstrap:" + source_revision).encode("ascii")
+    ).hexdigest()[:12]
+    remote_dir: str | None = None
+    with tempfile.TemporaryDirectory(prefix="broker-reports-prompt-bootstrap-") as temp:
+        source_archive = Path(temp) / PROMPT_ARCHIVE_NAME
+        _write_prompt_source_archive(
+            source_revision=source_revision,
+            destination=source_archive,
+        )
+        try:
+            remote_dir = _prepare_remote_staging(ssh_target, release_name)
+            _copy_prompt_publication_payload(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                source_archive=source_archive,
+            )
+            current = _run_native_prompt_publication(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                verify_pin=None,
+                read_current=True,
+                allow_missing=True,
+            )
+            if current is not None:
+                return {
+                    "status": "existing",
+                    "pin": current,
+                    "local_release_checks": local_checks,
+                }
+            published = _run_native_prompt_publication(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                verify_pin=None,
+            )
+            assert published is not None
+            verified = _run_native_prompt_publication(
+                ssh_target=ssh_target,
+                remote_dir=remote_dir,
+                profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                verify_pin=published,
+            )
+            assert verified is not None
+            if verified != published:
+                raise StageReleaseDriverError("stage_release_prompt_publication_pin_drift")
+            return {
+                "status": "created",
+                "pin": verified,
+                "local_release_checks": local_checks,
+            }
+        finally:
+            if remote_dir is not None:
+                _cleanup_remote_staging(ssh_target, remote_dir)
 
 
 def _verify_native_prompt_publication_after_remote_release(
@@ -318,6 +423,45 @@ def _verify_native_prompt_publication_after_remote_release(
         return verification
     finally:
         _cleanup_remote_staging(ssh_target, verification_dir)
+
+
+def _rollback_native_prompt_publication_after_remote_failure(
+    *,
+    ssh_target: str,
+    source_revision: str,
+    source_archive: Path,
+    profile: str,
+    previous_pin: Mapping[str, str],
+) -> dict[str, str]:
+    """Restore the observed native Prompt when the later stage apply fails."""
+
+    rollback_release_name = "broker-reports-" + hashlib.sha256(
+        ("prompt-rollback:" + source_revision).encode("ascii")
+    ).hexdigest()[:12]
+    rollback_dir = _prepare_remote_staging(ssh_target, rollback_release_name)
+    try:
+        _copy_prompt_publication_payload(
+            ssh_target=ssh_target,
+            remote_dir=rollback_dir,
+            source_archive=source_archive,
+        )
+        restored = _run_native_prompt_publication(
+            ssh_target=ssh_target,
+            remote_dir=rollback_dir,
+            profile=profile,
+            verify_pin=None,
+            rollback_pin=previous_pin,
+        )
+        expected = _validated_prompt_pin(dict(previous_pin))
+        if (
+            restored["prompt_ref"] != expected["prompt_ref"]
+            or restored["prompt_command"] != expected["prompt_command"]
+            or restored["prompt_hash"] != expected["prompt_hash"]
+        ):
+            raise StageReleaseDriverError("stage_release_prompt_rollback_drift")
+        return restored
+    finally:
+        _cleanup_remote_staging(ssh_target, rollback_dir)
 
 
 def _mapping_prompt_valves(pin: Mapping[str, str]) -> dict[str, str]:
@@ -416,7 +560,6 @@ def execute(
     release_name = release_id(source_revision)
     remote_dir: str | None = None
     with tempfile.TemporaryDirectory(prefix="broker-reports-stage-release-") as temp:
-        remote_dir = _prepare_remote_staging(ssh_target, release_name)
         prompt_source_archive: Path | None = None
         try:
             if apply:
@@ -425,20 +568,28 @@ def execute(
                     source_revision=source_revision,
                     destination=prompt_source_archive,
                 )
+
+                # Validate the exact local payload and the current remote
+                # candidate before publication can mutate the native Prompt.
+                remote_dir = _prepare_remote_staging(ssh_target, release_name)
                 _copy_prompt_publication_payload(
                     ssh_target=ssh_target,
                     remote_dir=remote_dir,
                     source_archive=prompt_source_archive,
                 )
-                prompt_pin = _run_native_prompt_publication(
+                previous_prompt_pin = _run_native_prompt_publication(
                     ssh_target=ssh_target,
                     remote_dir=remote_dir,
                     profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
                     verify_pin=None,
+                    read_current=True,
                 )
+                prompt_pin = previous_prompt_pin
             else:
                 prompt_pin = supplied_prompt_pin
                 assert prompt_pin is not None
+                remote_dir = _prepare_remote_staging(ssh_target, release_name)
+
             manifest = build_manifest(
                 source_revision=source_revision,
                 prompt_contracts=expected_prompt_contracts(),
@@ -470,12 +621,81 @@ def execute(
                 manifest_path=manifest_path,
                 loader_payload_path=loader_payload_path,
             )
-            receipt = _run_remote_release(
-                ssh_target=ssh_target,
-                remote_dir=remote_dir,
-                apply=apply,
-                prove_rollback=prove_rollback,
-            )
+
+            if apply:
+                # The remote validator removes this staging directory.  A
+                # separate activation staging area prevents an unvalidated
+                # native Prompt publication from preceding this gate.
+                _run_remote_release(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    apply=False,
+                    prove_rollback=False,
+                )
+                remote_dir = _prepare_remote_staging(ssh_target, release_name)
+                _copy_prompt_publication_payload(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    source_archive=prompt_source_archive,
+                )
+                prompt_pin = _run_native_prompt_publication(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                    verify_pin=None,
+                )
+                manifest = build_manifest(
+                    source_revision=source_revision,
+                    prompt_contracts=expected_prompt_contracts(),
+                    provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
+                    loader_bytes=loader_bytes,
+                    function_valve_overrides={
+                        "broker_reports_gate1_pipe": _production_gate1_valves(
+                            prompt_pin,
+                        )
+                    },
+                )
+                validate_manifest(manifest)
+                manifest_path.write_text(
+                    json.dumps(
+                        manifest,
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+                _copy_payload(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    manifest_path=manifest_path,
+                    loader_payload_path=loader_payload_path,
+                )
+            try:
+                receipt = _run_remote_release(
+                    ssh_target=ssh_target,
+                    remote_dir=remote_dir,
+                    apply=apply,
+                    prove_rollback=prove_rollback,
+                )
+            except BaseException as original_error:
+                if apply:
+                    assert prompt_source_archive is not None
+                    try:
+                        _rollback_native_prompt_publication_after_remote_failure(
+                            ssh_target=ssh_target,
+                            source_revision=source_revision,
+                            source_archive=prompt_source_archive,
+                            profile=ORDINARY_TRADE_MAPPING_PRODUCTION_PROFILE,
+                            previous_pin=previous_prompt_pin,
+                        )
+                    except BaseException as rollback_error:
+                        original_error.add_note(
+                            "prompt rollback also failed: "
+                            + type(rollback_error).__name__
+                        )
+                raise
             if apply:
                 assert prompt_source_archive is not None
                 prompt_verification = _verify_native_prompt_publication_after_remote_release(
@@ -519,6 +739,7 @@ def main() -> int:
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--prove-rollback", action="store_true")
+    parser.add_argument("--bootstrap-ordinary-trade-mapping-prompt", action="store_true")
     parser.add_argument("--ordinary-trade-mapping-prompt-pin-json", default=None)
     args = parser.parse_args()
 
@@ -530,17 +751,29 @@ def main() -> int:
     else:
         env = _read_env(Path(args.env_file))
         ssh_target = env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
-    receipt = execute(
-        source_revision=args.source_revision,
-        ssh_target=ssh_target,
-        apply=bool(args.apply),
-        prove_rollback=bool(args.prove_rollback),
-        ordinary_trade_mapping_prompt_pin=(
-            json.loads(args.ordinary_trade_mapping_prompt_pin_json)
-            if args.ordinary_trade_mapping_prompt_pin_json is not None
-            else None
-        ),
-    )
+    if args.bootstrap_ordinary_trade_mapping_prompt:
+        if (
+            args.apply
+            or args.prove_rollback
+            or args.ordinary_trade_mapping_prompt_pin_json is not None
+        ):
+            raise StageReleaseDriverError("stage_release_prompt_bootstrap_mode_invalid")
+        receipt = bootstrap_ordinary_trade_mapping_prompt(
+            source_revision=args.source_revision,
+            ssh_target=ssh_target,
+        )
+    else:
+        receipt = execute(
+            source_revision=args.source_revision,
+            ssh_target=ssh_target,
+            apply=bool(args.apply),
+            prove_rollback=bool(args.prove_rollback),
+            ordinary_trade_mapping_prompt_pin=(
+                json.loads(args.ordinary_trade_mapping_prompt_pin_json)
+                if args.ordinary_trade_mapping_prompt_pin_json is not None
+                else None
+            ),
+        )
     print(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 

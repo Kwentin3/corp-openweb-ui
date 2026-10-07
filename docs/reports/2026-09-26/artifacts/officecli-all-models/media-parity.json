@@ -1,0 +1,11 @@
+{
+  "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
+  "media_parity": {
+    "/app/backend/open_webui/services/stage2_media_lifecycle.py": "35a5e495d96efd3cada9379dea7c6298cd10ae42af0ebe79ecf43493fdc799ab",
+    "/app/backend/open_webui/services/stage2_video_intake.py": "cbebe7337d693eb39b4c6d473619e02ddfa41bfd292b65823e7f5b7d7880d7fc",
+    "/usr/local/bin/apply_native_broker_pdf_upload_patch.py": "4914b60e752080be40c823a1605839749ff44ded41fa9d171e9b786c0b292c51",
+    "/usr/local/bin/apply_stage2_video_composer_patch.py": "7845cc1f43385f9dc86de2d92553ec7231d5e330f31481397b58ed4dc4cca4a2",
+    "/usr/local/bin/apply_stage2_streaming_upload_patch.py": "87a3b8412618dc413cb15a42d74f2801218ddc153c6ad5ca4e61bf8a9e108834"
+  },
+  "equal": true
+}

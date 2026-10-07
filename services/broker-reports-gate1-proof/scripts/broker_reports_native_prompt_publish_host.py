@@ -19,6 +19,10 @@ CONTAINER = "openwebui"
 SAFE_SCHEMA_VERSION = "broker_reports_native_mapping_prompt_pin_v1"
 SAFE_NAME_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 SAFE_PIN_KEYS = {"prompt_ref", "prompt_command", "prompt_history_id", "prompt_hash"}
+_MISSING_CURRENT_OUTPUT = {
+    "status": "error",
+    "code": "ordinary_trade_mapping_prompt_publication_pin_missing",
+}
 _PROFILE_IDS = frozenset(
     {
         "ordinary_trade_mapping_v13",
@@ -30,6 +34,9 @@ _PROFILE_IDS = frozenset(
         "ordinary_trade_mapping_v18",
         "ordinary_trade_mapping_v19",
         "ordinary_trade_mapping_v20",
+        "ordinary_trade_mapping_v21",
+        "ordinary_trade_mapping_v22",
+        "ordinary_trade_mapping_v23",
         "pdf_table_continuation_annotation_v3",
         "document_metadata_passport_v1",
     }
@@ -71,12 +78,23 @@ def _validate_output(value: str, *, status: str) -> dict[str, str]:
     return {key: parsed[key] for key in sorted(SAFE_PIN_KEYS)}
 
 
+def _is_missing_current_output(value: str) -> bool:
+    try:
+        parsed = json.loads(value)
+    except ValueError:
+        return False
+    return parsed == _MISSING_CURRENT_OUTPUT
+
+
 def execute(
     *,
     staging_dir: Path,
     verify_pin: dict[str, str] | None,
+    read_current: bool = False,
+    allow_missing: bool = False,
+    rollback_pin: dict[str, str] | None = None,
     profile: str = "ordinary_trade_mapping_v16",
-) -> dict[str, str]:
+) -> dict[str, str] | None:
     if profile not in _PROFILE_IDS:
         raise RuntimeError("ordinary_trade_mapping_prompt_release_profile_invalid")
     archive = staging_dir / "ordinary_trade_mapping_prompt_source.zip"
@@ -94,12 +112,27 @@ def execute(
             "docker", "exec", "-w", "/app/backend", "-e", "PYTHONPATH=/app/backend", CONTAINER, "python",
             runner_in_container, "--source-archive", archive_in_container, "--profile", profile,
         ]
+        modes = int(bool(read_current)) + int(verify_pin is not None) + int(
+            rollback_pin is not None
+        )
+        if modes > 1:
+            raise RuntimeError("ordinary_trade_mapping_prompt_release_mode_invalid")
+        if allow_missing and not read_current:
+            raise RuntimeError("ordinary_trade_mapping_prompt_release_mode_invalid")
         expected_status = "published"
-        if verify_pin is not None:
+        if read_current:
+            command.append("--read-current")
+            expected_status = "observed"
+        elif rollback_pin is not None:
+            command.extend(["--rollback-pin-json", json.dumps(rollback_pin, sort_keys=True)])
+            expected_status = "restored"
+        elif verify_pin is not None:
             command.extend(["--verify-pin-json", json.dumps(verify_pin, sort_keys=True)])
             expected_status = "verified"
         completed = _run(command, check=False)
         if completed.returncode != 0:
+            if allow_missing and read_current and _is_missing_current_output(completed.stdout):
+                return None
             raise RuntimeError("ordinary_trade_mapping_prompt_release_native_failed")
         return _validate_output(completed.stdout, status=expected_status)
     finally:
@@ -110,17 +143,41 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staging-dir", required=True)
     parser.add_argument("--verify-pin-json", default=None)
+    parser.add_argument("--rollback-pin-json", default=None)
+    parser.add_argument("--read-current", action="store_true")
+    parser.add_argument("--allow-missing", action="store_true")
     parser.add_argument(
         "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v16"
     )
     args = parser.parse_args()
+    modes = int(bool(args.read_current)) + int(args.verify_pin_json is not None) + int(
+        args.rollback_pin_json is not None
+    )
+    if modes > 1:
+        raise RuntimeError("ordinary_trade_mapping_prompt_release_mode_invalid")
+    if args.allow_missing and not args.read_current:
+        raise RuntimeError("ordinary_trade_mapping_prompt_release_mode_invalid")
     verify_pin = None
     if args.verify_pin_json is not None:
         value = json.loads(args.verify_pin_json)
         if not isinstance(value, dict) or set(value) != SAFE_PIN_KEYS:
             raise RuntimeError("ordinary_trade_mapping_prompt_release_pin_invalid")
         verify_pin = {key: str(value[key]) for key in sorted(SAFE_PIN_KEYS)}
-    print(json.dumps(execute(staging_dir=_staging_dir(args.staging_dir), verify_pin=verify_pin, profile=args.profile), sort_keys=True))
+    rollback_pin = None
+    if args.rollback_pin_json is not None:
+        value = json.loads(args.rollback_pin_json)
+        if not isinstance(value, dict) or set(value) != SAFE_PIN_KEYS:
+            raise RuntimeError("ordinary_trade_mapping_prompt_release_pin_invalid")
+        rollback_pin = {key: str(value[key]) for key in sorted(SAFE_PIN_KEYS)}
+    result = execute(
+        staging_dir=_staging_dir(args.staging_dir),
+        verify_pin=verify_pin,
+        read_current=bool(args.read_current),
+        allow_missing=bool(args.allow_missing),
+        rollback_pin=rollback_pin,
+        profile=args.profile,
+    )
+    print(json.dumps({"status": "absent"} if result is None else result, sort_keys=True))
     return 0
 
 

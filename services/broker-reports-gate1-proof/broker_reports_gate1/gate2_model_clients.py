@@ -14,6 +14,10 @@ from .gate2_economy_budget import (
     Gate2EconomyBudgetSessionFactory,
 )
 from .gate2_model_contracts import (
+    GATE2_COMPLETION_ACCESS_MODES,
+    GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
+    GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+    GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES,
     PROVIDER_STATUS_APPROVED,
     PROVIDER_STATUS_PROBE_REQUIRED,
     Gate2ProviderProfile,
@@ -27,6 +31,8 @@ from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
     GATE3_LLM_METADATA_REQUEST_PROFILE,
+    PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER,
+    PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE,
     SOURCE_QUALIFICATION_REQUEST_PROFILE,
     SOURCE_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
@@ -41,6 +47,7 @@ from .gate2_provider_adapters import (
     Gate2ProviderAdapterFactory,
     provider_error_code,
 )
+from .gate2_source_fact_contracts import Gate2ManagedPrompt, Gate2PromptError
 
 
 FACTORY_REQUIRED = "Gate2StructuredModelClientFactory.create is the only production Gate 2 model client entrypoint"
@@ -61,6 +68,24 @@ GATE3_OPERATIONAL_RETRY_LIMIT = 1
 # same bounded failure behaviour as direct transports: a provider that never
 # answers cannot leave a user chat permanently active.
 OPENWEBUI_COMPLETION_TIMEOUT_SECONDS = 180
+_NATIVE_COMPLETION_PROBE_SCHEMA_VERSION = "private_native_completion_probe_v1"
+_NATIVE_COMPLETION_PROBE_SUCCESS = "NATIVE_BRIDGE_PROBE_READY"
+_NATIVE_COMPLETION_PROBE_MODEL_ROUTE_UNAVAILABLE = (
+    "NATIVE_BRIDGE_PROBE_MODEL_ROUTE_UNAVAILABLE"
+)
+_NATIVE_COMPLETION_PROBE_REQUEST_REJECTED = "NATIVE_BRIDGE_PROBE_REQUEST_REJECTED"
+_NATIVE_COMPLETION_PROBE_RESPONSE_INVALID = "NATIVE_BRIDGE_PROBE_RESPONSE_INVALID"
+_NATIVE_COMPLETION_PROBE_CONTENT_NOT_JSON = "NATIVE_BRIDGE_PROBE_CONTENT_NOT_JSON"
+_NATIVE_COMPLETION_PROBE_CONTENT_CONTRACT_MISMATCH = (
+    "NATIVE_BRIDGE_PROBE_CONTENT_CONTRACT_MISMATCH"
+)
+_NATIVE_COMPLETION_PROBE_RESPONSE_CONTAINER_INVALID = (
+    "NATIVE_BRIDGE_PROBE_RESPONSE_CONTAINER_INVALID"
+)
+_NATIVE_COMPLETION_PROBE_RESPONSE_BUDGET_EXCEEDED = (
+    "NATIVE_BRIDGE_PROBE_RESPONSE_BUDGET_EXCEEDED"
+)
+_NATIVE_COMPLETION_PROBE_CALL_FAILED = "NATIVE_BRIDGE_PROBE_CALL_FAILED"
 
 
 @dataclass(frozen=True)
@@ -109,6 +134,11 @@ class Gate2StructuredModelClientFactory:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_transport_unsupported",
                 "Unsupported Gate 2 model transport",
+            )
+        if self.config.completion_access_mode not in GATE2_COMPLETION_ACCESS_MODES:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_completion_access_mode_invalid",
+                "Unsupported OpenWebUI completion access mode",
             )
         request_builder = Gate2OpenWebUIRequestBuilder(
             request_profile=self.config.request_profile
@@ -160,6 +190,7 @@ class Gate2StructuredModelClientFactory:
             request=self.request,
             completion_resolver=self.completion_resolver,
             budget_session=budget_session,
+            completion_access_mode=self.config.completion_access_mode,
         )
 
 
@@ -175,6 +206,7 @@ class Gate2OpenWebUIStructuredModelClient:
         request: Any,
         completion_resolver: CompletionResolver | None,
         budget_session: Gate2EconomyBudgetSession | None = None,
+        completion_access_mode: str = GATE2_COMPLETION_ACCESS_MODE_INTERNAL_BYPASS,
     ) -> None:
         self.request_profile = request_profile
         self.provider_profile = provider_profile
@@ -186,6 +218,7 @@ class Gate2OpenWebUIStructuredModelClient:
             completion_resolver or self._resolve_openwebui_completion_dependencies
         )
         self.budget_session = budget_session
+        self.completion_access_mode = completion_access_mode
         self._budget_operation_ordinal = 0
         self._qualification_local_invocations_total = 0
         self._qualification_provider_submissions_total = 0
@@ -205,22 +238,31 @@ class Gate2OpenWebUIStructuredModelClient:
 
     async def extract(self, *, prompt, package, model_id, response_format):
         self._qualification_local_invocations_total += 1
-        user_id = self._validate_request_context()
-        form_data = self.request_builder.build(
-            prompt=prompt,
-            package=package,
-            model_id=model_id,
-            response_format=response_format,
+        user_id = self._request_preparation_stage(
+            "request_preparation_request_context",
+            self._validate_request_context,
+        )
+        form_data = self._request_preparation_stage(
+            "request_preparation_request_build",
+            lambda: self.request_builder.build(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            ),
         )
         budget_authorization = None
         if self.budget_session is not None:
             self._budget_operation_ordinal += 1
-            budget_authorization = self.budget_session.prepare_call(
-                form_data=form_data,
-                model_id=model_id,
-                provider_profile_id=self.provider_profile.profile_id,
-                operation_identity=(
-                    f"gate2-economy-operation-" f"{self._budget_operation_ordinal}"
+            budget_authorization = self._request_preparation_stage(
+                "request_preparation_budget_prepare",
+                lambda: self.budget_session.prepare_call(
+                    form_data=form_data,
+                    model_id=model_id,
+                    provider_profile_id=self.provider_profile.profile_id,
+                    operation_identity=(
+                        f"gate2-economy-operation-" f"{self._budget_operation_ordinal}"
+                    ),
                 ),
             )
             form_data = budget_authorization.prepared_form_data
@@ -229,11 +271,20 @@ class Gate2OpenWebUIStructuredModelClient:
             if budget_authorization is not None
             else model_id
         )
-        execution_contract = self.execution_contract(effective_model_id)
-        self.provider_adapter.validate_model(effective_model_id)
-        prepared_request = self.provider_adapter.prepare_form_data(
-            form_data=form_data,
-            response_format=response_format,
+        execution_contract = self._request_preparation_stage(
+            "request_preparation_execution_contract",
+            lambda: self.execution_contract(effective_model_id),
+        )
+        self._request_preparation_stage(
+            "request_preparation_model_validation",
+            lambda: self.provider_adapter.validate_model(effective_model_id),
+        )
+        prepared_request = self._request_preparation_stage(
+            "request_preparation_provider_request_prepare",
+            lambda: self.provider_adapter.prepare_form_data(
+                form_data=form_data,
+                response_format=response_format,
+            ),
         )
         result, _response_payload = await self._execute_prepared_once(
             user_id=user_id,
@@ -244,6 +295,24 @@ class Gate2OpenWebUIStructuredModelClient:
             content_extractor=self.provider_adapter.extract_content,
         )
         return result
+
+    @staticmethod
+    def _request_preparation_stage(stage: str, operation):
+        """Keep unexpected pre-dispatch faults inside Gate 2's safe contract."""
+
+        if stage not in GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES:
+            raise AssertionError("Unknown Gate 2 request-preparation stage")
+        try:
+            return operation()
+        except (Gate2SourceFactRuntimeError, Gate2PromptError):
+            raise
+        except Exception:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_preparation_failed",
+                "Gate 2 request preparation failed",
+                failure_class="request_preparation",
+                safe_failure_category=stage,
+            ) from None
 
     async def extract_context_v2_1_once(
         self,
@@ -841,6 +910,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 raw_output=diagnostic,
                 execution_metadata=failure_metadata,
                 failure_class=exc.__class__.__name__,
+                safe_failure_category="completion_invocation_exception",
             )
             if capture_private_evidence:
                 failure.prepared_request = copy.deepcopy(prepared_request)
@@ -925,7 +995,7 @@ class Gate2OpenWebUIStructuredModelClient:
         return user_id
 
     def _invoke_completion_once(self, *, completion_fn, form_data, user_model):
-        variants = (
+        internal_bypass_variants = (
             (
                 (),
                 {
@@ -945,6 +1015,22 @@ class Gate2OpenWebUIStructuredModelClient:
                 },
             ),
             ((self.request, form_data, user_model), {}),
+        )
+        ordinary_user_variants = (
+            (
+                (),
+                {
+                    "request": self.request,
+                    "form_data": form_data,
+                    "user": user_model,
+                },
+            ),
+            ((self.request, form_data, user_model), {}),
+        )
+        variants = (
+            ordinary_user_variants
+            if self.completion_access_mode == GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER
+            else internal_bypass_variants
         )
         try:
             signature = inspect.signature(completion_fn)
@@ -1035,6 +1121,7 @@ class Gate2OpenWebUIStructuredModelClient:
                     "gate2_model_invalid_response",
                     self._invalid_body_message(),
                     raw_output=body_diagnostic,
+                    failure_class="provider_response_body_not_json",
                 ) from exc
             if isinstance(payload, dict):
                 return payload
@@ -1056,6 +1143,7 @@ class Gate2OpenWebUIStructuredModelClient:
                         "body_json_type": type(payload).__name__,
                     }
                 ),
+                failure_class="provider_response_body_json_not_object",
             )
         if isinstance(response, str):
             return {"content": response}
@@ -1063,6 +1151,7 @@ class Gate2OpenWebUIStructuredModelClient:
             "gate2_model_invalid_response",
             self._unsupported_response_message(),
             raw_output={"response_type": response.__class__.__name__},
+            failure_class="provider_response_shape_unsupported",
         )
 
     @staticmethod
@@ -1226,3 +1315,165 @@ class Gate2OpenWebUIStructuredModelClient:
         if isinstance(user, dict):
             return str(user.get("id") or user.get("user_id") or "")
         return str(getattr(user, "id", "") or "")
+
+
+class Gate2NativeCompletionProbeFactory:
+    """Build the temporary source-free nested-completion diagnostic."""
+
+    def create(
+        self,
+        *,
+        request: Any,
+        user: Any,
+        provider_profile_id: str,
+        model_id: str,
+        completion_resolver: CompletionResolver,
+    ) -> "Gate2NativeCompletionProbe":
+        return Gate2NativeCompletionProbe(
+            request=request,
+            user=user,
+            provider_profile_id=provider_profile_id,
+            model_id=model_id,
+            completion_resolver=completion_resolver,
+        )
+
+
+class Gate2NativeCompletionProbe:
+    def __init__(
+        self,
+        *,
+        request: Any,
+        user: Any,
+        provider_profile_id: str,
+        model_id: str,
+        completion_resolver: CompletionResolver,
+    ) -> None:
+        self.request = request
+        self.user = user
+        self.provider_profile_id = provider_profile_id
+        self.model_id = model_id
+        self.completion_resolver = completion_resolver
+
+    async def execute(self) -> str:
+        try:
+            client = Gate2StructuredModelClientFactory(
+                config=Gate2StructuredModelClientConfig(
+                    request_profile=PRIVATE_NATIVE_COMPLETION_PROBE_REQUEST_PROFILE,
+                    provider_profile_id=self.provider_profile_id,
+                    capability_probe=False,
+                    economy_budget_enforcement=False,
+                    completion_access_mode=GATE2_COMPLETION_ACCESS_MODE_ORDINARY_USER,
+                ),
+                user=self.user,
+                request=self.request,
+                completion_resolver=self.completion_resolver,
+            ).create()
+            result = await client.extract(
+                prompt=_native_completion_probe_prompt(),
+                package={"schema_version": _NATIVE_COMPLETION_PROBE_SCHEMA_VERSION},
+                model_id=self.model_id,
+                response_format=_native_completion_probe_response_format(),
+            )
+        except Gate2SourceFactRuntimeError as exc:
+            return _native_completion_probe_failure_terminal(
+                exc.code,
+                failure_class=exc.failure_class,
+            )
+        except Exception:
+            return _NATIVE_COMPLETION_PROBE_CALL_FAILED
+        return _native_completion_probe_response_terminal(result.content)
+
+
+def _native_completion_probe_prompt() -> Gate2ManagedPrompt:
+    content = (
+        "Return exactly one JSON object with status equal to ok. "
+        + PRIVATE_NATIVE_COMPLETION_PROBE_PACKAGE_MARKER
+    )
+    return Gate2ManagedPrompt(
+        prompt_ref="private_native_completion_probe",
+        command=None,
+        version="v1",
+        content=content,
+        hash=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        source="code_bound_diagnostic",
+        template_id="private_native_completion_probe",
+        template_kind="diagnostic",
+        prompt_contract_id=_NATIVE_COMPLETION_PROBE_SCHEMA_VERSION,
+        input_schema_version=_NATIVE_COMPLETION_PROBE_SCHEMA_VERSION,
+        output_schema_id=_NATIVE_COMPLETION_PROBE_SCHEMA_VERSION,
+        output_schema_version="v1",
+        tags=(),
+        safe_metadata={},
+    )
+
+
+def _native_completion_probe_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": _NATIVE_COMPLETION_PROBE_SCHEMA_VERSION,
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"status": {"type": "string", "enum": ["ok"]}},
+                "required": ["status"],
+            },
+        },
+    }
+
+
+def _native_completion_probe_response_terminal(content: Any) -> str:
+    if isinstance(content, str):
+        try:
+            content = json.loads(content)
+        except json.JSONDecodeError:
+            if content.strip().startswith("```"):
+                return "NATIVE_BRIDGE_PROBE_CONTENT_MARKDOWN_FENCED"
+            return _NATIVE_COMPLETION_PROBE_CONTENT_NOT_JSON
+    return (
+        _NATIVE_COMPLETION_PROBE_SUCCESS
+        if content == {"status": "ok"}
+        else _NATIVE_COMPLETION_PROBE_CONTENT_CONTRACT_MISMATCH
+    )
+
+
+def _native_completion_probe_failure_terminal(
+    code: Any,
+    *,
+    failure_class: Any = None,
+) -> str:
+    value = str(code or "")
+    if value in {
+        "gate2_model_unavailable",
+        "gate2_no_strict_structured_provider_available",
+    }:
+        return _NATIVE_COMPLETION_PROBE_MODEL_ROUTE_UNAVAILABLE
+    if value in {
+        "gate2_model_reasoning_control_rejected",
+        "gate2_model_schema_oneof_unsupported",
+        "gate2_model_provider_error",
+        "private_native_completion_probe_request_invalid",
+    }:
+        return _NATIVE_COMPLETION_PROBE_REQUEST_REJECTED
+    if value == "gate2_model_response_budget_exceeded":
+        return _NATIVE_COMPLETION_PROBE_RESPONSE_BUDGET_EXCEEDED
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_body_not_json"
+    ):
+        return "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_NOT_JSON"
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_body_json_not_object"
+    ):
+        return "NATIVE_BRIDGE_PROBE_RESPONSE_BODY_JSON_NOT_OBJECT"
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_shape_unsupported"
+    ):
+        return "NATIVE_BRIDGE_PROBE_RESPONSE_SHAPE_UNSUPPORTED"
+    if value == "gate2_model_invalid_response" and str(failure_class or "") == (
+        "provider_response_invalid"
+    ):
+        return _NATIVE_COMPLETION_PROBE_RESPONSE_CONTAINER_INVALID
+    if value == "gate2_model_invalid_response":
+        return _NATIVE_COMPLETION_PROBE_RESPONSE_INVALID
+    return _NATIVE_COMPLETION_PROBE_CALL_FAILED

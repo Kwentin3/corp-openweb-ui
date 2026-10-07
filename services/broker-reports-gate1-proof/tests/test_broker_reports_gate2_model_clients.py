@@ -1161,6 +1161,14 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(failed.exception.message, "TypeError")
         self.assertEqual(failed.exception.failure_class, "TypeError")
         self.assertEqual(
+            failed.exception.safe_failure_category,
+            "completion_invocation_exception",
+        )
+        self.assertNotIn(
+            "provider failed after invocation",
+            failed.exception.safe_failure_category,
+        )
+        self.assertEqual(
             failed.exception.raw_output,
             {
                 "error": {
@@ -1241,6 +1249,92 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["user"].id, "model-client-user")
 
+    def test_unexpected_request_preparation_faults_are_safe_and_pre_dispatch(self):
+        private_marker = "private-request-preparation-marker"
+
+        class UnexpectedUser:
+            @property
+            def id(self):
+                raise RuntimeError(private_marker)
+
+        class UnexpectedRequestBuilder:
+            def build(self, **_kwargs):
+                raise RuntimeError(private_marker)
+
+        class UnexpectedPrepareAdapter:
+            def __init__(self, delegate):
+                self._delegate = delegate
+
+            def execution_contract(self, model_id):
+                return self._delegate.execution_contract(model_id)
+
+            def validate_model(self, model_id):
+                return self._delegate.validate_model(model_id)
+
+            def prepare_form_data(self, **_kwargs):
+                raise RuntimeError(private_marker)
+
+        cases = (
+            (
+                "request_preparation_request_context",
+                lambda client: setattr(client, "user", UnexpectedUser()),
+            ),
+            (
+                "request_preparation_request_build",
+                lambda client: setattr(
+                    client, "request_builder", UnexpectedRequestBuilder()
+                ),
+            ),
+            (
+                "request_preparation_provider_request_prepare",
+                lambda client: setattr(
+                    client,
+                    "provider_adapter",
+                    UnexpectedPrepareAdapter(client.provider_adapter),
+                ),
+            ),
+        )
+        for expected_category, configure in cases:
+            with self.subTest(category=expected_category):
+                boundary = CompletionBoundary({"content": {"unexpected": True}})
+                client = self._factory(
+                    request_profile=SOURCE_REQUEST_PROFILE,
+                    boundary=boundary,
+                ).create()
+                configure(client)
+
+                with self.assertRaises(Gate2SourceFactRuntimeError) as failed:
+                    self._extract(
+                        client,
+                        prompt=self._prompt(SOURCE_REQUEST_PROFILE),
+                        package=self._package(SOURCE_REQUEST_PROFILE),
+                    )
+
+                self.assertEqual(
+                    failed.exception.code, "gate2_model_request_preparation_failed"
+                )
+                self.assertEqual(
+                    failed.exception.message, "Gate 2 request preparation failed"
+                )
+                self.assertEqual(failed.exception.failure_class, "request_preparation")
+                self.assertEqual(
+                    failed.exception.safe_failure_category, expected_category
+                )
+                self.assertIsNone(failed.exception.raw_output)
+                self.assertIsNone(failed.exception.__cause__)
+                self.assertNotIn(private_marker, str(failed.exception))
+                self.assertNotIn("RuntimeError", str(failed.exception))
+                self.assertEqual(boundary.resolved_user_ids, [])
+                self.assertEqual(boundary.calls, [])
+                self.assertEqual(
+                    client.qualification_lifecycle_snapshot(),
+                    {
+                        "local_invocations_total": 1,
+                        "provider_submissions_total": 0,
+                        "provider_responses_total": 0,
+                    },
+                )
+
     def test_async_completion_timeout_is_a_terminal_provider_failure(self):
         async def never_returns(
             *, request, form_data, user, bypass_filter, bypass_system_prompt
@@ -1313,20 +1407,32 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                 self.assertEqual(len(boundary.calls), 1)
 
         invalid_cases = (
-            ("missing_content", {}, "gate2_model_invalid_response"),
+            (
+                "missing_content",
+                {},
+                "gate2_model_invalid_response",
+                "provider_response_invalid",
+            ),
             (
                 "invalid_body",
                 SimpleNamespace(body=b"not-json"),
                 "gate2_model_invalid_response",
+                "provider_response_body_not_json",
             ),
-            ("unsupported_shape", object(), "gate2_model_invalid_response"),
+            (
+                "unsupported_shape",
+                object(),
+                "gate2_model_invalid_response",
+                "provider_response_shape_unsupported",
+            ),
             (
                 "json_list_body",
                 SimpleNamespace(body=b'[{"type":"schema"}]'),
                 "gate2_model_invalid_response",
+                "provider_response_body_json_not_object",
             ),
         )
-        for name, response, expected_code in invalid_cases:
+        for name, response, expected_code, expected_failure_class in invalid_cases:
             with self.subTest(name=name):
                 boundary = CompletionBoundary(response)
                 client = self._factory(
@@ -1340,6 +1446,9 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
                         package=self._package(SOURCE_REQUEST_PROFILE),
                     )
                 self.assertEqual(rejected.exception.code, expected_code)
+                self.assertEqual(
+                    rejected.exception.failure_class, expected_failure_class
+                )
                 if name == "invalid_body":
                     self.assertEqual(
                         rejected.exception.raw_output,

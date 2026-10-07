@@ -2,23 +2,28 @@ from __future__ import annotations
 
 import json
 import re
+from threading import BoundedSemaphore
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from fastapi.responses import Response
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from .config import Settings, load_settings
+from .discovery import ObjectReadPayload, bounded_result, help_arguments, object_arguments
 from .officecli import (
     OfficeCliExecutor,
     OfficeCliFailure,
     OfficeCliOutput,
     SubprocessOfficeCliExecutor,
 )
+from .rendering import RenderOfficeRequest, checked_png
 from .openwebui_client import (
     HttpOpenWebUiClient,
+    native_file_content_path,
     OpenWebUiAmbiguousAttachment,
     OpenWebUiClient,
     OpenWebUiFailure,
@@ -29,35 +34,55 @@ from .openwebui_client import (
 PPTX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 ATTACHED_IMAGE_SOURCE = "attachment://image"
 PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
-PPTX_TABLE_CELL_KEY = re.compile(r"r[1-9][0-9]*c[1-9][0-9]*")
-PPTX_SLIDE_PATH = re.compile(r"^/slide\[([1-9][0-9]*)\](?:/|$)")
+
+
+AUTHOR_WORKFLOW_TRIGGER = (
+    "Use the installed official guide from load_officecli_skill and command details from get_officecli_help. "
+)
 
 
 class SkillRequest(BaseModel):
-    skill: Literal["word", "excel", "pptx"]
+    skill: str | None = Field(default=None, min_length=1, max_length=64,
+        description="Omit to discover the installed official skill catalog. Then select its most specific skill name; load one guide per artifact, once, as the authors recommend.")
+    path: str | None = Field(default=None, min_length=1, max_length=240,
+        description="Optional relative reference file from the loaded skill's manifest, e.g. reference/INDEX.md. The installed CLI owns the files.")
+
+    @field_validator("skill")
+    @classmethod
+    def skill_is_a_name(cls, value):
+        if value is not None and not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", value):
+            raise ValueError("skill must be a catalog name, not a command or path")
+        return value
+
+    @field_validator("path")
+    @classmethod
+    def reference_is_relative(cls, value):
+        if value is not None and (
+            not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_./-]{0,239}", value)
+            or any(segment in {"", ".", ".."} for segment in value.split("/"))
+        ):
+            raise ValueError("path must be a relative bundled reference, without traversal")
+        return value
 
 
 class HelpRequest(BaseModel):
-    topic: Literal[
-        "docx",
-        "docx paragraph",
-        "docx set paragraph",
-        "docx add markdown",
-        "docx table-row",
-        "docx table-cell",
-        "docx view",
-        "xlsx",
-        "xlsx sheet",
-        "xlsx cell",
-        "xlsx table",
-        "xlsx view",
-        "pptx",
-        "pptx slide",
-        "pptx shape",
-        "pptx table",
-        "pptx chart",
-        "pptx picture",
-    ]
+    topic: str = Field(default="workflow", min_length=3, max_length=140, description=(
+        "workflow returns the installed official MCP tool instructions, unchanged. "
+        "Installed CLI discovery: start with docx, xlsx, or pptx for the element catalog; "
+        "then FORMAT ELEMENT or FORMAT VERB ELEMENT for exact properties and operations, "
+        "e.g. xlsx picture, xlsx remove picture, docx table-cell, pptx chart. "
+        "FORMAT is a placeholder for docx, xlsx or pptx, never a literal topic word: "
+        "use docx paragraph or docx add markdown. Request one topic per call; do not combine "
+        "multiple elements, properties or commands into a single topic. "
+        "help lists all commands; FORMAT / lists document-level properties. Bare query/get/view/batch/validate/raw/raw-set returns command usage; FORMAT VERB lists its elements. Request only the needed topic."
+    ))
+
+    @field_validator("topic")
+    @classmethod
+    def official_help_topic(cls, value: str) -> str:
+        if value != "workflow":
+            help_arguments(value)
+        return value
 
 
 class GuidanceResponse(BaseModel):
@@ -66,11 +91,11 @@ class GuidanceResponse(BaseModel):
     content: str
     content_sha256: str
     auto_resident_disabled: bool
+    diagnostics: str = ""
 
 
-class InspectCommandPayload(BaseModel):
-    command: Literal["view"]
-    mode: Literal["annotated"]
+class InspectCommandPayload(ObjectReadPayload):
+    mode: Literal["annotated", "outline", "text", "stats", "issues", "forms", "html"] = "annotated"
 
 
 class NativeDocxReference(BaseModel):
@@ -118,13 +143,32 @@ class InspectOfficeDocumentRequest(NativeDocxReference):
     command_payload: InspectCommandPayload
 
 
+class InspectSpreadsheetCommandPayload(ObjectReadPayload):
+    command: Literal["view", "query", "get", "validate", "raw"] = "view"
+    mode: Literal["outline", "text", "annotated", "stats", "issues", "html"] = "outline"
+    range: str | None = Field(
+        default=None, max_length=160,
+        description="For text mode, an explicit sheet-qualified range, e.g. Sheet1!A1:H30. Read only the cells needed for the next decision.",
+    )
+
+    @field_validator("range")
+    @classmethod
+    def bounded_sheet_range(cls, value: str | None) -> str | None:
+        if value is not None and not re.fullmatch(
+            r"[^\x00-\x1f!]{1,100}![A-Za-z]{1,3}[1-9][0-9]{0,6}(?::[A-Za-z]{1,3}[1-9][0-9]{0,6})?", value
+        ):
+            raise ValueError("range must be sheet-qualified, for example Sheet1!A1:H30")
+        return value
+
+
 class InspectSpreadsheetRequest(NativeXlsxReference):
-    command_payload: InspectCommandPayload
+    command_payload: InspectSpreadsheetCommandPayload = Field(default_factory=InspectSpreadsheetCommandPayload)
 
 
-class InspectPresentationCommandPayload(BaseModel):
-    command: Literal["query"]
-    selector: Literal["shape"]
+class InspectPresentationCommandPayload(ObjectReadPayload):
+    command: Literal["query", "get", "view", "validate", "raw"] = "query"
+    mode: Literal["outline", "text", "annotated", "stats", "issues", "html", "svg"] = "outline"
+    selector: str | None = Field(default=None, min_length=1, max_length=512, description="Official selector, e.g. shape, picture, chart, table; query returns actual paths.")
 
 
 class InspectPresentationRequest(NativePptxReference):
@@ -167,7 +211,8 @@ class CreateOfficeDocumentRequest(BaseModel):
         max_length=64,
         description=(
             "Official OfficeCLI batch items used to fill a newly created DOCX. Read the installed "
-            "OfficeCLI help before choosing element types and properties. The official help's --prop "
+            "OfficeCLI help before choosing non-trivial element types and properties; a minimal markdown "
+            "item may be added directly at /body. The official help's --prop "
             "flag may be supplied as prop and is translated to the batch JSON field props."
         ),
     )
@@ -191,9 +236,9 @@ class ApplySpreadsheetBatchRequest(NativeXlsxReference):
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(
         min_length=1,
-        max_length=64,
+        max_length=256,
         description=(
-            "Ordered official OfficeCLI batch items for the current XLSX attachment. "
+            "Up to 256 ordered official OfficeCLI batch items for the current XLSX attachment. "
             "Use this operation for a later conversational edit; do not create a new "
             "workbook when continuing an existing one."
         ),
@@ -218,12 +263,12 @@ class CreateSpreadsheetRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(
         min_length=1,
-        max_length=64,
+        max_length=256,
         description=(
-            "One ordered official OfficeCLI batch for the whole initial workbook. "
-            "A new XLSX already contains Sheet1: do not add, remove, or rename Sheet1 "
-            "unless the user explicitly requests that change. Include new sheets, cell "
-            "values, and cross-sheet formulas in this single batch. A failed batch rolls "
+            "Ordered official OfficeCLI batch items (up to 256 per call). "
+            "A new XLSX already contains Sheet1. Reuse it by default; when the user "
+            "requests a sheet name, rename it using the installed xlsx sheet help. "
+            "A failed batch rolls "
             "back all of its operations; use apply_office_spreadsheet_batch, not another "
             "create call, for a later conversational edit."
         ),
@@ -268,16 +313,28 @@ class ApplyPresentationBatchRequest(NativePptxReference):
 
 class CreatePresentationRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    commands: list[dict[str, Any]] = Field(min_length=1, max_length=256)
+    source_intent: Literal["new_independent_presentation"] | None = Field(
+        default=None,
+        description=(
+            "Set only when the user explicitly requests a new presentation independent of "
+            "any PPTX attached in this chat. For a template or previous version, use "
+            "apply_office_presentation_batch instead."
+        ),
+    )
+    commands: list[dict[str, Any]] = Field(
+        min_length=1,
+        max_length=256,
+        description=(
+            "Official OfficeCLI batch items. Consult the installed pptx help for element paths and properties."
+        ),
+    )
 
     @field_validator("commands")
     @classmethod
     def translate_official_prop_alias(
         cls, value: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        normalized = _normalize_presentation_commands(value)
-        _validate_presentation_create_order(normalized)
-        return normalized
+        return _normalize_presentation_commands(value)
 
     @field_validator("output_name")
     @classmethod
@@ -319,39 +376,7 @@ def _normalize_presentation_commands(
             raise ValueError(
                 "PPTX picture src must be attachment://image from one native chat image attachment"
             )
-        if (
-            command.get("command") == "set"
-            and isinstance(command.get("path"), str)
-            and "/table" in command["path"]
-            and any(PPTX_TABLE_CELL_KEY.fullmatch(key) for key in props)
-        ):
-            raise ValueError(
-                "PPTX table cells must be seeded in the table add command with the official "
-                "data property; rNcN keys are not valid table set properties"
-            )
     return normalized
-
-
-def _validate_presentation_create_order(commands: list[dict[str, Any]]) -> None:
-    """Reject a batch that would address a slide before that slide exists."""
-    created_slides = 0
-    for command in commands:
-        if (
-            command.get("command") == "add"
-            and command.get("parent") == "/"
-            and command.get("type") == "slide"
-        ):
-            created_slides += 1
-            continue
-        target = command.get("parent", command.get("path"))
-        if not isinstance(target, str):
-            continue
-        match = PPTX_SLIDE_PATH.match(target)
-        if match is not None and int(match.group(1)) > created_slides:
-            raise ValueError(
-                "PPTX create batch must add /slide[N] at the document root before adding "
-                "content to that slide"
-            )
 
 
 class InspectionResponse(BaseModel):
@@ -375,6 +400,12 @@ class ApplyResponse(BaseModel):
     auto_resident_disabled: bool
     bounded_processes_completed: bool
 
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        """Use the same native file route as authorized downloads."""
+        return native_file_content_path(self.result_file_id)
+
 
 class CreateResponse(BaseModel):
     source: str
@@ -387,37 +418,67 @@ class CreateResponse(BaseModel):
     auto_resident_disabled: bool
     bounded_processes_completed: bool
 
-
-HELP_ARGUMENTS: dict[str, tuple[str, ...]] = {
-    "docx": ("help", "docx"),
-    "docx paragraph": ("help", "docx", "paragraph"),
-    "docx set paragraph": ("help", "docx", "set", "paragraph"),
-    "docx add markdown": ("help", "docx", "add", "markdown"),
-    "docx table-row": ("help", "docx", "table-row"),
-    "docx table-cell": ("help", "docx", "table-cell"),
-    "docx view": ("help", "docx", "view"),
-    "xlsx": ("help", "xlsx"),
-    "xlsx sheet": ("help", "xlsx", "sheet"),
-    "xlsx cell": ("help", "xlsx", "cell"),
-    "xlsx table": ("help", "xlsx", "table"),
-    "xlsx view": ("help", "xlsx", "view"),
-    "pptx": ("help", "pptx"),
-    "pptx slide": ("help", "pptx", "slide"),
-    "pptx shape": ("help", "pptx", "shape"),
-    "pptx table": ("help", "pptx", "table"),
-    "pptx chart": ("help", "pptx", "chart"),
-    "pptx picture": ("help", "pptx", "picture"),
-}
+    @computed_field
+    @property
+    def download_url(self) -> str:
+        """Use the same native file route as authorized downloads."""
+        return native_file_content_path(self.result_file_id)
 
 
-def _officecli_json(output: OfficeCliOutput, operation: str) -> Any:
+def _officecli_json(
+    output: OfficeCliOutput, operation: str, *, allow_failed_validation: bool = False
+) -> Any:
     try:
         parsed = json.loads(output.text)
     except json.JSONDecodeError as error:
         raise OfficeCliFailure(f"officecli {operation} did not return JSON") from error
-    if not isinstance(parsed, dict) or parsed.get("success") is not True:
-        raise OfficeCliFailure(f"officecli {operation} reported failure")
+    if not isinstance(parsed, dict) or (
+        parsed.get("success") is not True
+        and not (allow_failed_validation and parsed.get("success") is False)
+    ):
+        raise OfficeCliFailure(f"officecli {operation} reported failure: {output.text}")
+    if output.diagnostics:
+        parsed = {**parsed, "adapter_diagnostics": output.diagnostics}
     return parsed
+
+
+def _invalid_pptx_source_detail(validation: dict[str, Any]) -> dict[str, Any]:
+    data = validation.get("data")
+    errors = data.get("errors") if isinstance(data, dict) else None
+    native_findings = [
+        f"{error.get('type', 'Validation')}: {error.get('description', '')}"
+        + (f" ({error['part']})" if isinstance(error.get("part"), str) else "")
+        for error in errors if isinstance(error, dict)
+        and isinstance(error.get("description"), str)
+    ] if isinstance(errors, list) else []
+    warnings = validation.get("warnings")
+    messages = [
+        warning.get("message")
+        for warning in warnings if isinstance(warning, dict)
+        and isinstance(warning.get("message"), str)
+    ] if isinstance(warnings, list) else []
+    findings = native_findings or [message for message in messages if message.startswith("[")] or messages
+    count = data.get("count") if isinstance(data, dict) else None
+    summary = f"{count} OfficeCLI validation error(s)" if isinstance(count, int) else (
+        messages[0] if messages else str(validation.get("message") or "Validation failed")
+    )
+    return {
+        "code": "PPTX_SOURCE_VALIDATION_FAILED",
+        "message": "The selected PPTX already fails OfficeCLI validation before editing. No new file was published.",
+        "summary": summary[:500],
+        "findings": [message[:500] for message in findings[:8]],
+        "findings_total": max(len(findings), count) if isinstance(count, int) else len(findings),
+        "options": [
+            "Confirm a different valid PPTX from this chat as the base.",
+            "Repair a copy of this PPTX, validate it, and then continue editing.",
+        ],
+    }
+
+
+def _inspection_result(output: OfficeCliOutput, payload: ObjectReadPayload) -> Any:
+    if payload.command == "view" and payload.mode in {"html", "svg"}:
+        return {"format": payload.mode, "content": output.text, "adapter_diagnostics": output.diagnostics}
+    return _officecli_json(output, payload.command)
 
 
 def _bearer(authorization: str | None) -> str:
@@ -499,7 +560,27 @@ def create_app(
     openwebui = openwebui_client or HttpOpenWebUiClient(
         active_settings.openwebui_base_url, active_settings.timeout_seconds
     )
-    app = FastAPI(title="OfficeCLI OpenAPI proof", version="0.2.0")
+    app = FastAPI(title="OfficeCLI for Open WebUI", version="2.0.0")
+    render_slot = BoundedSemaphore(1)
+
+    def official_workflow() -> GuidanceResponse:
+        # The installed MCP tools/list owns the always-visible workflow. Detailed
+        # skills and command schemas remain lazy, as in the upstream MCP server.
+        try:
+            output = officecli.run("mcp", input_text=json.dumps({
+                "jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}) + "\n")
+            reply = next(json.loads(line) for line in output.text.splitlines()
+                         if line.strip().startswith("{"))
+            official_tool = next(tool for tool in reply["result"]["tools"] if tool["name"] == "officecli")
+            content = official_tool["description"]
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError("Empty official tool description")
+        except (OfficeCliFailure, ValueError, KeyError, TypeError, StopIteration) as error:
+            raise HTTPException(status_code=502, detail="Installed OfficeCLI tool instructions could not be read") from error
+        return GuidanceResponse(source=f"officecli v{active_settings.expected_version}",
+            command=list(output.command), content=content,
+            content_sha256=sha256(content.encode("utf-8")).hexdigest(),
+            auto_resident_disabled=output.auto_resident_disabled, diagnostics=output.diagnostics)
 
     def authenticated_bearer(authorization: str | None) -> str:
         bearer = _bearer(authorization)
@@ -525,6 +606,7 @@ def create_app(
             content=output.text,
             content_sha256=output.content_sha256,
             auto_resident_disabled=output.auto_resident_disabled,
+            diagnostics=output.diagnostics,
         )
 
     @app.get("/healthz")
@@ -535,25 +617,89 @@ def create_app(
         "/v1/officecli/skills/load",
         response_model=GuidanceResponse,
         operation_id="load_officecli_skill",
-        description="Load the installed official OfficeCLI DOCX skill before planning DOCX work.",
+        description=(
+            "Load the installed author's guides for reading, creating and modifying Word, Excel, or PowerPoint files. "
+            "Omit skill for the official catalog; skill selects a guide and its reference manifest; path reads one bundled reference. "
+            "The installed guide owns the workflow and delivery rules."
+        ),
     )
     def load_officecli_skill(
         request: SkillRequest,
         authorization: Annotated[str | None, Header()] = None,
     ) -> GuidanceResponse:
-        return guidance_response_for(authorization, "load_skill", request.skill)
+        if request.path and not request.skill:
+            raise HTTPException(status_code=422, detail="A reference path requires a skill name")
+        arguments = ["load_skill"]
+        if request.skill:
+            arguments.append(request.skill)
+        if request.path:
+            arguments.extend(["--path", request.path])
+        return guidance_response_for(authorization, *arguments)
 
     @app.post(
         "/v1/officecli/help",
         response_model=GuidanceResponse,
         operation_id="get_officecli_help",
-        description="Read installed OfficeCLI help for an allowed DOCX topic; do not guess command syntax.",
+        description=(
+            "Discover installed OfficeCLI capabilities for DOCX, XLSX, or PPTX: format catalog, "
+            "element details, or verb-specific help. The installed CLI owns the catalog; do not guess "
+            "command syntax."
+        ),
     )
     def get_officecli_help(
         request: HelpRequest,
         authorization: Annotated[str | None, Header()] = None,
     ) -> GuidanceResponse:
-        return guidance_response_for(authorization, *HELP_ARGUMENTS[request.topic])
+        if request.topic == "workflow":
+            authenticated_bearer(authorization)
+            return official_workflow()
+        return guidance_response_for(authorization, *help_arguments(request.topic))
+
+    @app.post(
+        "/v1/officecli/render", operation_id="render_office_file",
+        response_class=Response,
+        responses={200: {"content": {"image/png": {"schema": {"type": "string", "format": "binary"}}}}},
+        description=(
+            "Run the installed author's screenshot renderer and return an image to your vision context through native OpenWebUI. "
+            "Use grid for a whole DOCX/PPTX contact sheet, or inspect a page/slide. "
+            "For DOCX pagination use grid: the installed HTML renderer's single-page-1 shortcut skips pagination and can show false overflow. "
+            "Fix confirmed layout problems and re-render as the loaded skill requires. "
+            "Without range, XLSX shows its active sheet; use a sheet-qualified range for a targeted view. "
+            "The render belongs to the requested file_id; any source.ext label is temporary. "
+            "Use the image to verify the original task, then finish that task with its final attachment. "
+            "The original file is unchanged. A failed render is not a visual pass; disclose 'not visually verified'."
+        ),
+    )
+    def render_office_file(
+        request: RenderOfficeRequest,
+        authorization: Annotated[str | None, Header()] = None,
+    ) -> Response:
+        bearer = authenticated_bearer(authorization)
+        if request.format == "xlsx" and request.page != 1:
+            raise HTTPException(status_code=422, detail="XLSX screenshot covers the active sheet only; page is not a sheet selector")
+        if not render_slot.acquire(blocking=False):
+            raise HTTPException(status_code=409, detail="A screenshot is already running; retry after it finishes")
+        try:
+            with TemporaryDirectory(prefix="officecli-render-") as directory:
+                source = Path(directory) / f"source.{request.format}"
+                output = Path(directory) / "preview.png"
+                openwebui.download(request.file_id, bearer, source)
+                arguments = ["view", str(source), "screenshot", "-o", str(output)]
+                if request.grid is not None:
+                    arguments.extend(["--grid", str(request.grid)])
+                elif request.format != "xlsx":
+                    arguments.extend(["--page", str(request.page)])
+                if request.range is not None:
+                    arguments.extend(["--range", request.range])
+                officecli.run(*arguments)
+                if not output.is_file():
+                    raise OfficeCliFailure("OfficeCLI did not produce a screenshot; document is not visually verified")
+                return Response(checked_png(output.read_bytes()), media_type="image/png",
+                    headers={"Cache-Control": "no-store"})
+        except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
+            raise _http_error(error) from error
+        finally:
+            render_slot.release()
 
     @app.post(
         "/v1/officecli/documents/inspect",
@@ -561,8 +707,9 @@ def create_app(
         operation_id="inspect_office_document",
         description=(
             "Read the single nearest DOCX attachment from the native current-message ancestry and return "
-            "official annotated OfficeCLI output. When that message has multiple DOCX attachments, use an "
-            "explicit file_id rather than guessing. Use the exact paragraph path to plan an edit."
+            "official view output, or query/get for native objects. "
+            "Query selectors discover actual paths; get reads one path with bounded depth. Follow query pagination. When that message has "
+            "multiple DOCX attachments, use an explicit file_id."
         ),
     )
     def inspect_office_document(
@@ -587,25 +734,36 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.docx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
-                    "view", str(source), request.command_payload.mode, "--json"
-                )
-                result = _officecli_json(output, "view")
+                payload = request.command_payload
+                annotated_output = officecli.run(*object_arguments(str(source), payload))
+                result = _inspection_result(annotated_output, payload)
+                auto_resident_disabled = annotated_output.auto_resident_disabled
+                result = bounded_result(result, payload)
+                result_sha256 = sha256(
+                    json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
             source=f"officecli v{active_settings.expected_version}",
             file_id=source_file_id,
             officecli_result=result,
-            officecli_result_sha256=output.content_sha256,
-            auto_resident_disabled=output.auto_resident_disabled,
+            officecli_result_sha256=result_sha256,
+            auto_resident_disabled=auto_resident_disabled,
         )
 
     @app.post(
         "/v1/officecli/spreadsheets/inspect",
         response_model=InspectionResponse,
         operation_id="inspect_office_spreadsheet",
-        description="Inspect the single nearest native XLSX attachment with official annotated OfficeCLI output.",
+        description=(
+            "Inspect XLSX structure first (default outline). Use command=query with selector=picture/chart/etc "
+            "to discover actual object paths across ALL sheets; use command=get with path and depth=0 for properties. "
+            "Follow query pagination until next_offset is null. Then read only a needed sheet range "
+            "with mode=text and range=Sheet1!A1:H30. Use explicit file_id for multiple attachments. "
+            "Large results provide continuation offsets; follow pagination to recover complete native output. "
+            "Use returned structure and content to answer the user's request."
+        ),
     )
     def inspect_office_spreadsheet(
         request: InspectSpreadsheetRequest,
@@ -629,10 +787,21 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.xlsx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
-                    "view", str(source), request.command_payload.mode, "--json"
-                )
-                result = _officecli_json(output, "view")
+                payload = request.command_payload
+                if payload.command == "view":
+                    if payload.range and payload.mode != "text":
+                        raise HTTPException(status_code=422, detail="range requires mode=text")
+                    if payload.mode == "text" and not payload.range:
+                        raise HTTPException(status_code=422, detail="text mode requires a sheet-qualified range; use outline first")
+                    arguments = object_arguments(str(source), payload)
+                    if payload.range:
+                        arguments.extend(["--range", payload.range])
+                else:
+                    if payload.range:
+                        raise HTTPException(status_code=422, detail="range is only supported for view")
+                    arguments = object_arguments(str(source), payload)
+                output = officecli.run(*arguments)
+                result = bounded_result(_inspection_result(output, payload), payload)
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
@@ -647,12 +816,11 @@ def create_app(
         "/v1/officecli/documents/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_batch",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Complete a requested DOCX edit after inspection: apply official OfficeCLI batch items to "
             "the single nearest native DOCX attachment, validate it, and attach the resulting DOCX to this "
             "assistant message. Omit file_id only when that attachment is unambiguous; otherwise use an "
-            "explicit file_id rather than guessing. This is the final execution "
-            "operation; do not replace it with a textual explanation."
+            "explicit file_id rather than guessing. Execute the edit, then verify the published result."
         ),
     )
     def apply_office_batch(
@@ -744,11 +912,11 @@ def create_app(
         "/v1/officecli/documents/create",
         response_model=CreateResponse,
         operation_id="create_office_document",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
-            "user asks for a new document rather than an edit of an attached DOCX. Read OfficeCLI skill and "
-            "help first; this is the final execution operation, not a textual substitute."
+            "user asks for a new document rather than an edit of an attached DOCX. "
+            "Use exact help for properties before this operation."
         ),
     )
     def create_office_document(
@@ -820,10 +988,10 @@ def create_app(
         "/v1/officecli/spreadsheets/create",
         response_model=CreateResponse,
         operation_id="create_office_spreadsheet",
-        description=(
+        description=AUTHOR_WORKFLOW_TRIGGER + (
             "Create, batch, validate, and attach a new XLSX from the chat request. "
-            "The workbook starts with Sheet1, so submit all initial work in one ordered "
-            "batch and add only additional sheets. For a later chat turn, use "
+            "The workbook starts with Sheet1; address a cell as /Sheet1/A1, not as "
+            "/sheet[Sheet1]/cell[A1]. Continue changes with "
             "apply_office_spreadsheet_batch on the returned attachment."
         ),
     )
@@ -907,7 +1075,7 @@ def create_app(
         "/v1/officecli/spreadsheets/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_spreadsheet_batch",
-        description="Edit, validate, and attach the single nearest native XLSX attachment.",
+        description=AUTHOR_WORKFLOW_TRIGGER + "Edit, validate, and attach the single nearest native XLSX attachment.",
     )
     def apply_office_spreadsheet_batch(
         request: ApplySpreadsheetBatchRequest,
@@ -1001,8 +1169,10 @@ def create_app(
         operation_id="inspect_office_presentation",
         description=(
             "Inspect the single nearest native PPTX attachment with the official OfficeCLI "
-            "shape inventory, including stable shape paths, current text, and formatting required "
-            "for an existing-shape edit."
+            "query selector (shape, picture, chart, table, etc.) or get path with depth=0. "
+            "Follow query pagination. Includes stable paths, current text, and formatting required "
+            "for an existing-shape edit. Validate returns native findings even when the PPTX "
+            "fails validation; explain those findings to the user before choosing a repair path."
         ),
     )
     def inspect_office_presentation(
@@ -1025,10 +1195,13 @@ def create_app(
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 source = Path(directory) / "source.pptx"
                 openwebui.download(source_file_id, bearer, source)
-                output = officecli.run(
-                    "query", str(source), request.command_payload.selector, "--json"
+                payload = request.command_payload
+                output = officecli.run(*object_arguments(str(source), payload))
+                result = bounded_result(
+                    _officecli_json(output, "validate", allow_failed_validation=True)
+                    if payload.command == "validate" else _inspection_result(output, payload),
+                    payload,
                 )
-                result = _officecli_json(output, "query")
         except (OfficeCliFailure, OpenWebUiFailure, OSError) as error:
             raise _http_error(error) from error
         return InspectionResponse(
@@ -1043,10 +1216,14 @@ def create_app(
         "/v1/officecli/presentations/create",
         response_model=CreateResponse,
         operation_id="create_office_presentation",
-        description=(
-            "Create a PPTX from the current chat request using official OfficeCLI create and batch, "
-            "validate it, and attach the resulting PPTX to this assistant message. Read the official "
-            "PPTX skill and relevant help before execution. A picture may use only the "
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Create a blank PPTX only when there is no PPTX source or the user explicitly "
+            "requests an independent presentation. An attached corporate template or previous "
+            "version is a source for apply_office_presentation_batch, not this operation. "
+            "Use official OfficeCLI create and batch, "
+            "validate it, and attach the resulting PPTX to this assistant message. Add each new slide "
+            "at the document root / before adding content under /slide[N]; /presentation is not a valid "
+            "parent. Consult exact property help. A picture may use only the "
             "attachment://image source, which resolves exactly one native image attachment in this chat."
         ),
     )
@@ -1062,6 +1239,21 @@ def create_app(
         native_chat_id, native_message_id = _native_chat_message_ids(chat_id, message_id)
         native_file: dict[str, Any] | None = None
         try:
+            if (
+                request.source_intent != "new_independent_presentation"
+                and openwebui.has_nearest_pptx_attachment(
+                    native_chat_id, native_message_id, bearer
+                )
+            ):
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "A PPTX is attached in this chat. Use apply_office_presentation_batch "
+                        "to preserve its template and edit the latest version. Create a blank "
+                        "presentation only if the user explicitly requested an independent file; "
+                        "then set source_intent=new_independent_presentation."
+                    ),
+                )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result = Path(directory) / "created.pptx"
                 commands = _materialize_presentation_images(
@@ -1129,9 +1321,16 @@ def create_app(
         "/v1/officecli/presentations/apply-batch",
         response_model=ApplyResponse,
         operation_id="apply_office_presentation_batch",
-        description=(
-            "Edit, validate, and attach the single nearest native PPTX attachment. This is the final "
-            "execution operation; do not replace it with a textual explanation. A picture may use only "
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Edit a copy of the nearest native PPTX template or previous version, preserving "
+            "unrequested slides, media, and editable objects. Validate and attach the result. "
+            "If the source already fails OfficeCLI validation, no edit is published; "
+            "explain the findings and offer a valid earlier source or repair of a copy. "
+            "To add a slide in the source style, OfficeCLI batch can clone it with "
+            "an add item using parent=/ and from=/slide[N]; inspect the copied shape paths "
+            "before editing because shape IDs can change. "
+            "Verify the published "
+            "result before completion. A picture may use only "
             "attachment://image, which resolves exactly one native image attachment in this chat."
         ),
     )
@@ -1160,6 +1359,16 @@ def create_app(
                 source_after = workspace / "source-after-check.pptx"
                 openwebui.download(source_file_id, bearer, source)
                 source_sha256 = sha256(source.read_bytes()).hexdigest()
+                source_validation = _officecli_json(
+                    officecli.run("validate", str(source), "--json"),
+                    "validate",
+                    allow_failed_validation=True,
+                )
+                if source_validation["success"] is False:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=_invalid_pptx_source_detail(source_validation),
+                    )
                 result.write_bytes(source.read_bytes())
                 commands = _materialize_presentation_images(
                     request.commands,
@@ -1224,6 +1433,23 @@ def create_app(
             bounded_processes_completed=True,
         )
 
+    native_openapi = app.openapi
+
+    def openapi_with_official_workflow():
+        if app.openapi_schema is None:
+            workflow = official_workflow()
+            schema = native_openapi()
+            operation = schema["paths"]["/v1/officecli/help"]["post"]
+            operation["description"] += (
+                "\n\nInstalled OfficeCLI workflow (applies to all Office tools):\n"
+                + workflow.content
+                + "\n\nOpen WebUI transport: CLI examples map to the named inspect/create/apply/render tools "
+                "and their schemas; use native file_id instead of host paths. Each create/apply saves "
+                "a copy and returns result_file_id/download_url; separate save/close is unnecessary."
+            )
+        return app.openapi_schema
+
+    app.openapi = openapi_with_official_workflow
     return app
 
 

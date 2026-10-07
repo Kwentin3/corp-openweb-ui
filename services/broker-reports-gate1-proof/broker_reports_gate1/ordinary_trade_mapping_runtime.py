@@ -6,12 +6,16 @@ import copy
 import hashlib
 import inspect
 import json
+import logging
 import re
 import secrets
 from typing import Any, Iterable, Mapping
 
 from .artifact_models import ArtifactAccessContext
-from .gate2_model_contracts import require_strict_json_schema_response
+from .gate2_model_contracts import (
+    GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES,
+    require_strict_json_schema_response,
+)
 from .ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
 )
@@ -35,6 +39,9 @@ from .ordinary_trade_qualified_mappings import (
 from .ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerFactory,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 _USER_CURRENCY_ANSWER = re.compile(
@@ -313,8 +320,10 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                headerless_disposition_response=_currency_plan_headerless_disposition_response(plan),
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=_currency_plan_requires_headerless_dispositions(plan),
             )
             instructional_state = current[1].get("instructional_classification_state")
             if instructional_state is not None and outcome["status"] == "COMPLETE":
@@ -548,14 +557,72 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=0
             )
         try:
+            # Python evaluates call arguments before entering Gate 2. Build the
+            # representation-owned response contract before the request receipt
+            # so a failure here cannot be mistaken for a provider submission.
+            response_format = self._mapping_response_format()
+        except Exception:
+            _audit_mapping_response_format_unavailable()
+            saved = self._cases.save_provider_terminal(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                reason_code="ordinary_trade_mapping_response_format_unavailable",
+                message=(
+                    "The mapping response contract is unavailable. No provider "
+                    "call was made."
+                ),
+                provider_calls_total=0,
+                mapping_prompt_snapshot=prompt_snapshot,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=0
+            )
+        try:
+            request_receipt = self._semantic.preflight_mapping_request(
+                package=package,
+                canonical=binding["canonical"],
+                confirmed_understandings=confirmed,
+                target_table_node_ids=target_table_node_ids,
+                physical_table_continuation_context=binding[
+                    "physical_table_continuation_context"
+                ],
+                input_schema_version=self._input_schema_version,
+                prompt_snapshot=prompt_snapshot,
+            )
+            _audit_mapping_request_preflight(request_receipt)
+        except Exception as exc:
+            code = getattr(exc, "code", "ordinary_trade_mapping_request_preflight_invalid")
+            _audit_mapping_request_preflight_invalid(code)
+            saved = self._cases.save_provider_terminal(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                reason_code=str(code),
+                message=(
+                    "The mapping request did not match its current Canonical and "
+                    "instruction. No provider call was made."
+                ),
+                provider_calls_total=0,
+                mapping_prompt_snapshot=prompt_snapshot,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=0
+            )
+        try:
             response = await self._model_client.extract(
                 prompt=prompt,
                 package=package,
                 model_id=self._model_id,
-                response_format=self._mapping_response_format(),
+                response_format=response_format,
             )
         except Exception as exc:
-            code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
+            code = _mapping_provider_failure_reason_code(exc)
+            provider_calls = _mapping_provider_calls_total(exc)
+            _audit_mapping_provider_call_failed(
+                code,
+                failure_category=_mapping_provider_failure_category(exc),
+            )
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
@@ -565,11 +632,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     "Модель semantic mapping сейчас недоступна. Сохранённый case "
                     "можно безопасно продолжить позже."
                 ),
-                provider_calls_total=1,
+                provider_calls_total=provider_calls,
                 mapping_prompt_snapshot=prompt_snapshot,
             )
             return self._result(
-                current=saved, context=context, provider_calls_this_turn=1
+                current=saved, context=context, provider_calls_this_turn=provider_calls
             )
         try:
             require_strict_json_schema_response(
@@ -582,6 +649,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 package=package,
             )
             explicit_header_source_response = self._explicit_header_source_response(
+                response=response
+            )
+            headerless_disposition_response = self._headerless_disposition_response(
                 response=response
             )
             contract_failure = self._semantic.mapping_response_contract_failure_code(
@@ -606,17 +676,22 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 frozen_mappings=self._frozen_mappings,
                 frozen_requalification_table_node_ids=frozen_requalification_table_node_ids,
                 explicit_header_source_response=explicit_header_source_response,
+                headerless_disposition_response=headerless_disposition_response,
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_source_bound_position_effect=(
                     self._allows_source_bound_position_effect()
                 ),
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=(
+                    self._requires_headerless_dispositions()
+                ),
             )
         except Exception as exc:
             code = getattr(
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
             )
             reason_code = _mapping_output_reason_code(exc, str(code))
+            _audit_provider_mapping_output_invalid(reason_code)
             incomplete = str(code) in {
                 "ordinary_trade_semantic_mapping_side_invalid",
                 "ordinary_trade_semantic_mapping_dry_run_incomplete",
@@ -720,6 +795,28 @@ class OrdinaryTradeAutomaticMappingRuntime:
         if not isinstance(value, dict):
             raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
         return value
+
+    def _headerless_disposition_response(self, *, response: Any) -> dict[str, Any] | None:
+        extractor = getattr(self._mapping_response_adapter, "headerless_dispositions", None)
+        if extractor is None:
+            return None
+        if not callable(extractor):
+            raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
+        value = extractor(response=response)
+        if not isinstance(value, dict):
+            raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_response_adapter_invalid")
+        return value
+
+    def _requires_headerless_dispositions(self) -> bool:
+        return bool(
+            self._mapping_response_adapter is not None
+            and getattr(
+                self._mapping_response_adapter,
+                "requires_headerless_dispositions",
+                False,
+            )
+            is True
+        )
 
     def _allows_source_bound_position_effect(self) -> bool:
         """Only the selected V18 response adapter enables this semantic seam."""
@@ -955,6 +1052,42 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 reason_code="ordinary_trade_mapping_batch_plan_integrity_invalid",
             )
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn)
+        try:
+            request_receipt = self._semantic.preflight_mapping_request(
+                package=package,
+                canonical=binding["canonical"],
+                confirmed_understandings=transport_confirmed,
+                target_table_node_ids=next_batch["target_table_node_ids"],
+                physical_table_continuation_context=binding[
+                    "physical_table_continuation_context"
+                ],
+                input_schema_version=self._input_schema_version,
+                prompt_snapshot=snapshot,
+            )
+            _audit_mapping_request_preflight(request_receipt)
+        except Exception as exc:
+            code = getattr(exc, "code", "ordinary_trade_mapping_request_preflight_invalid")
+            _audit_mapping_request_preflight_invalid(code)
+            saved = self._cases.save_batch_state(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                message=(
+                    "The mapping batch request did not match its current Canonical "
+                    "and instruction. No provider call was made."
+                ),
+                mapping_batch_state=state,
+                provider_calls_total=0,
+                mapping_prompt_snapshot=snapshot,
+                reason_code=str(
+                    code
+                ),
+            )
+            return self._result(
+                current=saved,
+                context=context,
+                provider_calls_this_turn=provider_calls_this_turn,
+            )
         # The existing immutable case revision is the durable attempt claim.
         # A unique token makes concurrent claims conflict instead of replay.
         state = copy.deepcopy(state)
@@ -965,6 +1098,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             message="One mapping batch attempt is started.", mapping_batch_state=state,
             provider_calls_total=0, mapping_prompt_snapshot=snapshot,
         )
+        response = None
         try:
             response = await self._model_client.extract(
                 prompt=prompt,
@@ -979,6 +1113,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
             validated_response = self._expand_mapping_response_to_v13(response=response, package=package)
             explicit_header_source_response = self._explicit_header_source_response(
+                response=response
+            )
+            headerless_disposition_response = self._headerless_disposition_response(
                 response=response
             )
             if self._semantic.mapping_response_contract_failure_code(validated_response) is not None:
@@ -1003,21 +1140,30 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 explicit_header_source_response=explicit_header_source_response,
+                headerless_disposition_response=headerless_disposition_response,
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=(
+                    self._requires_headerless_dispositions()
+                ),
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
-            saved = self._cases.save_batch_state(
-                document_id=document_id,
-                context=context,
-                status="MAPPING_OUTPUT_INVALID",
-                message="The mapping batch response is invalid or unavailable.",
-                mapping_batch_state=state,
-                provider_calls_total=1,
-                mapping_prompt_snapshot=snapshot,
-                reason_code=_mapping_output_reason_code(exc, str(code)),
-            )
+            reason_code = _mapping_output_reason_code(exc, str(code))
+            _audit_provider_mapping_output_invalid(reason_code)
+            terminal_kwargs = {
+                "document_id": document_id,
+                "context": context,
+                "status": "MAPPING_OUTPUT_INVALID",
+                "message": "The mapping batch response is invalid or unavailable.",
+                "mapping_batch_state": state,
+                "provider_calls_total": 1,
+                "mapping_prompt_snapshot": snapshot,
+                "reason_code": reason_code,
+            }
+            if response is not None:
+                terminal_kwargs["mapping_raw_response"] = response.content
+            saved = self._cases.save_batch_state(**terminal_kwargs)
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn + 1)
         if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
             state["pending_batch_id"] = next_batch["batch_id"]
@@ -1140,8 +1286,10 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 explicit_header_source_response=_currency_plan_explicit_header_source_response(plan),
+                headerless_disposition_response=_currency_plan_headerless_disposition_response(plan),
                 physical_table_continuation_context=binding["physical_table_continuation_context"],
                 allow_model_selected_header=self._allows_model_selected_header(),
+                require_headerless_dispositions=_currency_plan_requires_headerless_dispositions(plan),
             )
             if outcome["status"] != "COMPLETE":
                 raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_batch_currency_replay_incomplete")
@@ -1450,6 +1598,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 response=response_value,
             )
         except Exception as exc:
+            _audit_provider_instructional_classification_output_invalid(
+                _instructional_classification_output_reason_code(exc)
+            )
             saved = self._cases.save_instructional_classification_state(
                 document_id=document_id,
                 context=context,
@@ -1550,7 +1701,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         provider_calls_this_turn: int,
     ) -> dict[str, Any]:
         record, payload = current
-        return {
+        result = {
             "schema_version": "broker_reports_ordinary_trade_mapping_turn_v1",
             "status": payload["status"],
             "mapping_case_artifact_id": record.artifact_id,
@@ -1568,6 +1719,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 context=context,
             ),
         }
+        raw_output_ref = self._cases.invalid_mapping_raw_output_ref(
+            document_id=str(record.document_id), context=context
+        )
+        if raw_output_ref is not None:
+            result["private_mapping_raw_output_ref"] = raw_output_ref
+        return result
 
 
 def _model_content_dict(response: Any) -> dict[str, Any]:
@@ -1609,6 +1766,187 @@ def _mapping_output_reason_code(error: Exception, code: str) -> str:
     }:
         return code
     return f"{code}:{category}"
+
+
+def _audit_provider_mapping_output_invalid(reason_code: Any) -> None:
+    """Log only a closed technical reason from a rejected provider response.
+
+    This is a forensic receipt, not a second persistence or response path.
+    The provider response itself stays in the existing private-case artifact;
+    values, source references, and exception text must never enter logs.
+    """
+
+    value = str(reason_code or "")
+    if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+(?::[a-z0-9_]+)?", value):
+        value = "ordinary_trade_semantic_mapping_output_invalid"
+    _LOGGER.info("broker_reports_mapping_contract_rejected reason_code=%s", value)
+
+
+def _mapping_provider_failure_reason_code(error: Exception) -> str:
+    """Translate a closed Gate 2 failure category at the mapping boundary.
+
+    Gate 2 remains the owner of provider error codes.  This coordinator owns
+    only its value-free terminal categories and deliberately reads no provider
+    message, failure class, raw body, or exception representation.
+    """
+
+    code = getattr(error, "code", None)
+    if code == "gate2_provider_configuration_blocked":
+        return "ordinary_trade_mapping_provider_configuration_unavailable"
+    if code in {
+        "gate2_model_provider_unavailable",
+        "gate2_model_provider_rate_limited",
+        "gate2_model_provider_quota_exceeded",
+        "gate2_model_provider_auth_failed",
+        "gate2_model_unavailable",
+    }:
+        return "ordinary_trade_mapping_provider_capacity_unavailable"
+    if code in {
+        "gate2_model_request_preparation_failed",
+        "gate2_model_reasoning_control_rejected",
+        "gate2_model_schema_oneof_unsupported",
+        "gate2_model_schema_required_properties_invalid",
+        "gate2_model_schema_additional_properties_invalid",
+        "gate2_model_schema_type_key_missing",
+        "gate2_model_schema_nullable_type_invalid",
+        "gate2_model_schema_response_format_rejected",
+        "gate2_model_context_budget_exceeded",
+    }:
+        return "ordinary_trade_mapping_provider_request_rejected"
+    if code in {
+        "gate2_model_invalid_response",
+        "gate2_model_response_budget_exceeded",
+    }:
+        return "ordinary_trade_mapping_provider_response_invalid"
+    return "ordinary_trade_mapping_provider_call_failed"
+
+
+def _mapping_provider_failure_category(error: Exception) -> str:
+    """Expose only Gate 2's closed diagnostic category at this seam."""
+
+    category = getattr(error, "safe_failure_category", None)
+    if category == "completion_invocation_exception":
+        return category
+    if category in GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES:
+        return category
+    return "not_available"
+
+
+def _mapping_provider_calls_total(error: Exception) -> int:
+    """A Gate 2 pre-dispatch terminal has not crossed the provider boundary."""
+
+    if (
+        getattr(error, "safe_failure_category", None)
+        in GATE2_REQUEST_PREPARATION_FAILURE_CATEGORIES
+    ):
+        return 0
+    return 1
+
+
+def _audit_mapping_provider_call_failed(
+    reason_code: str, *, failure_category: str
+) -> None:
+    """Emit a value-free receipt for a failed provider call.
+
+    The provider exception may contain transport details or private provider
+    text.  This one-shot runtime boundary records only its own closed terminal
+    category and Gate 2's finite safe technical category, never the exception,
+    raw body, prompt, provider message, or a provider-supplied code.
+    """
+
+    _LOGGER.info(
+        "broker_reports_mapping_provider_call_failed reason_code=%s "
+        "failure_category=%s",
+        reason_code,
+        failure_category,
+    )
+
+
+_INSTRUCTIONAL_CLASSIFICATION_AUDIT_REASON_CODES = frozenset(
+    {
+        "ordinary_trade_mapping_strict_output_required",
+        "ordinary_trade_instructional_response_json_invalid",
+        "ordinary_trade_instructional_response_shape_invalid",
+        "ordinary_trade_instructional_descriptor_invalid",
+        "ordinary_trade_instructional_descriptor_stale",
+        "ordinary_trade_instructional_instructional_classification_response_invalid",
+        "ordinary_trade_instructional_instructional_classification_header_invalid",
+        "ordinary_trade_instructional_instructional_classification_evidence_invalid",
+        "ordinary_trade_instructional_instructional_classification_evidence_coverage_invalid",
+    }
+)
+
+
+def _instructional_classification_output_reason_code(error: Exception) -> str:
+    """Reduce a rejected classifier response to one closed forensic code."""
+
+    code = str(getattr(error, "code", ""))
+    if code in _INSTRUCTIONAL_CLASSIFICATION_AUDIT_REASON_CODES:
+        return code
+    return "ordinary_trade_instructional_response_invalid"
+
+
+def _audit_provider_instructional_classification_output_invalid(
+    reason_code: str,
+) -> None:
+    """Emit only a closed diagnostic for a rejected classifier response.
+
+    Classifier response bodies, Canonical values, table identifiers, and
+    provider exception text remain outside the log stream.
+    """
+
+    _LOGGER.info(
+        "broker_reports_instructional_classification_contract_rejected "
+        "reason_code=%s",
+        reason_code,
+    )
+
+
+def _audit_mapping_request_preflight(receipt: Any) -> None:
+    """Emit a body-free request receipt before the one provider call."""
+
+    if not isinstance(receipt, Mapping):
+        return
+    package_sha256 = receipt.get("package_sha256")
+    prompt_hash = receipt.get("prompt_hash")
+    tables_total = receipt.get("tables_total")
+    rows_total = receipt.get("rows_total")
+    if (
+        not isinstance(package_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", package_sha256) is None
+        or not isinstance(prompt_hash, str)
+        or re.fullmatch(r"[0-9a-f]{64}", prompt_hash) is None
+        or not isinstance(tables_total, int)
+        or tables_total < 1
+        or not isinstance(rows_total, int)
+        or rows_total < 0
+    ):
+        return
+    _LOGGER.info(
+        "broker_reports_mapping_request_preflight package_sha256=%s prompt_hash=%s tables_total=%s rows_total=%s",
+        package_sha256,
+        prompt_hash,
+        tables_total,
+        rows_total,
+    )
+
+
+def _audit_mapping_request_preflight_invalid(reason_code: Any) -> None:
+    """Log a closed preflight reason without emitting request contents."""
+
+    value = str(reason_code or "")
+    if not re.fullmatch(r"ordinary_trade_[a-z0-9_]+", value):
+        value = "ordinary_trade_mapping_request_preflight_invalid"
+    _LOGGER.info("broker_reports_mapping_request_preflight_rejected reason_code=%s", value)
+
+
+def _audit_mapping_response_format_unavailable() -> None:
+    """Record the closed local preparation terminal without exception data."""
+
+    _LOGGER.info(
+        "broker_reports_mapping_response_format_unavailable "
+        "reason_code=ordinary_trade_mapping_response_format_unavailable"
+    )
 
 
 def _sha256_json(value: Any) -> str:
@@ -1675,6 +2013,30 @@ def _currency_plan_explicit_header_source_response(
             "ordinary_trade_user_currency_request_invalid"
         )
     return copy.deepcopy(value)
+
+
+def _currency_plan_headerless_disposition_response(
+    plan: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Read V23's semantic-owner declaration for a strict currency replay."""
+
+    value = plan.get("headerless_disposition_response")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return copy.deepcopy(value)
+
+
+def _currency_plan_requires_headerless_dispositions(plan: dict[str, Any]) -> bool:
+    value = plan.get("require_headerless_dispositions", False)
+    if type(value) is not bool:
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return value
 
 
 def _confirmed_currency_code(

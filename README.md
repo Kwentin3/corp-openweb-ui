@@ -9,6 +9,24 @@ LLM-чат для 3-4 пользователей. Репозиторий так�
 Цель репозитория - blueprint, runbooks и skeleton для безопасного развертывания на домене
 `gpt.alpha-soft.ru`. Это не AI-платформа.
 
+## Актуальный Office-маршрут
+
+В production OpenWebUI подключены OfficeCLI и официальный Open Terminal. OfficeCLI
+выполняет штатные операции над Excel, Word и PowerPoint, а Open Terminal даёт
+агенту Linux-среду для многоэтапной обработки, которой нет среди готовых команд.
+Исходные файлы сохраняются, а проверенный результат возвращается обычным
+вложением OpenWebUI.
+
+- [Отчёты для заказчика по поставкам](docs/commercial/README.md)
+- [Дополнение: работа с PPTX-шаблоном](docs/commercial/COMPLETED_WORK_2026-09-30_PPTX_TEMPLATE.md)
+- [Дополнение: Open Terminal](docs/commercial/COMPLETED_WORK_2026-09-28_OPEN_TERMINAL_OFFICE_WORKFLOW.md)
+- [Техническая производственная приёмка](docs/reports/2026-09-28/open-terminal-production-acceptance.report.md)
+- [Инструкция эксплуатации и отката](docs/infra-ops/officecli-openapi-docx-release.md)
+- [Compose официального Open Terminal](compose/open-terminal-office.compose.yml)
+
+Решение использует штатную интеграцию OpenWebUI с Open Terminal и тонкий слой
+передачи файлов; форков OpenWebUI, Open Terminal или OfficeCLI нет.
+
 ## Scope PRD-0
 
 Входит:
@@ -150,19 +168,33 @@ OS-backed lease serializes the entire execute/resume section before auth,
 recovery or transport; descriptor close or process death releases only this
 transient lease. Persistent owner, tag and per-slot claims are never deleted.
 
-## Broker Reports CI
+## CI для активного кода
 
-Каждый pull request в `main` запускает
-[`.github/workflows/broker-reports-ci.yml`](.github/workflows/broker-reports-ci.yml).
-Стабильное имя GitHub check/job: `broker-reports-ci`. Workflow использует Python
+Каждый pull request в `main` запускает обязательный check `active-ci` из
+[`.github/workflows/active-ci.yml`](.github/workflows/active-ci.yml).
+Он проверяет точный commit и diff PR. При изменении OfficeCLI запускает его
+тесты, сборку production-образа и проверку установленного пакета; при изменении
+STT запускает его тесты. Изменение самого workflow запускает оба набора.
+Ручной запуск `active-ci` также выполняет оба набора целиком.
+
+## Замороженные Broker Reports, НДФЛ и XML
+
+Тесты сохранены в
+[`.github/workflows/broker-reports-ci.yml`](.github/workflows/broker-reports-ci.yml),
+но workflow больше не запускается на PR и не требуется для слияния в `main`.
+Для квалификации при возобновлении проекта его можно запустить вручную:
+
+```powershell
+gh workflow run broker-reports-ci.yml --ref main
+```
+
+Стабильное имя ручного check/job: `broker-reports-ci`. Workflow использует Python
 3.11 на `ubuntu-24.04`, read-only `GITHUB_TOKEN` и рабочий каталог
-`services/broker-reports-gate1-proof`.
-GOAL 12 additionally verifies that the PR is open and non-draft for the exact
-head, the check is owned by `github-actions` and linked to that PR, and the
-completed-success run is a `pull_request` run of exact workflow
-`Broker Reports CI` at `.github/workflows/broker-reports-ci.yml`.
+`services/broker-reports-gate1-proof`. Историческая приёмка GOAL 12 проверяла
+успешный `pull_request` run этого workflow для точного PR head; это условие
+относилось к закрытой работе и не является текущим правилом для новых PR.
 
-Локальное воспроизведение обязательного check из корня репозитория:
+Локальное воспроизведение набора проверок из корня репозитория:
 
 ```powershell
 cd services/broker-reports-gate1-proof
@@ -446,7 +478,14 @@ bash scripts/smoke-test.sh --strict-tls
 
 ## Skeleton
 
-- Compose: [compose/openwebui.compose.yml](compose/openwebui.compose.yml)
+Актуальные эксплуатационные инструкции для возможностей, добавленных после PRD-0:
+
+- [OfficeCLI и Open Terminal: подключение, модели, обновление и откат](docs/infra-ops/officecli-openapi-docx-release.md).
+- [Самописец OpenWebUI: история перед перезапуском, OOM и диагностика](docs/infra-ops/openwebui-flight-recorder.md).
+  Уже установлен на рабочем хосте; читать через административный SSH, отдельного chat/MCP tool нет.
+
+- Compose OpenWebUI: [compose/openwebui.compose.yml](compose/openwebui.compose.yml)
+- Compose Open Terminal: [compose/open-terminal-office.compose.yml](compose/open-terminal-office.compose.yml)
 - Env example: [.env.example](.env.example)
 - Preflight: [scripts/preflight.sh](scripts/preflight.sh)
 - Network hardening check: [scripts/network-hardening-check.sh](scripts/network-hardening-check.sh)

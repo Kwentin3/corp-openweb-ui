@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+from dataclasses import replace
 
 import pytest
 
@@ -9,14 +11,26 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeGroupedMappingV20AdapterFactory,
 )
+from broker_reports_gate1.gate2_model_contracts import gate2_provider_profile
+from broker_reports_gate1.gate2_provider_adapters import Gate2ProviderAdapterFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
     OrdinaryTradeMappingCaseFactory,
+)
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    StaticOrdinaryTradeMappingPromptResolver,
 )
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
+    _audit_mapping_request_preflight,
+    _audit_mapping_request_preflight_invalid,
+    _audit_provider_mapping_output_invalid,
+)
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
@@ -41,6 +55,22 @@ def _runtime(*, store, client):
     ).create()
 
 
+def _runtime_with_prompt(*, store, client, prompt):
+    dependencies = runtime_fixtures._mapping_prompt_dependencies()
+    dependencies["mapping_prompt_resolver"] = StaticOrdinaryTradeMappingPromptResolver(
+        prompt
+    )
+    return OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        mapping_response_adapter=OrdinaryTradeGroupedMappingV20AdapterFactory.create(),
+        **dependencies,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+    ).create()
+
+
 def _v20_response(*, table: dict, mapping: dict, policy: dict) -> dict:
     decision = case_fixtures._complete(table, mapping)["table_decisions"][0]
     del decision["row_dispositions"]
@@ -58,6 +88,107 @@ def _v20_response(*, table: dict, mapping: dict, policy: dict) -> dict:
             "claims": [],
         },
     }
+
+
+def test_gemini_projection_keeps_strict_default_trade_row_policy() -> None:
+    """Gemini must receive the same fixed default disposition as the owner."""
+
+    response_format = OrdinaryTradeGroupedMappingV20AdapterFactory.create().mapping_response_format(
+        v13_response_format=OrdinaryTradeSemanticMappingFactory.create().mapping_response_format()
+    )
+    canonical_policies = [
+        variant["properties"]["row_policy"]
+        for variant in response_format["json_schema"]["schema"]["properties"][
+            "table_decisions"
+        ]["items"]["anyOf"]
+        if "row_policy" in variant["properties"]
+    ]
+    adapter = Gate2ProviderAdapterFactory(
+        profile=gate2_provider_profile("google_gemini")
+    ).create()
+    prepared = adapter.prepare_form_data(
+        form_data={
+            "model": "models/gemini-3.5-flash",
+            "messages": [],
+            "response_format": response_format,
+        },
+        response_format=response_format,
+    )
+    projected_policies = [
+        variant["properties"]["row_policy"]
+        for variant in prepared.form_data["response_format"]["json_schema"]["schema"][
+            "properties"
+        ]["table_decisions"]["items"]["anyOf"]
+        if "row_policy" in variant["properties"]
+    ]
+
+    assert len(canonical_policies) == len(projected_policies) == 2
+    for canonical_policy, projected_policy in zip(canonical_policies, projected_policies):
+        assert canonical_policy["properties"]["default_disposition"] == {
+            "const": "SECURITY_TRADES"
+        }
+        assert projected_policy["required"] == [
+            "default_disposition",
+            "exception_rows",
+        ]
+        assert projected_policy["additionalProperties"] is False
+        assert projected_policy["properties"]["default_disposition"] == {
+            "enum": ["SECURITY_TRADES"]
+        }
+        assert projected_policy["properties"]["exception_rows"]["type"] == "array"
+
+
+def test_revised_prompt_retries_one_prior_invalid_row_policy_attempt(tmp_path) -> None:
+    """A published prompt revision permits one fresh strict provider attempt."""
+
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    invalid = _v20_response(
+        table=table,
+        mapping=mapping,
+        policy={"default_disposition": "NO_NAMED_CONSUMER", "exception_rows": []},
+    )
+    initial = asyncio.run(
+        _runtime(
+            store=store,
+            client=runtime_fixtures.BoundaryModelClient([invalid]),
+        ).resolve(document_id=document_id, context=context)
+    )
+    assert initial["status"] == "MAPPING_OUTPUT_INVALID"
+
+    revised_prompt = replace(
+        runtime_fixtures._test_mapping_prompt(),
+        version="test-v2",
+        hash="c" * 64,
+        content=(
+            "Map {{ordinary_trade_mapping_case_json}} as strict JSON with an "
+            "exact row_policy object."
+        ),
+    )
+    revised_client = runtime_fixtures.BoundaryModelClient([invalid])
+    retried = asyncio.run(
+        _runtime_with_prompt(
+            store=store,
+            client=revised_client,
+            prompt=revised_prompt,
+        ).resolve(document_id=document_id, context=context)
+    )
+    assert retried["status"] == "MAPPING_OUTPUT_INVALID"
+    assert retried["provider_calls_this_turn"] == 1
+    assert len(revised_client.calls) == 1
+
+    repeated_client = runtime_fixtures.BoundaryModelClient([])
+    repeated = asyncio.run(
+        _runtime_with_prompt(
+            store=store,
+            client=repeated_client,
+            prompt=revised_prompt,
+        ).resolve(document_id=document_id, context=context)
+    )
+    assert repeated["status"] == "MAPPING_OUTPUT_INVALID"
+    assert repeated["provider_calls_this_turn"] == 0
+    assert repeated_client.calls == []
 
 
 def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> None:
@@ -94,6 +225,42 @@ def test_v20_full_ordered_columns_complete_and_compile_projection(tmp_path) -> N
     )
     assert store.list_by_type(
         context.normalization_run_id, MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+    ) == []
+
+
+def test_prompt_package_schema_mismatch_stops_before_provider_call(tmp_path) -> None:
+    """A wrong input contract is an input failure, never a Gemini attempt."""
+
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = runtime_fixtures.BoundaryModelClient([])
+    runtime = OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        mapping_response_adapter=OrdinaryTradeGroupedMappingV20AdapterFactory.create(),
+        **runtime_fixtures._mapping_prompt_dependencies(),
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        input_schema_version=MAPPING_INPUT_DOCUMENT_OPENING_SCHEMA_VERSION,
+    ).create()
+
+    result = asyncio.run(runtime.resolve(document_id=document_id, context=context))
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["provider_calls_this_turn"] == 0
+    assert client.calls == []
+    saved = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert saved["provider_calls_total"] == 0
+    assert saved["reason_code"] == (
+        "ordinary_trade_mapping_request_prompt_input_schema_mismatch"
+    )
+    assert store.list_by_type(
+        context.normalization_run_id,
+        MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
     ) == []
 
 
@@ -227,6 +394,92 @@ def test_mapping_output_invalid_public_state_uses_generic_closed_fallback(
     exposed = json.dumps(public, ensure_ascii=False, sort_keys=True)
     assert "provider-message-with-value-987654321" not in exposed
     assert "987654321" not in exposed
+
+
+def test_persisted_invalid_mapping_logs_one_closed_terminal_receipt(
+    tmp_path, caplog
+) -> None:
+    """The shared persistence owner emits one safe receipt after its terminal write."""
+
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_case",
+    )
+
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    saved.save_provider_terminal(
+        document_id=document_id,
+        context=context,
+        status="MAPPING_OUTPUT_INVALID",
+        reason_code="ordinary_trade_semantic_mapping_columns_invalid",
+        message="provider-private-value-987654321",
+        provider_calls_total=2,
+    )
+
+    receipt = [
+        record.message
+        for record in caplog.records
+        if "broker_reports_mapping_invalid_terminal" in record.message
+    ]
+    assert receipt == [
+        "broker_reports_mapping_invalid_terminal "
+        "reason_code=ordinary_trade_semantic_mapping_columns_invalid "
+        "revision=1 provider_calls_total=2 raw_response_saved=False"
+    ]
+    assert "provider-private-value-987654321" not in caplog.text
+    assert context.user_id not in caplog.text
+    assert document_id not in caplog.text
+
+
+def test_request_preflight_log_is_body_free(caplog) -> None:
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    _audit_mapping_request_preflight(
+        {
+            "package_sha256": "a" * 64,
+            "prompt_hash": "b" * 64,
+            "tables_total": 2,
+            "rows_total": 17,
+            "source_literal": "private-value-987654321",
+        }
+    )
+
+    assert "broker_reports_mapping_request_preflight" in caplog.text
+    assert "a" * 64 in caplog.text
+    assert "b" * 64 in caplog.text
+    assert "private-value-987654321" not in caplog.text
+
+
+def test_request_preflight_rejection_log_is_closed(caplog) -> None:
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    _audit_mapping_request_preflight_invalid("private-value-987654321")
+
+    assert "broker_reports_mapping_request_preflight_rejected" in caplog.text
+    assert "ordinary_trade_mapping_request_preflight_invalid" in caplog.text
+    assert "private-value-987654321" not in caplog.text
+
+
+def test_provider_mapping_contract_audit_never_logs_untrusted_reason_value(caplog) -> None:
+    caplog.set_level(
+        logging.INFO,
+        logger="broker_reports_gate1.ordinary_trade_mapping_runtime",
+    )
+
+    _audit_provider_mapping_output_invalid("provider-private-value-987654321")
+
+    assert "broker_reports_mapping_contract_rejected" in caplog.text
+    assert "ordinary_trade_semantic_mapping_output_invalid" in caplog.text
+    assert "provider-private-value-987654321" not in caplog.text
 
 
 @pytest.mark.parametrize(

@@ -5,80 +5,16 @@ ROOT = Path(__file__).resolve().parents[3]
 LOADER_PATH = ROOT / "deploy" / "openwebui-static" / "loader.js"
 
 
-def test_loader_binds_postprocessing_actions_to_prepared_file_scope():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("async function runTranscription")
-    end = source.index("async function callTranscriptionAction", start)
-    run_transcription = source[start:end]
-
-    assert (
-        "const preparedFile = isPreparedStage2Audio(file) ? file : await prepareMediaFile(file, status);"
-        in run_transcription
-    )
-    assert (
-        "const content = await callTranscriptionAction(preparedFile, status);"
-        in run_transcription
-    )
-    assert (
-        "loadPostprocessingActions(preparedFile, transcriptRef, button.parentElement, status)"
-        in run_transcription
-    )
-    assert (
-        "loadPostprocessingActions(file, transcriptRef, button.parentElement, status)"
-        not in run_transcription
-    )
-
-
-def test_loader_quick_action_drafts_native_chat_prompt_instead_of_processed_result():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("async function runPostprocessingAction")
-    end = source.index("async function callPostprocessingPromptDraft", start)
-    action_block = source[start:end]
-
-    assert (
-        "const draft = await callPostprocessingPromptDraft(file, transcriptRef, template);"
-        in action_block
-    )
-    assert (
-        "submitPostprocessingPromptDraft(draft.prompt_text, transcriptRef)"
-        in action_block
-    )
-    assert "appendToComposer(content)" not in action_block
-
-
-def test_loader_quick_action_uses_prompt_draft_operation():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("async function callPostprocessingPromptDraft")
-    end = source.index("async function submitPostprocessingPromptDraft", start)
-    draft_block = source[start:end]
-
-    assert "operation: 'draft_postprocessing_prompt'" in draft_block
-    assert "stage2_stt_prompt_draft" in draft_block
-    assert "execute_postprocessing" not in draft_block
-
-
-def test_loader_quick_action_submits_prompt_without_overwriting_unrelated_draft():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("async function submitPostprocessingPromptDraft")
-    end = source.index("function findComposer", start)
-    submit_block = source[start:end]
-
-    assert (
-        "composerText && transcriptRef && !composerText.includes(transcriptRef)"
-        in submit_block
-    )
-    assert "postprocessing_prompt_blocked" in submit_block
-    assert "replaceComposerText(composer, promptText)" in submit_block
-    assert "submitComposer(composer)" in submit_block
-
-
-def test_loader_scans_message_docx_buttons_without_replacing_stt_scan():
+def test_loader_leaves_transcription_to_native_openwebui_filter():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function queueScan")
     end = source.index("function findCardFile", start)
     queue_scan = source[start:end]
 
-    assert "scanAttachmentCards();" in queue_scan
+    assert "sttUploadFile" not in source
+    assert "withProcessFalse(input)" not in source
+    assert "installCardAction(card, file);" not in source
+    assert "scanAttachmentCards();" not in queue_scan
     assert "scanMessageDocxButtons();" in queue_scan
 
 
@@ -88,8 +24,8 @@ def test_loader_leaves_broker_pdf_routing_to_native_message_input():
     end = source.index("function queueScan", start)
     patch_block = source[start:end]
 
-    assert "if (sttUploadFile) {" in patch_block
-    assert patch_block.count("nextInput = withProcessFalse(input);") == 1
+    assert "sttUploadFile" not in patch_block
+    assert "withProcessFalse(input)" not in patch_block
     assert "state.originalFetch(nextInput, nextInit)" in patch_block
     assert "broker-reports/intake" not in patch_block
     assert "normalizeBroker" not in patch_block
@@ -121,7 +57,7 @@ def test_loader_action_payload_uses_the_current_native_model_selection():
 def test_loader_binds_only_gate2_completions_to_active_persistent_chat():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("async function bindBrokerGate2RequestToActiveChat")
-    end = source.index("function withProcessFalse", start)
+    end = source.index("function normalizeUploadedFile", start)
     binding_block = source[start:end]
     patch_start = source.index("function patchFetch")
     patch_end = source.index("function queueScan", patch_start)

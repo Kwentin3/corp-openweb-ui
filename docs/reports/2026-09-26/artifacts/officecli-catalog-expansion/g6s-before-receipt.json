@@ -1,0 +1,32 @@
+{
+  "chat": "8935bb29-d6de-461a-bd38-876c308af567",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "231800d4-09d3-44f6-9fd6-4102e67708b3",
+      "role": "user",
+      "files": [
+        {
+          "id": "f3bc2c0b-2497-4f8e-948e-41a13777403c",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "32210741-c425-427a-aa3a-af5781ef6ff6",
+          "name": "feb.xlsx"
+        }
+      ],
+      "calls": []
+    },
+    {
+      "id": "af57ef28-e8c5-44e2-ab14-7029733f1893",
+      "role": "assistant",
+      "model": "gpt-6-sol",
+      "done": false,
+      "error": {
+        "content": "Function tools with reasoning_effort are not supported for gpt-6-sol in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'."
+      },
+      "files": [],
+      "calls": []
+    }
+  ]
+}

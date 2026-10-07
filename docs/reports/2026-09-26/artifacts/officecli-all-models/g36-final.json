@@ -1,0 +1,108 @@
+{
+  "chat": "9edda20a-e857-49ac-b8fe-32604e8bf727",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "0dfadf95-fcde-4f75-8cce-5da934584965",
+      "role": "user",
+      "files": [
+        {
+          "id": "708125c0-2e54-4448-92a4-b1ad9f6940bc",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "3e9971f9-07e0-4790-b481-06a76711a223",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "03ff0c5c-e4d9-4214-a003-a4c7a15738f7",
+      "role": "assistant",
+      "model": "models/gemini-3.6-flash",
+      "done": true,
+      "files": [
+        {
+          "id": "168a447f-852a-4b8e-96b0-2ea07cd421d1",
+          "name": "sales-g36-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 5090
+        }
+      ],
+      "sources": [
+        {
+          "id": "708125c0-2e54-4448-92a4-b1ad9f6940bc",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "708125c0-2e54-4448-92a4-b1ad9f6940bc"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "3e9971f9-07e0-4790-b481-06a76711a223",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "3e9971f9-07e0-4790-b481-06a76711a223"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "tool_error": "HTTP error 422: {\"detail\":[{\"type\":\"literal_error\",\"loc\":[\"body\",\"command_payload\",\"mode\"],\"msg\":\"Input should be 'annotated'\",\"input\":\"grid\",\"ctx\":{\"expected\":\"'annotated'\"}}]}",
+          "file_id": "708125c0-2e54-4448-92a4-b1ad9f6940bc",
+          "google_signature_present": true
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "708125c0-2e54-4448-92a4-b1ad9f6940bc",
+          "google_signature_present": true
+        },
+        {
+          "name": "inspect_office_spreadsheet",
+          "status": "completed",
+          "file_id": "3e9971f9-07e0-4790-b481-06a76711a223",
+          "google_signature_present": true
+        },
+        {
+          "name": "get_officecli_help",
+          "status": "completed",
+          "google_signature_present": true
+        },
+        {
+          "name": "get_officecli_help",
+          "status": "completed",
+          "google_signature_present": true
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "168a447f-852a-4b8e-96b0-2ea07cd421d1",
+          "commands_count": 30,
+          "google_signature_present": true
+        }
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import hashlib
 import inspect
 import io
 import json
+import logging
 import re
 import urllib.parse
 import urllib.request
@@ -27,6 +28,9 @@ from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from pydantic import BaseModel, Field
+
+
+_LOGGER = logging.getLogger(__name__)
 
 from broker_reports_gate1 import (
     ArtifactAccessContext,
@@ -84,6 +88,10 @@ from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    MAPPING_RAW_OUTPUT_ARTIFACT_TYPE,
+    MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION,
+)
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     DOCUMENT_OPENING_INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
     INPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_INPUT_SCHEMA_VERSION,
@@ -125,6 +133,21 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION as ORDINARY_TRADE_MAPPING_OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
@@ -164,6 +187,7 @@ from broker_reports_gate1.openwebui_file_bytes import (
     OpenWebUIFileBytesResolverFactory,
 )
 from broker_reports_gate1.gate2_model_clients import (
+    Gate2NativeCompletionProbeFactory,
     Gate2StructuredModelClientFactory,
 )
 from broker_reports_gate1.gate2_model_contracts import (
@@ -209,6 +233,12 @@ NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
 FULL_SOURCE_PROJECTION_SCHEMA_VERSION = "broker_reports_full_source_projection_v1"
 FULL_SOURCE_ZIP_FILENAME = "full-source.zip"
+MAPPING_FORENSICS_PROJECTION_SCHEMA_VERSION = (
+    "broker_reports_mapping_forensics_projection_v1"
+)
+MAPPING_FORENSICS_FILENAME = "mapping-response-forensics.json"
+_NATIVE_BRIDGE_PROBE_TEST_EMAIL = "test@test.ru"
+_NATIVE_BRIDGE_PROBE_TRIGGER = "проверка нативного моста ndfl"
 
 
 class _OrdinaryTradeMappingRouteProfile:
@@ -351,6 +381,56 @@ _ORDINARY_TRADE_MAPPING_ROUTE_PROFILES = {
             ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
         ),
     ),
+    # V21 changes only the managed header-choice instruction. It deliberately
+    # keeps V20's closed response adapter and Runtime contract.
+    "ordinary_trade_mapping_v21": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v21",
+        prompt_command=ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V21_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+    ),
+    # V22 is a separate managed Prompt identity.  Its exact command is part of
+    # the release pin; V21 remains a readable historical route and is never a
+    # fallback for a V22 release.
+    "ordinary_trade_mapping_v22": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v22",
+        prompt_command=ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+    ),
+    # V23 is a separate managed Prompt identity.  Its exact command is part of
+    # the release pin; V22 remains a readable historical route and is never a
+    # fallback for a V23 release.
+    "ordinary_trade_mapping_v23": _OrdinaryTradeMappingRouteProfile(
+        profile_id="ordinary_trade_mapping_v23",
+        prompt_command=ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+        template_id=ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+        template_kind=ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND,
+        output_schema_id=ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=(
+            ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION
+        ),
+        required_tag=ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG,
+        input_schema_version=(
+            ORDINARY_TRADE_MAPPING_DOCUMENT_OPENING_INPUT_SCHEMA_VERSION
+        ),
+    ),
 }
 
 
@@ -449,7 +529,7 @@ class Pipe:
             default="ordinary_trade_mapping_v13",
             description=(
                 "Sealed production mapping route profile. Only the released "
-                "v13, v14, v15, v16, v17, v18, v19 and v20 profiles are admitted."
+                "v13, v14, v15, v16, v17, v18, v19, v20, v21, v22 and v23 profiles are admitted."
             ),
         )
         ordinary_trade_mapping_prompt_id: str = Field(default="")
@@ -497,6 +577,13 @@ class Pipe:
             description=(
                 "Administrator-pinned HTTPS origin for the native OpenWebUI "
                 "completion endpoint; never derived from request metadata."
+            ),
+        )
+        native_bridge_probe_enabled: bool = Field(
+            default=False,
+            description=(
+                "Temporary test@test.ru-only native nested-completion diagnostic. "
+                "It never reads documents or writes artifacts."
             ),
         )
         live_smoke_trigger_phrases: str = Field(
@@ -550,6 +637,18 @@ class Pipe:
             metadata=metadata,
             user=__user__,
         )
+        if self._native_bridge_probe_requested(
+            body=safe_body,
+            metadata=metadata,
+            files_arg=(__files__ or kwargs.get("__files__")),
+            messages_arg=messages_arg,
+            user=__user__,
+            interaction_message=interaction_message,
+        ):
+            return await self._run_native_bridge_probe(
+                request=__request__,
+                user=__user__,
+            )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
         completed_turn = await self._server_attested_completed_turn_content(
@@ -740,6 +839,46 @@ class Pipe:
             raise
         finally:
             self._active_workload_session = None
+
+    def _native_bridge_probe_requested(
+        self,
+        *,
+        body: dict,
+        metadata: dict,
+        files_arg: Any,
+        messages_arg: Any,
+        user: Any,
+        interaction_message: str,
+    ) -> bool:
+        """Admit only the explicit, source-free test-user diagnostic turn."""
+
+        if not self.valves.native_bridge_probe_enabled:
+            return False
+        email = (
+            user.get("email") if isinstance(user, dict) else getattr(user, "email", "")
+        )
+        role = (
+            user.get("role") if isinstance(user, dict) else getattr(user, "role", "")
+        )
+        if (
+            not isinstance(email, str)
+            or email.casefold() != _NATIVE_BRIDGE_PROBE_TEST_EMAIL
+            or str(role or "").strip() != "user"
+            or metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID
+            or str(interaction_message or "").strip().casefold()
+            != _NATIVE_BRIDGE_PROBE_TRIGGER
+        ):
+            return False
+        return not self._collect_file_refs(body, metadata, files_arg, messages_arg)
+
+    async def _run_native_bridge_probe(self, *, request: Any, user: Any) -> str:
+        return await Gate2NativeCompletionProbeFactory().create(
+            request=request,
+            user=user,
+            provider_profile_id=self.valves.ordinary_trade_mapping_provider_profile_id,
+            model_id=self.valves.ordinary_trade_mapping_model_id,
+            completion_resolver=self._openwebui_completion_dependencies,
+        ).execute()
 
     @staticmethod
     def _canonical_workload_access(
@@ -1069,6 +1208,16 @@ class Pipe:
                 "status": "disabled",
                 "provider_calls_total": 0,
             }
+        # MappingCase has already persisted this terminal before the optional
+        # owner-scoped diagnostic projection runs.  A missing Files/Storage
+        # boundary must not turn that durable, safe terminal into a Pipe
+        # failure or expose a link to an unavailable private payload.
+        mapping_forensics_delivery = await self._try_publish_mapping_forensics_file(
+            store=artifact_store,
+            context=artifact_context,
+            user=__user__,
+            semantic_mapping=ndfl_gate3.get("semantic_mapping"),
+        )
         product_result = ndfl_gate3.get("product")
         declaration_result = ndfl_gate3.get("declaration")
         if (
@@ -1111,6 +1260,11 @@ class Pipe:
             **(
                 {"full_source_delivery": full_source_delivery}
                 if full_source_delivery is not None
+                else {}
+            ),
+            **(
+                {"mapping_forensics_delivery": mapping_forensics_delivery}
+                if mapping_forensics_delivery is not None
                 else {}
             ),
         }
@@ -1173,6 +1327,14 @@ class Pipe:
                     chat_content,
                     "",
                     self._full_source_download_line(full_source_delivery),
+                ]
+            )
+        if mapping_forensics_delivery is not None:
+            chat_content = "\n".join(
+                [
+                    chat_content,
+                    "",
+                    self._mapping_forensics_download_line(mapping_forensics_delivery),
                 ]
             )
         if self._live_smoke_requested(safe_body, messages_arg):
@@ -2025,6 +2187,7 @@ class Pipe:
                 ),
             )
             semantic_mapping = result.get("semantic_mapping")
+            self._audit_mapping_terminal(semantic_mapping)
             if (
                 isinstance(semantic_mapping, dict)
                 and semantic_mapping.get("status")
@@ -2872,7 +3035,13 @@ class Pipe:
                     "private_file_projection_lookup_unavailable",
                     "OpenWebUI private file lookup is unavailable",
                 )
-            row = await getter(file_id)
+            try:
+                row = await getter(file_id)
+            except Exception as exc:
+                raise ArtifactStoreError(
+                    "private_file_projection_lookup_failed",
+                    "OpenWebUI private file lookup failed",
+                ) from exc
             if row is None:
                 return None
             meta = getattr(row, "meta", None)
@@ -2915,17 +3084,23 @@ class Pipe:
         if await existing_valid() is not None:
             return file_id
         attempt_id = uuid.uuid4().hex
-        uploaded, file_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(content),
-            f"{file_id}_{attempt_id}_{filename}",
-            {
-                "OpenWebUI-User-Email": str(user.get("email") or ""),
-                "OpenWebUI-User-Id": str(user["id"]),
-                "OpenWebUI-User-Name": str(user.get("name") or ""),
-                "OpenWebUI-File-Id": file_id,
-            },
-        )
+        try:
+            uploaded, file_path = await asyncio.to_thread(
+                Storage.upload_file,
+                io.BytesIO(content),
+                f"{file_id}_{attempt_id}_{filename}",
+                {
+                    "OpenWebUI-User-Email": str(user.get("email") or ""),
+                    "OpenWebUI-User-Id": str(user["id"]),
+                    "OpenWebUI-User-Name": str(user.get("name") or ""),
+                    "OpenWebUI-File-Id": file_id,
+                },
+            )
+        except Exception as exc:
+            raise ArtifactStoreError(
+                "private_file_projection_upload_failed",
+                "OpenWebUI private file upload failed",
+            ) from exc
         if uploaded != content:
             await Pipe._delete_partial_private_file(
                 Storage=Storage, file_path=file_path
@@ -3042,6 +3217,221 @@ class Pipe:
         return (
             "Full Source: "
             f"[скачать {FULL_SOURCE_ZIP_FILENAME}]({str(delivery['url'])})"
+        )
+
+    @staticmethod
+    async def _try_publish_mapping_forensics_file(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        user: Any,
+        semantic_mapping: Any,
+    ) -> dict[str, Any] | None:
+        """Best-effort native File projection after a persisted terminal.
+
+        The optional download is not a MappingCase state transition.  Expected
+        ArtifactStore failures therefore suppress only the download and retain
+        the already-persisted invalid-mapping terminal.
+        """
+
+        try:
+            return await Pipe._publish_mapping_forensics_file(
+                store=store,
+                context=context,
+                user=user,
+                semantic_mapping=semantic_mapping,
+            )
+        except ArtifactStoreError as exc:
+            logging.getLogger(__name__).warning(
+                "broker_reports_mapping_forensics_unavailable code=%s",
+                exc.code,
+            )
+            return None
+
+    @staticmethod
+    async def _publish_mapping_forensics_file(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        user: Any,
+        semantic_mapping: Any,
+    ) -> dict[str, Any] | None:
+        """Project an owner-bound invalid mapping response through OpenWebUI Files.
+
+        MappingCase stays the sole owner of the raw provider answer.  The Pipe
+        only resolves its opaque private reference in the same case context.
+        """
+
+        if (
+            not isinstance(semantic_mapping, dict)
+            or semantic_mapping.get("status") != "MAPPING_OUTPUT_INVALID"
+        ):
+            return None
+        raw_ref = semantic_mapping.get("private_mapping_raw_output_ref")
+        if raw_ref is None:
+            return None
+        if (
+            not isinstance(raw_ref, dict)
+            or set(raw_ref)
+            != {
+                "schema_version",
+                "artifact_ref",
+                "mapping_case_artifact_id",
+            }
+            or raw_ref.get("schema_version")
+            != MAPPING_RAW_OUTPUT_REFERENCE_SCHEMA_VERSION
+            or not isinstance(raw_ref.get("artifact_ref"), str)
+            or not raw_ref["artifact_ref"]
+            or not isinstance(raw_ref.get("mapping_case_artifact_id"), str)
+            or not raw_ref["mapping_case_artifact_id"]
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_reference_invalid",
+                "Mapping forensics private reference is invalid",
+            )
+        # The turn result is the coordinator's current-case control state;
+        # its case id must bind the opaque raw reference before *any* private
+        # artifact lookup.  Checking only the referenced record below would
+        # permit a caller-supplied result to project a different valid case's
+        # response within the same authenticated scope.
+        if (
+            not isinstance(semantic_mapping.get("mapping_case_artifact_id"), str)
+            or not semantic_mapping["mapping_case_artifact_id"]
+            or semantic_mapping["mapping_case_artifact_id"]
+            != raw_ref["mapping_case_artifact_id"]
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_case_binding_invalid",
+                "Mapping forensics case binding is invalid",
+            )
+        resolver = ArtifactResolver(store)
+        resolved = resolver.resolve_case(raw_ref["artifact_ref"], context)
+        record = resolved["record"]
+        payload = resolved["payload"]
+        if (
+            record.artifact_type != MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+            or record.visibility != "private_case"
+            or record.safe_metadata.get("mapping_case_artifact_id")
+            != raw_ref["mapping_case_artifact_id"]
+            or not isinstance(payload, dict)
+            or payload.get("schema_version") != MAPPING_RAW_OUTPUT_ARTIFACT_TYPE
+            or payload.get("mapping_case_artifact_id")
+            != raw_ref["mapping_case_artifact_id"]
+            or "response_content" not in payload
+        ):
+            raise ArtifactStoreError(
+                "mapping_forensics_private_payload_invalid",
+                "Mapping forensics private payload is invalid",
+            )
+        try:
+            raw_canonical_bytes = json.dumps(
+                payload["response_content"],
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            content = json.dumps(
+                payload["response_content"],
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+                allow_nan=False,
+            ).encode("utf-8")
+        except (TypeError, ValueError) as exc:
+            raise ArtifactStoreError(
+                "mapping_forensics_private_payload_not_json",
+                "Mapping forensics private payload is not JSON serializable",
+            ) from exc
+        raw_response_sha256 = hashlib.sha256(raw_canonical_bytes).hexdigest()
+        if record.safe_metadata.get("response_content_sha256") != raw_response_sha256:
+            raise ArtifactStoreError(
+                "mapping_forensics_private_payload_hash_mismatch",
+                "Mapping forensics private payload checksum is invalid",
+            )
+        content_sha256 = hashlib.sha256(content).hexdigest()
+        case_scope_sha256 = hashlib.sha256(
+            str(context.case_id or context.chat_id).encode("utf-8")
+        ).hexdigest()
+        identity_material = {
+            "owner": "OpenWebUIFiles",
+            "authenticated_user_ref": context.user_id,
+            "case_scope_sha256": case_scope_sha256,
+            "mapping_case_artifact_id": raw_ref["mapping_case_artifact_id"],
+            "raw_response_sha256": raw_response_sha256,
+        }
+        identity_json = json.dumps(identity_material, sort_keys=True, separators=(",", ":"))
+        file_id = await Pipe._publish_owner_scoped_private_file(
+            user=user,
+            context=context,
+            filename=MAPPING_FORENSICS_FILENAME,
+            content_type="application/json",
+            content=content,
+            content_sha256=content_sha256,
+            purpose=MAPPING_FORENSICS_PROJECTION_SCHEMA_VERSION,
+            projection_metadata={},
+            identity_material=identity_material,
+            file_id_namespace="d6259544-2138-4a42-b48c-b0e07f2cf4a1",
+            record_metadata={
+                "broker_reports_mapping_forensics": True,
+                "private_user_artifact": True,
+                "case_scope_sha256": case_scope_sha256,
+                "mapping_case_artifact_id": raw_ref["mapping_case_artifact_id"],
+                "raw_response_sha256": raw_response_sha256,
+                "publication_identity_sha256": hashlib.sha256(
+                    identity_json.encode("utf-8")
+                ).hexdigest(),
+            },
+        )
+        return {
+            "file_id": file_id,
+            "filename": MAPPING_FORENSICS_FILENAME,
+            "url": f"/api/v1/files/{file_id}/content?attachment=true",
+            "content_type": "application/json",
+        }
+
+    @staticmethod
+    def _mapping_forensics_download_line(delivery: dict[str, Any]) -> str:
+        return (
+            "[Скачать ответ разметки для диагностики]"
+            f"({str(delivery['url'])})"
+        )
+
+    @staticmethod
+    def _audit_mapping_terminal(semantic_mapping: Any) -> None:
+        """Emit an operator-safe terminal receipt, never model or source data.
+
+        The mapping case remains the authoritative private forensic record.
+        This log is intentionally limited to values already admitted by the
+        mapping case's public control-state projection, so it cannot turn the
+        Pipe log into a second artifact store or leak Canonical/model payloads.
+        """
+
+        if not isinstance(semantic_mapping, dict):
+            return
+        if semantic_mapping.get("status") != "MAPPING_OUTPUT_INVALID":
+            return
+        public_state = semantic_mapping.get("public_state")
+        public_state = public_state if isinstance(public_state, dict) else {}
+        reason = public_state.get("mapping_failure_reason")
+        if not isinstance(reason, str) or not reason:
+            reason = "mapping_output_invalid"
+        provider_calls_total = public_state.get("provider_calls_total")
+        if not isinstance(provider_calls_total, int) or provider_calls_total < 0:
+            provider_calls_total = 0
+        provider_calls_this_turn = semantic_mapping.get("provider_calls_this_turn")
+        if (
+            not isinstance(provider_calls_this_turn, int)
+            or provider_calls_this_turn < 0
+        ):
+            provider_calls_this_turn = 0
+        _LOGGER.info(
+            "broker_reports_mapping_terminal status=MAPPING_OUTPUT_INVALID "
+            "mapping_failure_reason=%s provider_calls_this_turn=%d "
+            "provider_calls_total=%d",
+            reason,
+            provider_calls_this_turn,
+            provider_calls_total,
         )
 
     @staticmethod

@@ -55,6 +55,21 @@ from .ordinary_trade_mapping_prompt import (
     ORDINARY_TRADE_MAPPING_V20_PROMPT_REQUIRED_TAG,
     ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_ID,
     ORDINARY_TRADE_MAPPING_V20_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND,
+    ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND,
@@ -338,6 +353,60 @@ ORDINARY_TRADE_MAPPING_V20_PROFILE = OrdinaryTradeMappingPromptPublicationProfil
     initial_access_grants=(("user", "*", "read"),),
 )
 
+ORDINARY_TRADE_MAPPING_V21_PROFILE = OrdinaryTradeMappingPromptPublicationProfile(
+    profile_id="ordinary_trade_mapping_v21",
+    command=ORDINARY_TRADE_MAPPING_V21_PROMPT_COMMAND,
+    name="Broker Reports ordinary-trade semantic mapping v21",
+    asset_filename="broker_reports_ordinary_trade_mapping_prompt.v21.md",
+    asset_version="v21",
+    template_id=ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_ID,
+    template_kind=ORDINARY_TRADE_MAPPING_V21_PROMPT_TEMPLATE_KIND,
+    prompt_contract_id=PROMPT_CONTRACT_ID,
+    input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    output_schema_id=ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+    output_schema_version=ORDINARY_TRADE_MAPPING_V21_COMPACT_RESPONSE_SCHEMA_VERSION,
+    required_tag=ORDINARY_TRADE_MAPPING_V21_PROMPT_REQUIRED_TAG,
+    placeholder=PROMPT_PLACEHOLDER,
+    is_production=True,
+    initial_access_grants=(("user", "*", "read"),),
+)
+
+ORDINARY_TRADE_MAPPING_V22_PROFILE = OrdinaryTradeMappingPromptPublicationProfile(
+    profile_id="ordinary_trade_mapping_v22",
+    command=ORDINARY_TRADE_MAPPING_V22_PROMPT_COMMAND,
+    name="Broker Reports ordinary-trade semantic mapping v22",
+    asset_filename="broker_reports_ordinary_trade_mapping_prompt.v22.md",
+    asset_version="v22",
+    template_id=ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_ID,
+    template_kind=ORDINARY_TRADE_MAPPING_V22_PROMPT_TEMPLATE_KIND,
+    prompt_contract_id=PROMPT_CONTRACT_ID,
+    input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    output_schema_id=ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+    output_schema_version=ORDINARY_TRADE_MAPPING_V22_COMPACT_RESPONSE_SCHEMA_VERSION,
+    required_tag=ORDINARY_TRADE_MAPPING_V22_PROMPT_REQUIRED_TAG,
+    placeholder=PROMPT_PLACEHOLDER,
+    is_production=True,
+    initial_access_grants=(("user", "*", "read"),),
+)
+
+ORDINARY_TRADE_MAPPING_V23_PROFILE = OrdinaryTradeMappingPromptPublicationProfile(
+    profile_id="ordinary_trade_mapping_v23",
+    command=ORDINARY_TRADE_MAPPING_V23_PROMPT_COMMAND,
+    name="Broker Reports ordinary-trade semantic mapping v23",
+    asset_filename="broker_reports_ordinary_trade_mapping_prompt.v23.md",
+    asset_version="v23",
+    template_id=ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_ID,
+    template_kind=ORDINARY_TRADE_MAPPING_V23_PROMPT_TEMPLATE_KIND,
+    prompt_contract_id=PROMPT_CONTRACT_ID,
+    input_schema_version=DOCUMENT_OPENING_INPUT_SCHEMA_VERSION,
+    output_schema_id=ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+    output_schema_version=ORDINARY_TRADE_MAPPING_V23_COMPACT_RESPONSE_SCHEMA_VERSION,
+    required_tag=ORDINARY_TRADE_MAPPING_V23_PROMPT_REQUIRED_TAG,
+    placeholder=PROMPT_PLACEHOLDER,
+    is_production=True,
+    initial_access_grants=(("user", "*", "read"),),
+)
+
 # A separate document-intake Prompt, sharing only the native Prompt/history
 # lifecycle with the table-mapping profiles.  Its new command avoids silently
 # reinterpreting the legacy seeded Prompt and gives the Pipe one exact pin.
@@ -384,6 +453,9 @@ _PUBLISHABLE_PROFILES = {
         ORDINARY_TRADE_MAPPING_V18_PROFILE,
         ORDINARY_TRADE_MAPPING_V19_PROFILE,
         ORDINARY_TRADE_MAPPING_V20_PROFILE,
+        ORDINARY_TRADE_MAPPING_V21_PROFILE,
+        ORDINARY_TRADE_MAPPING_V22_PROFILE,
+        ORDINARY_TRADE_MAPPING_V23_PROFILE,
         PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE,
         DOCUMENT_METADATA_PASSPORT_V1_PROFILE,
     )
@@ -589,6 +661,100 @@ class OrdinaryTradeMappingPromptPublisher:
                         "ordinary_trade_mapping_prompt_publication_pin_drift"
                     )
                 return verified
+        except OrdinaryTradeMappingPromptPublicationError:
+            raise
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptPublicationError(
+                "ordinary_trade_mapping_prompt_publication_unavailable"
+            ) from exc
+
+    async def read_current(self) -> OrdinaryTradeMappingPromptPublication:
+        """Return the current native pin without changing the Prompt."""
+
+        owners = self._native_owners()
+        try:
+            async with owners["get_async_db_context"]() as session:
+                row = await owners["prompts"].get_prompt_by_command(
+                    self._profile.command, db=session
+                )
+                if row is None:
+                    raise OrdinaryTradeMappingPromptPublicationError(
+                        "ordinary_trade_mapping_prompt_publication_pin_missing"
+                    )
+                model = _model_dict(row)
+                return await self._verified_publication(
+                    owners=owners,
+                    session=session,
+                    row=model,
+                    content=str(model.get("content") or ""),
+                    action="observed",
+                )
+        except OrdinaryTradeMappingPromptPublicationError:
+            raise
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptPublicationError(
+                "ordinary_trade_mapping_prompt_publication_unavailable"
+            ) from exc
+
+    async def rollback(
+        self, publication: OrdinaryTradeMappingPromptPublication
+    ) -> OrdinaryTradeMappingPromptPublication:
+        """Restore one previously observed native V20 Prompt history snapshot."""
+
+        if not isinstance(publication, OrdinaryTradeMappingPromptPublication):
+            raise OrdinaryTradeMappingPromptPublicationError(
+                "ordinary_trade_mapping_prompt_publication_pin_invalid"
+            )
+        owners = self._native_owners()
+        try:
+            async with owners["get_async_db_context"]() as session:
+                row = await owners["prompts"].get_prompt_by_command(
+                    publication.prompt_command, db=session
+                )
+                model = _model_dict(row) if row is not None else {}
+                actor_user_id = str(model.get("user_id") or "").strip()
+                history = await owners["prompt_histories"].get_history_entry_by_id(
+                    publication.prompt_history_id, db=session
+                )
+                snapshot = getattr(history, "snapshot", None)
+                if (
+                    not actor_user_id
+                    or str(model.get("id") or "") != publication.prompt_ref
+                    or str(getattr(history, "prompt_id", "") or "")
+                    != publication.prompt_ref
+                    or not isinstance(snapshot, dict)
+                    or not isinstance(snapshot.get("content"), str)
+                    or _profile_prompt_hash(
+                        snapshot["content"], profile=self._profile
+                    )
+                    != publication.prompt_hash
+                ):
+                    raise OrdinaryTradeMappingPromptPublicationError(
+                        "ordinary_trade_mapping_prompt_publication_rollback_invalid"
+                    )
+                content = snapshot["content"]
+            restored = await self.publish(
+                OrdinaryTradeMappingPromptPublicationInput(
+                    actor_user_id=actor_user_id,
+                    content=content,
+                    commit_message="Restore Broker Reports ordinary-trade mapping Prompt",
+                )
+            )
+            if (
+                restored.prompt_ref != publication.prompt_ref
+                or restored.prompt_command != publication.prompt_command
+                or restored.prompt_hash != publication.prompt_hash
+            ):
+                raise OrdinaryTradeMappingPromptPublicationError(
+                    "ordinary_trade_mapping_prompt_publication_rollback_drift"
+                )
+            return OrdinaryTradeMappingPromptPublication(
+                prompt_ref=restored.prompt_ref,
+                prompt_command=restored.prompt_command,
+                prompt_history_id=restored.prompt_history_id,
+                prompt_hash=restored.prompt_hash,
+                action="restored",
+            )
         except OrdinaryTradeMappingPromptPublicationError:
             raise
         except Exception as exc:
@@ -840,6 +1006,12 @@ def _default_commit_message(
         return "Publish Broker Reports ordinary-trade mapping Prompt v19"
     if profile is ORDINARY_TRADE_MAPPING_V20_PROFILE:
         return "Publish Broker Reports ordinary-trade mapping Prompt v20"
+    if profile is ORDINARY_TRADE_MAPPING_V21_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v21"
+    if profile is ORDINARY_TRADE_MAPPING_V22_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v22"
+    if profile is ORDINARY_TRADE_MAPPING_V23_PROFILE:
+        return "Publish Broker Reports ordinary-trade mapping Prompt v23"
     if profile is DOCUMENT_METADATA_PASSPORT_V1_PROFILE:
         return "Publish Broker Reports document metadata passport Prompt v1"
     raise OrdinaryTradeMappingPromptPublicationError(
@@ -875,6 +1047,9 @@ __all__ = [
     "ORDINARY_TRADE_MAPPING_V18_PROFILE",
     "ORDINARY_TRADE_MAPPING_V19_PROFILE",
     "ORDINARY_TRADE_MAPPING_V20_PROFILE",
+    "ORDINARY_TRADE_MAPPING_V21_PROFILE",
+    "ORDINARY_TRADE_MAPPING_V22_PROFILE",
+    "ORDINARY_TRADE_MAPPING_V23_PROFILE",
     "PDF_TABLE_CONTINUATION_ANNOTATION_V3_PROFILE",
     "DOCUMENT_METADATA_PASSPORT_V1_PROFILE",
     "PROMPT_ASSET_FILENAME",

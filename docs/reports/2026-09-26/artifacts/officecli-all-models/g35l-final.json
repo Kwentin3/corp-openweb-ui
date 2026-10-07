@@ -1,0 +1,79 @@
+{
+  "chat": "02c50da3-aa8c-49fc-89f8-9e13701022eb",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "7d936f93-02dc-47b6-9159-819062a66496",
+      "role": "user",
+      "files": [
+        {
+          "id": "47ba2e57-d4e7-4e1d-878a-da6cca4deebb",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "6d8d52b4-ea69-49c5-bc38-af82a2e31d8f",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "c00dcbdc-716b-4485-a1b9-f46c092a8b9e",
+      "role": "assistant",
+      "model": "models/gemini-3.5-flash-lite",
+      "done": true,
+      "files": [
+        {
+          "id": "aa11c51b-76d8-4d25-a602-e6051b7bcf59",
+          "name": "sales-g35l-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 5089
+        }
+      ],
+      "sources": [
+        {
+          "id": "47ba2e57-d4e7-4e1d-878a-da6cca4deebb",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "47ba2e57-d4e7-4e1d-878a-da6cca4deebb"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "6d8d52b4-ea69-49c5-bc38-af82a2e31d8f",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "6d8d52b4-ea69-49c5-bc38-af82a2e31d8f"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "aa11c51b-76d8-4d25-a602-e6051b7bcf59",
+          "commands_count": 30,
+          "google_signature_present": true
+        }
+      ]
+    }
+  ]
+}

@@ -18,6 +18,10 @@ from broker_reports_gate1.ordinary_trade_grouped_mapping_v17 import (
     ORDINARY_TRADE_GROUPED_MAPPING_V17_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeGroupedMappingV17AdapterFactory,
 )
+from broker_reports_gate1.ordinary_trade_grouped_mapping_v20 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeGroupedMappingV20AdapterFactory,
+)
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
 )
@@ -83,7 +87,13 @@ def _v17_response(*, parent: dict, mapping: dict, child_ref: str = "table_2") ->
     }
 
 
-def _case_with_source_bound_link(tmp_path):
+def _v20_response(*, parent: dict, mapping: dict) -> dict:
+    response = _v17_response(parent=parent, mapping=mapping)
+    response["schema_version"] = ORDINARY_TRADE_GROUPED_MAPPING_V20_RESPONSE_SCHEMA_VERSION
+    return response
+
+
+def _case_with_source_bound_link(tmp_path, *, persist_sidecar: bool = True):
     store, context = case_fixtures.candidate.gate4_fixtures._store_context(tmp_path)
     document_id = "v17-headerless-child-runtime-case"
     rows = []
@@ -206,18 +216,19 @@ def _case_with_source_bound_link(tmp_path):
     assert tables[0]["content"]["metadata"]["physical_header_state"] == "PRESENT"
     assert tables[1]["content"]["metadata"]["physical_header_state"] == "ABSENT"
     assert tables[1]["content"]["header"] == []
-    continuation_fixtures._persist_sidecar(
-        store=store,
-        context=context,
-        document_id=document_id,
-        source_record=source_record,
-        payload=continuation_fixtures._sidecar(
+    if persist_sidecar:
+        continuation_fixtures._persist_sidecar(
+            store=store,
             context=context,
             document_id=document_id,
-            source_sha=canonical["source"]["source_sha256"],
-        ),
-        artifact_id="v17-runtime-source-bound-link",
-    )
+            source_record=source_record,
+            payload=continuation_fixtures._sidecar(
+                context=context,
+                document_id=document_id,
+                source_sha=canonical["source"]["source_sha256"],
+            ),
+            artifact_id="v17-runtime-source-bound-link",
+        )
     return store, context, document_id, tables
 
 
@@ -261,6 +272,81 @@ def test_v17_one_call_persists_continuation_and_projects_only_claimed_child_rows
     )
     assert projection.artifact_type == ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE
     projection_payload = projections.read(
+        artifact_id=projection.artifact_id, context=context
+    )
+    child_records = [
+        record
+        for record in projection_payload["runtime_records"]
+        if record["annotation_target"]["node_id"] == tables[1]["node_id"]
+    ]
+    assert {record["annotation_target"]["row"] for record in child_records} == {2}
+
+
+def test_v20_v21_wire_continuation_without_sidecar_persists_and_projects(tmp_path) -> None:
+    """The shared V20 wire for V20/V21 prompts needs no retired OCR sidecar."""
+
+    store, context, document_id, tables = _case_with_source_bound_link(
+        tmp_path, persist_sidecar=False
+    )
+    mapping = case_fixtures.candidate._mapping_from_headers(
+        tuple(
+            cell["displayed_value"]
+            for cell in sorted(
+                (cell for cell in tables[0]["content"]["cells"] if cell["row"] == 1),
+                key=lambda cell: cell["column"],
+            )
+        )
+    )
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    binding = cases.case_binding(document_id=document_id, context=context)
+    semantic = case_fixtures.OrdinaryTradeSemanticMappingFactory.create()
+    target_table_node_ids = [table["node_id"] for table in tables]
+    package = semantic.build_mapping_package(
+        canonical=binding["canonical"],
+        confirmed_understandings=[],
+        target_table_node_ids=target_table_node_ids,
+        physical_table_continuation_context=None,
+    )
+    adapter = OrdinaryTradeGroupedMappingV20AdapterFactory.create()
+    wire_response = _v20_response(parent=tables[0], mapping=mapping)
+    expanded_response = semantic.bind_source_owned_headers(
+        response=adapter.expand_to_v13(response=wire_response, package=package),
+        package=package,
+    )
+    outcome = semantic.validate_mapping_response(
+        response=expanded_response,
+        canonical=binding["canonical"],
+        canonical_binding=binding["canonical_binding"],
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=case_fixtures._metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=binding["user_scope_sha256"],
+        target_table_node_ids=target_table_node_ids,
+        explicit_header_source_response=adapter.explicit_header_source_claims(
+            response=wire_response
+        ),
+        physical_table_continuation_context=None,
+        allow_source_bound_position_effect=True,
+        allow_model_selected_header=True,
+    )
+    _record, saved = cases.save_mapping_outcome(
+        document_id=document_id,
+        context=context,
+        outcome=outcome,
+        provider_calls_total=1,
+        mapping_prompt_snapshot=runtime_fixtures._test_mapping_prompt().snapshot(),
+    )
+
+    assert outcome["status"] == "COMPLETE"
+    assert saved["provider_calls_total"] == 1
+    assert saved["schema_version"] == "broker_reports_ordinary_trade_mapping_case_v7"
+    assert "physical_table_continuation_binding" not in saved["case_binding"]
+    assert saved["explicit_header_source_continuations"]
+    projection = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create().compile_and_save(
+        document_id=document_id, context=context
+    )
+    projection_payload = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create().read(
         artifact_id=projection.artifact_id, context=context
     )
     child_records = [

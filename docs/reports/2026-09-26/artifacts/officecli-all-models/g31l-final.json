@@ -1,0 +1,86 @@
+{
+  "chat": "6e482b73-a7e0-4ad1-9562-4aca860314f7",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "messages": [
+    {
+      "id": "c42d491f-9c9b-4429-9c72-6c1158ca036b",
+      "role": "user",
+      "files": [
+        {
+          "id": "fad038a4-2b6a-40db-8773-13eb7244b4f6",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "d1cc7080-777b-4c11-a220-ebf2faedffed",
+          "name": "feb.xlsx"
+        }
+      ],
+      "sources": [],
+      "calls": []
+    },
+    {
+      "id": "2f6a9bf6-9630-4228-a4d5-e10b3889f718",
+      "role": "assistant",
+      "model": "models/gemini-3.1-flash-lite",
+      "done": true,
+      "files": [
+        {
+          "id": "8194b613-b333-44d5-80fe-a2164298fdab",
+          "name": "sales-g31l-final.xlsx",
+          "status": 200,
+          "metadata_status": 200,
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "bytes": 5092
+        }
+      ],
+      "sources": [
+        {
+          "id": "fad038a4-2b6a-40db-8773-13eb7244b4f6",
+          "name": "jan.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "6965de1e4fa4cd9d8242ac7f9cdc757eb0ea398294af915b8e5fab046587f0a7",
+          "document": [
+            "Product Quantity Price A 2 100 B 3 50"
+          ],
+          "metadata_file_ids": [
+            "fad038a4-2b6a-40db-8773-13eb7244b4f6"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        },
+        {
+          "id": "d1cc7080-777b-4c11-a220-ebf2faedffed",
+          "name": "feb.xlsx",
+          "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+          "file_sha256": "82fe204d0b7091c0fefc899ca7564599e7fed4923a4d38ed55c2df049d31cb24",
+          "document": [
+            "Product Quantity Price A 4 120 B 1 70"
+          ],
+          "metadata_file_ids": [
+            "d1cc7080-777b-4c11-a220-ebf2faedffed"
+          ],
+          "created_by": [
+            "e0015c68-3192-4604-b473-886879e2aeea"
+          ]
+        }
+      ],
+      "calls": [
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "tool_error": "HTTP error 502: {\"detail\":\"officecli guidance command failed: {\\n  \\\"success\\\": false,\\n  \\\"data\\\": {\\n    \\\"results\\\": [\\n      {\\n        \\\"index\\\": 0,\\n        \\\"success\\\": true,\\n        \\\"output\\\": \\\"Updated /Sheet1: name=\u042f\u043d\u043226\\\"\\n    ",
+          "commands_count": 30,
+          "google_signature_present": true
+        },
+        {
+          "name": "create_office_spreadsheet",
+          "status": "completed",
+          "result_file_id": "8194b613-b333-44d5-80fe-a2164298fdab",
+          "commands_count": 30,
+          "google_signature_present": true
+        }
+      ]
+    }
+  ]
+}

@@ -193,25 +193,6 @@ class OrdinaryTradeSemanticCompiler:
             )
             for item in explicit_header_source_continuations
         )
-        accepted_physical_context = _validated_physical_table_continuation_context(
-            canonical_binding=binding,
-            value=physical_table_continuation_context,
-            required=bool(accepted_continuations),
-        )
-        if accepted_physical_context is not None:
-            links = {
-                (item["parent_table_node_id"], item["child_table_node_id"])
-                for item in accepted_physical_context["links"]
-            }
-            if any(
-                (
-                    item["header_source_table_node_id"],
-                    item["target_table_node_id"],
-                )
-                not in links
-                for item in accepted_continuations
-            ):
-                _fail("ordinary_trade_explicit_header_source_link_unverified")
         accepted_resolutions = tuple(
             _validated_table_resolution(item) for item in table_resolutions
         )

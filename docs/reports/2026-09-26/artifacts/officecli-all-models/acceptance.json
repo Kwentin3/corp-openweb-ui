@@ -1,0 +1,62 @@
+{
+  "role": "user",
+  "user_id": "e0015c68-3192-4604-b473-886879e2aeea",
+  "implementation_revision": "7176d602422adca2c6f3ea5014507b5d203a3755",
+  "image_id": "sha256:095f1a356b38d2461265b58a8b9fbc6d97063b41d68712193a5c08c94bb04097",
+  "results": [
+    {
+      "model": "models/gemini-3.5-flash",
+      "receipt": "g35-final.json",
+      "workbook": "sales-g35-final.xlsx",
+      "sha256": "cf2b2a021e9a727b617ec6d00ac80c452020396c982350a34452593b3721ca31"
+    },
+    {
+      "model": "models/gemini-3.6-flash",
+      "receipt": "g36-final.json",
+      "workbook": "sales-g36-final.xlsx",
+      "sha256": "c8642bf5ff7773898bed27a4feeb100a9dca4388ee5ae72f4e60d4421e674882"
+    },
+    {
+      "model": "models/gemini-3.1-flash-lite",
+      "receipt": "g31l-final.json",
+      "workbook": "sales-g31l-final.xlsx",
+      "sha256": "6b770931b39f9f16ae9aa0cf04807b2ede3eacad45e55f86a909550b9b0ba130"
+    },
+    {
+      "model": "models/gemini-3.5-flash-lite",
+      "receipt": "g35l-final.json",
+      "workbook": "sales-g35l-final.xlsx",
+      "sha256": "557a1e9b42359dedeb79e9c9de1fdbb0d14226a3819984310b34e6ceccf0013a"
+    },
+    {
+      "model": "gpt-5.6-luna",
+      "receipt": "luna-final.json",
+      "workbook": "sales-luna-final.xlsx",
+      "sha256": "345dd0373658c9ccd9ebd9d6de3246203715860fc8f428fdfeaa6af5737e1296"
+    },
+    {
+      "model": "gpt-5.4-mini",
+      "receipt": "mini-final.json",
+      "workbook": "sales-mini-final.xlsx",
+      "sha256": "8b7b8d4e8ea141e382a088c7afe0764ec437683b797f0ac170a267f2b05457cf"
+    },
+    {
+      "model": "claude-sonnet-4-6",
+      "receipt": "sonnet-final.json",
+      "workbook": "sales-sonnet-final.xlsx",
+      "sha256": "c4e94e301fbc06cf6d3283d10c5e94c4eedb4a2da830c6105479b38504879c9a"
+    },
+    {
+      "model": "claude-opus-5",
+      "receipt": "opus-final.json",
+      "workbook": "sales-opus-final.xlsx",
+      "sha256": "2e88c63dfceeb7761f0c943be8bec87d192adb0785c4563c1ed1446aa441171f"
+    },
+    {
+      "model": "office-documents",
+      "receipt": "office-final.json",
+      "workbook": "sales-office-final.xlsx",
+      "sha256": "7b3d0ce607c855de9325c6ea0017329d3c10b19d04f2104a57a0afb3a39ac3e2"
+    }
+  ]
+}

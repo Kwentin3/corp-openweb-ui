@@ -1,5 +1,9 @@
 ﻿# STT v2 MVP Operator Notes
 
+Historical post-processing notes, dated 2026-07-02. For the current
+uploaded-media intake, retry and deletion workflow use the
+[native STT runbook](STT_NATIVE_MEDIA_TRANSCRIPTION_RUNBOOK.md).
+
 Status: pilot-readiness operator notes.
 
 Date: 2026-07-02.

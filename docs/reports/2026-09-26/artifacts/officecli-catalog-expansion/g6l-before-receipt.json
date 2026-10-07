@@ -1,0 +1,32 @@
+{
+  "chat": "189329cd-0b0b-4188-aa28-b99291ef1460",
+  "user_id": "f8a2c356-9755-40c5-bac4-24f5fb329a9f",
+  "messages": [
+    {
+      "id": "8f57c33d-6144-45fb-9123-2c55160c0b72",
+      "role": "user",
+      "files": [
+        {
+          "id": "9230cfee-b0db-4f3a-9538-36cb5135fd05",
+          "name": "jan.xlsx"
+        },
+        {
+          "id": "cb20ed05-af4d-4dc4-a09c-831fa6c44700",
+          "name": "feb.xlsx"
+        }
+      ],
+      "calls": []
+    },
+    {
+      "id": "a6278b09-4b5f-4c39-a519-01e8b460f76e",
+      "role": "assistant",
+      "model": "gpt-6-luna",
+      "done": false,
+      "error": {
+        "content": "Function tools with reasoning_effort are not supported for gpt-6-luna in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'."
+      },
+      "files": [],
+      "calls": []
+    }
+  ]
+}
