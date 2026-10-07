@@ -1044,9 +1044,26 @@ copy old homes or make the directory world-writable. Named-volume initialization
 and private bind preparation remain the native deployment owner's concern.
 
 The fresh release delta concerns accounts, code and configuration. Historical
-chat/file membership is no longer a release gate. The remaining scoped
-provider/browser acceptance, protected current release data,
-post-write rollback and separate release/window approval remain required.
+chat/file membership is no longer a release gate. Protected current release
+data, post-write rollback and separate release/window approval remain required.
+
+The final scoped Responses connection passed one ordinary browser DOCX edit on
+7 October. The native catalog selected the restricted connection at index zero
+alongside all four preserved source connections. The original 14 paragraphs,
+styles and numbering stayed unchanged; only the requested last paragraph changed
+in a separate result. Reload, native preview/download, source preservation and
+authenticated foreign-user denial passed. The actual assembled request passed
+its guard; an additional assertion about stored chat parameters was too strict
+and is not reported as passed. The original provider configuration was restored
+with dispatch disabled and native tasks empty. No paid retry, STT call, new core
+patch or production change occurred.
+
+The owner added 200 model slots: the ceiling is now 440 within the unchanged
+USD16 allowance. Historical batch reservations plus this case total an upper
+bound of 249, not a measured count of provider requests. The new usage-based
+hold is USD0.17090172; total conservative holds are USD8.77721203, including
+unknown historical costs. The separate USD5 STT allowance is unchanged. Evidence
+is `scoped-route-final-20261007.json` in the existing private operator directory.
 
 ### Issue #474: historical partial data rehearsal, 6 October (superseded membership)
 
@@ -1069,6 +1086,15 @@ The remaining 55 ambiguous references include ten references that already lack
 a source native File row. The owner decision therefore concerns 45 existing
 files: their working File records are retained, but their payloads have not been
 copied. This rehearsal is partial and must not be used as the final release set.
+
+On 7 October the owner separately authorized removal of only this superseded
+rehearsal's unused `native-data/uploads` directory. Its 1,494,155,264 allocated
+bytes were removed after checking mounts of all 39 containers, including stopped
+ones. All container identities, states and restart counts stayed unchanged. The
+parent database/code, production source data, original archives and protected
+account/code backup remain. The partial rehearsal's upload payloads are therefore
+no longer replayable. Free space rose to 2,200,666,112 bytes at that checkpoint;
+this is not acceptance of unrestricted production capacity.
 
 The pinned `c4ba3bda` image performed the native 0.9.6 -> 0.11.4 migration in an
 internal network with no published ports, empty provider keys and SAFE_MODE.
@@ -1416,8 +1442,9 @@ Snapshot/migration/release sequence, after separate approval:
    consequence with the owner before reopening writes.
 
 The recipe is reviewable source preparation, not permission to stop, merge,
-deploy or switch the product. Fresh snapshot/off-disk acceptance, current-data
-migration, password login and post-write rollback agreement remain open.
+deploy or switch the product. Off-disk account/code restoration and original
+password login passed on 7 October. Fresh protected release data/current delta,
+post-write rollback agreement and release/window approval remain open.
 
 ### Older production restoration recipe
 
