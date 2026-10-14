@@ -69,6 +69,7 @@ services:
     image: sha256:a499db61c5974f4e93cbda8bb788cb475d58e55b9ff604ea8e520bbf0853548f
     pull_policy: never
     restart: unless-stopped
+    init: true
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m

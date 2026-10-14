@@ -170,6 +170,7 @@ def verify_release_recipe():
             office = config['services']['officecli-0114']
             assert office['environment']['OPENWEBUI_BASE_URL'] == 'http://openwebui-0114:8080'
             assert set(office['networks']) == {'services'} and office['read_only'] is True
+            assert office['init'] is True
             terminal = config['services']['open-terminal-0114']
             assert terminal['environment']['OPEN_TERMINAL_API_KEY'] == fixtures['TERMINAL']['OPEN_TERMINAL_API_KEY']
             assert set(terminal['networks']) == {'services'}

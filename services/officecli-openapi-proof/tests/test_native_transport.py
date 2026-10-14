@@ -94,15 +94,12 @@ def test_failed_process_preserves_both_diagnostic_streams():
     assert "native result" in str(error.value) and "native error" in str(error.value)
 
 
-def test_failed_native_validation_remains_readable_as_structured_findings(monkeypatch):
+def test_failed_native_validation_remains_readable_as_structured_findings(monkeypatch, tmp_path):
     payload = {"success": False, "warnings": [{"message": "[Semantic] Missing image relationship"}]}
 
-    def failed_validation(command, **kwargs):
-        assert command[1] == "validate"
-        return subprocess.CompletedProcess(command, 1, json.dumps(payload), "")
-
-    monkeypatch.setattr("officecli_openapi_proof.officecli.subprocess.run", failed_validation)
-    executor = SubprocessOfficeCliExecutor(settings())
+    (tmp_path / "validate").write_text("import sys; print(" + repr(json.dumps(payload)) + "); sys.exit(1)")
+    monkeypatch.chdir(tmp_path)
+    executor = SubprocessOfficeCliExecutor(replace(settings(), binary=sys.executable))
 
     result = executor.run("validate", "source.pptx", "--json")
     assert json.loads(result.text) == payload
