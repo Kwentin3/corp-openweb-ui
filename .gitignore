@@ -39,6 +39,21 @@ audio/
 *.private.json
 *.private.sha256.json
 
+# Local browser evidence and Broker Reports debug state, never product source.
+/.playwright-mcp/
+/services/broker-reports-gate1-proof/.tmp-g3-debug/
+
+# Root-level operator samples; keep versioned fixtures in their existing folders.
+/open-speech-repository-video-test.mp4
+/open-speech-repository.wav
+/page-2026-09-15T16-58-after-key-filter.yml
+/sintel-speech-test.mp4
+/Вопросник для собеседования (5).docx
+/Вопросник для собеседования с приложениями БГУ (общий шаблон).docx
+/давай_про_шла_Саша_по_шоссе.mp4
+/про грибы.mp4
+/Смотри_нам_сейчас_для_сервиса.mp4
+
 # Local clipboard/delivery buffer, never repository source of truth.
 docs/out/
 
