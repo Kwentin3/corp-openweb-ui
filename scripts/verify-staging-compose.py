@@ -185,7 +185,7 @@ subprocess.run([
     '-f', str(history_bundle / 'runtime.Dockerfile'),
     '-t', 'openwebui-tool-history-check', str(history_bundle),
 ], check=True)
-print('Pinned native tool history image built; nine converter/installer checks passed; no application services started')
+print('Pinned native tool history image built; converter and Responses transport checks passed; no application services started')
 
 capture_bundle = repository / 'deploy/openwebui-patches/provider-context-v0.11.4'
 subprocess.run([
