@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix='openwebui-staging-config-') as temporar
 # names match compose/openwebui.staging*.yml; changing this script also selects CI.
 def verify_release_recipe():
     expected = {
-        'openwebui-0114': 'sha256:1be70208df179647a572d6e61dfccf363cad57425d16607a9a610044a4a5592f',
+        'openwebui-0114': 'sha256:15716a939da20c3730cf52fb6194658342ad25528d3349a39ddbcfd1b131aafb',
         'stage2-stt-0114': 'sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8',
         'officecli-0114': 'sha256:a499db61c5974f4e93cbda8bb788cb475d58e55b9ff604ea8e520bbf0853548f',
         'open-terminal-0114': 'ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c',

@@ -6,7 +6,7 @@ name: openwebui-0114
 
 services:
   openwebui-0114:
-    image: sha256:1be70208df179647a572d6e61dfccf363cad57425d16607a9a610044a4a5592f
+    image: sha256:15716a939da20c3730cf52fb6194658342ad25528d3349a39ddbcfd1b131aafb
     pull_policy: never
     platform: linux/amd64
     restart: unless-stopped

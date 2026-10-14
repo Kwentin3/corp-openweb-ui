@@ -30,17 +30,18 @@ from the Filter's Chat Completions `no_reasoning_model_ids` valve through native
 administration; provider credentials remain server-local.
 
 CI builds against the pinned official 0.11.4 image. Production preserves the
-accepted media image `sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423`
+accepted media/history image `sha256:1be70208df179647a572d6e61dfccf363cad57425d16607a9a610044a4a5592f`
 as its base. Tag that exact local image and pass the tag explicitly:
 
 ```sh
-docker tag sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423 corp-openwebui/media-0114-base:tool-history-c4ba3bda
-docker build --build-arg OPENWEBUI_BASE_IMAGE=corp-openwebui/media-0114-base:tool-history-c4ba3bda -f runtime.Dockerfile -t corp-openwebui/openwebui-tool-history:upstream-31593 .
+docker tag sha256:1be70208df179647a572d6e61dfccf363cad57425d16607a9a610044a4a5592f corp-openwebui/context-base:history-6f7c84d4
+docker build --build-arg OPENWEBUI_BASE_IMAGE=corp-openwebui/context-base:history-6f7c84d4 -f runtime.Dockerfile -t corp-openwebui/tool-context:responses-0114 .
 ```
 
 Run these commands from this directory. Only the code/build files belong
 in the build context; no environment files, credentials or chat data are needed.
 The production candidate is pinned in the existing release Compose recipe.
+The diagnostic provider-capture overlay is not part of that production pin.
 
 The image checks nine native converter/installer cases, including sequential and
 parallel calls, commentary between calls and results, image ordering, stable
