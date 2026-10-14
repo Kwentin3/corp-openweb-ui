@@ -1,4 +1,4 @@
-"""Validate clean staging and the staged release recipe without starting containers."""
+"""Validate staging/release artifacts without starting application services."""
 import json
 import os
 import pathlib
@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix='openwebui-staging-config-') as temporar
 # names match compose/openwebui.staging*.yml; changing this script also selects CI.
 def verify_release_recipe():
     expected = {
-        'openwebui-0114': 'sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423',
+        'openwebui-0114': 'sha256:1be70208df179647a572d6e61dfccf363cad57425d16607a9a610044a4a5592f',
         'stage2-stt-0114': 'sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8',
         'officecli-0114': 'sha256:a499db61c5974f4e93cbda8bb788cb475d58e55b9ff604ea8e520bbf0853548f',
         'open-terminal-0114': 'ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c',
@@ -176,3 +176,13 @@ def verify_release_recipe():
         print('Release Compose and explicit route overlay resolved: pinned images, separate volumes, preserved environment, unique service names; no containers started')
 
 verify_release_recipe()
+
+# The release image contains this native integration backport. Keep its build
+# qualification with the existing release check selected by active-ci.
+history_bundle = repository / 'deploy/openwebui-patches/tool-history-v0.11.4'
+subprocess.run([
+    'docker', 'build', '--network', 'none',
+    '-f', str(history_bundle / 'runtime.Dockerfile'),
+    '-t', 'openwebui-tool-history-check', str(history_bundle),
+], check=True)
+print('Pinned native tool history image built; nine converter/installer checks passed; no application services started')
