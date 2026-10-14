@@ -17,7 +17,6 @@ services:
       - path: ${RELEASE_WEBUI_ENV_FILE:?Set the protected preserved WebUI environment file}
         format: raw
     environment:
-      CHAT_RESPONSE_MAX_TOOL_CALL_ITERATIONS: "8"
       STAGE2_STT_BASE_URL: http://stage2-stt-0114:8080
       NO_PROXY: ${RELEASE_WEBUI_NO_PROXY:?Preserve existing WebUI exclusions and append new service names}
       no_proxy: ${RELEASE_WEBUI_NO_PROXY:?Preserve existing WebUI exclusions and append new service names}

@@ -37,7 +37,8 @@ PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 AUTHOR_WORKFLOW_TRIGGER = (
-    "Use the installed official guide from load_officecli_skill and command details from get_officecli_help. "
+    "Reuse the official guide already loaded for this artifact; otherwise call load_officecli_skill once. "
+    "Use get_officecli_help when command details are uncertain. "
 )
 
 
