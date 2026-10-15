@@ -58,7 +58,7 @@ jobs:
             fi
             for path in "${changed[@]}"; do
               case "$path" in
-                services/officecli-openapi-proof/*|deploy/openwebui-functions/officecli_auto_attach_filter.py|deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py|deploy/openwebui-skills/artifact-workflow.md)
+                services/officecli-openapi-proof/*|deploy/openwebui-functions/officecli_auto_attach_filter.py|deploy/openwebui-functions/officecli_word_export_action.py|deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py|deploy/openwebui-skills/artifact-workflow.md)
                   officecli=true ;;
                 services/stage2-stt/*|deploy/openwebui-media-lifecycle/*|deploy/openwebui-patches/apply_stage2_*)
                   stt=true ;;
@@ -138,3 +138,4 @@ jobs:
             --tmpfs /tmp:rw,nosuid,size=64m \
             -v "$PWD/services/stage2-stt/tests/verify_runtime_media.py:/verify_runtime_media.py:ro" \
             stt-candidate python /verify_runtime_media.py
+
