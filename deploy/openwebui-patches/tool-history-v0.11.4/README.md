@@ -1,4 +1,4 @@
-# Native tool history and Responses image transport
+# Native tool history and Responses transport
 
 OpenWebUI 0.11.4 merges sequential tool rounds without assistant prose into an
 earlier assistant message. Tool images are then moved after subsequent results.
@@ -28,6 +28,23 @@ tool loop, provider connection or document policy. Stateful provider storage is
 not required. GPT-6 Luna uses the existing Responses connection and is removed
 from the Filter's Chat Completions `no_reasoning_model_ids` valve through native
 administration; provider credentials remain server-local.
+
+The stateless loop also dropped encrypted Responses reasoning: the retained
+native turn contained five opaque reasoning items, while all five captured
+provider requests contained none. `apply_reasoning.py` adds an explicit Responses
+representation to the same converter. The native connection lookup selects both
+image and reasoning representations, and the existing provider converter admits
+only protocol fields. The existing source-model check removes encrypted content
+when replaying a different model's output. Chat Completions, Ollama and llama.cpp
+keep their own reasoning formats. No reasoning is exposed as ordinary text.
+
+Eight additional installed-source checks cover opaque-content preservation,
+ordering, tool-image and original-question preservation, model changes,
+incomplete calls, provider selection, display-only conversion and source drift.
+They compile the installed pure conversion functions without starting the
+unrelated database or retrieval subsystems. An offline replay of the retained
+native turn preserves all five opaque blocks and its seven call/result pairs.
+This proves transport correctness, not the completeness of a generated document.
 
 CI builds against the pinned official 0.11.4 image. Production preserves the
 accepted media/history image `sha256:1be70208df179647a572d6e61dfccf363cad57425d16607a9a610044a4a5592f`
@@ -62,4 +79,5 @@ retained outside Git.
 Deployment must change only the WebUI image in the active server-owned Compose
 recipe, preserving server-local environment, resource tuning and data volumes.
 Keep that recipe and image for rollback. Remove this bundle when the selected
-runtime includes both fixes and the same history/transport checks pass natively.
+runtime includes the history, multimodal-output and reasoning fixes and the same
+continuation checks pass natively.
