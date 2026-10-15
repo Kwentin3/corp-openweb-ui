@@ -96,7 +96,7 @@ services:
     mem_limit: ${RELEASE_TERMINAL_MEMORY:-768m}
     memswap_limit: ${RELEASE_TERMINAL_MEMORY_SWAP:-1g}
     cpus: ${RELEASE_TERMINAL_CPUS:-0.5}
-    pids_limit: 256
+    pids_limit: ${RELEASE_TERMINAL_PIDS:-256}
     labels:
       traefik.enable: "false"
     healthcheck:

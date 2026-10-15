@@ -283,8 +283,8 @@ return by pointing the old binary at an unverified migrated DB.
 - Native nested task reasoning parameters replace the inherited unsupported
   top-level value on the candidate; an actual title task succeeds. This accepted
   configuration delta must be replayed after a fresh source migration.
-- Final current-data refresh, measured downtime, operational rollback rehearsal
-  and production switch remain pending. These partial passes do not close the goal.
+- Final consistent refresh and production switch remain pending. These partial
+  passes do not close the goal.
 
 The online full refresh copied 349 files in 80.472 seconds. Its second native
 migration comparison preserves 31 users, 50 chats and 568 messages with zero
@@ -301,6 +301,7 @@ route exercise, not final-source consistency or post-admission lossless rollback
 Keep the staging CPU and memory defaults while both WebUIs run. For production,
 use the existing `RELEASE_{WEBUI,STT,TERMINAL}_{MEMORY,MEMORY_SWAP,CPUS}` selectors
 to restore the original inspected upper bounds; zero CPU means no quota, matching
-the original service. Set the optional gateway's native restart policy to
+the original service. Restore the original Terminal process limit with
+`RELEASE_TERMINAL_PIDS` as well. Set the optional gateway's native restart policy to
 `unless-stopped` before its first final-phase start. Do not recreate that gateway
 at the public activation boundary.
