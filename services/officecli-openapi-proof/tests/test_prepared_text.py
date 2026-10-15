@@ -13,12 +13,23 @@ from officecli_openapi_proof.app import CreateOfficeDocumentRequest
 from pydantic import ValidationError
 
 
-def test_creation_requires_an_explicit_source_decision():
-    with pytest.raises(ValidationError, match='source_message'):
-        CreateOfficeDocumentRequest(output_name='result.docx', commands=[{'command': 'add'}])
+def test_creation_requires_source_or_new_content():
     with pytest.raises(ValidationError, match='commands are required'):
-        CreateOfficeDocumentRequest(output_name='result.docx', source_message='new_content')
+        CreateOfficeDocumentRequest(output_name='result.docx')
     CreateOfficeDocumentRequest(output_name='result.docx', source_message='previous_assistant')
+    CreateOfficeDocumentRequest(output_name='result.docx', source_message='selected_assistant')
+    CreateOfficeDocumentRequest(output_name='result.docx', commands=[{'command':'add'}])
+
+
+def test_message_toolbar_source_uses_the_exact_completed_native_message(monkeypatch):
+    data = native_history()
+    monkeypatch.setattr('officecli_openapi_proof.openwebui_client.httpx.request',
+                        lambda method, url, **kwargs: httpx.Response(200, json=data, request=httpx.Request(method, url)))
+    client = HttpOpenWebUiClient('http://native', 5)
+    assert client.resolve_completed_assistant_text('chat', 'selected', 'Bearer caller').message_id == 'selected'
+    assert client.resolve_completed_assistant_text('chat', 'other-branch', 'Bearer caller').text == 'A different source.'
+    with pytest.raises(OpenWebUiFailure):
+        client.resolve_completed_assistant_text('chat', 'current', 'Bearer caller')
 
 
 def native_history():

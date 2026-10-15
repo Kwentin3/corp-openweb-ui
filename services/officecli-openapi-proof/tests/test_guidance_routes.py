@@ -490,7 +490,6 @@ def test_create_uses_official_create_batch_validate_and_native_attachment() -> N
         },
         json={
             "output_name": "commercial-proposal.docx",
-            "source_message": "new_content",
             "commands": [
                 {
                     "command": "add",
@@ -1120,7 +1119,6 @@ def test_create_translates_official_help_prop_spelling_before_batch_execution() 
         },
         json={
             "output_name": "commercial-proposal.docx",
-            "source_message": "new_content",
             "commands": [
                 {
                     "command": "add",
@@ -1161,7 +1159,6 @@ def test_create_rejects_ambiguous_prop_and_props_before_creating_a_document() ->
         },
         json={
             "output_name": "commercial-proposal.docx",
-            "source_message": "new_content",
             "commands": [
                 {
                     "command": "add",
@@ -1188,7 +1185,7 @@ def test_create_requires_native_chat_and_message_identifiers_before_side_effects
     response = client.post(
         "/v1/officecli/documents/create",
         headers={"Authorization": "Bearer user-session"},
-        json={"output_name": "commercial-proposal.docx", "source_message": "new_content", "commands": [{"command": "add"}]},
+        json={"output_name": "commercial-proposal.docx", "commands": [{"command": "add"}]},
     )
 
     assert response.status_code == 400

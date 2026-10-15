@@ -59,6 +59,11 @@ class DiscoveryQualification(unittest.TestCase):
                 self.verify_session(authorization)
                 return NativeTextSource('prepared-source', source)
 
+            def resolve_completed_assistant_text(self, chat_id, message_id, authorization):
+                self.verify_session(authorization)
+                assert message_id == 'prepared-source'
+                return NativeTextSource(message_id, source)
+
         files = PreparedSourceTransport({})
         client = TestClient(create_app(executor, files, settings))
         headers = {'Authorization': 'Bearer synthetic-session', 'X-OpenWebUI-Chat-Id': 'chat',
@@ -77,6 +82,16 @@ class DiscoveryQualification(unittest.TestCase):
         for expected in ('Approved source', 'Status:', 'pending.', 'Keep receipt ABC-749.',
                          'Do not close until the owner confirms.', 'Date: __________ Signature: __________'):
             self.assertIn(expected, text)
+        response = client.post('/v1/officecli/documents/create', headers={
+            **headers, 'X-OpenWebUI-Message-Id': 'prepared-source'}, json={
+                'output_name': 'selected.docx', 'source_message': 'selected_assistant'})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['source_message_id'], 'prepared-source')
+        with ZipFile(BytesIO(files.result)) as package:
+            selected = ElementTree.fromstring(package.read('word/document.xml'))
+        for expected in ('Approved source', 'pending.', 'Keep receipt ABC-749.',
+                         'Do not close until the owner confirms.'):
+            self.assertIn(expected, ''.join(selected.itertext()))
         files.result = None
         files.attached.clear()
         response = client.post('/v1/officecli/documents/create', headers=headers, json={

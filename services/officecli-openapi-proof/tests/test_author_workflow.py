@@ -186,8 +186,6 @@ def test_published_result_provides_native_download_for_its_actual_attachment(kin
     files = RecordingOpenWebUi()
     payload = {"output_name": "result." + {"documents": "docx", "spreadsheets": "xlsx", "presentations": "pptx"}[kind],
                "commands": [{"command": "set", "path": "/", "props": {"title": "review"}}]}
-    if kind == "documents" and operation == "create":
-        payload["source_message"] = "new_content"
     response = TestClient(create_app(RecordingOfficeCli(), files, settings())).post(
         f"/v1/officecli/{kind}/{operation}",
         headers={**HEADERS, "X-OpenWebUI-Chat-Id": "chat", "X-OpenWebUI-Message-Id": "message"},

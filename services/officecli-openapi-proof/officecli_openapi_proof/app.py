@@ -208,12 +208,13 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
 class CreateOfficeDocumentRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    source_message: Literal["previous_assistant", "new_content"] = Field(description=(
-        "Required source decision. When the user asks to format the prepared answer above, choose "
+    source_message: Literal["previous_assistant", "selected_assistant"] | None = Field(default=None, description=(
+        "When the user asks to format the prepared answer above, choose "
         "previous_assistant. The tool imports that "
         "complete native message directly using OfficeCLI; do not retype or summarize it in commands. "
         "Commands then format the imported document and add only the requested fields. "
-        "Choose new_content only when the user asks to compose new content from scratch."
+        "selected_assistant is for the explicit message-toolbar export: the native current message "
+        "must already be completed. Omit when drafting new content from scratch."
     ))
     commands: list[dict[str, Any]] = Field(
         default_factory=list,
@@ -229,7 +230,7 @@ class CreateOfficeDocumentRequest(BaseModel):
 
     @model_validator(mode="after")
     def source_or_commands_are_present(self):
-        if self.source_message == "new_content" and not self.commands:
+        if self.source_message is None and not self.commands:
             raise ValueError("commands are required when no prepared source message is selected")
         return self
 
@@ -962,8 +963,11 @@ def create_app(
         text_source = None
         imported_text = None
         try:
-            if request.source_message == "previous_assistant":
-                text_source = openwebui.resolve_previous_assistant_text(
+            if request.source_message is not None:
+                resolve_source = (openwebui.resolve_previous_assistant_text
+                                  if request.source_message == "previous_assistant"
+                                  else openwebui.resolve_completed_assistant_text)
+                text_source = resolve_source(
                     native_chat_id, native_message_id, bearer
                 )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
@@ -1000,7 +1004,7 @@ def create_app(
                     raise OfficeCliFailure("officecli did not leave a DOCX result")
                 if imported_text is not None:
                     require_preserved_text(imported_text, body_paragraphs(result_path))
-                    if openwebui.resolve_previous_assistant_text(
+                    if resolve_source(
                         native_chat_id, native_message_id, bearer
                     ) != text_source:
                         raise OpenWebUiFailure("prepared source changed during formatting; no document was published")
