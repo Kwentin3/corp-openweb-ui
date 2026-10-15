@@ -178,6 +178,7 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "inspect_office_presentation",
         "apply_office_batch",
         "create_office_document",
+        "export_answer_to_word",
         "create_office_spreadsheet",
         "apply_office_spreadsheet_batch",
         "create_office_presentation",
@@ -1214,30 +1215,15 @@ def test_apply_stops_before_upload_when_officecli_reports_failure() -> None:
     assert [call[0] for call in executor.calls] == ["batch"]
 
 
-def test_subprocess_executor_disables_auto_resident_for_official_commands(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+def test_subprocess_executor_disables_auto_resident_for_official_commands() -> None:
+    import sys
+    from dataclasses import replace
 
-    class Completed:
-        returncode = 0
-        stdout = "official skill"
-        stderr = ""
-
-    def fake_run(command, **kwargs):
-        captured["command"] = command
-        captured["environment"] = kwargs["env"]
-        captured["shell"] = kwargs.get("shell", False)
-        return Completed()
-
-    monkeypatch.setattr("officecli_openapi_proof.officecli.subprocess.run", fake_run)
-    executor = SubprocessOfficeCliExecutor(settings())
-
-    result = executor.run("load_skill", "word")
-
-    assert captured["command"] == ("/usr/local/bin/officecli", "load_skill", "word")
-    assert captured["shell"] is False
-    assert captured["environment"]["OFFICECLI_SKIP_UPDATE"] == "1"
-    assert captured["environment"]["OFFICECLI_NO_AUTO_RESIDENT"] == "1"
-    assert result.text == "official skill"
+    executor = SubprocessOfficeCliExecutor(replace(settings(), binary=sys.executable))
+    code = "import json,os,sys;print(json.dumps({'skip':os.environ['OFFICECLI_SKIP_UPDATE'],'resident':os.environ['OFFICECLI_NO_AUTO_RESIDENT'],'args':sys.argv[1:],'input':sys.stdin.read()}))"
+    result = executor.run("-c", code, "load_skill", "word", input_text="native input")
+    assert result.command == (sys.executable, "-c", code, "load_skill", "word")
+    assert json.loads(result.text) == {"skip": "1", "resident": "1", "args": ["load_skill", "word"], "input": "native input"}
 
 
 def test_http_client_resolves_docx_from_the_native_message_ancestry(monkeypatch) -> None:

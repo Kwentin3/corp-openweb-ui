@@ -6,7 +6,7 @@ name: openwebui-0114
 
 services:
   openwebui-0114:
-    image: sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423
+    image: sha256:665f7fd87fcc43752aa3ffa8c9c85a1ef8e1d142525f367eef3a8d8a29ecb8e8
     pull_policy: never
     platform: linux/amd64
     restart: unless-stopped
@@ -17,7 +17,6 @@ services:
       - path: ${RELEASE_WEBUI_ENV_FILE:?Set the protected preserved WebUI environment file}
         format: raw
     environment:
-      CHAT_RESPONSE_MAX_TOOL_CALL_ITERATIONS: "8"
       STAGE2_STT_BASE_URL: http://stage2-stt-0114:8080
       NO_PROXY: ${RELEASE_WEBUI_NO_PROXY:?Preserve existing WebUI exclusions and append new service names}
       no_proxy: ${RELEASE_WEBUI_NO_PROXY:?Preserve existing WebUI exclusions and append new service names}
@@ -67,9 +66,10 @@ services:
       - existing-web
 
   officecli-0114:
-    image: sha256:ae3b56ad0634dabd0da9e431282db28aa024f835dad500c91401af134bff0c67
+    image: sha256:147ff48ecead487136c85c887f160553303b2923e8700e6d79e492f830b0ad85
     pull_policy: never
     restart: unless-stopped
+    init: true
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=128m

@@ -21,6 +21,7 @@ from .officecli import (
     SubprocessOfficeCliExecutor,
 )
 from .rendering import RenderOfficeRequest, checked_png
+from .docx_text import body_paragraphs, require_preserved_text
 from .openwebui_client import (
     HttpOpenWebUiClient,
     native_file_content_path,
@@ -37,7 +38,8 @@ PRESENTATION_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
 AUTHOR_WORKFLOW_TRIGGER = (
-    "Use the installed official guide from load_officecli_skill and command details from get_officecli_help. "
+    "Reuse the official guide already loaded for this artifact; otherwise call load_officecli_skill once. "
+    "Use get_officecli_help when command details are uncertain. "
 )
 
 
@@ -205,14 +207,15 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
 
 class CreateOfficeDocumentRequest(BaseModel):
+    model_config = {"extra": "forbid"}
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(
         min_length=1,
         max_length=64,
         description=(
-            "Official OfficeCLI batch items used to fill a newly created DOCX. Read the installed "
-            "OfficeCLI help before choosing non-trivial element types and properties; a minimal markdown "
-            "item may be added directly at /body. The official help's --prop "
+            "Official OfficeCLI batch items used to draft new content in a blank DOCX. "
+            "For an already prepared answer use export_answer_to_word instead of retyping it here. Read the installed "
+            "OfficeCLI help before choosing non-trivial element types and properties. The official help's --prop "
             "flag may be supplied as prop and is translated to the batch JSON field props."
         ),
     )
@@ -230,6 +233,18 @@ class CreateOfficeDocumentRequest(BaseModel):
         if Path(value).name != value or not value.lower().endswith(".docx"):
             raise ValueError("output_name must be a plain .docx filename")
         return value
+
+
+class ExportOfficeAnswerRequest(CreateOfficeDocumentRequest):
+    source_message: Literal["previous_assistant", "selected_assistant"] = Field(
+        default="previous_assistant",
+        description="The previous completed assistant answer is the source. selected_assistant is reserved "
+                    "for the explicit message-toolbar Action, whose current native message is already completed.",
+    )
+    commands: list[dict[str, Any]] = Field(default_factory=list, max_length=64, description=(
+        "Optional official OfficeCLI formatting commands and requested extra fields. The full source "
+        "is imported automatically; do not repeat, rewrite or summarize it in commands."
+    ))
 
 
 class ApplySpreadsheetBatchRequest(NativeXlsxReference):
@@ -423,6 +438,12 @@ class CreateResponse(BaseModel):
     def download_url(self) -> str:
         """Use the same native file route as authorized downloads."""
         return native_file_content_path(self.result_file_id)
+
+
+class CreateDocumentResponse(CreateResponse):
+    source_message_id: str | None = None
+    source_content_sha256: str | None = None
+    source_text_preserved: bool | None = None
 
 
 def _officecli_json(
@@ -908,47 +929,51 @@ def create_app(
             bounded_processes_completed=True,
         )
 
-    @app.post(
-        "/v1/officecli/documents/create",
-        response_model=CreateResponse,
-        operation_id="create_office_document",
-        description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
-            "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
-            "user asks for a new document rather than an edit of an attached DOCX. "
-            "Use exact help for properties before this operation."
-        ),
-    )
-    def create_office_document(
+    def write_docx(
         request: CreateOfficeDocumentRequest,
-        authorization: Annotated[str | None, Header()] = None,
-        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
-        message_id: Annotated[
-            str | None, Header(alias="X-OpenWebUI-Message-Id")
-        ] = None,
-    ) -> CreateResponse:
+        authorization: str | None, chat_id: str | None, message_id: str | None,
+        source_relation: str | None = None,
+    ) -> CreateDocumentResponse:
         bearer = authenticated_bearer(authorization)
         native_chat_id, native_message_id = _native_chat_message_ids(
             chat_id, message_id
         )
 
         native_file: dict[str, Any] | None = None
+        text_source = None
+        imported_text = None
         try:
+            if source_relation is not None:
+                resolve_source = (openwebui.resolve_previous_assistant_text
+                                  if source_relation == "previous_assistant"
+                                  else openwebui.resolve_completed_assistant_text)
+                text_source = resolve_source(
+                    native_chat_id, native_message_id, bearer
+                )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result_path = Path(directory) / "created.docx"
                 create_output = officecli.run(
                     "create", str(result_path), "--locale", "en-US", "--json"
                 )
                 create_result = _officecli_json(create_output, "create")
-                batch_output = officecli.run(
-                    "batch",
-                    str(result_path),
-                    "--stop-on-error",
-                    "--json",
-                    input_text=json.dumps(
-                        request.commands, ensure_ascii=False, separators=(",", ":")
-                    ),
-                )
+                if text_source is not None:
+                    batch_output = officecli.run(
+                        "batch", str(result_path), "--stop-on-error", "--json",
+                        input_text=json.dumps([{"command": "add", "parent": "/body", "type": "markdown",
+                                                "props": {"markdown": text_source.text}}], ensure_ascii=False),
+                    )
+                    _officecli_json(batch_output, "source import")
+                    imported_text = body_paragraphs(result_path)
+                if request.commands:
+                    batch_output = officecli.run(
+                        "batch",
+                        str(result_path),
+                        "--stop-on-error",
+                        "--json",
+                        input_text=json.dumps(
+                            request.commands, ensure_ascii=False, separators=(",", ":")
+                        ),
+                    )
                 batch_result = _officecli_json(batch_output, "batch")
                 validation_output = officecli.run(
                     "validate", str(result_path), "--json"
@@ -957,6 +982,12 @@ def create_app(
 
                 if not result_path.is_file() or result_path.stat().st_size == 0:
                     raise OfficeCliFailure("officecli did not leave a DOCX result")
+                if imported_text is not None:
+                    require_preserved_text(imported_text, body_paragraphs(result_path))
+                    if resolve_source(
+                        native_chat_id, native_message_id, bearer
+                    ) != text_source:
+                        raise OpenWebUiFailure("prepared source changed during formatting; no document was published")
                 result_sha256 = sha256(result_path.read_bytes()).hexdigest()
                 native_file = openwebui.upload(result_path, request.output_name, bearer)
                 openwebui.attach(native_chat_id, native_message_id, native_file, bearer)
@@ -968,7 +999,7 @@ def create_app(
                     pass
             raise _http_error(error) from error
 
-        return CreateResponse(
+        return CreateDocumentResponse(
             source=f"officecli v{active_settings.expected_version}",
             result_file_id=native_file["id"],
             result_file=native_file,
@@ -982,7 +1013,47 @@ def create_app(
                 and validation_output.auto_resident_disabled
             ),
             bounded_processes_completed=True,
+            source_message_id=text_source.message_id if text_source else None,
+            source_content_sha256=sha256(text_source.text.encode("utf-8")).hexdigest() if text_source else None,
+            source_text_preserved=True if text_source else None,
         )
+
+    @app.post(
+        "/v1/officecli/documents/create", response_model=CreateResponse,
+        operation_id="create_office_document",
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Draft NEW content in a new independent DOCX using OfficeCLI create and batch, validate it, "
+            "and attach it. For putting an ALREADY PREPARED answer into Word, use export_answer_to_word "
+            "instead: it imports the complete native answer without re-generation. For an attached DOCX edit, "
+            "use apply_office_batch. Use exact help for uncertain properties."
+        ),
+    )
+    def create_office_document(
+        request: CreateOfficeDocumentRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+    ) -> CreateResponse:
+        return write_docx(request, authorization, chat_id, message_id)
+
+    @app.post(
+        "/v1/officecli/documents/export-answer", response_model=CreateDocumentResponse,
+        operation_id="export_answer_to_word",
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Put the PREVIOUS PREPARED ASSISTANT ANSWER into a Word document in full. Use this when the "
+            "user asks to format the answer, protocol or text above as Word, including adding date/signature fields. "
+            "The existing native chat message is imported directly by OfficeCLI; do not retype it. Commands "
+            "only format the imported content and add requested fields. Source paragraphs must remain unchanged "
+            "and in order; a rewrite is rejected before publication. Validate and attach through the native file owner."
+        ),
+    )
+    def export_answer_to_word(
+        request: ExportOfficeAnswerRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+    ) -> CreateDocumentResponse:
+        return write_docx(request, authorization, chat_id, message_id, request.source_message)
 
     @app.post(
         "/v1/officecli/spreadsheets/create",

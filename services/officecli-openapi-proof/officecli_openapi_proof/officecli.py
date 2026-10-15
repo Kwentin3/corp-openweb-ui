@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 import json
 import os
+import signal
 import subprocess
 from typing import Protocol
 
@@ -39,16 +40,30 @@ class SubprocessOfficeCliExecutor:
             "OFFICECLI_NO_AUTO_RESIDENT": "1",
         }
         try:
-            completed = subprocess.run(
+            with subprocess.Popen(
                 command,
-                check=False,
-                capture_output=True,
-                input=input_text,
+                stdin=subprocess.PIPE if input_text is not None else None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 encoding="utf-8",
                 errors="replace",
                 env=environment,
-                timeout=self._settings.timeout_seconds,
-            )
+                start_new_session=os.name == "posix",
+            ) as process:
+                try:
+                    stdout, stderr = process.communicate(input_text, timeout=self._settings.timeout_seconds)
+                finally:
+                    # Nonresident CLI calls own their browser descendants too.
+                    # A timed-out leader alone does not stop Chromium or release PID slots.
+                    if os.name == "posix":
+                        try:
+                            os.killpg(process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    elif process.poll() is None:
+                        process.kill()
+                    process.communicate()
+                completed = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
         except OSError as error:
             raise OfficeCliFailure("officecli executable is unavailable") from error
         except subprocess.TimeoutExpired as error:

@@ -1,4 +1,4 @@
-"""Validate clean staging and the staged release recipe without starting containers."""
+"""Validate staging/release artifacts without starting application services."""
 import json
 import os
 import pathlib
@@ -97,9 +97,9 @@ with tempfile.TemporaryDirectory(prefix='openwebui-staging-config-') as temporar
 # names match compose/openwebui.staging*.yml; changing this script also selects CI.
 def verify_release_recipe():
     expected = {
-        'openwebui-0114': 'sha256:c4ba3bda7e228f99a246f1d823dfe2a8830dbd8fad6966d2e1862350fb8be423',
+        'openwebui-0114': 'sha256:665f7fd87fcc43752aa3ffa8c9c85a1ef8e1d142525f367eef3a8d8a29ecb8e8',
         'stage2-stt-0114': 'sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8',
-        'officecli-0114': 'sha256:ae3b56ad0634dabd0da9e431282db28aa024f835dad500c91401af134bff0c67',
+        'officecli-0114': 'sha256:147ff48ecead487136c85c887f160553303b2923e8700e6d79e492f830b0ad85',
         'open-terminal-0114': 'ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c',
     }
     with tempfile.TemporaryDirectory(prefix='openwebui-release-config-') as temporary:
@@ -170,9 +170,27 @@ def verify_release_recipe():
             office = config['services']['officecli-0114']
             assert office['environment']['OPENWEBUI_BASE_URL'] == 'http://openwebui-0114:8080'
             assert set(office['networks']) == {'services'} and office['read_only'] is True
+            assert office['init'] is True
             terminal = config['services']['open-terminal-0114']
             assert terminal['environment']['OPEN_TERMINAL_API_KEY'] == fixtures['TERMINAL']['OPEN_TERMINAL_API_KEY']
             assert set(terminal['networks']) == {'services'}
         print('Release Compose and explicit route overlay resolved: pinned images, separate volumes, preserved environment, unique service names; no containers started')
 
 verify_release_recipe()
+
+# The release image contains this native integration backport. Keep its build
+# qualification with the existing release check selected by active-ci.
+history_bundle = repository / 'deploy/openwebui-patches/tool-history-v0.11.4'
+subprocess.run([
+    'docker', 'build', '--network', 'none',
+    '-f', str(history_bundle / 'runtime.Dockerfile'),
+    '-t', 'openwebui-tool-history-check', str(history_bundle),
+], check=True)
+print('Pinned native tool history image built; history, multimodal output and reasoning transport checks passed; no application services started')
+
+capture_bundle = repository / 'deploy/openwebui-patches/provider-context-v0.11.4'
+subprocess.run([
+    'docker', 'build', '--network', 'none',
+    '-f', str(capture_bundle / 'runtime.Dockerfile'),
+    '-t', 'openwebui-provider-capture-check', str(capture_bundle),
+], check=True)

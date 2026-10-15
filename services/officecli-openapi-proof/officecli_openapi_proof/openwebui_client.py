@@ -30,8 +30,22 @@ class NativeAttachment:
     name: str
 
 
+@dataclass(frozen=True)
+class NativeTextSource:
+    message_id: str
+    text: str
+
+
 class OpenWebUiClient(Protocol):
     def verify_session(self, authorization: str) -> None: ...
+
+    def resolve_previous_assistant_text(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeTextSource: ...
+
+    def resolve_completed_assistant_text(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeTextSource: ...
 
     def resolve_nearest_docx_attachment(
         self, chat_id: str, message_id: str, authorization: str
@@ -106,6 +120,37 @@ class HttpOpenWebUiClient:
         response = self._request("GET", native_file_content_path(file_id), authorization)
         destination.write_bytes(response.content)
 
+    def resolve_previous_assistant_text(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeTextSource:
+        """Bind the prepared answer through the current turn's native parent IDs."""
+        messages = self._native_messages(chat_id, authorization)
+        current = messages.get(message_id)
+        if not isinstance(current, dict) or current.get("role") != "assistant":
+            raise OpenWebUiFailure("current native assistant message is unavailable")
+        question_id = current.get("parentId")
+        question = messages.get(question_id) if isinstance(question_id, str) else None
+        if not isinstance(question, dict) or question.get("role") != "user":
+            raise OpenWebUiFailure("current native user message is unavailable")
+        source_id = question.get("parentId")
+        return self._completed_assistant_source(messages, source_id)
+
+    def resolve_completed_assistant_text(
+        self, chat_id: str, message_id: str, authorization: str
+    ) -> NativeTextSource:
+        """Resolve the exact completed message selected by the native Action."""
+        return self._completed_assistant_source(self._native_messages(chat_id, authorization), message_id)
+
+    @staticmethod
+    def _completed_assistant_source(messages: dict[str, Any], source_id: Any) -> NativeTextSource:
+        source = messages.get(source_id) if isinstance(source_id, str) else None
+        if not isinstance(source, dict) or source.get("role") != "assistant" or source.get("done") is not True:
+            raise OpenWebUiFailure("selected completed assistant message is unavailable")
+        text = source.get("content")
+        if not isinstance(text, str) or not text.strip():
+            raise OpenWebUiFailure("previous assistant message has no prepared text")
+        return NativeTextSource(message_id=source_id, text=text)
+
     def resolve_nearest_docx_attachment(
         self, chat_id: str, message_id: str, authorization: str
     ) -> str:
@@ -155,9 +200,7 @@ class HttpOpenWebUiClient:
             )
         return matches[0]
 
-    def _resolve_nearest_attachments(
-        self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...],
-    ) -> list[NativeAttachment]:
+    def _native_messages(self, chat_id: str, authorization: str) -> dict[str, Any]:
         response = self._request("GET", f"/api/v1/chats/{chat_id}", authorization)
         try:
             chat_record = response.json()
@@ -166,6 +209,12 @@ class HttpOpenWebUiClient:
             raise OpenWebUiFailure("OpenWebUI chat did not contain native message history") from error
         if not isinstance(messages, dict):
             raise OpenWebUiFailure("OpenWebUI chat message history was not an object")
+        return messages
+
+    def _resolve_nearest_attachments(
+        self, chat_id: str, message_id: str, authorization: str, suffixes: tuple[str, ...],
+    ) -> list[NativeAttachment]:
+        messages = self._native_messages(chat_id, authorization)
 
         visited: set[str] = set()
         current_id: str | None = message_id

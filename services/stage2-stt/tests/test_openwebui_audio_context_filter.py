@@ -1,10 +1,69 @@
 from __future__ import annotations
 
 import copy
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
-from openwebui_filters.stage2_audio_context_filter import Filter
+from openwebui_filters.stage2_audio_context_filter import Filter, DEFAULT_INITIAL_RESPONSE_INSTRUCTION
+
+
+@pytest.mark.asyncio
+async def test_follow_up_with_cached_historical_media_does_not_change_messages(monkeypatch):
+    audio = _audio_attachment()
+    messages = [{"role": "user", "content": "", "files": [audio]},
+                {"role": "assistant", "content": "Saved full transcript."},
+                {"role": "user", "content": "Create a meeting protocol."}]
+    body = {"messages": messages, "files": [audio]}
+    metadata = {"files": [audio]}
+    before = copy.deepcopy(messages)
+    filter_ = Filter()
+
+    async def forbidden(*args, **kwargs):
+        raise AssertionError("Historical audio must not enter STT or cache lookup")
+
+    monkeypatch.setattr(filter_, "_cached_transcript", forbidden)
+    monkeypatch.setattr(filter_, "_call_sidecar", forbidden)
+    await filter_.inlet(body, __metadata__=metadata, __event_emitter__=forbidden)
+    await filter_.outlet(body, __metadata__=metadata)
+    assert messages == before
+    assert body["files"] == metadata["files"] == []
+    assert not any(k.startswith("_stage2") for k in metadata)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prompt", ["", "Create a meeting protocol."])
+async def test_current_cached_upload_preserves_explicit_task_and_defaults_only_when_empty(monkeypatch, prompt):
+    audio = _audio_attachment()
+    body = {"messages": [{"role": "user", "content": prompt, "files": [audio]}], "files": [audio]}
+    metadata = {}
+    filter_ = Filter()
+    monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value("Source transcript."))
+    monkeypatch.setattr(filter_, "_cached_display", lambda *_: _async_value("Source transcript."))
+    await filter_.inlet(body, __metadata__=metadata)
+    assert body["messages"][-1]["content"].startswith(prompt)
+    assert (DEFAULT_INITIAL_RESPONSE_INSTRUCTION in body["messages"][-1]["content"]) == (not prompt)
+    body["messages"].append({"role": "assistant", "content": "Requested result."})
+    await filter_.outlet(body, __metadata__=metadata)
+    assert body["messages"][-1]["content"].startswith("Requested result." if prompt else "## ")
+    assert body["messages"][-1]["content"].endswith("Source transcript.")
+
+
+@pytest.mark.asyncio
+async def test_native_current_message_metadata_overrides_aggregate_and_inline_files(monkeypatch):
+    module = ModuleType("open_webui.models.chats")
+    current = _audio_attachment("current")
+    async def read_metadata(chat_id, message_id, field):
+        assert (chat_id, message_id, field) == ("chat", "current-user-message", "files")
+        return [current]
+    module.Chats = SimpleNamespace(get_message_metadata=read_metadata)
+    ids = ModuleType("open_webui.utils.chat_id")
+    ids.is_saved_chat_id = lambda chat_id: chat_id == "chat"
+    monkeypatch.setitem(sys.modules, "open_webui.models.chats", module)
+    monkeypatch.setitem(sys.modules, "open_webui.utils.chat_id", ids)
+    body = {"messages": [{"role": "user", "content": "", "files": [_audio_attachment("old")]}]}
+    assert await Filter()._current_message_files(body, {"chat_id": "chat", "user_message_id": "current-user-message"}) == [current]
 
 
 def _audio_attachment(file_id: str = "audio-1", filename: str = "call.wav") -> dict:
@@ -37,7 +96,7 @@ async def test_unprepared_media_fails_without_storage_or_provider_work(monkeypat
     video = _video_attachment()
     video["content_type"] = mime_type
     video["file"]["meta"]["content_type"] = mime_type
-    body = {"messages": [{"role": "user", "content": ""}], "files": [video]}
+    body = {"messages": [{"role": "user", "content": "", "files": [video]}], "files": [video]}
     metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [video]}
     original_attachment = copy.deepcopy(video)
     statuses = []
@@ -87,7 +146,7 @@ async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_fr
     audio["content_type"] = mime_type
     audio["file"]["meta"]["content_type"] = mime_type
     document = {"type": "file", "file": {"id": "pdf-1", "filename": "notes.pdf"}, "name": "notes.pdf", "content_type": "application/pdf"}
-    body = {"messages": [{"role": "user", "content": "Что это за разговор?"}], "files": [audio, document]}
+    body = {"messages": [{"role": "user", "content": "Что это за разговор?", "files": [audio, document]}], "files": [audio, document]}
     metadata = {"chat_id": "chat-1", "message_id": "message-1", "files": [audio, document]}
     filter_ = Filter()
     filter_.valves.internal_api_key = "test-token"
@@ -119,7 +178,7 @@ async def test_inlet_transcribes_audio_injects_context_and_removes_only_audio_fr
     assert body["files"] == [document]
     assert metadata["files"] == [document]
     assert "Клиент просит перенести встречу." in body["messages"][-1]["content"]
-    assert "Сформируй только краткое содержание транскрипции одним предложением." in body["messages"][-1]["content"]
+    assert "Сформируй только краткое содержание транскрипции одним предложением." not in body["messages"][-1]["content"]
     assert "предложи 2–3 уместных следующих шага" not in body["messages"][-1]["content"]
     assert observed["envelope"]["source_context"] == "openwebui"
     assert observed["audio_path"] == source
@@ -145,7 +204,7 @@ async def test_inlet_leaves_non_audio_attachments_for_native_file_processing(mon
 async def test_inlet_removes_audio_from_outbound_files_when_sidecar_is_not_configured():
     audio = _audio_attachment()
     document = {"type": "file", "file": {"id": "pdf-1", "filename": "notes.pdf"}, "name": "notes.pdf", "content_type": "application/pdf"}
-    body = {"messages": [{"role": "user", "content": "Расшифруй"}], "files": [audio, document]}
+    body = {"messages": [{"role": "user", "content": "Расшифруй", "files": [audio, document]}], "files": [audio, document]}
     metadata = {"files": [audio, document]}
 
     filter_ = Filter()
@@ -185,7 +244,7 @@ async def test_inlet_does_not_retranscribe_files_from_an_earlier_message(monkeyp
 @pytest.mark.asyncio
 async def test_inlet_reuses_cached_transcript_without_sidecar_call(monkeypatch):
     filter_ = Filter()
-    body = {"messages": [{"role": "user", "content": "Выдели ключевые фразы"}], "files": [_audio_attachment()]}
+    body = {"messages": [{"role": "user", "content": "Выдели ключевые фразы", "files": [_audio_attachment()]}], "files": [_audio_attachment()]}
     metadata = {"files": body["files"]}
 
     async def forbidden_sidecar(**kwargs):
@@ -210,7 +269,7 @@ async def test_inlet_reuses_cached_transcript_without_sidecar_call(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_inlet_uses_latest_audio_from_follow_up_metadata(monkeypatch, tmp_path):
+async def test_inlet_uses_current_message_audio_despite_aggregate_order(monkeypatch, tmp_path):
     filter_ = Filter()
     filter_.valves.internal_api_key = "test-token"
     earlier_audio = _audio_attachment("audio-earlier", "earlier.wav")
@@ -219,11 +278,11 @@ async def test_inlet_uses_latest_audio_from_follow_up_metadata(monkeypatch, tmp_
         "messages": [
             {"role": "user", "content": "Первое аудио"},
             {"role": "assistant", "content": "Первый ответ"},
-            {"role": "user", "content": "Второе аудио"},
+            {"role": "user", "content": "Второе аудио", "files": [current_audio]},
         ],
         "files": [],
     }
-    metadata = {"files": [earlier_audio, current_audio]}
+    metadata = {"files": [current_audio, earlier_audio]}
     source = tmp_path / "current.wav"
     source.write_bytes(b"RIFF")
 
@@ -243,7 +302,7 @@ async def test_inlet_uses_latest_audio_from_follow_up_metadata(monkeypatch, tmp_
 
     await filter_.inlet(body, __user__={"id": "user-1"}, __metadata__=metadata)
 
-    assert [item["id"] for item in metadata["files"]] == ["audio-earlier"]
+    assert metadata["files"] == []
     assert "Текст второго аудио." in body["messages"][-1]["content"]
     assert body["messages"][0]["content"] == "Первое аудио"
 

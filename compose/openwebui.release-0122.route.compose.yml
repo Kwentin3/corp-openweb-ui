@@ -1,0 +1,12 @@
+# Apply only after the accepted candidate, final data refresh and old writer stop.
+services:
+  openwebui-0122:
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: openwebui_web
+      traefik.http.routers.openwebui.rule: Host(`${OPENWEBUI_HOST:?Existing production hostname}`)
+      traefik.http.routers.openwebui.entrypoints: websecure
+      traefik.http.routers.openwebui.tls: "true"
+      traefik.http.routers.openwebui.tls.certresolver: letsencrypt
+      traefik.http.routers.openwebui.service: openwebui
+      traefik.http.services.openwebui.loadbalancer.server.port: "8080"
