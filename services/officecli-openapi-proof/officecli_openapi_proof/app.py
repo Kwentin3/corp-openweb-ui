@@ -208,17 +208,18 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
 class CreateOfficeDocumentRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    source_message: Literal["previous_assistant"] | None = Field(default=None, description=(
-        "For formatting the prepared answer above, set previous_assistant. The tool imports that "
+    source_message: Literal["previous_assistant", "new_content"] = Field(description=(
+        "Required source decision. When the user asks to format the prepared answer above, choose "
+        "previous_assistant. The tool imports that "
         "complete native message directly using OfficeCLI; do not retype or summarize it in commands. "
         "Commands then format the imported document and add only the requested fields. "
-        "Omit when drafting new content from scratch."
+        "Choose new_content only when the user asks to compose new content from scratch."
     ))
     commands: list[dict[str, Any]] = Field(
         default_factory=list,
         max_length=64,
         description=(
-            "Official OfficeCLI batch items. With source_message selected, the full source is already "
+            "Official OfficeCLI batch items. With source_message=previous_assistant, the full source is already "
             "imported: use commands only for formatting and requested extra fields. When drafting "
             "new content, commands fill the blank DOCX and may add markdown at /body. Read the installed "
             "OfficeCLI help before choosing non-trivial element types and properties. The official help's --prop "
@@ -228,7 +229,7 @@ class CreateOfficeDocumentRequest(BaseModel):
 
     @model_validator(mode="after")
     def source_or_commands_are_present(self):
-        if self.source_message is None and not self.commands:
+        if self.source_message == "new_content" and not self.commands:
             raise ValueError("commands are required when no prepared source message is selected")
         return self
 
@@ -961,7 +962,7 @@ def create_app(
         text_source = None
         imported_text = None
         try:
-            if request.source_message is not None:
+            if request.source_message == "previous_assistant":
                 text_source = openwebui.resolve_previous_assistant_text(
                     native_chat_id, native_message_id, bearer
                 )

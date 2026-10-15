@@ -9,6 +9,16 @@ import pytest
 from officecli_openapi_proof.docx_text import WORD, body_paragraphs, require_preserved_text
 from officecli_openapi_proof.officecli import OfficeCliFailure
 from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient, OpenWebUiFailure
+from officecli_openapi_proof.app import CreateOfficeDocumentRequest
+from pydantic import ValidationError
+
+
+def test_creation_requires_an_explicit_source_decision():
+    with pytest.raises(ValidationError, match='source_message'):
+        CreateOfficeDocumentRequest(output_name='result.docx', commands=[{'command': 'add'}])
+    with pytest.raises(ValidationError, match='commands are required'):
+        CreateOfficeDocumentRequest(output_name='result.docx', source_message='new_content')
+    CreateOfficeDocumentRequest(output_name='result.docx', source_message='previous_assistant')
 
 
 def native_history():
