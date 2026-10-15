@@ -138,4 +138,3 @@ jobs:
             --tmpfs /tmp:rw,nosuid,size=64m \
             -v "$PWD/services/stage2-stt/tests/verify_runtime_media.py:/verify_runtime_media.py:ro" \
             stt-candidate python /verify_runtime_media.py
-
