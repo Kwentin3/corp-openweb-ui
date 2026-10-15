@@ -1,0 +1,33 @@
+{
+  "version": "0.12.2",
+  "upstream_commit": "6a18585ff4c2e5f6805f682222cfbc46dc669ef8",
+  "files": {
+    "backend/open_webui/storage/provider.py": {
+      "upstream_sha256": "f5cd08dc05203d2459bdda53139e555d025086b6a384291b0c9860c025c947d3",
+      "candidate_sha256": "59e43c4d64577e2e908583cf7cb8f7057d1f6be644d1781a0e754858b75f1da5"
+    },
+    "backend/open_webui/routers/files.py": {
+      "upstream_sha256": "a8bba0ef436e95c955b23b738f5498b8fe0fe14cf3ad374f5c07025394c45c78",
+      "candidate_sha256": "e2efa53b12dc8c653e5dad20a44d25f5c1fa938999ed1d2aa0c4d5d8cdc06c48"
+    },
+    "src/lib/apis/files/index.ts": {
+      "upstream_sha256": "23757fc45bf3bc507bdb7eeb549b330d94acdc6a96fdd77dcb96d0b4c1b0aae8",
+      "candidate_sha256": "7cb8915b24f15a3727c7b9cfccb13b14944d2edab534d76478a7c9246d9f51e0"
+    },
+    "src/lib/components/chat/MessageInput.svelte": {
+      "upstream_sha256": "f718aecd67e1c6359c5a80444becc78b09ed6ac7d3bc0645268e96832b6093e0",
+      "candidate_sha256": "7b80254b34270e72450c96af468685478ff8ebf07c28a6ba2f865d1bffb8569f"
+    }
+  },
+  "build_identity": {
+    "package.json": "f077250b5cb8264f7f7b45fe1393bcfb181ed0392f2b0c1afcd5656720b520fc",
+    "package-lock.json": "aab2e5981a765b5789e7bedc0db845c78c51a338778bf4fff15dd46e96981748",
+    "Dockerfile": "55d201460cb6d04e412f38ab0ef85390997e28ad3dfad16d98226985b6c9295d"
+  },
+  "runtime_python": "3.11",
+  "upstream_frontend_node": "node:22-alpine3.20",
+  "declared_node_engine": ">=18.13.0 <=22.x.x",
+  "declared_npm_engine": ">=6.0.0",
+  "runtime_acceptance": "not performed",
+  "patch_sha256": "e60b48697d27febec13b2a3051b20c3e2cd642467c52b2499743a33ee37d8664"
+}

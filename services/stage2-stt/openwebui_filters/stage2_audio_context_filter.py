@@ -1,7 +1,7 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.5
+version: 0.2.6
 required_open_webui_version: 0.11.4
 requirements: httpx,pydantic
 
@@ -57,9 +57,25 @@ class Filter:
         metadata = __metadata__ if isinstance(__metadata__, dict) else body.get("metadata") or {}
         if metadata.get("task") is not None:
             return body
-        media = self._latest_supported_audio(self._collect_files(body, metadata))
+        # Aggregated files include previous turns. They are not an STT trigger.
+        # Keep media away from native document retrieval, including old audio.
+        candidates = self._collect_files(body, metadata)
+        if not any(self._profile_for_mime(item["mime_type"]) for item in candidates):
+            return body
+        current_files = await self._current_message_files(body, metadata)
+        for item in candidates:
+            if self._profile_for_mime(item["mime_type"]):
+                self._remove_processed_audio(body, metadata, item["file_id"])
+        media = self._latest_supported_audio(self._collect_files({"files": current_files}, {}))
         if media is None:
             return body
+
+        user_message = next((m for m in reversed(body.get("messages") or []) if m.get("role") == "user"), {})
+        content = user_message.get("content", "")
+        text = content if isinstance(content, str) else " ".join(
+            p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text"
+        ) if isinstance(content, list) else ""
+        metadata["_stage2_audio_summary_only"] = not text.strip()
 
         cached_transcript = await self._cached_transcript(
             media["file_id"], (__user__ or {}).get("id")
@@ -71,7 +87,7 @@ class Filter:
                 await self._cached_display(media["file_id"], (__user__ or {}).get("id"))
                 or self._paragraphize_plain_text(cached_transcript)
             )
-            self._append_context(body, cached_transcript)
+            self._append_context(body, cached_transcript, summary_only=metadata["_stage2_audio_summary_only"])
             return body
         if await self._was_transcribed(media["file_id"], (__user__ or {}).get("id")):
             self._remove_processed_audio(body, metadata, media["file_id"])
@@ -134,7 +150,7 @@ class Filter:
             transcript,
             metadata["_stage2_audio_display"],
         )
-        self._append_context(body, transcript)
+        self._append_context(body, transcript, summary_only=metadata["_stage2_audio_summary_only"])
         await self._emit(__event_emitter__, "Транскрипция готова. Готовлю ответ…", done=True)
         return body
 
@@ -144,6 +160,7 @@ class Filter:
             return body
         transcript = metadata.pop("_stage2_audio_transcript", None)
         display_transcript = metadata.pop("_stage2_audio_display", None)
+        summary_only = metadata.pop("_stage2_audio_summary_only", True)
         if not isinstance(transcript, str) or not transcript:
             return body
         if not isinstance(display_transcript, str) or not display_transcript:
@@ -154,7 +171,7 @@ class Filter:
                 continue
             if display_transcript:
                 summary = message["content"].strip()
-                prefix = "## Краткое содержание\n\n"
+                prefix = "## Краткое содержание\n\n" if summary_only else ""
                 suffix = f"\n\n---\n\n## Полная транскрипция\n\n{display_transcript}"
                 message["content"] = prefix + summary + suffix
                 self._wrap_structured_output(message, prefix, suffix)
@@ -222,10 +239,29 @@ class Filter:
             files.append({"file_id": str(file_id), "filename": str(filename), "mime_type": str(mime_type), "size_bytes": item.get("size") or file_meta.get("size")})
         return files
 
+    async def _current_message_files(self, body: dict, metadata: dict) -> list[dict]:
+        # 0.11.4 strips message.files before Filter inlet. Use the native
+        # message metadata accessor on the already-authorized chat request.
+        chat_id = metadata.get("chat_id")
+        message_id = metadata.get("user_message_id")
+        if chat_id and message_id:
+            from open_webui.utils.chat_id import is_saved_chat_id
+
+            if is_saved_chat_id(chat_id):
+                from open_webui.models.chats import Chats
+
+                files = await Chats.get_message_metadata(chat_id, message_id, "files")
+                return files if isinstance(files, list) else []
+        # Unsaved/API messages must explicitly carry their own attachments.
+        # Never guess from the aggregate request/metadata file list.
+        for message in reversed(body.get("messages") or []):
+            if message.get("role") == "user":
+                files = message.get("files")
+                return files if isinstance(files, list) else []
+        return []
+
     def _latest_supported_audio(self, files: list[dict]) -> dict | None:
-        # OpenWebUI may include earlier attachments in metadata on a follow-up
-        # turn. The current attachment is the most recent one, never the first
-        # audio from the chat history.
+        # This list is scoped to the current user message by the caller.
         return next(
             (item for item in reversed(files) if self._profile_for_mime(item["mime_type"])),
             None,
@@ -350,19 +386,23 @@ class Filter:
             response.raise_for_status()
             return response.json()
 
-    def _append_context(self, body: dict, transcript: str) -> None:
+    def _append_context(self, body: dict, transcript: str, *, summary_only: bool = False) -> None:
         for message in reversed(body.get("messages") or []):
-            if message.get("role") != "user" or not isinstance(message.get("content"), str):
+            if message.get("role") != "user":
                 continue
             instruction = self.valves.initial_response_instruction.strip()
             if not instruction:
                 instruction = DEFAULT_INITIAL_RESPONSE_INSTRUCTION
-            message["content"] += (
+            context = (
                 "\n\n[Системная транскрипция прикреплённого аудио]\n"
                 + transcript
                 + "\n[/Системная транскрипция]\n\n"
-                + instruction
+                + (instruction if summary_only else "")
             )
+            if isinstance(message.get("content"), str):
+                message["content"] += context
+            elif isinstance(message.get("content"), list):
+                message["content"].append({"type": "text", "text": context})
             return
 
     def _transcript(self, result: dict) -> str:

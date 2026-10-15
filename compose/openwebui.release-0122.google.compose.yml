@@ -1,0 +1,29 @@
+# One private-staging gateway for existing Google/OpenAI/Anthropic CC connections.
+services:
+  google-gateway-0122:
+    image: ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802
+    restart: "${RELEASE_GOOGLE_RESTART_POLICY:-no}"
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "1", "--telemetry", "false"]
+    mem_limit: 1g
+    memswap_limit: 1536m
+    cpus: 0.5
+    pids_limit: 256
+    env_file:
+      - path: ${RELEASE_GOOGLE_ENV_FILE:?Protected CC gateway environment}
+        format: raw
+    volumes:
+      - type: bind
+        source: ${RELEASE_GOOGLE_CONFIG_FILE:?Prepared CC gateway config}
+        target: /app/config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+    labels:
+      traefik.enable: "false"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:4000/health/liveliness', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks: [services, existing-web]

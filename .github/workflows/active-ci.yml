@@ -45,11 +45,13 @@ jobs:
           stt=false
           staging=false
           recorder=false
+          upgrade0122=false
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
             officecli=true
             stt=true
             staging=true
             recorder=true
+            upgrade0122=true
           else
             mapfile -t changed < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
             if (( ${#changed[@]} == 0 )); then
@@ -66,6 +68,8 @@ jobs:
                   staging=true ;;
                 deploy/openwebui-flight-recorder/*)
                   recorder=true ;;
+                compose/openwebui.release-0122*.yml|deploy/openwebui-upgrade-0122/*|deploy/openwebui-patches/media-upload-v0.12.2/*|deploy/openwebui-patches/tool-context-v0.12.2/*)
+                  upgrade0122=true ;;
                 deploy/openwebui-functions/stage2_media_intake.py|deploy/openwebui-patches/media-upload-v0.11.4/*)
                   stt=true
                   staging=true ;;
@@ -73,7 +77,8 @@ jobs:
                   officecli=true
                   stt=true
                   staging=true
-                  recorder=true ;;
+                  recorder=true
+                  upgrade0122=true ;;
               esac
             done
           fi
@@ -81,10 +86,11 @@ jobs:
           echo "stt=$stt" >> "$GITHUB_OUTPUT"
           echo "staging=$staging" >> "$GITHUB_OUTPUT"
           echo "recorder=$recorder" >> "$GITHUB_OUTPUT"
-          echo "Selected checks: OfficeCLI=$officecli STT=$stt staging=$staging recorder=$recorder"
+          echo "upgrade0122=$upgrade0122" >> "$GITHUB_OUTPUT"
+          echo "Selected checks: OfficeCLI=$officecli STT=$stt staging=$staging recorder=$recorder upgrade0122=$upgrade0122"
 
       - name: Set up Python
-        if: steps.scope.outputs.officecli == 'true' || steps.scope.outputs.stt == 'true' || steps.scope.outputs.staging == 'true' || steps.scope.outputs.recorder == 'true'
+        if: steps.scope.outputs.officecli == 'true' || steps.scope.outputs.stt == 'true' || steps.scope.outputs.staging == 'true' || steps.scope.outputs.recorder == 'true' || steps.scope.outputs.upgrade0122 == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
@@ -92,6 +98,12 @@ jobs:
       - name: Verify native recorder persistence and privacy contracts
         if: steps.scope.outputs.recorder == 'true'
         run: python deploy/openwebui-flight-recorder/test_recorder.py
+
+      - name: Check OpenWebUI 0.12.2 backend components in the pinned runtime
+        if: steps.scope.outputs.upgrade0122 == 'true'
+        run: |
+          python -m unittest discover -s deploy/openwebui-upgrade-0122 -p test_launch_stage.py -v
+          docker build --network none -f deploy/openwebui-upgrade-0122/verify_component.Dockerfile -t openwebui-0122-component-check .
 
       - name: Validate resolved isolated staging Compose
         if: steps.scope.outputs.staging == 'true'

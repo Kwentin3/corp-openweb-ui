@@ -1,0 +1,7 @@
+# Temporary public-route rehearsal only; do not include in final production.
+# Native Traefik limits admission to the deployment host while rollback is tested.
+services:
+  openwebui-0122:
+    labels:
+      traefik.http.routers.openwebui.middlewares: openwebui-0122-acceptance
+      traefik.http.middlewares.openwebui-0122-acceptance.ipallowlist.sourcerange: ${RELEASE_ACCEPTANCE_SOURCE_RANGES:?Use only verified deployment-host source addresses}
