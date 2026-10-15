@@ -135,8 +135,16 @@ and an unrelated document's unchanged native processing. Compare chats, File
 metadata, stored bytes and skipped side effects; a visible MP3 card or passing
 unit harness alone is insufficient.
 
-This slice's local installer/backend checks have passed. The slice author did
-not run npm, Docker, SSH, migrations, provider calls or product acceptance.
+The package author's initial evidence was limited to local installer/backend
+checks. Subsequent integration built and qualified the exact frontend/runtime,
+native migration and ordinary-user media workflow; see the
+[accepted production release](../../../docs/infra-ops/openwebui-0122-cutover.md).
+
+The concrete prepare-before-Send, same-ID attachment workflow was added to the
+[existing upstream discussion](https://github.com/open-webui/open-webui/discussions/24239#discussioncomment-18949752).
+It asks whether an existing native seam can replace this adaptation and explains
+the distinction from text extraction or pre-storage rejection. This is a feature
+discussion, not upstream agreement to merge the patch.
 
 Sources: [official v0.12.2](https://github.com/open-webui/open-webui/tree/v0.12.2),
 [Event behavior](https://docs.openwebui.com/features/extensibility/plugin/functions/event/),

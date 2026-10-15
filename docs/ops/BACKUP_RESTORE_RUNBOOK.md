@@ -1,5 +1,20 @@
 ﻿# Backup Restore Runbook
 
+## Current production, 15 October 2026
+
+The portal runs OpenWebUI **0.12.2**. Use the
+[accepted 0.12.2 runbook](../infra-ops/openwebui-0122-cutover.md) for its exact
+image, Compose composition, retained recovery assets and write boundary.
+The dated 0.11.4 / issue #474 sections below are historical release evidence;
+their container names and restart commands are not current deployment selectors.
+
+Current production volumes are `openwebui-0122-final-01_data`,
+`openwebui-0122-final-01_stt_data` and `openwebui-0122-final-01_terminal_home`.
+Confirm actual mounts before backup or recovery. The PRD-0 defaults in
+`scripts/backup.sh` below do not select these volumes and are not a complete
+backup of this release. Use explicitly scoped, consistent backup of the current
+owners; after new writes, the retained old DB alone is not a lossless rollback.
+
 ## Backup
 
 Запуск:
