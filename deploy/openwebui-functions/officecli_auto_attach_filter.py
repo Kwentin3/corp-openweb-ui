@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.1.0-native-terminal-handoff
+version: 2.1.1-prepared-word-export
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -53,7 +53,7 @@ OFFICECLI_INSTRUCTION = (
 
 
 OFFICECLI_PUBLISH_TOOLS = {
-    "create_office_document", "apply_office_batch",
+    "create_office_document", "export_answer_to_word", "apply_office_batch",
     "create_office_spreadsheet", "apply_office_spreadsheet_batch",
     "create_office_presentation", "apply_office_presentation_batch",
     "publish_terminal_file",

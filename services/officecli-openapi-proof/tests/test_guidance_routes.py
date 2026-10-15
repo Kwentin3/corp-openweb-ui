@@ -178,6 +178,7 @@ def test_openapi_exposes_only_the_proof_operations() -> None:
         "inspect_office_presentation",
         "apply_office_batch",
         "create_office_document",
+        "export_answer_to_word",
         "create_office_spreadsheet",
         "apply_office_spreadsheet_batch",
         "create_office_presentation",

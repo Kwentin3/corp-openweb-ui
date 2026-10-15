@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from .config import Settings, load_settings
 from .discovery import ObjectReadPayload, bounded_result, help_arguments, object_arguments
@@ -208,31 +208,16 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
 class CreateOfficeDocumentRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
-    source_message: Literal["previous_assistant", "selected_assistant"] | None = Field(default=None, description=(
-        "When the user asks to format the prepared answer above, choose "
-        "previous_assistant. The tool imports that "
-        "complete native message directly using OfficeCLI; do not retype or summarize it in commands. "
-        "Commands then format the imported document and add only the requested fields. "
-        "selected_assistant is for the explicit message-toolbar export: the native current message "
-        "must already be completed. Omit when drafting new content from scratch."
-    ))
     commands: list[dict[str, Any]] = Field(
-        default_factory=list,
+        min_length=1,
         max_length=64,
         description=(
-            "Official OfficeCLI batch items. With source_message=previous_assistant, the full source is already "
-            "imported: use commands only for formatting and requested extra fields. When drafting "
-            "new content, commands fill the blank DOCX and may add markdown at /body. Read the installed "
+            "Official OfficeCLI batch items used to draft new content in a blank DOCX. "
+            "For an already prepared answer use export_answer_to_word instead of retyping it here. Read the installed "
             "OfficeCLI help before choosing non-trivial element types and properties. The official help's --prop "
             "flag may be supplied as prop and is translated to the batch JSON field props."
         ),
     )
-
-    @model_validator(mode="after")
-    def source_or_commands_are_present(self):
-        if self.source_message is None and not self.commands:
-            raise ValueError("commands are required when no prepared source message is selected")
-        return self
 
     @field_validator("commands")
     @classmethod
@@ -247,6 +232,18 @@ class CreateOfficeDocumentRequest(BaseModel):
         if Path(value).name != value or not value.lower().endswith(".docx"):
             raise ValueError("output_name must be a plain .docx filename")
         return value
+
+
+class ExportOfficeAnswerRequest(CreateOfficeDocumentRequest):
+    source_message: Literal["previous_assistant", "selected_assistant"] = Field(
+        default="previous_assistant",
+        description="The previous completed assistant answer is the source. selected_assistant is reserved "
+                    "for the explicit message-toolbar Action, whose current native message is already completed.",
+    )
+    commands: list[dict[str, Any]] = Field(default_factory=list, max_length=64, description=(
+        "Optional official OfficeCLI formatting commands and requested extra fields. The full source "
+        "is imported automatically; do not repeat, rewrite or summarize it in commands."
+    ))
 
 
 class ApplySpreadsheetBatchRequest(NativeXlsxReference):
@@ -931,28 +928,10 @@ def create_app(
             bounded_processes_completed=True,
         )
 
-    @app.post(
-        "/v1/officecli/documents/create",
-        response_model=CreateDocumentResponse,
-        response_model_exclude_none=True,
-        operation_id="create_office_document",
-        description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
-            "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
-            "user asks for a new document rather than an edit of an attached DOCX. "
-            "When formatting the prepared answer above, select source_message=previous_assistant "
-            "to import its full text without re-generation. Commands can format it and append "
-            "requested fields; changing or removing imported text rejects the result before publication. "
-            "Use exact help for properties before this operation."
-        ),
-    )
-    def create_office_document(
+    def write_docx(
         request: CreateOfficeDocumentRequest,
-        authorization: Annotated[str | None, Header()] = None,
-        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
-        message_id: Annotated[
-            str | None, Header(alias="X-OpenWebUI-Message-Id")
-        ] = None,
+        authorization: str | None, chat_id: str | None, message_id: str | None,
+        source_relation: str | None = None,
     ) -> CreateDocumentResponse:
         bearer = authenticated_bearer(authorization)
         native_chat_id, native_message_id = _native_chat_message_ids(
@@ -963,9 +942,9 @@ def create_app(
         text_source = None
         imported_text = None
         try:
-            if request.source_message is not None:
+            if source_relation is not None:
                 resolve_source = (openwebui.resolve_previous_assistant_text
-                                  if request.source_message == "previous_assistant"
+                                  if source_relation == "previous_assistant"
                                   else openwebui.resolve_completed_assistant_text)
                 text_source = resolve_source(
                     native_chat_id, native_message_id, bearer
@@ -1037,6 +1016,43 @@ def create_app(
             source_content_sha256=sha256(text_source.text.encode("utf-8")).hexdigest() if text_source else None,
             source_text_preserved=True if text_source else None,
         )
+
+    @app.post(
+        "/v1/officecli/documents/create", response_model=CreateResponse,
+        operation_id="create_office_document",
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Draft NEW content in a new independent DOCX using OfficeCLI create and batch, validate it, "
+            "and attach it. For putting an ALREADY PREPARED answer into Word, use export_answer_to_word "
+            "instead: it imports the complete native answer without re-generation. For an attached DOCX edit, "
+            "use apply_office_batch. Use exact help for uncertain properties."
+        ),
+    )
+    def create_office_document(
+        request: CreateOfficeDocumentRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+    ) -> CreateResponse:
+        return write_docx(request, authorization, chat_id, message_id)
+
+    @app.post(
+        "/v1/officecli/documents/export-answer", response_model=CreateDocumentResponse,
+        operation_id="export_answer_to_word",
+        description=AUTHOR_WORKFLOW_TRIGGER + (
+            "Put the PREVIOUS PREPARED ASSISTANT ANSWER into a Word document in full. Use this when the "
+            "user asks to format the answer, protocol or text above as Word, including adding date/signature fields. "
+            "The existing native chat message is imported directly by OfficeCLI; do not retype it. Commands "
+            "only format the imported content and add requested fields. Source paragraphs must remain unchanged "
+            "and in order; a rewrite is rejected before publication. Validate and attach through the native file owner."
+        ),
+    )
+    def export_answer_to_word(
+        request: ExportOfficeAnswerRequest,
+        authorization: Annotated[str | None, Header()] = None,
+        chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
+        message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
+    ) -> CreateDocumentResponse:
+        return write_docx(request, authorization, chat_id, message_id, request.source_message)
 
     @app.post(
         "/v1/officecli/spreadsheets/create",

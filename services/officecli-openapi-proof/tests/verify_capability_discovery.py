@@ -68,7 +68,7 @@ class DiscoveryQualification(unittest.TestCase):
         client = TestClient(create_app(executor, files, settings))
         headers = {'Authorization': 'Bearer synthetic-session', 'X-OpenWebUI-Chat-Id': 'chat',
                    'X-OpenWebUI-Message-Id': 'current'}
-        response = client.post('/v1/officecli/documents/create', headers=headers, json={
+        response = client.post('/v1/officecli/documents/export-answer', headers=headers, json={
             'output_name': 'prepared.docx', 'source_message': 'previous_assistant',
             'commands': [{'command': 'add', 'parent': '/body', 'type': 'paragraph',
                           'props': {'text': 'Date: __________ Signature: __________'}}]})
@@ -82,7 +82,7 @@ class DiscoveryQualification(unittest.TestCase):
         for expected in ('Approved source', 'Status:', 'pending.', 'Keep receipt ABC-749.',
                          'Do not close until the owner confirms.', 'Date: __________ Signature: __________'):
             self.assertIn(expected, text)
-        response = client.post('/v1/officecli/documents/create', headers={
+        response = client.post('/v1/officecli/documents/export-answer', headers={
             **headers, 'X-OpenWebUI-Message-Id': 'prepared-source'}, json={
                 'output_name': 'selected.docx', 'source_message': 'selected_assistant'})
         self.assertEqual(response.status_code, 200, response.text)
@@ -94,7 +94,7 @@ class DiscoveryQualification(unittest.TestCase):
             self.assertIn(expected, ''.join(selected.itertext()))
         files.result = None
         files.attached.clear()
-        response = client.post('/v1/officecli/documents/create', headers=headers, json={
+        response = client.post('/v1/officecli/documents/export-answer', headers=headers, json={
             'output_name': 'rewritten.docx', 'source_message': 'previous_assistant',
             'commands': [{'command': 'set', 'path': '/body/p[1]', 'props': {'text': 'A rewritten title'}}]})
         self.assertEqual(response.status_code, 502, response.text)

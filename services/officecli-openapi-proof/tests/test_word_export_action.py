@@ -32,7 +32,7 @@ def test_toolbar_translates_native_identity_and_ignores_supplied_message_text(ac
 
     async def get_tools(request, tool_ids, user, extra_params):
         observed['native'] = (request, tool_ids, user.id, extra_params)
-        return {'create_office_document':{'callable':create}}
+        return {'export_answer_to_word':{'callable':create}}
 
     async def emit(event):
         events.append(event)

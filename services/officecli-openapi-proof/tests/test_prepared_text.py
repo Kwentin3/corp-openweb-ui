@@ -9,15 +9,18 @@ import pytest
 from officecli_openapi_proof.docx_text import WORD, body_paragraphs, require_preserved_text
 from officecli_openapi_proof.officecli import OfficeCliFailure
 from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient, OpenWebUiFailure
-from officecli_openapi_proof.app import CreateOfficeDocumentRequest
+from officecli_openapi_proof.app import CreateOfficeDocumentRequest, ExportOfficeAnswerRequest
 from pydantic import ValidationError
 
 
-def test_creation_requires_source_or_new_content():
-    with pytest.raises(ValidationError, match='commands are required'):
+def test_drafting_requires_content_and_export_defaults_to_the_native_answer():
+    with pytest.raises(ValidationError, match='commands'):
         CreateOfficeDocumentRequest(output_name='result.docx')
-    CreateOfficeDocumentRequest(output_name='result.docx', source_message='previous_assistant')
-    CreateOfficeDocumentRequest(output_name='result.docx', source_message='selected_assistant')
+    assert ExportOfficeAnswerRequest(output_name='result.docx').source_message == 'previous_assistant'
+    ExportOfficeAnswerRequest(output_name='result.docx', source_message='selected_assistant')
+    for value in (None, 'new_content'):
+        with pytest.raises(ValidationError, match='source_message'):
+            ExportOfficeAnswerRequest(output_name='result.docx', source_message=value)
     CreateOfficeDocumentRequest(output_name='result.docx', commands=[{'command':'add'}])
 
 

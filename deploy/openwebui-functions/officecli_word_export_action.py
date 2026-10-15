@@ -1,7 +1,7 @@
 """
 title: В Word
 author: Alpha Soft
-version: 1.0.0
+version: 1.1.0
 required_open_webui_version: 0.11.4
 description: Export the selected completed answer through the existing OfficeCLI tool server.
 """
@@ -36,7 +36,7 @@ class Action:
             tools = await get_tools(__request__, ["server:officecli"], UserModel(**__user__),
                                     {"__user__": __user__, "__metadata__": {
                                         "chat_id": chat_id, "message_id": message_id}})
-            tool = tools.get("create_office_document")
+            tool = tools.get("export_answer_to_word")
             if not tool:
                 raise ValueError("OfficeCLI is unavailable for this user")
             commands = []
