@@ -283,8 +283,7 @@ return by pointing the old binary at an unverified migrated DB.
 - Native nested task reasoning parameters replace the inherited unsupported
   top-level value on the candidate; an actual title task succeeds. This accepted
   configuration delta must be replayed after a fresh source migration.
-- Final consistent refresh and production switch remain pending. These partial
-  passes do not close the goal.
+- Final consistent refresh and production activation are completed below.
 
 The online full refresh copied 349 files in 80.472 seconds. Its second native
 migration comparison preserves 31 users, 50 chats and 568 messages with zero
@@ -305,3 +304,66 @@ the original service. Restore the original Terminal process limit with
 `RELEASE_TERMINAL_PIDS` as well. Set the optional gateway's native restart policy to
 `unless-stopped` before its first final-phase start. Do not recreate that gateway
 at the public activation boundary.
+
+## Production acceptance, 2026-10-15
+
+The public portal now serves v0.12.2 from image
+`sha256:a0f5752afafd24ae065190ef28d88717e9a29c739ccb23be1e2d3e7ff7bfe424`.
+Its active WebUI container is
+`1799dfc897bc54c2312662b7197b65827db06e567b77e2ed277cbea014095c98`.
+Exactly one running container owns the existing public router. The four original
+services are stopped with their original IDs, images and three volumes retained.
+The accepted QA and rehearsal volumes are retained as private evidence, with no
+additional running WebUI. Existing unrelated services were preserved.
+
+Final phase `/opt/openwebui-upgrade-0122/final-01` copies the source only after
+all four original writers stop. Snapshot time is 64.501 seconds; launch through
+health and strict R2 is 82.429 seconds; source-stop start through verified public
+readiness is 463.846 seconds. The separate rollback rehearsal paused writes for
+377.792 seconds. These are two separate maintenance windows.
+
+The final comparison has zero mismatches: 32 users, 52 chats, 574 messages,
+350 native File records, all 352 retained upload files, existing grants and
+extension registries. Eight missing auth rows receive only the reviewed native
+backfill, and 20 native configuration defaults are added. All 14 inherited
+foreign-key violations remain unchanged. No new source loss or upload omission
+is observed. This snapshot includes chats and documents created after rehearsal.
+
+Embedded Chroma remains 1.5.9. Before boot, every vector file matches the stopped
+source. After boot, all content tables, schema, migration records and index bytes
+match the captured source: 25 collections, 2,448 embeddings, 102 files and
+40,601,052 bytes. Only one native `acquire_write` startup row is added. The source
+is not checkpointed or migrated. The manifest SHA256 is
+`61c72890db4539f6029d2cc8352711ddec91f8e9f7a2bef6c151fd9e112af26f`.
+
+Actual RAM/swap/CPU/process limits match the original four services. The private
+gateway retains its ID across route activation and uses `unless-stopped`, as do
+the other four services. The final environment and native config restore the
+source public URL, exact CORS origins and automation setting. Media callbacks,
+OfficeCLI and Terminal still target their new internal owners. Compaction and
+Stateful Responses remain disabled.
+
+An existing ordinary user session survives the switch and downloads the
+unchanged original test file through public TLS. A public UI check on
+`gpt-6.1-sol` executes OfficeCLI without manual tool selection and produces the
+exact requested three-paragraph answer. Its native selected-answer Word Action
+returns a real, owned DOCX; independent XML inspection finds all three paragraphs
+unchanged, and the browser's downloaded byte hash matches
+`38ed514e1e0b529f5999fa1a8ce2118eec40228ee192f89e50ce6f5c78882a6a`.
+The public Gemini route also completes M4A preparation and full current-message
+transcription, preserving the spoken project's name, meeting time and assignees.
+
+The existing recorder is retargeted through its same `474-targets.conf` drop-in
+to the five new services, preserving its history and cursors. No duplicate logger
+is deployed. Initial public checks report zero restarts/OOM events and about
+5.18 GiB available host memory. This is bounded functional/resource evidence,
+not a sustained concurrent-load capacity claim.
+
+Protected receipts are in the final phase: `migration.private.json`,
+`vector-copy.{before-boot,after-boot}.private.json`, `fresh-phase.safe.json`,
+`ready-private.safe.json`, `public-activated.safe.json`,
+`selected-answer-export.safe.json` and `runtime-postcheck.safe.json`.
+The reviewed source delivery is PR #563; runtime identity is the image above,
+not a mutable tag. After public admission, preserve candidate writes before
+recovery: the tested untouched-old-DB return is not a lossless rollback for new
+customer writes or newly used 0.12 features.
