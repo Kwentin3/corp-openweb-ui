@@ -66,7 +66,7 @@ services:
       - existing-web
 
   officecli-0114:
-    image: sha256:79de3ae1e493c1718d6fe25af56bf8593deebc5b1cd9882af095c320ac7b447f
+    image: sha256:3f1ccf3baf3ec8cfac448dec0ab9a50abb11805c6aebf27cb3b9d767740e87d0
     pull_policy: never
     restart: unless-stopped
     init: true
