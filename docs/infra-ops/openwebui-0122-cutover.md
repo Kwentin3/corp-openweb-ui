@@ -285,3 +285,22 @@ return by pointing the old binary at an unverified migrated DB.
   configuration delta must be replayed after a fresh source migration.
 - Final current-data refresh, measured downtime, operational rollback rehearsal
   and production switch remain pending. These partial passes do not close the goal.
+
+The online full refresh copied 349 files in 80.472 seconds. Its second native
+migration comparison preserves 31 users, 50 chats and 568 messages with zero
+mismatches. The selected-answer Word Action also passes on that refreshed copy:
+all three agreed paragraphs are retained and the stored file SHA256 matches.
+The limited public route rehearsal passes real TLS/ordinary chat and file reads;
+external requests receive 403, including spoofed forwarded headers. The original
+four containers return without recreation, and an ordinary user downloads a
+byte-verified file through the restored public route. Original start-to-public
+readiness is 183.617 seconds; the full rehearsal write pause is 377.792 seconds.
+The saved QA composition and volumes are restored. These results qualify the
+route exercise, not final-source consistency or post-admission lossless rollback.
+
+Keep the staging CPU and memory defaults while both WebUIs run. For production,
+use the existing `RELEASE_{WEBUI,STT,TERMINAL}_{MEMORY,MEMORY_SWAP,CPUS}` selectors
+to restore the original inspected upper bounds; zero CPU means no quota, matching
+the original service. Set the optional gateway's native restart policy to
+`unless-stopped` before its first final-phase start. Do not recreate that gateway
+at the public activation boundary.

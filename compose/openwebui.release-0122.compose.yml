@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     mem_limit: ${RELEASE_WEBUI_MEMORY:-2g}
     memswap_limit: ${RELEASE_WEBUI_MEMORY_SWAP:-3g}
-    cpus: 1
+    cpus: ${RELEASE_WEBUI_CPUS:-1}
     pids_limit: 512
     env_file:
       - path: ${RELEASE_WEBUI_ENV_FILE:?Protected candidate WebUI environment}
@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
     mem_limit: ${RELEASE_STT_MEMORY:-512m}
     memswap_limit: ${RELEASE_STT_MEMORY_SWAP:-1g}
-    cpus: 0.5
+    cpus: ${RELEASE_STT_CPUS:-0.5}
     pids_limit: 256
     env_file:
       - path: ${RELEASE_STT_ENV_FILE:?Protected candidate STT environment}
@@ -95,7 +95,7 @@ services:
     expose: ["8000"]
     mem_limit: ${RELEASE_TERMINAL_MEMORY:-768m}
     memswap_limit: ${RELEASE_TERMINAL_MEMORY_SWAP:-1g}
-    cpus: 0.5
+    cpus: ${RELEASE_TERMINAL_CPUS:-0.5}
     pids_limit: 256
     labels:
       traefik.enable: "false"
