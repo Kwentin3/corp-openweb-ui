@@ -22,6 +22,7 @@ from PIL import Image
 from officecli_openapi_proof.app import create_app
 from officecli_openapi_proof.config import load_settings
 from officecli_openapi_proof.officecli import SubprocessOfficeCliExecutor
+from officecli_openapi_proof.openwebui_client import NativeTextSource
 
 
 class LocalFileTransport:
@@ -48,6 +49,44 @@ class LocalFileTransport:
 
 
 class DiscoveryQualification(unittest.TestCase):
+    def test_prepared_text_is_imported_by_real_cli_and_rewrites_are_not_published(self):
+        settings = load_settings()
+        executor = SubprocessOfficeCliExecutor(settings)
+        source = '# Approved source\n\n**Status:** pending.\n\n1. Keep receipt ABC-749.\n2. Do not close until the owner confirms.'
+
+        class PreparedSourceTransport(LocalFileTransport):
+            def resolve_previous_assistant_text(self, chat_id, message_id, authorization):
+                self.verify_session(authorization)
+                return NativeTextSource('prepared-source', source)
+
+        files = PreparedSourceTransport({})
+        client = TestClient(create_app(executor, files, settings))
+        headers = {'Authorization': 'Bearer synthetic-session', 'X-OpenWebUI-Chat-Id': 'chat',
+                   'X-OpenWebUI-Message-Id': 'current'}
+        response = client.post('/v1/officecli/documents/create', headers=headers, json={
+            'output_name': 'prepared.docx', 'source_message': 'previous_assistant',
+            'commands': [{'command': 'add', 'parent': '/body', 'type': 'paragraph',
+                          'props': {'text': 'Date: __________ Signature: __________'}}]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['source_message_id'], 'prepared-source')
+        self.assertEqual(response.json()['source_content_sha256'], sha256(source.encode()).hexdigest())
+        self.assertTrue(response.json()['source_text_preserved'])
+        with ZipFile(BytesIO(files.result)) as package:
+            document = ElementTree.fromstring(package.read('word/document.xml'))
+        text = ''.join(document.itertext())
+        for expected in ('Approved source', 'Status:', 'pending.', 'Keep receipt ABC-749.',
+                         'Do not close until the owner confirms.', 'Date: __________ Signature: __________'):
+            self.assertIn(expected, text)
+        files.result = None
+        files.attached.clear()
+        response = client.post('/v1/officecli/documents/create', headers=headers, json={
+            'output_name': 'rewritten.docx', 'source_message': 'previous_assistant',
+            'commands': [{'command': 'set', 'path': '/body/p[1]', 'props': {'text': 'A rewritten title'}}]})
+        self.assertEqual(response.status_code, 502, response.text)
+        self.assertIn('changed, removed, reordered or duplicated', response.json()['detail'])
+        self.assertIsNone(files.result)
+        self.assertEqual(files.attached, [])
+
     def test_installed_dependencies_match_production_lock(self):
         for line in Path("/app/requirements.lock").read_text().splitlines():
             if line and not line.startswith("#"):

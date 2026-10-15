@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from .config import Settings, load_settings
 from .discovery import ObjectReadPayload, bounded_result, help_arguments, object_arguments
@@ -21,6 +21,7 @@ from .officecli import (
     SubprocessOfficeCliExecutor,
 )
 from .rendering import RenderOfficeRequest, checked_png
+from .docx_text import body_paragraphs, require_preserved_text
 from .openwebui_client import (
     HttpOpenWebUiClient,
     native_file_content_path,
@@ -207,16 +208,29 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
 class CreateOfficeDocumentRequest(BaseModel):
     output_name: str = Field(min_length=6, max_length=120)
+    source_message: Literal["previous_assistant"] | None = Field(default=None, description=(
+        "For formatting the prepared answer above, set previous_assistant. The tool imports that "
+        "complete native message directly using OfficeCLI; do not retype or summarize it in commands. "
+        "Commands then format the imported document and add only the requested fields. "
+        "Omit when drafting new content from scratch."
+    ))
     commands: list[dict[str, Any]] = Field(
-        min_length=1,
+        default_factory=list,
         max_length=64,
         description=(
-            "Official OfficeCLI batch items used to fill a newly created DOCX. Read the installed "
-            "OfficeCLI help before choosing non-trivial element types and properties; a minimal markdown "
-            "item may be added directly at /body. The official help's --prop "
+            "Official OfficeCLI batch items. With source_message selected, the full source is already "
+            "imported: use commands only for formatting and requested extra fields. When drafting "
+            "new content, commands fill the blank DOCX and may add markdown at /body. Read the installed "
+            "OfficeCLI help before choosing non-trivial element types and properties. The official help's --prop "
             "flag may be supplied as prop and is translated to the batch JSON field props."
         ),
     )
+
+    @model_validator(mode="after")
+    def source_or_commands_are_present(self):
+        if self.source_message is None and not self.commands:
+            raise ValueError("commands are required when no prepared source message is selected")
+        return self
 
     @field_validator("commands")
     @classmethod
@@ -424,6 +438,12 @@ class CreateResponse(BaseModel):
     def download_url(self) -> str:
         """Use the same native file route as authorized downloads."""
         return native_file_content_path(self.result_file_id)
+
+
+class CreateDocumentResponse(CreateResponse):
+    source_message_id: str | None = None
+    source_content_sha256: str | None = None
+    source_text_preserved: bool | None = None
 
 
 def _officecli_json(
@@ -911,12 +931,16 @@ def create_app(
 
     @app.post(
         "/v1/officecli/documents/create",
-        response_model=CreateResponse,
+        response_model=CreateDocumentResponse,
+        response_model_exclude_none=True,
         operation_id="create_office_document",
         description=AUTHOR_WORKFLOW_TRIGGER + (
             "Create a new DOCX from the current chat request using official OfficeCLI create and batch, "
             "validate it, and attach the resulting DOCX to this assistant message. Use this only when the "
             "user asks for a new document rather than an edit of an attached DOCX. "
+            "When formatting the prepared answer above, select source_message=previous_assistant "
+            "to import its full text without re-generation. Commands can format it and append "
+            "requested fields; changing or removing imported text rejects the result before publication. "
             "Use exact help for properties before this operation."
         ),
     )
@@ -927,29 +951,44 @@ def create_app(
         message_id: Annotated[
             str | None, Header(alias="X-OpenWebUI-Message-Id")
         ] = None,
-    ) -> CreateResponse:
+    ) -> CreateDocumentResponse:
         bearer = authenticated_bearer(authorization)
         native_chat_id, native_message_id = _native_chat_message_ids(
             chat_id, message_id
         )
 
         native_file: dict[str, Any] | None = None
+        text_source = None
+        imported_text = None
         try:
+            if request.source_message is not None:
+                text_source = openwebui.resolve_previous_assistant_text(
+                    native_chat_id, native_message_id, bearer
+                )
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result_path = Path(directory) / "created.docx"
                 create_output = officecli.run(
                     "create", str(result_path), "--locale", "en-US", "--json"
                 )
                 create_result = _officecli_json(create_output, "create")
-                batch_output = officecli.run(
-                    "batch",
-                    str(result_path),
-                    "--stop-on-error",
-                    "--json",
-                    input_text=json.dumps(
-                        request.commands, ensure_ascii=False, separators=(",", ":")
-                    ),
-                )
+                if text_source is not None:
+                    batch_output = officecli.run(
+                        "batch", str(result_path), "--stop-on-error", "--json",
+                        input_text=json.dumps([{"command": "add", "parent": "/body", "type": "markdown",
+                                                "props": {"markdown": text_source.text}}], ensure_ascii=False),
+                    )
+                    _officecli_json(batch_output, "source import")
+                    imported_text = body_paragraphs(result_path)
+                if request.commands:
+                    batch_output = officecli.run(
+                        "batch",
+                        str(result_path),
+                        "--stop-on-error",
+                        "--json",
+                        input_text=json.dumps(
+                            request.commands, ensure_ascii=False, separators=(",", ":")
+                        ),
+                    )
                 batch_result = _officecli_json(batch_output, "batch")
                 validation_output = officecli.run(
                     "validate", str(result_path), "--json"
@@ -958,6 +997,12 @@ def create_app(
 
                 if not result_path.is_file() or result_path.stat().st_size == 0:
                     raise OfficeCliFailure("officecli did not leave a DOCX result")
+                if imported_text is not None:
+                    require_preserved_text(imported_text, body_paragraphs(result_path))
+                    if openwebui.resolve_previous_assistant_text(
+                        native_chat_id, native_message_id, bearer
+                    ) != text_source:
+                        raise OpenWebUiFailure("prepared source changed during formatting; no document was published")
                 result_sha256 = sha256(result_path.read_bytes()).hexdigest()
                 native_file = openwebui.upload(result_path, request.output_name, bearer)
                 openwebui.attach(native_chat_id, native_message_id, native_file, bearer)
@@ -969,7 +1014,7 @@ def create_app(
                     pass
             raise _http_error(error) from error
 
-        return CreateResponse(
+        return CreateDocumentResponse(
             source=f"officecli v{active_settings.expected_version}",
             result_file_id=native_file["id"],
             result_file=native_file,
@@ -983,6 +1028,9 @@ def create_app(
                 and validation_output.auto_resident_disabled
             ),
             bounded_processes_completed=True,
+            source_message_id=text_source.message_id if text_source else None,
+            source_content_sha256=sha256(text_source.text.encode("utf-8")).hexdigest() if text_source else None,
+            source_text_preserved=True if text_source else None,
         )
 
     @app.post(
