@@ -1,4 +1,20 @@
-# OpenWebUI 0.12.2 candidate and cutover
+# OpenWebUI 0.12.2 production and recovery
+
+## Current status, 15 October 2026
+
+The production switch is complete. R1-R10 passed bounded functional and
+independent engineering acceptance; the goal is closed. The accepted source
+head is `d1b73459904165c7c4854d7d9ada82c63f2dc78c`, delivered by
+[PR #563](https://github.com/Kwentin3/corp-openweb-ui/pull/563) as merge commit
+`a435076bacbe9a947f010d863516fd828f73016f`; their trees are identical.
+[Exact-head Active CI](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/38730473557/job/116406713822)
+passed. Runtime identity, data comparison and both maintenance windows are in
+[Production acceptance](#production-acceptance-2026-10-15).
+
+The sections describing candidate preparation and intermediate snapshots are
+the reusable procedure and dated qualification history, not pending work.
+For a plain-language delivery account see the
+[15 October report](../commercial/COMPLETED_WORK_2026-10-15_OPENWEBUI_0122.md).
 
 ## Authorized outcome
 
@@ -14,7 +30,7 @@ STT current-message fix is restored from PR #559, commit
 was compared with the running registry. The exact accepted runtime remains the
 authority for extension content, valves, grants and integration endpoints.
 
-Candidate upstream is stable `v0.12.2`, commit
+The accepted upstream base is `v0.12.2`, commit
 `6a18585ff4c2e5f6805f682222cfbc46dc669ef8`. Registry and built-image identities
 must be recorded before acceptance; a tag alone is insufficient.
 
@@ -39,9 +55,10 @@ retain private chat/provider evidence on the host, publishing only safe receipts
 
 ## Isolation and preservation
 
-The candidate Compose is `compose/openwebui.release-0122.compose.yml`.
-Its WebUI is bound only to host loopback port 18122 and reached by an SSH tunnel.
-Its Traefik labels remain disabled until the route overlay is intentionally used.
+The base Compose is `compose/openwebui.release-0122.compose.yml`.
+During qualification its WebUI is bound only to host loopback port 18122 and
+reached by an SSH tunnel. Production adds the route overlay; the acceptance
+IP-allowlist overlay is not part of the final production composition.
 Search reuses the existing native service; no parallel search deployment.
 
 Read effective persisted configuration before boot. Disable candidate background
@@ -50,9 +67,12 @@ pending markers are verified. Never rely on environment flags alone to override
 persisted config. Do not share mutable source SQLite, upload paths or external
 storage with the candidate. Copy secrets only into protected host-local files.
 
-Production compaction was confirmed disabled. Preserve this setting: the native
-0.12.2 compaction boundary can separate an opaque reasoning carrier from a
-retained tool batch. That feature is outside this candidate's accepted behavior.
+Production compaction was confirmed disabled. Preserve this setting. A pure
+boundary probe on the opaque-carrier shape introduced by our Responses
+preservation adaptation can detach that carrier from its retained tool batch.
+This is a fix-acceptance constraint, not an independently reproduced unmodified
+server failure; pristine reconstruction already drops those opaque items.
+Active compaction is outside the accepted configuration.
 Stateful Responses remains a separately evaluated provider-specific option;
 prompt caching does not require it and cannot repair missing context.
 
@@ -242,16 +262,17 @@ admitted. Rollback after new writes requires an independently verified compatibl
 downgrade or preservation/recovery of those writes; do not promise a lossless
 return by pointing the old binary at an unverified migrated DB.
 
-## Progress
+## Qualification history before production activation
 
-- Current candidate image `sha256:a0f5752afafd24ae065190ef28d88717e9a29c739ccb23be1e2d3e7ff7bfe424`
-  is built and booted on loopback. Its frontend, media behavior and native schema
+- Candidate image `sha256:a0f5752afafd24ae065190ef28d88717e9a29c739ccb23be1e2d3e7ff7bfe424`
+  was built and booted on loopback. Its frontend, media behavior and native schema
   match the first qualified candidate; the additional Responses projection
-  passes 21 checks in the installed image. The source production route is unchanged.
+  passes 21 checks in the installed image. The old production route stayed active
+  during this qualification stage.
 - Initial migrated snapshot passes source comparison, including all retained
   upload bytes, native defaults and the exact inherited foreign-key violations.
-  Disposable-copy native downgrade and old-version ORM read pass; operational
-  route rollback is still pending.
+  Disposable-copy native downgrade and old-version ORM read passed. Operational
+  route rollback was then completed in the separate rehearsal described below.
 - Ordinary-user DOCX/XLSX/PPTX creation, preview, follow-up and native download
   are witnessed. Independent OOXML/openpyxl review finds no omitted source
   content. XLSX cached formula results total 22,503.80; each follow-up changes
@@ -367,3 +388,48 @@ The reviewed source delivery is PR #563; runtime identity is the image above,
 not a mutable tag. After public admission, preserve candidate writes before
 recovery: the tested untouched-old-DB return is not a lossless rollback for new
 customer writes or newly used 0.12 features.
+
+## Remaining adaptations and upstream follow-up
+
+There are two source overlay packages, changing seven OpenWebUI source files:
+
+| Package | Scope | Removal condition |
+| --- | --- | --- |
+| [Responses context](../../deploy/openwebui-patches/tool-context-v0.12.2/README.md) | Three backend files: reconstruct same-model opaque reasoning and tool-result images, admit API fields, and project long outbound Responses call/result IDs without changing stored history. | A selected upstream version passes the same reconstruction and ordinary-chat continuation checks without the overlay. |
+| [Media upload](../../deploy/openwebui-patches/media-upload-v0.12.2/README.md) | Two backend and two frontend files: bounded local upload writes, claimed processing handoff, and authoritative prepared-attachment metadata refresh. | A native extension path passes the same same-ID preparation, waiting, failure, Send/STT and ordinary-document checks. |
+
+The old history-ordering backport is already replaced by native OpenWebUI.
+Office model allowlists, task parameters and extension activation use existing
+native configuration. The one private LiteLLM service is an additional maintained
+protocol adapter for existing CC connections; it owns neither chat history nor
+tool execution. These remaining costs are explicit, not a patch-free core claim.
+
+Published on 15 October:
+
+- [Issue #32473: stateless Responses reasoning reconstruction](https://github.com/open-webui/open-webui/issues/32473), including image provenance and the qualified compaction acceptance constraint.
+- [Discussion #32474: cross-provider call ID compatibility](https://github.com/open-webui/open-webui/discussions/32474).
+- [Concrete prepare-before-Send media workflow](https://github.com/open-webui/open-webui/discussions/24239#discussioncomment-18949752) in the existing upload-hook discussion.
+
+The source reproductions were rerun against unmodified release commit
+`6a18585ff4c2e5f6805f682222cfbc46dc669ef8` and `dev` commit
+`613eac51c5c9cc67065998282af16e8016d5a2cb`. They execute actual extracted functions
+without a database or provider, not a full unmodified `dev` portal acceptance.
+Only synthetic fixtures were published. The reports do not establish upstream
+agreement, a merged fix or a delivery date.
+
+## Local evidence and repository closeout, 15 October
+
+The completed upgrade and Office guidance worktrees were removed after proving
+their commits are in the accepted `main` and moving their useful ignored files
+to `local/repository-preservation-20261015/`. The retained manifest
+`task-evidence.private.json` and `verified.safe.json` cover 21,191 files and
+797,596,795 bytes with matching SHA256 values before and after the move.
+Generated dependency/test/build caches are outside that content manifest and
+remain retained locally because automatic policy rejected their recursive
+deletion. This is not a claim that every cache was removed.
+
+Seven fully merged local branches and the two completed remote task branches
+were retired; their original refs are in `removed-branch-refs.safe.json`.
+Independent older worktrees, the Broker Reports WIP archive/bundle and all
+production/recovery volumes are preserved. Host cleanup or retirement of the
+stopped 0.11.4 recovery stack is not part of this repository cleanup.

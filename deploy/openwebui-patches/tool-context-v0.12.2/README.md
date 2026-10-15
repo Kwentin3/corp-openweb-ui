@@ -62,19 +62,23 @@ No DB, server, network or provider is used by the
 verification scripts. This is source-bound component evidence, not portal or
 provider acceptance.
 
-## Known native compaction boundary gap
+## Compaction acceptance constraint
 
 v0.12.2 native `_find_compaction_boundary` can start the retained window directly
 at an assistant tool-call message. A separate immediately preceding opaque
 reasoning carrier can then fall into the summarized prefix while its call is
-retained. Passing options to the second reconstruction prevents a separate
+retained. The tested carrier shape is introduced by this preservation overlay;
+pristine reconstruction already drops native opaque reasoning. This is a pure
+boundary reproduction and a constraint on a preservation fix, not a separately
+proven unmodified-server end-to-end defect. Passing options to the second
+reconstruction prevents a separate
 unconditional loss even with compaction disabled; it does not repair native
 boundary selection when compaction actually occurs.
 
 This package deliberately does not change `context_compaction.py`. The root
 integration audit verified production `chat.context_compaction.enable=false`;
-preserve that setting for the initial candidate. Active compaction requires
-separate qualification before claiming that mode works.
+preserve that setting for the accepted production configuration. Active
+compaction requires separate qualification before claiming that mode works.
 Run the discriminating probe against the installed source:
 
 ```sh
@@ -88,3 +92,14 @@ this overlay neither enables the flag nor proves provider support.
 
 Remove each change when the selected upstream release passes the same context
 checks natively. Do not apply the old v0.11.4 overlay on top of this package.
+
+## Delivery and upstream reports
+
+The overlay is qualified in the
+[accepted production release](../../../docs/infra-ops/openwebui-0122-cutover.md).
+[Issue #32473](https://github.com/open-webui/open-webui/issues/32473) reports the
+same-model reasoning loss, image provenance and qualified compaction constraint.
+[Discussion #32474](https://github.com/open-webui/open-webui/discussions/32474)
+asks for the supported cross-provider call-ID contract. Source-level reproductions
+were rerun on the exact release and current `dev` on 2026-10-15; a full unmodified
+`dev` server run and upstream acceptance are not claimed.

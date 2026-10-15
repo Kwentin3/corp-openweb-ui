@@ -9,6 +9,23 @@ LLM-чат для 3-4 пользователей. Репозиторий так�
 Цель репозитория - blueprint, runbooks и skeleton для безопасного развертывания на домене
 `gpt.alpha-soft.ru`. Это не AI-платформа.
 
+## Рабочая установка: OpenWebUI 0.12.2
+
+15 октября 2026 года портал переведён с 0.11.4 на 0.12.2; изменения выпущены
+через [PR #563](https://github.com/Kwentin3/corp-openweb-ui/pull/563).
+Чаты, файлы, аккаунты, права и существующие интеграции перенесены и проверены.
+Работает один OpenWebUI; прежняя установка остановлена и сохранена для
+восстановления с учётом новых записей.
+
+- [Зачем обновились и что получили](docs/commercial/COMPLETED_WORK_2026-10-15_OPENWEBUI_0122.md)
+- [Текущие образы, приёмка, ограничения и восстановление](docs/infra-ops/openwebui-0122-cutover.md)
+
+В текущей сборке остаются две ограниченные группы изменений исходников:
+передача контекста Responses и подготовка медиа. Совместимость существующих
+Chat Completions-подключений обеспечивает один внутренний LiteLLM без публичного
+маршрута, собственной истории или выполнения инструментов. Stateful Responses
+и автоматическое сжатие контекста выключены.
+
 ## Актуальный Office-маршрут
 
 В production OpenWebUI подключены OfficeCLI и официальный Open Terminal. OfficeCLI
@@ -25,9 +42,13 @@ LLM-чат для 3-4 пользователей. Репозиторий так�
 - [Compose официального Open Terminal](compose/open-terminal-office.compose.yml)
 
 Решение использует штатную интеграцию OpenWebUI с Open Terminal и тонкий слой
-передачи файлов; форков OpenWebUI, Open Terminal или OfficeCLI нет.
+передачи файлов. Изменения исходников OpenWebUI перечислены в текущем runbook;
+собственного движка OfficeCLI или Open Terminal нет.
 
-## Scope PRD-0
+## Scope PRD-0: исходный объём
+
+Ниже сохранены границы первоначального PRD-0. Это история согласования,
+а не перечень возможностей рабочей установки на 15.10.2026.
 
 Входит:
 
@@ -85,8 +106,10 @@ Practical Stage 2 теперь включает адаптацию сущест�
 server-side STT proxy, OCR/layout-aware PDF pilot, проверку доступа руководителей
 к рабочим чатам и technical check запрета удаления чатов.
 
-LiteLLM/gateway, full AD lifecycle/SCIM, production OCR pipeline и
-data masking/tokenization остаются отдельными optional/future slices.
+Узкий внутренний LiteLLM для совместимости существующих подключений уже
+используется в выпуске 0.12.2. Общая маршрутизация моделей, full AD lifecycle/SCIM,
+production OCR pipeline и data masking/tokenization остаются отдельными
+optional/future slices.
 
 Инженерный домен подготовки к реализации Stage 2:
 [docs/stage2/README.md](docs/stage2/README.md).
