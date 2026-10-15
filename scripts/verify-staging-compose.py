@@ -99,7 +99,7 @@ def verify_release_recipe():
     expected = {
         'openwebui-0114': 'sha256:665f7fd87fcc43752aa3ffa8c9c85a1ef8e1d142525f367eef3a8d8a29ecb8e8',
         'stage2-stt-0114': 'sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8',
-        'officecli-0114': 'sha256:b97414658ca8b794d0d2f5188a947e575d9787545feb70c6e565a79a2450349b',
+        'officecli-0114': 'sha256:79de3ae1e493c1718d6fe25af56bf8593deebc5b1cd9882af095c320ac7b447f',
         'open-terminal-0114': 'ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c',
     }
     with tempfile.TemporaryDirectory(prefix='openwebui-release-config-') as temporary:
