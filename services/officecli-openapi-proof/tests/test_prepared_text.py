@@ -22,6 +22,9 @@ def test_drafting_requires_content_and_export_defaults_to_the_native_answer():
         with pytest.raises(ValidationError, match='source_message'):
             ExportOfficeAnswerRequest(output_name='result.docx', source_message=value)
     CreateOfficeDocumentRequest(output_name='result.docx', commands=[{'command':'add'}])
+    with pytest.raises(ValidationError, match='extra_forbidden'):
+        CreateOfficeDocumentRequest(output_name='result.docx', source_message='previous_assistant',
+                                    commands=[{'command':'add','props':{'text':'Date: ____'}}])
 
 
 def test_message_toolbar_source_uses_the_exact_completed_native_message(monkeypatch):

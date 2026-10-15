@@ -68,6 +68,12 @@ class DiscoveryQualification(unittest.TestCase):
         client = TestClient(create_app(executor, files, settings))
         headers = {'Authorization': 'Bearer synthetic-session', 'X-OpenWebUI-Chat-Id': 'chat',
                    'X-OpenWebUI-Message-Id': 'current'}
+        legacy = client.post('/v1/officecli/documents/create', headers=headers, json={
+            'output_name':'legacy.docx', 'source_message':'previous_assistant',
+            'commands':[{'command':'add','parent':'/body','type':'paragraph','props':{'text':'Date: ____'}}]})
+        self.assertEqual(legacy.status_code, 422, legacy.text)
+        self.assertIsNone(files.result)
+        self.assertEqual(files.attached, [])
         response = client.post('/v1/officecli/documents/export-answer', headers=headers, json={
             'output_name': 'prepared.docx', 'source_message': 'previous_assistant',
             'commands': [{'command': 'add', 'parent': '/body', 'type': 'paragraph',

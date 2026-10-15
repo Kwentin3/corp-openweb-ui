@@ -207,6 +207,7 @@ class ApplyOfficeBatchRequest(NativeDocxReference):
 
 
 class CreateOfficeDocumentRequest(BaseModel):
+    model_config = {"extra": "forbid"}
     output_name: str = Field(min_length=6, max_length=120)
     commands: list[dict[str, Any]] = Field(
         min_length=1,
