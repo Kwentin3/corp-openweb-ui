@@ -153,6 +153,28 @@ health and an ordinary read through the restored route at the agreed write
 boundary. `rehearse_rollback.py` proves disposable-copy downgrade and old ORM
 reads only; it does not establish operational route restoration.
 
+For that route rehearsal, keep the online-refresh candidate's background work
+disabled. It is an operator-only test copy, not the final consistent source.
+Stop all four original source services, then enable the existing router with
+both the route and acceptance overlays in **one** Compose operation. The temporary
+`ipallowlist` must contain only verified deployment-host source addresses after
+Docker NAT, without an `ipStrategy` that trusts forwarded headers. Verify real
+hostname/TLS health, version and an ordinary owned chat/file read from that host.
+An external request, including a spoofed `X-Forwarded-For`, must receive 403.
+Check any available IPv6 route as well. Do not broaden the range to pass a probe.
+Stop all five candidate services before starting the original four containers;
+verify their unchanged identities/mounts and the restored public ordinary read.
+Record the write pause and route-restoration duration. Then restore the retained
+QA composition. Final cutover still requires a new `--source-stopped` snapshot;
+omit the acceptance overlay from its production composition.
+
+Retarget the existing recorder by modifying its sole active
+`474-targets.conf` drop-in, retaining its original bytes in protected recovery
+storage. During transition its native target list can contain the four original
+and five candidate names; after acceptance retain only the five candidate names.
+Reload systemd and restart only that recorder, preserving its state root,
+history and cursors. Do not add an override, logger or recorder service.
+
 ## Google and CC provider boundary: private staging
 
 The direct Google OpenAI-compatible stream omits tool-call indexes. A later
