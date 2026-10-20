@@ -11,7 +11,7 @@ from openwebui_filters.stage2_audio_context_filter import Filter, DEFAULT_INITIA
 
 
 @pytest.mark.asyncio
-async def test_follow_up_with_cached_historical_media_does_not_change_messages(monkeypatch):
+async def test_follow_up_rehydrates_source_without_retranscribing_or_rewrapping_answer(monkeypatch):
     audio = _audio_attachment()
     messages = [{"role": "user", "content": "", "files": [audio]},
                 {"role": "assistant", "content": "Saved full transcript."},
@@ -22,20 +22,24 @@ async def test_follow_up_with_cached_historical_media_does_not_change_messages(m
     filter_ = Filter()
 
     async def forbidden(*args, **kwargs):
-        raise AssertionError("Historical audio must not enter STT or cache lookup")
+        raise AssertionError("Historical audio must not enter STT or emit a new upload status")
 
-    monkeypatch.setattr(filter_, "_cached_transcript", forbidden)
+    monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value("Saved source."))
+    monkeypatch.setattr(filter_, "_cached_display", lambda *_: _async_value("[00:01-00:03] Спикер 1:\nSaved source."))
     monkeypatch.setattr(filter_, "_call_sidecar", forbidden)
     await filter_.inlet(body, __metadata__=metadata, __event_emitter__=forbidden)
     await filter_.outlet(body, __metadata__=metadata)
-    assert messages == before
+    assert messages[:-1] == before[:-1]
+    assert messages[-1]["content"].startswith(before[-1]["content"])
+    assert messages[-1]["content"].count("[00:01-00:03] Спикер 1:\nSaved source.") == 1
+    assert DEFAULT_INITIAL_RESPONSE_INSTRUCTION not in messages[-1]["content"]
     assert body["files"] == metadata["files"] == []
     assert not any(k.startswith("_stage2") for k in metadata)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("prompt", ["", "Create a meeting protocol."])
-async def test_current_cached_upload_preserves_explicit_task_and_defaults_only_when_empty(monkeypatch, prompt):
+async def test_current_cached_upload_preserves_prompt_but_always_produces_summary_first(monkeypatch, prompt):
     audio = _audio_attachment()
     body = {"messages": [{"role": "user", "content": prompt, "files": [audio]}], "files": [audio]}
     metadata = {}
@@ -44,27 +48,31 @@ async def test_current_cached_upload_preserves_explicit_task_and_defaults_only_w
     monkeypatch.setattr(filter_, "_cached_display", lambda *_: _async_value("Source transcript."))
     await filter_.inlet(body, __metadata__=metadata)
     assert body["messages"][-1]["content"].startswith(prompt)
-    assert (DEFAULT_INITIAL_RESPONSE_INSTRUCTION in body["messages"][-1]["content"]) == (not prompt)
+    assert DEFAULT_INITIAL_RESPONSE_INSTRUCTION in body["messages"][-1]["content"]
     body["messages"].append({"role": "assistant", "content": "Requested result."})
     await filter_.outlet(body, __metadata__=metadata)
-    assert body["messages"][-1]["content"].startswith("Requested result." if prompt else "## ")
+    assert body["messages"][-1]["content"].startswith("## Краткое содержание\n\nRequested result.")
     assert body["messages"][-1]["content"].endswith("Source transcript.")
 
 
 @pytest.mark.asyncio
-async def test_native_current_message_metadata_overrides_aggregate_and_inline_files(monkeypatch):
+async def test_native_selected_branch_overrides_aggregate_and_inline_files(monkeypatch):
     module = ModuleType("open_webui.models.chats")
     current = _audio_attachment("current")
-    async def read_metadata(chat_id, message_id, field):
-        assert (chat_id, message_id, field) == ("chat", "current-user-message", "files")
-        return [current]
-    module.Chats = SimpleNamespace(get_message_metadata=read_metadata)
+    native_message = {"id": "current-user-message", "role": "user", "content": "", "files": [current]}
+    async def read_messages(chat_id):
+        assert chat_id == "chat"
+        return {native_message["id"]: native_message}
+    module.Chats = SimpleNamespace(get_messages_map_by_chat_id=read_messages)
+    misc = ModuleType("open_webui.utils.misc")
+    misc.get_message_list = lambda messages, leaf: [messages[leaf]]
     ids = ModuleType("open_webui.utils.chat_id")
     ids.is_saved_chat_id = lambda chat_id: chat_id == "chat"
     monkeypatch.setitem(sys.modules, "open_webui.models.chats", module)
+    monkeypatch.setitem(sys.modules, "open_webui.utils.misc", misc)
     monkeypatch.setitem(sys.modules, "open_webui.utils.chat_id", ids)
     body = {"messages": [{"role": "user", "content": "", "files": [_audio_attachment("old")]}]}
-    assert await Filter()._current_message_files(body, {"chat_id": "chat", "user_message_id": "current-user-message"}) == [current]
+    assert await Filter()._selected_messages(body, {"chat_id": "chat", "user_message_id": "current-user-message"}) == [native_message]
 
 
 def _audio_attachment(file_id: str = "audio-1", filename: str = "call.wav") -> dict:
@@ -439,7 +447,7 @@ async def test_outlet_preserves_native_tool_and_reasoning_output_between_text_me
     assert original == before
 
 
-def test_transcript_display_groups_actual_speaker_segments_and_keeps_known_timestamps():
+def test_transcript_display_preserves_each_actual_speaker_segment_and_timestamp():
     filter_ = Filter()
     response = {
         "result": {
@@ -454,7 +462,8 @@ def test_transcript_display_groups_actual_speaker_segments_and_keeps_known_times
 
     display = filter_._format_transcript(response)
 
-    assert "[00:01-00:05] Спикер 1:\nДобрый день. У меня вопрос." in display
+    assert "[00:01-00:03] Спикер 1:\nДобрый день." in display
+    assert "[00:03-00:05] Спикер 1:\nУ меня вопрос." in display
     assert "[00:05-00:06] Спикер 2:\nСлушаю вас." in display
     assert "ignored plain text" not in display
 
@@ -473,5 +482,5 @@ def test_transcript_display_uses_segment_breaks_without_inventing_speakers():
 
     display = filter_._format_transcript(response)
 
-    assert display == "Первый фрагмент.\n\nВторой фрагмент."
-    assert "Спикер" not in display
+    assert display == "Спикер не определён:\nПервый фрагмент.\n\nСпикер не определён:\nВторой фрагмент."
+    assert "Спикер 1" not in display

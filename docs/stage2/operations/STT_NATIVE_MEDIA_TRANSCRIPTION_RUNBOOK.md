@@ -14,6 +14,10 @@ using these steps as production acceptance evidence.
    draft when the audio attachment is ready. The user need not press Send again.
 4. The native STT Filter transcribes the audio through `stage2-stt` and Lemonfox.
    The assistant returns a short summary and the formatted full transcript.
+   This is always the first stage, including when the upload has a task prompt.
+5. Ask questions or give tasks in subsequent messages. The Filter restores the
+   same complete timestamped/speaker-labelled File source for the selected branch,
+   independently of the selected chat model, without retranscribing old files.
 
 The upload is not a transcription request: transcription begins on Send. The
 microphone/dictation route is separate from uploaded-media STT. There is no
@@ -62,6 +66,47 @@ The Filter uploads the prepared MP3 plus its envelope to
 resulting text through the separate native chat-model connection. Native File
 Storage owns the persistent MP3; the Filter stores its transcript/cache marker
 in that File's data. The qualified reload/recreation checks are linked below.
+
+## Shared media context, Filter v0.3.0
+
+The accepted 20 October product contract is summary plus full timed transcript
+first, user tasks afterwards. It applies through the existing global Filter,
+without model-name, user-name or provider-specific branches. All media attachments
+of the current message are admitted; aggregated files from other branches are
+never an STT trigger. Non-media files retain their native processing.
+
+The saved File's `display_transcript` is the canonical protocol representation
+for both display and model input. New results retain every nonempty segment and
+its available time boundaries; absent speakers are explicit and are not guessed.
+Old `transcribed-v1` caches remain readable. Missing old text is reported and
+does not silently trigger paid STT. A transcript is saved before the LLM runs,
+so a model failure does not discard it.
+
+For subsequent tasks the Filter reads the authorized selected native branch
+through `Chats.get_messages_map_by_chat_id` and `get_message_list`. It restores
+each File source once into a clearly delimited data block in the current user
+message. The block preserves speakers, timestamps and uncertainty and separates
+recorded speech from the user's task. No second store or provider client is added.
+
+The displayed protocol remains in the first persisted answer. Before another
+model call, only its exact service-generated suffix, proven against a linked
+File in that selected branch, is removed from outgoing assistant history.
+Both legacy content and structured text parts are handled; unrelated authored
+text, annotations, reasoning, tool output and persisted history are preserved.
+Ambiguous matches after compaction are preserved rather than guessed.
+
+OpenWebUI compacts before Filter inlet. The Filter does not rebuild or expand
+the compacted conversation; it restores only the complete File source. It does
+not truncate the source, invent a per-model context-window matrix or launch a
+second summarizer. Provider/context-window rejection remains an explicit error;
+there is no guarantee that an arbitrary recording fits every model's window.
+
+The pinned native full-file path was considered: `File.data.content` with
+`context=full` avoids RAG, but `capabilities.file_context=false` disables its
+automatic injection. The native Sources panel is gated by `citations` and has a
+10,000-character preview with an explicit Show all control. Keeping the existing
+inline display and global Filter works without relying on either model setting.
+See [implementation and acceptance evidence](../../reports/2026-10-20/MEDIA_CONTEXT_GOAL.report.md).
 
 The exception, pinned source/build identity, approvals, qualification and rollback
 are described in the existing
