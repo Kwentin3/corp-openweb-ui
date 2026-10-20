@@ -23,14 +23,26 @@ def main():
 
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
-        for suffix in ("mp4", "m4a"):
+        for suffix in ("mp4", "m4a", "mp3"):
             source = root / f"source.{suffix}"
             command = ["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i",
                        "sine=frequency=440:duration=1"]
             if suffix == "mp4":
                 command += ["-f", "lavfi", "-i", "color=black:size=16x16:duration=1",
                             "-c:v", "mpeg4", "-shortest"]
-            run(*command, "-c:a", "aac", str(source))
+            if suffix == "mp3":
+                command += ["-c:a", "libmp3lame", "-ar", "48000", "-ac", "2", "-b:a", "320k"]
+            else:
+                command += ["-c:a", "aac"]
+            run(*command, str(source))
+            source_streams = json.loads(run("ffprobe", "-v", "error", "-show_streams",
+                                            "-of", "json", str(source)))["streams"]
+            source_audio = next(stream for stream in source_streams if stream["codec_type"] == "audio")
+            if suffix == "mp3":
+                assert source_audio["codec_name"] == "mp3"
+                assert source_audio["sample_rate"] == "48000"
+                assert source_audio["channels"] == 2
+                assert source_audio["bit_rate"] == "320000"
             work = root / suffix
             work.mkdir()
             with source.open("rb") as stream:
@@ -44,9 +56,12 @@ def main():
             assert streams[0]["codec_name"] == "mp3"
             assert streams[0]["sample_rate"] == "16000"
             assert streams[0]["channels"] == 1
-            assert 0.8 <= float(streams[0]["duration"]) <= 1.3
+            assert streams[0]["bit_rate"] == "64000"
+            assert abs(float(streams[0]["duration"]) - float(source_audio["duration"])) <= 0.2
+            run("ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", str(prepared.audio_path),
+                "-f", "null", "-")
             data = prepared.audio_path.read_bytes()
-            assert prepared.size_bytes == len(data) > 0
+            assert 0 < prepared.size_bytes == len(data) <= 16384
             assert prepared.sha256 == hashlib.sha256(data).hexdigest()
             assert prepared.filename == "source.mp3"
             assert not (work / "source-media").exists()
@@ -64,7 +79,8 @@ def main():
                 assert error.code == "source_has_no_audio_stream"
             else:
                 raise AssertionError("Silent video must not be accepted as audio")
-    print("Installed dependency lock, MP4/M4A -> MP3 and silent-video rejection passed; no provider calls")
+    print("Installed dependency lock, MP4/M4A/320kbps MP3 -> 64kbps mono16k MP3, full decode "
+          "and silent-video rejection passed; no provider calls")
 
 
 if __name__ == "__main__":

@@ -6,8 +6,8 @@ using these steps as production acceptance evidence.
 ## User workflow
 
 1. Select an ordinary OpenWebUI chat model and attach an audio or video file.
-2. MP3 remains an audio attachment. Other recognized audio and video files start
-   server-side conversion to MP3 immediately after upload, before **Send**.
+2. Recognized audio and video files, including MP3, start server-side preparation
+   to MP3 immediately after upload, before **Send**.
    The attachment becomes MP3 when conversion and source cleanup finish.
 3. Press **Send**. If conversion is still running, the UI says
    `Подготавливаем аудио. Сообщение отправится автоматически.` and sends the
@@ -98,8 +98,12 @@ an administrative chat response containing it is insufficient evidence.
 The upload hook recognizes audio and video MIME types, plus known media
 extensions when the MIME type is generic. During preparation, FFmpeg verifies
 that the source has an audio stream; a filename or MIME type alone does not
-qualify it. MP3 is marked `completed` directly; other recognized media is
-prepared as MP3 under the same native File ID. OpenWebUI's upload-time
+qualify it. Event Function v0.1.3 prepares MP3 as well as other recognized media
+under the same native File ID, using the existing mono/16 kHz/64 kbit/s MP3
+profile. A completed native preparation marker or saved transcript prevents
+preparing the same File again. A legacy MP3 marked completed with zero attempts
+is prepared when explicitly admitted again; this is not a bulk migration.
+OpenWebUI's upload-time
 transcription and text indexing are bypassed. The chat STT Filter processes
 the completed MP3 after Send,
 including long recordings.
@@ -125,7 +129,7 @@ exact large WebM through STT was not performed.
 ## Media preparation lifecycle
 
 - OpenWebUI owns the native File row, attachment and chat. The upload hook
-  starts preparation for video and non-MP3 audio; the sidecar uses server-side
+  starts preparation for recognized audio and video, including MP3; the sidecar uses server-side
   FFmpeg to extract the first audio stream into MP3. File content is transferred
   in chunks and the result is written to disk rather than loaded in full into
   application memory.
@@ -133,42 +137,75 @@ exact large WebM through STT was not performed.
   metadata. The original media blob is deleted before the File is marked
   `completed`. The prepared audio stays available even if a later STT provider
   request fails.
+- Preparation writes a separate storage blob (`<File ID>_prepared.mp3`, or the
+  alternate name if that is the source). The native File path/metadata commit
+  precedes source deletion, including when the uploaded filename already ends
+  in `.mp3`. The display filename remains the source stem plus `.mp3`.
 - On a conversion error, attempt 2 starts immediately. Attempt 3 becomes due
   420 seconds (7 minutes) after attempt 2; the reconciler checks pending work
-  every 60 seconds. After a third failure, the source media is deleted, the
-  File path is cleared, and the File is marked `failed`. The UI shows an error
+  every 60 seconds. After a third failure, v0.1.3 preserves the source media and
+  File path and marks the File `failed`. The UI shows an error
   and does not send the failed attachment.
 - Attempt and cleanup state live in File metadata so a restart can resume the
   delayed attempt or finish deletion. Pending cleanup is retried until the
   source blob is gone. A conversion success is complete only after deletion.
 - Existing linked video attachments were migrated to audio; unreferenced and
-  failed legacy videos were removed during the 2026-09-25 rollout. New video
-  retention is not part of the product workflow.
+  failed legacy videos were removed during the 2026-09-25 rollout. Successful
+  preparation retains only prepared audio; v0.1.3 preserves a failed source for
+  recovery.
+
+## MP3 preparation change, 20 October 2026
+
+Event Function v0.1.3 and audio-context Filter v0.2.7 were installed through the
+native API on OpenWebUI 0.12.2. Ordinary-user upload/Send, full transcript after
+reload and cached regeneration passed with one preparation and one STT job.
+See the [production report and quality boundary](../../reports/2026-10-20/STT_MP3_PREPARATION.report.md).
+
+The existing STT service validates the actual prepared byte count before
+creating a transcription job or calling Lemonfox. No size calculator, URL
+publication, new service or provider client is introduced. If prepared audio
+still exceeds the configured/direct-upload limit, the Filter maps
+`prepared_audio_too_large` and `provider_direct_upload_limit_exceeded` to the
+same safe Russian explanation in native status events and the model context:
+there is no transcript, split the recording and upload the parts separately,
+and resending identical bytes does not help. Other errors keep their existing
+handling. Splitting and automatic URL delivery are outside this change.
+
+Qualification combines the existing installed-STT offline media check (now
+including a stereo 320 kbit/s MP3) and `verify_native_intake_runtime.py` in the
+exact deployed WebUI image, with separate temporary native SQLite/Storage and
+no network or production mounts. The latter substitutes only preparation HTTP;
+it does not qualify FFmpeg or paid transcription. For a Functions-only release,
+preserve source/Valves/activation, confirm no pending media, then disable the
+Event through the native API, update its source and enable it again so its old
+reconciler stops and the new one starts. No service restart is needed.
 
 ## Operator checks
 
-For the current 0.11.4 production containers on the VPS:
+For the verified 0.12.2 production containers on the VPS (recheck current owners
+before operations):
 
 ```text
-docker inspect --format '{{.Name}} {{.State.Status}} {{.State.Health.Status}}' openwebui-0114-openwebui-0114-1 openwebui-0114-stage2-stt-0114-1
-docker logs --since 15m openwebui-0114-openwebui-0114-1
-docker logs --since 15m openwebui-0114-stage2-stt-0114-1
+docker inspect --format '{{.Name}} {{.State.Status}} {{.State.Health.Status}}' openwebui-0122-openwebui-0122-1 openwebui-0122-stage2-stt-0122-1
+docker logs --since 15m openwebui-0122-openwebui-0122-1
+docker logs --since 15m openwebui-0122-stage2-stt-0122-1
 ```
 
 The old `openwebui`/`stage2-stt` applications and their volumes were retired
 with owner approval on 7 October. `/opt/openwebui-prd0` now retains shared
-infrastructure configuration, not those applications. Current release Compose
-is under `/opt/openwebui-upgrade-474/production-release-20261007/compose/`;
-use the pinned release recipe and the current private environment/route overlay
-for lifecycle operations. See the existing
-[retirement and recovery handoff](../../ops/BACKUP_RESTORE_RUNBOOK.md#issue-474-owner-approved-retirement-and-final-handoff-7-october).
+infrastructure configuration, not those applications. The verified current
+release Compose is under `/opt/openwebui-upgrade-0122/compose/`, with the
+private environment under `/opt/openwebui-upgrade-0122/final-01/`. Follow the
+[0.12.2 production and recovery owner](../../infra-ops/openwebui-0122-cutover.md)
+and inspect the current Compose labels before lifecycle operations.
 
 Verify the user route through `https://gpt.alpha-soft.ru/` with an ordinary
 account: attach a small M4A and a small video with speech in separate chats,
 observe MP3 replacement before Send, then send and check each transcript.
 Repeat with a long enough recording to observe the waiting notice. A no-audio
-video must fail after three attempts, leave no video blob and produce no STT
-job. Remove verification uploads and chats after checking. A healthy `/health`
+video must fail after three attempts, retain its source with failed status and
+produce no STT job. Remove task-owned verification uploads and chats after
+checking. A healthy `/health`
 response alone does not prove this workflow.
 
 For a failed provider call, inspect the sidecar error separately from media
