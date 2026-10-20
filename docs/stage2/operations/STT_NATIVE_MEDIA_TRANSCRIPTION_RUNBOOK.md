@@ -129,7 +129,7 @@ exact large WebM through STT was not performed.
 ## Media preparation lifecycle
 
 - OpenWebUI owns the native File row, attachment and chat. The upload hook
-  starts preparation for video and non-MP3 audio; the sidecar uses server-side
+  starts preparation for recognized audio and video, including MP3; the sidecar uses server-side
   FFmpeg to extract the first audio stream into MP3. File content is transferred
   in chunks and the result is written to disk rather than loaded in full into
   application memory.
