@@ -156,9 +156,10 @@ exact large WebM through STT was not performed.
 
 ## MP3 preparation change, 20 October 2026
 
-Source candidate: Event Function v0.1.3 and audio-context Filter v0.2.7.
-This section specifies the change; production/browser acceptance must be
-recorded separately before calling the GOAL complete.
+Event Function v0.1.3 and audio-context Filter v0.2.7 were installed through the
+native API on OpenWebUI 0.12.2. Ordinary-user upload/Send, full transcript after
+reload and cached regeneration passed with one preparation and one STT job.
+See the [production report and quality boundary](../../reports/2026-10-20/STT_MP3_PREPARATION.report.md).
 
 The existing STT service validates the actual prepared byte count before
 creating a transcription job or calling Lemonfox. No size calculator, URL
