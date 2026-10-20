@@ -1,7 +1,7 @@
 """
 title: Media intake through native Files and Events
 author: Alpha Soft
-version: 0.1.2
+version: 0.1.3
 required_open_webui_version: 0.11.4
 
 Uses the separately approved file-upload bridge and local streaming storage.
@@ -146,7 +146,10 @@ async def _convert(file_id: str) -> None:
         if not audio_path.stat().st_size:
             raise RuntimeError("Media preparation returned empty audio")
         audio_name = f"{Path(name).stem}.mp3"
-        storage_name = f"{file_id}_{audio_name}"
+        # The upload can already be MP3: never write over its source blob.
+        storage_name = f"{file_id}_prepared.mp3"
+        if local_path == local_path.parent / storage_name:
+            storage_name = f"{file_id}_prepared-1.mp3"
         target_path = str(local_path.parent / storage_name)
         await _discard_uncommitted_audio(file_id, source_path, target_path)
         await _state(file_id, pending_audio_path=target_path)
@@ -198,6 +201,10 @@ async def _discard_uncommitted_audio(file_id: str, source_path: str, audio_path:
 async def _cleanup_source(file_id: str, marker: dict) -> None:
     source_path = marker.get("source_path")
     if source_path:
+        async with get_async_db_context() as db:
+            row = await db.get(File, file_id)
+            if row is not None and row.path == source_path:
+                raise RuntimeError("Source media is still the native File's current blob")
         await asyncio.to_thread(Storage.delete_file, source_path)
         if Path(Storage.get_file(source_path)).is_file():
             raise RuntimeError("Source media survived deletion")
@@ -221,18 +228,13 @@ async def _finish_failure(file_id: str, marker: dict) -> None:
         pending_audio_path = _marker(row).get("pending_audio_path")
     if pending_audio_path:
         await _discard_uncommitted_audio(file_id, source_path, pending_audio_path)
-    if source_path:
-        await asyncio.to_thread(Storage.delete_file, source_path)
-        if Path(Storage.get_file(source_path)).is_file():
-            raise RuntimeError("Failed media survived deletion")
     async with get_async_db_context() as db:
         row = await db.get(File, file_id)
         if row is None:
             return
         state = _marker(row)
-        state.update({"state": "failed", "source_path": None})
-        row.path = None
-        row.data = {**(row.data or {}), "status": "failed", "error": "Не удалось подготовить аудио после трёх попыток; исходный файл удалён.", "stage2_video_intake": state}
+        state.update({"state": "failed", "pending_audio_path": None})
+        row.data = {**(row.data or {}), "status": "failed", "error": "Не удалось подготовить аудио после трёх попыток; исходный файл сохранён. Попробуйте загрузить его ещё раз.", "stage2_video_intake": state}
         row.updated_at = int(time.time())
         await db.commit()
 
@@ -296,23 +298,26 @@ class Event:
             raise RuntimeError("Media intake requires native local streaming storage")
         if not os.environ.get("STAGE2_STT_INTERNAL_API_KEY"):
             raise RuntimeError("Media preparation service is not configured")
-        if mime == "audio/mpeg" or (generic and suffix == ".mp3"):
+        async with _lock:
             async with get_async_db_context() as db:
                 row = await db.get(File, file_id)
                 if row is None or row.user_id != user_id:
                     raise RuntimeError("Native upload is unavailable")
-                row.meta = {**(row.meta or {}), "content_type": "audio/mpeg"}
+                # Only native File.data is preparation evidence. Upload metadata
+                # lives under meta.data and must not bypass preparation.
+                marker = _marker(row)
+                transcribed = (row.data or {}).get("stage2_audio_context_filter")
+                if isinstance(transcribed, dict) and transcribed.get("state") == "transcribed-v1" and transcribed.get("transcript"):
+                    return True
+                legacy_mp3 = marker.get("state") == "completed" and marker.get("attempt") == 0
+                if marker and not legacy_mp3:
+                    return True
                 row.data = {
-                    **(row.data or {}), "status": "completed",
-                    "stage2_video_intake": {"state": "completed", "attempt": 0},
+                    **(row.data or {}), "status": "processing",
+                    "stage2_video_intake": {"state": "pending", "attempt": 0, "source_path": row.path, "next_due": None},
                 }
                 row.updated_at = int(time.time())
                 await db.commit()
-        else:
-            await _state(
-                file_id, state="pending", attempt=0,
-                source_path=record.path, next_due=None,
-            )
         return True
 
     async def event(self, event: dict, __event_name__: str = None, __id__: str = None, **kwargs):

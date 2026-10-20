@@ -4,6 +4,7 @@ import copy
 import sys
 from types import ModuleType, SimpleNamespace
 
+import httpx
 import pytest
 
 from openwebui_filters.stage2_audio_context_filter import Filter, DEFAULT_INITIAL_RESPONSE_INSTRUCTION
@@ -198,6 +199,79 @@ async def test_inlet_leaves_non_audio_attachments_for_native_file_processing(mon
 
     assert result == body
     assert body["messages"][-1]["content"] == "Посмотри документ"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status,code,expected",
+    [
+        (422, "prepared_audio_too_large", "превышает допустимый размер"),
+        (422, "provider_direct_upload_limit_exceeded", "превышает допустимый размер"),
+        (422, "source_has_no_audio_stream", "Видеофайл не содержит аудиодорожки"),
+        (422, "invalid_audio_format", "Проверьте формат и повторите попытку"),
+        (401, None, "Проверьте формат и повторите попытку"),
+        (503, "prepared_audio_too_large", "временно недоступен. Повторите попытку позже"),
+        (None, None, "Не удалось обработать аудио. Повторите попытку позже"),
+    ],
+)
+async def test_stt_rejection_reaches_ui_and_model_without_losing_reason(
+    monkeypatch, status, code, expected
+):
+    audio = _audio_attachment(filename="call.mp3")
+    audio["content_type"] = audio["file"]["meta"]["content_type"] = "audio/mpeg"
+    document = {"type": "file", "file": {"id": "pdf-1", "filename": "notes.pdf"},
+                "name": "notes.pdf", "content_type": "application/pdf"}
+    prompt = "Summarize the recording in English."
+    body = {"messages": [{"role": "user", "content": prompt, "files": [audio, document]}],
+            "files": [audio, document]}
+    metadata = {"files": [audio, document]}
+    original_attachment = copy.deepcopy(audio)
+    statuses = []
+    filter_ = Filter()
+    filter_.valves.internal_api_key = "test-token"
+    monkeypatch.setattr(filter_, "_cached_transcript", lambda *_: _async_value(None))
+    monkeypatch.setattr(filter_, "_was_transcribed", lambda *_: _async_value(False))
+    monkeypatch.setattr(filter_, "_native_upload_path", lambda *_: _async_value("unused.mp3"))
+
+    async def reject(**kwargs):
+        request = httpx.Request("POST", "http://stage2-stt:8080/stage2-api/transcription/jobs")
+        if status is None:
+            raise httpx.ConnectError("PRIVATE transport details", request=request)
+        response = httpx.Response(status, request=request, json={
+            "detail": {"code": code, "message": "PRIVATE provider details", "retryable": False}
+        })
+        response.raise_for_status()
+
+    async def emit(event):
+        statuses.append(event)
+
+    async def forbid_transcript_save(*args, **kwargs):
+        raise AssertionError("A rejected recording must not be saved as transcribed")
+
+    monkeypatch.setattr(filter_, "_call_sidecar", reject)
+    monkeypatch.setattr(filter_, "_mark_transcribed", forbid_transcript_save)
+    await filter_.inlet(body, __user__={"id": "user-1"}, __metadata__=metadata,
+                        __event_emitter__=emit)
+
+    ui_message = statuses[-1]["data"]["description"]
+    model_content = body["messages"][-1]["content"]
+    assert expected in ui_message
+    assert ui_message in model_content
+    assert model_content.startswith(prompt)
+    assert "Транскрибация не выполнена" in model_content
+    assert "PRIVATE" not in model_content
+    assert statuses[-1]["data"]["done"] is True
+    assert metadata["_stage2_audio_transcript"] is None
+    assert body["files"] == metadata["files"] == [document]
+    assert audio == original_attachment
+    assert body["messages"][-1]["files"] == [audio, document]
+    if status == 422 and code in {"prepared_audio_too_large", "provider_direct_upload_limit_exceeded"}:
+        assert "Разделите запись на части" in ui_message
+        assert "Повторная отправка того же файла не поможет" in ui_message
+        assert "Транскрипция не получена" in ui_message
+        assert "Проверьте формат" not in ui_message
+        assert "Повторите попытку" not in ui_message
+        assert "100" not in ui_message
 
 
 @pytest.mark.asyncio

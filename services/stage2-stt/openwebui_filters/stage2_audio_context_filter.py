@@ -1,7 +1,7 @@
 """
 title: Audio context for ordinary chats
 author: Alpha Soft
-version: 0.2.6
+version: 0.2.7
 required_open_webui_version: 0.11.4
 requirements: httpx,pydantic
 
@@ -499,4 +499,10 @@ class Filter:
             code = None
         if code == "source_has_no_audio_stream":
             return "Видеофайл не содержит аудиодорожки. Выберите видео со звуком."
+        if code in {"prepared_audio_too_large", "provider_direct_upload_limit_exceeded"}:
+            return (
+                "Аудиофайл после подготовки превышает допустимый размер для транскрибации. "
+                "Транскрипция не получена. Разделите запись на части и загрузите их отдельно. "
+                "Повторная отправка того же файла не поможет."
+            )
         return "Сервис транскрибации отклонил аудиофайл. Проверьте формат и повторите попытку."
