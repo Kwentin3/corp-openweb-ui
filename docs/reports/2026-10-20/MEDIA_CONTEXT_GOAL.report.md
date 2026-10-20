@@ -1,7 +1,8 @@
 # Shared native media context
 
-Date: 20 October 2026. Status: candidate implementation and component qualification;
-production/browser acceptance is not yet complete.
+Date: 20 October 2026. Status: implementation, component qualification, native
+Function installation and bounded ordinary-user workflow checks passed.
+Independent final review passed; repository delivery is tracked in PR #572.
 
 ## Accepted outcome and owners
 
@@ -85,20 +86,88 @@ snapshot. The 11,673-character canonical protocol was restored once, excluded
 from outgoing assistant history, and produced the identical source-context hash
 for three model labels. This proves input assembly, not real model compliance.
 
-## Remaining product acceptance and limitations
+## Native installation and product acceptance
 
-Ordinary-user first upload, reload, follow-up tasks and model switching remain
-to be checked after CI and native Function release. Paid provider calls require
-their own bounded operator approval; the earlier PR #570 approval is not reused.
-No production installation or new provider call is claimed by this report yet.
+[PR #572](https://github.com/Kwentin3/corp-openweb-ui/pull/572) candidate
+`43393d77e25632d2438238c6f5f6f60201b805ee` passed
+[Active CI](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/39424058914).
+At 15:44:35 Moscow time on 20 October the Filter was updated through the native
+Function API after checking there were no active chat tasks. Source readback
+matched the qualified LF hash; owner, activation/global flags and Valves remained
+unchanged. No Event, core, image, service restart or other Function changed.
+The rollback backup is private, mode 0600, at
+`/root/codex-media-context-20261020/stage2_audio_context_filter-before.private.json`.
+
+A separate ordinary account signed in through the password form and uploaded
+the real 6,844,652-byte source through the file input. Its new native File
+completed preparation in one attempt, with no transcript before Send.
+After separate approval for one STT and three bounded short answers, the
+ordinary account sent the uploaded file with an explicit request for a letter.
+The first Gemini Flash response nevertheless contained the required short
+summary and complete protocol. Both headings survived reload; persisted
+`content` and flattened native `output` were equal. The 14,005-character protocol
+appeared once as the exact managed suffix, with 145 timestamped segments through
+14:15; plain recognition text contained 10,381 characters. Canonical protocol
+SHA-256: `70863e572d3cdcb71a9c7d8c78175f5a9a8160ceb2c59f00a0958e995dc282b8`.
+
+The user then switched through the native model picker from
+`models/gemini-3.5-flash` to `models/gemini-3.5-flash-lite`, requested a short
+business letter, and used native regeneration. Both later responses completed
+without adding a second displayed protocol. After another reload the File cache
+JSON and `updated_at=1792500663` remained byte-for-byte/value identical.
+The browser gate accepted exactly three main requests (15:50:37, 15:54:34,
+15:55:15 Moscow time), then closed. Auxiliary generation and tools were disabled,
+and output was limited to 512 tokens per request. This is bounded tool-free
+ordinary-route acceptance, not acceptance of external tools or every provider.
+Native usage was not returned; estimated tariff cost is not an invoice.
+
+Safe browser evidence is retained in ignored
+`local/media-context-20261020/browser-product.safe.json`; the test chat is
+`f6b17de1-4701-47cf-a17b-e9fc436a02ff`, its File is
+`41ba7572-b3ef-4c5c-8869-7f3eb263abe8`. Private text/screenshots remain private.
+Server-side read-only accounting independently found exactly one STT job and one
+transcript result for this test user, scoped to this exact chat/File; the service
+log also showed only one successful transcription POST during the acceptance
+interval. The canonical protocol equals a fresh render of all 145 provider
+segments (reported duration 855.4666875 seconds), without skipped segments.
+The independent R1-R5 review passed the workflow/context scope with the model
+quality limitations below. Its safe receipt is retained in ignored
+`local/media-context-20261020/product-review.safe.json`.
+
+The original customer's source File `261f0c31-5408-49b3-84ac-0ee5f0912914`
+retained its original 6,844,652 bytes, SHA-256
+`a8081c8fc5506519fe9c9e7d96b1c8b849db24bd2c7b53b01e14bf20a8de75d2`,
+cache hashes and `updated_at=1792496203`. The customer edited their original
+chat during the audit; whole-chat immutability is not claimed.
+The test account was returned to `pending`, its sessions revoked, and the old
+token received HTTP 401 for its File. Its chat/File remain for private review;
+the isolated browser context was closed. The original two browser tabs remained.
+
+Final read-only service checks confirmed both existing WebUI/STT images,
+15 October start times, zero restarts and healthy status. STT image:
+`sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8`.
+Installed Filter readback remained the qualified LF hash, active and global.
+
+Semantic inspection confirms that the summary identifies the discussion as
+discussion/proposals, and the letters preserve the key accounting causes,
+consulting-versus-bookkeeping responsibility, and proposed corrective work.
+There are still model errors: the second response omitted the separate-payment
+condition (regeneration restored it), and both letters introduced shift-closing
+wording where the recognized source contains an unclear word after "closing".
+Neither "shift" nor "month" can be established from that text alone. These are not missing
+source bytes; all source text remained available. Perfect generation accuracy
+is not established or promised by the context repair.
+
+## Limitations
 
 No source truncation or hidden summarization is added. Native compaction occurs
 before inlet; the full File source is restored independently of the compacted
 conversation. The installed framework has no universal model-window getter or
 exact tokenizer: native compaction estimates tokens and its threshold is not a
 provider window. An oversized source must receive an explicit provider/native
-error; universal fit in every model is not claimed. Real provider-limit and
-model-compliance acceptance remains a separate boundary from the offline tests.
+error; universal fit in every model is not claimed. A real provider-window-limit
+failure was not induced. Full-recording word-for-word audio accuracy was not
+independently audited. Live model compliance was checked only in the stated scope.
 
 Raw customer text, private snapshots and runtime receipts remain in ignored
 local evidence or the private task directory on the server. Public source

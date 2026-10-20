@@ -35,8 +35,9 @@ After Send, `stage2_audio_context_filter` obtains the transcript from that
 service/Lemonfox or reuses the stored transcript, removes the processed audio
 from outbound file collections and gives the ordinary chat model text.
 The MP3 remains the native user attachment. A later model failure must preserve
-both that attachment and the saved transcript. Meeting protocol remains a
-separate ordinary Prompt; the model's summary does not replace the transcript.
+both that attachment and the saved transcript. Additional meeting minutes or
+action items can be requested in a subsequent message; the first response's
+full timed transcript is the source, and the summary does not replace it.
 
 Filter v0.2.5 removes the obsolete second conversion/lifecycle path that depended
 on absent `open_webui.services.stage2_media_lifecycle` modules. Intake remains
