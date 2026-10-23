@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.1.3-native-note-export
+version: 2.1.4-native-note-export
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -46,6 +46,7 @@ OFFICECLI_INSTRUCTION = (
     "Use attached_files/list_chat_files IDs, not citations; explicit file_id for multiple inputs. Reads do not publish. "
     "create/apply save copies and return native attachments. Batches contain edits, not create/open/save/close. "
     "Before claiming readability, render the final DOCX with grid 2 and inspect every page. "
+    "For explicit export, deliver after these checks; preserved placeholders and style warnings need no confirmation. "
     "For an attached PPTX template or previous version, edit its copy with apply_office_presentation_batch; blank decks require an independent request. "
     "If invalid, report concrete findings and offer a valid earlier source or copy repair; never silently replace the source. "
     "Before Terminal, check native add/from cloning for template-style slides. "
