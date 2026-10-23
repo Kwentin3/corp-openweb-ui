@@ -4,8 +4,10 @@ from dataclasses import dataclass
 from hashlib import sha256
 import json
 import os
+from pathlib import Path
 import signal
 import subprocess
+from tempfile import TemporaryDirectory
 from typing import Protocol
 
 from .config import Settings
@@ -40,14 +42,23 @@ class SubprocessOfficeCliExecutor:
             "OFFICECLI_NO_AUTO_RESIDENT": "1",
         }
         try:
-            with subprocess.Popen(
+            with TemporaryDirectory(prefix="officecli-runtime-") as runtime_directory, subprocess.Popen(
                 command,
                 stdin=subprocess.PIPE if input_text is not None else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 encoding="utf-8",
                 errors="replace",
-                env=environment,
+                env={
+                    **environment,
+                    # Chromium's scoped profiles otherwise accumulate under HOME
+                    # across nonresident calls and exhaust the bounded /tmp mount.
+                    "XDG_CACHE_HOME": str(Path(runtime_directory) / "cache"),
+                    "XDG_CONFIG_HOME": str(Path(runtime_directory) / "config"),
+                    "TMPDIR": runtime_directory,
+                    "TMP": runtime_directory,
+                    "TEMP": runtime_directory,
+                },
                 start_new_session=os.name == "posix",
             ) as process:
                 try:

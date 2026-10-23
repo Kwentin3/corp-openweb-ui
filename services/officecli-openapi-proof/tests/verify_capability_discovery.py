@@ -92,6 +92,22 @@ class DiscoveryQualification(unittest.TestCase):
             self.assertEqual(len(document.findall('.//w:tbl/w:tr',ns)),2)
             self.assertEqual(len(document.findall('.//w:tbl/w:tr/w:tc',ns)),4)
 
+            exported = Path(directory) / 'exported.docx'
+            exported.write_bytes(files.result)
+            exported_hash = sha256(exported.read_bytes()).hexdigest()
+            files.sources['synthetic-result'] = exported
+            for _ in range(2):
+                rendered = client.post('/v1/officecli/render',headers=headers,
+                    json={'file_id':'synthetic-result','format':'docx','grid':2})
+                self.assertEqual(rendered.status_code,200,rendered.text[:300] if rendered.status_code!=200 else '')
+                with Image.open(BytesIO(rendered.content)) as image:
+                    self.assertEqual(image.format,'PNG')
+                    image.verify()
+                self.assertEqual(sha256(exported.read_bytes()).hexdigest(),exported_hash)
+                self.assertFalse(Path('/tmp/.cache/chromium-headless').exists())
+                self.assertFalse(Path('/tmp/.config/chromium-headless').exists())
+                self.assertEqual(list(Path('/tmp').glob('officecli-runtime-*')),[])
+
             files.result = None
             files.attached.clear()
             files.reads = 0
@@ -417,4 +433,4 @@ class DiscoveryQualification(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
