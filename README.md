@@ -35,10 +35,12 @@ Chat Completions-подключений обеспечивает один вну
 вложением OpenWebUI.
 
 - [Отчёты для заказчика по поставкам](docs/commercial/README.md)
+- [Дополнение: OfficeCLI и подключение новых моделей](docs/commercial/COMPLETED_WORK_2026-10-23_OFFICE_MODEL_COVERAGE.md)
 - [Дополнение: работа с PPTX-шаблоном](docs/commercial/COMPLETED_WORK_2026-09-30_PPTX_TEMPLATE.md)
 - [Дополнение: Open Terminal](docs/commercial/COMPLETED_WORK_2026-09-28_OPEN_TERMINAL_OFFICE_WORKFLOW.md)
 - [Техническая производственная приёмка](docs/reports/2026-09-28/open-terminal-production-acceptance.report.md)
 - [Инструкция эксплуатации и отката](docs/infra-ops/officecli-openapi-docx-release.md)
+- [Обязательный чек-лист добавления и замены модели](docs/infra-ops/officecli-openapi-docx-release.md#добавление-и-замена-модели-обязательный-чек-лист)
 - [Compose официального Open Terminal](compose/open-terminal-office.compose.yml)
 
 Решение использует штатную интеграцию OpenWebUI с Open Terminal и тонкий слой
