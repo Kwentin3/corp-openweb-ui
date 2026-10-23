@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Any, Protocol
 
 import httpx
@@ -36,6 +37,12 @@ class NativeTextSource:
     text: str
 
 
+@dataclass(frozen=True)
+class NativeNoteTextSource:
+    note_id: str
+    text: str
+
+
 class OpenWebUiClient(Protocol):
     def verify_session(self, authorization: str) -> None: ...
 
@@ -46,6 +53,10 @@ class OpenWebUiClient(Protocol):
     def resolve_completed_assistant_text(
         self, chat_id: str, message_id: str, authorization: str
     ) -> NativeTextSource: ...
+
+    def resolve_note_text(
+        self, note_id: str, authorization: str
+    ) -> NativeNoteTextSource: ...
 
     def resolve_nearest_docx_attachment(
         self, chat_id: str, message_id: str, authorization: str
@@ -140,6 +151,20 @@ class HttpOpenWebUiClient:
     ) -> NativeTextSource:
         """Resolve the exact completed message selected by the native Action."""
         return self._completed_assistant_source(self._native_messages(chat_id, authorization), message_id)
+
+    def resolve_note_text(self, note_id: str, authorization: str) -> NativeNoteTextSource:
+        """Read the canonical Markdown through the caller-authorized Notes API."""
+        if not re.fullmatch(r"[A-Za-z0-9-]{1,128}", note_id):
+            raise OpenWebUiFailure("source_note_id must be an opaque native note id")
+        note = self._request("GET", f"/api/v1/notes/{note_id}", authorization).json()
+        if not isinstance(note, dict) or note.get("id") != note_id:
+            raise OpenWebUiFailure("native note identity does not match source_note_id")
+        data = note.get("data")
+        content = data.get("content") if isinstance(data, dict) else None
+        text = content.get("md") if isinstance(content, dict) else None
+        if not isinstance(text, str) or not text.strip():
+            raise OpenWebUiFailure("native note has no prepared Markdown text")
+        return NativeNoteTextSource(note_id=note_id, text=text)
 
     @staticmethod
     def _completed_assistant_source(messages: dict[str, Any], source_id: Any) -> NativeTextSource:

@@ -5,11 +5,13 @@ from zipfile import ZipFile
 
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 
 from officecli_openapi_proof.docx_text import WORD, body_paragraphs, require_preserved_text
 from officecli_openapi_proof.officecli import OfficeCliFailure
-from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient, OpenWebUiFailure
-from officecli_openapi_proof.app import CreateOfficeDocumentRequest, ExportOfficeAnswerRequest
+from officecli_openapi_proof.openwebui_client import HttpOpenWebUiClient, OpenWebUiFailure, OpenWebUiUnauthorized
+from officecli_openapi_proof.app import CreateOfficeDocumentRequest, ExportOfficeAnswerRequest, create_app
+from officecli_openapi_proof.config import Settings
 from pydantic import ValidationError
 
 
@@ -25,6 +27,83 @@ def test_drafting_requires_content_and_export_defaults_to_the_native_answer():
     with pytest.raises(ValidationError, match='extra_forbidden'):
         CreateOfficeDocumentRequest(output_name='result.docx', source_message='previous_assistant',
                                     commands=[{'command':'add','props':{'text':'Date: ____'}}])
+
+
+def test_note_export_uses_one_explicit_native_source_without_retyped_content():
+    request = ExportOfficeAnswerRequest(output_name='note.docx', source_note_id='native-note')
+    assert request.commands == []
+    assert request.source_note_id == 'native-note'
+    for source in ('previous_assistant', 'selected_assistant'):
+        with pytest.raises(ValidationError, match='not both'):
+            ExportOfficeAnswerRequest(output_name='note.docx', source_note_id='native-note', source_message=source)
+    for identifier in ('', '../foreign', 'https://foreign/note', 'note?user=other', 'a' * 129):
+        with pytest.raises(ValidationError):
+            ExportOfficeAnswerRequest(output_name='note.docx', source_note_id=identifier)
+
+
+def test_native_note_markdown_is_read_verbatim_with_caller_authorization(monkeypatch):
+    calls = []
+    source = '## Fill-in template\n\n{{Client}}\n\n| Item | Price |\n| --- | --- |\n| {{Item}} | {{Price}} |\n'
+    def request(method, url, **kwargs):
+        calls.append((method, url, kwargs))
+        note = {'id':'native-note', 'data':{'content':{'md':source, 'json':{'display':'not the canonical source'}}}}
+        return httpx.Response(200, json=note, request=httpx.Request(method,url))
+    monkeypatch.setattr('officecli_openapi_proof.openwebui_client.httpx.request',request)
+    result = HttpOpenWebUiClient('http://native',5).resolve_note_text('native-note','Bearer caller')
+    assert result.note_id == 'native-note' and result.text == source
+    assert calls[0][:2] == ('GET','http://native/api/v1/notes/native-note')
+    assert calls[0][2]['headers'] == {'Authorization':'Bearer caller'}
+    assert calls[0][2]['follow_redirects'] is False
+
+
+@pytest.mark.parametrize('status',[401,403,404])
+def test_denied_or_missing_native_note_is_not_replaced_by_another_source(monkeypatch,status):
+    calls = []
+    def request(method,url,**kwargs):
+        calls.append(url)
+        return httpx.Response(status,json={'detail':'unavailable'},request=httpx.Request(method,url))
+    monkeypatch.setattr('officecli_openapi_proof.openwebui_client.httpx.request',request)
+    with pytest.raises(OpenWebUiUnauthorized if status in (401,403) else OpenWebUiFailure):
+        HttpOpenWebUiClient('http://native',5).resolve_note_text('native-note','Bearer caller')
+    assert calls == ['http://native/api/v1/notes/native-note']
+
+
+@pytest.mark.parametrize('note',[
+    {'id':'foreign-note','data':{'content':{'md':'A valid but different source'}}},
+    {'id':'native-note','data':{'content':{'json':{'text':'Do not infer Markdown from this'}}}},
+    {'id':'native-note','data':{'content':{'md':'  '}}},
+    {'id':'native-note','data':{'content':{'md':['Not text']}}},
+])
+def test_native_note_misbinding_and_missing_canonical_text_are_rejected(monkeypatch,note):
+    monkeypatch.setattr('officecli_openapi_proof.openwebui_client.httpx.request',
+        lambda method,url,**kwargs:httpx.Response(200,json=note,request=httpx.Request(method,url)))
+    with pytest.raises(OpenWebUiFailure):
+        HttpOpenWebUiClient('http://native',5).resolve_note_text('native-note','Bearer caller')
+
+
+@pytest.mark.parametrize('status,note',[
+    (403,{'detail':'unavailable'}),
+    (200,{'id':'another-note','data':{'content':{'md':'A different valid source'}}}),
+])
+def test_export_does_not_start_cli_or_publish_before_note_owner_acceptance(monkeypatch,status,note):
+    calls = []
+    def request(method,url,**kwargs):
+        calls.append((method,url,kwargs['headers']))
+        auth = url.endswith('/api/v1/auths/')
+        return httpx.Response(200 if auth else status,json={'id':'caller'} if auth else note,
+                              request=httpx.Request(method,url))
+    class UncalledExecutor:
+        def run(self,*args,**kwargs):
+            raise AssertionError('No Office operation before source owner acceptance')
+    monkeypatch.setattr('officecli_openapi_proof.openwebui_client.httpx.request',request)
+    client = TestClient(create_app(UncalledExecutor(),HttpOpenWebUiClient('http://native',5),
+        Settings('officecli',5,'1.0.152','http://native')))
+    response = client.post('/v1/officecli/documents/export-answer',
+        headers={'Authorization':'Bearer caller','X-OpenWebUI-Chat-Id':'chat','X-OpenWebUI-Message-Id':'current'},
+        json={'output_name':'note.docx','source_note_id':'native-note'})
+    assert response.status_code == (401 if status == 403 else 502)
+    assert calls == [('GET','http://native/api/v1/auths/',{'Authorization':'Bearer caller'}),
+                     ('GET','http://native/api/v1/notes/native-note',{'Authorization':'Bearer caller'})]
 
 
 def test_message_toolbar_source_uses_the_exact_completed_native_message(monkeypatch):

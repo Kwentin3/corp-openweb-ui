@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      export_officecli_image:
+        description: Export the qualified OfficeCLI runtime image for deployment without a production build
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -133,6 +138,27 @@ jobs:
         run: |
           docker build -f services/officecli-openapi-proof/tests/Dockerfile --build-arg OFFICECLI_IMAGE=officecli-candidate -t officecli-qualification .
           docker run --rm --network none --read-only --memory 1g --tmpfs /tmp:rw,nosuid,size=128m officecli-qualification
+
+      - name: Export the qualified OfficeCLI image
+        if: github.event_name == 'workflow_dispatch' && inputs.export_officecli_image
+        run: |
+          output="$RUNNER_TEMP/officecli-runtime"
+          mkdir "$output"
+          docker save officecli-candidate -o "$output/officecli-runtime.tar"
+          docker image inspect officecli-candidate --format '{{.Id}}' > "$output/image-id.txt"
+          echo "$GITHUB_SHA" > "$output/source-commit.txt"
+          cd "$output"
+          sha256sum officecli-runtime.tar image-id.txt source-commit.txt > SHA256SUMS
+
+      - name: Retain the qualified OfficeCLI image
+        if: github.event_name == 'workflow_dispatch' && inputs.export_officecli_image
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: officecli-runtime-${{ github.sha }}
+          path: ${{ runner.temp }}/officecli-runtime/
+          compression-level: 1
+          retention-days: 3
+          if-no-files-found: error
 
       - name: Install STT test dependencies
         if: steps.scope.outputs.stt == 'true'

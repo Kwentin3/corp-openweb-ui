@@ -10,7 +10,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from .config import Settings, load_settings
 from .discovery import ObjectReadPayload, bounded_result, help_arguments, object_arguments
@@ -29,6 +29,7 @@ from .openwebui_client import (
     OpenWebUiClient,
     OpenWebUiFailure,
     OpenWebUiUnauthorized,
+    NativeNoteTextSource,
 )
 
 
@@ -236,6 +237,12 @@ class CreateOfficeDocumentRequest(BaseModel):
 
 
 class ExportOfficeAnswerRequest(CreateOfficeDocumentRequest):
+    source_note_id: str | None = Field(
+        default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9-]+$",
+        description="For an already saved note: its native OpenWebUI note id from search_notes/view_note. "
+                    "The complete note Markdown is imported directly. Omit source_message when using this field; "
+                    "do not retype the note in commands.",
+    )
     source_message: Literal["previous_assistant", "selected_assistant"] = Field(
         default="previous_assistant",
         description="The previous completed assistant answer is the source. selected_assistant is reserved "
@@ -245,6 +252,12 @@ class ExportOfficeAnswerRequest(CreateOfficeDocumentRequest):
         "Optional official OfficeCLI formatting commands and requested extra fields. The full source "
         "is imported automatically; do not repeat, rewrite or summarize it in commands."
     ))
+
+    @model_validator(mode="after")
+    def one_prepared_source(self):
+        if self.source_note_id is not None and "source_message" in self.model_fields_set:
+            raise ValueError("Choose source_note_id or source_message, not both")
+        return self
 
 
 class ApplySpreadsheetBatchRequest(NativeXlsxReference):
@@ -442,6 +455,7 @@ class CreateResponse(BaseModel):
 
 class CreateDocumentResponse(CreateResponse):
     source_message_id: str | None = None
+    source_note_id: str | None = None
     source_content_sha256: str | None = None
     source_text_preserved: bool | None = None
 
@@ -933,6 +947,7 @@ def create_app(
         request: CreateOfficeDocumentRequest,
         authorization: str | None, chat_id: str | None, message_id: str | None,
         source_relation: str | None = None,
+        source_note_id: str | None = None,
     ) -> CreateDocumentResponse:
         bearer = authenticated_bearer(authorization)
         native_chat_id, native_message_id = _native_chat_message_ids(
@@ -943,13 +958,19 @@ def create_app(
         text_source = None
         imported_text = None
         try:
-            if source_relation is not None:
-                resolve_source = (openwebui.resolve_previous_assistant_text
-                                  if source_relation == "previous_assistant"
-                                  else openwebui.resolve_completed_assistant_text)
-                text_source = resolve_source(
-                    native_chat_id, native_message_id, bearer
-                )
+            if source_note_id is not None:
+                if source_relation is not None:
+                    raise OpenWebUiFailure("prepared source selection is ambiguous")
+                resolve_source = lambda: openwebui.resolve_note_text(source_note_id, bearer)
+            elif source_relation is not None:
+                resolve_message = (openwebui.resolve_previous_assistant_text
+                                   if source_relation == "previous_assistant"
+                                   else openwebui.resolve_completed_assistant_text)
+                resolve_source = lambda: resolve_message(native_chat_id, native_message_id, bearer)
+            else:
+                resolve_source = None
+            if resolve_source is not None:
+                text_source = resolve_source()
             with TemporaryDirectory(prefix="officecli-proof-") as directory:
                 result_path = Path(directory) / "created.docx"
                 create_output = officecli.run(
@@ -984,9 +1005,7 @@ def create_app(
                     raise OfficeCliFailure("officecli did not leave a DOCX result")
                 if imported_text is not None:
                     require_preserved_text(imported_text, body_paragraphs(result_path))
-                    if resolve_source(
-                        native_chat_id, native_message_id, bearer
-                    ) != text_source:
+                    if resolve_source() != text_source:
                         raise OpenWebUiFailure("prepared source changed during formatting; no document was published")
                 result_sha256 = sha256(result_path.read_bytes()).hexdigest()
                 native_file = openwebui.upload(result_path, request.output_name, bearer)
@@ -1013,7 +1032,8 @@ def create_app(
                 and validation_output.auto_resident_disabled
             ),
             bounded_processes_completed=True,
-            source_message_id=text_source.message_id if text_source else None,
+            source_message_id=text_source.message_id if text_source and not isinstance(text_source, NativeNoteTextSource) else None,
+            source_note_id=text_source.note_id if isinstance(text_source, NativeNoteTextSource) else None,
             source_content_sha256=sha256(text_source.text.encode("utf-8")).hexdigest() if text_source else None,
             source_text_preserved=True if text_source else None,
         )
@@ -1023,7 +1043,7 @@ def create_app(
         operation_id="create_office_document",
         description=AUTHOR_WORKFLOW_TRIGGER + (
             "Draft NEW content in a new independent DOCX using OfficeCLI create and batch, validate it, "
-            "and attach it. For putting an ALREADY PREPARED answer into Word, use export_answer_to_word "
+            "and attach it. For an ALREADY PREPARED answer or saved note, use export_answer_to_word "
             "instead: it imports the complete native answer without re-generation. For an attached DOCX edit, "
             "use apply_office_batch. Use exact help for uncertain properties."
         ),
@@ -1040,9 +1060,10 @@ def create_app(
         "/v1/officecli/documents/export-answer", response_model=CreateDocumentResponse,
         operation_id="export_answer_to_word",
         description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Put the PREVIOUS PREPARED ASSISTANT ANSWER into a Word document in full. Use this when the "
+            "Export an ALREADY PREPARED assistant answer or saved note to Word in full. Use this when the "
             "user asks to format the answer, protocol or text above as Word, including adding date/signature fields. "
-            "The existing native chat message is imported directly by OfficeCLI; do not retype it. Commands "
+            "For an already saved note, set source_note_id to its native note id and omit source_message. "
+            "The complete native message or note is imported directly by OfficeCLI; do not retype it. Commands "
             "only format the imported content and add requested fields. Source paragraphs must remain unchanged "
             "and in order; a rewrite is rejected before publication. Validate and attach through the native file owner."
         ),
@@ -1053,7 +1074,8 @@ def create_app(
         chat_id: Annotated[str | None, Header(alias="X-OpenWebUI-Chat-Id")] = None,
         message_id: Annotated[str | None, Header(alias="X-OpenWebUI-Message-Id")] = None,
     ) -> CreateDocumentResponse:
-        return write_docx(request, authorization, chat_id, message_id, request.source_message)
+        return write_docx(request, authorization, chat_id, message_id,
+                          None if request.source_note_id else request.source_message, request.source_note_id)
 
     @app.post(
         "/v1/officecli/spreadsheets/create",
