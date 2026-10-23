@@ -23,7 +23,7 @@ services:
     networks: [services, existing-web]
 
   officecli-0122:
-    image: sha256:147ff48ecead487136c85c887f160553303b2923e8700e6d79e492f830b0ad85
+    image: sha256:df3acf071d04215006950e53738f20065b9174ef49d5f1c18864f061f18d16c3
     pull_policy: never
     restart: unless-stopped
     init: true
@@ -33,7 +33,7 @@ services:
     cap_drop: ["ALL"]
     environment:
       OPENWEBUI_BASE_URL: http://openwebui-0122:8080
-      OFFICECLI_PROOF_TIMEOUT_SECONDS: "60"
+      OFFICECLI_PROOF_TIMEOUT_SECONDS: "120"
     expose: ["8080"]
     mem_limit: 1g
     memswap_limit: 2g

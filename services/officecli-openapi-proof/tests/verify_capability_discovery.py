@@ -22,7 +22,7 @@ from PIL import Image
 from officecli_openapi_proof.app import create_app
 from officecli_openapi_proof.config import load_settings
 from officecli_openapi_proof.officecli import SubprocessOfficeCliExecutor
-from officecli_openapi_proof.openwebui_client import NativeTextSource
+from officecli_openapi_proof.openwebui_client import NativeTextSource, NativeNoteTextSource
 
 
 class LocalFileTransport:
@@ -49,6 +49,76 @@ class LocalFileTransport:
 
 
 class DiscoveryQualification(unittest.TestCase):
+    def test_saved_note_uses_the_same_real_cli_import_and_refuses_a_changed_source(self):
+        settings = load_settings()
+        executor = SubprocessOfficeCliExecutor(settings)
+        source = '# Saved template\n\nKeep {{Client}} and all instructions.\n\n| Item | Price |\n| --- | --- |\n| {{Item}} | {{Price}} |\n\n- [ ] Check all fields.\n'
+        with TemporaryDirectory() as directory:
+            note_path = Path(directory) / 'native-note.md'
+            note_path.write_text(source, encoding='utf-8')
+
+            class NoteSourceTransport(LocalFileTransport):
+                reads = 0
+                change_on_second_read = False
+
+                def resolve_note_text(self, note_id, authorization):
+                    self.verify_session(authorization)
+                    assert note_id == 'native-note'
+                    self.reads += 1
+                    if self.change_on_second_read and self.reads == 2:
+                        note_path.write_text(source + '\nOwner changed the note.\n', encoding='utf-8')
+                    return NativeNoteTextSource(note_id, note_path.read_text(encoding='utf-8'))
+
+            files = NoteSourceTransport({})
+            client = TestClient(create_app(executor, files, settings))
+            headers = {'Authorization':'Bearer synthetic-session', 'X-OpenWebUI-Chat-Id':'chat',
+                       'X-OpenWebUI-Message-Id':'current'}
+            response = client.post('/v1/officecli/documents/export-answer', headers=headers,
+                                   json={'output_name':'note.docx','source_note_id':'native-note'})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(files.reads,2)
+            self.assertEqual(response.json()['source_note_id'],'native-note')
+            self.assertIsNone(response.json()['source_message_id'])
+            self.assertEqual(response.json()['source_content_sha256'],sha256(source.encode()).hexdigest())
+            self.assertTrue(response.json()['source_text_preserved'])
+            self.assertEqual(files.attached,['synthetic-result'])
+            with ZipFile(BytesIO(files.result)) as package:
+                document = ElementTree.fromstring(package.read('word/document.xml'))
+            text = ''.join(document.itertext())
+            for expected in ('Saved template','{{Client}}','all instructions.','{{Item}}','{{Price}}','Check all fields.'):
+                self.assertIn(expected,text)
+            ns = {'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+            self.assertEqual(len(document.findall('.//w:tbl',ns)),1)
+            self.assertEqual(len(document.findall('.//w:tbl/w:tr',ns)),2)
+            self.assertEqual(len(document.findall('.//w:tbl/w:tr/w:tc',ns)),4)
+
+            exported = Path(directory) / 'exported.docx'
+            exported.write_bytes(files.result)
+            exported_hash = sha256(exported.read_bytes()).hexdigest()
+            files.sources['synthetic-result'] = exported
+            for _ in range(2):
+                rendered = client.post('/v1/officecli/render',headers=headers,
+                    json={'file_id':'synthetic-result','format':'docx','grid':2})
+                self.assertEqual(rendered.status_code,200,rendered.text[:300] if rendered.status_code!=200 else '')
+                with Image.open(BytesIO(rendered.content)) as image:
+                    self.assertEqual(image.format,'PNG')
+                    image.verify()
+                self.assertEqual(sha256(exported.read_bytes()).hexdigest(),exported_hash)
+                self.assertFalse(Path('/tmp/.cache/chromium-headless').exists())
+                self.assertFalse(Path('/tmp/.config/chromium-headless').exists())
+                self.assertEqual(list(Path('/tmp').glob('officecli-runtime-*')),[])
+
+            files.result = None
+            files.attached.clear()
+            files.reads = 0
+            files.change_on_second_read = True
+            response = client.post('/v1/officecli/documents/export-answer', headers=headers,
+                                   json={'output_name':'changed-note.docx','source_note_id':'native-note'})
+            self.assertEqual(response.status_code,502,response.text)
+            self.assertIn('source changed',response.json()['detail'])
+            self.assertIsNone(files.result)
+            self.assertEqual(files.attached,[])
+
     def test_prepared_text_is_imported_by_real_cli_and_rewrites_are_not_published(self):
         settings = load_settings()
         executor = SubprocessOfficeCliExecutor(settings)
@@ -363,4 +433,4 @@ class DiscoveryQualification(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

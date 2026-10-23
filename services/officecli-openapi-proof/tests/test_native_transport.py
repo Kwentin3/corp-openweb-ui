@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 import json
+from pathlib import Path
 import subprocess
 import sys
 
@@ -85,6 +86,37 @@ def test_successful_process_preserves_stderr_without_corrupting_json():
     result = executor.run("-c", "import sys; print('{\"success\":true}'); print('native warning',file=sys.stderr)")
     assert json.loads(result.text) == {"success": True}
     assert result.diagnostics == "native warning"
+
+
+@pytest.mark.parametrize('outcome',['success','error','timeout'])
+def test_per_call_browser_state_is_removed_without_removing_output(tmp_path,outcome):
+    report = tmp_path / 'runtime-paths.json'
+    artifact = tmp_path / 'result.docx'
+    code = (
+        "import json,os,pathlib,sys,tempfile,time;"
+        "cache=pathlib.Path(os.environ['XDG_CACHE_HOME']);"
+        "config=pathlib.Path(os.environ['XDG_CONFIG_HOME']);"
+        "cache.mkdir(parents=True);config.mkdir(parents=True);"
+        "(cache/'browser-cache').write_bytes(b'cache');"
+        "(config/'browser-profile').write_bytes(b'profile');"
+        "fd,temporary=tempfile.mkstemp();os.close(fd);"
+        "pathlib.Path(sys.argv[1]).write_text(json.dumps({'cache':str(cache),'config':str(config),'temporary_file':temporary}));"
+        "pathlib.Path(sys.argv[2]).write_bytes(b'caller-owned result');"
+        + ("time.sleep(60)" if outcome=='timeout' else f"sys.exit({7 if outcome=='error' else 0})")
+    )
+    executor = SubprocessOfficeCliExecutor(replace(settings(),binary=sys.executable,timeout_seconds=2))
+    if outcome=='success':
+        executor.run('-c',code,str(report),str(artifact))
+    else:
+        with pytest.raises(OfficeCliFailure):
+            executor.run('-c',code,str(report),str(artifact))
+    paths = json.loads(report.read_text())
+    assert paths['cache'] != paths['config']
+    assert Path(paths['temporary_file']).parent == Path(paths['cache']).parent
+    for value in paths.values():
+        assert not Path(value).exists()
+        assert not Path(value).parent.exists()
+    assert artifact.read_bytes()==b'caller-owned result'
 
 
 def test_failed_process_preserves_both_diagnostic_streams():
