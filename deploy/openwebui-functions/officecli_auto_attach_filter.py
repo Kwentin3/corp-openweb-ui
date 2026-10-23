@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.1.2-native-note-export
+version: 2.1.3-native-note-export
 required_open_webui_version: 0.9.6
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -38,18 +38,19 @@ DEFAULT_TARGET_MODEL_IDS = (
     "claude-opus-5-5"
 )
 OFFICECLI_INSTRUCTION = (
-    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI tools are available for reading, creating and editing DOCX, XLSX and PPTX. "
-    "Use load_officecli_skill for official guides and get_officecli_help for installed command details. "
-    "For saved notes, pass source_note_id to export_answer_to_word; do not retype their text. "
-    "The installed documentation owns the workflow; tool schemas describe the file-transport mapping and its limits. "
-    "Get file IDs from attached_files/list_chat_files, not retrieval citations. "
-    "Use explicit file_id when multiple inputs are available. Reads do not publish files; create/apply work on copies and return native attachments. "
-    "For an attached PPTX template or previous version, edit its copy with apply_office_presentation_batch; create a blank deck only for an explicitly independent presentation. "
-    "If the selected PPTX fails validation, tell the user the concrete findings and offer a valid earlier source or repair of a copy; do not silently replace the source. "
-    "For added template-style slides, check native OfficeCLI add/from cloning before Terminal. "
-    "Compare slide objects via OfficeCLI query/get and render; use Terminal only for a named unsupported operation. Continue from the last successful result_file_id. "
-    "This adapter uses nonresident CLI execution: each create/apply saves before returning, so separate open/save/close calls are unnecessary. "
-    "For a produced file, use its returned result_file_id and download_url verbatim; never prepend sandbox: or invent a path."
+    f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI reads/creates/edits DOCX, XLSX, PPTX. "
+    "For manual CLI edits, use load_officecli_skill and get_officecli_help for installed syntax. "
+    "User source-preservation requirements and tool schemas take precedence over generic guide examples. "
+    "Preserve requested fields, notes and checklists; add no filler or unrequested cover/TOC. "
+    "For saved notes, use export_answer_to_word with source_note_id to import the full text instead of retyping it into create commands. "
+    "Use attached_files/list_chat_files IDs, not citations; explicit file_id for multiple inputs. Reads do not publish. "
+    "create/apply save copies and return native attachments. Batches contain edits, not create/open/save/close. "
+    "Before claiming readability, render the final DOCX with grid 2 and inspect every page. "
+    "For an attached PPTX template or previous version, edit its copy with apply_office_presentation_batch; blank decks require an independent request. "
+    "If invalid, report concrete findings and offer a valid earlier source or copy repair; never silently replace the source. "
+    "Before Terminal, check native add/from cloning for template-style slides. "
+    "Compare slide objects via query/get and render; Terminal only for a named unsupported operation. Continue from the last successful result_file_id. "
+    "Return result_file_id/download_url verbatim, without sandbox: or invented paths."
 )
 
 

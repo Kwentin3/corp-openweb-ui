@@ -1059,13 +1059,17 @@ def create_app(
     @app.post(
         "/v1/officecli/documents/export-answer", response_model=CreateDocumentResponse,
         operation_id="export_answer_to_word",
-        description=AUTHOR_WORKFLOW_TRIGGER + (
-            "Export an ALREADY PREPARED assistant answer or saved note to Word in full. Use this when the "
+        description=(
+            "Export an ALREADY PREPARED assistant answer or saved note to Word in full. A plain export "
+            "needs no authoring guide or command batch: Markdown headings, lists and tables are imported automatically. "
+            "Use this when the "
             "user asks to format the answer, protocol or text above as Word, including adding date/signature fields. "
-            "For an already saved note, set source_note_id to its native note id and omit source_message. "
+            "For a saved note, pass its native source_note_id and output_name; omit source_message and commands "
+            "unless extra formatting commands are explicitly requested. "
             "The complete native message or note is imported directly by OfficeCLI; do not retype it. Commands "
             "only format the imported content and add requested fields. Source paragraphs must remain unchanged "
-            "and in order; a rewrite is rejected before publication. Validate and attach through the native file owner."
+            "and in order; a rewrite is rejected before publication. For extra commands, consult get_officecli_help "
+            "when syntax is uncertain. Validate and attach through the native file owner."
         ),
     )
     def export_answer_to_word(
