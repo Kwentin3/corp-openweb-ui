@@ -42,9 +42,12 @@ docker build --build-arg OPENWEBUI_BASE_IMAGE="$accepted_image" \
 
 Installation and verification run inside that image. The component CI also
 qualifies this package after the existing 0.12.2 context overlay. The ordinary
-production image excludes it; preparing the package does not activate recording
-or change the deployed image. Deploy a qualified diagnostic image through the
-existing Compose owner, with the usual immutable identity and rollback record.
+0.12.2 runtime builder and its public context packager include this facility,
+disabled by default, so later routine releases retain it. The command above
+also supports adding it to an existing accepted image without rebuilding its
+frontend or unrelated integrations. Preparing an image does not activate
+recording or change the deployed image. Deploy through the existing Compose
+owner, with the usual immutable identity and rollback record.
 
 ## Enable one bounded reproduction
 
@@ -105,8 +108,10 @@ after the asynchronous native ownership read. Files are mode 0600 and the
 diagnostic/run directories mode 0700; unsafe existing permissions, symlinks,
 invalid configuration or I/O/DB failures make the observer skip recording
 without changing the model request. Remove retained runs through the normal
-authorized evidence-retention procedure. Restore the accepted production image
-through Compose after a temporary diagnostic deployment.
+authorized evidence-retention procedure. The installed facility can remain
+available with capture disabled; no background recorder or second WebUI is
+needed. To roll back the image change, restore the saved accepted image through
+Compose. Disabling capture is independent of rolling back the image.
 
 ## Limits of the evidence
 

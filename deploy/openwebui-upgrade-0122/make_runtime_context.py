@@ -26,7 +26,11 @@ def main(frontend, output):
             assert hashlib.file_digest(stream, 'sha256').hexdigest() == manifest[name]['sha256']
     output.mkdir(parents=True, exist_ok=False)
     shutil.copytree(build, output / 'build')
-    bundles = {'tool-context': 'tool-context-v0.12.2', 'media-upload': 'media-upload-v0.12.2'}
+    bundles = {
+        'tool-context': 'tool-context-v0.12.2',
+        'media-upload': 'media-upload-v0.12.2',
+        'provider-context': 'provider-context-v0.12.2',
+    }
     for destination, source in bundles.items():
         target = output / destination
         target.mkdir()

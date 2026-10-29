@@ -12,6 +12,11 @@ RUN python /usr/local/lib/openwebui-tool-context/apply_context.py --check \
     && python /usr/local/lib/openwebui-media-upload/apply_media.py /app --backend-only --check \
     && python /usr/local/lib/openwebui-media-upload/apply_media.py /app --backend-only \
     && python /usr/local/lib/openwebui-media-upload/verify_backend.py /app
+COPY provider-context/ /usr/local/lib/openwebui-provider-capture/
+COPY provider-context/provider_context_capture.py provider-context/capture_control.py /app/backend/open_webui/utils/
+RUN python /usr/local/lib/openwebui-provider-capture/apply_capture.py --check \
+    && python /usr/local/lib/openwebui-provider-capture/apply_capture.py \
+    && python /usr/local/lib/openwebui-provider-capture/verify_capture.py -v
 RUN python -c "import pathlib,shutil; p=pathlib.Path('/app/build'); assert p.is_dir(); shutil.rmtree(p)"
 COPY build/ /app/build/
 COPY frontend-receipt.json /usr/local/lib/openwebui-media-upload/frontend-receipt.json
@@ -20,5 +25,6 @@ COPY verify_frontend_artifact.py /usr/local/lib/openwebui-media-upload/verify_fr
 RUN python /usr/local/lib/openwebui-media-upload/verify_frontend_artifact.py
 LABEL corp.upstream.version="0.12.2" \
       corp.upstream.commit="6a18585ff4c2e5f6805f682222cfbc46dc669ef8" \
-      corp.overlay="native-media-and-responses-context" \
+      corp.overlay="native-media-responses-context-and-provider-capture" \
+      corp.provider_context_capture="available-default-off" \
       corp.frontend.build="${BUILD_HASH}"

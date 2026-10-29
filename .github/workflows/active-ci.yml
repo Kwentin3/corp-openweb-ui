@@ -107,7 +107,7 @@ jobs:
       - name: Check OpenWebUI 0.12.2 backend components in the pinned runtime
         if: steps.scope.outputs.upgrade0122 == 'true'
         run: |
-          python -m unittest discover -s deploy/openwebui-upgrade-0122 -p test_launch_stage.py -v
+          python -m unittest discover -s deploy/openwebui-upgrade-0122 -p 'test_*.py' -v
           docker build --network none -f deploy/openwebui-upgrade-0122/verify_component.Dockerfile -t openwebui-0122-component-check .
 
       - name: Validate resolved isolated staging Compose
