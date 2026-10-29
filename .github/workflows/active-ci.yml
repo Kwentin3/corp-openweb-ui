@@ -108,7 +108,14 @@ jobs:
         if: steps.scope.outputs.upgrade0122 == 'true'
         run: |
           python -m unittest discover -s deploy/openwebui-upgrade-0122 -p 'test_*.py' -v
-          docker build --network none -f deploy/openwebui-upgrade-0122/verify_component.Dockerfile -t openwebui-0122-component-check .
+          component_context="$(mktemp -d "$RUNNER_TEMP/openwebui-components.XXXXXX")"
+          cp -a deploy/openwebui-patches/tool-context-v0.12.2 "$component_context/tool-context"
+          cp -a deploy/openwebui-patches/media-upload-v0.12.2 "$component_context/media-upload"
+          cp -a deploy/openwebui-patches/provider-context-v0.12.2 "$component_context/provider-context"
+          docker build --network none --target backend \
+            --build-arg BUILD_HASH=0000000000000000000000000000000000000000000000000000000000000000 \
+            -f deploy/openwebui-upgrade-0122/runtime.Dockerfile \
+            -t openwebui-0122-component-check "$component_context"
 
       - name: Validate resolved isolated staging Compose
         if: steps.scope.outputs.staging == 'true'

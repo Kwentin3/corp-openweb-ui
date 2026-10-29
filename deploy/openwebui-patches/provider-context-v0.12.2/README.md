@@ -40,8 +40,10 @@ docker build --build-arg OPENWEBUI_BASE_IMAGE="$accepted_image" \
   deploy/openwebui-patches/provider-context-v0.12.2
 ```
 
-Installation and verification run inside that image. The component CI also
-qualifies this package after the existing 0.12.2 context overlay. The ordinary
+Installation and verification run inside that image. Component CI builds the
+actual ordinary runtime Dockerfile's `backend` target, including the existing
+context/media overlays and this observer; no duplicate installation recipe is
+maintained. The ordinary
 0.12.2 runtime builder and its public context packager include this facility,
 disabled by default, so later routine releases retain it. The command above
 also supports adding it to an existing accepted image without rebuilding its
