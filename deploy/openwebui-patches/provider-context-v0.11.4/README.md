@@ -1,5 +1,9 @@
 # Scoped final-provider request capture
 
+For the accepted 0.12.2 runtime use
+[provider-context-v0.12.2](../provider-context-v0.12.2/README.md).
+This installer remains version-specific and must not be applied to 0.12.2.
+
 Temporary diagnostic overlay for the exact deployed OpenWebUI 0.11.4 router.
 It observes the serialized request immediately before the native HTTP sender.
 The existing flight recorder covers resources, container events and sanitized
