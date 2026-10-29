@@ -63,7 +63,8 @@ image/video admission and intercepts all document types.
 3. Qualify full-source extraction and native cache reuse, run necessary CI,
    prepare a reversible activation and verify ordinary-user portal behavior.
 
-Current step: implementation and independent component checks prepared. Three
+Current step: installed, ordinary-user acceptance passed and the original failed
+attachment reprocessed; closing source delivery and independent review. Three
 source pages (1, 6, 22) completed through the native provider connection in
 26.872 seconds: 9,313 input and 2,808 output tokens, estimated $0.0023353 at
 the published standard tariff. Original clause 2.3 negations and clause 2.7
@@ -75,7 +76,8 @@ text characters across all 22 pages (estimated $0.0161408). Source comparison
 found a malformed merged table header. The prompt was minimally refined; a
 bounded page-18 repeat produced all eight leaf columns with consistent rows,
 all visible header text and empty cells (19.011 seconds, 3,387 input / 1,767
-output tokens). No implementation installed or Documents settings changed yet.
+output tokens). The qualified source was subsequently installed and the five
+Documents settings below activated through native administration APIs.
 
 The installed Chat Completions conversion drops raw Responses completion
 status. The adapter therefore uses the existing native Responses endpoint for
@@ -108,9 +110,90 @@ status. Page uncertainty remains visible in saved text as a labelled note.
 
 Rollback: restore the previous extraction engine first, then the other four
 settings, then disable the Function. Do not delete native cached file content.
+The config-update API skips JSON null values. The previous supported-media
+setting was null; restore that exact value through native
+`await Config.upsert({'rag.content_extraction.supported_media_mime_types': None})`
+in the installed application environment when performing a full rollback.
 An absent/deleted/inactive Function fails closed. The module is removable and
-the previous default loader is the recorded baseline. No live rollback test or
-ordinary-user acceptance is claimed before the receipts below are recorded.
+the previous default loader is the recorded baseline. Live rollback was not
+exercised; registration, enable/disable and failure behavior have component
+coverage. The installed route was verified before changing the loader.
+
+## Acceptance receipts, 2026-10-29
+
+- Installed Event content SHA256:
+  `5cf11c86f9baecb74a8d17f1188fae7e39bfc938aca9f33bcac1daec5cf162c4`.
+  Readback matched the candidate in source commit `c43a38a5`; the installed
+  upstream image stayed unchanged and healthy, restart count zero.
+- A fresh native account with role `user` uploaded the complete source using
+  the normal chat file chooser. The adapter returned 22 page documents; native
+  ingestion stored 69,111 characters and 96 indexed chunks, status completed.
+  Original stored bytes were independently hash-checked, not merely trusted
+  from client metadata: 13,440,229 bytes, SHA256
+  `a7b379fc2fece3c4edde6c31d809583f7af6125c1384ee5b42be6c20ee2cb844`.
+  The upload's File ID remained the same throughout extraction and later use.
+- OCR took 146.243 seconds, with 66,072 input and 19,071 output tokens.
+  Estimated standard model cost: $0.0161427, excluding embedding and later chat
+  calls or any gateway markup. Native indexing finished about 16 seconds later.
+- Final request construction and the installed native Responses form/converter
+  were replayed: complete PDF bytes, explicit OCR instructions and strict page
+  schema survived; no parent chat, tools or previous response ID were included.
+  Raw Responses completion status was checked before returning documents.
+  A separate complete provider HTTP trace of the nested production call was
+  not captured; actual file bytes, pinned request builder and native boundary
+  replay establish the input, while provider usage and native output establish
+  the completed call.
+- GPT-6.1 Sol answered from native RAG chunks and called `view_knowledge_file`
+  on the same File ID; its saved tool result contained 20,000 characters.
+  It quoted clause 2.3 with both critical negations and correctly answered the
+  one-contract / twenty-card limits. After a browser reload and model change,
+  GPT-6 Luna answered twenty cards and three working days from native sources.
+  File text SHA256 remained
+  `3e7ab36e0f65c796bcab399f5514625567ee88b7d206795fa0e045b40515b490`.
+  Bounded native logs across upload, both answers and reload show exactly one
+  OCR completion for that acceptance upload.
+- The acceptance upload's table preserved all eight leaf columns and empty cells. A full
+  comparison with the related DOCX and targeted PDF image review covered pages
+  6, 9, 11, 12, 18, 21 and 22: important amounts, deadlines, numbered clauses,
+  negations and numeric identifiers agreed. None of the DOCX's sixty standalone
+  Russian negations disappeared. This is source qualification, not a claim of
+  character-perfect transcription of every image.
+- One known literal error remains: a URL on page 9 ends with a Cyrillic `т`
+  instead of Latin `t`. The stored text explicitly flags that URL in
+  `[OCR uncertainty, page 9]`. Seal uncertainty is also visible to later models.
+  Do not silently normalize uncertain source characters or claim 100% OCR
+  accuracy. Page-count/JSON success alone was not used as quality acceptance.
+- DOCX through the new route exactly matched its prior native extraction:
+  68,080 characters. A text file also retained its exact content. An invalid
+  PDF failed before any OCR call, stored no content and showed the normal UI
+  error toast: `PDF is invalid or encrypted`.
+- 52 component/ASGI checks passed locally and in the Native Luna OCR CI job;
+  Active CI passed for the candidate. Native owner fakes in portable tests are
+  distinguished from the installed-source replay and real user evidence.
+- The temporary account, chat and all five acceptance files were deleted via
+  native APIs after private receipts were retained. File inventory readback
+  was zero, deleted chat readback 401 and deleted user readback 404. Original
+  customer attachments and chat history were retained.
+
+Detailed private inputs, provider probes, source images, file/chat readbacks,
+cache-window logs, runtime identity and cleanup receipts remain in the original
+checkout's ignored `local/pdf-audit-20261029/` directory. They are intentionally
+excluded from Git. No server follower or diagnostic service was started.
+
+The original failed PDF was explicitly reprocessed once through native
+`/api/v1/retrieval/process/file` under its existing File ID. It now has status
+completed, error null and 69,236 stored characters instead of 21 spaces; its
+original-byte hash is unchanged. Native OCR took 157.648 seconds, 66,073 input /
+18,869 output tokens (estimated $0.0160418), and processing including indexing
+completed in 186.431 seconds. Text SHA256 is
+`7de523196a52c90a6cb7449a59a51efa910b79243ae2618a31c0c05f52aa6cfa`.
+The previously ambiguous URL was transcribed with the correct Latin `t` in this
+run. The merged table header was linearized with inconsistent Markdown column
+counts, while its visible header text was retained and page-18 uncertainty
+explicitly recorded. Table layout is consequently a known qualification limit,
+not a guarantee of character/geometry-perfect reconstruction. Important clauses
+2.3/2.7 and all sixty standalone source negations were retained. Customer chat
+messages were not edited; existing tools/RAG can now read the original File ID.
 
 ## Constraints and unresolved risks
 
@@ -119,7 +202,8 @@ ordinary-user acceptance is claimed before the receipts below are recorded.
   diagnostic needs explicit resource/stop/retention ownership.
 - Whole-document generation can omit source content despite valid JSON; review
   original pages and omissions, not just page/token counts.
-- Confirm native connection auth type and model catalog availability on startup.
+- Current static-bearer Responses connection was verified. Session-auth routes,
+  model aliases/parameter overrides and non-vision models fail closed.
 - No hidden retries, fallback model, duplicate OCR storage or original-byte
   replacement. Reprocessing must remain an explicit native operation.
 - Event installation/configuration and production activation must be reviewable
