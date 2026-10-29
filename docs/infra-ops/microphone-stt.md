@@ -95,6 +95,38 @@ text insertion. Physical desktop microphone and mobile-device acceptance were
 not performed. Browser speech recognition itself was not independently retested;
 its deployed code is byte-identical and its personal selection persists.
 
+## Bounded native speed comparison, 29 October 2026
+
+The native Lemonfox-primary option was tested again without changing the running
+service. An owned browser context encoded the same known 11.6-second Russian
+source with MediaRecorder into a 176,942-byte WebM/Opus file (SHA256
+`fa4f662c0af111b0a6a37797e0efb53f28a1f746b569f29245fac8845ed41d95`).
+All four samples reused these exact bytes and the installed `audio.transcribe`
+function, native configuration, and real Lemonfox provider. Timing wrappers
+delegated unchanged to the original functions. The environment flag was set only
+for each isolated probe process; the application and user settings stayed intact.
+
+| Sample order | Preprocessing | Total seconds | Conversion seconds | Provider handler seconds |
+| --- | --- | ---: | ---: | ---: |
+| 1 | Native default | 8.004 | 0.574 | 7.275 |
+| 2 | Bypass | 4.725 | skipped | 4.725 |
+| 3 | Bypass | 5.039 | skipped | 5.039 |
+| 4 | Native default | 4.998 | 0.529 | 4.269 |
+
+All four returned the complete source text exactly. Bypass works with this
+short WebM sample, but a consistent total-time improvement was not established:
+the second default sample was as fast as bypass, and conversion itself cost only
+0.5–0.6 seconds. The earlier 22-second UI sample does not establish conversion as
+the cause of that delay. Provider/network variability remains material.
+
+Keep the native preprocessing default for now. Skipping conversion, compression
+and splitting has not been qualified on longer recordings, other browser codecs,
+or other Audio paths. No fleet-wide preference or live environment flag was
+changed for this pilot. These measurements cover the native transcription
+function after imports, not HTTP upload/UI rendering or physical microphone
+latency. Protected timing receipts are under the existing operator evidence
+directory's `timing/` child; per-call temporary files were removed.
+
 ## Recovery
 
 Protected operator evidence is retained on the production host under
