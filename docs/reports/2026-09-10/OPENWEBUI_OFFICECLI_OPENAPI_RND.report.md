@@ -10,6 +10,15 @@ Route: `agent/issue-451-officecli-openapi-rd`
 
 Scope: R&D only; OpenAPI only; no production activation
 
+Historical architecture snapshot retained from commits `ff8e8cf7` and
+`0d10c33f`. This completed R&D selected the integration boundary and defined a
+proof; it did not implement or qualify production. Its versions, proposed API
+surface, restrictions and next steps describe September 2026. The subsequent
+[DOCX proof](officecli-openapi-docx-proof.report.md) records the bounded runtime
+result. Use the [current runbook](../../infra-ops/officecli-openapi-docx-release.md)
+for supported configuration and release status. This report adds no new runtime
+capability or commercial stage.
+
 ## 1. Verdict
 
 OfficeCLI is suitable as the external Office engine, but it does not provide a

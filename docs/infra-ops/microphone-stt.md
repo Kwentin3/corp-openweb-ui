@@ -62,7 +62,12 @@ Do not use `ui.default_interface_settings.audio.stt.engine = web` to preserve
 browser selection globally: the native UI saves Default by omitting `engine`;
 merging a global browser preference would select Web API again after reload.
 
-## Acceptance evidence
+## Provider activation acceptance, 29 October 2026
+
+This section records the activation snapshot before the fleet change below.
+The later provider-debug image delivery is recorded in the
+[production runbook](openwebui-0122-cutover.md#current-operator-snapshot-29-october-2026);
+the image and container timestamps below identify this earlier check.
 
 The final readback binds this configuration to image
 `sha256:a0f5752afafd24ae065190ef28d88717e9a29c739ccb23be1e2d3e7ff7bfe424`.
@@ -97,8 +102,9 @@ remained 26 October 2026, 14:53:46 UTC.
   evidence remain retained.
 
 Synthetic capture verifies the browser recorder, server/provider route, and
-text insertion. Physical desktop microphone and mobile-device acceptance were
-not performed. Browser speech recognition itself was not independently retested;
+text insertion. This activation check did not exercise a physical desktop
+microphone or mobile device; later user-reported acceptance is recorded below.
+Browser speech recognition itself was not independently retested;
 its deployed code is byte-identical and its personal selection persists.
 
 ## Bounded native speed comparison, 29 October 2026
