@@ -63,8 +63,10 @@ image/video admission and intercepts all document types.
 3. Qualify full-source extraction and native cache reuse, run necessary CI,
    prepare a reversible activation and verify ordinary-user portal behavior.
 
-Current step: installed, ordinary-user acceptance passed and the original failed
-attachment reprocessed; closing source delivery and independent review. Three
+Current state: installed, ordinary-user acceptance passed and the original
+failed attachment reprocessed. Independent outcome review passed for the exact
+installed module; source delivery is tracked in
+[PR #578](https://github.com/Kwentin3/corp-openweb-ui/pull/578). Three
 source pages (1, 6, 22) completed through the native provider connection in
 26.872 seconds: 9,313 input and 2,808 output tokens, estimated $0.0023353 at
 the published standard tariff. Original clause 2.3 negations and clause 2.7
@@ -174,6 +176,11 @@ coverage. The installed route was verified before changing the loader.
   native APIs after private receipts were retained. File inventory readback
   was zero, deleted chat readback 401 and deleted user readback 404. Original
   customer attachments and chat history were retained.
+- Final read-only database and storage checks found zero temporary file, user
+  and chat rows and zero remaining temporary upload objects. They also confirmed
+  the original source byte hash, completed status and active Function content
+  hash directly in the installed artifact. Independent outcome review passed
+  the implementation and ordinary-user milestone with the limitations below.
 
 Detailed private inputs, provider probes, source images, file/chat readbacks,
 cache-window logs, runtime identity and cleanup receipts remain in the original
