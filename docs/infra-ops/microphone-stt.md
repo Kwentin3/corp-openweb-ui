@@ -151,6 +151,10 @@ prefix was preserved and the transcript appeared once. Recording UUID was
 `c025bf6e-05df-4157-9b0d-0198f19e6c10`. Physical-device acceptance remains distinct
 from this synthetic capture check.
 
+After the fleet rollout, the user confirmed that microphone dictation works in
+their own session. This is user-reported device acceptance; device/browser
+identity and mobile coverage were not independently instrumented.
+
 The temporary account's sessions were revoked, its old token returned 401, and
 the account was deleted through native APIs. Its owned browser context was
 closed. Refreshing the original account loaded Default as expected.
