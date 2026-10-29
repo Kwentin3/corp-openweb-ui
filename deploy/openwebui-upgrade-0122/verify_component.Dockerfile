@@ -13,3 +13,12 @@ RUN python /component-check/tool-context/apply_context.py --check \
     && python /component-check/media-upload/apply_media.py /app --backend-only --check \
     && python /component-check/media-upload/apply_media.py /app --backend-only \
     && python /component-check/media-upload/verify_backend.py /app
+
+# The optional observer is verified after the accepted context adaptation.
+# It remains absent from the ordinary production runtime.Dockerfile.
+COPY deploy/openwebui-patches/provider-context-v0.12.2/ /component-check/provider-context/
+COPY deploy/openwebui-patches/provider-context-v0.12.2/provider_context_capture.py /app/backend/open_webui/utils/provider_context_capture.py
+COPY deploy/openwebui-patches/provider-context-v0.12.2/capture_control.py /app/backend/open_webui/utils/provider_capture_control.py
+RUN python /component-check/provider-context/apply_capture.py --check \
+    && python /component-check/provider-context/apply_capture.py \
+    && python -m unittest discover -s /component-check/provider-context -p verify_capture.py -v

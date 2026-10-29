@@ -73,7 +73,7 @@ jobs:
                   staging=true ;;
                 deploy/openwebui-flight-recorder/*)
                   recorder=true ;;
-                compose/openwebui.release-0122*.yml|deploy/openwebui-upgrade-0122/*|deploy/openwebui-patches/media-upload-v0.12.2/*|deploy/openwebui-patches/tool-context-v0.12.2/*)
+                compose/openwebui.release-0122*.yml|deploy/openwebui-upgrade-0122/*|deploy/openwebui-patches/media-upload-v0.12.2/*|deploy/openwebui-patches/tool-context-v0.12.2/*|deploy/openwebui-patches/provider-context-v0.12.2/*)
                   upgrade0122=true ;;
                 deploy/openwebui-functions/stage2_media_intake.py|deploy/openwebui-patches/media-upload-v0.11.4/*)
                   stt=true
