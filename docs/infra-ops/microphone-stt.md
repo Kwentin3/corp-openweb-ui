@@ -1,12 +1,15 @@
 # Microphone dictation: browser Web API and Lemonfox
 
-Updated 29 October 2026. Production OpenWebUI 0.12.2 provides both paths through
-the existing microphone button and native personal Audio settings. This is
-manual selection; there is no automatic fallback on a browser recognition error.
+Updated 29 October 2026. Production OpenWebUI 0.12.2 uses native server-side
+Lemonfox as the primary microphone STT for all existing and new accounts. Both
+paths remain available through the existing microphone button and native
+personal Audio settings. There is no automatic fallback between engines.
 
 ## User instructions
 
-Refresh the portal, then open **Settings → Audio → Speech-to-Text Engine**:
+Refresh the portal to load the new default. No personal selection is required
+for Lemonfox. To inspect or change the choice, open
+**Settings → Audio → Speech-to-Text Engine**:
 
 | Personal choice | Path |
 | --- | --- |
@@ -19,11 +22,14 @@ chat input for review. The separate instant-send setting retains its native
 behavior. Server processing has a wait after confirmation; it does not reproduce
 browser recognition's immediate feedback.
 
-All 31 accounts present before activation retained the browser path through an
-explicit `settings.ui.audio.stt.engine = web` preference. Accounts created later
-use Lemonfox by default unless they select Web API. A browser recognition outage
-does not prevent server transcription when recording still works. Denied device
-access or a failed recorder must be resolved separately.
+The initial selectable-reserve activation preserved Web API for 31 existing
+accounts. The subsequent explicitly authorized fleet rollout removed only their
+`settings.ui.audio.stt.engine` overrides, selecting native Default (Lemonfox).
+Other preferences were preserved. Accounts created later also use Lemonfox by
+default. Users can still explicitly select Web API through native settings.
+A browser recognition outage does not prevent server transcription when
+recording still works. Denied device access or a failed recorder must be
+resolved separately.
 
 ## Native configuration owner
 
@@ -127,7 +133,60 @@ function after imports, not HTTP upload/UI rendering or physical microphone
 latency. Protected timing receipts are under the existing operator evidence
 directory's `timing/` child; per-call temporary files were removed.
 
-## Recovery
+## Fleet rollout acceptance, 29 October 2026
+
+The fleet change used a native SQLAlchemy transaction to remove only the personal
+STT engine field. A temporary ordinary account was deliberately given Web API
+before migration so its UI acceptance exercised the same transition as the real
+accounts. All 31 real accounts and the one temporary test account moved to native
+Default. Every other user preference and the complete server configuration were
+compared against the pre-change snapshot.
+
+The ordinary-user Audio screen showed Default after migration, with its unrelated
+test preference preserved. The microphone check used the existing known Russian
+audio fixture, actual MediaRecorder, native server endpoint and real Lemonfox;
+browser SpeechRecognition was absent. Exactly one request returned HTTP 200 in
+8.345 seconds after confirmation, with the complete source text. The typed
+prefix was preserved and the transcript appeared once. Recording UUID was
+`c025bf6e-05df-4157-9b0d-0198f19e6c10`. Physical-device acceptance remains distinct
+from this synthetic capture check.
+
+The temporary account's sessions were revoked, its old token returned 401, and
+the account was deleted through native APIs. Its owned browser context was
+closed. Refreshing the original account loaded Default as expected.
+
+Final readback: all 31 real accounts have native Default, all unrelated user
+settings exactly match the migration snapshot, and the server configuration hash
+is unchanged. QA user/auth/chat counts and exact test cache artifacts are zero.
+The same container is healthy, with restart count 0 and the unchanged 26 October
+start time. Recovery snapshots are mode 0600 on the host and in the data volume.
+
+The fleet rollback was rehearsed without commit. All users' settings hashes
+before and after the rehearsal matched, and configuration stayed unchanged.
+The live preprocessing flag, service image and service lifecycle were untouched.
+
+## Recovery for the fleet default change
+
+Protected recovery files are under
+`/opt/openwebui-ops/microphone-stt-20261029/fleet/`. The rollback script and
+hash-matched private snapshot restore the earlier personal preferences without
+changing the configured Lemonfox provider. The original snapshot is mode 0600 at
+`/app/backend/data/microphone-stt-fleet-20261029.rollback.private.json`.
+
+Rehearse recovery without applying it:
+
+```bash
+docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \
+  openwebui-0122-openwebui-0122-1 python - \
+  < /opt/openwebui-ops/microphone-stt-20261029/fleet/rollback.py
+```
+
+To apply an explicitly authorized fleet rollback, add `--rollback` after
+`python -`. The script refuses configuration or personal-settings drift so it
+cannot overwrite later user edits. Deleted test accounts are skipped. Refresh
+clients after recovery. This operation does not restart the service.
+
+## Earlier provider activation recovery
 
 Protected operator evidence is retained on the production host under
 `/opt/openwebui-ops/microphone-stt-20261029/`. It includes the activation/rehearsal
@@ -135,7 +194,9 @@ logs, a rollback script, and a hash-matched copy of the private pre-change
 snapshot. The original snapshot remains mode 0600 in the WebUI data volume at
 `/app/backend/data/microphone-stt-20261029.rollback.private.json`.
 
-From a trusted host shell, rehearse the native rollback without applying it:
+The earlier provider-activation rollback also restores global Audio keys. It is
+not the rollback for the fleet preference change above. To rehearse that earlier
+operation from a trusted host shell without applying it:
 
 ```bash
 docker exec -i -e PYTHONDONTWRITEBYTECODE=1 \
