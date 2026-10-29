@@ -1,5 +1,47 @@
 # OpenWebUI 0.12.2 production and recovery
 
+## Current operator snapshot, 29 October 2026
+
+The latest completed image delivery is the default-off provider request debugger,
+source [PR #579](https://github.com/Kwentin3/corp-openweb-ui/pull/579), merged as
+`ed67edb54a79f94d8459d96fa988f0761f36c983`, with
+[Active CI passing](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/40933994599).
+The recorded runtime image is
+`sha256:6cc2c633a09e325b31c03acf57a5c846e381577e98ab43a993c932c599044139`,
+tag `corp-openwebui/0122:provider-debug-20261029`. It extends the accepted
+`sha256:a0f5752afafd24ae065190ef28d88717e9a29c739ccb23be1e2d3e7ff7bfe424`
+image, preserving the verified frontend and existing integrations.
+
+Only WebUI was recreated through its existing three-file Compose owner. Its data
+volume, configuration, routes and resource limits were preserved. The final
+readback was healthy, zero restarts and no OOM. A synthetic ordinary-user chat
+through Terra confirmed the final system prompt and prior/current user context
+in one captured request. Recording was then disabled and the temporary user,
+chat and model removed. This delivery did not repeat the full R1-R10 migration
+acceptance or qualify generated Office document contents.
+
+Use the [capture runbook](../../deploy/openwebui-patches/provider-context-v0.12.2/README.md)
+for explicit chat/task scope, limits, protected evidence and disabling. The
+facility is retained in ordinary runtime builds, disabled by default. It observes
+the supported native router's serialized body, not every provider route or
+provider-retained state. Lab qualification matched seven bodies byte-for-byte
+against the receiving synthetic provider; this is separate from the single
+ordinary-user production proof.
+
+Protected recovery material is under
+`/opt/openwebui-upgrade-0122/provider-context-debug-20261029`; retain the prior
+image tag `corp-openwebui/0122:rollback-before-provider-debug-20261029`.
+The online SQLite backup completed and its size, page count and schema were
+checked. A full integrity scan was interrupted at its diagnostic deadline;
+full restore/integrity acceptance is not claimed for this image-only delivery.
+Temporary home-lab resources and transfer tunnels were removed. A persistent
+home clone has not been provisioned by this delivery.
+
+Native microphone dictation was separately configured through the existing
+Audio owner; see [Lemonfox configuration and fleet recovery](microphone-stt.md).
+The sections below retain the original migration procedure and dated evidence;
+their earlier image identities are historical snapshots.
+
 ## Current status, 15 October 2026
 
 The production switch is complete. R1-R10 passed bounded functional and
