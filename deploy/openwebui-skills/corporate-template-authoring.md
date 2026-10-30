@@ -50,7 +50,10 @@ Skills/Knowledge/Files. Keep the binary DOCX outside the Skill.
    ID and SHA-256 so filling does not require reading the entire raw XML again.
    Require checks supported by the installed tools; report an unavailable external
    Word check as a limitation and return the produced copy with its actual status.
-   Describe all
+   When verified legacy fields reset to their defaults on update, document the
+   tested finalization for the filled copy (for example, locking only those
+   fields with native `w:fldLock`). Keep the reusable original unchanged and
+   preserve page-number fields. Describe all
    remaining unknowns honestly. Do not include binary/base64 or private test data.
 9. Create the private Skill with native `create_skill`, keeping only `SKILL.md`.
    Once the user approves sharing, call
