@@ -65,7 +65,7 @@ jobs:
             fi
             for path in "${changed[@]}"; do
               case "$path" in
-                services/officecli-openapi-proof/*|deploy/openwebui-functions/officecli_auto_attach_filter.py|deploy/openwebui-functions/officecli_word_export_action.py|deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py|deploy/openwebui-skills/artifact-workflow.md)
+                services/officecli-openapi-proof/*|deploy/openwebui-functions/officecli_auto_attach_filter.py|deploy/openwebui-functions/officecli_word_export_action.py|deploy/openwebui-functions/tests/test_officecli_auto_attach_filter.py|deploy/openwebui-skills/artifact-workflow.md|deploy/openwebui-skills/corporate-template-authoring.md|deploy/openwebui-tools/corporate_templates.py|deploy/openwebui-tools/corporate_template_models.json)
                   officecli=true ;;
                 services/stage2-stt/*|deploy/openwebui-media-lifecycle/*|deploy/openwebui-patches/apply_stage2_*)
                   stt=true ;;
