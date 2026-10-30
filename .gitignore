@@ -35,6 +35,7 @@ temp/
 
 # Local proof media and customer samples
 audio/
+/docs/templates docs officeCli/
 /_private_test_corpora/
 *.private.json
 *.private.sha256.json
