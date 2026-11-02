@@ -14,8 +14,9 @@ Rich UI iframe с Tool/Action на 0.12.2. До строительства об�
 браузерным чатом двух синтетических сотрудников. Шесть ответов, два key-budget
 отказа, независимость второго пользователя и восстановление после увеличения caps
 подтверждены runtime/provider/spend readback. Это приёмка только этого среза;
-административная форма ещё не реализована. Кандидат показа стоимости ответа/чата
-реализован и локально проверен; его runtime-приёмка ещё предстоит.
+административная форма ещё не реализована. Показ стоимости ordinary ответа/чата
+проверен на stock runtime с native Tool rounds, regeneration и UserValves; границы
+этого среза и оставшиеся требования приведены ниже.
 Платные вызовы не разрешены и в стенд не входят.
 
 ## Цель и ограничения
@@ -140,12 +141,47 @@ Raw `/spend/logs/v2` доступен в OSS; `/spend/report` относится
 
 Пользовательский шаг — получить решение A/B либо сохранить требование живой формы
 и согласовать поддерживаемый канал после доказанного gap. Обсуждение временного
-JSON этого решения не заменяет. Независимый следующий технический шаг — связать
-native spend с ответом/чатом через проверенную серверную принадлежность и читать
-стоимость из того же регистра. Далее остаются служебные категории, история цен,
+JSON этого решения не заменяет. Независимый cost slice — связь native spend с
+ответом/чатом и чтение стоимости из того же регистра — проверен ниже. Следующий
+минимум: details Action и runtime denial при OFF, затем readback historical rates
+и controlled native reset. Далее остаются служебные категории, история цен,
 calendar/concurrency/failure lifecycle и совместимость текущих маршрутов/Tools.
 Полный изолированный пользовательский сценарий остаётся критерием закрытия;
 отдельный live-check с платным API возможен только после отдельного согласования.
+
+Текущий следующий срез — native Action с read-only Rich UI детализацией и OFF
+budget-denial proof. Это не решает обратный канал административной HTML-формы.
+
+| Смысл → existing owner → контракт → потребитель | Роль нового блока |
+| --- | --- |
+| Доступ к своему ответу/чату → native Users/Chats → verified Action args + повторное native чтение → details Action | Representation-only adapter с проверкой owner output |
+| Ledger URL/reader key → существующие native Filter Valves → Functions.get_function_valves_by_id → общий cost_readback | Повторное использование конфигурации, без второго ключа/хранилища |
+| Начисленные суммы/модели/usage → native spend rows → CostSnapshot → подготовленный датированный HTML | Только отображение, не расчёт тарифов; каждый click читает свежие данные |
+| Синтетический cap/restore → native key API → update max_budget + readback → browser OFF-denial | Только fixture call-order coordinator; никакого изменения production |
+
+Proof сохраняет 6 успешных ответов / 8 physical calls / $1.60 и добавляет отдельный
+fresh-chat отказ при OFF. Подписанный отказ нельзя скрывать: отдельный scope,
+неизменные provider IDs/spend и все native rows отказного чата, включая zero/failure,
+проверяются отдельно. Details Action не меняет content ответа и не вызывает LLM;
+последующий модельный вызов должен подтвердить отсутствие HTML в контексте.
+
+Candidate details/OFF реализован: новый `cost_action.py` возвращает native
+`HTMLResponse` tuple, использует прежние Filter Valves/reader и повторно проверяет
+native user/chat/assistant/model. Модель/цена не вызываются и не рассчитываются.
+48 component tests прошли (включая 6 Action cases с реальным локальным HTTP reader),
+синтаксис Python/22 Bash/8 embedded Python и actionlint прошли. Offline OFF phase
+rehearsal подтверждает только `max_budget` writes, restore, drift rejection и
+проекцию всех zero/unknown rows. Exact verifier replay использует 8 прежних actual
+positive rows с явно synthetic additions для OFF/details: 5 допустимых вариантов
+приняты, 8 подмен отклонены. Это не runtime acceptance новых сценариев.
+Локальные evidence: `local/goal584/litellm/rehearse-off-denial.py`,
+`local/goal584/cost-display/rehearse_details_off_verify.safe.json`.
+HTML renderer rehearsal в Chrome156.0.8078.76 также прошёл: native sandbox без
+same-origin, точные DOM markers/Decimal/tokens/UTC, fresh-first порядок new+old,
+height518/550 без обрезания на ширинах1440/640, CSP/page errors0 и HTTP/WS0.
+Browser закрыт, серверы не запускались. Evidence:
+`local/goal584/cost-display/details-preview/browser.safe.json` и PNG рядом.
+Это проверка подготовленного renderer, не доказательство native Action API.
 
 ## Воспроизведение и границы доказательств
 
@@ -487,6 +523,29 @@ before/after остаётся строго равным. Оба допустим
 8 provider/native rows предыдущего run с source-derived patch; это локальная
 репетиция, а новый runtime capture ещё должен быть проверен на свежем candidate.
 Receipt — `local/goal584/cost-display/replay_actual_cost_verifier.safe.json`.
+
+Fresh candidate `b8a34e6701a4b02da6baae054890df80edf3088b`,
+[run 41474653568](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41474653568),
+завершился success; Active CI также success. Parent readback 53 JSON и replay
+verifier на raw runtime receipts прошли; 16 Git blob SHA-256 совпали с runtime,
+ZIP digest совпал с GitHub artifact. Проверены native PyJWT 2.13.0 и 42 unit
+checks (3 source-AST проверки skipped в контейнере). В CI выполнены все 6 новых
+ответов / 8 physical calls / $1.60; первый чат $1.20 включает regeneration,
+скрытый ответ и Tool. UserValves off/on сохранены native API; hidden model/chat
+после reload продолжает учёт, старые statuses видимы. Foreign chat — 401,
+unsigned raw call — 403, лишних provider calls нет. Подписи удалены перед provider;
+контекст auth before/after совпал, последующая native usage normalization явно
+сверена. Cleanup 0 containers/volumes. Артефакты:
+`local/goal584/runtime-proof-41474653568/receipts`, parent audit — `parent-review.safe.json`
+рядом с ними. Ключевые hidden/restored/control PNG просмотрены; независимый
+contract review C1–C5 всего этого staged slice — **PASS**. Reviewer самостоятельно
+прочитал raw receipts, источники и PNG, повторно связал 8 nonce/ledger/provider IDs
+и сверил 16 SHA-256. Это приёмка только явно перечисленного COST milestone,
+не полного GOAL и не production. Подробный результат —
+`local/goal584/runtime-proof-41474653568/contract-cost-review.md`.
+
+Дополнительный runtime budget denial именно при выключенном показе,
+details Action и delegated/background settlement остаются вне текущего cost slice.
 
 Независимый read-only следующий срез: native `1mo` поддерживает календарное первое
 число с global timezone/reset_time; текущий scalar `30d` также special-cased как
