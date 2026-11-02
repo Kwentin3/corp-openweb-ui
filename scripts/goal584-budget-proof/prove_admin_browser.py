@@ -207,21 +207,45 @@ def acknowledgement(response):
     return sent, chat_id
 
 
+def editor_embeds(message, method):
+    # Pinned middleware.py6194..6201 persists Tool HTML on the correlated
+    # function_call_output; top-level message.embeds belongs to other surfaces.
+    output = message.get("output") or []
+    calls = {item.get("call_id") for item in output if isinstance(item, dict)
+             and item.get("type") == "function_call" and item.get("status") == "completed"
+             and isinstance(item.get("name"), str) and item["name"].endswith(method)
+             and isinstance(item.get("call_id"), str) and item["call_id"]}
+    return [html for item in output if isinstance(item, dict)
+            and item.get("type") == "function_call_output" and item.get("status") == "completed"
+            and item.get("call_id") in calls for html in (item.get("embeds") or [])
+            if isinstance(html, str) and MARKER in html]
+
+
 def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, output, label, *, status=None):
     deadline = time.monotonic() + 60
+    method = "open_budget_form" if text == INTENT else "apply_budget_form"
     while True:
         stored = chat_read(page, base, token, chat_id)
         message = ((stored.get("chat") or {}).get("history", {}).get("messages") or {}).get(sent["id"], {})
-        embeds = [e for e in (message.get("embeds") or []) if isinstance(e, str) and MARKER in e]
+        embeds = editor_embeds(message, method)
         tasks = page.context.request.get(base + "/api/tasks/chat/" + chat_id,
             headers={"Authorization": "Bearer " + token}, timeout=10_000)
         require(tasks.status == 200 and isinstance(tasks.json().get("task_ids"), list), "Native admin task owner unavailable")
         if message.get("done") is True and not tasks.json()["task_ids"] and embeds:
             break
-        require(time.monotonic() < deadline, "Native admin task/editor did not complete")
+        if time.monotonic() >= deadline:
+            # Technical state only; do not dump arbitrary native chat metadata.
+            write_json(output / (label + "-pending.json"), {"assistant_id": sent["id"],
+                "message_fields": sorted(message), "done": message.get("done"), "active_task_ids": tasks.json()["task_ids"],
+                "top_embed_count": len(message.get("embeds") or []), "output": [{
+                    "type": item.get("type"), "status": item.get("status"), "call_id": item.get("call_id"),
+                    "embed_count": len(item.get("embeds") or [])} for item in (message.get("output") or [])
+                    if isinstance(item, dict)]})
+            raise AssertionError("Native admin task/editor did not complete")
         page.wait_for_timeout(250)
     message, proof = verify_parent(stored, sent, admin_id, model_id, expected_text=text)
     require(not message.get("error"), "Native admin answer completed with an error")
+    require(len(embeds) == 1, "Current native admin Tool has an ambiguous editor result")
     html = embeds[0]
     rows = editor_rows(html)
     card = page.locator("#message-" + sent["id"])
@@ -237,7 +261,7 @@ def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, outp
     (output / (label + ".html")).write_text(html, encoding="utf-8")
     page.screenshot(path=str(output / (label + ".png")))
     proof.update(editor_rows=rows, terminal_persisted=True, native_embed_count=len(embeds),
-                 sandbox_same_origin=False, backend_status=status)
+                 editor_source="function_call_output.embeds", sandbox_same_origin=False, backend_status=status)
     write_json(output / (label + ".json"), proof)
     return frame, rows, proof
 

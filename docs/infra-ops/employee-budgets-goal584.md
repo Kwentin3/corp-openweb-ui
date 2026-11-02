@@ -75,6 +75,23 @@ Screenshot и zero provider attempts сохранены; driver теперь н�
 `586f7d7d0818e9cdcaddde6e66c50c0153b32eea8825aa1c773626e88e00efc3`, cleanup 0/0.
 Независимая scoped приёмка предыдущего run18: 27 точных source SHA, cost/details/OFF
 и admin installation PASS (`local/goal584/runtime-proof-41499920317/independent-review.safe.json`).
+Текущий кандидат `c97a7025b928d651244fc1d14c132c397ca96771`: Active CI
+[41502403380](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41502403380) PASS;
+native [41502403795](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41502403795)
+остановился на первом чтении формы. По PNG форма уже видна с actual staff/caps/spend;
+2 provider calls содержат native open_budget_form и короткий success без HTML.
+Driver ошибочно искал Tool HTML в верхнем `message.embeds` как у Action.
+Pinned middleware6194–6201 и structuredOutput.ts236 хранят его в correlated
+`function_call_output.embeds`; чтение исправлено с проверкой call_id/method/status,
+добавлены отрицательные проверки foreign/failed/Action-only output и bounded
+technical-state receipt при таймауте. 7 driver + 8 boundary групп PASS.
+Artifact digest `8cdb61b2a19a6735921d8e8cde8daf64bf0408b4fc1ee463a1ac85a05b75a0f6`,
+cleanup 0/0. Apply/quotas/recovery формы всё ещё не приняты. Следующий шаг —
+повторить этот native GUI gate; Production и полный GOAL по-прежнему не приняты.
+Следующий source-кандидат для исторических тарифов найден, но не реализован:
+native frozen `Logging.billed_token_rates` и `add_dynamic_callback`; authoritative
+version/source/effective_at и гонки native resolution требуют отдельного proof.
+Подробности: `local/goal584/litellm/pricing-used-snapshot-review.md`.
 
 ## Цель и ограничения
 

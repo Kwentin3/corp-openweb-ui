@@ -136,6 +136,19 @@ class AdminVerifierTests(unittest.TestCase):
         self.assertEqual(lines, ['Бюджет USD: 20 → 40', 'goal584-a: 10 → 40 USD', 'goal584-b: 10 → 0 USD',
                                  'Бюджет USD: 20 → 0.4', 'goal584-a: 10 → 0.2 USD', 'goal584-b: 10 → 0.2 USD'])
 
+    def test_editor_belongs_to_completed_correlated_native_tool_result(self):
+        html = '<main data-budget-editor="v1">Actual native editor</main>'
+        message = {'done': True, 'output': [
+            {'type': 'function_call', 'name': 'open_budget_form', 'call_id': 'call-native-1', 'status': 'completed'},
+            {'type': 'function_call_output', 'call_id': 'call-native-1', 'status': 'completed', 'embeds': [html]}]}
+        self.assertEqual(DRIVER.editor_embeds(message, 'open_budget_form'), [html])
+        for field, value in [('call_id', 'foreign-call'), ('status', 'failed'), ('type', 'message')]:
+            broken = copy.deepcopy(message)
+            broken['output'][1][field] = value
+            self.assertEqual(DRIVER.editor_embeds(broken, 'open_budget_form'), [])
+        self.assertEqual(DRIVER.editor_embeds(message, 'apply_budget_form'), [])
+        self.assertEqual(DRIVER.editor_embeds({'embeds': [html]}, 'open_budget_form'), [])
+
 
 if __name__ == '__main__':
     unittest.main()
