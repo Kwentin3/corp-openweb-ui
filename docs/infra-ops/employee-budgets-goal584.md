@@ -54,6 +54,17 @@ opt-in renderer test использовал Windows-путь Chrome на Linux. 
 `9c58a6f6c8adc894c9189d83a40ca06ce0f03425bc6441812baef567b103890a`, cleanup 0/0.
 Ожидание 11 physical calls и 3 отказов всё ещё нужно сверить с provider,
 signed context, native ledger и фактическими caps на следующем кандидате.
+Повторный native run
+[41499920317](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41499920317)
+на `912483f0` прошёл Chrome, mounted-module SHA checks, native suite96
+(89 executed, 7 skips), ordinary chats и прежний полный cost/details/OFF сценарий.
+Admin Tool/Skill/preset успешно установлены штатными API; REAL BudgetAdminClient
+прочитал `/key/list`, staff caps и отдельные admin caps1000/500/500, ACL сохранены.
+Остановка случилась при чтении runner-ом root-owned 0600 browser handoff, до
+native zero-cap probe и admin GUI. Передача исправлена как у существующих staff
+accounts: отдельная runner-owned копия0600 через container exec, без ослабления
+прав исходного файла. Artifact digest
+`217a8c0b7c95049349d57ef07bcc2832ccce9c66c85b03eda8eefc0aa95c0e4c`, cleanup 0/0.
 
 ## Цель и ограничения
 

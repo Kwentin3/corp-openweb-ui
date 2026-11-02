@@ -381,10 +381,17 @@ jobs:
             --receipt /proof-private/admin-setup.safe.json > "$PROOF_OUTPUT_DIR/admin/setup.json" || proof_result=$?
           cat "$PROOF_OUTPUT_DIR/admin/setup.json"
           test "$proof_result" = 0
+          # The proxy runs as root; keep its 0600 handoff private and project it
+          # into a separate runner-owned 0600 file, as for the staff accounts.
+          umask 077
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/admin-browser-accounts.private.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json"
           python - <<'PY'
           import json, os
           from pathlib import Path
-          private = Path(os.environ['PROOF_PRIVATE_DIR'], 'admin-browser-accounts.private.json')
+          private = Path(os.environ['PROOF_PRIVATE_DIR'], 'admin-browser-accounts.for-browser.private.json')
           state = json.loads(private.read_text())
           print('::add-mask::' + state['admin']['password'])
           PY
@@ -430,7 +437,7 @@ jobs:
         shell: bash
         run: |
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_admin_browser.py \
-            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.private.json" \
+            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
             --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/admin"
 
