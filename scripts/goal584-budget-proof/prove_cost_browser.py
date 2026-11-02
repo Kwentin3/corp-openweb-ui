@@ -126,8 +126,16 @@ def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, cha
             and response.request.method == "POST", timeout=30_000) as pending:
         card.locator('button[aria-label="' + ACTION_LABEL + '"]').click()
     response = pending.value
-    require(response.status == 200 and isinstance(response.json(), dict)
-            and response.json().get("status") == "success" and "messages" not in response.json(),
+    # Native process_tool_result serializes context to str (middleware1304ff),
+    # and the Action endpoint JSON-encodes that string again (actions129ff).
+    # Decode precisely that native wire contract, not a fictional dict result.
+    wire = response.json()
+    require(response.status == 200 and isinstance(wire, str) and 0 < len(wire) < 512,
+            "Native cost Action returned an unsupported wire result")
+    context = json.loads(wire)
+    require(isinstance(context, dict) and set(context) == {"status", "message"}
+            and context["status"] == "success" and isinstance(context["message"], str)
+            and "<" not in context["message"],
             "Native cost Action did not return an independent UI result")
     deadline = time.monotonic() + 30
     while True:
@@ -174,6 +182,7 @@ def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, cha
     require("ledger_read_key" not in html and "owui_budget_provenance" not in html,
             "Rich UI leaked server configuration")
     (fixture.output / (label + ".html")).write_text(html, encoding="utf-8")
+    write_json(fixture.output / (label + "-action-result.json"), {"wire_type": "json_string", "context": context})
     page.screenshot(path=str(fixture.output / (label + ".png")))
     return {"chat_id": call["chat_id"], "answer_id": call["message_id"], "timestamp": timestamp,
             "totals": totals, "content_unchanged": True, "provider_ids_unchanged": sorted(provider_before),

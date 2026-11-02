@@ -391,12 +391,13 @@ def off_limit(webui: WebUI, state: dict, path: Path) -> dict:
     preference = webui.ok("GET", "/api/v1/functions/id/" + FILTER_ID + "/valves/user", token=user["token"])
     require(preference.get("enabled") is False, "OFF limit requires the actual native preference to be disabled")
     native = native_client(state)
-    before = off_pair(native, user["id"], model)
-    require(close_amount(before["key"]["spend"], Decimal("0.80"))
-            and close_amount(before["key"]["max_budget"], Decimal("10"))
-            and close_amount(before["user"]["spend"], Decimal("1.80"))
-            and close_amount(before["user"]["max_budget"], Decimal("20")),
-            "OFF limit is not at the expected native scenario boundary")
+    def settled_before():
+        observed = off_pair(native, user["id"], model)
+        return observed if (close_amount(observed["key"]["spend"], Decimal("0.80"))
+                            and close_amount(observed["key"]["max_budget"], Decimal("10"))
+                            and close_amount(observed["user"]["spend"], Decimal("1.80"))
+                            and close_amount(observed["user"]["max_budget"], Decimal("20"))) else None
+    before = native.poll("OFF observed native counters reached the completed-call boundary", settled_before)
     existing_ids = off_existing_chat_ids(webui, user["token"])
     prior_rows = native.logs(user["id"])
     prior_ids = [row.get("request_id") for row in prior_rows]
