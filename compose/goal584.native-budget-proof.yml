@@ -79,8 +79,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
-    ports:
-      - "127.0.0.1:45840:4000"
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_native_budgets.py
+        target: /proof/prove_native_budgets.py
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       postgres:
         condition: service_healthy

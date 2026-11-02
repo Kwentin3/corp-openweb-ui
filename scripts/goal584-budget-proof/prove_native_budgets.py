@@ -2,8 +2,9 @@
 """Qualify native LiteLLM 1.105.1 scalar budgets against a disposable local fixture.
 
 Requires PROOF_MASTER_KEY (or GOAL584_MASTER_KEY) and --base-url (or
-GOAL584_BASE_URL). Example: python prove_native_budgets.py --base-url
-http://127.0.0.1:45840 --receipt local/goal584/native-budget-receipt.json
+GOAL584_BASE_URL). The isolated Compose fixture mounts this driver into proxy:
+docker compose --env-file <protected-env> -f compose/goal584.native-budget-proof.yml
+exec -T proxy python -B /proof/prove_native_budgets.py --base-url http://127.0.0.1:4000
 
 The fixture must route goal584-a/b exclusively to its deterministic mock provider:
 10 prompt + 5 completion tokens, input $0.01/token, output $0.02/token.

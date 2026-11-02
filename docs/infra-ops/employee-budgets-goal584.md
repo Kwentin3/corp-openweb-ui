@@ -149,12 +149,19 @@ provider stub. После содержательной проверки окон
 [сверка полученных провайдером вызовов](../../scripts/goal584-budget-proof/verify_provider_calls.py).
 [Узкий workflow](../../.github/workflows/goal584-native-budget-proof.yml) запускает
 только этот срез на изолированном GitHub runner; существующий Active CI сохраняется.
-Внешний runtime-результат пока не получен. Существующая продуктовая приёмка не
-подменяется этим тестом.
+Runtime proof ещё не прошёл. В запуске
+[41433766446](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41433766446)
+четыре сервиса стали healthy и миграции завершились, но runner не смог обратиться
+к опубликованному loopback-порту. Ошибка не доказывает дефект бюджета: API-вызовы
+не начались. Следующий кандидат исполняет тот же standalone driver внутри
+существующего proxy-контейнера через его native HTTP endpoint; защита сети и
+авторизации сохраняется. Ранее workflow был отклонён до job из-за `runner` context
+в job-level env; исправлено и проверено actionlint 1.7.12.
+Продуктовая приёмка не подменяется этим тестом.
 
 Четыре временных сервиса: LiteLLM, PostgreSQL, Redis и stdlib-имитатор провайдера
-в том же pinned LiteLLM image. Образы закреплены digest, сеть internal, наружу
-доступен только proxy на loopback; платных провайдеров нет. Credentials генерируются
+в том же pinned LiteLLM image. Образы закреплены digest, сеть internal, host ports
+отсутствуют; платных провайдеров нет. Credentials генерируются
 для каждого запуска. Проверка создаёт двух синтетических пользователей и четыре
 single-model ключа, сопоставляет реальные native spend logs, суммы пользователя
 и ключей, usage, модель и root-answer metadata с семью успешными вызовами. Два

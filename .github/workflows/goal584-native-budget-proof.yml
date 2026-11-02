@@ -93,11 +93,12 @@ jobs:
       - name: Qualify native budgets against the synthetic provider
         shell: bash
         run: |
-          set -a
-          source "$PROOF_ENV_FILE"
-          set +a
-          python scripts/goal584-budget-proof/prove_native_budgets.py \
-            --base-url http://127.0.0.1:45840 --receipt "$PROOF_RECEIPT"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_native_budgets.py \
+            --base-url http://127.0.0.1:4000 > "$PROOF_RECEIPT" || proof_result=$?
+          cat "$PROOF_RECEIPT"
+          exit "$proof_result"
 
       - name: Read the actual provider boundary and compare it to native outcomes
         shell: bash
