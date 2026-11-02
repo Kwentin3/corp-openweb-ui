@@ -1,0 +1,141 @@
+name: GOAL 584 native budget proof
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/goal584-native-budget-proof.yml
+      - compose/goal584.native-budget-proof.yml
+      - scripts/goal584-budget-proof/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: goal584-native-budget-proof-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-budget-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PROOF_ENV_FILE: ${{ runner.temp }}/goal584-proof.env
+      PROOF_OUTPUT_DIR: ${{ runner.temp }}/goal584-native-budget-proof
+      PROOF_RECEIPT: ${{ runner.temp }}/goal584-native-budget-proof/native-budgets.json
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create isolated synthetic credentials
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, secrets
+          from pathlib import Path
+          Path(os.environ['PROOF_OUTPUT_DIR']).mkdir()
+          values = {
+              'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
+              'PROOF_DB_PASSWORD': secrets.token_hex(32),
+          }
+          fd = os.open(os.environ['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+              for key, value in values.items():
+                  handle.write(f'{key}={value}\n')
+                  print(f'::add-mask::{value}')
+          PY
+
+      - name: Start the pinned disposable backend
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml config --quiet
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 240
+
+      - name: Bind the receipt to the actual images and source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'], '-f', 'compose/goal584.native-budget-proof.yml']
+          containers = subprocess.check_output(command + ['ps', '-q'], text=True).split()
+          assert len(containers) == 4, 'Expected only the four disposable proof services'
+          images = []
+          for container in containers:
+              data = json.loads(subprocess.check_output(['docker', 'inspect', container]))[0]
+              images.append({
+                  'service': data['Config']['Labels']['com.docker.compose.service'],
+                  'image_ref': data['Config']['Image'],
+                  'image_id': data['Image'],
+                  'health': data['State'].get('Health', {}).get('Status'),
+              })
+              assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
+          files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
+                   'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py']
+          receipt = {
+              'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'images': images,
+              'files_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
+              'scope': 'Disposable native LiteLLM core with a synthetic provider; no WebUI or key-selection adapter acceptance',
+          }
+          assert receipt['source_commit'] == os.environ['GITHUB_SHA']
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'runtime-identity.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          PY
+
+      - name: Qualify native budgets against the synthetic provider
+        shell: bash
+        run: |
+          set -a
+          source "$PROOF_ENV_FILE"
+          set +a
+          python scripts/goal584-budget-proof/prove_native_budgets.py \
+            --base-url http://127.0.0.1:45840 --receipt "$PROOF_RECEIPT"
+
+      - name: Read the actual provider boundary and compare it to native outcomes
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T provider python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())' \
+            > "$PROOF_OUTPUT_DIR/provider-calls.json"
+          python scripts/goal584-budget-proof/verify_provider_calls.py \
+            "$PROOF_RECEIPT" "$PROOF_OUTPUT_DIR/provider-calls.json" \
+            --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
+
+      - name: Retain the synthetic qualification receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-native-budget-proof-${{ github.sha }}
+          path: ${{ env.PROOF_OUTPUT_DIR }}/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Show bounded sanitized startup diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, re, subprocess
+          from pathlib import Path
+          env_file = Path(os.environ['PROOF_ENV_FILE'])
+          if env_file.exists():
+              command = ['docker', 'compose', '--env-file', str(env_file), '-f', 'compose/goal584.native-budget-proof.yml']
+              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', 'proxy'], capture_output=True, text=True)
+              output = result.stdout + result.stderr
+              for line in env_file.read_text(encoding='utf-8').splitlines():
+                  output = output.replace(line.split('=', 1)[1], '[redacted]')
+              output = re.sub(r'sk-[A-Za-z0-9_-]+', '[synthetic-key-redacted]', output)
+              output = re.sub(r'postgresql://[^\s]+', '[database-url-redacted]', output)
+              print(output)
+          PY
+
+      - name: Remove the disposable backend and its data
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$PROOF_ENV_FILE"; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml down --volumes --remove-orphans
+          fi

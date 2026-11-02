@@ -1,0 +1,49 @@
+# Synthetic fixture tariff v1: 10 input * $0.01 + 5 output * $0.02 = $0.20.
+# Both model aliases terminate inside the isolated Compose network.
+model_list:
+  - model_name: goal584-a
+    litellm_params:
+      model: openai/goal584-fake-a
+      api_base: http://provider:8000/v1
+      # Public noncredential placeholder for the unauthenticated local stub.
+      api_key: synthetic-provider-only-not-a-credential
+    model_info:
+      id: goal584-deployment-a
+      mode: chat
+      max_tokens: 15
+      max_input_tokens: 10
+      max_output_tokens: 5
+      input_cost_per_token: 0.01
+      output_cost_per_token: 0.02
+  - model_name: goal584-b
+    litellm_params:
+      model: openai/goal584-fake-b
+      api_base: http://provider:8000/v1
+      api_key: synthetic-provider-only-not-a-credential
+    model_info:
+      id: goal584-deployment-b
+      mode: chat
+      max_tokens: 15
+      max_input_tokens: 10
+      max_output_tokens: 5
+      input_cost_per_token: 0.01
+      output_cost_per_token: 0.02
+
+general_settings:
+  master_key: os.environ/PROOF_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  # Independent native coordination, with response caching left disabled.
+  coordination_redis:
+    host: redis
+    port: 6379
+  fail_closed_budget_enforcement: true
+  disable_spend_logs: false
+  proxy_batch_write_at: 1
+
+litellm_settings:
+  block_requests_for_models_without_pricing: true
+  num_retries: 0
+  request_timeout: 30
+
+router_settings:
+  num_retries: 0

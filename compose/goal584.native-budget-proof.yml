@@ -1,0 +1,105 @@
+# Disposable synthetic backend only. Never combine with production Compose files.
+# Required credentials must be freshly generated, with a URL-safe DB password.
+# Official image indexes resolved from registry-1.docker.io on 2026-11-02.
+name: goal584-native-budget-proof
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 256
+    environment:
+      POSTGRES_DB: goal584
+      POSTGRES_USER: goal584
+      POSTGRES_PASSWORD: ${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}
+    volumes:
+      - proof_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goal584 -d goal584"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [proof]
+
+  redis:
+    image: docker.io/library/redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    tmpfs: [/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [proof]
+
+  provider:
+    image: &litellm_image ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    entrypoint: ["python", "-B", "/proof/mock_provider.py"]
+    read_only: true
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/mock_provider.py
+        target: /proof/mock_provider.py
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).read()"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    networks: [proof]
+
+  proxy:
+    image: *litellm_image
+    mem_limit: 2g
+    memswap_limit: 3g
+    cpus: 1.5
+    pids_limit: 512
+    # Keep the image's native entrypoint/CLI migration path on the fresh DB.
+    command: ["--config", "/proof/config.yaml", "--host", "0.0.0.0", "--port", "4000", "--num_workers", "1", "--telemetry", "false"]
+    environment:
+      PROOF_MASTER_KEY: ${PROOF_MASTER_KEY:?Generate a fresh synthetic sk-prefixed master key}
+      DATABASE_URL: postgresql://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      NO_PROXY: localhost,127.0.0.1,postgres,redis,provider
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/litellm_config.yaml
+        target: /proof/config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:45840:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      provider:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3).read()"]
+      interval: 3s
+      timeout: 5s
+      retries: 50
+      start_period: 30s
+    networks: [proof]
+
+volumes:
+  # Project-scoped disposable data. The workflow must run down --volumes.
+  proof_postgres:
+
+networks:
+  proof:
+    internal: true
