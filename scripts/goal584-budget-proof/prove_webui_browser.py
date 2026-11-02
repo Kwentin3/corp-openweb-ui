@@ -216,7 +216,7 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output,
         if regenerate_message_id is None:
             page.locator("#send-message-button").click()
         else:
-            page.locator("#message-" + regenerate_message_id).get_by_role("button", name="Regenerate", exact=True).click()
+            page.locator("#message-" + regenerate_message_id).locator('button[aria-label="Regenerate"]').click()
             page.get_by_role("button", name="Try Again", exact=True).click()
     response = pending.value
     sent = response.request.post_data_json

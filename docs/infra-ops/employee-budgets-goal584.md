@@ -448,6 +448,18 @@ receipt — `local/goal584/cost-display/rehearse_cost_browser_verify.safe.json`.
 Это проверка verifier, не browser acceptance. Actionlint и синтаксис 22 Bash /
 8 embedded Python шагов также прошли.
 
+Candidate `9776b4c4342a4293f55f0860db031efe27e7dd0f` отправлен в draft PR #585.
+[native proof 41472124715](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41472124715)
+завершился failure на browser driver regeneration: role locator нашёл и native
+dropdown `span[role=button]`, и вложенную кнопку с тем же именем. До этого stock
+install, unit runtime, прежние 6/2 browser outcomes с новыми cost statuses,
+первый Tool-ответ ($0.40/$0.40) и смена модели ($0.20/$0.60) прошли. Полный cost
+lifecycle не принят. Provider receipt нового сценария содержит 3 фактических
+вызова; cleanup — 0 containers/volumes. Артефакты сохранены в
+`local/goal584/runtime-proof-41472124715/receipts`. Уточнён driver selector до
+native `button[aria-label=Regenerate]` внутри exact message card; продуктовый
+код/квоты/проверки результата не менялись. Active CI этого candidate — success.
+
 ### Rich UI sandbox
 
 В Chrome `156.0.8078.76` дополнительно выполнена sandbox-репетиция с теми же
