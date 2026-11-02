@@ -128,9 +128,12 @@ class ChromeSandboxTests(unittest.TestCase):
         cls.thread.start()
         cls.playwright = sync_playwright().start()
         try:
-            cls.browser = cls.playwright.chromium.launch(headless=True,
-                executable_path=os.environ.get('GOAL584_CHROME', 'C:/Program Files/Google/Chrome/Application/chrome.exe'),
-                args=['--disable-background-networking'])
+            launch = {'headless': True, 'args': ['--disable-background-networking']}
+            if os.environ.get('GOAL584_CHROME'):
+                launch['executable_path'] = os.environ['GOAL584_CHROME']
+            else:
+                launch['channel'] = 'chrome'
+            cls.browser = cls.playwright.chromium.launch(**launch)
         except Exception:
             cls.playwright.stop()
             cls.server.shutdown()

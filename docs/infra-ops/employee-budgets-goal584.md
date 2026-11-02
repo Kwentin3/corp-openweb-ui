@@ -46,8 +46,14 @@ zero-cap enforcement и подтверждённое применение фор
 ту же форму. Перед каждым cap POST и показом приватных данных повторно проверяется
 роль после сетевых чтений; имена сотрудников/моделей экранируются для Markdown
 native confirmation. Отмена/частичная ошибка различаются и в коротком LLM context.
-Новая CI-фаза ещё не запускалась; ожидание 11 physical calls и 3 отказов нужно
-сверить с provider, signed context, native ledger и фактическими caps.
+Кандидат `f1fc321e` прошёл Active CI. Native run
+[41499123999](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41499123999)
+прошёл core/gateway/restart/provider-boundary и остановился до запуска WebUI:
+opt-in renderer test использовал Windows-путь Chrome на Linux. Исправлен выбор
+штатного browser channel `chrome`; teardown отработал, artifact digest
+`9c58a6f6c8adc894c9189d83a40ca06ce0f03425bc6441812baef567b103890a`, cleanup 0/0.
+Ожидание 11 physical calls и 3 отказов всё ещё нужно сверить с provider,
+signed context, native ledger и фактическими caps на следующем кандидате.
 
 ## Цель и ограничения
 
