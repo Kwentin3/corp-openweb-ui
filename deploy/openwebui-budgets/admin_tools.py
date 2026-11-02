@@ -86,8 +86,6 @@ class AuthorizedWriter:
 
 class Tools:
     class Valves(BaseModel):
-        operator_key: str = Field(default="", description="Native management key; server-side only.",
-                                  json_schema_extra={"format": "password", "writeOnly": True})
         managed_model_ids: list[str] = Field(default_factory=list, max_length=100)
         employee_limit: int = Field(default=100, ge=1, le=100)
 
@@ -102,7 +100,8 @@ class Tools:
 
         config = await Functions.get_function_valves_by_id("employee_budget_cost") or {}
         url = config.get("ledger_base_url")
-        require(isinstance(url, str) and bool(url) and bool(self.valves.operator_key), "invalid_configuration")
+        key = config.get("ledger_admin_key")
+        require(isinstance(url, str) and bool(url) and isinstance(key, str) and bool(key), "invalid_configuration")
         configured = self.valves.managed_model_ids
         require(bool(configured) and len(set(configured)) == len(configured), "invalid_configuration")
         # A request-level base-model override belongs to the currently executing
@@ -119,7 +118,7 @@ class Tools:
         employees, count = listing.get("users"), listing.get("total")
         require(isinstance(employees, list) and type(count) is int
                 and 0 <= count == len(employees) <= self.valves.employee_limit, "directory_incomplete")
-        client = BudgetAdminClient(await get_session(), url, self.valves.operator_key)
+        client = BudgetAdminClient(await get_session(), url, key)
         identities, states = {}, {}
         for employee in employees:
             user_id = canonical_id(employee.id)

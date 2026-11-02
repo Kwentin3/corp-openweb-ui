@@ -86,6 +86,10 @@ class Filter:
         # JSON-serializable on that path. This admin-only value is never UserValves.
         ledger_read_key: str = Field(default="", description="Native viewer key restricted to the session spend route.",
                                      json_schema_extra={"format": "password", "writeOnly": True})
+        # Functions Valves require the current admin role. Tool Valves also
+        # permit their owner after demotion, so a management key cannot live there.
+        ledger_admin_key: str = Field(default="", description="Native budget management key; current administrators only.",
+                                      json_schema_extra={"format": "password", "writeOnly": True})
         read_wait_seconds: float = Field(default=8.0, ge=0, le=10)
 
     class UserValves(BaseModel):

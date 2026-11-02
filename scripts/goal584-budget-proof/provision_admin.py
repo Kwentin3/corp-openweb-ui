@@ -20,13 +20,15 @@ import json
 from pathlib import Path
 import re
 import sys
+from urllib.error import HTTPError, URLError
+from urllib.request import Request
 
 from aiohttp import ClientSession
 
 from employee_budget_assignment import assignment_alias, assignment_metadata
 from employee_budget_admin_client import BudgetAdminClient
 from employee_budget_admin_contract import BudgetAdminError
-from provision_webui import MODELS, OPERATOR_STATE, PROXY_URL, WebUI, native_client, read_private, require, write_private, ProofError
+from provision_webui import MODELS, OPERATOR_STATE, PROXY_URL, WEBUI_URL, WebUI, account_from_response, native_client, read_private, require, write_private, ProofError
 from provision_cost_display import (
     STATE, FILTER_ID, assert_private_text_absent, denied_admin_get, grant_set,
     model_body, persisted_scope, secret_values, source_hash,
@@ -94,6 +96,22 @@ def staff_profiles(webui, state):
                                          sort_keys=True, allow_nan=False)) for model in MODELS}
 
 
+def filter_admin_key(webui, state, *, install=False):
+    """One credential owner: existing admin-only Function Valves, full native payload."""
+    path, token = "/api/v1/functions/id/" + FILTER_ID + "/valves", state["admin"]["token"]
+    before = webui.ok("GET", path, token=token)
+    require(before.get("ledger_base_url") == "http://proxy:4000"
+            and before.get("ledger_read_key") == state["cost_reader"]["key"]
+            and before.get("read_wait_seconds") == 8.0, "Existing cost Filter configuration differs")
+    expected = {**copy.deepcopy(before), "ledger_admin_key": read_private(OPERATOR_STATE)["operator_token"]}
+    if install:
+        webui.ok("POST", path + "/update", token=token, body=expected)
+        after = webui.ok("GET", path, token=token)
+    else:
+        after = before
+    require(after == expected, "Native Filter management key readback changed or lost existing Valves")
+
+
 def installation(webui, state):
     admin, fixture = state["admin"], state["admin_fixture"]
     expected_grants = {("user", admin["id"], "read")}
@@ -112,9 +130,9 @@ def installation(webui, state):
             and methods["apply_budget_form"].get("parameters", {}).get("properties") == {},
             "Native admin Tool exposed business/reserved arguments")
     valves = webui.ok("GET", "/api/v1/tools/id/" + TOOL_ID + "/valves", token=admin["token"])
-    require(valves == {"operator_key": read_private(OPERATOR_STATE)["operator_token"],
-                       "managed_model_ids": list(MODELS), "employee_limit": 100},
-            "Native Tool Valves differ from the existing management identity")
+    require(valves == {"managed_model_ids": list(MODELS), "employee_limit": 100},
+            "Native Tool Valves contain credentials or differ from the public configuration")
+    filter_admin_key(webui, state)
     skill = webui.ok("GET", "/api/v1/skills/id/" + SKILL_ID, token=admin["token"])
     require(skill.get("user_id") == admin["id"] and skill.get("write_access") is True
             and skill.get("is_active") is True and grant_set(skill) == expected_grants
@@ -134,6 +152,8 @@ def installation(webui, state):
                        "preset_status": denied_admin_get(webui, user["token"], "/api/v1/models/model?id=" + MODEL_ID)})
     return {"tool_id": TOOL_ID, "source_sha256": fixture["source_sha256"], "admin_only": True,
             "native_specs": specs, "valves_readback": True, "managed_model_ids": list(MODELS),
+            "management_credential_owner": "Function/" + FILTER_ID,
+            "management_key_readback": True, "tool_valves_secret_free": True,
             "skill_id": SKILL_ID, "skill_sha256": source_hash(SKILL), "skill_active": True,
             "model_id": MODEL_ID, "base_model_id": MODELS[0], "builtin_tools": False,
             "filter_ids": [FILTER_ID], "tool_ids": [TOOL_ID], "skill_ids": [SKILL_ID],
@@ -169,9 +189,9 @@ def setup(webui, state, path):
     grants = [{"principal_type": "user", "principal_id": admin["id"], "permission": "read"}]
     webui.ok("POST", "/api/v1/tools/create", token=admin["token"], body={"id": TOOL_ID,
              "name": "Employee budget administration", "content": source, "meta": {}, "access_grants": grants})
+    filter_admin_key(webui, state, install=True)
     webui.ok("POST", "/api/v1/tools/id/" + TOOL_ID + "/valves/update", token=admin["token"],
-             body={"operator_key": read_private(OPERATOR_STATE)["operator_token"],
-                   "managed_model_ids": list(MODELS), "employee_limit": 100})
+             body={"managed_model_ids": list(MODELS), "employee_limit": 100})
     webui.ok("POST", "/api/v1/skills/create", token=admin["token"], body={"id": SKILL_ID,
              "name": "Employee budget administration guide", "description": "Native form and confirmation workflow",
              "content": SKILL, "meta": {}, "is_active": True, "access_grants": grants})
@@ -287,9 +307,90 @@ def native_probe(state, *, deny):
     return result
 
 
+def denied_status(webui, method, path, token, *, body=None):
+    """Use the existing no-redirect/proxy opener; consume no error body or secret."""
+    request = Request(WEBUI_URL + path, method=method,
+                      headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"},
+                      data=None if body is None else json.dumps(body, allow_nan=False).encode("utf-8"))
+    try:
+        response = webui.opener.open(request, timeout=20)
+    except HTTPError as error:
+        response = error
+    except (URLError, TimeoutError, OSError):
+        raise ProofError("Native role probe transport failed") from None
+    with response:
+        status = response.code
+    require(status in (401, 403), "Demoted native owner was not denied the protected API")
+    return status
+
+
+def refresh_login(webui, account, role):
+    response = webui.ok("POST", "/api/v1/auths/signin",
+                        body={"email": account["email"], "password": account["password"]})
+    fresh = account_from_response(response, account["email"], account["password"], role)
+    require(fresh["id"] == account["id"], "Native role-probe sign-in changed owner identity")
+    account.update(fresh)
+    webui.session(account, role)
+
+
+def role_probe(webui, state, path):
+    """Actual native role transition; fixture's primary control admin restores in finally."""
+    owner, control = state["admin"], state.get("role_probe_control")
+    require(isinstance(control, dict) and control.get("id") != owner["id"],
+            "Role probe requires a distinct primary native control administrator")
+    webui.session(control, "admin")
+    webui.session(owner, "admin")
+    permissions = webui.ok("GET", "/api/v1/users/default/permissions", token=control["token"])
+    require(permissions.get("workspace", {}).get("tools") is False
+            and permissions.get("workspace", {}).get("tools_import") is False,
+            "Role probe requires native workspace Tool-code permissions disabled")
+    before, profiles = read_states(state), staff_profiles(webui, state)
+    preset = model_body(webui.model(owner["token"], MODEL_ID))
+    tool = webui.ok("GET", "/api/v1/tools/id/" + TOOL_ID, token=owner["token"])
+    function = webui.ok("GET", "/api/v1/functions/id/" + FILTER_ID, token=owner["token"])
+    require(tool.get("user_id") == owner["id"] and function.get("user_id") == owner["id"],
+            "Role probe target is not the actual Tool and Filter owner")
+    filter_admin_key(webui, state)
+    result = {"native_owner_demotion": True, "workspace_tool_code_permissions": False}
+    try:
+        changed = webui.ok("POST", "/api/v1/users/" + owner["id"] + "/update",
+                           token=control["token"], body={"role": "user"})
+        require(changed.get("id") == owner["id"] and changed.get("role") == "user",
+                "Native owner role demotion did not persist")
+        refresh_login(webui, owner, "user")
+        valves = webui.ok("GET", "/api/v1/tools/id/" + TOOL_ID + "/valves", token=owner["token"])
+        require(valves == {"managed_model_ids": list(MODELS), "employee_limit": 100},
+                "Demoted native Tool owner could read a credential-bearing Valves field")
+        result["tool_valves_http_status"] = 200
+        result["tool_valves_secret_free"] = True
+        function_path = "/api/v1/functions/id/" + FILTER_ID + "/valves"
+        result["function_valves_get_status"] = denied_status(webui, "GET", function_path, owner["token"])
+        result["function_valves_post_status"] = denied_status(
+            webui, "POST", function_path + "/update", owner["token"], body={"ledger_admin_key": ""})
+        form = {field: copy.deepcopy(tool[field]) for field in ("id", "name", "content", "meta", "access_grants")}
+        form["content"] += "\n# unauthorized synthetic role-probe source change\n"
+        result["tool_code_update_status"] = denied_status(
+            webui, "POST", "/api/v1/tools/id/" + TOOL_ID + "/update", owner["token"], body=form)
+    finally:
+        restored = webui.ok("POST", "/api/v1/users/" + owner["id"] + "/update",
+                            token=control["token"], body={"role": "admin"})
+        require(restored.get("id") == owner["id"] and restored.get("role") == "admin",
+                "Native owner administrator role restoration failed")
+        refresh_login(webui, owner, "admin")
+        write_private(path, state)
+    require(read_states(state) == before and staff_profiles(webui, state) == profiles
+            and model_body(webui.model(owner["token"], MODEL_ID)) == preset,
+            "Role probe changed native caps/spend/reset/identities or model profiles")
+    installation(webui, state)
+    result.update(owner_admin_restored=True, native_budget_state_unchanged=True,
+                  model_profiles_unchanged=True, installed_source_and_key_unchanged=True,
+                  inference_requests_issued=0, provider_absence_requires_external_comparison=True)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "hash-probe", "native-probe"))
+    parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "hash-probe", "native-probe", "role-probe"))
     parser.add_argument("--private-state", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--browser-accounts", type=Path)
@@ -324,6 +425,8 @@ def main():
         require(state.get("admin_fixture", {}).get("stage") == "setup_complete", "Admin installation is incomplete")
         if args.phase in ("hash-probe", "native-probe"):
             receipt["native_probe"] = native_probe(state, deny=args.phase == "native-probe")
+        elif args.phase == "role-probe":
+            receipt["role_probe"] = role_probe(webui, state, args.private_state)
         receipt.update(snapshot(webui, state))
         receipt["passed"] = True
     except ProofError as error:
@@ -335,6 +438,7 @@ def main():
     receipt["finished_at_utc"] = datetime.now(timezone.utc).isoformat()
     rendered = json.dumps(receipt, indent=2, allow_nan=False)
     credentials += secret_values(state) + [entry["key"] for entry in state.get("admin_budgetnative_keys", [])]
+    credentials += [state.get("role_probe_control", {}).get(field) for field in ("password", "token")]
     if any(value and value in rendered for value in credentials) or re.search(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", rendered):
         receipt = {"schema": 1, "proof": "goal584-native-admin-provisioning", "phase": args.phase,
                    "passed": False, "failure": "Unsafe credential-bearing receipt suppressed"}

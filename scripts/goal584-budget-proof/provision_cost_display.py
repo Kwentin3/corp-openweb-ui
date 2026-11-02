@@ -622,7 +622,7 @@ def snapshot(webui: WebUI, state: dict) -> dict:
 
 def secret_values(state: dict) -> list[str]:
     values = []
-    for account in [state.get("admin", {}), *state.get("users", [])]:
+    for account in [state.get("admin", {}), state.get("role_probe_control", {}), *state.get("users", [])]:
         values.extend(account.get(key) for key in ("password", "token"))
     values.extend(entry.get("key") for entry in state.get("native_keys", []))
     values.append((state.get("cost_reader") or {}).get("key"))

@@ -188,12 +188,22 @@ def setup(args, webui: WebUI) -> dict:
     run_id = "goal584-webui-" + uuid.uuid4().hex[:12]
     state = {"schema": 1, "stage": "setup_in_progress", "run_id": run_id,
              "started_at_utc": datetime.now(timezone.utc).isoformat(), "users": [], "native_keys": []}
-    email = "admin-" + run_id + "@example.com"
+    email = "control-" + run_id + "@example.com"
     password = "Aa1!" + secrets.token_urlsafe(32)
     response = webui.ok("POST", "/api/v1/auths/signup", body={
-        "name": "Proof administrator", "email": email, "password": password,
+        "name": "Proof primary control", "email": email, "password": password,
+    })
+    # Stock0.12.2 protects the primary admin from demotion. Keep that account
+    # only as a fixture controller; the actual Tool owner is a normal admin.
+    state["role_probe_control"] = account_from_response(response, email, password, "admin")
+    write_private(args.private_state, state)
+    email = "admin-" + run_id + "@example.com"
+    password = "Aa1!" + secrets.token_urlsafe(32)
+    response = webui.ok("POST", "/api/v1/auths/add", token=state["role_probe_control"]["token"], body={
+        "name": "Proof administrator", "email": email, "password": password, "role": "admin",
     })
     state["admin"] = account_from_response(response, email, password, "admin")
+    require(state["admin"]["id"] != state["role_probe_control"]["id"], "Fixture admins must be separate")
     webui.session(state["admin"], "admin")
     write_private(args.private_state, state)
     for index in (1, 2):
@@ -203,7 +213,7 @@ def setup(args, webui: WebUI) -> dict:
             "name": "Proof user " + str(index), "email": email, "password": password, "role": "user",
         })
         account = account_from_response(response, email, password, "user")
-        require(account["id"] not in {entry["id"] for entry in state["users"] + [state["admin"]]},
+        require(account["id"] not in {entry["id"] for entry in state["users"] + [state["admin"], state["role_probe_control"]]},
                 "Native WebUI generated duplicate account IDs")
         webui.session(account, "user")
         state["users"].append(account)

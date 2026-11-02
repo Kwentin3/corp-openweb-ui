@@ -61,7 +61,7 @@ def source_contract():
 def safe_body(body):
     encoded = json.dumps(body, ensure_ascii=False).lower()
     require(not any(marker in encoded for marker in ("<!doctype", "<html", "<script", "<main", "data-budget-editor",
-        "data-budget-cost-details", "ledger_read_key", "operator_key", "owui_budget_provenance")),
+        "data-budget-cost-details", "ledger_read_key", "ledger_admin_key", "operator_key", "owui_budget_provenance")),
         "HTML or server-only data reached model context")
     require(not re.search(r"eyj[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+|(?:sk-|gw-)[a-z0-9_-]{16,}", encoded),
             "Credential-shaped data reached model context")

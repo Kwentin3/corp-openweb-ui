@@ -61,6 +61,110 @@ def row(user=IDS[2]):
 
 
 class ProvisionAdminTests(unittest.TestCase):
+    def test_filter_credential_install_preserves_complete_native_configuration(self):
+        state = {"admin": {"token": "synthetic-admin-session"}, "cost_reader": {"key": "sk-synthetic-reader"}}
+        existing = {"ledger_base_url": "http://proxy:4000", "ledger_read_key": "sk-synthetic-reader",
+                    "read_wait_seconds": 8.0, "unrelated_native_config": {"preserve": True}}
+        calls = []
+        class WebUI:
+            def ok(self, method, path, **kwargs):
+                calls.append((method, path, copy.deepcopy(kwargs)))
+                if method == "POST":
+                    existing.clear()
+                    existing.update(kwargs["body"])
+                return copy.deepcopy(existing)
+        with patch.object(p, "read_private", return_value={"operator_token": "sk-synthetic-operator"}):
+            p.filter_admin_key(WebUI(), state, install=True)
+            p.filter_admin_key(WebUI(), state)
+        posted = next(kwargs["body"] for method, _, kwargs in calls if method == "POST")
+        self.assertEqual(posted["ledger_admin_key"], "sk-synthetic-operator")
+        self.assertEqual(posted["ledger_read_key"], "sk-synthetic-reader")
+        self.assertEqual(posted["unrelated_native_config"], {"preserve": True})
+        self.assertTrue(all("/functions/id/" + p.FILTER_ID + "/valves" in path for _, path, _ in calls))
+
+    def test_filter_credential_readback_rejects_missing_management_key(self):
+        state = {"admin": {"token": "synthetic-admin-session"}, "cost_reader": {"key": "sk-synthetic-reader"}}
+        class WebUI:
+            def ok(self, *args, **kwargs):
+                return {"ledger_base_url": "http://proxy:4000", "ledger_read_key": "sk-synthetic-reader",
+                        "read_wait_seconds": 8.0}
+        with patch.object(p, "read_private", return_value={"operator_token": "sk-synthetic-operator"}):
+            with self.assertRaises(p.ProofError):
+                p.filter_admin_key(WebUI(), state)
+
+    def role_transition(self, *, fail_probe=False):
+        state, employees = fixture()
+        state["admin"].update(email="owner@example.invalid", password="synthetic-owner-password", token="owner-admin-session")
+        state["role_probe_control"] = {"id": IDS[5], "token": "controller-admin-session"}
+        owner = state["admin"]
+        tool = {"id": p.TOOL_ID, "user_id": owner["id"], "name": "Synthetic native tool", "content": "class Tools: pass\n",
+                "meta": {}, "access_grants": []}
+        model = {"id": p.MODEL_ID, "base_model_id": p.MODELS[0], "name": "Synthetic", "meta": {}, "params": {},
+                 "access_grants": [], "is_active": True}
+        roles, denials = [], []
+        class WebUI:
+            role = "admin"
+            def session(self, account, role):
+                actual = self.role if account["id"] == owner["id"] else "admin"
+                if actual != role:
+                    raise AssertionError("Fresh native role differed")
+            def model(self, *args):
+                return copy.deepcopy(model)
+            def ok(self, method, path, **kwargs):
+                if path == "/api/v1/users/default/permissions":
+                    return {"workspace": {"tools": False, "tools_import": False}}
+                if path == "/api/v1/tools/id/" + p.TOOL_ID:
+                    return copy.deepcopy(tool)
+                if path == "/api/v1/tools/id/" + p.TOOL_ID + "/valves":
+                    if self.role != "user":
+                        raise AssertionError("Not probing actual demoted owner")
+                    return {"managed_model_ids": list(p.MODELS), "employee_limit": 100}
+                if path == "/api/v1/functions/id/" + p.FILTER_ID:
+                    return {"user_id": owner["id"]}
+                if path == "/api/v1/users/" + owner["id"] + "/update":
+                    if kwargs["token"] != "controller-admin-session":
+                        raise AssertionError("Role mutation bypassed native control administrator")
+                    self.role = kwargs["body"]["role"]
+                    roles.append(self.role)
+                    return {"id": owner["id"], "role": self.role}
+                if path == "/api/v1/auths/signin":
+                    if kwargs["body"] != {"email": owner["email"], "password": owner["password"]}:
+                        raise AssertionError("Sign-in bypassed native private credentials")
+                    return {"id": owner["id"], "role": self.role, "token": "fresh-" + self.role}
+                raise AssertionError("Unexpected native route")
+        webui = WebUI()
+        def deny(actual_webui, method, path, token, *, body=None):
+            self.assertIs(actual_webui, webui)
+            self.assertEqual(webui.role, "user")
+            self.assertEqual(token, "fresh-user")
+            denials.append((method, path, body))
+            if "/tools/" in path:
+                self.assertNotEqual(body["content"], tool["content"])
+                if fail_probe:
+                    raise p.ProofError("Synthetic unexpected native source-update response")
+            return 401
+        with patch.object(p, "read_states", return_value=employees), \
+             patch.object(p, "staff_profiles", return_value={"model": "stable-hash"}), \
+             patch.object(p, "filter_admin_key"), patch.object(p, "installation", return_value={}), \
+             patch.object(p, "denied_status", side_effect=deny), patch.object(p, "write_private") as saved:
+            if fail_probe:
+                with self.assertRaises(p.ProofError):
+                    p.role_probe(webui, state, Path("synthetic-private.json"))
+            else:
+                result = p.role_probe(webui, state, Path("synthetic-private.json"))
+                self.assertTrue(result["native_budget_state_unchanged"])
+                self.assertTrue(result["tool_valves_secret_free"])
+            saved.assert_called_once_with(Path("synthetic-private.json"), state)
+        self.assertEqual(roles, ["user", "admin"])
+        self.assertEqual(owner["token"], "fresh-admin")
+        self.assertEqual(len(denials), 3)
+
+    def test_role_probe_uses_native_demoted_owner_refreshes_login_and_restores(self):
+        self.role_transition()
+
+    def test_role_probe_restores_native_admin_when_security_probe_fails(self):
+        self.role_transition(fail_probe=True)
+
     def test_public_projection_separates_staff_and_preserves_unknown(self):
         state, employees = fixture()
         employee = replace(employees[0], max_budget=None)

@@ -86,6 +86,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
             __user__=self.actor, __metadata__=self.metadata, __request__=self.request, __model__=self.model)
 
     async def test_signed_actual_scope_replaces_caller_and_preserves_model_context(self):
+        self.filter.valves.ledger_admin_key = "synthetic-management-not-forwarded"
         body = self.body()
         original = copy.deepcopy(body)
         body["metadata"] = {"chat_id": "caller-forgery"}
@@ -101,6 +102,8 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         root = protocol.decode_root(self.metadata["chat_context"][extension.ROOT_CAPSULE], SECRET)
         self.assertEqual(root["root_answer_id"], ANSWER)
         self.assertEqual(self.metadata["chat_context"]["messages"], [])
+        self.assertNotIn(self.filter.valves.ledger_admin_key, json.dumps(signed))
+        self.assertNotIn(self.filter.valves.ledger_admin_key, json.dumps(self.metadata))
 
     async def test_display_disabled_does_not_disable_signing(self):
         self.actor["valves"] = self.filter.UserValves(enabled=False)
@@ -179,8 +182,13 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
     async def test_native_valves_payload_is_json_serializable_and_visibility_default_on(self):
         self.assertFalse(self.filter.toggle)
         self.assertTrue(self.filter.UserValves().enabled)
-        values = self.filter.Valves(ledger_read_key="synthetic-viewer-key").model_dump(exclude_unset=True)
+        values = self.filter.Valves(ledger_read_key="synthetic-viewer-key",
+                                   ledger_admin_key="synthetic-admin-key").model_dump(exclude_unset=True)
         self.assertEqual(json.loads(json.dumps(values)), values)
+        self.assertEqual(set(self.filter.UserValves().model_dump()), {"enabled"})
+        schema = self.filter.Valves.model_json_schema()["properties"]["ledger_admin_key"]
+        self.assertTrue(schema["writeOnly"])
+        self.assertEqual(schema["format"], "password")
         self.assertEqual(extension.money_text(Decimal("0.20")), "$0.20")
         self.assertEqual(extension.money_text(Decimal("0.000000001")), "<$0.00000001")
 

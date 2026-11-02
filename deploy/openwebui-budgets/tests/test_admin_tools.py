@@ -63,7 +63,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.chats = SimpleNamespace(get_accessible_chat_by_id=AsyncMock(return_value=SimpleNamespace(user_id=ADMIN)),
             get_message_by_id_and_message_id=AsyncMock(side_effect=lambda chat, msg:
                 self.message if msg == ANSWER else self.parent if msg == PARENT else None))
-        self.config = {"ledger_base_url": URL, "ledger_read_key": "existing-viewer-secret"}
+        self.config = {"ledger_base_url": URL, "ledger_read_key": "existing-viewer-secret", "ledger_admin_key": KEY}
         self.functions = SimpleNamespace(get_function_valves_by_id=AsyncMock(side_effect=lambda _: self.config))
         self.denied = set()
 
@@ -112,7 +112,6 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.client_factory = patch.object(extension, "BudgetAdminClient", Mock(return_value=self.client))
         self.factory = self.client_factory.start(); self.addCleanup(self.client_factory.stop)
         self.tools = extension.Tools()
-        self.tools.valves.operator_key = KEY
         self.tools.valves.managed_model_ids = list(MODELS)
         self.parent["content"] = self.plan()
 
@@ -148,6 +147,47 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.factory.assert_called_with(self.session, URL, KEY)
         self.assertNotIn("ledger_base_url", self.tools.valves.model_dump())
         self.assertEqual(self.writes, [])
+
+    async def test_public_tool_valves_contract_has_no_operator_credential(self):
+        fields = {"managed_model_ids", "employee_limit"}
+        self.assertEqual(set(self.tools.valves.model_dump()), fields)
+        self.assertEqual(set(self.tools.Valves.model_json_schema()["properties"]), fields)
+        for output in (self.tools.valves.model_dump(), self.tools.Valves.model_json_schema()):
+            self.assertNotIn(KEY, json.dumps(output))
+            self.assertNotIn("operator_key", json.dumps(output))
+            self.assertNotIn("ledger_admin_key", json.dumps(output))
+
+    async def test_client_reads_fresh_admin_key_from_existing_function_config(self):
+        self.html(await self.open())
+        self.factory.assert_called_with(self.session, URL, KEY)
+        rotated = "sk-synthetic-rotated-admin-key"
+        self.config["ledger_admin_key"] = rotated
+        result = await self.open()
+        self.factory.assert_called_with(self.session, URL, rotated)
+        self.assertNotIn(rotated, self.html(result))
+        self.assertNotIn(rotated, str(result[1]))
+        self.functions.get_function_valves_by_id.assert_has_awaits([
+            unittest.mock.call("employee_budget_cost"), unittest.mock.call("employee_budget_cost")])
+
+    async def test_missing_function_admin_key_never_uses_read_key_or_legacy_tool_key(self):
+        # A stale loaded object may still carry the old field. Native persisted
+        # ToolValves cleanup is the installer's responsibility, not this adapter's.
+        self.tools.valves = SimpleNamespace(operator_key=KEY,
+            managed_model_ids=list(MODELS), employee_limit=100)
+        del self.config["ledger_admin_key"]
+        with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_configuration"):
+            await self.open()
+        self.factory.assert_not_called()
+        self.assertEqual(self.reads, [])
+
+    async def test_invalid_function_admin_key_fails_before_client_construction(self):
+        for key in (None, "", False, True, 123):
+            with self.subTest(key=key):
+                self.config["ledger_admin_key"] = key
+                with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_configuration"):
+                    await self.open()
+        self.factory.assert_not_called()
+        self.assertEqual(self.reads, [])
 
     async def test_role_and_context_fail_before_any_directory_or_client_query(self):
         for variant in ("user", "missing_actor", "direct", "aux", "temp", "foreign_assistant"):

@@ -396,7 +396,7 @@ jobs:
           print('::add-mask::' + state['admin']['password'])
           PY
 
-      - name: Qualify native hash updates and an unused zero-cap key
+      - name: Qualify native hash updates, zero-cap admission and owner role revocation
         shell: bash
         run: |
           python - <<'PY'
@@ -416,11 +416,18 @@ jobs:
               '--receipt', '/proof-private/admin-native-probe.safe.json'], capture_output=True, text=True, timeout=150)
           receipt = json.loads(probe.stdout)
           (output / 'native-probe.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
-          after = provider_ids()
-          comparison = {'provider_ids_before': before, 'provider_ids_after': after, 'unchanged': before == after}
-          (output / 'native-probe-provider.json').write_text(json.dumps(comparison, indent=2), encoding='utf-8')
           assert probe.returncode == 0 and receipt.get('passed') is True, receipt.get('failure', 'Native zero-cap probe failed')
-          assert before == after, 'Unused zero-cap key dispatched to the provider'
+          role = subprocess.run(command + ['exec', '-T', 'proxy', 'python', '-B', '/proof/provision_admin.py',
+              '--phase', 'role-probe', '--private-state', '/proof-private/webui-state.private.json',
+              '--receipt', '/proof-private/admin-role-probe.safe.json'], capture_output=True, text=True, timeout=150)
+          role_receipt = json.loads(role.stdout)
+          (output / 'role-probe.json').write_text(json.dumps(role_receipt, indent=2), encoding='utf-8')
+          after = provider_ids()
+          comparison = {'provider_ids_before': before, 'provider_ids_after': after, 'unchanged': before == after,
+                        'native_zero_and_owner_role_probes': True}
+          (output / 'native-probe-provider.json').write_text(json.dumps(comparison, indent=2), encoding='utf-8')
+          assert role.returncode == 0 and role_receipt.get('passed') is True, role_receipt.get('failure', 'Native owner role probe failed')
+          assert before == after, 'Native zero-cap or role probe dispatched to the provider'
           PY
 
       - name: Prepare an independent admin provider observation

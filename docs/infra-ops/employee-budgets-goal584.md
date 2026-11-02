@@ -5,25 +5,21 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе, продуктовая приёмка не выполнена. Native scalar
-budget core отдельно проверен на изолированном стенде — результат ниже. Первичная проверка
-штатных возможностей обнаружила отсутствие прямого авторизованного обмена
-Rich UI iframe с Tool/Action на 0.12.2. Повторная source-сверка уточнила границу:
-прямой RPC не требуется исходным LLM-mediated сценарием; editable HTML может
-передать JSON через native confirmed prompt, затем fixed Tool читает сохранённый
-user turn. Этот штатный candidate требует runtime proof, не новой обходной
-подсистемы и не автоматической замены формы диалогами. Адаптер отдельно
-проверен с имитированными trusted headers, затем с реальным stock WebUI и обычным
-браузерным чатом двух синтетических сотрудников. Шесть ответов, два key-budget
-отказа, независимость второго пользователя и восстановление после увеличения caps
-подтверждены runtime/provider/spend readback. Это приёмка только этого среза;
-административная форма реализуется, её сквозной runtime ещё не проверен. Показ стоимости ordinary ответа/чата
-проверен на stock runtime с native Tool rounds, regeneration и UserValves; границы
-этого среза и оставшиеся требования приведены ниже. Детализация через native Action
-и отдельный budget denial при OFF также прошли scoped приёмку D1–D5.
+**Состояние:** GOAL в работе; основной admin vertical slice принят E1–E7,
+полный продукт ещё не принят. Успешный native run
+[41504333246](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41504333246),
+HEAD `6255508d9e6ccff2af2cec71689d24e78db7b574`, tested merge
+`60552c0fd52bf378daf13bef4b6626c3080f1272`; Active CI41504333117 PASS.
+Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
+→ JSON через native confirmed prompt → Tool читает сохранённый parent user turn
+→ подтверждение server diff → native cap update/readback → реальные employee
+quota denials и восстановление через ту же форму доказаны на stock0.12.2/1.105.1.
+Прямой iframe RPC, отдельный bridge и изменение sandbox не понадобились.
+Стоимость ответа/чата, Tool rounds, regeneration, детали и OFF enforcement также
+прошли повторную проверку. Все данные и provider в стенде синтетические.
 Платные вызовы не разрешены и в стенд не входят.
 
-Текущий шаг — основной путь HTML → исходный JSON в native user turn → Tool →
+Реализованный путь HTML → исходный JSON в native user turn → Tool →
 подтверждение серверного diff → native cap-only update/readback. Границы реализации:
 Open WebUI владеет сотрудниками, ACL, моделями, сохранённым сообщением и подтверждением;
 `assignment.py` — единственным контрактом связи user/model с native key;
@@ -33,11 +29,13 @@ Open WebUI владеет сотрудниками, ACL, моделями, со�
 `admin_ui.py` только отображает данные и собирает JSON. Существующий Filter остаётся
 единственным владельцем URL учёта, отдельный operator key не попадает в HTML/LLM.
 Общий native model binding выделен из Filter без изменения поведения.
-Локально: 96 component tests, 93 PASS и 3 opt-in Chrome skips; отдельный Chrome
+Последний локальный P1-кандидат: 100 component tests, 97 PASS и 3 opt-in Chrome skips; отдельный Chrome
 прогон выполнил все 7 renderer/sandbox checks. Это не native runtime-приёмка.
-Делегированы независимые части: native provisioner, synthetic provider Tool turns,
-обычный браузерный сценарий формы. Следующий gate — exact native list/hash-update,
-zero-cap enforcement и подтверждённое применение формы на изолированном стенде.
+Независимые части native provisioner, synthetic provider Tool turns и browser
+driver интегрированы; native list/hash-update, hard-zero и подтверждённая запись
+формы квалифицированы. Следующие обязательные gaps — defaults/new-hire provisioning,
+служебные расходы, lifecycle отказов/параллельности/календаря, исторические тарифы
+и полнота действующих маршрутов. Технический текст budget error пока не локализован.
 Неподготовленные назначения новых сотрудников пока отклоняются явно; скрытого
 создания, сброса spend/reset, повторных попыток или обещания общей транзакции нет.
 Подготовлены native Tool/Skill и admin-only preset, отдельный synthetic личный
@@ -46,6 +44,42 @@ zero-cap enforcement и подтверждённое применение фор
 ту же форму. Перед каждым cap POST и показом приватных данных повторно проверяется
 роль после сетевых чтений; имена сотрудников/моделей экранируются для Markdown
 native confirmation. Отмена/частичная ошибка различаются и в коротком LLM context.
+Успешный admin proof: отмена не меняет staff caps/spend/reset/identity; применение
+даёт U1 total40/A40/B0 и U2 total0.4/A0.2/B0.2. Три отказа, три успешных employee
+ответа и восстановление U2 до0.8 через форму подтверждены UI и native readback.
+В main phase11 physical calls = 11 новых native rows,14 signed attempts;
+admin8 calls/$1.60, staff3/$0.60, всего $2.20. Финальный ledger: U1$2.80,
+U2$0.60, admin$1.60. Native Float-counter U2 raw0.6000000000000001 сохранён
+как есть; exact ledger sum0.60 и существующий tolerance1e-9 не подменяют hard-zero.
+Staff05 — KEY denial при одновременно исчерпанных personal/model budgets;
+изолированный personal guard через GUI этим опытом не доказан (native core отдельно
+проверен ранее). Оба уровня не следует смешивать в отчёте.
+27 source SHA и6 mounted-module SHA совпали с tested merge; ZIP digest
+`abd771a0ca92bd95c32f4fa29ea67d56d27f6f6a8214094fb953568be5da6dc5`.
+Parent replay и независимый review E1–E7 PASS:
+`local/goal584/runtime-proof-41504333246/{parent-review.safe.json,independent-admin-review.safe.json}`.
+Полный Skill, схемы, исходный JSON/history, пустые apply arguments и короткие
+Tool results сверены с фактическим provider context. Cleanup0 containers/0 volumes.
+
+**Текущий следующий срез:** исправление доступа к management credential после
+понижения Tool owner. Native Tools GET Valves разрешает владельцу role=user и
+возвращает raw persisted blob; permission на изменение Python проверяется отдельно.
+Предыдущий E7 проверял обычных non-owner сотрудников и не доказывает эту границу.
+Ключ переносится в существующие Function Valves с native `get_admin_user`, без
+fallback на старое Tool поле; old persisted ToolValves очищаются полным update.
+Для actual role-probe fixture primary admin станет только контроллером, а Tool
+owner — отдельным обычным admin: primary в0.12.2 нельзя понизить. Квоты и provider
+calls при этом не меняются. Production установок этого feature не было.
+Код переноса подготовлен: `ledger_admin_key` в Function Valves, Tool Valves
+без credential, fresh lookup без legacy/reader fallback. 18 Tool tests и10
+provisioner tests PASS; role-probe делает native demote/signin/GET/POST/restore,
+проверяет запрет изменения Python и неизменность native state; runtime ещё не принят.
+После этого остаются defaults/new-hire, services и остальные перечисленные gaps;
+business default template должен храниться за admin-role API, не в owner-writable
+Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.
+
+История предыдущих неуспешных admin-кандидатов (их ограничения не являются
+текущим состоянием принятого среза):
 Кандидат `f1fc321e` прошёл Active CI. Native run
 [41499123999](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41499123999)
 прошёл core/gateway/restart/provider-boundary и остановился до запуска WebUI:
