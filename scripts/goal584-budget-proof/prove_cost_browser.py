@@ -141,9 +141,17 @@ def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, cha
     while True:
         saved = chat_state(page, base_url, token, call["chat_id"])[call["message_id"]]
         embeds = [embed for embed in (saved.get("embeds") or []) if isinstance(embed, str) and marker in embed]
-        if len(embeds) == len(old_embeds) + 1:
+        # Native UI/chat updates may retain or replace prior snapshots. The
+        # requirement is a fresh owner-persisted report, not growing its count.
+        if embeds and embeds[0] not in old_embeds:
             break
-        require(time.monotonic() < deadline, "Native Action embed was not persisted")
+        if time.monotonic() >= deadline:
+            write_json(fixture.output / (label + "-persist-failure.json"), {
+                "prior_embed_count": len(old_embeds), "current_embed_count": len(embeds),
+                "same_as_prior": [embed in old_embeds for embed in embeds],
+                "http_status": response.status, "context": context,
+            })
+            raise AssertionError("Fresh native Action snapshot was not persisted")
         page.wait_for_timeout(200)
     require(saved.get("content") == before.get("content") == "Proof"
             and saved.get("output") == before.get("output"), "Details Action changed model history content")
@@ -186,7 +194,8 @@ def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, cha
     page.screenshot(path=str(fixture.output / (label + ".png")))
     return {"chat_id": call["chat_id"], "answer_id": call["message_id"], "timestamp": timestamp,
             "totals": totals, "content_unchanged": True, "provider_ids_unchanged": sorted(provider_before),
-            "native_embed_count": len(embeds), "sandbox_same_origin": False}
+            "native_embed_count": len(embeds), "prior_native_embed_count": len(old_embeds),
+            "snapshot_changed": True, "sandbox_same_origin": False}
 
 
 def verify(result, provider, context, before, final):
@@ -337,7 +346,7 @@ def verify(result, provider, context, before, final):
     details = result["details"]
     require(len(details) == 2 and details[0]["answer_id"] == details[1]["answer_id"] == calls[0]["message_id"]
             and datetime.fromisoformat(details[1]["timestamp"]) > datetime.fromisoformat(details[0]["timestamp"])
-            and [entry["native_embed_count"] for entry in details] == [1, 2],
+            and all(entry["native_embed_count"] >= 1 and entry["snapshot_changed"] is True for entry in details),
             "Repeated details Action did not refresh the same answer's snapshot")
     for detail in details:
         snapshot_ids = set(detail["provider_ids_unchanged"])

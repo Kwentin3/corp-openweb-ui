@@ -201,6 +201,25 @@ Driver исправлен под этот контракт без изменен
 выполнялась; provider содержит2 вызова первого Tool-ответа, cleanup0/0. Артефакты:
 `local/goal584/runtime-proof-41480903008/receipts`; нормализация —
 `local/goal584/cost-display/rehearse_native_action_result.safe.json`.
+Fresh corrected candidate `456d8ba1c79835fd93645a9c138218ae41391f07`,
+[native run 41483259887](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41483259887),
+завершился failure на ожидании driver, что число persisted details embeds
+обязательно вырастет с1 до2; Active CI success. OFF helper перед
+изменением cap теперь bounded-polls native counters до ожидаемой границы, сохраняя
+точные ожидаемые суммы и запрет на изменение spend/reset/identity. Новые
+Action/OFF результаты полностью ещё не приняты. Raw evidence уже подтверждает
+6 successful replies / 8 provider calls, native key cap0.8 при spend0.8,
+OFF-denial с provider IDs4→4 и неизменными user/key spend, restore10 и успешное
+продолжение при OFF. В exact-session и user-delta readback отказа строк не найдено;
+это явно отмечено отсутствием, а не доказательством бесплатности. Финальный
+скриншот показывает refreshed answer0.4/chat1.2 с корректными A/B token tables.
+Но driver не сохранил сам последний API metadata sample, поэтому причина
+неизменного count ещё не доказана. Fixed criterion теперь требует **новый HTML
+из native persisted message**, новый timestamp и верные суммы/tokens, независимо
+от append/replace поведения; на timeout сохраняет counts и same-as-prior flags.
+Не требуется выдуманное накопление карточек. Локальная репетиция принимает
+6 вариантов (включая replace) и отвергает10 подмен (включая stale snapshot).
+Артефакты failure: `local/goal584/runtime-proof-41483259887/receipts`, cleanup0/0.
 
 Перепроверка основного GUI: `local/goal584/rich-ui/native-form-json-prompt-recheck.md`
 подтверждает source-feasible editable HTML → `input:prompt:submit` JSON → native
@@ -213,6 +232,14 @@ event.data.text. Native Chats helper не проверяет ACL сам, поэ�
 JSON виден модели/пользователю; HTML остаётся prepared UI, draft при rerender
 не сохраняется, выбор Tool моделью не гарантируется. Новая bridge-подсистема
 или ослабление iframe для этого candidate не нужны.
+
+Для следующего admin proof источник назначения остаётся native LiteLLM key
+metadata. Source API review подтвердил `/key/list` exact user_id/key_alias с
+пагинацией и `/key/info`, `/key/update` по hash: employee secrets в WebUI не нужны.
+Существующий pure assignment contract из `litellm_auth.py` нужно переиспользовать
+нейтральным модулем, не копировать alias/predicate в Tool. Fixture operator уже
+имеет info/update/new/generate; для listing требуется добавить только `/key/list`.
+Сначала проверить перечисление/изменение/restore по hash на стенде без inference.
 
 ## Воспроизведение и границы доказательств
 
