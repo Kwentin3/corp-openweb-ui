@@ -319,6 +319,16 @@ fixture в plain-chat режим. Caps/цены сохраняются. Пров
 auth; ни user/key selection, ни резервирование он не заменяет. Production этот
 диагностический delegate не использует.
 
+Повторный [run 41448622582](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41448622582)
+на `24aabaa1ad07c6f2fc34569af366ccc8d95f18e2` прошёл прежние native/adapter
+контроли, но остановился при загрузке диагностического delegate, до WebUI-чата.
+Pinned config loader загружает файл относительно YAML, не добавляя `/proof` в
+`sys.path`; top-level sibling imports оказались неверной предпосылкой. Ошибка
+воспроизведена локально **тем же** `get_instance_fn` из pinned source. Исправление
+оставляет top-level зависимости stdlib и загружает product delegate через тот же
+native config-relative loader; отдельные load-проверки wrapper/product прошли.
+Это исправление стендовой диагностики, а не изменение product auth или бюджетов.
+
 ### Rich UI sandbox
 
 В Chrome `156.0.8078.76` дополнительно выполнена sandbox-репетиция с теми же
