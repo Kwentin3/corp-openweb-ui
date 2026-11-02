@@ -221,6 +221,16 @@ OFF-denial с provider IDs4→4 и неизменными user/key spend, restor
 6 вариантов (включая replace) и отвергает10 подмен (включая stale snapshot).
 Артефакты failure: `local/goal584/runtime-proof-41483259887/receipts`, cleanup0/0.
 
+Candidate `3af2cf7f001781d1a59693c95b6fa9909c69f7c8`,
+[run41485475419](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41485475419),
+подтвердил свежие persisted details: первый снимок0.4/0.4, второй0.4/1.2;
+actual count в этом end-to-end path1→1, новый HTML/timestamp заменил старый.
+OFF block/restore и все6success/8physical вызовов также прошли. Driver остановился
+на ожидании foreign Action401, но actual native gate вернул404. Это корректный
+`main.verify_chat_ownership`2112–2130 contract, отличный от chat GET401; чужие
+данные не вернулись. Driver и verifier исправлены на точный404, проверки доступа
+не отключаются. Артефакты: `local/goal584/runtime-proof-41485475419/receipts`, cleanup0/0.
+
 Перепроверка основного GUI: `local/goal584/rich-ui/native-form-json-prompt-recheck.md`
 подтверждает source-feasible editable HTML → `input:prompt:submit` JSON → native
 confirmation/user turn → fixed zero-arg Tool → DB user-parent текущего assistant.

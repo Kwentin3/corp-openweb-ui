@@ -369,7 +369,7 @@ def verify(result, provider, context, before, final):
                                 for field in ("prompt_tokens", "completion_tokens", "total_tokens"))
                         and Decimal(shown["spend_usd"]) == sum(Decimal(row["spend_usd"]) for row in native),
                         "Details model/token amounts differ from actual native ledger")
-    require(result["foreign_details_denial"] == 401 and result["forged_details_denial"] == 400,
+    require(result["foreign_details_denial"] == 404 and result["forged_details_denial"] == 400,
             "Cost Action failed its native authorization boundaries")
     return {"passed": True, "visible_replies": 6, "physical_model_calls": 8, "tool_rounds": 2,
             "cost_scenario_usd": "1.60", "first_chat_usd": "1.20", "unexpected_provider_calls": 0,
@@ -471,7 +471,9 @@ def main():
                        "session_id": "synthetic-negative", "messages": []}
         action_denied = foreign_page.context.request.post(args.base_url + "/api/chat/actions/" + ACTION_ID,
             headers={"Authorization": "Bearer " + foreign_token}, data=action_body, timeout=15_000)
-        require(action_denied.status == 401, "Another employee can invoke private cost details")
+        # The native Action ownership gate hides private chats with404;
+        # GET /api/v1/chats/{id} has a different401 contract (main2112ff).
+        require(action_denied.status == 404, "Native cost Action did not hide the foreign chat")
         forged_action = page.context.request.post(args.base_url + "/api/chat/actions/" + ACTION_ID,
             headers={"Authorization": "Bearer " + token}, data={**action_body, "id": off_call["message_id"]}, timeout=15_000)
         require(forged_action.status == 400, "Cost details accepted an answer from a different owned chat")
