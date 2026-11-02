@@ -7,6 +7,7 @@ to the disposable network and are deliberately not a public application API.
 
 import argparse
 import json
+import re
 import threading
 import time
 import uuid
@@ -16,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MODELS = ("goal584-fake-a", "goal584-fake-b")
 STATE_LOCK = threading.Lock()
 REQUESTS = []
-CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False}
+CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False, "admin_mode": False}
 
 
 def pending_tool_name(payload, messages):
@@ -36,6 +37,46 @@ def pending_tool_name(payload, messages):
     if last_user is None or any(message.get("role") == "tool" for message in messages[last_user + 1:]):
         return None
     return names[0]
+
+
+def pending_admin_tool(payload, messages):
+    """Route synthetic admin turns only; the real Tool owns plan validation.
+
+    No business values become model-supplied apply arguments. Tool results from
+    earlier turns cannot complete the current turn, and any result in this turn
+    ends its synthetic tool round. Never guess absent or ambiguous tool names.
+    """
+    last_user = next((index for index in range(len(messages) - 1, -1, -1)
+                      if messages[index].get("role") == "user"), None)
+    if last_user is None or any(message.get("role") == "tool" for message in messages[last_user + 1:]):
+        return None
+    text = messages[last_user].get("content")
+    if isinstance(text, list) and len(text) == 1 and isinstance(text[0], dict) and text[0].get("type") == "text":
+        text = text[0].get("text")
+    if not isinstance(text, str) or not 0 < len(text.encode("utf-8")) <= 64 * 1024:
+        return None
+    try:
+        proposal = json.loads(text)
+    except ValueError:
+        intent = text.casefold()
+        if not (re.search(r"\b(?:настро\w*|обнов\w*)\b", intent)
+                and re.search(r"\b(?:лимит\w*|бюджет\w*)\b", intent)):
+            return None
+        suffix, arguments = "open_budget_form", {"view_json": "{}"}
+    else:
+        if not (isinstance(proposal, dict) and type(proposal.get("schema")) is int
+                and proposal["schema"] == 1 and proposal.get("type") == "employee_budget_plan"):
+            return None
+        suffix, arguments = "apply_budget_form", {}
+    tools = payload.get("tools")
+    if not isinstance(tools, list):
+        return None
+    names = [tool["function"]["name"] for tool in tools
+             if isinstance(tool, dict) and tool.get("type") == "function"
+             and isinstance(tool.get("function"), dict)
+             and isinstance(tool["function"].get("name"), str)
+             and tool["function"]["name"].endswith(suffix)]
+    return (names[0], arguments) if len(names) == 1 else None
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -82,12 +123,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/__proof/reset":
             with STATE_LOCK:
                 REQUESTS.clear()
-                CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0, tool_round=False)
+                CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0, tool_round=False, admin_mode=False)
             return self.send_json(200, {"ok": True})
         if self.path == "/__proof/control":
             limits = {"prompt_tokens": (0, 10000), "completion_tokens": (0, 10000), "delay_ms": (0, 10000)}
             if not payload or any(
-                (type(value) is not bool if key == "tool_round" else
+                (type(value) is not bool if key in ("tool_round", "admin_mode") else
                  key not in limits or type(value) is not int or not limits[key][0] <= value <= limits[key][1])
                 for key, value in payload.items()
             ):
@@ -116,9 +157,14 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(control["delay_ms"] / 1000)
         usage = {"prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                  "total_tokens": control["prompt_tokens"] + control["completion_tokens"]}
-        tool_name = pending_tool_name(payload, messages) if control["tool_round"] else None
+        if control["admin_mode"]:
+            selection = pending_admin_tool(payload, messages)
+        else:
+            name = pending_tool_name(payload, messages) if control["tool_round"] else None
+            selection = (name, {}) if name else None
+        tool_name, tool_arguments = selection if selection else (None, None)
         tool_call = {"id": "call-goal584-" + uuid.uuid4().hex, "type": "function",
-                     "function": {"name": tool_name, "arguments": "{}"}} if tool_name else None
+                     "function": {"name": tool_name, "arguments": json.dumps(tool_arguments, separators=(",", ":"))}} if tool_name else None
         message = {"role": "assistant", "content": None, "tool_calls": [tool_call]} if tool_call else {
             "role": "assistant", "content": "Proof"}
         finish_reason = "tool_calls" if tool_call else "stop"

@@ -94,7 +94,8 @@ jobs:
               assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
           files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
                    'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
-                   'deploy/openwebui-budgets/litellm_auth.py', 'scripts/goal584-budget-proof/prove_gateway_auth.py']
+                   'deploy/openwebui-budgets/litellm_auth.py', 'deploy/openwebui-budgets/assignment.py',
+                   'scripts/goal584-budget-proof/prove_gateway_auth.py']
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'images': images,
@@ -213,6 +214,8 @@ jobs:
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip install --disable-pip-version-check \
             -r scripts/goal584-budget-proof/browser-requirements.txt
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip check
+          RUN_GOAL584_ADMIN_BROWSER=1 "$RUNNER_TEMP/goal584-browser-venv/bin/python" \
+            -m unittest discover -s deploy/openwebui-budgets/tests -p test_admin_ui.py
 
       - name: Start stock WebUI with its native isolated data volume
         shell: bash
@@ -256,7 +259,14 @@ jobs:
                    'scripts/goal584-budget-proof/capture_webui_auth.py', 'scripts/goal584-budget-proof/provision_cost_display.py',
                    'deploy/openwebui-budgets/provenance.py', 'deploy/openwebui-budgets/cost_readback.py',
                    'deploy/openwebui-budgets/cost_filter.py', 'deploy/openwebui-budgets/cost_action.py',
-                   'scripts/goal584-budget-proof/prove_cost_browser.py']
+                   'scripts/goal584-budget-proof/prove_cost_browser.py',
+                   'scripts/goal584-budget-proof/provision_admin.py',
+                   'scripts/goal584-budget-proof/prove_admin_browser.py',
+                   'scripts/goal584-budget-proof/verify_admin_calls.py',
+                   'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
+                   'deploy/openwebui-budgets/admin_client.py', 'deploy/openwebui-budgets/admin_policy.py',
+                   'deploy/openwebui-budgets/admin_ui.py', 'deploy/openwebui-budgets/admin_tools.py',
+                   'deploy/openwebui-budgets/webui_model_binding.py']
           receipt = {'source_commit': os.environ['GITHUB_SHA'], 'image_ref': data['Config']['Image'],
                      'image_id': data['Image'], 'upstream_revision': revision, 'version': version['version'],
                      'host_ports': [], 'health': 'healthy',
@@ -269,12 +279,24 @@ jobs:
               handle.write('PROOF_WEBUI_URL=' + base + '\n')
           PY
 
-      - name: Verify mounted cost modules in the stock runtime
+      - name: Verify mounted budget modules in the stock runtime
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
             -f compose/goal584.webui-proof.yml exec -T webui python -B -c \
             'import employee_budget_provenance as p, employee_budget_cost_readback as r; from importlib.metadata import version; assert p.__file__ == "/app/backend/employee_budget_provenance.py"; assert r.__file__ == "/app/backend/employee_budget_cost_readback.py"; print("native PyJWT:", version("PyJWT"))'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T webui python -B -c \
+            'import hashlib,importlib,json,pathlib; names=("assignment","admin_contract","admin_client","admin_policy","admin_ui","webui_model_binding"); modules=[importlib.import_module("employee_budget_"+name) for name in names]; assert all(module.__file__ == "/app/backend/employee_budget_"+name+".py" for name,module in zip(names,modules)); print(json.dumps({name:{"path":module.__file__,"sha256":hashlib.sha256(pathlib.Path(module.__file__).read_bytes()).hexdigest()} for name,module in zip(names,modules)}))' \
+            > "$PROOF_OUTPUT_DIR/admin-mounted-modules.json"
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          mounted = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'], 'admin-mounted-modules.json').read_text())
+          for name, actual in mounted.items():
+              expected = Path('deploy/openwebui-budgets', name + '.py')
+              assert actual['sha256'] == hashlib.sha256(expected.read_bytes()).hexdigest(), name
+          PY
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
             -f compose/goal584.webui-proof.yml exec -T webui python -B -m unittest discover -s /proof/budgets/tests
 
@@ -346,6 +368,87 @@ jobs:
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_cost_browser.py \
             --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/costs"
+
+      - name: Install the native admin Tool and its private model preset
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/admin"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_admin.py \
+            --phase setup --private-state /proof-private/webui-state.private.json \
+            --browser-accounts /proof-private/admin-browser-accounts.private.json \
+            --receipt /proof-private/admin-setup.safe.json > "$PROOF_OUTPUT_DIR/admin/setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/admin/setup.json"
+          test "$proof_result" = 0
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          private = Path(os.environ['PROOF_PRIVATE_DIR'], 'admin-browser-accounts.private.json')
+          state = json.loads(private.read_text())
+          print('::add-mask::' + state['admin']['password'])
+          PY
+
+      - name: Qualify native hash updates and an unused zero-cap key
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'admin')
+          command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'],
+                     '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
+          def provider_ids():
+              result = subprocess.run(command + ['exec', '-T', 'provider', 'python', '-c',
+                  'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())'],
+                  capture_output=True, text=True, check=True, timeout=15)
+              return [row['id'] for row in json.loads(result.stdout)['requests']]
+          before = provider_ids()
+          probe = subprocess.run(command + ['exec', '-T', 'proxy', 'python', '-B', '/proof/provision_admin.py',
+              '--phase', 'native-probe', '--private-state', '/proof-private/webui-state.private.json',
+              '--receipt', '/proof-private/admin-native-probe.safe.json'], capture_output=True, text=True, timeout=150)
+          receipt = json.loads(probe.stdout)
+          (output / 'native-probe.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          after = provider_ids()
+          comparison = {'provider_ids_before': before, 'provider_ids_after': after, 'unchanged': before == after}
+          (output / 'native-probe-provider.json').write_text(json.dumps(comparison, indent=2), encoding='utf-8')
+          assert probe.returncode == 0 and receipt.get('passed') is True, receipt.get('failure', 'Native zero-cap probe failed')
+          assert before == after, 'Unused zero-cap key dispatched to the provider'
+          PY
+
+      - name: Prepare an independent admin provider observation
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read(); urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/control", data=b"{\"admin_mode\":true}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+
+      - name: Qualify admin Rich UI, exact JSON, confirmed caps and employee quotas
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_admin_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.private.json" \
+            --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/admin"
+
+      - name: Reconcile admin model context, provider calls and native ledger
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'admin')
+          browser = output / 'admin-browser.json'
+          final = output / json.loads(browser.read_text())['final_native_receipt']
+          assert final.resolve().parent == output.resolve()
+          subprocess.run(['python', 'scripts/goal584-budget-proof/verify_admin_calls.py',
+              '--browser', str(browser), '--provider', str(output / 'webui-provider-calls.json'),
+              '--context', str(output / 'webui-gateway-context.json'), '--native', str(final),
+              '--receipt', str(output / 'admin-boundary.json')], check=True)
+          PY
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

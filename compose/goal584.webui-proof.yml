@@ -32,6 +32,24 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ../scripts/goal584-budget-proof/provision_admin.py
+        target: /proof/provision_admin.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_client.py
+        target: /proof/employee_budget_admin_client.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_contract.py
+        target: /proof/employee_budget_admin_contract.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../scripts/goal584-budget-proof/capture_webui_auth.py
         target: /proof/capture_webui_auth.py
         read_only: true
@@ -73,6 +91,42 @@ services:
       - type: bind
         source: ../deploy/openwebui-budgets/cost_readback.py
         target: /app/backend/employee_budget_cost_readback.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/assignment.py
+        target: /app/backend/employee_budget_assignment.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_contract.py
+        target: /app/backend/employee_budget_admin_contract.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_client.py
+        target: /app/backend/employee_budget_admin_client.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_policy.py
+        target: /app/backend/employee_budget_admin_policy.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_ui.py
+        target: /app/backend/employee_budget_admin_ui.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/webui_model_binding.py
+        target: /app/backend/employee_budget_webui_model_binding.py
         read_only: true
         bind:
           create_host_path: false

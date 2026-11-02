@@ -29,7 +29,7 @@ from prove_native_budgets import (
 
 OPERATOR_ROUTES = [
     "/openapi.json", "/user/new", "/user/update", "/user/info",
-    "/key/generate", "/key/update", "/key/info", "/spend/logs/v2",
+    "/key/generate", "/key/update", "/key/info", "/key/list", "/spend/logs/v2",
 ]
 
 

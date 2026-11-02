@@ -17,10 +17,37 @@ user turn. Этот штатный candidate требует runtime proof, не 
 браузерным чатом двух синтетических сотрудников. Шесть ответов, два key-budget
 отказа, независимость второго пользователя и восстановление после увеличения caps
 подтверждены runtime/provider/spend readback. Это приёмка только этого среза;
-административная форма ещё не реализована. Показ стоимости ordinary ответа/чата
+административная форма реализуется, её сквозной runtime ещё не проверен. Показ стоимости ordinary ответа/чата
 проверен на stock runtime с native Tool rounds, regeneration и UserValves; границы
-этого среза и оставшиеся требования приведены ниже.
+этого среза и оставшиеся требования приведены ниже. Детализация через native Action
+и отдельный budget denial при OFF также прошли scoped приёмку D1–D5.
 Платные вызовы не разрешены и в стенд не входят.
+
+Текущий шаг — основной путь HTML → исходный JSON в native user turn → Tool →
+подтверждение серверного diff → native cap-only update/readback. Границы реализации:
+Open WebUI владеет сотрудниками, ACL, моделями, сохранённым сообщением и подтверждением;
+`assignment.py` — единственным контрактом связи user/model с native key;
+`admin_client.py` переводит native API в server-only DTO;
+`admin_policy.py` проверяет явные доли и рассчитывает предлагаемые caps;
+`admin_tools.py` координирует эти вызовы, повторную авторизацию и порядок записи;
+`admin_ui.py` только отображает данные и собирает JSON. Существующий Filter остаётся
+единственным владельцем URL учёта, отдельный operator key не попадает в HTML/LLM.
+Общий native model binding выделен из Filter без изменения поведения.
+Локально: 96 component tests, 93 PASS и 3 opt-in Chrome skips; отдельный Chrome
+прогон выполнил все 7 renderer/sandbox checks. Это не native runtime-приёмка.
+Делегированы независимые части: native provisioner, synthetic provider Tool turns,
+обычный браузерный сценарий формы. Следующий gate — exact native list/hash-update,
+zero-cap enforcement и подтверждённое применение формы на изолированном стенде.
+Неподготовленные назначения новых сотрудников пока отклоняются явно; скрытого
+создания, сброса spend/reset, повторных попыток или обещания общей транзакции нет.
+Подготовлены native Tool/Skill и admin-only preset, отдельный synthetic личный
+плательщик администратора, actual list/hash/zero-cap probe и обычный браузерный
+сценарий cancel → apply двум сотрудникам → model/personal denial → recovery через
+ту же форму. Перед каждым cap POST и показом приватных данных повторно проверяется
+роль после сетевых чтений; имена сотрудников/моделей экранируются для Markdown
+native confirmation. Отмена/частичная ошибка различаются и в коротком LLM context.
+Новая CI-фаза ещё не запускалась; ожидание 11 physical calls и 3 отказов нужно
+сверить с provider, signed context, native ledger и фактическими caps.
 
 ## Цель и ограничения
 
@@ -151,14 +178,16 @@ Raw `/spend/logs/v2` доступен в OSS; `/spend/report` относится
 формы; следующий административный proof проверит его без подмены интерфейса и
 без обходной подсистемы. Независимый cost slice — связь native spend с
 ответом/чатом и чтение стоимости из того же регистра — проверен ниже. Следующий
-минимум: details Action и runtime denial при OFF, затем readback historical rates
-и controlled native reset. Далее остаются служебные категории, история цен,
+минимум: admin editable-form JSON/prompt/Tool vertical proof и native key access
+по hash без employee secrets; затем readback historical rates и controlled native
+reset. Далее остаются служебные категории, история цен,
 calendar/concurrency/failure lifecycle и совместимость текущих маршрутов/Tools.
 Полный изолированный пользовательский сценарий остаётся критерием закрытия;
 отдельный live-check с платным API возможен только после отдельного согласования.
 
-Текущий следующий срез — native Action с read-only Rich UI детализацией и OFF
-budget-denial proof. Это не решает обратный канал административной HTML-формы.
+Срез native Action с read-only Rich UI детализацией и OFF budget-denial proof
+принят ниже. Он не доказывает административную HTML-запись; для неё найден
+отдельный штатный JSON/prompt candidate, также описанный ниже.
 
 | Смысл → existing owner → контракт → потребитель | Роль нового блока |
 | --- | --- |
@@ -224,7 +253,8 @@ OFF-denial с provider IDs4→4 и неизменными user/key spend, restor
 Candidate `3af2cf7f001781d1a59693c95b6fa9909c69f7c8`,
 [run41485475419](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41485475419),
 подтвердил свежие persisted details: первый снимок0.4/0.4, второй0.4/1.2;
-actual count в этом end-to-end path1→1, новый HTML/timestamp заменил старый.
+actual counts в этом run1→2, новый HTML/timestamp добавлен первым. У предыдущего
+failure456d8ba1 count не был записан; причину нельзя восстанавливать по одному PNG.
 OFF block/restore и все6success/8physical вызовов также прошли. Driver остановился
 на ожидании foreign Action401, но actual native gate вернул404. Это корректный
 `main.verify_chat_ownership`2112–2130 contract, отличный от chat GET401; чужие
@@ -250,6 +280,34 @@ metadata. Source API review подтвердил `/key/list` exact user_id/key_a
 нейтральным модулем, не копировать alias/predicate в Tool. Fixture operator уже
 имеет info/update/new/generate; для listing требуется добавить только `/key/list`.
 Сначала проверить перечисление/изменение/restore по hash на стенде без inference.
+
+**Details/OFF accepted slice:** candidate `53192f603e741d6f488b84762a6f335a5832d61e`,
+tested merge `e77cc2d2ff6de16e68b2add97fd34b16fcb3bdd4`,
+[run41487063627](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41487063627)
+и Active CI — success. Parent прочитал59 JSON/2 HTML, сверил17 Git blob hashes
+и ZIP digest с GitHub, повторно выполнил exact verifier на raw runtime receipts;
+просмотрены initial/refreshed details и OFF denial PNG. Full suite48 содержит
+3 skipped native-source checks; 9 provider tests ранее прошли локально.
+
+Native Action повторно показывает тот же ответ0.4, свежий чат0.4→1.2 с breakdown
+A2calls20/10/30tokens0.4 и B4calls40/20/60tokens0.8. В этом run fresh persisted
+snapshot заменил один прежний embed (1→1); счётчик карточек не часть контракта.
+Content/output и provider IDs вокруг Action не менялись, HTML не попал в следующий
+native/provider context. OFF key denial: cap0.8/spend0.8/user1.8personalcap20,
+provider4→4 и неизменные spend/reset/identity; native restore10 вернул B при OFF.
+Отказ сохранён отдельным signed attempt:9 signed =8 completed +1 denied,
+плюс1unsignedraw. All exact-session и user-delta rows отказа явно отсутствовали;
+это не объявляется zero-cost evidence. Финал6success/8physical/$1.60,
+первый чат1.20; user totals2.60/0.20. Доступы: chat GET401, foreign Action404,
+forged own-chat answer400, unsigned raw403. Cleanup0containers/0volumes.
+
+Независимый contract-outcome-review D1–D5 — PASS по raw artifacts и исходникам;
+нормативный источник — полный issue584. Native core/gateway/restart и прежний6/2
+browser сценарий сохранены. Evidence:
+`local/goal584/runtime-proof-41487063627/receipts`, `parent-review.safe.json`
+и `contract-details-off-review.md` рядом. Полный GOAL остаётся в работе:
+административная форма пока не реализована; service/delegation settlement,
+failure/concurrency/calendar/pricing и полный current-route coverage не приняты.
 
 ## Воспроизведение и границы доказательств
 

@@ -25,6 +25,8 @@ def load(name, path):
 
 
 protocol = load("employee_budget_provenance", HERE / "provenance.py")
+if "employee_budget_webui_model_binding" not in sys.modules:
+    load("employee_budget_webui_model_binding", HERE / "webui_model_binding.py")
 extension = load("cost_filter_under_test", HERE / "cost_filter.py")
 native_ids = HERE.parents[1] / "local/goal584/cost-display/open-webui/backend/open_webui/utils/model_ids.py"
 if not native_ids.exists():

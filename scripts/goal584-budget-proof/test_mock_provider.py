@@ -1,6 +1,7 @@
 """Real local HTTP/SSE contract tests for the disposable synthetic provider."""
 
 import importlib.util
+import ast
 import json
 from pathlib import Path
 import threading
@@ -17,6 +18,19 @@ SPEC.loader.exec_module(MOCK)
 USAGE = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
 NAME = "proof_workspace_budget_echo"
 TOOLS = [{"type": "function", "function": {"name": NAME, "parameters": {"type": "object", "properties": {}}}}]
+OPEN_NAME = "employee_budget_admin_open_budget_form"
+APPLY_NAME = "employee_budget_admin_apply_budget_form"
+# Native local Tool schema shape after reserved __* parameters are removed.
+ADMIN_TOOLS = [
+    {"type": "function", "function": {"name": OPEN_NAME, "parameters": {
+        "type": "object", "properties": {"view_json": {"type": "string", "default": "{}"}}, "required": []}}},
+    {"type": "function", "function": {"name": APPLY_NAME, "parameters": {
+        "type": "object", "properties": {}, "required": []}}},
+]
+PLAN = {"schema": 1, "type": "employee_budget_plan", "changes": [{
+    "user_id": "1296bad0-1491-4c19-b7f2-93e57d812864", "expected_revision": "a" * 64,
+    "budget_usd": "1.20", "shares": {"goal584-a": "0.5", "goal584-b": "0.5"},
+}]}
 
 
 class ProviderHTTPTests(unittest.TestCase):
@@ -88,6 +102,7 @@ class ProviderHTTPTests(unittest.TestCase):
         self.assertEqual(len(set(ids)), 2)
         receipt = self.receipts()
         self.assertFalse(receipt["control"]["tool_round"])
+        self.assertFalse(receipt["control"]["admin_mode"])
         self.assertEqual([row["id"] for row in receipt["requests"]], ids)
         self.assertTrue(all(row["usage"] == USAGE for row in receipt["requests"]))
 
@@ -148,17 +163,115 @@ class ProviderHTTPTests(unittest.TestCase):
 
     def test_control_boolean_validation_and_reset(self):
         for payload in ({}, {"tool_round": 1}, {"tool_round": "true"}, {"tool_round": None},
+                        {"admin_mode": 1}, {"admin_mode": "true"}, {"admin_mode": None},
                         {"unknown": True}, {"prompt_tokens": True},
                         {"tool_round": True, "delay_ms": -1}):
             with self.subTest(payload=payload):
                 self.assertEqual(self.http("/__proof/control", payload)[0], 400)
                 self.assertFalse(self.receipts()["control"]["tool_round"])
-        self.assertEqual(self.http("/__proof/control", {"tool_round": True})[0], 200)
+                self.assertFalse(self.receipts()["control"]["admin_mode"])
+        self.assertEqual(self.http("/__proof/control", {"tool_round": True, "admin_mode": True})[0], 200)
         self.chat()
         self.http("/__proof/reset", {})
         self.assertEqual(self.receipts()["control"], {"prompt_tokens": 10, "completion_tokens": 5,
-                                                     "delay_ms": 0, "tool_round": False})
+                                                     "delay_ms": 0, "tool_round": False, "admin_mode": False})
         self.assertEqual(self.receipts()["requests"], [])
+
+    def test_admin_schema_fixture_matches_actual_public_tool_signatures(self):
+        source = Path(__file__).resolve().parents[2] / "deploy/openwebui-budgets/admin_tools.py"
+        if not source.exists():
+            self.skipTest("Admin Tool source not mounted; representative schemas remain explicit")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        owner = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Tools")
+        methods = {node.name: node for node in owner.body if isinstance(node, ast.AsyncFunctionDef)}
+        for schema in ADMIN_TOOLS:
+            name = schema["function"]["name"].removeprefix("employee_budget_admin_")
+            actual = [arg.arg for arg in methods[name].args.args if arg.arg != "self" and not arg.arg.startswith("__")]
+            self.assertEqual(set(actual), set(schema["function"]["parameters"]["properties"]))
+
+    def admin_two_rounds(self, text, expected_name, expected_arguments, stream):
+        self.http("/__proof/control", {"admin_mode": True})
+        first, message, reason = self.chat(stream=stream, messages=[{"role": "user", "content": text}], tools=ADMIN_TOOLS)
+        self.assertEqual(reason, "tool_calls")
+        call = dict(message["tool_calls"][0])
+        if stream:
+            self.assertEqual(call.pop("index"), 0)
+        self.assertEqual(call["function"]["name"], expected_name)
+        self.assertEqual(json.loads(call["function"]["arguments"]), expected_arguments)
+        history = [{"role": "user", "content": text},
+                   {"role": "assistant", "content": None, "tool_calls": [call]},
+                   {"role": "tool", "tool_call_id": call["id"], "content": json.dumps({
+                       "status": "success", "message": "Budget form is visible; use apply_budget_form next"})}]
+        final, final_message, final_reason = self.chat(stream=stream, messages=history, tools=ADMIN_TOOLS)
+        self.assertEqual((final_message, final_reason), ({"role": "assistant", "content": "Proof"}, "stop"))
+        self.assertEqual([row["id"] for row in self.receipts()["requests"]], [first["id"], final["id"]])
+        self.assertTrue(all(row["usage"] == USAGE for row in self.receipts()["requests"]))
+
+    def test_admin_open_russian_intent_json_and_sse(self):
+        for stream, intent in [(False, "Настрой лимиты сотрудников"), (True, "Нужно обновить бюджеты сотрудников")]:
+            with self.subTest(stream=stream):
+                self.http("/__proof/reset", {})
+                self.admin_two_rounds(intent, OPEN_NAME, {"view_json": "{}"}, stream)
+
+    def test_admin_apply_exact_stored_json_never_copies_business_arguments(self):
+        for stream in (False, True):
+            with self.subTest(stream=stream):
+                self.http("/__proof/reset", {})
+                self.admin_two_rounds(json.dumps(PLAN), APPLY_NAME, {}, stream)
+
+    def test_admin_old_tool_result_does_not_complete_a_new_user_turn(self):
+        self.http("/__proof/control", {"admin_mode": True})
+        history = [{"role": "user", "content": "Настрой бюджеты"},
+                   {"role": "assistant", "content": None, "tool_calls": [{
+                       "id": "old-open", "type": "function", "function": {"name": OPEN_NAME, "arguments": '{"view_json":"{}"}'}}]},
+                   {"role": "tool", "tool_call_id": "old-open", "content": "Old form opened"},
+                   {"role": "assistant", "content": "Proof"},
+                   {"role": "user", "content": json.dumps(PLAN)}]
+        _, message, reason = self.chat(messages=history, tools=ADMIN_TOOLS)
+        self.assertEqual(reason, "tool_calls")
+        self.assertEqual(message["tool_calls"][0]["function"], {"name": APPLY_NAME, "arguments": "{}"})
+        # A second, later open intent must also ignore both older result turns.
+        history.extend([{"role": "tool", "tool_call_id": "old-apply", "content": "Applied"},
+                        {"role": "user", "content": "Обнови лимиты"}])
+        _, message, reason = self.chat(messages=history, tools=ADMIN_TOOLS)
+        self.assertEqual(reason, "tool_calls")
+        self.assertEqual(message["tool_calls"][0]["function"]["name"], OPEN_NAME)
+
+    def test_admin_mode_only_routes_available_unambiguous_suffixes(self):
+        self.http("/__proof/control", {"admin_mode": True, "tool_round": True})
+        for text, tools in [("Настрой лимиты", None), (json.dumps(PLAN), ADMIN_TOOLS[:1]),
+                            ("Настрой лимиты", [*ADMIN_TOOLS, ADMIN_TOOLS[0]]),
+                            (json.dumps(PLAN), [*ADMIN_TOOLS, ADMIN_TOOLS[1]]),
+                            ("Настрой лимиты", TOOLS), ("Hi", [*ADMIN_TOOLS, *TOOLS]),
+                            ("Настрой лимиты", [{"type": "function", "function": {"name": OPEN_NAME + "_extra"}}])]:
+            with self.subTest(text_kind="json" if text.startswith("{") else "intent"):
+                _, message, reason = self.chat(messages=[{"role": "user", "content": text}], tools=tools)
+                self.assertEqual((message["content"], reason), ("Proof", "stop"))
+        _, message, reason = self.chat(messages=[{"role": "user", "content": "Настроить лимиты"}], tools=[*ADMIN_TOOLS, *TOOLS])
+        self.assertEqual(reason, "tool_calls")
+        self.assertEqual(message["tool_calls"][0]["function"]["name"], OPEN_NAME)
+
+    def test_admin_plan_marker_must_be_exact_json_not_fences_prose_or_boolean_schema(self):
+        self.http("/__proof/control", {"admin_mode": True})
+        for text in ["```json\n" + json.dumps(PLAN) + "\n```", "Apply this " + json.dumps(PLAN),
+                     json.dumps({**PLAN, "schema": True}), json.dumps({**PLAN, "schema": 1.0}),
+                     json.dumps({**PLAN, "type": "another_plan"}), json.dumps([PLAN])]:
+            with self.subTest(text_start=text[:10]):
+                _, message, reason = self.chat(messages=[{"role": "user", "content": text}], tools=ADMIN_TOOLS)
+                self.assertEqual((message["content"], reason), ("Proof", "stop"))
+        # A native one-text-part representation retains the exact same JSON content.
+        _, message, reason = self.chat(messages=[{"role": "user", "content": [{"type": "text", "text": json.dumps(PLAN)}]}], tools=ADMIN_TOOLS)
+        self.assertEqual(reason, "tool_calls")
+        self.assertEqual(message["tool_calls"][0]["function"], {"name": APPLY_NAME, "arguments": "{}"})
+
+    def test_admin_mode_off_does_not_route_admin_tools_and_echo_recovers(self):
+        _, message, reason = self.chat(messages=[{"role": "user", "content": "Настрой лимиты"}], tools=ADMIN_TOOLS)
+        self.assertEqual((message["content"], reason), ("Proof", "stop"))
+        self.http("/__proof/control", {"tool_round": True, "admin_mode": True})
+        self.http("/__proof/control", {"admin_mode": False})
+        _, message, reason = self.chat(tools=[*TOOLS, *ADMIN_TOOLS])
+        self.assertEqual(reason, "tool_calls")
+        self.assertEqual(message["tool_calls"][0]["function"], {"name": NAME, "arguments": "{}"})
 
     def test_concurrent_calls_have_distinct_response_and_tool_ids(self):
         self.http("/__proof/control", {"tool_round": True})

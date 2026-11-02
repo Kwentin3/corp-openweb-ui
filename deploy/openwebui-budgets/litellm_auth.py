@@ -27,9 +27,8 @@ The internal symbols below require actual-image qualification on every upgrade.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from datetime import datetime, timezone
-import hashlib
+from functools import lru_cache
 from importlib.metadata import version
 import json
 import os
@@ -45,18 +44,29 @@ if TYPE_CHECKING:
 REQUIRED_VERSION = "1.105.1"
 USER_ID_HEADER = "X-OpenWebUI-User-Id"
 TASK_HEADER = "X-OpenWebUI-Task"
-ASSIGNMENT_NAMESPACE = "user-model-v1"
 PROVENANCE_FIELD = "owui_budget_provenance"
 
 
+@lru_cache(maxsize=4)
+def _assignment_symbol(name: str):
+    from litellm.proxy.types_utils.utils import get_instance_fn
+
+    return get_instance_fn("employee_budget_assignment." + name, config_file_path=__file__)
+
+
+def __getattr__(name: str):
+    if name == "ASSIGNMENT_NAMESPACE":
+        return _assignment_symbol(name)
+    raise AttributeError(name)
+
+
 def assignment_alias(user_id: str, model: str) -> str:
-    """Canonical native key alias; this hash is an assignment ID, not a credential."""
-    identity = json.dumps([user_id, model], ensure_ascii=True, separators=(",", ":"))
-    return "owui-budget-v1-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    """Compatibility shim; the shared assignment contract owns this representation."""
+    return _assignment_symbol("assignment_alias")(user_id, model)
 
 
 def assignment_metadata(model: str) -> dict[str, str]:
-    return {"owui_budget_namespace": ASSIGNMENT_NAMESPACE, "owui_budget_model": model}
+    return _assignment_symbol("assignment_metadata")(model)
 
 
 def _require(condition: bool, status: int, detail: str) -> None:
@@ -76,20 +86,7 @@ def _header(request: Request, name: str, *, required: bool) -> str | None:
 
 
 def _assignment_matches(record: object, user_id: str, model: str) -> bool:
-    metadata = getattr(record, "metadata", None)
-    if isinstance(metadata, str):
-        try:
-            metadata = json.loads(metadata)
-        except ValueError:
-            return False
-    return (
-        getattr(record, "user_id", None) == user_id
-        and getattr(record, "team_id", None) is None
-        and getattr(record, "models", None) == [model]
-        and getattr(record, "key_alias", None) == assignment_alias(user_id, model)
-        and isinstance(metadata, Mapping)
-        and all(metadata.get(key) == value for key, value in assignment_metadata(model).items())
-    )
+    return _assignment_symbol("assignment_matches")(record, user_id, model)
 
 
 def _provenance_required() -> bool:
