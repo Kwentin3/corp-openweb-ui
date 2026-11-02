@@ -11,6 +11,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/capture_webui_auth.py
+        target: /proof/capture_webui_auth.py
+        read_only: true
+        bind:
+          create_host_path: false
 
   webui:
     image: ghcr.io/open-webui/open-webui:v0.12.2-slim@sha256:34db70a8e8f305dc996c4b459db0949b715400a489ca8a2d1a2a31ae5ddc67bb

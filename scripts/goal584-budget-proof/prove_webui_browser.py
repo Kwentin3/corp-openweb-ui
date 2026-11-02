@@ -53,6 +53,20 @@ def text_content(value):
     return "".join(part["text"] for part in value)
 
 
+def verify_context_row(row, call, *, builtin_tools):
+    body = row["body"]
+    require(row.get("user_id") == call["user_id"] and row.get("task") == ""
+            and body.get("model") == call["model"], "Captured gateway identity/model differs from its visible UI attempt")
+    messages = body.get("messages")
+    require(isinstance(messages, list) and len(messages) == 1 and set(messages[0]) == {"role", "content"}
+            and messages[0]["role"] == "user" and text_content(messages[0]["content"]) == "Hi",
+            "Captured gateway context differs from its visible single Hi input")
+    require(bool(body.get("tools")) is builtin_tools and not body.get("functions")
+            and not body.get("function_call") and body.get("stream") is True
+            and body.get("max_tokens", body.get("max_completion_tokens")) == 5,
+            "Captured gateway tool/stream/output contract differs from native model configuration")
+
+
 def verify_provider(browser, provider, observed):
     require(browser.get("passed") is True and observed.get("passed") is True,
             "Browser/native observation did not pass")
@@ -136,6 +150,15 @@ class Fixture:
         write_json(self.output / "webui-provider-calls.json", data)
         return data
 
+    def context(self):
+        result = subprocess.run(self.command + ["exec", "-T", "proxy", "python", "-c",
+            'import json; print(json.dumps(json.load(open("/proof-private/webui-gateway-context.private.json"))))'],
+            capture_output=True, text=True, timeout=15)
+        require(result.returncode == 0, "Cannot observe actual WebUI gateway context")
+        data = json.loads(result.stdout)
+        write_json(self.output / "webui-gateway-context.json", data)
+        return data
+
 
 def reconcile(observed, expected_calls, users):
     require(len(observed["positive_spend_logs"]) == sum(expected_calls.values()),
@@ -182,8 +205,13 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output)
         page.locator("#send-message-button").click()
     response = pending.value
     sent = response.request.post_data_json
-    require(sent.get("model") == model and text_content(sent["messages"][-1]["content"]) == "Hi",
+    submitted_user = sent.get("user_message")
+    require(isinstance(submitted_user, dict) and submitted_user.get("role") == "user"
+            and text_content(submitted_user.get("content")) == "Hi"
+            and submitted_user.get("parentId") is None and sent.get("model") == model,
             "Native browser submitted a different model/input")
+    write_json(output / (label + "-submit.json"), {key: sent[key] for key in (
+        "model", "id", "chat_id", "user_message", "messages", "params", "features", "tool_ids", "skill_ids") if key in sent})
     message_id = sent.get("id")
     require(isinstance(message_id, str) and re.fullmatch(r"[a-f0-9-]{36}", message_id), "Missing native assistant message ID")
     # A successful task acknowledgement is not a completed answer.
@@ -206,6 +234,7 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output)
         page.wait_for_timeout(250)
     require(terminal is not None, "No persisted native terminal chat outcome")
     card = page.locator("#message-" + message_id)
+    reported_estimate = None
     if expected_outcome == "success":
         require(not terminal.get("error") and terminal.get("content") == "Proof", "Native chat completion content/error differs")
         expect(card.locator("#response-content-container")).to_contain_text("Proof")
@@ -213,11 +242,15 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output)
         error = terminal.get("error")
         require(bool(error) and "budget" in json.dumps(error).lower() and terminal.get("content", "") != "Proof",
                 "Native terminal denial is not an explicit budget failure")
+        estimate = re.search(r"Estimated request cost: ([0-9.]+)", json.dumps(error))
+        if estimate:
+            reported_estimate = estimate.group(1)
         expect(card).to_contain_text(re.compile("budget", re.I))
     expect(page.locator("#chat-input")).to_be_visible()
     page.screenshot(path=str(output / (label + ".png")), full_page=False)
     return {"model": model, "chat_id": chat_id, "message_id": message_id, "outcome": expected_outcome,
-            "terminal_persisted": True, "visible_feedback": True, "browser_chat_status": response.status}
+            "terminal_persisted": True, "visible_feedback": True, "browser_chat_status": response.status,
+            "reported_estimated_cost_usd": reported_estimate}
 
 
 def main():
@@ -253,6 +286,23 @@ def main():
         users = [account["id"] for account in accounts]
         observed = fixture.observe()
         reconcile(observed, expected_calls, users)
+        # Reproduce the actual default UI context before changing fixture capability.
+        _, page, token = contexts[0]
+        before = chat(page, args.base_url, token, users[0], MODELS[0], "budget_blocked",
+                      "webui-default-builtins", args.output)
+        before["user_id"] = users[0]
+        context_before = fixture.context()["requests"]
+        require(len(context_before) == 1, "Default UI attempt must create exactly one gateway observation")
+        verify_context_row(context_before[0], before, builtin_tools=True)
+        require(Decimal(str(context_before[0]["native_estimated_max_cost_usd"])) > Decimal("0.40")
+                and before["reported_estimated_cost_usd"] is not None
+                and Decimal(before["reported_estimated_cost_usd"]) == Decimal(str(context_before[0]["native_estimated_max_cost_usd"])),
+                "Default native built-in context does not explain the observed reservation denial")
+        receipt["default_builtin_context"] = before
+        observed = fixture.observe("plainchat", expected_total=0)
+        reconcile(observed, expected_calls, users)
+        require(all(not model["builtin_tools"] for user in observed["users"]
+                    for model in user["model_capabilities"]), "Plain-chat native capability was not disabled")
         # Fresh chat per action makes the final provider input representative and bounded.
         plan = [(0, 0, "success"), (0, 0, "success"), (0, 0, "budget_blocked"),
                 (0, 1, "success"), (0, 1, "success"), (0, 1, "budget_blocked"),
@@ -273,6 +323,13 @@ def main():
             reconcile(observed, expected_calls, users)
         receipt["passed"] = True
         verified = verify_provider(receipt, fixture.provider(), observed)
+        contexts_after = fixture.context()["requests"][1:]
+        require(len(contexts_after) == 8, "Every post-change UI attempt must reach the observed native gateway")
+        for row, call in zip(contexts_after, receipt["calls"]):
+            verify_context_row(row, call, builtin_tools=False)
+            require(Decimal(str(row["native_estimated_max_cost_usd"])) <= Decimal("0.20"),
+                    "Plain-chat context or native reservation estimate differs after the capability update")
+        verified["actual_context_before_and_after"] = True
         write_json(args.output / "webui-provider-boundary.json", verified)
     except Exception as error:
         receipt["passed"] = False

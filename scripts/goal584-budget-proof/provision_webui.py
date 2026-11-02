@@ -14,6 +14,7 @@ the private 0600 state, never in stdout or safe receipts.
 from __future__ import annotations
 
 import argparse
+import copy
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
@@ -22,6 +23,7 @@ from pathlib import Path
 import secrets
 import sys
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener
 import uuid
 
@@ -88,7 +90,29 @@ class WebUI:
         ids = [model.get("id") for model in data]
         require(len(ids) == len(MODELS) and set(ids) == set(MODELS),
                 "Ordinary WebUI user does not see exactly the configured native models")
-        return {"model_ids": sorted(ids), "role": session["role"]}
+        capabilities = [builtin_tool_capability({
+            "id": model["id"], "meta": (model.get("info") or {}).get("meta") or {},
+        }) for model in data]
+        return {"model_ids": sorted(ids), "role": session["role"], "model_capabilities": capabilities}
+
+    def model(self, admin_token: str, model_id: str) -> dict:
+        record = self.ok("GET", "/api/v1/models/model?" + urlencode({"id": model_id}), token=admin_token)
+        require(record.get("id") == model_id and record.get("write_access") is True,
+                "Native model readback did not return the writable fixture model")
+        return record
+
+
+def builtin_tool_capability(record: dict) -> dict:
+    meta = record.get("meta") or {}
+    capabilities = meta.get("capabilities") or {}
+    require(isinstance(capabilities, dict), "Native model capabilities are malformed")
+    explicit = "builtin_tools" in capabilities
+    value = capabilities.get("builtin_tools")
+    require(not explicit or isinstance(value, bool), "Native built-in tool capability is ambiguous")
+    return {"model_id": record["id"], "builtin_tools": value,
+            "builtin_tools_effective": value if explicit else True,
+            "builtin_tools_source": "explicit" if explicit else "native_default",
+            "max_tokens": (record.get("params") or {}).get("max_tokens")}
 
 
 def account_from_response(response: dict, email: str, password: str, role: str) -> dict:
@@ -213,6 +237,7 @@ def snapshot(webui: WebUI, state: dict) -> dict:
     require(webui.ok("GET", "/api/version").get("version") == "0.12.2", "WebUI fixture version changed")
     admin_session = webui.session(state["admin"], "admin")
     catalogs = {user["id"]: webui.catalog(user) for user in state["users"]}
+    webui_models = [builtin_tool_capability(webui.model(state["admin"]["token"], model)) for model in MODELS]
     native = native_client(state)
 
     def consistent_readback():
@@ -260,6 +285,7 @@ def snapshot(webui: WebUI, state: dict) -> dict:
                 "user_id": user_id, "spend_usd": str(amount(info["spend"])),
                 "max_budget_usd": str(amount(info.get("max_budget"))), "native_role": info["user_role"],
                 "webui_role": catalogs[user_id]["role"], "model_ids": catalogs[user_id]["model_ids"],
+                "model_capabilities": catalogs[user_id]["model_capabilities"],
                 "budget_duration": info.get("budget_duration"), "budget_reset_at": info.get("budget_reset_at"),
             })
             for model, key_info in key_infos.items():
@@ -282,10 +308,45 @@ def snapshot(webui: WebUI, state: dict) -> dict:
 
     result = native.poll("WebUI/native spend reconciliation", consistent_readback)
     result.update(webui_admin_role=admin_session["role"], task_generation_disabled=True,
+                  webui_models=webui_models,
                   native_catalog_owner="OpenWebUI connection model_ids and native model read grants")
     actual_tasks = webui.ok("GET", "/api/v1/tasks/config", token=state["admin"]["token"])
     require(all(actual_tasks.get(flag) is False for flag in TASK_FLAGS), "Native task disable configuration changed")
     return result
+
+
+def plainchat(webui: WebUI, state: dict) -> list[dict]:
+    """Scope this fixture to plain chat through native model metadata, not budget changes."""
+    admin = state["admin"]["token"]
+    preserved = []
+
+    def grants(record):
+        return {(grant["principal_type"], grant["principal_id"], grant["permission"])
+                for grant in record["access_grants"]}
+
+    fields = ("id", "base_model_id", "name", "meta", "params", "access_grants", "is_active")
+    for model in MODELS:
+        before = webui.model(admin, model)
+        require(all(field in before for field in fields), "Native editable model fields are missing")
+        body = {field: copy.deepcopy(before[field]) for field in fields}
+        capabilities = body["meta"].get("capabilities")
+        require(capabilities is None or isinstance(capabilities, dict), "Native model capabilities are malformed")
+        body["meta"]["capabilities"] = {**(capabilities or {}), "builtin_tools": False}
+        # The exact native update route reads ModelForm.id from JSON, not a query parameter.
+        webui.ok("POST", "/api/v1/models/model/update", token=admin, body=body)
+        after = webui.model(admin, model)
+        require(all(after.get(field) == body[field] for field in fields if field != "access_grants")
+                and grants(after) == grants(before),
+                "Native plain-chat update changed fields beyond built-in tool capability")
+        capability = builtin_tool_capability(after)
+        require(capability["builtin_tools"] is False, "Native plain-chat capability update did not persist")
+        preserved.append({**capability, "other_model_fields_and_grants_preserved": True})
+    # Refresh both ordinary users through the native model catalog after model updates.
+    for user in state["users"]:
+        catalog = webui.catalog(user)
+        require(all(model["builtin_tools"] is False for model in catalog["model_capabilities"]),
+                "Ordinary-user native catalog did not reflect plain-chat model capabilities")
+    return preserved
 
 
 def raise_caps(state: dict) -> None:
@@ -304,7 +365,7 @@ def raise_caps(state: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "raise"))
+    parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "raise", "plainchat"))
     parser.add_argument("--private-state", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     args = parser.parse_args()
@@ -320,7 +381,12 @@ def main() -> int:
         state = setup(args, webui) if args.phase == "setup" else read_private(args.private_state)
         if args.phase == "raise":
             raise_caps(state)
+        if args.phase == "plainchat":
+            receipt["plainchat_control"] = plainchat(webui, state)
         observed = snapshot(webui, state)
+        if args.phase == "plainchat":
+            require(all(model["builtin_tools"] is False for model in observed["webui_models"]),
+                    "Plain-chat capability readback differs from native model configuration")
         if args.phase == "setup":
             require(all(close_amount(user["spend_usd"], Decimal("0"))
                         and close_amount(user["max_budget_usd"], Decimal("0.80")) for user in observed["users"])

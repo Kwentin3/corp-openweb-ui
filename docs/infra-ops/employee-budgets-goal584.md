@@ -298,6 +298,27 @@ fixture caps через native API не считается приёмкой ад
 Локально нет Docker; фактический запуск будет в том же ограниченном Actions job.
 Ни эти проверки, ни registry metadata пока не доказывают runtime WebUI.
 
+Первый [runtime 41446525429](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41446525429)
+на head `97609bd3306bca126dcef3c61e4eaf5cbb00bea9` запустил healthy stock WebUI,
+подтвердил image/source identity, native users/config/model grants/output cap и
+обычный вход в Chrome `156.0.8078.47`. UI qualifier остановился на ошибочной
+предпосылке `messages` в browser submit: свежий native чат передаёт `user_message`,
+а сервер восстанавливает контекст. Дополнительно реальный шлюз отклонил первый
+запрос с оценкой $32.61 при spend=0/cap=$0.40. Cleanup подтвердил 0 containers/volumes.
+Артефакты сохранены в `local/goal584/runtime-proof-41446525429/`.
+
+Наблюдаемая причина пока уточняется: source подтвердил, что пустая model meta
+в реальной UI session включает native built-in tool schemas по умолчанию, даже
+без selected tool IDs. Это расходится с заявленным plain-chat fixture. Кандидат
+повторной проверки сначала воспроизводит такой запрос и записывает реальный
+gateway context/native estimate через **стендовый** документированный custom-auth
+delegate; затем native model capability `builtin_tools=false` переводит только
+fixture в plain-chat режим. Caps/цены сохраняются. Проверка требует actual context
+до/после, terminal отказа и исходного 6-success/2-denial сценария. Delegate
+только наблюдает ограниченный синтетический контекст и вызывает тот же product
+auth; ни user/key selection, ни резервирование он не заменяет. Production этот
+диагностический delegate не использует.
+
 ### Rich UI sandbox
 
 В Chrome `156.0.8078.76` дополнительно выполнена sandbox-репетиция с теми же
