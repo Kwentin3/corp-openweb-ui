@@ -1,0 +1,58 @@
+# Overlay only: combine with goal584.native-budget-proof.yml in the same project.
+# Fresh stock API qualification; no product GUI, host port or production route.
+# Official slim index and amd64 source revision verified from GHCR on 2026-11-02:
+# source 6a18585ff4c2e5f6805f682222cfbc46dc669ef8 (same source as v0.12.2).
+services:
+  proxy:
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/provision_webui.py
+        target: /proof/provision_webui.py
+        read_only: true
+        bind:
+          create_host_path: false
+
+  webui:
+    image: ghcr.io/open-webui/open-webui:v0.12.2-slim@sha256:34db70a8e8f305dc996c4b459db0949b715400a489ca8a2d1a2a31ae5ddc67bb
+    mem_limit: 2g
+    memswap_limit: 3g
+    cpus: 1
+    pids_limit: 512
+    environment:
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Generate a fresh synthetic WebUI secret}
+      WEBUI_AUTH: "True"
+      ENABLE_SIGNUP: "True"
+      ENABLE_PERSISTENT_CONFIG: "True"
+      # Provision only through native config APIs after synthetic admin signup.
+      ENABLE_OPENAI_API: "False"
+      ENABLE_OLLAMA_API: "False"
+      ENABLE_OPENAI_API_PASSTHROUGH: "False"
+      OFFLINE_MODE: "True"
+      HF_HUB_OFFLINE: "1"
+      # Native external engine avoids loading a local SentenceTransformer model.
+      # No embedding request is part of this proof; the stub has no embedding API.
+      RAG_EMBEDDING_ENGINE: openai
+      RAG_EMBEDDING_MODEL: goal584-unused-embedding
+      RAG_OPENAI_API_BASE_URL: http://provider:8000/v1
+      RAG_OPENAI_API_KEY: synthetic-provider-only-not-a-credential
+      NO_PROXY: localhost,127.0.0.1,webui,proxy,provider,postgres,redis
+    volumes:
+      - proof_webui:/app/backend/data
+    depends_on:
+      proxy:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; base='http://127.0.0.1:8080'; read=lambda path: json.load(urllib.request.urlopen(base+path, timeout=3)); assert read('/health').get('status') is True; assert read('/api/version').get('version') == '0.12.2'; assert read('/ready').get('status') is True"
+      interval: 5s
+      timeout: 12s
+      retries: 40
+      start_period: 30s
+    networks: [proof]
+
+volumes:
+  # Separate SQLite/native config state; remove with both Compose files + --volumes.
+  proof_webui:

@@ -9,8 +9,10 @@
 budget core отдельно проверен на изолированном стенде — результат ниже. Первичная проверка
 штатных возможностей обнаружила отсутствие прямого авторизованного обмена
 Rich UI iframe с Tool/Action на 0.12.2. До строительства обходного механизма
-нужно решение владельца о пользовательском пути; варианты ниже. Продуктовый
-адаптер, UI-стенд с двумя сотрудниками и платные вызовы ещё не выполнены.
+нужно решение владельца о пользовательском пути; варианты ниже. Адаптер отдельно
+проверен с имитированными trusted headers. Кандидат следующего среза добавляет
+stock WebUI и обычный браузерный чат двух синтетических сотрудников; runtime
+этого среза ещё не выполнен. Платные вызовы не разрешены и в стенд не входят.
 
 ## Цель и ограничения
 
@@ -65,7 +67,7 @@ Read-only сверка 02.11.2026, 13:35 МСК; ключ SSH и адрес пр
 | Tool открывает Rich UI без HTML в контексте модели | `HTMLResponse` + короткий result context | Middleware отделяет embeds от текста результата [1] | Привязать к авторизованному чтению владельца расходов | Подходит для свежего снимка при вызове Tool; старый экран обозначать снимком |
 | Форма читает свежие данные и сохраняет подтверждённое изменение | Iframe bridge: height/pong/payload; подтверждённая отправка prompt | Payload — свойство компонента; Tool embed его не задаёт. Прямого Tool/Action RPC нет; исполняемый replay подтвердил границу [2] | Требуется другой пользовательский путь либо поддерживаемая новая upstream-возможность | Критичный gap: выбор владельца между вариантами A/B ниже; custom bridge не строим |
 | Серверные полномочия и подтверждение | Tool/Action получают `__user__`, `__request__`, `__event_call__` | Native Action проходит авторизацию и проверку чата; confirmation/input вызываются из Python [3] | Проверять текущую admin-роль, точные изменения и актуальность состояния после ожидания | Существующий владелец пользователей; подтверждение отправки prompt не считать подтверждением бюджета |
-| Общий месячный бюджет и доли моделей | Scalar user/key budgets; отдельный `model_max_budget` | В pinned LiteLLM есть native key/user reservations; per-model механизм относится к EE и устроен иначе [4] | Доказать полный путь авторизации, постоянного учёта, сброса периода и параллельных вызовов | OSS-кандидат: один user + ключ на user/model с отдельным scalar budget. Подбор ключа в штатном маршруте ещё не решён; EE не обходить |
+| Общий месячный бюджет и доли моделей | Scalar user/key budgets; отдельный `model_max_budget` | Native scalar core и adapter user/model проверены на actual image; per-model механизм относится к EE и устроен иначе [4] | Реальный WebUI, сумма долей, смена периода и параллельные вызовы | Один native user + ключ на user/model с отдельным scalar budget. Подбор ключа проверен с имитированными server headers; EE не обходится |
 | Один журнал, историческая цена, принадлежность вызова | LiteLLM PostgreSQL spend logs и cost tracking | Есть стоимость события, provider-call ID, session/request metadata [5] | Зафиксированная версия тарифа/usage, полнота, неизвестная цена, служебные операции, durable recovery | Сохраняем одного владельца; отдельный ledger не создаём. Полная пригодность ещё не доказана |
 | Стоимость ответа и всего чата со всеми ветками | Native usage merge и status events | Usage складывается по native tool rounds; outlet видит только выбранную ветку [6] | Читать итог по chat/answer из владельца расходов, а не суммировать только активную историю | Показ — отдельное расширение; стоимость из одного регистра |
 | Штатное отключение отображения | Filter/UserValves; сохранённый `statusHistory` | Toggleable Filter отключает весь pipeline; UserValves может пропускать будущий status, но не скрывает сохранённые строки [7] | Обычная UI-проверка области сохранения и исторических статусов | Не размещать enforcement в отключаемом фильтре. Полное ретроспективное скрытие не обещаем |
@@ -236,11 +238,65 @@ discovery пока отклоняются, а не становятся бесп
 native 7/2 сценарий с имитацией trusted WebUI headers, отдельно проверяет запреты
 и native operator access. Сырые fixture-ключи остаются в private state 0600 вне
 публикуемых квитанций. Повторный alias проверяется через native API rejection,
-а не через внедрённый дубликат БД. Actual-image runtime кандидата ещё не пройден.
+а не через внедрённый дубликат БД.
+Actual-image runtime прошёл в
+[run 41440455795](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41440455795):
+head `0bbe61deb13e3ae682237f71d1155866d0255b51`, испытанный merge
+`5bb26cbafb1d4c019c1ee7b5b87a6efdba05dbd4`. Source hashes сверены, 11 артефактов
+прочитаны и независимо приняты только для этого среза. После bootstrap native
+operator сохранил management role/allowed_routes; через gateway повторились
+7 успехов и 2 бюджетных отказа. Девять дополнительных auth/provisioning отказов
+не создали лишних provider calls. После cold restart proxy и Redis сохранились
+users/keys/7 log rows и повторился personal-budget denial. Сверка actual provider
+IDs/context/usage и cleanup подтвердила 0 лишних вызовов, 0 контейнеров/volumes.
+Квитанции — `local/goal584/runtime-proof-41440455795/`.
 Предварительно проверены точные symbols/signatures, исходные контракты, обычная
 импортируемость mounted файлов, HTTP-пакет с присутствующим пустым TASK, YAML,
 Bash, Python и независимое source review. Это не приёмка WebUI или lifecycle
-резервирования при параллельных вызовах/сбоях.
+резервирования при параллельных вызовах/сбоях. Единственность inflight hold отдельно
+не измерялась; вывод о владельце reservation пока ограничен исходниковой делегацией
+и проверенными завершёнными вызовами.
+
+Следующий шаг — настоящий WebUI native model-discovery и пользовательский
+chat-path с этим адаптером. Pinned source обнаружил более простой штатный путь:
+непустой connection `model_ids` строит каталог внутри WebUI без upstream GET
+`/models`; native Workspace model read grants задают доступ обычным сотрудникам.
+Отдельный catalog principal не требуется. Native `/openai/verify` при этом всё
+ещё вызывает gateway discovery и не поддерживается текущим hook.
+Управление формой,
+служебные задачи, ingress/provenance, price versions и полный chat/tool accounting
+остаются отдельной незавершённой частью того же GOAL. Выбор A/B не сделан; обсуждение
+временного JSON не является разрешением подменить исходный workflow.
+
+### Кандидат настоящего WebUI-стенда
+
+[Compose overlay](../../compose/goal584.webui-proof.yml) добавляет официальный
+`v0.12.2-slim` с immutable index
+`sha256:34db70a8e8f305dc996c4b459db0949b715400a489ca8a2d1a2a31ae5ddc67bb`.
+Registry labels и `WEBUI_BUILD_HASH` совпадают с pinned source `6a18585…`.
+У сервиса отдельный disposable volume, internal network и нет host ports.
+
+[Provisioner](../../scripts/goal584-budget-proof/provision_webui.py) использует
+native signup/admin-add, connection config, model grants и task config. Два
+реальных WebUI UUID становятся LiteLLM user IDs; каждому назначаются $0.80 и
+две доли по $0.40. Credentials хранятся вне публикуемых артефактов. Для этого
+plain-chat среза генерация title/tags/follow-up и прочих auxiliary tasks выключена
+штатной настройкой; это не решение их учёта и не настройка production.
+
+[Browser qualifier](../../scripts/goal584-budget-proof/prove_webui_browser.py)
+входит двумя обычными пользователями через форму и отправляет восемь свежих чатов
+через native selector/input/send. Ожидаются шесть streamed ответов, два видимых
+бюджетных отказа, сохранённый terminal outcome каждого чата, независимость второго
+сотрудника и восстановление первого после fixture-увеличения user/key caps.
+После каждого действия readback сверяет native user/key spend; provider IDs,
+контекст, usage и число фактических dispatch сверяются отдельно. Увеличение
+fixture caps через native API не считается приёмкой административной GUI.
+
+Предварительные Python/YAML/actionlint и независимая source/schema проверка
+прошли. Репетиция verifier отклонила лишний dispatch, лишний контекст, чужого
+владельца, потерю output cap, пропавший отказ, изменённый usage и повторный chat ID.
+Локально нет Docker; фактический запуск будет в том же ограниченном Actions job.
+Ни эти проверки, ни registry metadata пока не доказывают runtime WebUI.
 
 ### Rich UI sandbox
 

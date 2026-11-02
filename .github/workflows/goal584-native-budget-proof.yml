@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/goal584-native-budget-proof.yml
       - compose/goal584.native-budget-proof.yml
+      - compose/goal584.webui-proof.yml
       - scripts/goal584-budget-proof/**
       - deploy/openwebui-budgets/**
   workflow_dispatch:
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,6 +55,7 @@ jobs:
               'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
               'PROOF_DB_PASSWORD': secrets.token_hex(32),
               'OWUI_BUDGET_GATEWAY_SECRET': 'gw-' + secrets.token_hex(32),
+              'WEBUI_SECRET_KEY': secrets.token_hex(32),
               'PROOF_PRIVATE_DIR': str(private),
               'PROOF_CONFIG_FILE': str(config),
           }
@@ -61,7 +63,7 @@ jobs:
           with os.fdopen(fd, 'w', encoding='utf-8') as handle:
               for key, value in values.items():
                   handle.write(f'{key}={value}\n')
-                  if key in ('PROOF_MASTER_KEY', 'PROOF_DB_PASSWORD', 'OWUI_BUDGET_GATEWAY_SECRET'):
+                  if key in ('PROOF_MASTER_KEY', 'PROOF_DB_PASSWORD', 'OWUI_BUDGET_GATEWAY_SECRET', 'WEBUI_SECRET_KEY'):
                       print(f'::add-mask::{value}')
           PY
 
@@ -202,6 +204,85 @@ jobs:
             "$PROOF_OUTPUT_DIR/gateway-auth.json" "$PROOF_OUTPUT_DIR/gateway-provider-calls.json" \
             --receipt "$PROOF_OUTPUT_DIR/gateway-provider-boundary.json"
 
+      - name: Prepare the disposable browser driver
+        shell: bash
+        run: |
+          command -v google-chrome
+          google-chrome --version
+          python -m venv "$RUNNER_TEMP/goal584-browser-venv"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/browser-requirements.txt
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip check
+
+      - name: Start stock WebUI with its native isolated data volume
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml config --quiet
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml up -d --wait --wait-timeout 240 webui
+          python - <<'PY'
+          import hashlib, json, os, subprocess, urllib.request
+          from pathlib import Path
+          command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'],
+                     '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
+          container = subprocess.check_output(command + ['ps', '-q', 'webui'], text=True).strip()
+          data = json.loads(subprocess.check_output(['docker', 'inspect', container]))[0]
+          assert not data['HostConfig']['PortBindings'], 'WebUI proof must not publish a host port'
+          network, = data['NetworkSettings']['Networks'].values()
+          base = 'http://' + network['IPAddress'] + ':8080'
+          opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          with opener.open(base + '/api/version', timeout=10) as response:
+              version = json.load(response)
+          assert version.get('version') == '0.12.2'
+          image = json.loads(subprocess.check_output(['docker', 'image', 'inspect', data['Image']]))[0]
+          revision = image['Config']['Labels']['org.opencontainers.image.revision']
+          assert revision == '6a18585ff4c2e5f6805f682222cfbc46dc669ef8'
+          assert data['State']['Health']['Status'] == 'healthy'
+          files = ['compose/goal584.webui-proof.yml', 'scripts/goal584-budget-proof/provision_webui.py',
+                   'scripts/goal584-budget-proof/prove_webui_browser.py', 'scripts/goal584-budget-proof/browser-requirements.txt']
+          receipt = {'source_commit': os.environ['GITHUB_SHA'], 'image_ref': data['Config']['Image'],
+                     'image_id': data['Image'], 'upstream_revision': revision, 'version': version['version'],
+                     'host_ports': [], 'health': 'healthy',
+                     'files_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files}}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'webui-runtime-identity.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              handle.write('PROOF_WEBUI_URL=' + base + '\n')
+          PY
+
+      - name: Provision two native employees and their model budgets
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_webui.py \
+            --phase setup --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/webui-setup.safe.json > "$PROOF_OUTPUT_DIR/webui-setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/webui-setup.json"
+          test "$proof_result" = 0
+          umask 077
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'import json; state=json.load(open("/proof-private/webui-state.private.json")); print(json.dumps({"users":[{key:user[key] for key in ("id","email","password")} for user in state["users"]]}))' \
+            > "$PROOF_PRIVATE_DIR/browser-accounts.private.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          state = json.loads(Path(os.environ['PROOF_PRIVATE_DIR'], 'browser-accounts.private.json').read_text())
+          for user in state['users']:
+              print('::add-mask::' + user['password'])
+          PY
+
+      - name: Qualify actual employee chats in the stock browser UI
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_webui_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR"
+
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()
         shell: bash
@@ -211,13 +292,14 @@ jobs:
           from pathlib import Path
           env_file = Path(os.environ['PROOF_ENV_FILE'])
           if env_file.exists():
-              command = ['docker', 'compose', '--env-file', str(env_file), '-f', 'compose/goal584.native-budget-proof.yml']
-              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', 'proxy'], capture_output=True, text=True)
+              command = ['docker', 'compose', '--env-file', str(env_file), '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
+              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', 'proxy', 'webui'], capture_output=True, text=True)
               output = result.stdout + result.stderr
               for line in env_file.read_text(encoding='utf-8').splitlines():
                   output = output.replace(line.split('=', 1)[1], '[redacted]')
               output = re.sub(r'sk-[A-Za-z0-9_-]+', '[synthetic-key-redacted]', output)
               output = re.sub(r'postgresql://[^\s]+', '[database-url-redacted]', output)
+              output = re.sub(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', '[session-redacted]', output)
               print(output)
           PY
 
@@ -226,7 +308,8 @@ jobs:
         shell: bash
         run: |
           if test -f "$PROOF_ENV_FILE"; then
-            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml down --volumes --remove-orphans
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml down --volumes --remove-orphans
             python - <<'PY'
           import json, os, subprocess
           from pathlib import Path
