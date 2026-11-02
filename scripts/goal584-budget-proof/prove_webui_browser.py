@@ -200,23 +200,30 @@ def login(browser, base_url, account):
     return context, page, session["token"]
 
 
-def chat(page, base_url, token, user_id, model, expected_outcome, label, output):
-    page.goto(base_url + "/", wait_until="domcontentloaded")
+def chat(page, base_url, token, user_id, model, expected_outcome, label, output, *,
+         start_new=True, regenerate_message_id=None, expected_costs=("0.20", "0.20")):
+    if start_new:
+        page.goto(base_url + "/", wait_until="domcontentloaded")
     expect(page.locator("#chat-input")).to_be_visible()
     selector = page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first
     selector.click()
     page.locator('button[data-value="%s"]' % model).click()
     expect(selector).to_have_attribute("aria-label", "Selected model: " + model)
-    page.locator("#chat-input").fill("Hi")
+    if regenerate_message_id is None:
+        page.locator("#chat-input").fill("Hi")
     with page.expect_response(lambda response: urlsplit(response.url).path == "/api/chat/completions"
                               and response.request.method == "POST", timeout=45_000) as pending:
-        page.locator("#send-message-button").click()
+        if regenerate_message_id is None:
+            page.locator("#send-message-button").click()
+        else:
+            page.locator("#message-" + regenerate_message_id).get_by_role("button", name="Regenerate", exact=True).click()
+            page.get_by_role("button", name="Try Again", exact=True).click()
     response = pending.value
     sent = response.request.post_data_json
     submitted_user = sent.get("user_message")
     require(isinstance(submitted_user, dict) and submitted_user.get("role") == "user"
             and text_content(submitted_user.get("content")) == "Hi"
-            and submitted_user.get("parentId") is None and sent.get("model") == model,
+            and (not start_new or submitted_user.get("parentId") is None) and sent.get("model") == model,
             "Native browser submitted a different model/input")
     write_json(output / (label + "-submit.json"), {key: sent[key] for key in (
         "model", "id", "chat_id", "user_message", "messages", "params", "features", "tool_ids", "skill_ids") if key in sent})
@@ -241,11 +248,34 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output)
             break
         page.wait_for_timeout(250)
     require(terminal is not None, "No persisted native terminal chat outcome")
+    deadline = time.monotonic() + 45
+    while True:
+        tasks_response = page.context.request.get(base_url + "/api/tasks/chat/" + chat_id,
+            headers={"Authorization": "Bearer " + token}, timeout=10_000)
+        require(tasks_response.status == 200, "Native chat task readback failed")
+        task_ids = tasks_response.json().get("task_ids")
+        require(isinstance(task_ids, list), "Native task owner returned a malformed active-task list")
+        if not task_ids:
+            break
+        require(time.monotonic() < deadline, "Native chat task did not finish its outlet lifecycle")
+        page.wait_for_timeout(250)
     card = page.locator("#message-" + message_id)
     reported_estimate = None
     if expected_outcome == "success":
         require(not terminal.get("error") and terminal.get("content") == "Proof", "Native chat completion content/error differs")
         expect(card.locator("#response-content-container")).to_contain_text("Proof")
+        expected_description = None if expected_costs is None else "Ответ: $" + expected_costs[0] + " · Чат: $" + expected_costs[1]
+        if expected_description:
+            expect(card).to_contain_text(expected_description, timeout=25_000)
+        refreshed = page.context.request.get(base_url + "/api/v1/chats/" + chat_id,
+            headers={"Authorization": "Bearer " + token}, timeout=10_000).json()
+        saved = refreshed["chat"]["history"]["messages"][message_id]
+        statuses = [status for status in saved.get("statusHistory", [])
+                    if status.get("action") == "employee_budget_cost"]
+        require((statuses and expected_description in statuses[-1].get("description", ""))
+                if expected_description else not statuses,
+                "Saved native cost status differs from the visible cost/preference contract")
+        require(saved.get("content") == "Proof", "Cost display changed model history content")
     else:
         error = terminal.get("error")
         require(bool(error) and "budget" in json.dumps(error).lower() and terminal.get("content", "") != "Proof",
@@ -258,6 +288,7 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output)
     page.screenshot(path=str(output / (label + ".png")), full_page=False)
     return {"model": model, "chat_id": chat_id, "message_id": message_id, "outcome": expected_outcome,
             "terminal_persisted": True, "visible_feedback": True, "browser_chat_status": response.status,
+            "native_cost_status": expected_outcome == "success" and expected_costs is not None,
             "reported_estimated_cost_usd": reported_estimate}
 
 

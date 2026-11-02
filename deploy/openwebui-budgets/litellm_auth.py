@@ -6,6 +6,9 @@ connection template into X-OpenWebUI-Task. The distinct server-held gateway
 secret authenticates the transport; it does not prove task/chat provenance.
 Only USER_ID is used for personal-key selection. Empty TASK means ordinary
 inference; missing or nonempty TASK is unsupported on that branch.
+OWUI_BUDGET_REQUIRE_PROVENANCE=true additionally requires signed server scope.
+The shared provenance module only authenticates representation; this adapter
+projects it into native log fields and consumes tokens before downstream reads.
 Model-less discovery and service-task classification are deliberately unresolved.
 
 Assignment state belongs to existing native virtual keys: canonical
@@ -43,6 +46,7 @@ REQUIRED_VERSION = "1.105.1"
 USER_ID_HEADER = "X-OpenWebUI-User-Id"
 TASK_HEADER = "X-OpenWebUI-Task"
 ASSIGNMENT_NAMESPACE = "user-model-v1"
+PROVENANCE_FIELD = "owui_budget_provenance"
 
 
 def assignment_alias(user_id: str, model: str) -> str:
@@ -88,6 +92,102 @@ def _assignment_matches(record: object, user_id: str, model: str) -> bool:
     )
 
 
+def _provenance_required() -> bool:
+    value = os.environ.get("OWUI_BUDGET_REQUIRE_PROVENANCE", "false").lower()
+    _require(value in ("true", "false"), 503, "Invalid budget provenance configuration")
+    return value == "true"
+
+
+def _metadata_maps(data: dict) -> list[dict]:
+    maps = []
+    for name in ("metadata", "litellm_metadata"):
+        value = data.get(name)
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                _require(False, 403, "Invalid budget metadata")
+            data[name] = value
+        _require(value is None or isinstance(value, dict), 403, "Invalid budget metadata")
+        if isinstance(value, dict):
+            maps.append(value)
+    return maps
+
+
+def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
+                      required: bool, secret: str, user_id: str | None,
+                      model: str | None, decoder, chain_id: str | None,
+                      metadata_slot: str, metadata_session_id: str | None) -> None:
+    """Change log-only fields in place; native cached-body setter follows this.
+
+    Both aliases are cleaned because native normalization merges them later.
+    Native key/legacy calls never acquire our trusted namespace from client data.
+    """
+    maps = _metadata_maps(data)
+    carrier = data.get("litellm_metadata")
+    token = carrier.get(PROVENANCE_FIELD) if isinstance(carrier, dict) else None
+    for value in [data, *maps]:
+        value.pop(PROVENANCE_FIELD, None)
+        value.pop("owui_budget_root", None)
+        value.pop("owui_budget", None)
+        context = value.get("chat_context")
+        if isinstance(context, dict):
+            context.pop("owui_budget_root", None)
+        spend = value.get("spend_logs_metadata")
+        _require(spend is None or isinstance(spend, dict), 403, "Invalid budget spend metadata")
+        if isinstance(spend, dict):
+            spend.pop("owui_budget", None)
+            spend.pop(PROVENANCE_FIELD, None)
+            spend.pop("owui_budget_root", None)
+
+    header_metadata = _header(request, "x-litellm-spend-logs-metadata", required=False)
+    if header_metadata is not None:
+        try:
+            header_value = json.loads(header_metadata)
+        except ValueError:
+            _require(False, 403, "Invalid budget metadata header")
+        _require(not isinstance(header_value, dict) or not any(
+            key in header_value for key in ("owui_budget", PROVENANCE_FIELD, "owui_budget_root")
+        ), 403, "Client budget attribution header is forbidden")
+
+    if not shared_gateway:
+        return
+    _require(not required or token is not None, 403, "Signed budget provenance required")
+    if token is None:
+        return
+    try:
+        claims = decoder(token, secret, user_id=user_id, model=model)
+    except ValueError:
+        _require(False, 403, "Invalid signed budget provenance")
+    # Header processing runs after custom_auth and would overwrite our fields.
+    _require(header_metadata is None and chain_id is None
+             and "traceparent" not in request.headers and "baggage" not in request.headers,
+             403, "Competing budget correlation headers are forbidden")
+    # Native normalization also derives session correlation from metadata.user_id
+    # after auth, including on Responses' otherwise provider-owned metadata slot.
+    _require(metadata_session_id is None or metadata_session_id == claims["root_chat_id"],
+             403, "Competing budget metadata session is forbidden")
+    scope = {"schema": 1, "user_id": claims["sub"], "chat_id": claims["chat_id"],
+             "answer_id": claims["answer_id"], "root_chat_id": claims["root_chat_id"],
+             "root_answer_id": claims["root_answer_id"], "model": claims["model"],
+             "call_id": claims["jti"], "category": "personal"}
+    # Only the native route-selected logging slot may acquire scope. Responses
+    # keeps body.metadata as provider metadata, which must remain independent.
+    _require(metadata_slot in ("metadata", "litellm_metadata"), 503,
+             "Native budget metadata route is unavailable")
+    value = data.setdefault(metadata_slot, {})
+    if value is None:
+        value = data[metadata_slot] = {}
+    value["session_id"] = claims["root_chat_id"]
+    value["trace_id"] = claims["root_answer_id"]
+    spend = value.get("spend_logs_metadata")
+    if spend is None:
+        spend = value["spend_logs_metadata"] = {}
+    spend["owui_budget"] = scope
+    data["litellm_session_id"] = claims["root_chat_id"]
+    data["litellm_trace_id"] = claims["root_answer_id"]
+
+
 async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     """Return stock validated identity before the outer native reservation gate."""
     # Lazy imports preserve the native config-file loader's initialization order.
@@ -98,7 +198,11 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     from litellm.proxy.auth.resolvers.store import IdentityStore
     from litellm.proxy.auth.route_checks import RouteChecks
     from litellm.proxy.auth.user_api_key_auth import validate_resolved_virtual_key
-    from litellm.proxy.common_utils.http_parsing_utils import _read_request_body
+    from litellm.proxy.common_utils.http_parsing_utils import _read_request_body, _safe_set_request_parsed_body
+    from litellm.proxy.litellm_pre_call_utils import (
+        _get_anthropic_session_id_from_metadata, get_chain_id_from_headers, metadata_variable_name_for_route,
+    )
+    from litellm.proxy.types_utils.utils import get_instance_fn
     from litellm.proxy.db.exception_handler import PrismaDBExceptionHandler
     from litellm.proxy.utils import hash_token
     from litellm.repositories.verification_token_repository import VerificationTokenRepository
@@ -146,6 +250,8 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
         )
         _require(isinstance(model, str) and bool(model), 403,
                  "Exactly one explicit native model is required for budget routing")
+        _require(request_data.get("model") == model, 403,
+                 "Exactly one explicit wire model is required for budget provenance")
         candidates = await VerificationTokenRepository(proxy_server.prisma_client).table.find_many(
             take=2, where={"user_id": user_id, "key_alias": assignment_alias(user_id, model)},
         )
@@ -159,6 +265,23 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
         _require(api_key.startswith("sk-") and len(api_key) > 3, 401,
                  "An actual native virtual-key secret is required")
         key_hash = hash_token(api_key)
+
+    # Match the native string-to-object normalization before invoking its
+    # session extractor; otherwise JSON-string metadata could evade this check.
+    _metadata_maps(request_data)
+    _apply_provenance(
+        request, request_data, shared_gateway=shared_gateway,
+        required=_provenance_required(), secret=gateway_secret, user_id=user_id, model=model,
+        # Keep unsigned legacy/native-key paths independent of this optional
+        # mount. Strict shared calls fail closed before routing without a token.
+        decoder=lambda token, secret, **scope: get_instance_fn(
+            "provenance.decode_call", config_file_path=__file__
+        )(token, secret, **scope),
+        chain_id=get_chain_id_from_headers(dict(request.headers)),
+        metadata_slot=metadata_variable_name_for_route(route),
+        metadata_session_id=_get_anthropic_session_id_from_metadata(request_data.get("metadata")),
+    )
+    _safe_set_request_parsed_body(request=request, parsed_body=request_data)
 
     identity = IdentityStore.key_from_principal(
         await IdentityStore(

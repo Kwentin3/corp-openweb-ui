@@ -4,10 +4,30 @@
 # source 6a18585ff4c2e5f6805f682222cfbc46dc669ef8 (same source as v0.12.2).
 services:
   proxy:
+    environment:
+      OWUI_BUDGET_REQUIRE_PROVENANCE: "true"
     volumes:
       - type: bind
         source: ../scripts/goal584-budget-proof/provision_webui.py
         target: /proof/provision_webui.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /proof/provenance.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets
+        target: /proof/budgets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/provision_cost_display.py
+        target: /proof/provision_cost_display.py
         read_only: true
         bind:
           create_host_path: false
@@ -44,6 +64,24 @@ services:
       NO_PROXY: localhost,127.0.0.1,webui,proxy,provider,postgres,redis
     volumes:
       - proof_webui:/app/backend/data
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /app/backend/employee_budget_provenance.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/cost_readback.py
+        target: /app/backend/employee_budget_cost_readback.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets
+        target: /proof/budgets
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       proxy:
         condition: service_healthy

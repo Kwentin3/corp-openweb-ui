@@ -223,6 +223,9 @@ jobs:
           config = Path(os.environ['PROOF_CONFIG_FILE'])
           content = config.read_text(encoding='utf-8')
           assert content.count('custom_auth: litellm_auth.gateway_auth') == 1
+          assert 'missing_session_id:' not in content
+          assert 'store_prompts_in_spend_logs:' not in content
+          content = content.replace('general_settings:\n', 'general_settings:\n  missing_session_id: omit\n  store_prompts_in_spend_logs: false\n', 1)
           config.write_text(content.replace('custom_auth: litellm_auth.gateway_auth',
                                            'custom_auth: capture_webui_auth.gateway_auth'), encoding='utf-8')
           PY
@@ -250,7 +253,9 @@ jobs:
           assert data['State']['Health']['Status'] == 'healthy'
           files = ['compose/goal584.webui-proof.yml', 'scripts/goal584-budget-proof/provision_webui.py',
                    'scripts/goal584-budget-proof/prove_webui_browser.py', 'scripts/goal584-budget-proof/browser-requirements.txt',
-                   'scripts/goal584-budget-proof/capture_webui_auth.py']
+                   'scripts/goal584-budget-proof/capture_webui_auth.py', 'scripts/goal584-budget-proof/provision_cost_display.py',
+                   'deploy/openwebui-budgets/provenance.py', 'deploy/openwebui-budgets/cost_readback.py',
+                   'deploy/openwebui-budgets/cost_filter.py', 'scripts/goal584-budget-proof/prove_cost_browser.py']
           receipt = {'source_commit': os.environ['GITHUB_SHA'], 'image_ref': data['Config']['Image'],
                      'image_id': data['Image'], 'upstream_revision': revision, 'version': version['version'],
                      'host_ports': [], 'health': 'healthy',
@@ -262,6 +267,15 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
               handle.write('PROOF_WEBUI_URL=' + base + '\n')
           PY
+
+      - name: Verify mounted cost modules in the stock runtime
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T webui python -B -c \
+            'import employee_budget_provenance as p, employee_budget_cost_readback as r; from importlib.metadata import version; assert p.__file__ == "/app/backend/employee_budget_provenance.py"; assert r.__file__ == "/app/backend/employee_budget_cost_readback.py"; print("native PyJWT:", version("PyJWT"))'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T webui python -B -m unittest discover -s /proof/budgets/tests
 
       - name: Provision two native employees and their model budgets
         shell: bash
@@ -289,12 +303,48 @@ jobs:
               print('::add-mask::' + user['password'])
           PY
 
+      - name: Install the native signed-cost Filter and restricted reader
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_cost_display.py \
+            --phase setup --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/cost-setup.safe.json > "$PROOF_OUTPUT_DIR/cost-setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/cost-setup.json"
+          exit "$proof_result"
+
       - name: Qualify actual employee chats in the stock browser UI
         shell: bash
         run: |
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_webui_browser.py \
             --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR"
+
+      - name: Prepare the native Tool and cost lifecycle fixture
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/costs"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_cost_display.py \
+            --phase scenario --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/cost-scenario.safe.json > "$PROOF_OUTPUT_DIR/costs/scenario.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/costs/scenario.json"
+          test "$proof_result" = 0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+
+      - name: Qualify tool rounds, regenerated chat spend and native visibility controls
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_cost_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/costs"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

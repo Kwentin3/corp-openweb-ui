@@ -16,7 +16,26 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MODELS = ("goal584-fake-a", "goal584-fake-b")
 STATE_LOCK = threading.Lock()
 REQUESTS = []
-CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0}
+CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False}
+
+
+def pending_tool_name(payload, messages):
+    """Select only an unambiguous exposed proof Tool for the current user turn."""
+    tools = payload.get("tools")
+    if not isinstance(tools, list):
+        return None
+    names = [tool["function"]["name"] for tool in tools
+             if isinstance(tool, dict) and tool.get("type") == "function"
+             and isinstance(tool.get("function"), dict)
+             and isinstance(tool["function"].get("name"), str)
+             and tool["function"]["name"].endswith("budget_echo")]
+    if len(names) != 1:
+        return None
+    last_user = next((index for index in range(len(messages) - 1, -1, -1)
+                      if messages[index].get("role") == "user"), None)
+    if last_user is None or any(message.get("role") == "tool" for message in messages[last_user + 1:]):
+        return None
+    return names[0]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -63,12 +82,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/__proof/reset":
             with STATE_LOCK:
                 REQUESTS.clear()
-                CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0)
+                CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0, tool_round=False)
             return self.send_json(200, {"ok": True})
         if self.path == "/__proof/control":
             limits = {"prompt_tokens": (0, 10000), "completion_tokens": (0, 10000), "delay_ms": (0, 10000)}
             if not payload or any(
-                key not in limits or type(value) is not int or not limits[key][0] <= value <= limits[key][1]
+                (type(value) is not bool if key == "tool_round" else
+                 key not in limits or type(value) is not int or not limits[key][0] <= value <= limits[key][1])
                 for key, value in payload.items()
             ):
                 return self.send_json(400, {"error": {"message": "Invalid proof control"}})
@@ -96,8 +116,14 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(control["delay_ms"] / 1000)
         usage = {"prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                  "total_tokens": control["prompt_tokens"] + control["completion_tokens"]}
+        tool_name = pending_tool_name(payload, messages) if control["tool_round"] else None
+        tool_call = {"id": "call-goal584-" + uuid.uuid4().hex, "type": "function",
+                     "function": {"name": tool_name, "arguments": "{}"}} if tool_name else None
+        message = {"role": "assistant", "content": None, "tool_calls": [tool_call]} if tool_call else {
+            "role": "assistant", "content": "Proof"}
+        finish_reason = "tool_calls" if tool_call else "stop"
         result = {"id": call_id, "object": "chat.completion", "created": created, "model": model,
-                  "choices": [{"index": 0, "message": {"role": "assistant", "content": "Proof"}, "finish_reason": "stop"}],
+                  "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
                   "usage": usage}
         if not payload.get("stream"):
             return self.send_json(200, result)
@@ -106,9 +132,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         base = {"id": call_id, "object": "chat.completion.chunk", "created": created, "model": model}
+        delta = {"role": "assistant", "content": None, "tool_calls": [{"index": 0, **tool_call}]} if tool_call else {
+            "role": "assistant", "content": "Proof"}
         chunks = [
-            {**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Proof"}, "finish_reason": None}]},
-            {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
+            {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": None}]},
+            {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]},
             {**base, "choices": [], "usage": usage},
         ]
         try:

@@ -10,9 +10,13 @@ budget core отдельно проверен на изолированном с
 штатных возможностей обнаружила отсутствие прямого авторизованного обмена
 Rich UI iframe с Tool/Action на 0.12.2. До строительства обходного механизма
 нужно решение владельца о пользовательском пути; варианты ниже. Адаптер отдельно
-проверен с имитированными trusted headers. Кандидат следующего среза добавляет
-stock WebUI и обычный браузерный чат двух синтетических сотрудников; runtime
-этого среза ещё не выполнен. Платные вызовы не разрешены и в стенд не входят.
+проверен с имитированными trusted headers, затем с реальным stock WebUI и обычным
+браузерным чатом двух синтетических сотрудников. Шесть ответов, два key-budget
+отказа, независимость второго пользователя и восстановление после увеличения caps
+подтверждены runtime/provider/spend readback. Это приёмка только этого среза;
+административная форма ещё не реализована. Кандидат показа стоимости ответа/чата
+реализован и локально проверен; его runtime-приёмка ещё предстоит.
+Платные вызовы не разрешены и в стенд не входят.
 
 ## Цель и ограничения
 
@@ -134,13 +138,14 @@ Raw `/spend/logs/v2` доступен в OSS; `/spend/report` относится
 | HTML, короткий контекст и видимый статус → штатные Tool/Action/Filter → embeds/context/status → пользователь чата | Тонкая адаптация представления; бюджетных вычислений не содержит |
 | Последовательность чтение → предложение → подтверждение → проверка → запись → readback | Координатор; не владелец отдельного бюджета или регистра |
 
-Следующий шаг — получить решение A/B либо требование сохранить исходную живую
-форму. Затем проверить оставшийся бюджетный/авторизационный seam и подготовить
-минимальный изолированный стенд с синтетическими пользователями и неоплачиваемым
-provider stub. После содержательной проверки окончательного запроса и схемы
-согласовать ограниченные реальные API-вызовы. Только сквозная обычная UI-приёмка
-двух сотрудников, блокировки, восстановления, истории и существующих инструментов
-позволит закрыть GOAL. Source replay и docs PR этого не заменяют.
+Пользовательский шаг — получить решение A/B либо сохранить требование живой формы
+и согласовать поддерживаемый канал после доказанного gap. Обсуждение временного
+JSON этого решения не заменяет. Независимый следующий технический шаг — связать
+native spend с ответом/чатом через проверенную серверную принадлежность и читать
+стоимость из того же регистра. Далее остаются служебные категории, история цен,
+calendar/concurrency/failure lifecycle и совместимость текущих маршрутов/Tools.
+Полный изолированный пользовательский сценарий остаётся критерием закрытия;
+отдельный live-check с платным API возможен только после отдельного согласования.
 
 ## Воспроизведение и границы доказательств
 
@@ -257,8 +262,8 @@ Bash, Python и независимое source review. Это не приёмка
 не измерялась; вывод о владельце reservation пока ограничен исходниковой делегацией
 и проверенными завершёнными вызовами.
 
-Следующий шаг — настоящий WebUI native model-discovery и пользовательский
-chat-path с этим адаптером. Pinned source обнаружил более простой штатный путь:
+Настоящий WebUI native model-discovery и пользовательский chat-path с этим
+адаптером проверены ниже. Pinned source обнаружил более простой штатный путь:
 непустой connection `model_ids` строит каталог внутри WebUI без upstream GET
 `/models`; native Workspace model read grants задают доступ обычным сотрудникам.
 Отдельный catalog principal не требуется. Native `/openai/verify` при этом всё
@@ -268,7 +273,7 @@ chat-path с этим адаптером. Pinned source обнаружил бо�
 остаются отдельной незавершённой частью того же GOAL. Выбор A/B не сделан; обсуждение
 временного JSON не является разрешением подменить исходный workflow.
 
-### Кандидат настоящего WebUI-стенда
+### Настоящий WebUI-стенд
 
 [Compose overlay](../../compose/goal584.webui-proof.yml) добавляет официальный
 `v0.12.2-slim` с immutable index
@@ -341,6 +346,107 @@ update/readback. Реальный baseline context содержал один `Hi
 до $1e-9 и отклоняет разницу $0.01/$0.20. Failure capture дополнен provider/context
 readback, чтобы не терять последующие diagnostic rows. Cleanup прошёл; артефакты
 — `local/goal584/runtime-proof-41449388745/`. Полный 6/2 сценарий ещё не принят.
+
+Окончательный [run 41450358692](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41450358692)
+прошёл на head `f2a0b792993b6e792a9ed76570ea3d2530ab4b2e`, испытанный merge
+`0a99119c330550097437df6e85d597baf854adc3`. Parent readback 38 JSON и сверка
+11 нормализованных source SHA-256 подтвердили точную идентичность. В Chrome
+`156.0.8078.47` два обычных native пользователя выполнили восемь свежих чатов:
+шесть ответов, два terminal key-budget отказа, успешный вызов второго сотрудника
+и восстановление первого после fixture-изменения caps. Screenshots подтверждают
+видимый ответ/ошибку. Последние native user spends — $1.00/$0.20; final caps
+первого — user=$1.20, A=$0.80, B=$0.40. Ровно шесть positive spend rows совпали
+с шестью actual provider IDs, моделями, single-Hi input, stream/output cap 5,
+usage 10/5 и стоимостью $0.20 каждого. Лишних provider dispatch нет.
+
+Девять gateway observations отдельно связаны с видимыми UI attempts по порядку,
+actual USER_ID/model/TASK/input. Baseline: 30 built-in schemas, оценка $32.61 и
+совпадающий сохранённый UI-отказ. После native capability update — 8 запросов без
+tool/legacy function schemas, тот же `Hi`, max_tokens=5 и native estimate **$0.18**.
+Это устранило fixture-context mismatch; инструменты продукта этим срезом не
+принимаются. Native текст ошибки пока технический, содержит alias/маску ключа.
+Оба browser-отказа — key-budget; отдельный personal-budget guard проверен прежним
+native 7/2 сценарием, а не изолирован этим normalized-share UI-прогоном.
+
+JSON-проверка не нашла сырых credential/JWT значений; screenshots сделаны после
+обычного входа. Cleanup подтвердил 0 containers/volumes с project label, включая
+WebUI SQLite volume. Артефакты и parent review —
+`local/goal584/runtime-proof-41450358692/`. Draft PR обновлён результатом;
+полный GOAL не принят. Управление через HTML и ответ/chat cost display всё ещё
+отсутствуют; ни native runtime, ни этот UI-срез не подменяют оставшиеся требования.
+Независимая приёмка по `contract-outcome-review` прочитала те же 38 JSON и все
+9 PNG, подтвердила merge/head/source binding и дала PASS только W1–W5 этого
+среза: stock identity/обычные пользователи, 6/2 UI, единый spend/provider,
+контекст до/после и cleanup. Полный GOAL и перечисленные исключения не приняты.
+
+### Следующий продуктовый срез: подписанная принадлежность и cost display
+
+Выбран candidate без нового ingress/route: native non-toggleable `Filter.request`
+передаёт server-produced JWT в native `litellm_metadata`; existing LiteLLM custom
+auth проверяет его и оставляет только canonical scope в native spend metadata.
+CC и converted Responses сохраняют это поле в exact source. Подпись использует
+ключ **существующего** native gateway connection через `get_openai_connection`,
+не дублированный secret Valve. Actual model/body/контекст выбирает прежний router.
+Сверка connection/base-model нужна только для проверки и подписи связи, не
+перенаправляет вызов. Raw-call metadata без валидной подписи не становится
+доверенной принадлежностью; strict mode требует подпись на shared gateway.
+
+| Смысл → владелец → контракт → потребитель | Классификация |
+| --- | --- |
+| Actual user/chat/assistant и выбранное соединение → native WebUI auth/Chats/models/config → server Filter args + native reads → JWT scope | Проверка существующего owner output, representation-only adapter |
+| Корневая принадлежность native subagent → существующий controller `chat_context` copy → подписанная root capsule + server `internal=True` → child scope | Представление связи; импортируемой `Chat.meta` недостаточно |
+| Call/chat/root IDs → signed scope → existing auth → `spend_logs_metadata.owui_budget` + native session/trace | Представление; не содержит цен, расходов, резервов или второго ledger |
+| Начисленная сумма и usage → native spend API → exact session rows с native ACL → display projection/status | Только группировка уже начисленного; без расчёта тарифов |
+| Видимость → native UserValves → default-enabled preference → будущие status emissions | Отдельно от обязательного signing и native enforcement |
+
+Wire contract v1: PyJWT уже есть в обоих pinned runtime (WebUI requirement
+2.13.0, LiteLLM >=2.13,<3). HS256, issuer `corp-openwebui-budget-v1`, audience
+`litellm-budget-call-v1`, lifetime <=300s; claims `schema=1`, `sub`, `chat_id`,
+`answer_id`, `root_chat_id`, `root_answer_id`, `model` (wire alias), `jti`, `iat`,
+`exp`. Carrier key — `litellm_metadata.owui_budget_provenance`. Root capsule —
+`metadata.chat_context.owui_budget_root`, separate audience `openwebui-budget-root-v1`
+and <=24h lifetime for native delayed controller work. Only server internal
+children may inherit it; ordinary/resumed answers use their actual new IDs.
+Neither token nor secret may reach provider, displayed status, model messages
+or persisted cost metadata. Persisted `owui_budget` records only validated IDs,
+wire model, call nonce and category `personal`; native owns cost/usage/physical IDs.
+
+Implementation must not equate request-filter invocations with physical calls:
+resume/approval preflight invokes it without inference. Observed provider IDs
+may be a request-local technical receipt for outlet readback; missing or unsettled
+evidence must stay pending/unknown. Background children, non-streaming errors,
+retention/loss and native queue/counter transaction boundaries need separate proof.
+UserValves suppress future emissions only; historical native status remains.
+This is the next implementation contract, not runtime acceptance.
+
+Реализован candidate: `provenance.py`, `cost_filter.py`, `cost_readback.py` и
+проверка/удаление подписи в существующем `litellm_auth.py`. Подпись связывает
+authenticated user, actual/root chat и answer, wire model и уникальный call nonce;
+native route-selected metadata получает только проверенные поля. Конкурирующая
+session attribution из headers и Anthropic-compatible `metadata.user_id`
+отклоняется. Native reservation и pricing не менялись.
+
+Локально прошли 42 component/protocol/readback проверки и 9 реальных HTTP/SSE
+проверок synthetic provider. Native-source AST/cache проверки используют exact
+ignored checkout; в stock WebUI-контейнере без LiteLLM checkout они будут skipped,
+а не runtime evidence. `Valves` сохраняются через native JSON owner; reader key
+доступен только admin и ограничен session spend GET. Проверка чистоты returned
+spend rows не является чтением всех DB columns: native API исключает prompt/response.
+
+Подготовлен обычный browser сценарий: native Function install, mandatory model
+attachment, default-enabled UserValves, multi-step Tool, смена модели в одном
+чате, regeneration с сохранением старой ветки, выключение показа и продолжение
+учёта в новом чате после reload, повторное включение и проверка итоговой суммы.
+Ожидаются 6 ответов / 8 физических вызовов / $1.60 synthetic cost; новые расходы
+сверяются с прежними native counters, а не обнуляют их. Это план проверки кандидата,
+не утверждение, что сценарий уже выполнен. Предыдущая browser-приёмка выше остаётся
+привязана к своему commit и не доказывает новые файлы.
+До CI exact verifier воспроизведён на representative synthetic fixture: корректные
+6/8 приняты; 12 отрицательных мутаций (компенсирующая перестановка root у скрытых
+вызовов, actual scope/header и provider semantic fields) отклонены. Локальный
+receipt — `local/goal584/cost-display/rehearse_cost_browser_verify.safe.json`.
+Это проверка verifier, не browser acceptance. Actionlint и синтаксис 22 Bash /
+8 embedded Python шагов также прошли.
 
 ### Rich UI sandbox
 
