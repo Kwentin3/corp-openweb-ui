@@ -329,6 +329,19 @@ Pinned config loader загружает файл относительно YAML, 
 native config-relative loader; отдельные load-проверки wrapper/product прошли.
 Это исправление стендовой диагностики, а не изменение product auth или бюджетов.
 
+[Run 41449388745](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41449388745)
+на `ff53345aa413eb494e4f58efd3e9266f019d49c5` прошёл загрузку и native model
+update/readback. Реальный baseline context содержал один `Hi`, `max_tokens=5`
+и **30 native tool schemas**; native estimator и сохранённая UI-ошибка совпали
+на $32.61. Затем браузер подтвердил два ответа на A, terminal budget denial A
+и успешный ответ на B. На сверке трёх расходов qualifier обнаружил ошибку своего
+точного сравнения: native aggregate `0.6000000000000001` против Decimal `0.60`.
+Необходима только tolerance для представления float; caps и расходы не меняются.
+Исправленный comparator проверен на **этом фактическом snapshot**, принимает шум
+до $1e-9 и отклоняет разницу $0.01/$0.20. Failure capture дополнен provider/context
+readback, чтобы не терять последующие diagnostic rows. Cleanup прошёл; артефакты
+— `local/goal584/runtime-proof-41449388745/`. Полный 6/2 сценарий ещё не принят.
+
 ### Rich UI sandbox
 
 В Chrome `156.0.8078.76` дополнительно выполнена sandbox-репетиция с теми же

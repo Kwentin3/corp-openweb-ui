@@ -24,11 +24,19 @@ from playwright.sync_api import expect, sync_playwright
 
 MODELS = ("goal584-a", "goal584-b")
 CALL_COST = Decimal("0.20")
+MONEY_TOLERANCE = Decimal("0.000000001")
 
 
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def same_money(actual, expected):
+    # Native user/key counters are floats; retain raw receipts and tolerate only
+    # representation error (e.g. 0.2 + 0.2 + 0.2), never a cent/call difference.
+    value = Decimal(str(actual))
+    return value.is_finite() and abs(value - expected) <= MONEY_TOLERANCE
 
 
 def write_json(path, value):
@@ -166,11 +174,11 @@ def reconcile(observed, expected_calls, users):
     for user_id in users:
         expected = sum((CALL_COST * count for (owner, _), count in expected_calls.items() if owner == user_id), Decimal("0"))
         user = next(row for row in observed["users"] if row["user_id"] == user_id)
-        require(Decimal(user["spend_usd"]) == expected and user["webui_role"] == "user"
+        require(same_money(user["spend_usd"], expected) and user["webui_role"] == "user"
                 and set(user["model_ids"]) == set(MODELS), "Native employee identity/spend/catalog reconciliation failed")
         for model in MODELS:
             key = next(row for row in observed["keys"] if row["user_id"] == user_id and row["model"] == model)
-            require(Decimal(key["spend_usd"]) == CALL_COST * expected_calls.get((user_id, model), 0),
+            require(same_money(key["spend_usd"], CALL_COST * expected_calls.get((user_id, model), 0)),
                     "Native per-model key spend differs from completed UI calls")
 
 
@@ -335,6 +343,11 @@ def main():
         receipt["passed"] = False
         # Playwright error strings can quote credentials entered in fields.
         receipt["failure"] = safe_failure(error, accounts)
+        for observe in (fixture.provider, fixture.context):
+            try:
+                observe()
+            except Exception:
+                pass
         if page is not None:
             try:
                 if page.locator("#password").count() == 0:
