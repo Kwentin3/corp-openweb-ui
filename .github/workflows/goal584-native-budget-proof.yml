@@ -7,6 +7,7 @@ on:
       - .github/workflows/goal584-native-budget-proof.yml
       - compose/goal584.native-budget-proof.yml
       - scripts/goal584-budget-proof/**
+      - deploy/openwebui-budgets/**
   workflow_dispatch:
 
 permissions:
@@ -34,10 +35,17 @@ jobs:
           from pathlib import Path
           output = Path(os.environ['RUNNER_TEMP'], 'goal584-native-budget-proof')
           output.mkdir()
+          private = Path(os.environ['RUNNER_TEMP'], 'goal584-native-budget-private')
+          private.mkdir(mode=0o700)
+          config = private / 'config.yaml'
+          config.write_bytes(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
+          config.chmod(0o600)
           paths = {
               'PROOF_ENV_FILE': str(Path(os.environ['RUNNER_TEMP'], 'goal584-proof.env')),
               'PROOF_OUTPUT_DIR': str(output),
               'PROOF_RECEIPT': str(output / 'native-budgets.json'),
+              'PROOF_PRIVATE_DIR': str(private),
+              'PROOF_CONFIG_FILE': str(config),
           }
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
               for key, value in paths.items():
@@ -45,12 +53,16 @@ jobs:
           values = {
               'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
               'PROOF_DB_PASSWORD': secrets.token_hex(32),
+              'OWUI_BUDGET_GATEWAY_SECRET': 'gw-' + secrets.token_hex(32),
+              'PROOF_PRIVATE_DIR': str(private),
+              'PROOF_CONFIG_FILE': str(config),
           }
           fd = os.open(paths['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
           with os.fdopen(fd, 'w', encoding='utf-8') as handle:
               for key, value in values.items():
                   handle.write(f'{key}={value}\n')
-                  print(f'::add-mask::{value}')
+                  if key in ('PROOF_MASTER_KEY', 'PROOF_DB_PASSWORD', 'OWUI_BUDGET_GATEWAY_SECRET'):
+                      print(f'::add-mask::{value}')
           PY
 
       - name: Start the pinned disposable backend
@@ -79,7 +91,8 @@ jobs:
               })
               assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
           files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
-                   'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py']
+                   'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
+                   'deploy/openwebui-budgets/litellm_auth.py', 'scripts/goal584-budget-proof/prove_gateway_auth.py']
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'images': images,
@@ -116,6 +129,78 @@ jobs:
           python scripts/goal584-budget-proof/verify_provider_calls.py \
             "$PROOF_RECEIPT" "$PROOF_OUTPUT_DIR/provider-calls.json" \
             --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
+
+      - name: Bootstrap a native operator key before enabling the adapter
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_gateway_auth.py --phase bootstrap \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/bootstrap.safe.json > "$PROOF_OUTPUT_DIR/gateway-bootstrap.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/gateway-bootstrap.json"
+          exit "$proof_result"
+
+      - name: Enable the native hook through its config-file extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          config = Path(os.environ['PROOF_CONFIG_FILE'])
+          content = config.read_text(encoding='utf-8')
+          assert content.count('general_settings:\n') == 1 and 'custom_auth:' not in content
+          content = content.replace('general_settings:\n', 'general_settings:\n  custom_auth: litellm_auth.gateway_auth\n  custom_auth_run_common_checks: true\n', 1)
+          config.write_text(content, encoding='utf-8')
+          receipt = {'custom_auth': 'litellm_auth.gateway_auth', 'custom_auth_run_common_checks': True,
+                     'config_sha256': hashlib.sha256(config.read_bytes()).hexdigest()}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'gateway-config.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          PY
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart proxy
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 180
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T provider python -c 'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+
+      - name: Qualify gateway identity selection and native management access
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_gateway_auth.py --phase run \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/gateway.safe.json > "$PROOF_OUTPUT_DIR/gateway-auth.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/gateway-auth.json"
+          exit "$proof_result"
+
+      - name: Verify persisted spend after a cold proxy and cache restart
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart redis proxy
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 180
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_gateway_auth.py --phase restart \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/restart.safe.json > "$PROOF_OUTPUT_DIR/gateway-restart.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/gateway-restart.json"
+          exit "$proof_result"
+
+      - name: Read the adapter provider boundary
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$PROOF_ENV_FILE" && test -n "$(docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml ps --status running -q provider)"; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              exec -T provider python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())' \
+              > "$PROOF_OUTPUT_DIR/gateway-provider-calls.json"
+          fi
+
+      - name: Reject any extra provider dispatch from adapter checks
+        shell: bash
+        run: |
+          python scripts/goal584-budget-proof/verify_provider_calls.py \
+            "$PROOF_OUTPUT_DIR/gateway-auth.json" "$PROOF_OUTPUT_DIR/gateway-provider-calls.json" \
+            --receipt "$PROOF_OUTPUT_DIR/gateway-provider-boundary.json"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

@@ -102,10 +102,12 @@ class NativeProof:
         self.receipt.update(run_id=self.run_id, users=self.users, checks=[], calls=[])
 
     def request(self, method: str, path: str, *, token: str | None = None,
-                body: dict | None = None, query: dict | None = None) -> tuple[int, dict, Any]:
+                body: dict | None = None, query: dict | None = None,
+                extra_headers: dict | None = None) -> tuple[int, dict, Any]:
         url = self.base_url + path + ("?" + urlencode(query) if query else "")
         headers = {"Authorization": "Bearer " + (token or self.master_key),
                    "Content-Type": "application/json"}
+        headers.update(extra_headers or {})
         data = None if body is None else json.dumps(body, allow_nan=False).encode("utf-8")
         req = Request(url, data=data, headers=headers, method=method)
         remaining = self.timeout if self.poll_deadline is None else self.poll_deadline - time.monotonic()

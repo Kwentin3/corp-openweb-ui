@@ -69,12 +69,13 @@ services:
     command: ["--config", "/proof/config.yaml", "--host", "0.0.0.0", "--port", "4000", "--num_workers", "1", "--telemetry", "false"]
     environment:
       PROOF_MASTER_KEY: ${PROOF_MASTER_KEY:?Generate a fresh synthetic sk-prefixed master key}
+      OWUI_BUDGET_GATEWAY_SECRET: ${OWUI_BUDGET_GATEWAY_SECRET:?Generate a separate synthetic gateway secret}
       DATABASE_URL: postgresql://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
       NO_PROXY: localhost,127.0.0.1,postgres,redis,provider
     volumes:
       - type: bind
-        source: ../scripts/goal584-budget-proof/litellm_config.yaml
+        source: ${PROOF_CONFIG_FILE:?Prepare the private stock config copy for this run}
         target: /proof/config.yaml
         read_only: true
         bind:
@@ -83,6 +84,23 @@ services:
         source: ../scripts/goal584-budget-proof/prove_native_budgets.py
         target: /proof/prove_native_budgets.py
         read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/litellm_auth.py
+        target: /proof/litellm_auth.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_gateway_auth.py
+        target: /proof/prove_gateway_auth.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${PROOF_PRIVATE_DIR:?Prepare a private state directory for this run}
+        target: /proof-private
         bind:
           create_host_path: false
     depends_on:

@@ -5,11 +5,12 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе, продуктовая приёмка не выполнена. Первичная проверка
+**Состояние:** GOAL в работе, продуктовая приёмка не выполнена. Native scalar
+budget core отдельно проверен на изолированном стенде — результат ниже. Первичная проверка
 штатных возможностей обнаружила отсутствие прямого авторизованного обмена
 Rich UI iframe с Tool/Action на 0.12.2. До строительства обходного механизма
-нужно решение владельца о пользовательском пути; варианты ниже. Реализация
-учёта, стенд с двумя сотрудниками и платные вызовы ещё не выполнены.
+нужно решение владельца о пользовательском пути; варианты ниже. Продуктовый
+адаптер, UI-стенд с двумя сотрудниками и платные вызовы ещё не выполнены.
 
 ## Цель и ограничения
 
@@ -149,13 +150,33 @@ provider stub. После содержательной проверки окон
 [сверка полученных провайдером вызовов](../../scripts/goal584-budget-proof/verify_provider_calls.py).
 [Узкий workflow](../../.github/workflows/goal584-native-budget-proof.yml) запускает
 только этот срез на изолированном GitHub runner; существующий Active CI сохраняется.
-Runtime proof ещё не прошёл. В запуске
+Runtime proof прошёл в
+[run 41435187180](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41435187180):
+branch head `2044cb8995852365c4a0f3bffee5cde9c345c279`, испытанный merge
+`2b2f015b80a37763cd4f5417b90e120e9aa5684a`. Артефакты прочитаны и независимо
+приняты только для native scalar user/key core: 7 положительных spend rows и
+7 совпавших provider response IDs, по 10/5 tokens и синтетическим $0.20 на вызов;
+итоговые user spends $1.20/$0.20 совпадают с ключами и журналом. Два typed
+budget denials не дошли до имитатора; повышение бюджетов восстановило доступ.
+Подмена body user/metadata не изменила native владельца расхода. Фактические
+образы и SHA-256 fixture файлов связаны с runtime receipt; после теста осталось
+0 контейнеров и 0 volumes проекта. Локальная копия пяти квитанций —
+`local/goal584/runtime-proof-41435187180/`; hosted artifact имеет retention 7 дней.
+Это не приёмка GOAL целиком.
+
+Сохранённые ошибки предыдущих попыток: в запуске
 [41433766446](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41433766446)
 четыре сервиса стали healthy и миграции завершились, но runner не смог обратиться
 к опубликованному loopback-порту. Ошибка не доказывает дефект бюджета: API-вызовы
 не начались. Следующий кандидат исполняет тот же standalone driver внутри
 существующего proxy-контейнера через его native HTTP endpoint; защита сети и
-авторизации сохраняется. Ранее workflow был отклонён до job из-за `runner` context
+авторизации сохраняется. Затем
+[41434395675](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41434395675)
+подтвердил первые три расхода и отказ по бюджету, но обнаружил ошибочную предпосылку
+driver о HTTP 400/429: pinned `litellm.budget_exceeded_status_code` равен 422.
+Проверка исправлена на точный 422 + `budget_exceeded` + native Key/User scope;
+квоты и конфигурация ради зелёного результата не менялись.
+Ранее workflow был отклонён до job из-за `runner` context
 в job-level env; исправлено и проверено actionlint 1.7.12.
 Продуктовая приёмка не подменяется этим тестом.
 
@@ -177,6 +198,49 @@ Responses, streaming/cancel/concurrency, смена месяца и полная
 Перед внешним запуском проверены точные source/API/schema, локальный HTTP mock,
 синтаксис, изоляция и независимое ревью. Сверка provider receipts отвергает
 изменённые context/model/usage и лишний вызов.
+
+Следующий независимый backend-срез — узкий native custom-auth adapter без изменения
+LiteLLM source. Он должен выбирать существующий user/model key, передавать проверку
+и единственный reservation native владельцам и сохранять management RBAC. Master
+recovery и master-only routes требуют явной границы; ad-hoc admin auth не допускается.
+Service-task exemption пока не включать: один shared gateway secret доказывает
+происхождение соединения, но не достоверность всех TASK/CHAT/MESSAGE metadata.
+
+Уточнение происхождения подтверждено по pinned source и replay: raw
+`/openai/chat/completions` переносит клиентские TASK/CHAT_ID/MESSAGE_ID в headers,
+тогда как USER_ID берёт из аутентифицированного пользователя. Raw Responses
+оставляет клиентскую metadata в body и даёт пустые task/chat headers. Даже native
+task endpoints принимают caller chat_id без проверки владельца. Поэтому не
+освобождаем от личного бюджета произвольный nonempty TASK и не связываем сервисный
+расход с чатом только по этому полю. Legacy function_calling и MOA также нельзя
+автоматически считать служебными: это части пользовательского ответа.
+Закрытие внешних raw-путей через существующий ingress — только условный кандидат,
+требующий согласования совместимости и проверки всех обходных маршрутов, включая
+generic proxy, Anthropic/Ollama/embedding paths. Рабочие маршруты не менялись.
+Подробные URL и source replay — ignored
+`local/goal584/cost-display/provenance-followup.md`.
+
+Кандидат этого среза —
+[litellm_auth.py](../../deploy/openwebui-budgets/litellm_auth.py), без изменения
+LiteLLM source. Native key alias и metadata задают назначение user/model в
+существующей таблице ключей; bounded lookup и native IdentityStore/validator
+не ведут собственных расходов. Gateway-ветка требует server-held credential,
+native USER_ID и присутствующий пустой TASK. Missing/nonempty TASK и model-less
+discovery пока отклоняются, а не становятся бесплатным обходом. Management
+работает через настоящий scoped proxy_admin virtual key, созданный stock API
+до включения hook; master-only routes читаются из native enum, stock master
+не подменяется. Для его восстановления требуется stock config.
+
+[Qualifier](../../scripts/goal584-budget-proof/prove_gateway_auth.py) подготовлен
+для bootstrap → hook-enabled run → cold proxy/Redis restart. Он повторно использует
+native 7/2 сценарий с имитацией trusted WebUI headers, отдельно проверяет запреты
+и native operator access. Сырые fixture-ключи остаются в private state 0600 вне
+публикуемых квитанций. Повторный alias проверяется через native API rejection,
+а не через внедрённый дубликат БД. Actual-image runtime кандидата ещё не пройден.
+Предварительно проверены точные symbols/signatures, исходные контракты, обычная
+импортируемость mounted файлов, HTTP-пакет с присутствующим пустым TASK, YAML,
+Bash, Python и независимое source review. Это не приёмка WebUI или lifecycle
+резервирования при параллельных вызовах/сбоях.
 
 ### Rich UI sandbox
 
