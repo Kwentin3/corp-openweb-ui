@@ -158,14 +158,24 @@ def verify(result, provider, context, before, final):
         require(row["verified_cost_scope"] == ledger_scopes[row["verified_cost_scope"]["call_id"]],
                 "Persisted scope differs from the verified auth owner output")
         physical = provider_by_id[logs_by_nonce[row["verified_cost_scope"]["call_id"]]["request_id"]]["body"]
-        # Reuse the capture owner's complete semantic field set. The single
-        # intentional difference is native alias -> configured physical model,
-        # checked explicitly below; auth may not change any other input field.
+        patch = row.get("native_stream_usage_patch")
+        require(isinstance(patch, dict)
+                and set(patch) <= {"stream_options", "_litellm_strip_stream_usage"}
+                and ("_litellm_strip_stream_usage" not in patch
+                     or type(patch["_litellm_strip_stream_usage"]) is bool)
+                and ("stream_options" not in patch
+                     or isinstance(patch["stream_options"], dict)
+                     and patch["stream_options"].get("include_usage") is True),
+                "Captured native stream-usage patch has an unsupported shape")
+        expected_body = {**row["body"], **patch}
+        # Exact native _stream_usage_tracking_updates output is captured by the
+        # diagnostic owner. Auth must remain unchanged; only this native patch
+        # and the configured alias -> physical model mapping may differ later.
         for field in SEMANTIC_FIELDS:
             if field == "model":
                 continue
-            require(physical.get(field) == row["body"].get(field),
-                    "Final provider parameters differ from native gateway input: " + field)
+            require(physical.get(field) == expected_body.get(field),
+                    "Final provider parameters differ from captured native normalization: " + field)
     by_id = {row["request_id"]: row for row in rows}
     for request in requests:
         body = request["body"]
@@ -185,7 +195,8 @@ def verify(result, provider, context, before, final):
     return {"passed": True, "visible_replies": 6, "physical_model_calls": 8, "tool_rounds": 2,
             "cost_scenario_usd": "1.60", "first_chat_usd": "1.20", "unexpected_provider_calls": 0,
             "native_preference_ui": True, "regenerated_branch_retained": True,
-            "provider_scope_excluded": True, "actual_context_before_after_equal": True}
+            "provider_scope_excluded": True, "actual_context_before_after_equal": True,
+            "native_stream_usage_normalization_verified": True}
 
 
 def main():

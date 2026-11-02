@@ -65,8 +65,10 @@ async def gateway_auth(request, api_key):
         }
         state["requests"].append(record)
         save(state)
+    auth = None
     try:
-        return await product_auth()(request, api_key)
+        auth = await product_auth()(request, api_key)
+        return auth
     finally:
         if record is not None:
             after = await _read_request_body(request)
@@ -76,6 +78,20 @@ async def gateway_auth(request, api_key):
             scopes = [value for value in scopes if value is not None]
             record["provenance_removed_after"] = all("owui_budget_provenance" not in value for value in maps)
             record["body_after_auth"] = copy.deepcopy({field: after[field] for field in FIELDS if field in after})
+            if auth is not None:
+                # Native preprocessing (after auth) asks supported streaming
+                # providers for usage. Record the exact owner's pure patch;
+                # do not equate this transport normalization with auth changes.
+                from litellm.proxy.common_request_processing import (
+                    _model_deployments_support_stream_options, _stream_usage_tracking_updates,
+                )
+                record["native_stream_usage_patch"] = dict(_stream_usage_tracking_updates(
+                    data=after, general_settings=proxy_server.general_settings,
+                    route_type="acompletion",
+                    supports_stream_options=lambda: _model_deployments_support_stream_options(
+                        model=after.get("model"), llm_router=proxy_server.llm_router,
+                        team_id=auth.team_id),
+                ))
             if scopes:
                 record["verified_cost_scope"] = scope_validator()(scopes[0])
             save(state)

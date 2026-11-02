@@ -460,6 +460,42 @@ lifecycle не принят. Provider receipt нового сценария со
 native `button[aria-label=Regenerate]` внутри exact message card; продуктовый
 код/квоты/проверки результата не менялись. Active CI этого candidate — success.
 
+Повторный candidate `619e770255004441b7023ca0ea1fb5ab6b03c4d8` проверен в
+[run 41473302289](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41473302289).
+Отдельная сверка трёх реальных cost-scenario inputs предыдущего run показала
+только штатное добавление `stream_options.include_usage=true` между gateway и
+provider; auth before/after поля совпали. Это native
+`common_request_processing._stream_usage_tracking_updates` (503–530, вызов 2153–2164),
+а не изменение контекста нашим адаптером. Exact helper replay: 8 случаев и
+3 actual receipt pairs, `local/goal584/cost-display/native_stream_usage_replay.safe.json`.
+Diagnostic capture/verifier дорабатываются для явного readback этого native
+преобразования; field не исключается из проверки. Общая runtime-приёмка остаётся
+незавершённой.
+
+Run 41473302289 завершился failure именно на `stream_options` сравнении старого
+verifier. Все 6 browser replies, обе native UserValves смены, reload/исторический
+статус, regeneration и hidden новый chat выполнены; foreign chat — 401,
+unsigned raw inference — 403. В provider receipt 8 вызовов, final native receipt
+содержит соответствующие scopes/usage/spend; cleanup 0/0. Эти evidence сохранены
+в `local/goal584/runtime-proof-41473302289/receipts` и не переобозначаются green run.
+
+Diagnostic delegate теперь вызывает **сам native helper** с текущими settings,
+router/model support и native `auth.team_id`; сохраняется только его узкий patch.
+Verifier сравнивает все captured semantic fields с body + этим patch; auth
+before/after остаётся строго равным. Оба допустимых source-replay варианта и
+17 отрицательных мутаций проверены. Новый verifier также проходит на фактических
+8 provider/native rows предыдущего run с source-derived patch; это локальная
+репетиция, а новый runtime capture ещё должен быть проверен на свежем candidate.
+Receipt — `local/goal584/cost-display/replay_actual_cost_verifier.safe.json`.
+
+Независимый read-only следующий срез: native `1mo` поддерживает календарное первое
+число с global timezone/reset_time; текущий scalar `30d` также special-cased как
+календарный. Runtime boundary/cache admission ещё не проверены. Native
+`model_map_information` строится отдельным lookup при логировании, а actual custom
+charge может выбирать deployment ID: фиксация реально использованной версии ставок
+пока не доказана. Следующий минимум — readback этих полей и controlled native reset,
+без второго ledger/scheduler. Подробности: `local/goal584/litellm/calendar-price-native-next.md`.
+
 ### Rich UI sandbox
 
 В Chrome `156.0.8078.76` дополнительно выполнена sandbox-репетиция с теми же
