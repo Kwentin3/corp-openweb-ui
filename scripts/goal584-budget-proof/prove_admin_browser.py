@@ -183,6 +183,12 @@ def admin_login(browser, base, account):
     session = response.json()
     require(session.get("id") == account["id"] and session.get("role") == "admin", "Native signed-in admin identity differs")
     expect(page.locator("#chat-input")).to_be_visible(timeout=45_000)
+    # This fixture signs its fresh admin into the GUI for the first time.
+    # Acknowledge the stock release-notes modal through its visible control.
+    release = page.get_by_role("button", name="Okay, Let's Go!", exact=True)
+    expect(release).to_be_visible(timeout=15_000)
+    release.click()
+    expect(release).not_to_be_visible()
     return page, session["token"]
 
 

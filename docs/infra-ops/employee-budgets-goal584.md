@@ -65,6 +65,16 @@ native zero-cap probe и admin GUI. Передача исправлена как
 accounts: отдельная runner-owned копия0600 через container exec, без ослабления
 прав исходного файла. Artifact digest
 `217a8c0b7c95049349d57ef07bcc2832ccce9c66c85b03eda8eefc0aa95c0e4c`, cleanup 0/0.
+Native run [41501136863](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41501136863)
+на `b51ed93c` дополнительно подтвердил hash cap update и hard-zero: unused admin B
+spend0/cap0 дал native422 budget_exceeded, provider IDs не изменились, затем
+cap500 и все identities/spend/reset восстановились точно. Admin browser остановился
+до первого запроса: штатное первое окно What's New перекрыло model selector.
+Screenshot и zero provider attempts сохранены; driver теперь нажимает его обычную
+кнопку Okay, Let's Go!, не меняя frontend/storage. Artifact digest
+`586f7d7d0818e9cdcaddde6e66c50c0153b32eea8825aa1c773626e88e00efc3`, cleanup 0/0.
+Независимая scoped приёмка предыдущего run18: 27 точных source SHA, cost/details/OFF
+и admin installation PASS (`local/goal584/runtime-proof-41499920317/independent-review.safe.json`).
 
 ## Цель и ограничения
 
