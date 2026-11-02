@@ -35,6 +35,8 @@ import uuid
 
 
 VERSION = "1.105.1"
+# Pinned litellm/__init__.py:409; BudgetExceededError and auth conversion preserve it.
+BUDGET_EXCEEDED_STATUS = 422
 MODELS = ("goal584-a", "goal584-b")
 PROMPT_TOKENS = 10
 COMPLETION_TOKENS = 5
@@ -257,6 +259,9 @@ class NativeProof:
 
     def persisted(self) -> None:
         def condition():
+            observed = {"observed_at_utc": datetime.now(timezone.utc).isoformat(),
+                        "source_endpoints": ["/user/info", "/key/info", "/spend/logs/v2"],
+                        "users": [], "keys": [], "positive_spend_logs": []}
             for user in self.users:
                 expected = {root: item for root, item in self.expected.items() if item["user"] == user}
                 rows = self.logs(user)
@@ -281,7 +286,19 @@ class NativeProof:
                             row.get("completion_tokens") == COMPLETION_TOKENS and row.get("total_tokens") == 15,
                             "Persisted native usage differs from fixture usage")
                     require(close_amount(row.get("spend"), CALL_COST), "Native spend differs from declared fixture prices")
+                    require(row.get("request_id") == item["provider_response_id"],
+                            "Native spend request ID differs from synthetic provider response ID")
                     found[root] = row
+                    observed["positive_spend_logs"].append({
+                        "request_id": row["request_id"], "user": row["user"],
+                        "key_alias": key["alias"], "model_group": row["model_group"],
+                        "spend_usd": str(amount(row["spend"])),
+                        "prompt_tokens": row["prompt_tokens"], "completion_tokens": row["completion_tokens"],
+                        "total_tokens": row["total_tokens"],
+                        "metadata": {"spend_logs_metadata": {
+                            "chat_id": custom["chat_id"], "root_answer_id": custom["root_answer_id"],
+                            "call_kind": custom["call_kind"]}},
+                    })
                 if len(found) != len(expected):
                     return None
                 user_info = self.user_info(user)
@@ -291,6 +308,12 @@ class NativeProof:
                         "Native user monthly reset was not persisted")
                 if not close_amount(user_info.get("spend"), len(expected) * CALL_COST):
                     return None
+                observed["users"].append({
+                    "user_id": user_info["user_id"], "spend_usd": str(amount(user_info["spend"])),
+                    "max_budget_usd": str(amount(user_info.get("max_budget"))),
+                    "budget_duration": user_info["budget_duration"],
+                    "budget_reset_at": user_info["budget_reset_at"],
+                })
                 for model in MODELS:
                     info = self.key_info(user, model)
                     count = sum(item["model"] == model for item in expected.values())
@@ -298,6 +321,15 @@ class NativeProof:
                         return None
                     if not close_amount(info.get("max_budget"), self.keys[user, model]["cap"]):
                         return None
+                    observed["keys"].append({
+                        "key_alias": self.keys[user, model]["alias"], "user_id": info["user_id"],
+                        "models": info["models"], "team_id": info.get("team_id"),
+                        "spend_usd": str(amount(info["spend"])),
+                        "max_budget_usd": str(amount(info["max_budget"])),
+                        "budget_duration": info["budget_duration"], "budget_reset_at": info["budget_reset_at"],
+                    })
+            # Publish only a complete, verified readback; partial polling snapshots are not evidence.
+            self.receipt["native_observed"] = observed
             return True
         self.poll("spend logs and user/key totals", condition)
 
@@ -319,12 +351,13 @@ class NativeProof:
         status, payload, headers = self.request("POST", "/v1/chat/completions", token=key["token"], body=body)
         if blocked_scope:
             error = payload.get("error")
-            require(status in (400, 429) and isinstance(error, dict) and error.get("type") == "budget_exceeded",
+            require(status == BUDGET_EXCEEDED_STATUS and isinstance(error, dict) and error.get("type") == "budget_exceeded",
                     "Expected native budget rejection; received HTTP " + str(status))
             marker = "Key=" + key["alias"] if blocked_scope == "key" else "User=" + user
             require(marker in str(error.get("message", "")), "Budget rejection did not identify expected native scope")
             self.receipt["calls"].append({"user": user, "model": model, "outcome": "budget_blocked",
-                                          "scope": blocked_scope, "http_status": status})
+                                          "scope": blocked_scope, "http_status": status,
+                                          "error_type": error["type"]})
         else:
             require(status == 200, "Native inference unexpectedly returned HTTP " + str(status))
             provider_response_id = payload.get("id")

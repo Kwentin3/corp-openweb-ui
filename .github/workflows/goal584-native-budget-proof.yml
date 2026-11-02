@@ -100,24 +100,22 @@ jobs:
           cat "$PROOF_RECEIPT"
           exit "$proof_result"
 
-      - name: Read the actual provider boundary and compare it to native outcomes
+      - name: Read the actual provider boundary
+        if: always()
         shell: bash
         run: |
-          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
-            exec -T provider python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())' \
-            > "$PROOF_OUTPUT_DIR/provider-calls.json"
+          if test -f "$PROOF_ENV_FILE" && test -n "$(docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml ps --status running -q provider)"; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              exec -T provider python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())' \
+              > "$PROOF_OUTPUT_DIR/provider-calls.json"
+          fi
+
+      - name: Compare the provider boundary to native outcomes
+        shell: bash
+        run: |
           python scripts/goal584-budget-proof/verify_provider_calls.py \
             "$PROOF_RECEIPT" "$PROOF_OUTPUT_DIR/provider-calls.json" \
             --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
-
-      - name: Retain the synthetic qualification receipts
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: goal584-native-budget-proof-${{ github.sha }}
-          path: ${{ env.PROOF_OUTPUT_DIR }}/
-          if-no-files-found: warn
-          retention-days: 7
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()
@@ -144,4 +142,23 @@ jobs:
         run: |
           if test -f "$PROOF_ENV_FILE"; then
             docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml down --volumes --remove-orphans
+            python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          label = 'label=com.docker.compose.project=goal584-native-budget-proof'
+          containers = subprocess.check_output(['docker', 'ps', '-aq', '--filter', label], text=True).split()
+          volumes = subprocess.check_output(['docker', 'volume', 'ls', '-q', '--filter', label], text=True).split()
+          receipt = {'project': 'goal584-native-budget-proof', 'remaining_containers': containers, 'remaining_volumes': volumes}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'cleanup.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          assert not containers and not volumes, 'Disposable proof resources remain'
+          PY
           fi
+
+      - name: Retain the synthetic qualification receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-native-budget-proof-${{ github.sha }}
+          path: ${{ runner.temp }}/goal584-native-budget-proof/
+          if-no-files-found: warn
+          retention-days: 7
