@@ -20,10 +20,6 @@ jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      PROOF_ENV_FILE: ${{ runner.temp }}/goal584-proof.env
-      PROOF_OUTPUT_DIR: ${{ runner.temp }}/goal584-native-budget-proof
-      PROOF_RECEIPT: ${{ runner.temp }}/goal584-native-budget-proof/native-budgets.json
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,12 +32,21 @@ jobs:
           python - <<'PY'
           import os, secrets
           from pathlib import Path
-          Path(os.environ['PROOF_OUTPUT_DIR']).mkdir()
+          output = Path(os.environ['RUNNER_TEMP'], 'goal584-native-budget-proof')
+          output.mkdir()
+          paths = {
+              'PROOF_ENV_FILE': str(Path(os.environ['RUNNER_TEMP'], 'goal584-proof.env')),
+              'PROOF_OUTPUT_DIR': str(output),
+              'PROOF_RECEIPT': str(output / 'native-budgets.json'),
+          }
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              for key, value in paths.items():
+                  handle.write(f'{key}={value}\n')
           values = {
               'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
               'PROOF_DB_PASSWORD': secrets.token_hex(32),
           }
-          fd = os.open(os.environ['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          fd = os.open(paths['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
           with os.fdopen(fd, 'w', encoding='utf-8') as handle:
               for key, value in values.items():
                   handle.write(f'{key}={value}\n')
