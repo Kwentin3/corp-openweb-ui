@@ -248,7 +248,7 @@ class DenialDiagnosticTests(unittest.TestCase):
         worker = object.__new__(P.Worker)
         worker.secrets = [self.secret]
         worker.r = {'schema': 1, 'actor': {'id': self.uid, 'token': self.secret}, 'stage': 'ready_for_ordinary_zero_denial',
-            'success_rows': copy.deepcopy(self.rows), 'denial_provider_baseline': copy.deepcopy(self.provider),
+            'success_rows': copy.deepcopy(self.rows), 'post_native_zero_rows': copy.deepcopy(self.rows), 'denial_provider_baseline': copy.deepcopy(self.provider),
             'context_before': {'requests': []}, 'protected_r': P.protected_r(self.user, {**self.key, 'max_budget': 20})}
         def read(name, value):
             self.calls.append(name)
@@ -288,7 +288,7 @@ class DenialDiagnosticTests(unittest.TestCase):
 
     def test_native_zero_raw_row_still_fails_and_exact_raws_use_existing_private_writer(self):
         extra = self.zero_row(); worker = self.worker(extra_rows=[extra])
-        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
         self.assertTrue(diagnostic['provider_snapshot_equal'])
         self.assertEqual((diagnostic['provider_count'], diagnostic['baseline_provider_count'], diagnostic['raw_row_count']), (2, 2, 3))
         self.assertTrue(diagnostic['raw_snapshot_retained'])
@@ -317,7 +317,7 @@ class DenialDiagnosticTests(unittest.TestCase):
 
     def test_primary_journal_violation_survives_capture_and_private_write_failures(self):
         worker = self.worker(extra_rows=[self.zero_row()], failures={'captures', 'write'})
-        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
         self.assertIsNone(diagnostic['provider_count'])
         self.assertIsNone(diagnostic['provider_snapshot_equal'])
         self.assertEqual(diagnostic['raw_row_count'], 3)
@@ -326,7 +326,7 @@ class DenialDiagnosticTests(unittest.TestCase):
     def test_actual_atomic_private_replace_failure_cannot_mask_journal_violation(self):
         worker = self.worker(extra_rows=[self.zero_row()])
         with patch.object(self.gateway.os, 'replace', side_effect=OSError('private replace ' + self.secret)):
-            diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+            diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
         self.assertIn('private_snapshot_write_failed', diagnostic['capture_errors'])
         self.assertFalse(diagnostic['raw_snapshot_retained'])
         self.assertEqual(list(Path(self.directory.name).iterdir()), [])
@@ -342,7 +342,7 @@ class DenialDiagnosticTests(unittest.TestCase):
     def test_original_row_metadata_mutation_is_still_a_strict_raw_journal_failure(self):
         worker = self.worker()
         self.rows[0]['metadata']['late_change'] = 'private late value'
-        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
         self.assertTrue(diagnostic['rows'][0]['is_original_success_id'])
         self.assertFalse(diagnostic['rows'][0]['original_full_row_unchanged'])
         self.assertTrue(diagnostic['rows'][1]['original_full_row_unchanged'])
@@ -359,7 +359,7 @@ class DenialDiagnosticTests(unittest.TestCase):
         extra = self.zero_row(); extra['metadata']['body'] = 'private-large-' * 4000
         worker = self.worker(extra_rows=[extra])
         with patch.object(P, 'MAX_BYTES', 10000):
-            diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+            diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
         self.assertEqual(diagnostic['raw_row_count'], 3)
         self.assertEqual(diagnostic['raw_rows_sha256'], P.diagnostic_hash(self.rows + [extra]))
         self.assertIn('raw_snapshot_exceeded_bound', diagnostic['capture_errors'])
@@ -391,7 +391,7 @@ class DenialDiagnosticTests(unittest.TestCase):
                 else:
                     extra['status'] = self.secret
                 worker = self.worker(extra_rows=[extra])
-                diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+                diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
                 if kind == 'foreign_owner':
                     self.assertIsNone(diagnostic['budgets']); self.assertIn('budget_projection_failed', diagnostic['capture_errors'])
                     self.user['user_id'] = self.uid
@@ -409,7 +409,7 @@ class DenialDiagnosticTests(unittest.TestCase):
         packet = P.worker_packet(SimpleNamespace(stdout=output.getvalue().encode(), stderr=b''), 'denied',
                                  hashlib.sha256(Path(P.__file__).read_bytes()).hexdigest(), [self.secret])
         self.assertFalse(packet['passed'])
-        self.assertEqual(packet['error_message'], 'Responses negatives changed the native raw journal')
+        self.assertEqual(packet['error_message'], 'Responses ordinary zero changed the bracketed native raw journal')
         self.assertEqual(packet['denial_diagnostic']['raw_row_count'], 3)
         self.assertIn('private_snapshot_write_failed', packet['denial_diagnostic']['capture_errors'])
         host = {'stage': 'worker_denied'}
@@ -444,7 +444,7 @@ class DenialDiagnosticTests(unittest.TestCase):
 
     def test_worker_protocol_rejects_unknown_nested_fields_errors_values_and_wrong_phase(self):
         worker = self.worker(extra_rows=[self.zero_row()])
-        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        diagnostic = self.assert_denied_failure(worker, 'changed the bracketed native raw journal')
         base = {'schema': 1, 'proof': P.PROOF, 'phase': 'denied', 'passed': False, 'source_sha256': 'a' * 64,
                 'not_qualified': P.LIMITS, 'error_class': 'ProofError', 'denial_diagnostic': diagnostic}
         mutations = []
@@ -462,6 +462,233 @@ class DenialDiagnosticTests(unittest.TestCase):
         for kind, packet in mutations:
             with self.subTest(kind=kind), self.assertRaises(P.ProofError):
                 P.worker_packet(SimpleNamespace(stdout=json.dumps(packet).encode(), stderr=b''), packet['phase'], 'a' * 64)
+
+
+class NativeAuditBracketTests(unittest.TestCase):
+    """Real Worker.limit/denied and NativeProof.poll; local external I/O only."""
+    def setUp(self):
+        import prove_native_budgets as native
+        self.native_module = native
+        self.directory = tempfile.TemporaryDirectory(); self.addCleanup(self.directory.cleanup)
+        self.path = Path(self.directory.name) / 'responses-state.private.json'
+        self.gateway = load_owner('prove_gateway_auth')
+        modes = patch.object(self.gateway, 'private_parent', return_value=None)
+        modes.start(); self.addCleanup(modes.stop)
+        state = patch.object(P, 'R_STATE', self.path); state.start(); self.addCleanup(state.stop)
+        self.now = 100.0
+        monotonic = patch.object(P.time, 'monotonic', side_effect=lambda: self.now)
+        sleep = patch.object(P.time, 'sleep', side_effect=lambda seconds: setattr(self, 'now', self.now + seconds))
+        monotonic.start(); sleep.start(); self.addCleanup(monotonic.stop); self.addCleanup(sleep.stop)
+        self.uid, self.chat, self.answer = (str(uuid4()) for _ in range(3))
+        self.key_hash = 'a' * 64
+        self.original = [{'request_id': 'original-' + str(i), 'status': 'success', 'spend': .2,
+                          'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15} for i in range(2)]
+        self.audit = {'request_id': str(uuid4()), 'user': self.uid, 'api_key': self.key_hash,
+            'status': 'failure', 'spend': 0.0, 'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0,
+            'model_group': P.MODEL, 'model_id': P.DEPLOYMENT, 'model': 'openai/' + P.WIRE,
+            'custom_llm_provider': 'openai', 'call_type': 'aresponses',
+            'metadata': {'error_information': {'error_class': 'BudgetExceededError', 'error_code': '422',
+                'error_budget_entity_type': 'key', 'error_budget_entity_id': self.key_hash,
+                'error_budget_limit': 0, 'error_budget_spend': .4}}}
+
+    def worker(self, *, delay_reads=0, wrong_rows=None, read_error=False, late=False):
+        values, _ = synthetic_pair(); p0, p1, c0, c1 = values
+        self.p, self.c = copy.deepcopy(p1), copy.deepcopy(c1)
+        self.pending = delay_reads
+        self.audit_reads, self.native_attempts = 0, 0
+        self.current_rows = copy.deepcopy(wrong_rows if wrong_rows is not None else [self.audit] + self.original)
+        self.user = {'user_id': self.uid, 'user_role': 'internal_user', 'models': [P.MODEL], 'max_budget': 20,
+            'spend': .4, 'budget_duration': '1mo', 'budget_reset_at': '2026-12-01T00:00:00Z', 'teams': []}
+        self.key = {**copy.deepcopy(self.user), 'key_alias': 'canonical-private-R',
+                    'metadata': {'owui_budget_model': P.MODEL, 'owui_budget_namespace': 'user-model-v1'},
+                    'blocked': False, 'allowed_routes': ['llm_api_routes']}
+        worker = object.__new__(P.Worker)
+        worker.secrets = ['sk-' + 'x' * 32]
+        worker.r = {'schema': 1, 'stage': 'two_native_calls_observed', 'actor': {'id': self.uid, 'token': 'private-session'},
+            'key': worker.secrets[0], 'key_hash': self.key_hash, 'success_rows': copy.deepcopy(self.original),
+            'protected_r': P.protected_r(self.user, self.key), 'context_before': copy.deepcopy(c0),
+            'success_context': copy.deepcopy(c1), 'original_finance': {'unchanged': True},
+            'original_controls': {**copy.deepcopy(p1['control']), 'tool_round': False}}
+        worker.captures = lambda: (copy.deepcopy(self.p), copy.deepcopy(self.c))
+        def unsigned(webui, method, path, token, body):
+            self.assertEqual((method, path, body), ('POST', '/openai/responses', P.unsigned_raw_body()))
+            self.c['requests'].append({'route': '/responses', 'body': copy.deepcopy(body), 'body_after_auth': copy.deepcopy(body),
+                'attestation_present_before': False, 'provenance_removed_after': True,
+                'auth_failure': {'scope': 'custom_auth', 'status_code': 403, 'code': 'unclassified'}})
+            return 403, {'detail': 'Signed budget provenance required'}
+        def logs(uid):
+            self.assertEqual(uid, self.uid)
+            if not self.native_attempts:
+                return copy.deepcopy(self.original)
+            self.audit_reads += 1
+            if read_error:
+                raise OSError('private native observation failure')
+            if late:
+                self.now += 60.01
+            if self.pending:
+                self.pending -= 1
+                return copy.deepcopy(self.original)
+            return copy.deepcopy(self.current_rows)
+        def request(method, path, *, token, body):
+            self.assertEqual((method, path, token), ('POST', '/v1/responses', worker.secrets[0]))
+            self.assertEqual(body, {'model': P.MODEL, 'input': 'Hi', 'max_output_tokens': 16, 'store': False, 'stream': False})
+            self.native_attempts += 1
+            self.c['requests'].append({'route': '/v1/responses', 'body': copy.deepcopy(body), 'body_after_auth': copy.deepcopy(body),
+                'attestation_present_before': False, 'provenance_removed_after': True,
+                'auth_failure': {'scope': 'custom_auth', 'status_code': 422, 'code': 'unclassified'}})
+            return 422, {'error': {'type': 'budget_exceeded', 'message': self.native_module.BUDGET_GENERIC_MESSAGE}}, {}
+        def cap(method, path, *, body):
+            self.assertEqual((method, path), ('POST', '/key/update'))
+            self.assertEqual(body['key'], self.key_hash)
+            self.key['max_budget'] = body['max_budget']; return {}
+        native = object.__new__(self.native_module.NativeProof)
+        native.timeout, native.poll_deadline = 60, None
+        native.logs, native.request, native.ok = logs, request, cap
+        native.user_info = lambda uid: copy.deepcopy(self.user)
+        worker.native, worker.key = native, lambda: copy.deepcopy(self.key)
+        worker.webui = SimpleNamespace(session=lambda *a: None, ok=lambda *a, **kw: {'user_id': self.uid,
+            'chat': {'history': {'messages': {self.answer: {'done': True, 'content': '',
+                'error': {'message': self.native_module.BUDGET_GENERIC_MESSAGE}}}}}})
+        worker.protected_main = lambda: {'unchanged': True}
+        def provider(method='GET', path='/__proof/requests', body=None):
+            if body is not None:
+                self.assertEqual((method, path), ('POST', '/__proof/control'))
+                self.p['control'].update(body)
+            return copy.deepcopy(self.p)
+        worker.d = {'response': unsigned, 'write_private': self.gateway.write_private, 'provider': provider}
+        return worker
+
+    def ordinary_denial(self):
+        body = copy.deepcopy(self.c['requests'][0]['body'])
+        self.c['requests'].append({'body': body, 'body_after_auth': copy.deepcopy(body),
+            'attestation_present_before': True, 'provenance_removed_after': True,
+            'auth_failure': {'scope': 'custom_auth', 'status_code': 422, 'code': 'unclassified'}})
+
+    def test_delayed_audit_is_read_settled_before_ui_without_repeating_native_attempt(self):
+        worker = self.worker(delay_reads=2)
+        result = worker.limit()
+        self.assertEqual(self.native_attempts, 1)
+        self.assertEqual(self.audit_reads, 3)
+        self.assertGreater(self.now, 100)
+        self.assertIsNone(worker.native.poll_deadline)
+        self.assertEqual(result['native_audit']['native_audit_row_count'], 1)
+        self.assertEqual(result['native_audit']['native_call_type'], 'aresponses')
+        self.assertEqual(worker.r['native_audit_row'], self.audit)
+        self.assertEqual(worker.r['post_native_zero_rows'], self.current_rows)
+        self.assertEqual(json.loads(self.path.read_text(encoding='utf8'))['native_audit_row'], self.audit)
+        self.assertEqual(worker.r['stage'], 'ready_for_ordinary_zero_denial')
+        self.assertEqual(len(self.p['requests']), 2)
+
+    def test_missing_audit_hits_bounded_read_timeout_without_extra_inference(self):
+        worker = self.worker(delay_reads=1000)
+        with self.assertRaisesRegex(P.ProofError, 'Timed out|read deadline'):
+            worker.limit()
+        self.assertLessEqual(self.now, 160)
+        self.assertEqual(self.native_attempts, 1)
+        self.assertNotIn('native_audit_evidence', worker.r)
+        self.assertIsNone(worker.native.poll_deadline)
+
+    def test_perfect_audit_observed_after60_cannot_be_accepted_by_native_poll(self):
+        worker = self.worker(late=True)
+        with self.assertRaisesRegex(P.ProofError, 'exceeded its read deadline'):
+            worker.limit()
+        self.assertEqual(self.native_attempts, 1)
+        self.assertEqual(self.audit_reads, 1)
+        self.assertEqual(worker.denial_diagnostic['raw_row_count'], 3)
+        self.assertNotIn('native_audit_evidence', worker.r)
+
+    def test_unknown_duplicate_foreign_nonzero_or_mutated_rows_fail_on_first_read(self):
+        cases = ['duplicate', 'extra', 'missing', 'positive_mutation', 'user', 'key', 'model', 'group', 'deployment',
+                 'provider', 'call_type', 'cost', 'status', 'usage', 'float_usage', 'error_class', 'error_code',
+                 'entity_type', 'entity_id', 'limit', 'spend', 'claimed_scope', 'malformed_metadata']
+        for kind in cases:
+            with self.subTest(kind=kind):
+                self.now = 100
+                rows = copy.deepcopy([self.audit] + self.original); row = rows[0]; error = row['metadata']['error_information']
+                if kind == 'duplicate': row['request_id'] = rows[1]['request_id']
+                elif kind == 'extra': rows.append({**copy.deepcopy(row), 'request_id': str(uuid4())})
+                elif kind == 'missing': rows = [row]
+                elif kind == 'positive_mutation': rows[1]['spend'] = .21
+                elif kind == 'user': row['user'] = str(uuid4())
+                elif kind == 'key': row['api_key'] = 'b' * 64
+                elif kind == 'model': row['model'] = P.MODEL
+                elif kind == 'group': row['model_group'] = 'goal584-a'
+                elif kind == 'deployment': row['model_id'] = 'goal584-deployment-a'
+                elif kind == 'provider': row['custom_llm_provider'] = 'other'
+                elif kind == 'call_type': row['call_type'] = 'acompletion'
+                elif kind == 'cost': row['spend'] = .001
+                elif kind == 'status': row['status'] = 'success'
+                elif kind == 'usage': row['total_tokens'] = 1
+                elif kind == 'float_usage': row['prompt_tokens'] = 0.0
+                elif kind == 'error_class': error['error_class'] = 'HTTPException'
+                elif kind == 'error_code': error['error_code'] = '403'
+                elif kind == 'entity_type': error['error_budget_entity_type'] = 'user'
+                elif kind == 'entity_id': error['error_budget_entity_id'] = 'b' * 64
+                elif kind == 'limit': error['error_budget_limit'] = 20
+                elif kind == 'spend': error['error_budget_spend'] = .6
+                elif kind == 'claimed_scope': row['metadata']['spend_logs_metadata'] = {'owui_budget': {'schema': 1}}
+                else: row['metadata'] = 'not-json'
+                worker = self.worker(wrong_rows=rows)
+                with self.assertRaises(P.ProofError): worker.limit()
+                self.assertEqual(self.audit_reads, 1)
+                self.assertEqual(self.native_attempts, 1)
+                self.assertNotIn('native_audit_evidence', worker.r)
+
+    def test_optional_native_owner_fields_are_not_invented_and_metadata_string_is_parsed(self):
+        audit = copy.deepcopy(self.audit)
+        audit['metadata'] = json.dumps({'error_information': {'error_class': 'BudgetExceededError', 'error_code': '422'}})
+        worker = self.worker(wrong_rows=[audit] + self.original)
+        result = worker.limit()['native_audit']
+        self.assertEqual(result['verified_native_budget_fields'], [])
+        self.assertEqual(result['lineage'], 'causal_before_after_single_native_http_attempt_not_provider_response_id')
+        self.assertNotIn('provider_response_id', result)
+
+    def test_native_api_read_error_is_not_pending_or_retried(self):
+        worker = self.worker(read_error=True)
+        with self.assertRaisesRegex(P.ProofError, 'observation is unavailable'):
+            worker.limit()
+        self.assertEqual(self.audit_reads, 1)
+        self.assertEqual(self.native_attempts, 1)
+        self.assertIn('native_rows_read_failed', worker.denial_diagnostic['capture_errors'])
+
+    def test_limit_failure_packet_keeps_actual_audit_diagnostic_under_strict_phase_protocol(self):
+        wrong = copy.deepcopy(self.audit); wrong['metadata']['error_information']['error_code'] = '403'
+        worker = self.worker(wrong_rows=[wrong] + self.original)
+        output = io.StringIO()
+        with patch.object(P, 'Worker', return_value=worker), redirect_stdout(output):
+            self.assertEqual(P.worker_main(SimpleNamespace(worker_action='limit')), 1)
+        packet = P.worker_packet(SimpleNamespace(stdout=output.getvalue().encode(), stderr=b''), 'limit',
+                                 hashlib.sha256(Path(P.__file__).read_bytes()).hexdigest(), worker.secrets)
+        self.assertFalse(packet['passed'])
+        self.assertEqual(packet['failed_stage'], 'settling_one_direct_native_zero_audit')
+        self.assertEqual(packet['denial_diagnostic']['raw_row_count'], 3)
+        self.assertIn('not the exact native budget422 class', packet['error_message'])
+        self.assertEqual(self.native_attempts, 1)
+
+    def test_ui_denial_preserves_all_three_rows_and_restores_native_caps_controls(self):
+        worker = self.worker(); worker.limit(); self.ordinary_denial()
+        result = worker.denied(self.chat, self.answer)
+        self.assertTrue(result['original_positive_rows_unchanged'])
+        self.assertEqual(result['native_audit_row_count'], 1)
+        self.assertTrue(result['native_audit_row_unchanged'])
+        self.assertNotIn('native_rows_unchanged', result)
+        self.assertEqual(self.key['max_budget'], 20)
+        self.assertEqual(self.key['spend'], .4)
+        self.assertEqual(self.native_attempts, 1)
+        self.assertFalse(self.p['control']['tool_round'])
+        self.assertEqual(worker.r['stage'], 'qualified_native_responses_financial_profile')
+
+    def test_ui_cannot_add_or_mutate_even_a_zero_cost_audit(self):
+        for mutation in ('extra', 'audit_changed', 'positive_changed', 'provider_changed'):
+            with self.subTest(mutation=mutation):
+                worker = self.worker(); worker.limit(); self.ordinary_denial()
+                if mutation == 'extra': self.current_rows.append({**copy.deepcopy(self.audit), 'request_id': str(uuid4())})
+                elif mutation == 'audit_changed': self.current_rows[0]['metadata']['changed'] = True
+                elif mutation == 'positive_changed': self.current_rows[1]['prompt_tokens'] = 10.0
+                else: self.p['requests'].append({'id': 'unexpected'})
+                with self.assertRaisesRegex(P.ProofError, 'provider snapshot|bracketed native raw journal'):
+                    worker.denied(self.chat, self.answer)
+                self.assertEqual(self.native_attempts, 1)
 
 
 class ContextEvidenceTests(unittest.TestCase):
@@ -574,6 +801,48 @@ class NativeRehearsalTests(unittest.TestCase):
         self.assertNotIn('synthetic summary', json.dumps(wire2))
         self.assertEqual(wire2['instructions'], wire1['instructions'])
         self.assertEqual(wire2['tools'], wire1['tools'])
+
+    def test_native_pre_routing_audit_call_type_and_exact_single_r_deployment_model(self):
+        from enum import Enum
+        from types import MappingProxyType
+        from typing import cast
+        env = {**os.environ, 'GIT_NO_LAZY_FETCH': '1'}
+        paths = ('litellm/types/utils.py', 'litellm/litellm_core_utils/api_route_to_call_types.py',
+                 'litellm/proxy/utils.py', 'litellm/litellm_core_utils/core_helpers.py', 'litellm/constants.py')
+        try:
+            trees = {p: ast.parse(subprocess.check_output(['git', '-c', 'gc.auto=0', '-C', str(LLM),
+                'show', LLM_PIN + ':' + p], env=env, stderr=subprocess.DEVNULL)) for p in paths}
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest('Exact known-path native audit owners unavailable; no fetch')
+        namespace = {'Enum': Enum, 'MappingProxyType': MappingProxyType, 'Mapping': collections.abc.Mapping,
+                     'cast': cast, '_EMPTY_LIFT': MappingProxyType({}),
+                     'litellm': SimpleNamespace(get_llm_provider=lambda **kw: (kw['model'], 'openai', None, None))}
+        selected = []
+        for path, tree in trees.items():
+            for node in tree.body:
+                if isinstance(node, ast.ClassDef) and node.name == 'CallTypes': selected.append(node)
+                if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == 'API_ROUTE_TO_CALL_TYPES': selected.append(node)
+        def function(path, name):
+            return next(n for n in trees[path].body if isinstance(n, ast.FunctionDef) and n.name == name)
+        selected += [function(paths[1], n) for n in ('_segment_matches', '_pattern_tail_spans_segments', '_route_matches_pattern', 'get_call_types_for_route')]
+        selected += [function(paths[2], n) for n in ('_call_type_for_route', '_stamp_deployment_attribution', '_deployment_attribution_for_model_group')]
+        selected += [function(paths[3], 'reconstruct_model_name')]
+        constant = next(n for n in trees[paths[4]].body if isinstance(n, (ast.Assign, ast.AnnAssign)) and
+            (isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == 'PROXY_REJECTED_BEFORE_ROUTING_KEY'
+             or isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'PROXY_REJECTED_BEFORE_ROUTING_KEY' for t in n.targets)))
+        selected.append(constant)
+        selected = ast.parse('from __future__ import annotations').body + selected
+        exec(compile(ast.Module(body=selected, type_ignores=[]), '<actual-native-audit-owners>', 'exec'), namespace)
+        self.assertEqual(namespace['_call_type_for_route']('/v1/responses'), 'aresponses')
+        deployment = {'litellm_params': {'model': 'openai/' + P.WIRE}, 'model_info': {'id': P.DEPLOYMENT}}
+        proxy = ModuleType('audit_external_router'); proxy.llm_router = SimpleNamespace(get_model_list=lambda **kw: [deployment])
+        with patch.dict('sys.modules', {'litellm': ModuleType('audit_external_litellm'),
+                'litellm.proxy': ModuleType('audit_external_proxy'), 'litellm.proxy.proxy_server': proxy}):
+            params = {'metadata': {}}
+            namespace['_stamp_deployment_attribution'](params, P.MODEL, None, dispatched=False)
+        self.assertEqual(params['metadata']['model_group'], P.MODEL)
+        self.assertEqual(params['metadata']['model_info']['id'], P.DEPLOYMENT)
+        self.assertEqual(namespace['reconstruct_model_name'](P.MODEL, params['custom_llm_provider'], params['metadata']), 'openai/' + P.WIRE)
 
     def test_native_responses_projection_excludes_persisted_hidden_status_from_model_context(self):
         env = native_functions()

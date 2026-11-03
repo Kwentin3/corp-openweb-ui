@@ -20,6 +20,7 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import time
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -345,7 +346,7 @@ def worker_packet(result, phase, source, secrets=()):
             else isinstance(value.get('error_class'), str) or isinstance(value.get('result'), dict),
             'Responses worker terminal result/failure is missing')
     if 'denial_diagnostic' in value:
-        require(phase == 'denied', 'Responses denial diagnostic belongs only to the denied phase')
+        require(phase in ('limit', 'denied'), 'Responses denial diagnostic belongs only to the negative phases')
         try:
             validate_denial_diagnostic(value['denial_diagnostic'])
         except Exception:
@@ -511,6 +512,64 @@ def row_evidence(row, *, actor, key_hash, chat_id, answer_id, scope_by_provider,
         'native_litellm_call_id': metadata.get('litellm_call_id'), 'scope': scope,
         'usage': {k: row[k] for k in ('prompt_tokens', 'completion_tokens', 'total_tokens')},
         'spend_usd': str(row['spend']), 'billed_rates': rates, 'full_row_sha256': digest(row)}
+
+
+def native_zero_audit(rows, original, *, actor, key_hash):
+    """One controlled direct-vkey422 bracket, never a general zero-row exemption."""
+    require(isinstance(rows, list) and 2 <= len(rows) <= 3 and len(original) == 2,
+            'Responses native zero bracket has unexpected raw row count')
+    def by_id(values):
+        require(all(isinstance(row, dict) and isinstance(row.get('request_id'), str)
+                    and 0 < len(row['request_id']) <= 4096 for row in values), 'Responses audit row identity is missing')
+        result = {row['request_id']: row for row in values}
+        require(len(result) == len(values), 'Responses native zero bracket duplicated a row ID')
+        return result
+    old, current = by_id(original), by_id(rows)
+    require(old.keys() <= current.keys() and all(diagnostic_hash(current[key]) == diagnostic_hash(value)
+            for key, value in old.items()), 'Responses native zero bracket changed an original positive row')
+    added = [row for key, row in current.items() if key not in old]
+    if not added:
+        return None
+    require(len(added) == 1, 'Responses native zero bracket has ambiguous new raw rows')
+    row = added[0]
+    require(row.get('user') == actor and row.get('api_key') == key_hash,
+            'Responses native audit does not belong to the isolated R user/key')
+    require(row.get('model_group') == MODEL and row.get('model_id') == DEPLOYMENT
+            and row.get('model') == 'openai/' + WIRE and row.get('custom_llm_provider') == 'openai'
+            and row.get('call_type') == 'aresponses', 'Responses native audit R attribution differs')
+    require(row.get('status') == 'failure' and Decimal(diagnostic_amount(row.get('spend'))) == 0
+            and all(type(row.get(k)) is int and row[k] == 0 for k in ('prompt_tokens', 'completion_tokens', 'total_tokens')),
+            'Responses native audit is not an exact zero-cost zero-usage failure')
+    try:
+        metadata = json.loads(row['metadata']) if isinstance(row.get('metadata'), str) else row.get('metadata')
+    except ValueError:
+        raise ProofError('Responses native audit metadata is malformed') from None
+    require(isinstance(metadata, dict) and isinstance(metadata.get('error_information'), dict),
+            'Responses native audit has no native error information')
+    error = metadata['error_information']
+    require(error.get('error_class') == 'BudgetExceededError' and error.get('error_code') == '422',
+            'Responses native audit is not the exact native budget422 class')
+    spend_metadata = metadata.get('spend_logs_metadata')
+    require(spend_metadata is None or isinstance(spend_metadata, dict)
+            and all(name not in spend_metadata for name in ('owui_budget', 'owui_budget_provenance', 'owui_budget_root')),
+            'Direct native audit unexpectedly acquired a claimed signed scope')
+    expected = {'error_budget_entity_type': 'key', 'error_budget_entity_id': key_hash,
+                'error_budget_limit': Decimal(0), 'error_budget_spend': Decimal('.40')}
+    verified = []
+    for name, value in expected.items():
+        if error.get(name) is not None:
+            matches = (close_amount(error[name], value) if name == 'error_budget_spend' else
+                       Decimal(diagnostic_amount(error[name])) == value if isinstance(value, Decimal) else error[name] == value)
+            require(matches, 'Responses native audit budget-owner information conflicts')
+            verified.append(name)
+    return {'classification': 'one_controlled_direct_native_key_budget422',
+        'request_id_sha256': hashlib.sha256(row['request_id'].encode()).hexdigest(), 'full_row_sha256': diagnostic_hash(row),
+        'own_r_user_and_key': True, 'native_r_model_binding': True, 'native_budget_error_class': 'BudgetExceededError',
+        'native_error_code': '422', 'status': 'failure', 'spend_usd': diagnostic_amount(row['spend']),
+        'usage': {k: row[k] for k in ('prompt_tokens', 'completion_tokens', 'total_tokens')},
+        'native_call_type': 'aresponses', 'verified_native_budget_fields': verified,
+        'original_positive_rows_unchanged': True, 'native_audit_row_count': 1,
+        'lineage': 'causal_before_after_single_native_http_attempt_not_provider_response_id'}
 
 
 def worker_dependencies():
@@ -764,8 +823,31 @@ class Worker:
         expected_budget_message(error, scope='key')
         require(self.captures()[0] == p, 'Responses zero native witness reached provider')
         self.r['denial_provider_baseline'] = p
+        self.stage('settling_one_direct_native_zero_audit')
+        require(type(self.native.timeout) in (int, float) and 0 < self.native.timeout <= 60,
+                'Responses native audit read budget must be at most60 seconds')
+        deadline = time.monotonic() + self.native.timeout
+        def settled_audit():
+            require(time.monotonic() <= deadline, 'Responses native audit observation exceeded its read deadline')
+            raw = self.denial_snapshot()
+            if raw['provider'] is not None:
+                require(raw['provider'] == p, 'Responses direct native zero audit reached or changed provider')
+            evidence = (native_zero_audit(raw['rows'], self.r['success_rows'], actor=self.r['actor']['id'], key_hash=self.r['key_hash'])
+                        if raw['rows'] is not None else None)
+            require(not self.denial_diagnostic['capture_errors'] and all(raw[k] is not None for k in raw),
+                    'Responses native audit observation is unavailable or could not be retained safely')
+            user, key = raw['user'], raw['key']
+            require(protected_r(user, key) == expected and Decimal(str(key['max_budget'])) == 0
+                    and close_amount(user['spend'], Decimal('.40')) and close_amount(key['spend'], Decimal('.40')),
+                    'Responses native audit changed R budget identity/cap/period/spend')
+            require(time.monotonic() <= deadline, 'Responses native audit observation exceeded its read deadline')
+            return (raw['rows'], evidence) if evidence is not None else None
+        rows, audit = self.native.poll('one isolated direct native budget422 audit row', settled_audit)
+        self.r.update(post_native_zero_rows=rows, native_audit_evidence=audit,
+            native_audit_row=next(row for row in rows if hashlib.sha256(row['request_id'].encode()).hexdigest() == audit['request_id_sha256']))
+        bound_private_snapshot({**self.r, 'stage': 'ready_for_ordinary_zero_denial'})
         self.stage('ready_for_ordinary_zero_denial')
-        return {'unsigned_raw': unsigned, 'native_zero_status': status, 'native_zero_type': 'budget_exceeded'}
+        return {'unsigned_raw': unsigned, 'native_zero_status': status, 'native_zero_type': 'budget_exceeded', 'native_audit': audit}
 
     def denial_snapshot(self):
         """Observe once before assertions; technical failures never replace a known financial violation."""
@@ -808,7 +890,7 @@ class Worker:
                     'spend_usd': diagnostic_amount(row['spend']),
                     'usage': {k: row[k] for k in ('prompt_tokens', 'completion_tokens', 'total_tokens')},
                     'full_row_sha256': diagnostic_hash(row), 'is_original_success_id': row['request_id'] in original,
-                    'original_full_row_unchanged': row['request_id'] in original and row == original[row['request_id']]}
+                    'original_full_row_unchanged': row['request_id'] in original and diagnostic_hash(row) == diagnostic_hash(original[row['request_id']])}
                     for row in rows]
                 validate_denial_diagnostic(diagnostic)
         except Exception:
@@ -863,9 +945,12 @@ class Worker:
         if p is not None:
             require(p == self.r['denial_provider_baseline'], 'Responses negatives changed the full provider snapshot')
         if rows is not None:
-            require(rows == self.r['success_rows'], 'Responses negatives changed the native raw journal')
+            require(diagnostic_hash(rows) == diagnostic_hash(self.r['post_native_zero_rows']),
+                    'Responses ordinary zero changed the bracketed native raw journal')
         require(p is not None and c is not None and rows is not None and not self.denial_diagnostic['capture_errors'],
                 'Responses denial observation is unavailable or could not be retained safely')
+        audit = native_zero_audit(rows, self.r['success_rows'], actor=account['id'], key_hash=self.r['key_hash'])
+        require(audit == self.r['native_audit_evidence'], 'Responses ordinary zero changed its classified direct native audit')
         saved = self.webui.ok('GET', '/api/v1/chats/' + canonical(chat_id), token=account['token'])
         answer = saved['chat']['history']['messages'][canonical(answer_id)]
         require(saved['user_id'] == account['id'] and answer.get('done') is True and answer.get('content') != 'Proof',
@@ -893,7 +978,8 @@ class Worker:
             self.d['provider']('POST', '/__proof/control', patch)
         require(self.d['provider']()['control'] == self.r['original_controls'], 'Responses controls restoration differs')
         self.stage('qualified_native_responses_financial_profile')
-        return {'native_rows_unchanged': True, 'provider_dispatches_unchanged': True, 'cap_restored': True,
+        return {'original_positive_rows_unchanged': True, 'native_audit_row_count': 1, 'native_audit_row_unchanged': True,
+                'provider_dispatches_unchanged': True, 'cap_restored': True,
                 'controls_restored': True, 'success_state_lifetime': 'until existing disposable stand teardown',
                 'advertised_id_observation': 'native_hidden_status_during_actual_stream', 'full_GOAL_acceptance': False}
 
@@ -973,7 +1059,7 @@ def worker_main(args):
         receipt.update(error_class=type(error).__name__, failed_stage=worker.r.get('stage') if worker else 'worker_initialization')
         if isinstance(error, ProofError):
             receipt['error_message'] = str(error)
-    if args.worker_action == 'denied' and worker is not None and hasattr(worker, 'denial_diagnostic'):
+    if args.worker_action in ('limit', 'denied') and worker is not None and hasattr(worker, 'denial_diagnostic'):
         receipt['denial_diagnostic'] = worker.denial_diagnostic
     try:
         print(json.dumps(safe(receipt, worker.secrets if worker else ()), allow_nan=False))
