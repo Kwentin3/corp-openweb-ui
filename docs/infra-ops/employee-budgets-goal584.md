@@ -34,16 +34,37 @@ credentials в выбранном scope; global privacy/failure/cancel этим 
 **Текущий RAG-кандидат — ошибка подготовки, не принят.**
 [run39 41655596690](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41655596690),
 HEAD `23c03af13191f3967ee378d9b75e52e97d02bef4`, tested merge
-`5844cd3a4e6bc6822ba48e625e7ebf6eee869f1a`: все прежние stages, включая pricing
+`5844cd3a4e6bc6822ba48e625e7ebf6eee869f1a`, Active CI41655596820 PASS:
+все прежние stages, включая pricing
 и два proxy, прошли; новый RAG stage остановился в `prepare`. Подтверждены
 runtime pgvector/prefix environment и один proxy. Worker receipt не сохранён:
-ошибка возникла до записи `rag-prepare.json`; точная причина пока неизвестна.
+ошибка возникла до записи `rag-prepare.json`. Source replay exact mounted
+`/proof/prove_rag_service.py` независимо воспроизвёл `IndexError` на строке29:
+`Path(__file__).resolve().parents[2]` не существует у этого короткого пути.
+Это детерминированный blocker до worker_main/JSON; stderr самого run39 не
+сохранён и не выдаётся за прочитанное доказательство. Parent replay:
+`local/goal584/runtime-proof-41655596690/parent-mounted-import.safe.json`.
 Это не доказательство сбоя embeddings, начисления или векторной БД.
 Parent сверил ZIP `4b7e251976412dd18839b51874e871559342cfa81b8ae627dba780fabf42547c`,
 204 файла,43 source hashes/6 mounts и cleanup0 containers/0 volumes.
 Evidence: `local/goal584/runtime-proof-41655596690/parent-source-check.safe.json`.
-Следующий шаг — source/offline разбор worker boundary и ограниченная диагностика
-до повторного native запуска; production и реальные API не затронуты.
+Следующий шаг — исправить только вычисление host root, проверить импорт всего
+модуля с mounted path и сохранить bounded boundary diagnostics перед повторным
+native запуском; production и реальные API не затронуты.
+
+Исправление интегрировано `edb1e450` из отдельной RAG ветки `a6fc41ac`:
+host root вычисляется без индексирования отсутствующего parent. Полный модуль
+импортируется из `/proof`; строгий whole-stdout JSON protocol сохранён. Ошибки
+имеют fixed leaf/check ID, returncode/byte counts и allowlisted stderr class;
+raw stderr/commands/секреты в receipt не попадают. Исходная ошибка сохраняется
+при неудачном restoration.24 focused tests и независимое review READY:
+`local/goal584/rag-mounted-fix-readiness.md`. Денежные/context/history assertions
+не менялись. Кандидат целиком:203 component PASS/7 opt-in Chrome skips,
+249 harness PASS,42 Bash/18 embedded Python/actionlint/32 bind/import checks PASS.
+Один existing real-HTTP test вернул ожидаемый `incomplete_pagination`, но его
+30ms wait завершился до второго чтения. Test-only window теперь200ms; assertions
+повтора, page1-only и terminal error сохранены,20 reader tests/полный component
+suite PASS. Runtime RAG и calendar ещё не приняты.
 
 **Месячный сброс — отдельная подготовка.** Новый calendar job использует свой
 проект `goal584-calendar-<12hex>`, БД `goal584_calendar` и Redis; штатный global
@@ -56,6 +77,12 @@ DB/Redis settlement, без API retry/ожидания TTL; после сбро�
 Python и actionlint PASS. Native календарный runtime ещё не запускался; stale
 positive DB floor, live scheduler и multiworker invalidation этим не приняты.
 Рабочий review: `local/goal584/calendar-independent-readiness.md`.
+
+После этих двух runtime gates остаётся совместимость Responses: отдельный
+source-only review `local/goal584/responses-native-next.md` сохраняет exact
+native-ID rewriting, минимум max_output_tokens16 и gap восстановления plain
+encrypted reasoning из сохранённой истории. Replay нормализации system/Tool
+context прошёл; это не runtime приёмка Responses/OfficeCLI/STT/Terminal.
 
 **BG-срез run35:** три автоматические задачи title/tags/follow-up после
 двух обычных свежих Hi-чатов с одной выбранной моделью A. Тот же native service

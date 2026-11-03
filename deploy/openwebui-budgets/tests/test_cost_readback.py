@@ -263,8 +263,10 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_persistent_length_mismatch_remains_an_error_at_the_bound(self):
         self.payload = page([row()], total=0)
         with self.assertRaisesRegex(cost.CostReadError, "incomplete_pagination"):
+            # Real HTTP scheduling can consume the former 30ms wait before
+            # any retry; keep enough time to observe retries and the same error.
             await self.read(observed_request_ids={"provider-1"}, timeout_seconds=.5,
-                            wait_seconds=.03, poll_interval=.005)
+                            wait_seconds=.2, poll_interval=.005)
         self.assertGreater(len(self.requests), 1)
         self.assertTrue(all(request[1]["page"] == "1" for request in self.requests))
 
