@@ -23,19 +23,26 @@ import time
 from urllib.parse import urlsplit
 
 from capture_webui_auth import FIELDS
+from prove_native_budgets import ProofError
 from prove_pricing_snapshots import MAX_BYTES, no_credentials
 from prove_webui_browser import Fixture, chat, login, require, same_money, verify_context_row, write_json
-from verify_admin_calls import compare_provider
+from verify_admin_calls import compare_provider, literal
 
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = "goal584-a"
 CONFIG_LIMIT = 128 * 1024
+TOOL_ID = literal(Path(__file__).with_name('provision_cost_display.py'), 'TOOL_ID')
+PHASES = frozenset(('bind_fixture', 'initial_config', 'baseline_native', 'record_old_rates', 'capture_before',
+    'backup_config', 'write_changed_config', 'restart_changed_proxy', 'changed_config', 'browser_call', 'capture_after',
+    'causal_request', 'observe_changed_native', 'verify_finance', 'compare_rates', 'verify_pricing_row', 'qualified',
+    'restore_config_bytes', 'restart_restored_proxy', 'restored_config', 'restored_native', 'verify_restored_state', 'browser_cleanup'))
 OBSERVE = '''import json, sys
 sys.path.insert(0, '/proof')
 from decimal import Decimal
 from prove_background_tasks import snapshot
 from prove_service_tasks import task_config_evidence
+from provision_cost_display import TOOL_ID, TOOL_SOURCE, source_hash, grant_set
 from provision_webui import WebUI, native_client, read_private, TASK_FLAGS, require
 from prove_pricing_snapshots import fixture_scope
 from verify_admin_calls import accounting_totals_ready
@@ -53,6 +60,17 @@ for name in ('baseline_chat', 'service_chat'):
     active = w.ok('GET', '/api/tasks/chat/' + b[name]['chat_id'], token=s['users'][0]['token'])
     require(active.get('task_ids') == [], 'Earlier background Chat still has active tasks')
 n = snapshot(w, s)
+require(s['cost_display']['scenario_complete'] is True, 'Pricing requires the existing completed cost fixture')
+require(n['models']['goal584-a']['meta'].get('toolIds') == [TOOL_ID], 'Pricing model-A Tool attachment differs')
+tool = w.ok('GET', '/api/v1/tools/id/' + TOOL_ID, token=s['admin']['token'])
+specs = tool.get('specs')
+require(tool.get('id') == TOOL_ID and tool.get('content') == TOOL_SOURCE and tool.get('write_access') is True
+        and isinstance(specs, list) and len(specs) == 1 and specs[0].get('name') == 'budget_echo'
+        and specs[0].get('parameters', {}).get('properties') == {}
+        and grant_set(tool) == {('user', u['id'], 'read') for u in s['users']}, 'Pricing fixture Tool source/grants differ')
+visible = w.ok('GET', '/api/v1/tools/id/' + TOOL_ID, token=s['users'][0]['token'])
+require(visible.get('id') == TOOL_ID and visible.get('content') is None and visible.get('write_access') is False,
+        'Pricing fixture Tool is not read-only for the actor')
 scope = fixture_scope(s)
 personal = [v for v in n['budgets'] if v['user_id'] in scope['personal_payers']]
 users = [{'user_id': v['user_id'], 'spend_usd': v['spend']} for v in personal]
@@ -74,6 +92,7 @@ for entry in [service, *service['models']]:
     require(observed <= expected or close_amount(observed, expected), 'Service counter exceeds persisted history')
     ready = ready and (observed == 0 if expected == 0 else close_amount(observed, expected))
 print(json.dumps({'actor_id': s['users'][0]['id'], 'scope': scope, 'native': n, 'schema_ready': True,
+                  'fixture_tool_source_sha256': source_hash(tool['content']),
                   'accounting_ready': ready, 'task_config': task_config_evidence(tasks)}))
 '''
 CONFIG_OBSERVATION = '''import hashlib, json, os, sys
@@ -277,14 +296,32 @@ def finance_ready(before, after, call, actor, request_id, expected_scope):
     return ready
 
 
-def causal_request(before, after, context_before, context_after, call, actor):
+def causal_request(before, after, context_before, context_after, call, actor, model_profile):
     require(before['synthetic'] is after['synthetic'] is True and before['control'] == after['control'], "Pricing provider owner/control changed")
     require(after['requests'][:len(before['requests'])] == before['requests'] and len(after['requests']) == len(before['requests']) + 1,
             "Pricing browser did not cause exactly one new physical request")
     require(context_after['requests'][:len(context_before['requests'])] == context_before['requests']
             and len(context_after['requests']) == len(context_before['requests']) + 1, "Pricing browser did not cause exactly one new gateway request")
     captured, physical = context_after['requests'][-1], after['requests'][-1]
-    verify_context_row(captured, {**call, 'user_id': actor}, builtin_tools=False)
+    require(model_profile.get('id') == MODEL and model_profile.get('params', {}).get('max_tokens') == 5
+            and model_profile.get('meta', {}).get('capabilities', {}).get('builtin_tools') is False,
+            "Pricing native model capability/output profile differs")
+    tool_ids = model_profile['meta'].get('toolIds') or []
+    require(tool_ids in ([], [TOOL_ID]), "Pricing native model has an unqualified Tool attachment")
+    prior = [row for row in context_before['requests'] if row.get('user_id') == actor and row.get('task') == ''
+             and row.get('native_auth_user_id') == actor and row.get('body', {}).get('model') == MODEL
+             and row.get('verified_cost_scope', {}).get('category') == 'personal']
+    require(prior, "Pricing lacks an approved ordinary baseline context")
+    approved_tools = prior[-1]['body'].get('tools') or []
+    require(all((row['body'].get('tools') or []) == approved_tools for row in prior)
+            and ((not approved_tools) if not tool_ids else len(approved_tools) == 1
+                 and approved_tools[0].get('type') == 'function'
+                 and approved_tools[0].get('function', {}).get('name') == 'budget_echo')
+            and (captured['body'].get('tools') or []) == approved_tools,
+            "Pricing Tool schemas differ from the approved configured native baseline")
+    # This existing helper's boolean checks Tool presence, not its origin.
+    # Native builtin_tools=False is checked separately above.
+    verify_context_row(captured, {**call, 'user_id': actor}, builtin_tools=bool(approved_tools))
     compare_provider(captured, physical, MODEL)
     patch = captured['native_stream_usage_patch']
     # compare_provider owns the allowed native patch and stream_options shape.
@@ -305,14 +342,19 @@ def causal_request(before, after, context_before, context_after, call, actor):
 def rehearse(fixture, config, private, actor, visible_call, receipt):
     require(all(not (private / name).exists() for name in ('pricing-config-original.private.yaml',
             'pricing-record.safe.json', 'pricing-compare.safe.json')), "Pricing private evidence must be fresh")
+    receipt['stage'] = 'initial_config'
     receipt['initial_config_observation'] = fixture.config_observation()
+    receipt['stage'] = 'baseline_native'
     before = fixture.observe()
     require(before['accounting_ready'] is True and before['actor_id'] == actor, "Pricing baseline has unsettled accounting/foreign actor")
     old = [v for v in before['native']['rows'] if v['user_id'] == actor and v['model'] == MODEL and Decimal(v['spend_usd']) == Decimal('.20')]
     require(old, "Existing ordinary old-rate native witness unavailable")
+    receipt['stage'] = 'record_old_rates'
     recorded = fixture.pricing('record', old[0]['request_id'])
     require(recorded['fixture_scope'] == before['scope'], "Pricing record changed fixture identity")
+    receipt['stage'] = 'capture_before'
     physical_before, context_before = fixture.captures('before')
+    receipt['stage'] = 'backup_config'
     original = config.read_bytes()
     require(hashlib.sha256(original).hexdigest() == receipt['initial_config_observation']['sha256'],
             "Private native YAML changed before the controlled pricing step")
@@ -325,24 +367,36 @@ def rehearse(fixture, config, private, actor, visible_call, receipt):
     attempted = qualified = False
     try:
         attempted = True
+        receipt['stage'] = 'write_changed_config'
         overwrite_config(config, changed)
+        receipt['stage'] = 'restart_changed_proxy'
         fixture.restart()
+        receipt['stage'] = 'changed_config'
         receipt['changed_config_observation'] = fixture.config_observation(new=True)
+        receipt['stage'] = 'browser_call'
         call = visible_call()
         receipt['call'] = call
+        receipt['stage'] = 'capture_after'
         physical_after, context_after = fixture.captures('after')
-        request_id = causal_request(physical_before, physical_after, context_before, context_after, call, actor)
+        receipt['stage'] = 'causal_request'
+        request_id = causal_request(physical_before, physical_after, context_before, context_after, call, actor,
+                                    before['native']['models'][MODEL])
         deadline = time.monotonic() + 60
         while True:
+            receipt['stage'] = 'observe_changed_native'
             after = fixture.observe(request_id)
             require(after['actor_id'] == actor and after['scope'] == before['scope'] and after['task_config'] == before['task_config'],
                     "Pricing call changed fixture/native TaskConfig")
+            require(after['fixture_tool_source_sha256'] == before['fixture_tool_source_sha256'], "Pricing fixture Tool source changed")
+            receipt['stage'] = 'verify_finance'
             ready = finance_ready(before['native'], after['native'], call, actor, request_id,
                                   context_after['requests'][-1]['verified_cost_scope'])
             if ready and after['accounting_ready']: break
             require(time.monotonic() < deadline, "Pricing row/counters did not settle before deadline")
             time.sleep(.25)
+        receipt['stage'] = 'compare_rates'
         compared = fixture.pricing('compare', request_id)
+        receipt['stage'] = 'verify_pricing_row'
         require(compared['witness_request_ids'] == [request_id] and compared['row_counts']['new'] == 1,
                 "Pricing comparison included extra new native rows")
         quoted = next(v for v in compared['rows'] if v['request_id'] == request_id)
@@ -353,24 +407,52 @@ def rehearse(fixture, config, private, actor, visible_call, receipt):
         receipt.update(witness_request_id=request_id, old_witness_request_id=old[0]['request_id'],
                        old_immutable_rows=compared['row_counts']['old_immutable'], native_cost_usd='0.40', service_unchanged=True)
         qualified = True
+        receipt['stage'] = 'qualified'
         return after
+    except Exception as error:
+        record_failure(receipt, error)
+        raise
     finally:
         if attempted:
             # Even partial config writes/restart/browser failures must attempt all
             # rollback steps. Never turn a restoration failure into a PASS.
-            try:
-                overwrite_config(config, original)
-                receipt['config_bytes_restored'] = config.read_bytes() == backup.read_bytes() == original
-            finally:
-                fixture.restart()
-                receipt['restored_config_observation'] = fixture.config_observation()
-                restored = fixture.observe('readiness')
-                receipt['restored_native_readiness'] = restored['schema_ready'] is True
-                if qualified:
-                    require(restored['scope'] == after['scope'] and restored['native'] == after['native']
-                            and restored['task_config'] == after['task_config'], "Pricing restoration changed observed native financial/task state")
-            require(receipt.get('config_bytes_restored') is True and receipt.get('restored_native_readiness') is True,
-                    "Pricing original native config/readiness restoration failed")
+            errors = []
+            for phase in ('restore_config_bytes', 'restart_restored_proxy', 'restored_config', 'restored_native', 'verify_restored_state'):
+                receipt['stage'] = phase
+                try:
+                    if phase == 'restore_config_bytes':
+                        overwrite_config(config, original)
+                        receipt['config_bytes_restored'] = config.read_bytes() == backup.read_bytes() == original
+                        require(receipt['config_bytes_restored'], "Pricing original config bytes differ")
+                    elif phase == 'restart_restored_proxy': fixture.restart()
+                    elif phase == 'restored_config': receipt['restored_config_observation'] = fixture.config_observation()
+                    elif phase == 'restored_native':
+                        restored = fixture.observe('readiness')
+                        receipt['restored_native_readiness'] = restored['schema_ready'] is True
+                        require(receipt['restored_native_readiness'], "Pricing restored native readiness failed")
+                    elif qualified:
+                        require(restored['scope'] == after['scope'] and restored['native'] == after['native']
+                                and restored['task_config'] == after['task_config']
+                                and restored['fixture_tool_source_sha256'] == after['fixture_tool_source_sha256'],
+                                "Pricing restoration changed observed native financial/task state")
+                except Exception as error:
+                    record_failure(receipt, error, restoration=True)
+                    errors.append(error)
+            if errors: raise errors[0]
+
+
+def record_failure(receipt, error, *, restoration=False):
+    phase = receipt.get('stage')
+    if phase not in PHASES:
+        phase = receipt['stage'] = 'unknown'
+    category = ('assertion' if isinstance(error, AssertionError) else 'timeout' if isinstance(error, TimeoutError)
+                else 'native_proof' if isinstance(error, ProofError)
+                else 'subprocess' if isinstance(error, subprocess.SubprocessError) else 'io' if isinstance(error, OSError)
+                else 'shape' if isinstance(error, (KeyError, TypeError, ValueError))
+                else 'runtime' if isinstance(error, RuntimeError) else 'unexpected')
+    prefix = 'restoration_failure_' if restoration else 'failure_'
+    receipt.setdefault(prefix + 'phase', phase)
+    receipt.setdefault(prefix + 'category', category)
 
 
 def main():
@@ -393,6 +475,7 @@ def main():
                           'global DB privacy', 'failure/cancel lifecycle', 'production', 'paid provider']}
     playwright = browser = None
     try:
+        receipt['stage'] = 'bind_fixture'
         fixture.bind(args.base_url)
         def visible_call():
             nonlocal playwright, browser
@@ -405,14 +488,21 @@ def main():
                         'pricing-new-rate', args.output, expected_costs=('0.40', '0.40'))
         rehearse(fixture, config, private, accounts[0]['id'], visible_call, receipt)
         receipt['passed'] = True
-    except Exception:
+    except Exception as error:
         # Provider/Compose/browser error strings may contain private values.
+        if 'failure_phase' not in receipt and 'restoration_failure_phase' in receipt:
+            receipt['failure_phase'] = receipt['restoration_failure_phase']
+            receipt['failure_category'] = receipt['restoration_failure_category']
+        else: record_failure(receipt, error)
         receipt['failure'] = 'Pricing browser or exact native restoration failed'
     finally:
         try:
             if browser is not None: browser.close()
             if playwright is not None: playwright.stop()
         except Exception:
+            receipt['stage'] = 'browser_cleanup'
+            receipt.setdefault('failure_phase', 'browser_cleanup')
+            receipt.setdefault('failure_category', 'runtime')
             receipt.update(passed=False, failure='Pricing browser cleanup failed')
     receipt['finished_at_utc'] = datetime.now(timezone.utc).isoformat()
     no_credentials(receipt, secrets)

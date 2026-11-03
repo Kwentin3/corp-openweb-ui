@@ -23,6 +23,11 @@ OLD_ID, NEW_ID = 'chatcmpl-goal584-' + 'a' * 32, 'chatcmpl-goal584-' + 'b' * 32
 CALL = {'model': p.MODEL, 'chat_id': CHAT, 'message_id': ANSWER, 'outcome': 'success', 'terminal_persisted': True, 'native_cost_status': True}
 
 
+def model_profile(tool=True):
+    return {'id': p.MODEL, 'params': {'max_tokens': 5},
+            'meta': {'capabilities': {'builtin_tools': False}, 'toolIds': [p.TOOL_ID] if tool else []}}
+
+
 def native_row(identifier, cost):
     scope = {'schema': 1, 'user_id': ACTOR, 'model': p.MODEL, 'category': 'personal', 'call_id': IDS[7],
              'chat_id': CHAT, 'root_chat_id': CHAT, 'answer_id': ANSWER, 'root_answer_id': ANSWER}
@@ -40,7 +45,7 @@ def native_pair():
                   for model in ([p.MODEL] if uid == PAYER else [p.MODEL, 'goal584-b'])]
         budgets.append({'user_id': uid, 'spend': value, 'max_budget': '40', 'models': models,
                         'budget_duration': '1mo', 'budget_reset_at': '2026-12-01T00:00:00Z'})
-    before = {'budgets': budgets, 'rows': [native_row(OLD_ID, '.20')], 'models': {'modelA': 'unchanged'},
+    before = {'budgets': budgets, 'rows': [native_row(OLD_ID, '.20')], 'models': {p.MODEL: model_profile()},
               'unqualified_zero_request_ids': {uid: [] for uid in IDS[:5]}}
     after = copy.deepcopy(before)
     after['rows'].append(native_row(NEW_ID, '0.4'))
@@ -50,7 +55,9 @@ def native_pair():
 
 
 def captures():
-    body = {'model': p.MODEL, 'stream': True, 'messages': [{'role': 'user', 'content': 'Hi'}], 'max_tokens': 5}
+    body = {'model': p.MODEL, 'stream': True, 'messages': [{'role': 'user', 'content': 'Hi'}], 'max_tokens': 5,
+            'tools': [{'type': 'function', 'function': {'name': 'budget_echo', 'description': 'Native fixture echo',
+                       'parameters': {'type': 'object', 'properties': {}}}}]}
     scope = native_row(NEW_ID, '0.4')['scope']
     captured = {'body': body, 'body_after_auth': copy.deepcopy(body), 'user_id': ACTOR, 'task': '',
         'attestation_present_before': True, 'provenance_removed_after': True, 'native_auth_user_id': ACTOR,
@@ -59,7 +66,7 @@ def captures():
                 'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}}
     before = {'synthetic': True, 'control': {'prompt_tokens': 10}, 'requests': [{'id': OLD_ID}]}
     after = copy.deepcopy(before); after['requests'].append(physical)
-    old_context = {'schema': 1, 'requests': [{'old': 'actual-prior-record'}]}
+    old_context = {'schema': 1, 'requests': [copy.deepcopy(captured)]}
     new_context = copy.deepcopy(old_context); new_context['requests'].append(captured)
     return before, after, old_context, new_context
 
@@ -91,7 +98,8 @@ class NativePriceBoundaryTests(unittest.TestCase):
     def test_native_observation_uses_actual_accounting_owner_without_rejecting_counter_ahead_of_pending_witness(self):
         before, after = native_pair()
         state = {'schema': 1, 'stage': 'setup_complete', 'run_id': 'goal584-webui-123456789abc',
-                 'users': [{'id': uid, 'token': 'private-session'} for uid in IDS[:2]], 'admin': {'id': IDS[2], 'token': 'private-session'},
+                 'users': [{'id': uid, 'token': 'private-session'} for uid in IDS[:2]], 'admin': {'id': IDS[2], 'token': 'private-admin'},
+                 'cost_display': {'scenario_complete': True},
                  'bootstrap_fixture': {'employee': {'id': IDS[3]}}, 'service_fixture': {'payer_id': PAYER},
                  'background_fixture': {'stage': 'qualified_automatic_background', 'task_config_restored': True,
                     'provider_controls_restored': True, 'baseline_chat': {'chat_id': CHAT}, 'service_chat': {'chat_id': CHAT}}}
@@ -99,12 +107,19 @@ class NativePriceBoundaryTests(unittest.TestCase):
         class WebUI:
             def session(self, *args): pass
             def ok(self, method, path, token):
+                if path.startswith('/api/v1/tools/id/'):
+                    return {'id': p.TOOL_ID, 'content': 'actual-source' if token == 'private-admin' else None,
+                            'specs': [{'name': 'budget_echo', 'parameters': {'properties': {}}}],
+                            'write_access': token == 'private-admin'}
                 return {flag: False for flag in flags} if path == '/api/v1/tasks/config' else {'task_ids': []}
         native = SimpleNamespace(schema=lambda: None)
         modules = {}
         for name, values in {
             'prove_background_tasks': {'snapshot': lambda *args: snapshot},
             'prove_service_tasks': {'task_config_evidence': lambda value: {'sha256': 'actual-task-readback'}},
+            'provision_cost_display': {'TOOL_ID': p.TOOL_ID, 'TOOL_SOURCE': 'actual-source',
+                 'source_hash': lambda value: hashlib.sha256(value.encode()).hexdigest(),
+                 'grant_set': lambda tool: {('user', uid, 'read') for uid in IDS[:2]}},
             'provision_webui': {'WebUI': WebUI, 'native_client': lambda *args: native, 'read_private': lambda *args: state,
                                'TASK_FLAGS': flags, 'require': p.require}}.items():
             module = ModuleType(name); module.__dict__.update(values); modules[name] = module
@@ -168,7 +183,7 @@ class NativePriceBoundaryTests(unittest.TestCase):
             with self.subTest(mutate=mutate), self.assertRaises(AssertionError): p.finance_ready(before, value, CALL, ACTOR, NEW_ID, expected_scope)
 
     def test_full_provider_causality_rejects_extra_fields_history_loss_and_foreign_scope(self):
-        self.assertEqual(p.causal_request(*captures(), CALL, ACTOR), NEW_ID)
+        self.assertEqual(p.causal_request(*captures(), CALL, ACTOR, model_profile()), NEW_ID)
         for mutate in [lambda v: v[1]['requests'].append(copy.deepcopy(v[1]['requests'][-1])),
                        lambda v: v[1]['requests'].pop(0),
                        lambda v: v[1]['requests'][-1]['body'].update(unknown='hidden-transform'),
@@ -177,12 +192,12 @@ class NativePriceBoundaryTests(unittest.TestCase):
                        lambda v: v[3]['requests'][-1]['verified_cost_scope'].update(category='service'),
                        lambda v: v[1]['control'].update(prompt_tokens=20)]:
             values = copy.deepcopy(captures()); mutate(values)
-            with self.subTest(mutate=mutate), self.assertRaises(AssertionError): p.causal_request(*values, CALL, ACTOR)
+            with self.subTest(mutate=mutate), self.assertRaises(AssertionError): p.causal_request(*values, CALL, ACTOR, model_profile())
 
     def test_known_native_internal_usage_marker_is_exact_true_and_only_that_marker_is_not_on_wire(self):
         values = captures()
         values[3]['requests'][-1]['native_stream_usage_patch']['_litellm_strip_stream_usage'] = True
-        self.assertEqual(p.causal_request(*values, CALL, ACTOR), NEW_ID)
+        self.assertEqual(p.causal_request(*values, CALL, ACTOR, model_profile()), NEW_ID)
         def unknown_both(v):
             for body in (v[3]['requests'][-1]['body'], v[3]['requests'][-1]['body_after_auth'], v[1]['requests'][-1]['body']):
                 body['unknown_semantic'] = 'must-not-be-dropped'
@@ -193,7 +208,7 @@ class NativePriceBoundaryTests(unittest.TestCase):
                        lambda v: v[1]['requests'][-1]['body'].update(_litellm_strip_stream_usage=True),
                        lambda v: v[1]['requests'][-1]['body'].update(temperature=.7), unknown_both]:
             actual = copy.deepcopy(values); mutate(actual)
-            with self.subTest(mutate=mutate), self.assertRaises(AssertionError): p.causal_request(*actual, CALL, ACTOR)
+            with self.subTest(mutate=mutate), self.assertRaises(AssertionError): p.causal_request(*actual, CALL, ACTOR, model_profile())
 
     def test_actual_run34_ordinary_hi_capture_and_whole_provider_body_replay(self):
         root = p.ROOT / 'local/goal584/runtime-proof-41630590813/receipts/bootstrap'
@@ -209,9 +224,40 @@ class NativePriceBoundaryTests(unittest.TestCase):
         call = {'model': p.MODEL, 'chat_id': scope['chat_id'], 'message_id': scope['answer_id']}
         before, prior = copy.deepcopy(physical), copy.deepcopy(context)
         before['requests'].pop(); prior['requests'].pop()
-        observed_id = p.causal_request(before, physical, prior, context, call, captured['user_id'])
-        self.assertEqual(observed_id, physical['requests'][-1]['id'])
+        # Run34 still proves native wire normalization, but lacks this actor's
+        # prior approved context. Do not fabricate a baseline to qualify it.
+        p.compare_provider(captured, physical['requests'][-1], p.MODEL)
+        with self.assertRaisesRegex(AssertionError, 'approved ordinary baseline'):
+            p.causal_request(before, physical, prior, context, call, captured['user_id'], model_profile(False))
         self.assertNotIn('_litellm_strip_stream_usage', physical['requests'][-1]['body'])
+
+    def test_actual_run36_retained_tool_context_and_finance_inputs_replay_without_fabrication(self):
+        root = p.ROOT / 'local/goal584/runtime-proof-41635338717/receipts/pricing'
+        if not (root / 'pricing-context-after.json').exists():
+            self.skipTest('Optional local run36 packet unavailable; portable boundary regressions remain')
+        read = lambda name: json.loads((root / name).read_text(encoding='utf8'))
+        before, after = read('pricing-native-01.json'), read('pricing-native-02.json')
+        values = [read(name) for name in ('pricing-provider-before.json', 'pricing-provider-after.json',
+                                         'pricing-context-before.json', 'pricing-context-after.json')]
+        call = read('pricing-browser.json')['call']
+        profile = before['native']['models'][p.MODEL]
+        self.assertEqual(profile['meta']['toolIds'], [p.TOOL_ID])
+        identifier = p.causal_request(*values, call, before['actor_id'], profile)
+        self.assertEqual(identifier, values[1]['requests'][-1]['id'])
+        self.assertTrue(p.finance_ready(before['native'], after['native'], call, before['actor_id'], identifier,
+                                       values[3]['requests'][-1]['verified_cost_scope']))
+        self.assertFalse(after['accounting_ready'])  # Actual finally/readiness mode, not a fabricated convergence sample.
+        for drop in (True, False):
+            changed = copy.deepcopy(values)
+            for body in (changed[3]['requests'][-1]['body'], changed[3]['requests'][-1]['body_after_auth'],
+                         changed[1]['requests'][-1]['body']):
+                if drop: body.pop('tools')
+                else: body['tools'][0]['function']['description'] = 'changed-after-baseline'
+            with self.assertRaisesRegex(AssertionError, 'Tool schemas'):
+                p.causal_request(*changed, call, before['actor_id'], profile)
+        bad_profile = copy.deepcopy(profile); bad_profile['meta']['toolIds'] = ['unqualified_tool']
+        with self.assertRaisesRegex(AssertionError, 'unqualified Tool'):
+            p.causal_request(*values, call, before['actor_id'], bad_profile)
 
 
 class PrivateAndRollbackTests(unittest.TestCase):
@@ -248,6 +294,7 @@ class PrivateAndRollbackTests(unittest.TestCase):
             def observe(self, target='baseline'):
                 operations.append(('observe', target))
                 return {'actor_id': ACTOR, 'scope': scope, 'task_config': {'sha256': 'same'}, 'schema_ready': True,
+                        'fixture_tool_source_sha256': 'fixed-source-hash',
                         'accounting_ready': True, 'native': copy.deepcopy(before if target == 'baseline' else after)}
             def pricing(self, mode, witness):
                 operations.append(('pricing', mode, witness))
@@ -291,6 +338,8 @@ class PrivateAndRollbackTests(unittest.TestCase):
                 self.assertTrue(receipt['config_bytes_restored'] and receipt['restored_native_readiness'])
                 self.assertEqual([v for v in operations if v[0] == 'restart'], [('restart', False), ('restart', True)])
                 self.assertEqual(any(v[:2] == ('pricing', 'compare') for v in operations), failure == 'compare')
+                self.assertEqual(receipt['failure_phase'], {'browser': 'browser_call', 'restart': 'restart_changed_proxy', 'compare': 'compare_rates'}[failure])
+                self.assertEqual(receipt['failure_category'], 'runtime')
 
     def test_partial_native_yaml_write_failure_still_attempts_exact_restore_and_restart(self):
         original_overwrite = p.overwrite_config
@@ -306,12 +355,28 @@ class PrivateAndRollbackTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertTrue(receipt['config_bytes_restored'] and receipt['restored_native_readiness'])
         self.assertEqual([v for v in operations if v[0] == 'restart'], [('restart', True)])
+        self.assertEqual(receipt['failure_phase'], 'write_changed_config')
 
     def test_failed_restore_cannot_be_qualified_even_when_original_file_was_restored(self):
         with tempfile.TemporaryDirectory() as directory:
             receipt, _ = self.run_rehearsal(directory, 'restore')
         self.assertTrue(receipt['config_bytes_restored'])
-        self.assertFalse(receipt.get('restored_native_readiness', False))
+        self.assertEqual(receipt['restoration_failure_phase'], 'restart_restored_proxy')
+        self.assertTrue(receipt['restored_native_readiness'])
+
+    def test_failure_diagnostics_only_use_fixed_phase_and_category_without_exception_data(self):
+        receipt = {'stage': 'causal_request'}
+        p.record_failure(receipt, AssertionError('private config, credential, actor or provider ID'))
+        receipt['stage'] = 'restart_restored_proxy'
+        p.record_failure(receipt, OSError('private command'), restoration=True)
+        self.assertEqual(receipt['failure_phase'], 'causal_request')
+        self.assertEqual(receipt['failure_category'], 'assertion')
+        self.assertEqual(receipt['restoration_failure_phase'], 'restart_restored_proxy')
+        self.assertEqual(receipt['restoration_failure_category'], 'io')
+        self.assertNotIn('private', json.dumps(receipt))
+        unsafe = {'stage': 'private-stage-value'}
+        p.record_failure(unsafe, ValueError('private-content'))
+        self.assertEqual(unsafe, {'stage': 'unknown', 'failure_phase': 'unknown', 'failure_category': 'shape'})
 
     def test_snapshot_cli_is_read_only_existing_owner_with_explicit_causal_witness(self):
         with tempfile.TemporaryDirectory() as directory:

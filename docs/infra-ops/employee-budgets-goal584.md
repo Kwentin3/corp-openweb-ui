@@ -96,6 +96,24 @@ Source reviews: `local/goal584/pricing-snapshot-independent-review.md`,
 source/version/effective interval, atomic tariff binding и regular automatic
 checks этим снимком не доказаны. Overlap/calendar/RAG остаются отдельной
 source-подготовкой и не включены в next pricing candidate.
+Pricing candidate `bb8a78a3a9292a36e8bc6504e30f9ccc43199a00`:
+[run41635338717](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41635338717)
+завершился ошибкой только на новом pricing phase; Active CI41635338778 PASS.
+Tested merge `bd1b325c8868c16623db29cfee6b6e43bea01709`, ZIP
+`1cced4d87754cdc735bb510d517735d58f87ae06e63f72c47598e9736d75bca7`.
+Actual callback/import/old-rate record прошёл, обычный новый ответ UI$0.40/$0.40
+успешен; исходные YAML bytes/readiness восстановлены, cleanup0/0.
+Точная ошибка воспроизведена на retained pair: proof ожидал отсутствие Tool,
+хотя разрешённый `budget_echo` штатно сохранён в modelA после cost fixture.
+Полные gateway/provider bodies с этой схемой совпадают; это не доказанная
+ошибка начисления или callback. Следующий proof сохраняет этот legitimate Tool
+и сверяет с его существующим model/schema owner. Историческое сравнение после
+новой цены ещё не исполнилось и остаётся обязательным; native pricing не принят.
+Proof correction прошёл28 focused tests,185 tracked harness tests и independent
+source review; actual run36 pair/financial snapshots replay PASS. Продуктовый
+callback не менялся. Добавлены только exact approved Tool checks и fixed
+phase/category diagnostics, сохраняющие исходную ошибку при выполнении finally:
+`local/goal584/runtime-proof-41635338717/independent-pricing-fix-review.md`.
 
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn
