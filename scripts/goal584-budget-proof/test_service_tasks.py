@@ -53,11 +53,51 @@ def packet():
     provider = {"synthetic": True, "requests": [{"id": identifier, "body": {**copy.deepcopy(body), "model": "goal584-fake-a"},
                 "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}]}
     provider["requests"][0]["body"].pop("stream")
-    result = {"id": identifier, "choices": [{"message": {"role": "assistant", "content": '{"title":"Proof"}'}}]}
+    result = {"id": identifier, "model": S.MODELS[0], "choices": [{"message": {
+        "role": "assistant", "content": '{"title":"Proof"}'}, "finish_reason": "stop"}],
+        "usage": copy.deepcopy(provider["requests"][0]["usage"])}
     return [capture, provider, row, result, payer, actor, chat, key_hash]
 
 
 class ServiceProofTests(unittest.TestCase):
+    def test_personal_history_evidence_includes_all_four_payers_and_only_native_fixture_ids(self):
+        users = [str(uuid4()) for _ in range(4)]
+        histories = {uid: ["chatcmpl-goal584-" + uuid4().hex for _ in range(2)] for uid in users}
+        actual = S.personal_history_evidence(histories, users)
+        self.assertEqual(set(actual), set(users))
+        self.assertEqual(actual[users[-1]], sorted(histories[users[-1]]))
+        actual[users[0]].clear()
+        self.assertEqual(len(histories[users[0]]), 2)
+        mutations = [lambda h: h.pop(users[-1]), lambda h: h.update({str(uuid4()): []}),
+                     lambda h: h[users[0]].append("Authorization: Bearer eyJaaa.bbb.ccc"),
+                     lambda h: h[users[0]].append("sk-" + "x" * 32),
+                     lambda h: h[users[0]].append(h[users[0]][0]),
+                     lambda h: h.update({users[0]: ["chatcmpl-goal584-" + uuid4().hex] * 1001})]
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                changed = copy.deepcopy(histories)
+                mutate(changed)
+                with self.assertRaises(S.ProofError):
+                    S.personal_history_evidence(changed, users)
+
+    def test_native_title_response_evidence_whitelists_actual_result_and_rejects_mutations(self):
+        values = packet()
+        result = {**values[3], "_hidden_params": {"headers": {"Authorization": "sk-" + "x" * 32}}}
+        actual = S.title_response_evidence(result)
+        self.assertEqual(actual, values[3])
+        self.assertNotIn("Authorization", json.dumps(actual))
+        for mutate in (lambda r: r.update(model="goal584-fake-a"), lambda r: r.update(id="sk-" + "x" * 32),
+                       lambda r: r["choices"][0]["message"].update(content='{"title":"Wrong"}'),
+                       lambda r: r["choices"][0]["message"].update(role="user"),
+                       lambda r: r["choices"][0].update(finish_reason="length"),
+                       lambda r: r["usage"].update(total_tokens=16)):
+            changed = copy.deepcopy(result)
+            mutate(changed)
+            with self.assertRaises(S.ProofError):
+                S.title_response_evidence(changed)
+        self.reject(lambda data: data[3].update(id="chatcmpl-goal584-" + uuid4().hex))
+        self.reject(lambda data: data[3]["usage"].update(completion_tokens=6))
+
     def test_native_service_row_evidence_retains_exact_verified_whitelist_without_headers(self):
         values = packet()
         row, payer, actor, chat, key_hash = values[2], *values[4:]
@@ -120,18 +160,20 @@ class ServiceProofTests(unittest.TestCase):
 
     def test_persisted_native_observations_survive_later_context_failure_and_restore(self):
         observed, physical, row, result, payer, actor, chat, key_hash = packet()
-        admin, foreign = str(uuid4()), str(uuid4())
+        admin, foreign, newhire = str(uuid4()), str(uuid4()), str(uuid4())
         state = {"admin": {"id": admin, "token": "native-admin"}, "users": [
             {"id": actor, "token": "native-actor"}, {"id": str(uuid4()), "token": "native-foreign"}]}
         original = {"TASK_MODEL": "original", "TASK_MODEL_EXTERNAL": "original", "TASK_MODEL_PARAMS": {},
                     **{flag: False for flag in S.TASK_FLAGS}}
         current, signed = copy.deepcopy(original), False
+        personal_users = [actor, state["users"][1]["id"], admin, newhire]
+        histories = {uid: [{"request_id": "chatcmpl-goal584-" + uuid4().hex, "spend": .2}] for uid in personal_users}
         def budget(uid, spend):
             return EmployeeBudget(uid, Decimal(20), Decimal(spend), "1mo", "2026-12-01T00:00:00Z",
                 (ModelBudget(S.MODELS[0], key_hash, "owui-budget-v1-" + "d" * 64, Decimal(20),
                              Decimal(spend), "1mo", "2026-12-01T00:00:00Z", False),))
         async def budgets(_state, payer_id=None):
-            return [budget(actor, 0)], budget(payer, ".2" if signed else "0") if payer_id else None
+            return [budget(uid, 0) for uid in personal_users], budget(payer, ".2" if signed else "0") if payer_id else None
         def install(_webui, actual, _path):
             actual["service_fixture"] = {"stage": "setup_complete", "pipe_sha256": "fixture-source", "key_hash": key_hash}
             return payer
@@ -160,7 +202,8 @@ class ServiceProofTests(unittest.TestCase):
             if path == "/api/chat/completions":
                 return 200, {"error": "unsupported_task"}
             return 403, {"error": {"message": S.UNSIGNED_REASON}}
-        native = SimpleNamespace(logs=lambda uid: [row] if signed and uid == payer else [], poll=lambda _name, fn: fn())
+        native = SimpleNamespace(logs=lambda uid: [row] if signed and uid == payer else histories.get(uid, []),
+                                 poll=lambda _name, fn: fn())
         receipt = {}
         with patch.object(S, "owned_source", side_effect=owned), patch.object(S, "budgets", budgets), \
              patch.object(S, "install", side_effect=install), patch.object(S, "native_client", return_value=native), \
@@ -172,6 +215,10 @@ class ServiceProofTests(unittest.TestCase):
             with self.assertRaisesRegex(S.ProofError, "context drift"):
                 S.run(WebUI(), state, SimpleNamespace(private_state=Path("private.json")), receipt)
         self.assertEqual(receipt["native_service_row"]["request_id"], row["request_id"])
+        self.assertEqual(receipt["native_title_response"], result)
+        self.assertEqual(set(receipt["personal_ids_before"]), set(personal_users))
+        self.assertEqual(receipt["personal_ids_before"], receipt["personal_ids_after"])
+        self.assertEqual(receipt["personal_ids_after"][newhire], [histories[newhire][0]["request_id"]])
         self.assertEqual(receipt["personal_before"], receipt["personal_after"])
         self.assertEqual(receipt["service_before"]["users"][0]["spend_usd"], "0")
         self.assertEqual(receipt["service_after"]["users"][0]["spend_usd"], "0.2")
@@ -438,12 +485,15 @@ class ServiceProofTests(unittest.TestCase):
                 return EmployeeBudget(uid, Decimal(cap), Decimal(0), "1mo", "2026-12-01T00:00:00Z",
                     (ModelBudget(S.MODELS[0], "a" * 64, "owui-budget-v1-" + "d" * 64, Decimal(cap),
                                  Decimal(0), "1mo", "2026-12-01T00:00:00Z", False),))
-            return [budget(actor, 40)], budget(payer, 20) if payer_id else None
+            return [budget(uid, 40) for uid in (actor, state["users"][1]["id"], state["admin"]["id"], foreign)], \
+                   budget(payer, 20) if payer_id else None
         def owned(_webui, account):
             return {"model": S.MODELS[0], "chat_id": chat if account["id"] == actor else foreign,
                     "messages": [{"role": "user", "content": "Hi"}]}, str(uuid4())
+        title = packet()[3]
+        title["id"] = "chatcmpl-goal584-" + "f" * 32
         replies = [(403, {"error": {"message": S.UNSIGNED_REASON}}),
-                   (200, {"id": "synthetic-service-response"}) if negative else (400, {"error": {"type": "native-service-failure"}}),
+                   (200, title) if negative else (400, {"error": {"type": "native-service-failure"}}),
                    (409, {"detail": "Message already exists or has an invalid ID."})]
         positive = False
         def respond(*args, **kwargs):
@@ -452,7 +502,7 @@ class ServiceProofTests(unittest.TestCase):
             positive = positive or result[0] == 200
             return result
         def observe_provider(*args, **kwargs):
-            return {"requests": [{"id": "synthetic-service-response"}] if positive else []}
+            return {"requests": [{"id": title["id"]}] if positive else []}
         partial = {}
         with patch.object(S, "owned_source", side_effect=owned), patch.object(S, "budgets", budgets), \
              patch.object(S, "native_client", return_value=SimpleNamespace(logs=lambda _user: [])), \
@@ -478,7 +528,7 @@ class ServiceProofTests(unittest.TestCase):
     def test_failed_negative_preserves_prior_title_and_safe_case_before_assertion(self):
         partial = self.failed_title_phase(negative=True)
         self.assertEqual(partial["stage"], "negative_observed")
-        self.assertEqual(partial["positive_title_provider_ids"], ["synthetic-service-response"])
+        self.assertEqual(partial["positive_title_provider_ids"], ["chatcmpl-goal584-" + "f" * 32])
         self.assertEqual(partial["current_negative_case"], "ordinary_selected_pipe")
         observed = partial["negatives"][0]
         self.assertEqual((observed["http_status"], observed["expected_guard"], observed["observed_known_codes"]),

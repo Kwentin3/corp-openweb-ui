@@ -31,6 +31,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ROWS = 1000
 BODY_FIELDS = ("messages", "response", "proxy_server_request")
+NATIVE_CHAT_NOT_FOUND = "We could not find what you're looking for :/"
 CREDENTIAL = re.compile(r"(?:sk-|gw-)[A-Za-z0-9_-]{24,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")
 STATE_PROJECTION = '''import json
 from pathlib import Path
@@ -66,6 +67,10 @@ def canonical(value):
         valid = False
     require(valid, "Noncanonical fixture UUID")
     return value
+
+
+def native_chat_absent(status, body):
+    return status == 401 and isinstance(body, dict) and body == {"detail": NATIVE_CHAT_NOT_FOUND}
 
 
 def encoded(value):
@@ -430,7 +435,7 @@ def run(args, receipt=None):
                 continue
             chat_id = canonical(scope["root_chat_id"])
             status, saved = session.request("GET", "/api/v1/chats/" + chat_id)
-            if status in (403, 404):
+            if native_chat_absent(status, saved):
                 continue
             require(status == 200, "Native paid chat read failed")
             texts = owned_chat(saved, scope, actor_id)
@@ -451,9 +456,18 @@ def run(args, receipt=None):
         private["delete_http_status"] = status
         write_private(handle, private)
         receipt["stage"] = "read_deleted_chat"
-        status, _ = session.request("GET", "/api/v1/chats/" + chat_id)
-        require(status in (403, 404), "Native saved chat remains accessible after deletion")
-        private["deleted_chat_get_status"] = status
+        deleted_status, deleted_readback = session.request("GET", "/api/v1/chats/" + chat_id)
+        private["deleted_chat_get_status"] = receipt["deleted_chat_get_status"] = deleted_status
+        write_private(handle, private)
+        require(native_chat_absent(deleted_status, deleted_readback), "Native deleted chat absence guard differs")
+        receipt["native_absence_guard"] = "http401_exact_native_chat_not_found"
+        receipt["stage"] = "verify_post_delete_session"
+        session_status, current_actor = session.request("GET", "/api/v1/auths/")
+        receipt["post_delete_session_http_status"] = session_status
+        require(session_status == 200 and isinstance(current_actor, dict)
+                and current_actor.get("id") == actor_id and current_actor.get("role") == "user",
+                "Native post-delete session readback differs")
+        receipt["session_still_valid"] = True
         receipt["stage"] = "read_final_raw_financial_rows"
         private["after"] = fixture.snapshot(payers)
         write_private(handle, private)
@@ -468,7 +482,9 @@ def run(args, receipt=None):
         require(provider_before == provider_after, "Chat deletion caused a provider dispatch")
         receipt["stage"] = "qualified_retention"
         return {"passed": True, "actor_id": actor_id, "deleted_chat_id": chat_id, "paid_root_answer_id": scope["root_answer_id"],
-                "selected_payer_ids": sorted(payers), "native_delete_http_status": 200, "deleted_chat_get_status": status,
+                "selected_payer_ids": sorted(payers), "native_delete_http_status": 200, "deleted_chat_get_status": deleted_status,
+                "native_absence_guard": receipt["native_absence_guard"], "session_still_valid": True,
+                "post_delete_session_http_status": session_status,
                 "raw_cost_rows": len(before["journal"]), "native_payers": len(before["users"]), "native_keys": len(before["keys"]),
                 "all_raw_rows_and_counters_unchanged": True, "raw_body_fields_empty": True,
                 "exact_saved_content_values_and_full_credentials_absent": True,

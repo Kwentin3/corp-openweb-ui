@@ -106,6 +106,37 @@ def no_secrets(value, secrets=()):
     return value
 
 
+def personal_history_evidence(histories, user_ids):
+    require(isinstance(histories, dict) and len(user_ids) == len(set(user_ids)) == 4
+            and set(histories) == set(user_ids), "Personal history evidence omitted a fixture payer")
+    for uid, identifiers in histories.items():
+        canonical(uid)
+        require(isinstance(identifiers, list) and len(identifiers) <= 1000
+                and all(isinstance(identifier, str) and re.fullmatch(r"chatcmpl-goal584-[0-9a-f]{32}", identifier)
+                        for identifier in identifiers)
+                and len(set(identifiers)) == len(identifiers), "Personal history evidence has invalid fixture request IDs")
+    return {uid: sorted(identifiers) for uid, identifiers in histories.items()}
+
+
+def title_response_evidence(result):
+    """Keep only the actual, validated synthetic native title response."""
+    require(isinstance(result, dict) and isinstance(result.get("id"), str)
+            and re.fullmatch(r"chatcmpl-goal584-[0-9a-f]{32}", result["id"])
+            and result.get("model") == MODELS[0], "Native title response identity/model differs")
+    choices, usage = result.get("choices"), result.get("usage")
+    require(isinstance(choices, list) and len(choices) == 1 and isinstance(choices[0], dict)
+            and choices[0].get("finish_reason") == "stop", "Native title response choices differ")
+    message = choices[0].get("message")
+    require(isinstance(message, dict) and message.get("role") == "assistant"
+            and message.get("content") == '{"title":"Proof"}', "Native title response content differs")
+    fields = ("prompt_tokens", "completion_tokens", "total_tokens")
+    require(isinstance(usage, dict) and all(type(usage.get(field)) is int for field in fields)
+            and [usage[field] for field in fields] == [10, 5, 15], "Native title response usage differs")
+    return no_secrets({"id": result["id"], "model": result["model"],
+        "choices": [{"message": {field: message[field] for field in ("role", "content")},
+                     "finish_reason": choices[0]["finish_reason"]}], "usage": {field: usage[field] for field in fields}})
+
+
 def owned_source(webui, account):
     status, listing = response(webui, "GET", "/api/v1/chats/list?page=1", account["token"])
     require(status == 200 and isinstance(listing, list) and 0 < len(listing) <= 60, "Native saved Chat list is unavailable")
@@ -355,8 +386,10 @@ def verify_context(observed, provider_data, row, result, payer, actor, chat_id, 
     require(provider_data.get("synthetic") is True and isinstance(requests, list) and len(requests) == 1,
             "Title phase dispatched beyond its single synthetic service call")
     physical = requests[0]
-    require(physical["id"] == row.get("request_id") == result.get("id")
-            and physical.get("usage") == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    native_response = title_response_evidence(result)
+    require(physical["id"] == row.get("request_id") == native_response["id"]
+            and physical.get("usage") == native_response["usage"]
+            and physical.get("body", {}).get("model") == "goal584-fake-a",
             "Title response/provider/native request identity or usage differs")
     # Native OpenAIChatCompletion.completion extracts stream from the copied
     # inference params before its non-stream acompletion dispatch (1.105.1,
@@ -400,6 +433,7 @@ def run(webui, state, args, receipt=None):
                "pipe_source_sha256": state["service_fixture"]["pipe_sha256"], "stage": "installed", "negatives": []})
     try:
         receipt.update(personal_before=normalize(personal_before), service_before=normalize([before]),
+                       personal_ids_before=personal_history_evidence(personal_ids, [budget.user_id for budget in personal_before]),
                        task_config_observations={"original": task_config_evidence(original)})
         provider("POST", "/__proof/reset", {})
         provider("POST", "/__proof/control", {"title_mode": True})
@@ -417,6 +451,7 @@ def run(webui, state, args, receipt=None):
         receipt["task_config_observations"]["service"] = task_config_evidence(service_config)
         status, result = response(webui, "POST", TITLE_PATH, actor["token"], source)
         require(status == 200 and isinstance(result, dict) and not result.get("error"), "Signed native service title failed")
+        receipt["native_title_response"] = title_response_evidence(result)
         identifiers = [entry["id"] for entry in provider()["requests"]]
         require(len(identifiers) == 1, "Native title did not dispatch exactly once")
         receipt["positive_title_provider_ids"] = identifiers
@@ -460,9 +495,10 @@ def run(webui, state, args, receipt=None):
         row, after = native.poll("direct title service accounting", persisted)
         receipt["native_service_row"] = service_row_evidence(
             row, payer, actor["id"], source["chat_id"], state["service_fixture"]["key_hash"])
-        for budget in personal_before:
-            require(sorted(entry["request_id"] for entry in native.logs(budget.user_id)
-                    if Decimal(str(entry.get("spend", 0))) > 0) == personal_ids[budget.user_id], "Service event added personal spend history")
+        personal_after_ids = {budget.user_id: sorted(entry["request_id"] for entry in native.logs(budget.user_id)
+                              if Decimal(str(entry.get("spend", 0))) > 0) for budget in personal_before}
+        receipt["personal_ids_after"] = personal_history_evidence(personal_after_ids, [budget.user_id for budget in personal_before])
+        require(personal_after_ids == personal_ids, "Service event added personal spend history")
         observed, provider_data = captured(), provider()
         verified = verify_context(observed, provider_data, row, result, payer, actor["id"], source["chat_id"], state["service_fixture"]["key_hash"])
         no_secrets(observed)

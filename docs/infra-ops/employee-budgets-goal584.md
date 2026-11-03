@@ -280,6 +280,27 @@ DTO и config fingerprints/readbacks до context assertions; raw metadata/heade
 prompt bodies не экспортируются. Эти наблюдения закрывают пробел предыдущей
 квитанции, где row/key/config проверки были только source-attested.17 service tests
 PASS, включая сохранение actual observations при поздней ошибке и restore.
+Run30 [41613261580](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41613261580),
+HEAD `8ed6f03f71dea7d186120bf816ce3e85f7528dc5`, tested merge
+`e7ff2dd454ebef092d594012bb898515f4264488`, прошёл loader и initial raw privacy,
+выполнил native DELETE200 и получил GET401. Pinned get_chat_by_id возвращает401
+с exact `ERROR_MESSAGES.NOT_FOUND` для отсутствующего чата; прежнее ожидание403/404
+было неверным. Теперь проверяются именно401+native detail и последующий authsGET200
+для того же user.17 retention tests PASS, включая исполнение actual native route AST,
+проверку истёкшей/чужой сессии и запрет принятия произвольного401. SQL/финансовые
+и privacy guards не изменены. Финальное сравнение after snapshot остаётся runtime gate.
+Service receipt следующего кандидата также сохраняет actual native title response
+и existing-read history-ID maps всех4 payers, включая newhire;19 targeted tests PASS.
+Содержимое native response сверяется с контрактом synthetic provider, его ID/usage —
+с actual provider record; отсутствующий raw provider response не выдумывается.
+Run30 cleanup0/0, evidence `local/goal584/runtime-proof-41613261580`, ZIP SHA256
+`286b8e9a8857209b61b0b5b415fe1e323be25a134bbda22e6e0d9e3919c36bc0`.
+Independent run29 service review подтвердил admin footer/turn и context/source hashes,
+но дал NEEDS_EVIDENCE для полных raw financial/config/response readbacks; это учтено
+в расширенных квитанциях, а не ретроспективной приёмке отсутствовавших данных.
+Background source review не нашёл authority/money-owner defect для выбранного
+native primary A. Fan-out не различим в унаследованной metadata и может пройти
+guard при первом A; он остаётся runtime-unqualified, запрет fan-out не заявляется.
 К следующему кандидату добавлена отдельная финальная retention-проверка: свежий
 native login сотрудника, один его завершённый оплаченный synthetic Hi/Proof chat,
 native DELETE и повторный GET, readonly PostgreSQL snapshots всех колонок

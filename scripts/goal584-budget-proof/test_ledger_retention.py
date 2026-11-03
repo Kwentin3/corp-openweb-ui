@@ -1,6 +1,7 @@
 """Mutation checks at raw DB/chat boundaries; no live fixture or inference."""
 import copy
 import ast
+import asyncio
 import importlib.util
 import json
 import os
@@ -125,7 +126,7 @@ class CoordinatorTests(unittest.TestCase):
             with self.assertRaises(p.ProofError):
                 p.private_paths(args.env_file,args.accounts,args.accounts.parent/"public",args.private_output)
 
-    def execute(self,args,*,foreign=False,drift=False,provider_delta=False):
+    def execute(self,args,*,foreign=False,drift=False,provider_delta=False,delete_reply=None,session_reply=None):
         calls=[];snapshots=[raw_snapshot(),raw_snapshot()]
         if drift:snapshots[1]["users"][0]["spend"]+=.2
         class Fixture:
@@ -145,12 +146,14 @@ class CoordinatorTests(unittest.TestCase):
                 calls.append((method,path))
                 if "/api/tasks/chat/" in path:return 200,{"task_ids":[]}
                 if method=="DELETE":return 200,True
-                if ("DELETE","/api/v1/chats/"+CHAT) in calls:return 404,{"detail":"not found"}
+                if path=="/api/v1/auths/":return session_reply or (200,{"id":ACTOR,"role":"user"})
+                if ("DELETE","/api/v1/chats/"+CHAT) in calls:
+                    return delete_reply or (401,{"detail":p.NATIVE_CHAT_NOT_FOUND})
                 chat=saved_chat()
                 if foreign:chat["user_id"]=IDS[1]
                 return 200,chat
         with patch.object(p,"Fixture",Fixture),patch.object(p,"Session",Session):
-            if foreign or drift or provider_delta:
+            if foreign or drift or provider_delta or delete_reply or session_reply:
                 with self.assertRaises(p.ProofError):p.run(args)
                 return calls,None
             return calls,p.run(args)
@@ -159,8 +162,13 @@ class CoordinatorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             args=self.environment(directory);calls,result=self.execute(args)
             self.assertTrue(result["passed"])
+            self.assertEqual(result["deleted_chat_get_status"],401)
+            self.assertEqual(result["native_absence_guard"],"http401_exact_native_chat_not_found")
+            self.assertTrue(result["session_still_valid"])
+            self.assertEqual(result["post_delete_session_http_status"],200)
             self.assertEqual([call for call in calls if isinstance(call,tuple) and call[0]=="DELETE"],[("DELETE","/api/v1/chats/"+CHAT)])
             self.assertLess(calls.index("raw_db_read"),calls.index(("DELETE","/api/v1/chats/"+CHAT)))
+            self.assertLess(calls.index(("DELETE","/api/v1/chats/"+CHAT)),calls.index(("GET","/api/v1/auths/")))
             raw=json.loads(args.private_output.read_text(encoding="utf-8"))
             self.assertEqual(raw["before"],raw["after"])
             self.assertNotIn("private-synthetic-password",json.dumps(result))
@@ -173,9 +181,66 @@ class CoordinatorTests(unittest.TestCase):
                 args=self.environment(directory);calls,_=self.execute(args,**flags)
                 if flags.get("foreign"):self.assertFalse(any(isinstance(call,tuple) and call[0]=="DELETE" for call in calls))
 
+    def test_deleted_chat_requires_exact_native_absence_and_still_authenticated_same_employee(self):
+        mutations=[dict(delete_reply=(401,{"detail":"Unauthorized"})),
+                   dict(delete_reply=(200,saved_chat())),dict(delete_reply=(404,{"detail":p.NATIVE_CHAT_NOT_FOUND})),
+                   dict(session_reply=(401,{"detail":"Unauthorized"})),
+                   dict(session_reply=(200,{"id":IDS[1],"role":"user"})),
+                   dict(session_reply=(200,{"id":ACTOR,"role":"admin"}))]
+        for flags in mutations:
+            with self.subTest(flags=flags),tempfile.TemporaryDirectory() as directory:
+                args=self.environment(directory);calls,_=self.execute(args,**flags)
+                self.assertEqual([call for call in calls if isinstance(call,tuple) and call[0]=="DELETE"],
+                                 [("DELETE","/api/v1/chats/"+CHAT)])
+                self.assertEqual(calls.count("raw_db_read"),1)
+                if "session_reply" in flags:self.assertIn(("GET","/api/v1/auths/"),calls)
+                else:self.assertNotIn(("GET","/api/v1/auths/"),calls)
+
     def test_public_target_credentials_redirector_or_nonfixture_host_are_refused(self):
         for target in ["https://172.18.0.4:8080","http://8.8.8.8:8080","http://user:secret@172.18.0.4:8080","http://172.18.0.4:8080/api/chat"]:
             with self.subTest(target=target),self.assertRaises(p.ProofError):p.native_url(target)
+
+
+class NativeChatAbsenceTests(unittest.TestCase):
+    def test_actual_pinned_get_chat_by_id_missing_lookup_raises_exact_401_detail(self):
+        root=HERE.parents[1]/"local/goal584/cost-display/open-webui/backend/open_webui"
+        if not (root/"routers/chats.py").is_file():
+            self.skipTest("Pinned native WebUI source unavailable")
+        try:
+            from fastapi import HTTPException,status
+        except ImportError:
+            self.skipTest("Native FastAPI exception unavailable")
+        constants=ast.parse((root/"constants.py").read_text(encoding="utf-8"))
+        owner=next(node for node in constants.body if isinstance(node,ast.ClassDef) and node.name=="ERROR_MESSAGES")
+        actual=ast.literal_eval(next(node.value for node in owner.body if isinstance(node,ast.Assign)
+            and any(isinstance(target,ast.Name) and target.id=="NOT_FOUND" for target in node.targets)))
+        self.assertEqual(actual,p.NATIVE_CHAT_NOT_FOUND)
+        source=ast.parse((root/"routers/chats.py").read_text(encoding="utf-8"))
+        route=copy.deepcopy(next(node for node in source.body if isinstance(node,ast.AsyncFunctionDef)
+                                 and node.name=="get_chat_by_id"))
+        route.decorator_list=[];route.returns=None;route.args.defaults=[]
+        for argument in [*route.args.posonlyargs,*route.args.args,*route.args.kwonlyargs]:argument.annotation=None
+        route.args.kw_defaults=[None for _ in route.args.kwonlyargs]
+        calls=[]
+        async def missing(chat_id,user,*,db):
+            calls.append((chat_id,user,db));return None
+        namespace=dict(Chats=SimpleNamespace(get_accessible_chat_by_id=missing),HTTPException=HTTPException,
+                       status=status,ERROR_MESSAGES=SimpleNamespace(NOT_FOUND=actual))
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[route],type_ignores=[])),
+                     "pinned-native-get-chat-by-id","exec"),namespace)
+        actor=SimpleNamespace(id=ACTOR)
+        with self.assertRaises(HTTPException) as caught:
+            asyncio.run(namespace["get_chat_by_id"](CHAT,None,actor,None))
+        self.assertEqual(calls,[(CHAT,actor,None)])
+        self.assertEqual((caught.exception.status_code,caught.exception.detail),(401,actual))
+        self.assertTrue(p.native_chat_absent(caught.exception.status_code,{"detail":caught.exception.detail}))
+
+    def test_exact_absence_predicate_rejects_auth_errors_live_chat_and_other_statuses(self):
+        for code,body in [(401,{"detail":"Unauthorized"}),(401,{"detail":"Not authenticated"}),
+                          (200,saved_chat()),(403,{"detail":p.NATIVE_CHAT_NOT_FOUND}),
+                          (404,{"detail":p.NATIVE_CHAT_NOT_FOUND}),(500,{"detail":p.NATIVE_CHAT_NOT_FOUND}),
+                          (401,{"detail":p.NATIVE_CHAT_NOT_FOUND,"extra":"unexpected"}),(401,None)]:
+            with self.subTest(status=code,body=body):self.assertFalse(p.native_chat_absent(code,body))
 
 
 class NativeLoaderRegressionTests(unittest.TestCase):
