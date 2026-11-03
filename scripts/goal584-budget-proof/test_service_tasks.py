@@ -3,6 +3,7 @@ import ast
 import asyncio
 from contextlib import asynccontextmanager
 import copy
+from decimal import Decimal
 import hashlib
 import importlib.util
 import json
@@ -25,6 +26,7 @@ for name, filename in (("employee_budget_assignment", "assignment.py"),
         sys.modules[name] = module
         spec.loader.exec_module(module)
 import prove_service_tasks as S
+from employee_budget_admin_contract import EmployeeBudget, ModelBudget
 
 
 def packet():
@@ -56,6 +58,127 @@ def packet():
 
 
 class ServiceProofTests(unittest.TestCase):
+    def test_native_service_row_evidence_retains_exact_verified_whitelist_without_headers(self):
+        values = packet()
+        row, payer, actor, chat, key_hash = values[2], *values[4:]
+        row.update(key_alias="owui-budget-v1-" + "d" * 64,
+                   request_body={"messages": [{"content": "private chat"}]},
+                   request_headers={"Authorization": "Bearer sk-" + "x" * 32})
+        row["metadata"]["raw_headers"] = {"Authorization": "Bearer eyJaaa.bbb.ccc"}
+        for metadata in (row["metadata"], json.dumps(row["metadata"])):
+            actual = S.service_row_evidence({**row, "metadata": metadata}, payer, actor, chat, key_hash)
+            self.assertEqual(set(actual), {"request_id", "user_id", "api_key_hash", "model_group", "session_id",
+                "status", "spend_usd", "usage", "verified_scope", "key_alias"})
+            self.assertEqual(actual["api_key_hash"], key_hash)
+            self.assertEqual(actual["verified_scope"], values[0]["requests"][1]["verified_cost_scope"])
+            self.assertEqual(actual["usage"], {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15})
+            self.assertEqual(actual["spend_usd"], "0.2")
+            self.assertNotIn("Authorization", json.dumps(actual))
+            self.assertNotIn("private chat", json.dumps(actual))
+            self.assertNotIn("metadata", actual)
+        actual["verified_scope"]["actor_id"] = "changed"
+        self.assertEqual(row["metadata"]["spend_logs_metadata"]["owui_budget"]["actor_id"], actor)
+
+    def test_native_service_row_evidence_rejects_credentials_and_unmatched_native_rows(self):
+        for field, value in (("api_key", "sk-" + "x" * 32), ("api_key", "b" * 64),
+                             ("user", str(uuid4())), ("spend", .4),
+                             ("request_id", "Authorization: Bearer eyJaaa.bbb.ccc"),
+                             ("key_alias", "sk-" + "x" * 32)):
+            with self.subTest(field=field):
+                values = packet()
+                values[2][field] = value
+                with self.assertRaises(S.ProofError) as caught:
+                    S.service_row_evidence(values[2], *values[4:])
+                self.assertNotIn(str(value), str(caught.exception))
+        values = packet()
+        with self.assertRaises(S.ProofError):
+            S.service_row_evidence(values[2], *values[4:7], "sk-" + "x" * 32)
+
+    def test_task_config_evidence_hashes_full_native_readback_without_prompt_or_header_export(self):
+        secret = "sk-" + "x" * 32
+        original = {"TASK_MODEL": "goal584-a", "TASK_MODEL_EXTERNAL": "goal584-a",
+                    "TASK_MODEL_PARAMS": {**S.PARAMS, "headers": {"Authorization": secret}},
+                    "TITLE_GENERATION_PROMPT_TEMPLATE": "private native title template " + secret,
+                    "raw_headers": {"Authorization": "Bearer eyJaaa.bbb.ccc"},
+                    **{flag: False for flag in S.TASK_FLAGS}}
+        first = S.task_config_evidence(original)
+        self.assertEqual(first["task_model_params"]["known_values"], S.PARAMS)
+        self.assertNotIn(secret, json.dumps(first))
+        self.assertNotIn("Authorization", json.dumps(first))
+        self.assertNotIn("private native title template", json.dumps(first))
+        self.assertNotIn("raw_headers", first["present_keys"])
+        changed = copy.deepcopy(original)
+        changed["raw_headers"]["Authorization"] = "changed"
+        self.assertNotEqual(first["sha256"], S.task_config_evidence(changed)["sha256"])
+        changed = copy.deepcopy(original)
+        changed["TITLE_GENERATION_PROMPT_TEMPLATE"] += " changed"
+        self.assertNotEqual(first["prompt_sha256"], S.task_config_evidence(changed)["prompt_sha256"])
+        self.assertEqual(first, S.task_config_evidence(copy.deepcopy(original)))
+        for value in (secret, "Authorization: Bearer eyJaaa.bbb.ccc"):
+            with self.assertRaises(S.ProofError):
+                S.task_config_evidence({**original, "TASK_MODEL": value})
+
+    def test_persisted_native_observations_survive_later_context_failure_and_restore(self):
+        observed, physical, row, result, payer, actor, chat, key_hash = packet()
+        admin, foreign = str(uuid4()), str(uuid4())
+        state = {"admin": {"id": admin, "token": "native-admin"}, "users": [
+            {"id": actor, "token": "native-actor"}, {"id": str(uuid4()), "token": "native-foreign"}]}
+        original = {"TASK_MODEL": "original", "TASK_MODEL_EXTERNAL": "original", "TASK_MODEL_PARAMS": {},
+                    **{flag: False for flag in S.TASK_FLAGS}}
+        current, signed = copy.deepcopy(original), False
+        def budget(uid, spend):
+            return EmployeeBudget(uid, Decimal(20), Decimal(spend), "1mo", "2026-12-01T00:00:00Z",
+                (ModelBudget(S.MODELS[0], key_hash, "owui-budget-v1-" + "d" * 64, Decimal(20),
+                             Decimal(spend), "1mo", "2026-12-01T00:00:00Z", False),))
+        async def budgets(_state, payer_id=None):
+            return [budget(actor, 0)], budget(payer, ".2" if signed else "0") if payer_id else None
+        def install(_webui, actual, _path):
+            actual["service_fixture"] = {"stage": "setup_complete", "pipe_sha256": "fixture-source", "key_hash": key_hash}
+            return payer
+        class WebUI:
+            def session(self, *args):
+                pass
+            def ok(self, method, path, **kwargs):
+                if method == "POST":
+                    current.clear()
+                    current.update(copy.deepcopy(kwargs["body"]))
+                return copy.deepcopy(current)
+        def owned(_webui, account):
+            return {"model": S.MODELS[0], "chat_id": chat if account["id"] == actor else foreign,
+                    "messages": [{"role": "user", "content": "Hi"}]}, str(uuid4())
+        title_calls = 0
+        def response(_webui, method, path, token, body):
+            nonlocal signed, title_calls
+            if path == S.TITLE_PATH:
+                title_calls += 1
+                if title_calls == 1:
+                    return 403, {"error": {"message": S.UNSIGNED_REASON}}
+                if title_calls == 2:
+                    signed = True
+                    return 200, result
+                return 200, {"error": "chat_access_denied"}
+            if path == "/api/chat/completions":
+                return 200, {"error": "unsupported_task"}
+            return 403, {"error": {"message": S.UNSIGNED_REASON}}
+        native = SimpleNamespace(logs=lambda uid: [row] if signed and uid == payer else [], poll=lambda _name, fn: fn())
+        receipt = {}
+        with patch.object(S, "owned_source", side_effect=owned), patch.object(S, "budgets", budgets), \
+             patch.object(S, "install", side_effect=install), patch.object(S, "native_client", return_value=native), \
+             patch.object(S, "write_private"), patch.object(S, "save_capture"), \
+             patch.object(S, "provider", side_effect=lambda *args, **kwargs: physical if signed else {"requests": []}), \
+             patch.object(S, "captured", side_effect=lambda: observed if signed else {"requests": observed["requests"][:1]}), \
+             patch.object(S, "response", side_effect=response), \
+             patch.object(S, "verify_context", side_effect=S.ProofError("context drift")):
+            with self.assertRaisesRegex(S.ProofError, "context drift"):
+                S.run(WebUI(), state, SimpleNamespace(private_state=Path("private.json")), receipt)
+        self.assertEqual(receipt["native_service_row"]["request_id"], row["request_id"])
+        self.assertEqual(receipt["personal_before"], receipt["personal_after"])
+        self.assertEqual(receipt["service_before"]["users"][0]["spend_usd"], "0")
+        self.assertEqual(receipt["service_after"]["users"][0]["spend_usd"], "0.2")
+        self.assertEqual(receipt["task_config_observations"]["original"], receipt["task_config_observations"]["restored"])
+        self.assertEqual(set(receipt["task_config_observations"]), {"original", "baseline", "service", "restored"})
+        self.assertEqual(current, original)
+
     def test_pinned_native_openai_handler_extracts_nonstream_flag_before_dispatch(self):
         path = HERE.parents[1] / "local/goal584/native-openai-handler.py"
         if not path.exists():
@@ -311,7 +434,11 @@ class ServiceProofTests(unittest.TestCase):
             actual_state["service_fixture"] = {"stage": "setup_complete", "pipe_sha256": "native-source-hash"}
             return payer
         async def budgets(_state, payer_id=None):
-            return [SimpleNamespace(user_id=actor)], SimpleNamespace(spend=0, max_budget=20) if payer_id else None
+            def budget(uid, cap):
+                return EmployeeBudget(uid, Decimal(cap), Decimal(0), "1mo", "2026-12-01T00:00:00Z",
+                    (ModelBudget(S.MODELS[0], "a" * 64, "owui-budget-v1-" + "d" * 64, Decimal(cap),
+                                 Decimal(0), "1mo", "2026-12-01T00:00:00Z", False),))
+            return [budget(actor, 40)], budget(payer, 20) if payer_id else None
         def owned(_webui, account):
             return {"model": S.MODELS[0], "chat_id": chat if account["id"] == actor else foreign,
                     "messages": [{"role": "user", "content": "Hi"}]}, str(uuid4())
@@ -339,6 +466,9 @@ class ServiceProofTests(unittest.TestCase):
         self.assertEqual([body["TASK_MODEL"] for body in writes], [S.MODELS[0], S.FUNCTION_ID, "original-model"])
         self.assertTrue(state["service_fixture"]["task_config_restored"])
         self.assertTrue(partial["baseline_observation"]["guard_verified"])
+        self.assertEqual(partial["personal_before"]["users"][0]["user_id"], actor)
+        self.assertEqual(partial["service_before"]["users"][0]["spend_usd"], "0")
+        self.assertEqual(partial["task_config_observations"]["original"], partial["task_config_observations"]["restored"])
         return partial
 
     def test_failed_actual_title_phase_restores_entire_original_task_config(self):

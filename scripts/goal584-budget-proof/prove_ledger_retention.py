@@ -52,7 +52,8 @@ d = json.loads(raw)
 assert d['synthetic'] is True and len(d['requests']) <= 1000
 print(json.dumps([r['id'] for r in d['requests']]))'''
 VALIDATE_ROOTS = '''import json, sys
-from provenance import validate_persisted_scope
+from litellm.proxy.types_utils.utils import get_instance_fn
+validate_persisted_scope = get_instance_fn('provenance.validate_persisted_scope', config_file_path='/proof/config.yaml')
 data = json.loads(sys.argv[1])
 assert 0 < len(data) <= 1000
 print(json.dumps([{'request_id': x['request_id'], 'scope': validate_persisted_scope(x['scope'])} for x in data]))'''
@@ -303,25 +304,32 @@ class Fixture:
         self.command = ["docker", "compose", "--env-file", str(env_file.resolve()), "-f", "compose/goal584.native-budget-proof.yml",
                         "-f", "compose/goal584.webui-proof.yml"]
 
-    def observe(self, command):
+    def observe(self, command, label):
         try:
             result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=45)
         except (OSError, subprocess.SubprocessError):
-            raise ProofError("Native read-only observation command failed") from None
-        require(result.returncode == 0, "Native read-only observation returned failure")
+            raise ProofError("Native read-only observation command failed: " + label) from None
+        if result.returncode != 0:
+            # Never echo raw command/output: native failures can include private
+            # rows or credentials. Classify only fixed, known exception markers.
+            known = ((b"ModuleNotFoundError", "module_not_found"), (b"AssertionError", "fixture_assertion"),
+                     (b"syntax error", "sql_syntax"), (b"does not exist", "missing_native_object"))
+            code = next((value for marker, value in known if marker in result.stderr), "unclassified")
+            raise ProofError("Native read-only observation failed: " + label + "/" + code
+                             + " (exit " + str(result.returncode) + ")")
         return decode(result.stdout)
 
     def projection(self):
-        return self.observe(self.command + ["exec", "-T", "proxy", "python", "-B", "-c", STATE_PROJECTION])
+        return self.observe(self.command + ["exec", "-T", "proxy", "python", "-B", "-c", STATE_PROJECTION], "fixture_state")
 
     def snapshot(self, payers):
         sql = snapshot_sql(payers)
         raw = self.observe(self.command + ["exec", "-T", "postgres", "psql", "-U", "goal584", "-d", "goal584",
-                                           "-X", "-A", "-t", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql])
+                                           "-X", "-A", "-t", "-q", "-v", "ON_ERROR_STOP=1", "-c", sql], "raw_db_snapshot")
         return raw
 
     def provider(self):
-        ids = self.observe(self.command + ["exec", "-T", "provider", "python", "-B", "-c", PROVIDER_IDS])
+        ids = self.observe(self.command + ["exec", "-T", "provider", "python", "-B", "-c", PROVIDER_IDS], "provider_ids")
         require(isinstance(ids, list) and len(ids) <= MAX_ROWS and len(set(ids)) == len(ids)
                 and all(isinstance(value, str) and re.fullmatch(r"chatcmpl-goal584-[0-9a-f]{32}", value) for value in ids),
                 "Provider ID observation is malformed")
@@ -329,7 +337,7 @@ class Fixture:
 
     def validate_roots(self, candidates):
         result = self.observe(self.command + ["exec", "-T", "proxy", "python", "-B", "-c", VALIDATE_ROOTS,
-                                             encoded(candidates).decode("utf-8")])
+                                             encoded(candidates).decode("utf-8")], "persisted_scope_validation")
         require(result == candidates, "Native persisted-scope owner changed the selected roots")
         return result
 
@@ -340,7 +348,7 @@ class Fixture:
         except (OSError, UnicodeError, subprocess.SubprocessError):
             raise ProofError("Disposable WebUI container identity unavailable") from None
         require(result.returncode == 0 and re.fullmatch(r"[0-9a-f]{64}", container), "Expected one disposable WebUI container")
-        networks = self.observe(["docker", "inspect", "--format", "{{json .NetworkSettings.Networks}}", container])
+        networks = self.observe(["docker", "inspect", "--format", "{{json .NetworkSettings.Networks}}", container], "target_networks")
         require(isinstance(networks, dict) and urlsplit(base_url).hostname in {v.get("IPAddress") for v in networks.values()},
                 "WebUI URL is outside this disposable Compose owner")
 
@@ -376,7 +384,9 @@ class Session:
         require(status == 200 and actual.get("id") == account["id"] and actual.get("role") == "user", "Fresh native session readback differs")
 
 
-def run(args):
+def run(args, receipt=None):
+    receipt = {} if receipt is None else receipt
+    receipt["stage"] = "validate_private_paths"
     private_paths(args.env_file, args.accounts, args.output, args.private_output)
     base_url = native_url(args.base_url)
     accounts = decode(args.accounts.read_bytes()).get("users")
@@ -391,7 +401,9 @@ def run(args):
     fd = os.open(args.private_output, flags, 0o600)
     with os.fdopen(fd, "wb") as handle:
         write_private(handle, private)
+        receipt["stage"] = "bind_disposable_target"
         fixture.target(base_url)
+        receipt["stage"] = "read_fixture_state"
         projection = fixture.projection()
         require(isinstance(projection, dict) and re.fullmatch(r"goal584-webui-[0-9a-f]{12}", projection.get("run_id", ""))
                 and projection.get("staff_ids") == [canonical(a["id"]) for a in accounts], "Private fixture/staff source binding differs")
@@ -400,12 +412,17 @@ def run(args):
                 and actor_id in personal, "Four distinct personal fixture payers required")
         payers = {canonical(value) for value in personal} | {canonical(projection.get("service_id"))}
         require(len(payers) == 5, "Service payer must be separate from all personal budgets")
+        receipt["stage"] = "fresh_native_login"
         session.login(actor)
+        receipt["stage"] = "read_initial_provider_ids"
         provider_before = fixture.provider()
+        receipt["stage"] = "read_initial_raw_financial_rows"
         private["before"] = fixture.snapshot(payers)
         write_private(handle, private)
         before = normalize_snapshot(private["before"], payers)
+        receipt["stage"] = "validate_persisted_personal_roots"
         candidates = fixture.validate_roots(candidate_roots(before, actor_id))
+        receipt["stage"] = "select_owned_completed_paid_chat"
         selected = None
         for candidate in candidates[:64]:
             scope = candidate["scope"]
@@ -426,23 +443,30 @@ def run(args):
             break
         require(selected is not None, "No completed owned synthetic paid chat was available")
         chat_id, scope, texts = selected
+        receipt["stage"] = "check_initial_raw_privacy"
         privacy_check(before["journal"], texts + [actor["password"], session.token])
+        receipt["stage"] = "delete_selected_native_chat"
         status, deleted = session.request("DELETE", "/api/v1/chats/" + chat_id)
         require(status == 200 and deleted is True, "Native chat deletion did not confirm success")
         private["delete_http_status"] = status
         write_private(handle, private)
+        receipt["stage"] = "read_deleted_chat"
         status, _ = session.request("GET", "/api/v1/chats/" + chat_id)
         require(status in (403, 404), "Native saved chat remains accessible after deletion")
         private["deleted_chat_get_status"] = status
+        receipt["stage"] = "read_final_raw_financial_rows"
         private["after"] = fixture.snapshot(payers)
         write_private(handle, private)
         after = normalize_snapshot(private["after"], payers)
+        receipt["stage"] = "read_final_provider_ids"
         provider_after = fixture.provider()
         private["provider_ids_after"] = provider_after
         write_private(handle, private)
+        receipt["stage"] = "compare_retained_rows_and_raw_privacy"
         compare_snapshots(before, after)
         privacy_check(after["journal"], texts + [actor["password"], session.token])
         require(provider_before == provider_after, "Chat deletion caused a provider dispatch")
+        receipt["stage"] = "qualified_retention"
         return {"passed": True, "actor_id": actor_id, "deleted_chat_id": chat_id, "paid_root_answer_id": scope["root_answer_id"],
                 "selected_payer_ids": sorted(payers), "native_delete_http_status": 200, "deleted_chat_get_status": status,
                 "raw_cost_rows": len(before["journal"]), "native_payers": len(before["users"]), "native_keys": len(before["keys"]),
@@ -469,7 +493,7 @@ def main():
     try:
         private_paths(args.env_file, args.accounts, args.output, args.private_output)
         output_valid = True
-        receipt.update(run(args))
+        receipt.update(run(args, receipt))
     except ProofError as error:
         receipt["failure"] = str(error)
     except Exception as error:

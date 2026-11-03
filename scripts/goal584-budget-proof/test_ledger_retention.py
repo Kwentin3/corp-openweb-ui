@@ -1,10 +1,12 @@
 """Mutation checks at raw DB/chat boundaries; no live fixture or inference."""
 import copy
+import ast
 import importlib.util
 import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -20,6 +22,8 @@ IDS = [f"{n:08d}-1111-4111-8111-111111111111" for n in range(1, 10)]
 ACTOR, CHAT, ANSWER, USER_MESSAGE = IDS[0], IDS[5], IDS[6], IDS[7]
 SCOPE = dict(schema=1, category="personal", user_id=ACTOR, chat_id=CHAT, root_chat_id=CHAT,
              answer_id=ANSWER, root_answer_id=ANSWER, call_id=IDS[8], model="goal584-a")
+NATIVE_UTILS = HERE.parents[1] / "local/goal584/litellm/upstream/litellm/proxy/types_utils/utils.py"
+PROVENANCE = HERE.parents[1] / "deploy/openwebui-budgets/provenance.py"
 
 
 def raw_snapshot():
@@ -172,6 +176,109 @@ class CoordinatorTests(unittest.TestCase):
     def test_public_target_credentials_redirector_or_nonfixture_host_are_refused(self):
         for target in ["https://172.18.0.4:8080","http://8.8.8.8:8080","http://user:secret@172.18.0.4:8080","http://172.18.0.4:8080/api/chat"]:
             with self.subTest(target=target),self.assertRaises(p.ProofError):p.native_url(target)
+
+
+class NativeLoaderRegressionTests(unittest.TestCase):
+    def execute_validator(self, candidates, *, legacy=False):
+        if not NATIVE_UTILS.is_file():
+            self.skipTest("Pinned native LiteLLM source fixture unavailable")
+        if importlib.util.find_spec("jwt") is None:
+            self.skipTest("PyJWT unavailable for the real provenance fixture")
+        # Parse the physical pinned owner; do not approximate its file-loading code.
+        tree = ast.parse(NATIVE_UTILS.read_text(encoding="utf-8"))
+        self.assertEqual(sum(isinstance(node, ast.FunctionDef) and node.name == "get_instance_fn"
+                             for node in tree.body), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            staged = base / "proof"
+            staged.mkdir()
+            (staged / "config.yaml").write_text("{}\n", encoding="utf-8")
+            (staged / "provenance.py").write_bytes(PROVENANCE.read_bytes())
+            code = ("from provenance import validate_persisted_scope" if legacy else p.VALIDATE_ROOTS)
+            runner = '''import ast, importlib, importlib.util, json, os, sys, types
+from typing import Any, Final
+source = ast.parse(open(sys.argv[3], encoding='utf-8').read())
+node, = [n for n in source.body if isinstance(n, ast.FunctionDef) and n.name == 'get_instance_fn']
+namespace = dict(importlib=importlib, os=os, Any=Any, Final=Final)
+exec(compile(ast.Module(body=[node], type_ignores=[]), sys.argv[3], 'exec'), namespace)
+native_loader = namespace['get_instance_fn']
+def get_instance_fn(value, config_file_path=None):
+    assert value == 'provenance.validate_persisted_scope'
+    assert config_file_path == '/proof/config.yaml'
+    return native_loader(value, config_file_path=os.path.join(sys.argv[2], 'config.yaml'))
+leaf = types.ModuleType('litellm.proxy.types_utils.utils')
+leaf.get_instance_fn = get_instance_fn
+sys.modules[leaf.__name__] = leaf
+# Native file loading must work even when normal name-based importing cannot.
+sys.modules['provenance'] = None
+assert sys.argv[2] not in sys.path
+exec(compile(CODE, '<actual VALIDATE_ROOTS>', 'exec'), {'__name__': '__main__'})
+'''.replace("CODE", repr(code))
+            return subprocess.run([sys.executable, "-I", "-B", "-c", runner,
+                                   json.dumps(candidates), str(staged), str(NATIVE_UTILS)],
+                                  cwd=base, capture_output=True, timeout=15)
+
+    def test_actual_validate_roots_uses_native_config_relative_file_loader_with_plain_import_blocked(self):
+        candidates = [{"request_id": "chatcmpl-goal584-" + "a" * 32, "scope": SCOPE}]
+        legacy = self.execute_validator(candidates, legacy=True)
+        self.assertNotEqual(legacy.returncode, 0)
+        self.assertIn(b"ModuleNotFoundError", legacy.stderr)
+        self.assertIn(b"provenance", legacy.stderr)
+        current = self.execute_validator(candidates)
+        self.assertEqual(current.returncode, 0, current.stderr.decode("utf-8", errors="replace"))
+        self.assertEqual(json.loads(current.stdout), candidates)
+        self.assertEqual(current.stderr, b"")
+
+    def test_native_file_loaded_real_validator_rejects_noncanonical_scope(self):
+        malformed = copy.deepcopy(SCOPE)
+        malformed["user_id"] = "invalid-native-identity"
+        result = self.execute_validator([{"request_id": "chatcmpl-goal584-" + "a" * 32, "scope": malformed}])
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, b"")
+        self.assertIn(b"Invalid budget provenance", result.stderr)
+
+
+class ObservationDiagnosticsTests(unittest.TestCase):
+    def test_failure_diagnostics_preserve_only_fixed_label_code_and_exit(self):
+        private = "sk-" + "x" * 40 + " private-row-body private-python-code"
+        command = ["python", "-c", private, "private-argv"]
+        fixture = p.Fixture(Path("private-fixture.env"))
+        for marker, expected in [("ModuleNotFoundError", "module_not_found"),
+                                 ("AssertionError", "fixture_assertion"),
+                                 ("syntax error", "sql_syntax"),
+                                 ("does not exist", "missing_native_object"),
+                                 ("different private failure", "unclassified")]:
+            with self.subTest(marker=marker):
+                result = subprocess.CompletedProcess(command, 7, stdout=private.encode(),
+                                                     stderr=(private + "\n" + marker).encode())
+                with patch.object(p.subprocess, "run", return_value=result) as run:
+                    with self.assertRaises(p.ProofError) as caught:
+                        fixture.observe(command, "persisted_scope_validation")
+                self.assertEqual(str(caught.exception),
+                                 "Native read-only observation failed: persisted_scope_validation/" + expected + " (exit 7)")
+                run.assert_called_once_with(command, cwd=p.ROOT, capture_output=True, timeout=45)
+                self.assertNotIn(private, str(caught.exception))
+
+    def test_launch_timeout_and_process_errors_do_not_echo_command_or_private_output(self):
+        command = ["python", "-c", "private-source-code"]
+        for error in [OSError("private-env-value"),
+                      subprocess.TimeoutExpired(command, 45, output=b"private-row", stderr=b"private-secret"),
+                      subprocess.CalledProcessError(9, command, output=b"private-row", stderr=b"private-secret")]:
+            with self.subTest(error=type(error).__name__), patch.object(p.subprocess, "run", side_effect=error):
+                with self.assertRaises(p.ProofError) as caught:
+                    p.Fixture(Path("private.env")).observe(command, "raw_db_snapshot")
+                self.assertEqual(str(caught.exception), "Native read-only observation command failed: raw_db_snapshot")
+
+    def test_actual_readonly_snapshot_sql_parses_when_optional_pglast_is_available(self):
+        try:
+            from pglast import parse_sql
+        except ImportError:
+            self.skipTest("Optional pglast SQL grammar checker unavailable")
+        statements = parse_sql(p.snapshot_sql(IDS[:5]))
+        self.assertEqual([type(item.stmt).__name__ for item in statements],
+                         ["TransactionStmt", "VariableSetStmt", "SelectStmt", "TransactionStmt"])
+        readonly, = [option for option in statements[0].stmt.options if option.defname == "transaction_read_only"]
+        self.assertEqual(readonly.arg.val.ival, 1)
 
 
 if __name__=="__main__":unittest.main()

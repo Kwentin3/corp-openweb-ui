@@ -247,6 +247,39 @@ stream=false), без конструирования фиктивной native l
 точные bytes handler из pinned Git blob и13 targeted tests:
 `local/goal584/service-nonstream-run28-review.md`. Следующий кандидат меняет только
 proof и эту запись; product guard, provenance и финансовые проверки сохранены.
+Повтор [run41610342231](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41610342231),
+HEAD `864663badbdea6a27ef5c98058fdc494785e3bd4`, tested merge
+`265db70804d895aafac80bd9c904239179905951`: direct-title и отдельный service-admin
+GUI этапы PASS. Финальный retention stage остановился с общей ошибкой readonly
+observation, без указания конкретной команды; удаление ещё не квалифицировано.
+Проверка исходного SQL парсером PostgreSQL (`pglast7.22`, только local dev venv)
+PASS: гипотеза о лишних слешах не подтвердилась, SQL не изменён.
+Найден конкретный packaging gap в отдельном `python -c`: plain import `provenance`
+не учитывал config-relative mount `/proof/provenance.py`. Теперь используется
+существующий native `get_instance_fn` с `/proof/config.yaml`; добавлены safe stage
+и фиксированная классификация ошибок без raw stderr. Следующий gate проверяет
+runtime loader и весь retention path. Evidence `local/goal584/runtime-proof-41610342231`,
+cleanup0/0, ZIP SHA256 `0030a3a5c43f19fe40d1a12e5ddd66d69ad31b64d3876dbbcfe7d3888f4e8476`.
+Для следующих срезов подготовлен отдельный source WIP, не включённый в этот
+direct-title/retention кандидат: background title/tags/follow-up guard существующего
+Pipe (53 checks), безопасное слияние параллельных diagnostic captures (6 checks),
+controlled500/stream pauses в прежнем synthetic provider (23 HTTP checks),
+копирование native request-owned billed rates в metadata той же spend row (11 checks).
+Это не приёмка runtime, не версия коммерческого тарифа и не новый money owner.
+Контракты и gaps: `local/goal584/{background-service-source-slice.md,capture-concurrency-slice.md,provider-lifecycle-controls-slice.md,pricing-snapshot-source-slice.md}`.
+Для calendar reset отдельно найден concrete native constructor/cache/lock seam;
+job выбирает due rows строго `<now`, и контроль времени нужен в двух native модулях.
+Глобальный job не имеет payer whitelist, поэтому нужна отдельная fixture/due population;
+native helper checks не заменяют runtime rollover.
+Перед повтором retention14 targeted tests PASS: actual `VALIDATE_ROOTS` исполняется
+отдельным процессом с exact native loader AST и real provenance при заблокированном
+обычном import; неверный UUID отклоняется. SQL grammar PASS, известные/неизвестные
+process errors не публикуют stdout/stderr/credentials. Service proof дополнительно
+сохраняет whitelist actual native row с API-key hash, personal/service before/after
+DTO и config fingerprints/readbacks до context assertions; raw metadata/headers и
+prompt bodies не экспортируются. Эти наблюдения закрывают пробел предыдущей
+квитанции, где row/key/config проверки были только source-attested.17 service tests
+PASS, включая сохранение actual observations при поздней ошибке и restore.
 К следующему кандидату добавлена отдельная финальная retention-проверка: свежий
 native login сотрудника, один его завершённый оплаченный synthetic Hi/Proof chat,
 native DELETE и повторный GET, readonly PostgreSQL snapshots всех колонок

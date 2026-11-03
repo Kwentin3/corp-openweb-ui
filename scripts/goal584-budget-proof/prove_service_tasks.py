@@ -216,9 +216,10 @@ def task_config(webui, admin, original, target):
                     TASK_MODEL_PARAMS=copy.deepcopy(PARAMS))
     webui.session(admin, "admin")
     webui.ok("POST", "/api/v1/tasks/config/update", token=admin["token"], body=expected)
-    require(webui.ok("GET", "/api/v1/tasks/config", token=admin["token"]) == expected,
+    actual = webui.ok("GET", "/api/v1/tasks/config", token=admin["token"])
+    require(actual == expected,
             "Native task configuration readback differs")
-    return expected
+    return actual
 
 
 def captured():
@@ -276,6 +277,58 @@ def service_scope(row, payer, actor, chat_id, key_hash):
             and [row.get(field) for field in ("prompt_tokens", "completion_tokens", "total_tokens")] == [10, 5, 15],
             "Native service attribution, assignment, usage or cost differs")
     return scope
+
+
+def service_row_evidence(row, payer, actor, chat_id, key_hash):
+    """Whitelist native financial evidence; never retain raw metadata/headers."""
+    require(isinstance(key_hash, str) and re.fullmatch(r"[0-9a-f]{64}", key_hash) is not None,
+            "Native service evidence requires an API-key hash")
+    scope = service_scope(row, payer, actor, chat_id, key_hash)
+    result = {"request_id": row["request_id"], "user_id": row["user"], "api_key_hash": row["api_key"],
+              "model_group": row["model_group"], "session_id": row["session_id"], "status": row["status"],
+              "spend_usd": str(Decimal(str(row["spend"]))),
+              "usage": {field: row[field] for field in ("prompt_tokens", "completion_tokens", "total_tokens")},
+              "verified_scope": copy.deepcopy(scope)}
+    require(isinstance(result["request_id"], str)
+            and re.fullmatch(r"chatcmpl-goal584-[0-9a-f]{32}", result["request_id"]) is not None,
+            "Native service evidence has an unexpected fixture request ID")
+    if row.get("key_alias") is not None:
+        require(isinstance(row["key_alias"], str)
+                and re.fullmatch(r"owui-budget-v1-[0-9a-f]{64}", row["key_alias"]) is not None,
+                "Native service evidence has an unexpected key alias")
+        result["key_alias"] = row["key_alias"]
+    return no_secrets(result)
+
+
+def task_config_evidence(config):
+    """Fingerprint the complete readback and expose only known native fields."""
+    require(isinstance(config, dict), "Native task evidence is not an object")
+    def digest(value):
+        encoded = json.dumps(value, sort_keys=True, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        require(len(encoded) <= MAX_BYTES, "Native task evidence exceeded bound")
+        return hashlib.sha256(encoded).hexdigest()
+    selectors = {}
+    for field in ("TASK_MODEL", "TASK_MODEL_EXTERNAL"):
+        if field in config:
+            value = config[field]
+            require(value is None or isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{0,160}", value) is not None,
+                    "Native task evidence has an unexpected model selector")
+            selectors[field] = value
+    flags = {field: config[field] for field in TASK_FLAGS if field in config}
+    require(all(type(value) is bool for value in flags.values()), "Native task evidence has invalid flags")
+    prompts = ("TITLE_GENERATION_PROMPT_TEMPLATE", "IMAGE_PROMPT_GENERATION_PROMPT_TEMPLATE",
+               "AUTOCOMPLETE_GENERATION_PROMPT_TEMPLATE", "TAGS_GENERATION_PROMPT_TEMPLATE",
+               "FOLLOW_UP_GENERATION_PROMPT_TEMPLATE", "QUERY_GENERATION_PROMPT_TEMPLATE",
+               "TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE", "VOICE_MODE_PROMPT_TEMPLATE")
+    known = {*TASK_FLAGS, *selectors, *prompts, "TASK_MODEL_PARAMS", "AUTOCOMPLETE_GENERATION_INPUT_MAX_LENGTH"}
+    params = config.get("TASK_MODEL_PARAMS")
+    safe_params = {field: params[field] for field in ("max_tokens", "temperature")
+                   if isinstance(params, dict) and field in params and type(params[field]) in (int, float)}
+    if isinstance(params, dict) and params.get("response_format") == {"type": "json_object"}:
+        safe_params["response_format"] = {"type": "json_object"}
+    return no_secrets({"sha256": digest(config), "present_keys": sorted(set(config) & known),
+        "selectors": selectors, "flags": flags, "task_model_params": {"sha256": digest(params), "known_values": safe_params},
+        "prompt_sha256": {field: digest(config[field]) for field in prompts if field in config}})
 
 
 def verify_context(observed, provider_data, row, result, payer, actor, chat_id, key_hash):
@@ -346,10 +399,13 @@ def run(webui, state, args, receipt=None):
                "native_source_message_id": source_id, "source_kind": "persisted_fixture_owned_Hi",
                "pipe_source_sha256": state["service_fixture"]["pipe_sha256"], "stage": "installed", "negatives": []})
     try:
+        receipt.update(personal_before=normalize(personal_before), service_before=normalize([before]),
+                       task_config_observations={"original": task_config_evidence(original)})
         provider("POST", "/__proof/reset", {})
         provider("POST", "/__proof/control", {"title_mode": True})
         save_capture({"schema": 1, "requests": []})
         baseline_config = task_config(webui, admin, original, MODELS[0])
+        receipt["task_config_observations"]["baseline"] = task_config_evidence(baseline_config)
         status, baseline = response(webui, "POST", TITLE_PATH, actor["token"], source)
         receipt["baseline_observation"] = negative_diagnostic("unsigned_native_title", status, baseline,
                                                                "invalid_signed_budget_provenance")
@@ -358,6 +414,7 @@ def run(webui, state, args, receipt=None):
         receipt["baseline_observation"].update(guard_verified=True, provider_ids_unchanged=True, provider_call_count=0)
         receipt["stage"] = state["service_fixture"]["stage"] = "unsigned_baseline_verified"
         service_config = task_config(webui, admin, original, FUNCTION_ID)
+        receipt["task_config_observations"]["service"] = task_config_evidence(service_config)
         status, result = response(webui, "POST", TITLE_PATH, actor["token"], source)
         require(status == 200 and isinstance(result, dict) and not result.get("error"), "Signed native service title failed")
         identifiers = [entry["id"] for entry in provider()["requests"]]
@@ -389,6 +446,7 @@ def run(webui, state, args, receipt=None):
         receipt["stage"] = state["service_fixture"]["stage"] = "negative_guards_verified"
         def persisted():
             personal_after, service_after = asyncio.run(budgets(state, payer))
+            receipt.update(personal_after=normalize(personal_after), service_after=normalize([service_after]))
             require(personal_after == personal_before, "Service task changed personal caps/spend/reset/assignment")
             rows = [row for row in native.logs(payer) if Decimal(str(row.get("spend", 0))) > 0]
             require(len(rows) <= 1, "Service task created extra positive native rows")
@@ -400,6 +458,8 @@ def run(webui, state, args, receipt=None):
                     "Service task changed cap/reset/key identity")
             return rows[0], service_after
         row, after = native.poll("direct title service accounting", persisted)
+        receipt["native_service_row"] = service_row_evidence(
+            row, payer, actor["id"], source["chat_id"], state["service_fixture"]["key_hash"])
         for budget in personal_before:
             require(sorted(entry["request_id"] for entry in native.logs(budget.user_id)
                     if Decimal(str(entry.get("spend", 0))) > 0) == personal_ids[budget.user_id], "Service event added personal spend history")
@@ -426,6 +486,7 @@ def run(webui, state, args, receipt=None):
         webui.session(admin, "admin")
         webui.ok("POST", "/api/v1/tasks/config/update", token=admin["token"], body=original)
         restored = webui.ok("GET", "/api/v1/tasks/config", token=admin["token"])
+        receipt.setdefault("task_config_observations", {})["restored"] = task_config_evidence(restored)
         require(restored == original, "Original native task configuration restoration failed")
         state["service_fixture"]["task_config_restored"] = True
         if state["service_fixture"]["stage"] == "event_verified":
