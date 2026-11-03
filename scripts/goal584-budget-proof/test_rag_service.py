@@ -96,6 +96,45 @@ def capture_pair():
 
 
 class EvidenceBoundaryTests(unittest.TestCase):
+    def test_whole_module_imports_at_actual_shallow_worker_mount_before_main(self):
+        # Run the actual module, not a reimplementation/extracted ROOT expression.
+        # No worker/API/Compose action executes during module import.
+        namespace = {'__file__': '/proof/prove_rag_service.py', '__name__': 'native_mount_import_replay'}
+        source = Path(p.__file__).read_text(encoding='utf8')
+        exec(compile(source, namespace['__file__'], 'exec'), namespace)
+        self.assertTrue(callable(namespace['worker_main']))
+        self.assertEqual(namespace['STATE'], p.STATE)
+        self.assertEqual(namespace['CONFIG'], p.CONFIG)
+
+    def test_worker_command_diagnostics_keep_strict_json_protocol_and_no_raw_stderr(self):
+        sha = 'a' * 64
+        valid = {'schema': 1, 'proof': 'goal584-native-rag-service-worker', 'phase': 'prepare',
+                 'passed': True, 'source_sha256': sha}
+        def result(body, stderr=b''):
+            return SimpleNamespace(returncode=0, stdout=body, stderr=stderr)
+        self.assertEqual(p.worker_payload(result(json.dumps(valid).encode()), 'prepare', sha), valid)
+        for output, leaf in [(b'', 'worker_stdout_json'), (b'warning\n' + json.dumps(valid).encode(), 'worker_stdout_json'),
+                             (b'\xff', 'worker_stdout_json'), (b'[]', 'worker_receipt_object'),
+                             (b'x' * (p.MAX_BYTES + 1), 'worker_output_size')]:
+            with self.subTest(leaf=leaf), self.assertRaises(p.BoundaryFailure) as caught:
+                p.worker_payload(result(output), 'prepare', sha)
+            self.assertEqual(caught.exception.check_id, leaf)
+        for update, leaf in [({'proof': 'other'}, 'worker_receipt_protocol'), ({'passed': 1}, 'worker_receipt_protocol'),
+                             ({'phase': 'run'}, 'worker_receipt_protocol'), ({'source_sha256': 'b' * 64}, 'worker_source_identity'),
+                             ({'private': 'sk-' + 'z' * 32}, 'worker_receipt_safe'), ({'number': float('nan')}, 'worker_receipt_safe')]:
+            with self.subTest(update=update), self.assertRaises(p.BoundaryFailure) as caught:
+                p.worker_payload(result(json.dumps({**valid, **update}).encode()), 'prepare', sha)
+            self.assertEqual(caught.exception.check_id, leaf)
+        # Representative pre-main traceback, not retained stderr from run39.
+        secret = 'sk-' + 'z' * 32
+        with self.assertRaises(p.BoundaryFailure) as caught:
+            p.worker_payload(SimpleNamespace(returncode=1, stdout=b'',
+                stderr=('Traceback (most recent call last):\nIndexError: ' + secret).encode()), 'prepare', sha)
+        self.assertEqual(caught.exception.check_id, 'worker_stdout_json')
+        self.assertEqual(caught.exception.facts['stderr_exception_class'], 'IndexError')
+        self.assertEqual(caught.exception.facts['stdout_bytes'], 0)
+        self.assertNotIn(secret, json.dumps(caught.exception.facts))
+
     def test_actual_run38_control_preserves_chat_mode_and_old_ids_for_native_embedding_handler(self):
         # Exact safe controls/IDs from run38 pricing-provider-after, not a reset
         # profile. Its full optional artifact is read-only when locally present.
@@ -264,14 +303,25 @@ class EvidenceBoundaryTests(unittest.TestCase):
         with self.assertRaises(p.ProofError): p.safe({'password': 'actual-private-password'}, ['actual-private-password'])
 
     def test_worker_failure_diagnostics_never_echo_raw_exception_or_false_pass(self):
-        fake = SimpleNamespace(rag={'stage': 'query_request'}, secrets=['private-secret'],
+        fake = SimpleNamespace(rag={'stage': 'query_request'}, check_id='query_native_readback', secrets=['private-secret'],
             run=lambda receipt: (_ for _ in ()).throw(RuntimeError('private-secret raw response')),
             restore=lambda: {'rag_settings_restored': True})
         with patch.object(p, 'Worker', return_value=fake), contextlib.redirect_stdout(io.StringIO()) as out:
             self.assertEqual(p.worker_main('run'), 1)
         result = json.loads(out.getvalue())
         self.assertFalse(result['passed']); self.assertEqual(result['failure_phase'], 'query_request')
+        self.assertEqual(result['failure_check_id'], 'query_native_readback')
         self.assertEqual(result['error_class'], 'NativeBoundaryError')
+        self.assertNotIn('private-secret', out.getvalue())
+
+    def test_worker_safe_emission_failure_still_returns_fixed_failed_json(self):
+        fake = SimpleNamespace(rag={'stage': 'query_request'}, secrets=['private-secret'],
+            run=lambda receipt: receipt.update(private='private-secret'))
+        with patch.object(p, 'Worker', return_value=fake), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(p.worker_main('run'), 1)
+        result = json.loads(out.getvalue())
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['failure_check_id'], 'worker_receipt_safe')
         self.assertNotIn('private-secret', out.getvalue())
 
     def test_restore_does_not_accept_http_success_without_actual_readback(self):
@@ -374,7 +424,8 @@ class EvidenceBoundaryTests(unittest.TestCase):
                 if command[-3:] == ['ps', '-q', 'proxy']:
                     return SimpleNamespace(returncode=0, stdout=b'a' * 64 + b'\n')
                 phase = command[command.index('--worker-action') + 1]; phases.append(phase)
-                value = {'schema': 1, 'passed': phase != 'run', 'source_sha256': source_sha}
+                value = {'schema': 1, 'proof': 'goal584-native-rag-service-worker', 'phase': phase,
+                         'passed': phase != 'run', 'source_sha256': source_sha}
                 return SimpleNamespace(returncode=1 if phase == 'run' else 0, stdout=json.dumps(value).encode())
             with patch.dict(sys.modules, {'prove_pricing_browser': fake_price, 'prove_webui_browser': fake_browser}), \
                  patch.object(subprocess, 'run', side_effect=run), contextlib.redirect_stdout(io.StringIO()):
@@ -385,6 +436,7 @@ class EvidenceBoundaryTests(unittest.TestCase):
             self.assertEqual(len(restarts), 2)
             receipt = json.loads((output / 'rag-service.json').read_text())
             self.assertFalse(receipt['passed'])
+            self.assertEqual(receipt['failed_worker_boundary']['check_id'], 'worker_completed')
             self.assertTrue(receipt['restoration']['yaml_bytes_and_readiness_restored'])
             self.assertTrue(receipt['restoration']['partial_native_state_retained'])
             self.assertEqual(receipt['serial_proxy_before']['running_proxy_count'], 1)

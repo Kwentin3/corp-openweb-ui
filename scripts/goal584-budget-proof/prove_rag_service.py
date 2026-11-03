@@ -26,7 +26,9 @@ from uuid import uuid4
 
 from prove_native_budgets import ProofError, amount, close_amount, require, expected_budget_message
 
-ROOT = Path(__file__).resolve().parents[2]
+# Used only by host Compose commands. Parent access saturates at / when the
+# same file is imported from the shallow native mount /proof/<file>.py.
+ROOT = Path(__file__).resolve().parent.parent.parent
 PRIVATE = Path('/proof-private')
 STATE = PRIVATE / 'webui-state.private.json'
 RAG_STATE = PRIVATE / 'rag-state.private.json'
@@ -70,6 +72,47 @@ def safe(value, secrets=()):
     text = encoded(value).decode()
     require(CREDENTIAL.search(text) is None and not any(secret and secret in text for secret in secrets),
             'Credential-bearing RAG evidence suppressed')
+    return value
+
+
+class BoundaryFailure(ProofError):
+    def __init__(self, check_id, facts):
+        self.check_id, self.facts = check_id, facts
+        super().__init__('RAG worker command boundary failed')
+
+
+def worker_facts(result, label):
+    stdout, stderr = getattr(result, 'stdout', b''), getattr(result, 'stderr', b'')
+    # Export only fixed classes, never stderr lines, paths, arguments or values.
+    match = re.search(rb'(?m)^(IndexError|ImportError|ModuleNotFoundError|SyntaxError|MemoryError|PermissionError|FileNotFoundError|OSError):',
+                      stderr[-4096:] if isinstance(stderr, bytes) else b'')
+    return {'operation': label, 'returncode': result.returncode,
+            'stdout_bytes': len(stdout), 'stderr_bytes': len(stderr),
+            'stderr_exception_class': match[1].decode('ascii') if match else 'unclassified'}
+
+
+def worker_payload(result, label, source_sha256, secrets=()):
+    """Strict whole-stdout protocol; diagnostics contain only bounded facts."""
+    facts = worker_facts(result, label)
+    def check(condition, check_id):
+        if not condition:
+            raise BoundaryFailure(check_id, facts)
+    check(isinstance(result.stdout, bytes), 'worker_stdout_type')
+    check(len(result.stdout) <= MAX_BYTES and facts['stderr_bytes'] <= MAX_BYTES, 'worker_output_size')
+    try:
+        value = json.loads(result.stdout)
+    except (ValueError, UnicodeError):
+        raise BoundaryFailure('worker_stdout_json', facts) from None
+    check(isinstance(value, dict), 'worker_receipt_object')
+    try:
+        safe(value, secrets)
+    except (ProofError, ValueError, TypeError, OverflowError):
+        raise BoundaryFailure('worker_receipt_safe', facts) from None
+    phase = {'prepare': 'prepare', 'runtime': 'run', 'failure-restore': 'restore'}[label]
+    check(type(value.get('schema')) is int and value['schema'] == 1
+          and value.get('proof') == 'goal584-native-rag-service-worker'
+          and value.get('phase') == phase and type(value.get('passed')) is bool, 'worker_receipt_protocol')
+    check(value.get('source_sha256') == source_sha256, 'worker_source_identity')
     return value
 
 
@@ -326,6 +369,7 @@ class Worker:
             self.rag = {}
 
     def save(self, stage):
+        self.check_id = stage
         self.rag['stage'] = stage
         self.d['write_private'](RAG_STATE, self.rag)
 
@@ -341,12 +385,14 @@ class Worker:
         return self.d['provider'](), value
 
     def snapshot(self):
+        self.check_id = 'snapshot_budget_dtos'
         async def read():
             async with self.d['ClientSession'](trust_env=False) as session:
                 client = self.d['BudgetAdminClient'](session, self.d['PROXY_URL'], self.native.master_key)
                 return [*[await client.read_employee(p['id'], ('goal584-a', 'goal584-b')) for p in self.people],
                         await client.read_service(self.payer)]
         budgets = asyncio.run(read())
+        self.check_id = 'snapshot_native_history'
         history, rag_rows = [], []
         for budget in budgets:
             for row in self.native.logs(budget.user_id):
@@ -362,39 +408,52 @@ class Worker:
         return safe(result, self.secrets)
 
     def prepare(self):
+        self.check_id = 'prepare_fixture_state'
         require(not self.rag and self.state.get('stage') == 'setup_complete'
                 and self.state.get('background_fixture', {}).get('stage') == 'qualified_automatic_background',
                 'RAG requires fresh state after completed background proof')
+        self.check_id = 'prepare_native_schema'
         self.native.schema()
         actor = self.state['users'][0]
+        self.check_id = 'prepare_actor_login'
         signed = self.webui.ok('POST', '/api/v1/auths/signin', body={'email': actor['email'], 'password': actor['password']})
         require(signed.get('id') == actor['id'] and signed.get('role') == 'user' and isinstance(signed.get('token'), str),
                 'RAG ordinary fresh login differs')
         actor['token'] = signed['token']; self.secrets.append(actor['token'])
+        self.check_id = 'prepare_private_state_write'
         self.d['write_private'](STATE, self.state)
+        self.check_id = 'prepare_actor_session'
         self.webui.session(actor, 'user')
         # Service is native-only; the existing Function owns its configured identity.
+        self.check_id = 'prepare_service_payer_binding'
         common = self.webui.ok('GET', '/api/v1/functions/id/' + self.d['FILTER_ID'] + '/valves', token=self.state['admin']['token'])
         require(common.get('service_payer_id') == self.payer, 'RAG payer differs from the existing protected service configuration')
+        self.check_id = 'prepare_native_tasks'
         tasks = self.webui.ok('GET', '/api/v1/tasks/config', token=self.state['admin']['token'])
         require(all(tasks.get(v) is False for v in self.d['TASK_FLAGS']), 'RAG requires settled disabled automatic tasks')
+        self.check_id = 'prepare_native_observations'
         p, c = self.captures()
+        self.check_id = 'prepare_embedding_readiness'
         readiness = embedding_readiness(p, c, self.d['capture'].MAX_RECORDS)
         before = self.snapshot()
+        self.check_id = 'prepare_service_a_baseline'
         service = next(v for v in before['budgets'] if v['user_id'] == self.payer)
         require(len(service['models']) == 1 and service['models'][0]['model'] == 'goal584-a'
                 and close_amount(service['models'][0]['spend'], Decimal('.80'))
                 and amount(service['max_budget']) == 20 and service['budget_duration'] == '1mo',
                 'RAG requires the unchanged existing service A 0.80/20 monthly fixture')
         # Wait for all materialized counters, not merely green previous receipts.
+        self.check_id = 'prepare_accounting_settled'
         for budget in before['budgets']:
             for entry in [budget, *budget['models']]:
                 rows = [r for r in before['history'] if r['user_id'] == budget['user_id']
                         and ('model' not in entry or r['model_group'] == entry['model'])]
                 require(close_amount(entry['spend'], sum((amount(r['spend_usd']) for r in rows), Decimal(0))),
                         'RAG requires prior native counters settled against retained history')
+        self.check_id = 'prepare_protected_rag_read'
         status, original = self.api('GET', '/embedding')
         require(status == 200, 'Native protected RAG config read failed')
+        self.check_id = 'prepare_protected_rag_shape'
         rag_update(original)
         self.rag = {'schema': 1, 'payer': self.payer, 'actor': actor['id'], 'original_rag': original,
             'baseline': before, 'original_native_user': self.native.user_info(self.payer), 'tasks_sha256': digest(tasks),
@@ -613,7 +672,9 @@ def worker_main(action, prefix_json=None):
         worker = Worker()
         if action == 'prepare':
             receipt.update(worker.prepare())
+            worker.check_id = 'prepare_prefix_parse'
             worker.rag['prefixes'] = json.loads(prefix_json)
+            worker.check_id = 'prepare_prefix_schema'
             worker.native_prefixes(); worker.save('prepared')
         elif action == 'run':
             worker.run(receipt)
@@ -626,16 +687,23 @@ def worker_main(action, prefix_json=None):
     except Exception as error:
         receipt.update(failure_category='native_rag_boundary_failed',
                        failure_phase=worker.rag.get('stage', 'not_prepared') if worker else 'initialization',
+                       failure_check_id=getattr(worker, 'check_id', 'worker_initialize'),
                        error_class='ProofError' if isinstance(error, ProofError) else 'NativeBoundaryError')
         if worker:
             try:
                 receipt['failure_restoration'] = worker.restore()
             except Exception:
                 receipt['failure_restoration'] = {'completed': False, 'partial_provision_retained': True}
-    if worker:
-        receipt['stage'] = worker.rag.get('stage', 'not_prepared')
-        safe(receipt, worker.secrets)
-    print(json.dumps(safe(receipt), allow_nan=False))
+    try:
+        if worker:
+            receipt['stage'] = worker.rag.get('stage', 'not_prepared')
+            safe(receipt, worker.secrets)
+        print(json.dumps(safe(receipt), allow_nan=False))
+    except Exception:
+        receipt = {'schema': 1, 'proof': 'goal584-native-rag-service-worker', 'phase': action,
+                   'passed': False, 'source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                   'failure_category': 'safe_receipt_emission', 'failure_check_id': 'worker_receipt_safe'}
+        print(json.dumps(receipt, allow_nan=False))
     return 0 if receipt['passed'] else 1
 
 
@@ -664,17 +732,17 @@ def host_main(args):
     def command(arguments, label):
         try:
             result = subprocess.run(fixture.command + arguments, cwd=ROOT, capture_output=True, timeout=240)
+        except subprocess.TimeoutExpired:
+            raise BoundaryFailure('worker_command_timeout', {'operation': label}) from None
         except (OSError, subprocess.SubprocessError):
-            raise ProofError('RAG existing fixture command unavailable') from None
-        require(len(result.stdout) <= MAX_BYTES, 'RAG worker response exceeded bound')
-        try:
-            value = json.loads(result.stdout)
-        except (ValueError, UnicodeError):
-            raise ProofError('RAG worker did not return bounded safe JSON') from None
-        safe(value, secrets)
+            raise BoundaryFailure('worker_command_spawn', {'operation': label}) from None
+        value = worker_payload(result, label, receipt['source_sha256'], secrets)
         write_json(args.output / ('rag-' + label + '.json'), value)
-        require(result.returncode == 0 and value.get('passed') is True, 'RAG worker boundary failed')
-        require(value.get('source_sha256') == receipt['source_sha256'], 'RAG worker mounted source differs')
+        if result.returncode != 0 or value['passed'] is not True:
+            facts = worker_facts(result, label)
+            leaf = value.get('failure_check_id')
+            facts['worker_failure_check_id'] = leaf if isinstance(leaf, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,63}', leaf) else 'unclassified'
+            raise BoundaryFailure('worker_completed', facts)
         return value
     try:
         fixture.bind(args.base_url)
@@ -727,6 +795,8 @@ def host_main(args):
     except Exception as error:
         receipt.update(failure_phase=receipt['phase'], failure_category='native_rag_proof_boundary',
                        error_class='ProofError' if isinstance(error, ProofError) else 'FixtureBoundaryError')
+        if isinstance(error, BoundaryFailure):
+            receipt['failed_worker_boundary'] = {'check_id': error.check_id, **error.facts}
     finally:
         if not receipt['passed'] and attempted:
             receipt['restoration'] = {'rag_attempted': True, 'yaml_attempted': True, 'partial_native_state_retained': True}
