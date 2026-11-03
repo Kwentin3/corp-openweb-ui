@@ -1,7 +1,7 @@
 """Disposable observation at the documented custom-auth seam; no mutation.
 
 Never install as product configuration. Only the fresh synthetic WebUI fixture
-uses this delegate. Record meaningful model inputs without auth/metadata secrets;
+uses this delegate. Record meaningful model inputs without auth/provenance secrets;
 leave native authentication and the outer reservation lifecycle unchanged.
 """
 
@@ -25,6 +25,37 @@ FIELDS = (
     "stop", "seed", "frequency_penalty", "presence_penalty", "parallel_tool_calls", "verbosity",
 )
 EMBEDDING_FIELDS = ("model", "input", "dimensions", "encoding_format", "user")
+RESPONSES_FIELDS = (
+    "model", "input", "instructions", "max_output_tokens", "stream", "tools", "tool_choice",
+    "parallel_tool_calls", "reasoning", "include", "store", "metadata", "temperature", "top_p", "text",
+    "truncation", "user", "previous_response_id", "background",
+)
+# These belong to native logging/provenance, not the provider model context.
+RESPONSES_LOG_FIELDS = frozenset({"litellm_metadata", "litellm_session_id", "litellm_trace_id"})
+CREDENTIAL = re.compile(r"(?:sk-|gw-)[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+
+
+def responses_route(route):
+    return route in ("/responses", "/v1/responses", "/openai/v1/responses")
+
+
+def responses_projection(body):
+    """Copy the complete supported wire context; never silently drop a field.
+
+    The product owner consumes the signed token from litellm_metadata. It is
+    excluded here as in the existing observer; a JWT in actual model context
+    cannot be both faithfully recorded and kept private, so reject the capture.
+    This is observation safety/completeness, not provider input validation.
+    """
+    if set(body) - set(RESPONSES_FIELDS) - RESPONSES_LOG_FIELDS:
+        raise RuntimeError("Unsupported disposable Responses context field")
+    value = copy.deepcopy({field: body[field] for field in RESPONSES_FIELDS if field in body})
+    raw = json.dumps(value, allow_nan=False)
+    if len(raw.encode("utf-8")) > MAX_BYTES:
+        raise RuntimeError("Disposable context observation byte bound exceeded")
+    if CREDENTIAL.search(raw) or re.search(r'"owui_budget_provenance"\s*:', raw):
+        raise RuntimeError("Unsafe disposable Responses model context")
+    return value
 
 
 def embedding_route(route):
@@ -151,14 +182,17 @@ async def gateway_auth(request, api_key):
     route = get_request_route(request)
     record = None
     embedding = embedding_route(route) and body.get("model") == "goal584-e"
+    responses = responses_route(route) and body.get("model") == "goal584-r"
     fields = EMBEDDING_FIELDS if embedding else FIELDS
-    if embedding or route in ("/chat/completions", "/v1/chat/completions") and body.get("model") in ("goal584-a", "goal584-b"):
+    if embedding or responses or route in ("/chat/completions", "/v1/chat/completions") and body.get("model") in ("goal584-a", "goal584-b"):
         record = {
-            "body": copy.deepcopy({field: body[field] for field in fields if field in body}),
+            "body": responses_projection(body) if responses else copy.deepcopy({field: body[field] for field in fields if field in body}),
             "native_estimated_max_cost_usd": estimate_request_max_cost(body, route, proxy_server.llm_router),
         }
-        if embedding:
+        if embedding or responses:
             record["route"] = route
+            if responses:
+                record["attestation_present_before"] = bool((body.get("litellm_metadata") or {}).get("owui_budget_provenance"))
         else:
             record.update(user_id=request.headers.get("X-OpenWebUI-User-Id"),
                 task=request.headers.get("X-OpenWebUI-Task"),
@@ -185,8 +219,19 @@ async def gateway_auth(request, api_key):
                       if isinstance(value.get("spend_logs_metadata"), dict)]
             scopes = [value for value in scopes if value is not None]
             record["provenance_removed_after"] = all("owui_budget_provenance" not in value for value in maps)
-            record["body_after_auth"] = copy.deepcopy({field: after[field] for field in fields if field in after})
-            if auth is not None and embedding:
+            if responses:
+                try:
+                    record["body_after_auth"] = responses_projection(after)
+                except (RuntimeError, ValueError, UnicodeError):
+                    record["responses_projection_rejected_after_auth"] = True
+                    if "auth_failure" not in record:
+                        _finish(record)
+                        raise
+                    # Keep the original product rejection, while explicitly
+                    # marking that no complete safe after-context was exported.
+            else:
+                record["body_after_auth"] = copy.deepcopy({field: after[field] for field in fields if field in after})
+            if auth is not None and (embedding or responses):
                 payer, key_hash = getattr(auth, "user_id", None), getattr(auth, "api_key", None)
                 try:
                     if isinstance(payer, str) and str(UUID(payer)) == payer:
@@ -195,9 +240,9 @@ async def gateway_auth(request, api_key):
                     pass
                 if isinstance(key_hash, str) and re.fullmatch(r"[0-9a-f]{64}", key_hash):
                     record["native_auth_key_hash"] = key_hash
-                # Key-owned log metadata and native Logging/call-ID setup occur
-                # after custom_auth. Body syntax here is not origin evidence.
-                if scopes:
+                if embedding and scopes:
+                    # Key-owned log metadata and native Logging/call-ID setup
+                    # occur after custom_auth; syntax is not origin evidence.
                     parsed = [scope_validator("rag")(scope) for scope in scopes]
                     if any(scope != parsed[0] for scope in parsed):
                         raise RuntimeError("Conflicting disposable RAG scope observations")
@@ -219,6 +264,17 @@ async def gateway_auth(request, api_key):
                 ))
             # A rejected forged task may leave caller metadata untouched before
             # the product projection runs. Do not label that input as verified.
-            if not embedding and scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
+            if responses and auth is not None and record["attestation_present_before"] and record["provenance_removed_after"]:
+                # Responses metadata is provider-owned. Only the product's
+                # route-selected litellm_metadata slot can supply signed scope.
+                carrier = after.get("litellm_metadata")
+                scope = (carrier.get("spend_logs_metadata") or {}).get("owui_budget") if isinstance(carrier, dict) else None
+                if scope is not None:
+                    scope = scope_validator(scope.get("category"))(scope)
+                    if (scope.get("user_id") != record.get("native_auth_user_id")
+                            or scope.get("model") != after.get("model") or "native_auth_key_hash" not in record):
+                        raise RuntimeError("Conflicting disposable Responses scope identity")
+                    record["verified_cost_scope"] = scope
+            elif not embedding and not responses and scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
                 record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
             _finish(record)

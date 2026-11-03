@@ -1,5 +1,6 @@
 """Overlapping native-auth contexts and real cross-process private-file writes."""
 import asyncio
+import ast
 import copy
 import importlib.util
 import hashlib
@@ -59,7 +60,7 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
             return request.data
         def estimate(body, route, router):
             self.assertIs(router, self.router)
-            self.assertTrue(route == "/v1/chat/completions" or C.embedding_route(route))
+            self.assertTrue(route == "/v1/chat/completions" or C.embedding_route(route) or C.responses_route(route))
             return .30
         def usage_patch(**kwargs):
             self.assertEqual(kwargs["route_type"], "acompletion")
@@ -102,6 +103,256 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
             "litellm_call_id": "caller-forged-call-id", "_observation_id": "caller-forged",
             "metadata": {"spend_logs_metadata": {"owui_budget": {"schema": 1, "category": "service",
                 "operation": "rag_embedding"}}}, "litellm_metadata": {"owui_budget_provenance": "private-token"}})
+
+    def responses_request(self, index=0, route="/v1/responses"):
+        request = self.request(index)
+        request.route = route
+        request.scope["model"] = "goal584-r"
+        request.headers = {"X-OpenWebUI-User-Id": "untrusted-header-actor", "X-OpenWebUI-Task": "untrusted-task"}
+        request.data = {"model": "goal584-r", "input": [
+            {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Current source"}]},
+            {"type": "function_call", "id": "fc_fixture", "call_id": "call_fixture", "name": "fixture_budget_echo", "arguments": "{}"},
+            {"type": "function_call_output", "call_id": "call_fixture", "output": "Actual Tool result"},
+            {"type": "reasoning", "id": "rs_fixture", "summary": [{"type": "summary_text", "text": "Synthetic reasoning"}],
+             "encrypted_content": "synthetic-opaque-reasoning"}],
+            "instructions": "System policy\nAttached template instructions", "max_output_tokens": 16, "stream": True,
+            "tools": [{"type": "function", "name": "fixture_budget_echo", "description": "Public Tool schema", "strict": False,
+                       "parameters": {"type": "object", "properties": {}, "required": []}}], "tool_choice": "auto",
+            "parallel_tool_calls": False, "reasoning": {"effort": "low", "summary": "auto"},
+            "include": ["reasoning.encrypted_content"], "store": False, "background": False, "previous_response_id": None,
+            "text": {"format": {"type": "text"}}, "truncation": "disabled", "temperature": .2, "top_p": .9,
+            "user": "provider-owned-user", "metadata": {"synthetic": "provider metadata", "nested": {"value": index}},
+            "litellm_metadata": {"owui_budget_provenance": "eyJmaXh0dXJlIjp0cnVlfQ.c3ludGhldGlj.c2lnbmF0dXJl"}}
+        return request
+
+    def responses_auth(self, *, consume=True):
+        async def auth(request, api_key):
+            if consume:
+                request.data["litellm_metadata"].pop("owui_budget_provenance", None)
+                request.data["litellm_metadata"]["spend_logs_metadata"] = {"owui_budget": request.scope.copy()}
+                request.data["litellm_session_id"] = request.scope["chat_id"]
+                request.data["litellm_trace_id"] = request.scope["call_id"]
+            return SimpleNamespace(user_id=request.scope["user_id"], api_key="a" * 64, team_id=None)
+        return auth
+
+    def responses_validator(self, category):
+        self.assertEqual(category, "personal")
+        return PROTOCOL.validate_persisted_scope
+
+    async def test_responses_aliases_capture_every_supported_context_field_and_only_native_authority(self):
+        for index, route in enumerate(("/responses", "/v1/responses", "/openai/v1/responses")):
+            request = self.responses_request(index, route)
+            original = copy.deepcopy(request.data)
+            expected = {k: v for k, v in original.items() if k != "litellm_metadata"}
+            with patch.object(C, "product_auth", return_value=self.responses_auth()), patch.object(C, "scope_validator", side_effect=self.responses_validator):
+                returned = await C.gateway_auth(request, "sk-private-native-key")
+            row = self.read()["requests"][-1]
+            self.assertEqual(row["body"], expected)
+            self.assertEqual(row["body_after_auth"], expected)
+            self.assertEqual(set(expected), set(C.RESPONSES_FIELDS))
+            self.assertEqual(row["route"], route)
+            self.assertEqual(row["native_auth_user_id"], returned.user_id)
+            self.assertEqual(row["native_auth_key_hash"], "a" * 64)
+            self.assertEqual(row["verified_cost_scope"], request.scope)
+            self.assertTrue(row["attestation_present_before"] and row["provenance_removed_after"])
+            self.assertNotIn("native_stream_usage_patch", row)
+            self.assertNotIn("user_id", row)
+            self.assertNotIn("task", row)
+            self.assertEqual(request.data["input"], original["input"])
+            self.assertEqual(request.data["metadata"], original["metadata"])
+        encoded = json.dumps(self.read())
+        for secret in ("eyJmaXh0dXJlIjp0cnVlfQ", "sk-private-native-key", "untrusted-header-actor", "untrusted-task"):
+            self.assertNotIn(secret, encoded)
+
+    async def test_responses_fresh_product_scope_overwrites_untrusted_preexisting_scope(self):
+        request = self.responses_request()
+        forged = {**request.scope, "call_id": str(uuid4())}
+        request.data["litellm_metadata"]["spend_logs_metadata"] = {"owui_budget": forged}
+        request.data["metadata"]["spend_logs_metadata"] = {"owui_budget": {"provider": "not budget authority"}}
+        with patch.object(C, "product_auth", return_value=self.responses_auth()), patch.object(C, "scope_validator", side_effect=self.responses_validator):
+            await C.gateway_auth(request, "native-secret")
+        row = self.read()["requests"][0]
+        self.assertEqual(row["verified_cost_scope"], request.scope)
+        self.assertNotEqual(row["verified_cost_scope"], forged)
+        self.assertEqual(row["body"]["metadata"], row["body_after_auth"]["metadata"])
+
+    async def test_responses_before_and_after_are_independent_full_copies_of_owner_changes(self):
+        request = self.responses_request()
+        before = copy.deepcopy(request.data)
+        async def auth(actual, key):
+            returned = await self.responses_auth()(actual, key)
+            actual.data["instructions"] += "\nNative owner addition"
+            actual.data["metadata"]["nested"]["value"] = "native-owned-after"
+            return returned
+        with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator", side_effect=self.responses_validator):
+            await C.gateway_auth(request, "native-secret")
+        row = self.read()["requests"][0]
+        self.assertEqual(row["body"], {k: v for k, v in before.items() if k != "litellm_metadata"})
+        self.assertEqual(row["body_after_auth"], {k: v for k, v in request.data.items() if k in C.RESPONSES_FIELDS})
+        self.assertNotEqual(row["body"]["metadata"], row["body_after_auth"]["metadata"])
+
+    async def test_responses_overlapping_calls_use_the_same_capture_ids_and_merge_all_contexts(self):
+        requests = [self.responses_request(i) for i in range(4)]
+        ready, release, arrivals = asyncio.Event(), asyncio.Event(), []
+        async def auth(request, key):
+            arrivals.append(request.index)
+            if len(arrivals) == 4:
+                ready.set()
+            await release.wait()
+            return await self.responses_auth()(request, key)
+        with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator", side_effect=self.responses_validator):
+            pending = [asyncio.create_task(C.gateway_auth(r, "native-secret")) for r in requests]
+            await asyncio.wait_for(ready.wait(), 3)
+            started = self.read()["requests"]
+            self.assertEqual(len(started), 4)
+            self.assertTrue(all("body_after_auth" not in r for r in started))
+            release.set()
+            await asyncio.wait_for(asyncio.gather(*pending), 3)
+        final = self.read()["requests"]
+        self.assertEqual({r["_observation_id"] for r in started}, {r["_observation_id"] for r in final})
+        self.assertEqual(len(final), 4)
+        for row in final:
+            self.assertEqual(row["body"], row["body_after_auth"])
+            self.assertEqual(row["verified_cost_scope"]["user_id"], row["native_auth_user_id"])
+
+    async def test_responses_unsigned_or_unconsumed_or_failed_auth_never_labels_scope_verified(self):
+        for mode in ("unsigned", "unconsumed", "failed"):
+            request = self.responses_request()
+            if mode == "unsigned":
+                request.data["litellm_metadata"].pop("owui_budget_provenance")
+            request.data["litellm_metadata"]["spend_logs_metadata"] = {"owui_budget": request.scope}
+            failure = ValueError("private-native-failure")
+            async def auth(actual, key):
+                if mode == "failed":
+                    raise failure
+                return SimpleNamespace(user_id=request.scope["user_id"], api_key="a" * 64)
+            with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator") as validate:
+                if mode == "failed":
+                    with self.assertRaises(ValueError) as caught:
+                        await C.gateway_auth(request, "native-secret")
+                    self.assertIs(caught.exception, failure)
+                else:
+                    await C.gateway_auth(request, "native-secret")
+                validate.assert_not_called()
+            row = self.read()["requests"][-1]
+            self.assertNotIn("verified_cost_scope", row)
+            self.assertNotIn("native_stream_usage_patch", row)
+            if mode == "failed":
+                self.assertNotIn("native_auth_user_id", row)
+                self.assertEqual(row["auth_failure"]["scope"], "custom_auth")
+
+    async def test_responses_scope_must_match_returned_native_payer_key_and_model(self):
+        for change in ({"user_id": str(uuid4())}, {"api_key": "sk-private-raw-key"}, {"scope_model": "goal584-a"}):
+            C.save({"schema": 1, "requests": []})
+            request = self.responses_request()
+            async def auth(actual, key):
+                await self.responses_auth()(actual, key)
+                scope = actual.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"]
+                scope["model"] = change.get("scope_model", "goal584-r")
+                return SimpleNamespace(user_id=change.get("user_id", actual.scope["user_id"]), api_key=change.get("api_key", "a" * 64))
+            with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator", side_effect=self.responses_validator):
+                with self.assertRaisesRegex(RuntimeError, "Conflicting disposable Responses scope identity"):
+                    await C.gateway_auth(request, "native-secret")
+            self.assertNotIn("verified_cost_scope", self.read()["requests"][0])
+            self.assertNotIn("sk-private-raw-key", json.dumps(self.read()))
+
+    async def test_responses_unknown_context_fields_fail_before_auth_or_after_native_change_without_truncating(self):
+        request = self.responses_request()
+        request.data["new_model_context"] = {"must_not_disappear": True}
+        before = copy.deepcopy(request.data)
+        with patch.object(C, "product_auth") as owner:
+            with self.assertRaisesRegex(RuntimeError, "Unsupported disposable Responses context field"):
+                await C.gateway_auth(request, "native-secret")
+            owner.assert_not_called()
+        self.assertEqual(request.data, before)
+        self.assertFalse(C.CAPTURE.exists())
+        request = self.responses_request()
+        async def auth(actual, key):
+            actual.data["new_model_context"] = {"must_not_disappear": True}
+            return SimpleNamespace(user_id=request.scope["user_id"], api_key="a" * 64)
+        with patch.object(C, "product_auth", return_value=auth):
+            with self.assertRaisesRegex(RuntimeError, "Unsupported disposable Responses context field"):
+                await C.gateway_auth(request, "native-secret")
+        self.assertNotIn("body_after_auth", self.read()["requests"][0])
+        self.assertTrue(self.read()["requests"][0]["responses_projection_rejected_after_auth"])
+        self.assertIn("new_model_context", request.data)
+
+    async def test_responses_after_context_rejection_does_not_replace_original_auth_failure(self):
+        request, failure = self.responses_request(), ValueError("private-original-product-error")
+        async def auth(actual, key):
+            actual.data["unknown_after_auth"] = "private-context-value"
+            raise failure
+        with patch.object(C, "product_auth", return_value=auth):
+            with self.assertRaises(ValueError) as caught:
+                await C.gateway_auth(request, "native-secret")
+        self.assertIs(caught.exception, failure)
+        row = self.read()["requests"][0]
+        self.assertTrue(row["responses_projection_rejected_after_auth"])
+        self.assertNotIn("body_after_auth", row)
+        self.assertNotIn("verified_cost_scope", row)
+        self.assertNotIn("private-context-value", json.dumps(row))
+        self.assertNotIn("private-original-product-error", json.dumps(row))
+
+    async def test_responses_unsafe_jwt_in_actual_model_context_is_rejected_without_export_or_mutation(self):
+        token = "eyJmaXh0dXJlIjp0cnVlfQ.c3ludGhldGlj.c2lnbmF0dXJl"
+        for field, value in (("metadata", {"nested": {"unsafe": token}}), ("instructions", token),
+                             ("input", [{"role": "user", "content": token}]),
+                             ("metadata", {"unsafe_key": "sk-" + "x" * 32}),
+                             ("metadata", {"owui_budget_provenance": "private-token"})):
+            request = self.responses_request()
+            request.data[field] = value
+            before = copy.deepcopy(request.data)
+            with patch.object(C, "product_auth") as owner:
+                with self.assertRaisesRegex(RuntimeError, "Unsafe disposable Responses model context"):
+                    await C.gateway_auth(request, "native-secret")
+                owner.assert_not_called()
+            self.assertEqual(request.data, before)
+            self.assertFalse(C.CAPTURE.exists())
+
+    async def test_responses_wrong_route_or_model_delegates_once_without_capture(self):
+        for route, model in (("/v1/responses/child", "goal584-r"), ("/v1/responses", "goal584-a"),
+                             ("/v1/chat/completions", "goal584-r"), ("/v1/responses", "goal584-fake-r")):
+            request = self.responses_request(route=route)
+            request.data["model"] = model
+            before, returned, calls = copy.deepcopy(request.data), object(), []
+            async def auth(actual, key):
+                calls.append((actual, key))
+                return returned
+            with patch.object(C, "product_auth", return_value=auth):
+                self.assertIs(await C.gateway_auth(request, "native-secret"), returned)
+            self.assertEqual(calls, [(request, "native-secret")])
+            self.assertEqual(request.data, before)
+        self.assertFalse(C.CAPTURE.exists())
+
+    async def test_cached_native_responses_converter_body_is_captured_without_context_loss(self):
+        root = Path(os.environ.get("GOAL584_NATIVE_SOURCE_ROOT", str(SOURCE.parents[2] / "local/goal584/cost-display/open-webui/backend/open_webui")))
+        path = root / "routers/openai.py"
+        if not path.is_file():
+            self.skipTest("Cached native Responses converter unavailable; set GOAL584_NATIVE_SOURCE_ROOT")
+        tree = ast.parse(path.read_bytes())
+        nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in ("_normalize_stored_item", "convert_to_responses_payload")
+                 or isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == "RESPONSES_ALLOWED_FIELDS"]
+        self.assertEqual(len(nodes), 3)
+        env = {}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), env)
+        request = self.responses_request()
+        prepared = {"model": "goal584-r", "messages": [{"role": "system", "content": request.data["instructions"]},
+            {"role": "user", "content": "Current source"}, {"role": "assistant", "tool_calls": [{"id": "call_fixture",
+             "function": {"name": "fixture_budget_echo", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "call_fixture", "content": "Actual Tool result"}],
+            "max_tokens": 16, "stream": True, "tools": [{"type": "function", "function": {
+                k: v for k, v in request.data["tools"][0].items() if k != "type"}}],
+            "metadata": request.data["metadata"], "litellm_metadata": request.data["litellm_metadata"],
+            "store": False, "reasoning": {"effort": "low"}}
+        request.data = env["convert_to_responses_payload"](copy.deepcopy(prepared))
+        before = copy.deepcopy(request.data)
+        with patch.object(C, "product_auth", return_value=self.responses_auth()), patch.object(C, "scope_validator", side_effect=self.responses_validator):
+            await C.gateway_auth(request, "native-secret")
+        row = self.read()["requests"][0]
+        self.assertEqual(row["body"], {k: v for k, v in before.items() if k != "litellm_metadata"})
+        self.assertEqual(row["body_after_auth"], row["body"])
+        self.assertEqual(row["body"]["instructions"], prepared["messages"][0]["content"])
+        self.assertEqual(row["body"]["input"][-1]["output"], "Actual Tool result")
 
     async def test_embedding_aliases_preserve_context_and_observe_only_safe_returned_native_identity(self):
         payer, key_hash = str(uuid4()), hashlib.sha256(b"fixture-native-key").hexdigest()
