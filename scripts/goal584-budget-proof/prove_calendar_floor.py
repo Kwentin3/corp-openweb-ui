@@ -223,6 +223,59 @@ def journal(snapshot, expected, payer, key_hash, *, complete=True):
         check(seen == set(expected), "missing_journal_rows")
 
 
+def retain_observation(label, snapshot, values, physical, expected, state, receipt, path, failures=()):
+    """Retain the bounded read before assertions; export no arbitrary row fields."""
+    observed_at = stamp()
+    state["last_observation"] = {"label": label, "at": observed_at,
+        "snapshot": snapshot, "redis_key_user": values, "provider": physical}
+    def number(value):
+        if isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
+            return None
+        try:
+            result = Decimal(str(value))
+            rendered = str(result)
+            return rendered if result.is_finite() and len(rendered) <= 64 else None
+        except (ValueError, ArithmeticError):
+            return None
+
+    rows = snapshot["journal"]
+    receipt["last_observation"] = {"label": label, "at": observed_at,
+        "journal_count": len(rows), "expected_success_count": len(expected),
+        "journal_sha256": digest(rows), "redis_key_user": None if values is None else [number(v) for v in values],
+        "provider_count": None if physical is None else len(physical["requests"]),
+        "capture_failures": list(failures), "private_raw_retained": False,
+        "rows": [{"request_id_sha256": digest(row.get("request_id")),
+            "is_expected_success_id": isinstance(row.get("request_id"), str) and row["request_id"] in expected,
+            "status": row.get("status") if row.get("status") in ("success", "failure", "error", "pending") else "other_or_missing",
+            "spend_usd": number(row.get("spend")),
+            "usage": {name: row.get(name) if type(row.get(name)) is int and 0 <= row[name] <= 1_000_000 else None
+                for name in ("prompt_tokens", "completion_tokens", "total_tokens")},
+            "full_row_sha256": digest(row)} for row in rows]}
+    private_save(path, state)
+    receipt["last_observation"]["private_raw_retained"] = True
+
+
+async def retain_failed_observation(label, snapshot, counters, read_provider, expected, state, receipt, path):
+    """Best effort diagnosis must preserve the already established boundary error."""
+    failures, values, physical = [], None, None
+    try:
+        retain_observation(label, snapshot, None, None, expected, state, receipt, path)
+    except Exception:
+        failures.append("initial_private_retention_failed")
+    try:
+        values = await counters()
+    except Exception:
+        failures.append("counter_read_failed")
+    try:
+        physical = read_provider()
+    except Exception:
+        failures.append("provider_read_failed")
+    try:
+        retain_observation(label, snapshot, values, physical, expected, state, receipt, path, failures)
+    except Exception:
+        receipt["boundary_observation_capture_failed"] = True
+
+
 def money(snapshot, spend, lifetime, boundary, count):
     check(len(snapshot["journal"]) == count, "journal_count")
     for row in snapshot["users"] + snapshot["keys"]:
@@ -411,10 +464,16 @@ async def qualify(args, attest, receipt, secrets):
                 if prime_start is not None and label != "final":
                     window(prime_start, stamp())
                 snapshot = await read_population(db, payer, key_hash)
-                journal(snapshot, expected, payer, key_hash, complete=False)
-                unchanged_identity(initial, snapshot)
+                try:
+                    journal(snapshot, expected, payer, key_hash, complete=False)
+                    unchanged_identity(initial, snapshot)
+                except ProofError:
+                    await retain_failed_observation(label, snapshot, counters, lambda: provider(local),
+                        expected, state, receipt, args.private_state)
+                    raise
                 values = await counters()
                 physical = provider(local)
+                retain_observation(label, snapshot, values, physical, expected, state, receipt, args.private_state)
                 ready = len(snapshot["journal"]) == count and all(close_amount(r.get("spend"), spend) for r in snapshot["users"] + snapshot["keys"])
                 cache_ready = not allowed_counters or any(all(v is not None and close_amount(v, a) for v in values) for a in allowed_counters)
                 if ready and cache_ready:

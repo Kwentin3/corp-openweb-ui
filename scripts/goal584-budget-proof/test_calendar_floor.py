@@ -220,6 +220,73 @@ class NativeOwnerTests(unittest.TestCase):
 
 
 class FinancialBoundaryTests(unittest.TestCase):
+    def test_actual_observe_retains_all_three_rows_before_preserving_two_call_failure(self):
+        raw, all_expected, counts, uid, key_hash, boundary = packet(3)
+        expected = dict(list(all_expected.items())[:2])
+        secret = "sk-" + "private-diagnostic-fixture" * 3
+        raw["journal"][-1].update(status="failure", spend=0, prompt_tokens=0, completion_tokens=0,
+            total_tokens=0, request_id=secret, metadata={"private_body": secret})
+        P.population(counts, raw, uid, key_hash)
+        provider = {"requests": [{"body": {"private_body": secret}}, {"body": {"private_body": secret}}]}
+        async def read(*args): return copy.deepcopy(raw)
+        async def counters(): return [.4, .4]
+        observe = next(n for n in ast.walk(ast.parse(Path(P.__file__).read_text(encoding="utf-8")))
+            if isinstance(n, ast.AsyncFunctionDef) and n.name == "observe")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "observation.private.json"
+            state, receipt = {}, {}
+            ns = {**vars(P), "read_population": read, "provider": lambda _: provider,
+                "counters": counters, "expected": expected, "state": state, "receipt": receipt,
+                "args": SimpleNamespace(private_state=path), "db": None, "local": None,
+                "payer": uid, "key_hash": key_hash, "initial": raw, "prime_start": None}
+            execute([observe], ns)
+            # This Windows test uses real atomic writes; Linux POSIX mode guards
+            # remain owned by the existing private-I/O tests/native runtime.
+            with patch("prove_gateway_auth.private_parent"), self.assertRaises(P.FloorError) as caught:
+                asyncio.run(ns["observe"]("post", P.COST, 2 * P.COST, boundary, 2, settled=True))
+            self.assertEqual(caught.exception.leaf, "unexpected_journal_rows")
+            actual = receipt["last_observation"]
+            self.assertEqual((actual["journal_count"], actual["expected_success_count"], actual["provider_count"]), (3, 2, 2))
+            self.assertEqual(actual["redis_key_user"], ["0.4", "0.4"])
+            self.assertEqual([r["is_expected_success_id"] for r in actual["rows"]], [True, True, False])
+            self.assertEqual((actual["rows"][-1]["status"], actual["rows"][-1]["spend_usd"]), ("failure", "0"))
+            self.assertEqual(actual["rows"][-1]["request_id_sha256"], P.digest(secret))
+            self.assertEqual(actual["rows"][-1]["full_row_sha256"], P.digest(raw["journal"][-1]))
+            self.assertTrue(actual["private_raw_retained"])
+            retained = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(retained["last_observation"]["snapshot"], raw)
+            self.assertEqual(retained["last_observation"]["provider"], provider)
+            self.assertNotIn(secret, P.safe_receipt(receipt, [secret]))
+            self.assertNotIn("metadata", json.dumps(actual))
+
+    def test_boundary_diagnostics_io_failure_cannot_replace_original_leaf_or_leak(self):
+        raw, all_expected, _, uid, key_hash, boundary = packet(3)
+        expected = dict(list(all_expected.items())[:2])
+        secret = "sk-" + "untrusted-private-error" * 3
+        async def read(*args): return copy.deepcopy(raw)
+        async def bad_counters(): raise RuntimeError(secret)
+        def bad_provider(_): raise RuntimeError(secret)
+        observe = next(n for n in ast.walk(ast.parse(Path(P.__file__).read_text(encoding="utf-8")))
+            if isinstance(n, ast.AsyncFunctionDef) and n.name == "observe")
+        receipt = {}
+        ns = {**vars(P), "read_population": read, "provider": bad_provider, "counters": bad_counters,
+            "expected": expected, "state": {}, "receipt": receipt,
+            "args": SimpleNamespace(private_state=Path("unused")), "db": None, "local": None,
+            "payer": uid, "key_hash": key_hash, "initial": raw, "prime_start": None}
+        execute([observe], ns)
+        with patch.object(P, "private_save", side_effect=OSError(secret)):
+            with self.assertRaises(P.FloorError) as caught:
+                asyncio.run(ns["observe"]("post", P.COST, 2 * P.COST, boundary, 2, settled=True))
+        self.assertEqual(caught.exception.leaf, "unexpected_journal_rows")
+        actual = receipt["last_observation"]
+        self.assertEqual(actual["journal_count"], 3)
+        self.assertIsNone(actual["redis_key_user"])
+        self.assertIsNone(actual["provider_count"])
+        self.assertEqual(actual["capture_failures"], ["initial_private_retention_failed", "counter_read_failed", "provider_read_failed"])
+        self.assertFalse(actual["private_raw_retained"])
+        self.assertTrue(receipt["boundary_observation_capture_failed"])
+        self.assertNotIn(secret, P.safe_receipt(receipt, [secret]))
+
     def test_whole_raw_rows_and_exact_counts_accept_three_and_reject_foreign_zero_duplicate_missing(self):
         raw, expected, counts, uid, key_hash, boundary = packet(3, P.CAP)
         P.population(counts, raw, uid, key_hash)
