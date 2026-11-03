@@ -77,6 +77,71 @@ actual config append/validator и pip check PASS. Runtime Responses пока н�
 43 Bash/18 embedded Python/actionlint/34 literal mounts PASS.
 Диагностика floor отдельно проверена25 focused tests и independent replay:
 исходный failure leaf сохраняется даже при сбое всех diagnostic I/O.
+Кандидат `69eaaa67d1851d87b4779f3e10a178b83c213879` отправлен:
+[native43 41687079410](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41687079410),
+Active CI41687079532 PASS. Native43 завершён: main FAIL в новом Responses
+negative-ledger guard; прежние phases, включая RAG, PASS. R positive partial:
+обычный Send/Tool/2 provider calls,2 native rows по$0.20, same-dispatch nonce и
+decoded SDK/provider ID, User/key$0.40; native costs/details/reload$0.40.
+Parent просмотрел details PNG:2 calls/20 input/10 output/30 total tokens.
+Unsigned403/exact required-signature guard и native hard-zero422 подтверждены.
+Ordinary GUI denial отрисован; следующий combined guard сравнивал одновременно
+полный provider snapshot и raw own journal, failed без диагностических данных.
+Причина R negative failure пока не различена; весь финансовый профиль FAIL,
+положительный префикс не заменяет его приёмку. Все независимые restoration
+readbacks completed:true, YAML original bytes equal; cleanup0containers/0volumes.
+Main ZIP `3b26723d158c17670813c1c0c930d7998c3c0606fe092fafc7cf49c19c2bdf54`:
+parent byte/Git/mount check220files/44source/6mounts/54PNG PASS.
+Evidence: `local/goal584/runtime-proof-41687079410` и `responses43-review`.
+Matrix floor43 снова FAIL на том же journal guard. Новая диагностика реально
+сохранила3 raw rows:2 expected success по$0.20/usage10-5-15 и1 unmatched
+`failure`/$0/usage0-0-0. Provider count2, Redis key/user$0.40/$0.40; ошибок
+diagnostic I/O нет, cleanup0/0/0. Post DB snapshot остаётся только private,
+final headroom request не отправлялся; полный stale-offset false-denial ещё не
+доказан. Прямая привязка failure row к prime attempt пока отсутствует.
+ZIP `0875913d4f38efa2624e20d3affff06a837697c9631fc5730bce2f75ad38195e`,
+tested merge `191fac209d1020f90788df6b9d18d7b78a6d773e`.
+Native `_ProxyDBLogger.async_post_call_failure_hook` действительно записывает
+ошибки в тот же SpendLogs (по умолчанию), сохраняя request metadata. Поэтому
+предпосылка proof «денежный журнал не содержит zero-cost failure rows» ошибочна.
+Следующий verifier должен явно привязать и проверить каждую такую строку по
+реально зафиксированной denial attempt; неизвестные/дублированные/не нулевые
+строки по-прежнему FAIL. Нельзя скрывать строки или отключать native error logs.
+
+По exact0.12.2 изучен отдельный reasoning gap: stateless ordinary middleware
+теряет reasoning items до Responses router. Native experimental global
+`ENABLE_RESPONSES_API_STATEFUL` — возможный отдельный путь через upstream
+storage/previous_response_id, несовместимый с текущим fixedR store:false.
+Конфигурация не включалась; новые history owners/core patches не добавлялись.
+Evidence: `local/goal584/responses-native-reasoning-options.md`.
+
+**Следующий кандидат: native audit contract + R negative diagnostics.**
+Floor verifier учитывает все raw rows: максимум4 на4 отправленные попытки,
+не более3 успешных списаний. Каждая нулевая failure row обязана точно совпасть
+с own payer/key/model и записанной native422 attempt через уникальную lineage,
+native BudgetExceededError/422, нулевые cost/usage и уникальный request ID.
+Неизвестная/дублированная/платная failure row отклоняется. Поздние известные
+audit rows допускаются при промежуточных чтениях; terminal требует их полноты
+в60s окне заключительного наблюдения. Все ранее увиденные raw rows неизменны.
+При собственном append между count/payload — максимум3 полных повторных чтения,
+без merge/filter, возврат только согласованного снимка. Строгий TTL5s сохранён.
+Independent review закрыл два source blockers (append race и late-ready61s);
+50 calendar tests и actual-owner replay PASS. Native runtime ещё не принят.
+R diagnostics сохраняет provider/capture/raw rows/User/key в existing private
+state и отдаёт только закрытую schema со счётчиками/хэшами/суммами/статусами.
+Provider и journal guards разделены; новая zero-cost row всё ещё FAIL.
+Принятие audit rows для Responses не добавлялось. Ошибки diagnostic I/O не
+маскируют известное первичное нарушение; worker/host protocol остаётся строгим.
+Свежий независимый reviewer:34 focused tests+8 extra checks PASS.
+Всего347 harness tests PASS/0skip; product bytes не менялись,219 component
+checks (212PASS/7opt-in skips) переиспользованы.34 literal binds PASS;
+workflow/Compose/host dependencies не менялись после source-проверенного43.
+Evidence: `calendar-floor-native-audit-independent-readiness.md`,
+`responses-negative-diagnostics-independent-readiness.md`,
+`local/goal584/candidate-checks.safe.json`.
+Завершённая Responses worktree закрыта после проверки4 patch equivalents и
+exact SHA перенесённых файлов; ветка provenance сохранена. Остаются primary
+GOAL-worktree и исходная main с двумя прежними пользовательскими WIP.
 
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
