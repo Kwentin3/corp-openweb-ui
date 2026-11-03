@@ -1,7 +1,9 @@
 """Actual loopback HTTP/SSE lifecycle controls; no proxy or external inference."""
 from concurrent.futures import ThreadPoolExecutor
+import base64
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import socket
@@ -110,6 +112,81 @@ class LifecycleHTTPTests(unittest.TestCase):
             self.assertEqual(row["lifecycle"]["outcome"], "completed")
             self.assertTrue(row["lifecycle"]["usage_sent"])
             self.assertEqual(row["lifecycle"]["chunks_sent"], 0)
+
+    def test_embedding_string_and_batch_vectors_are_usable_deterministic_and_have_no_wire_id(self):
+        payload = {"model": P.EMBEDDING_MODEL, "input": ["document: Hi\nline", "query: Hi"],
+                   "dimensions": 4, "encoding_format": "float", "user": "diagnostic-user"}
+        status, result = self.http("/v1/embeddings", payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(set(result), {"object", "data", "model", "usage"})
+        self.assertEqual(result["usage"], {"prompt_tokens": 10, "total_tokens": 10})
+        self.assertEqual(result["object"], "list")
+        self.assertEqual([v["index"] for v in result["data"]], [0, 1])
+        vectors = [v["embedding"] for v in result["data"]]
+        self.assertTrue(all(len(v) == 4 and all(type(x) is float and math.isfinite(x) for x in v) for v in vectors))
+        self.assertTrue(all(sum(x*x for x in v) > 0 for v in vectors))
+        self.assertNotEqual(vectors[0], vectors[1])
+        _, repeated = self.http("/v1/embeddings", {"model": P.EMBEDDING_MODEL, "input": payload["input"][0], "dimensions": 4})
+        self.assertEqual(repeated["data"][0]["embedding"], vectors[0])
+        rows = self.http("/__proof/requests")[1]["requests"]
+        self.assertEqual(len(rows), 2)
+        first = self.wait_row(lambda stage: stage["terminal"], identifier=rows[0]["id"])
+        self.assertEqual(first["body"], payload)
+        self.assertEqual(first["response"], result)
+        self.assertEqual(first["id_kind"], "provider_observation_only")
+        self.assertNotIn(first["id"], json.dumps(result))
+        self.assertTrue(first["id"].startswith("embedding-observation-goal584-"))
+        self.assertEqual(first["lifecycle"]["outcome"], "completed")
+        self.assertEqual(first["lifecycle"]["chunks_sent"], 0)
+        self.assertTrue(first["lifecycle"]["usage_sent"])
+
+    def test_embedding_base64_dimensions_decode_to_the_same_finite_vectors(self):
+        self.controls({"prompt_tokens": 30, "completion_tokens": 20})
+        payload = {"model": P.EMBEDDING_MODEL, "input": "Hi", "dimensions": 6}
+        _, floats = self.http("/v1/embeddings", payload)
+        status, encoded = self.http("/v1/embeddings", {**payload, "encoding_format": "base64"})
+        self.assertEqual(status, 200)
+        vector = struct.unpack("<6f", base64.b64decode(encoded["data"][0]["embedding"], validate=True))
+        self.assertEqual(list(vector), floats["data"][0]["embedding"])
+        self.assertEqual(encoded["usage"], {"prompt_tokens": 10, "total_tokens": 10})
+        # Existing chat controls keep their existing meaning independently.
+        _, chat = self.http("/v1/chat/completions", self.payload())
+        self.assertEqual(chat["usage"], {"prompt_tokens": 30, "completion_tokens": 20, "total_tokens": 50})
+
+    def test_embedding_invalid_input_or_dimensions_fail_before_recording_a_valid_call(self):
+        original = {"model": P.EMBEDDING_MODEL, "input": "Hi"}
+        invalid = [{"input": value} for value in (None, 1, True, [], [1, 2], ["Hi", 1], [""], "", "x" * 16385,
+                    ["Hi"] * 129, ["x" * 16384] * 9, "\ud800")]
+        invalid += [{"dimensions": value} for value in (0, 65, True, "3", None)]
+        invalid += [{"encoding_format": value} for value in ("unknown", None, [])]
+        for change in invalid:
+            with self.subTest(change_keys=list(change)):
+                self.assertEqual(self.http("/v1/embeddings", {**original, **change})[0], 400)
+        self.assertEqual(self.http("/v1/embeddings", {**original, "model": P.MODELS[0]})[0], 404)
+        self.assertEqual(self.http("/v1/chat/completions", {**self.payload(), "model": P.EMBEDDING_MODEL})[0], 404)
+        self.assertEqual(self.http("/__proof/requests")[1]["requests"], [])
+        self.assertEqual([v["id"] for v in self.http("/v1/models")[1]["data"]], list(P.MODELS))
+
+    def test_embedding_delay_and_controlled_error_use_the_existing_arrival_snapshot_and_history(self):
+        self.controls({"response_status": 500, "delay_ms": 200})
+        payload = {"model": P.EMBEDDING_MODEL, "input": "Hi"}
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pending = pool.submit(self.http, "/v1/embeddings", payload)
+            started = self.wait_row(lambda stage: stage["stage"] == "before_headers_delay" and not stage["terminal"])
+            self.assertFalse(pending.done())
+            self.controls({"response_status": 200, "delay_ms": 0})
+            status, result = pending.result(timeout=5)
+        self.assertEqual(status, 500)
+        self.assertEqual(set(result), {"error"})
+        failed = self.wait_row(lambda stage: stage["terminal"], identifier=started["id"])
+        self.assertIsNone(failed["usage"])
+        self.assertNotIn("response", failed)
+        self.assertEqual(failed["lifecycle"]["outcome"], "controlled_error")
+        self.assertFalse(failed["lifecycle"]["usage_sent"])
+        self.assertEqual(self.http("/v1/embeddings", payload)[0], 200)
+        self.assertEqual(len(self.http("/__proof/requests")[1]["requests"]), 2)
+        self.assertEqual(self.http("/__proof/reset", {})[0], 200)
+        self.assertEqual(self.http("/__proof/requests")[1], {"synthetic": True, "requests": [], "control": DEFAULT})
 
     def test_controlled_500_has_no_output_or_usage_and_uses_arrival_control_snapshot(self):
         self.controls({"response_status": 500, "delay_ms": 400})

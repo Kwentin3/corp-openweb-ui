@@ -6,9 +6,12 @@ to the disposable network and are deliberately not a public application API.
 """
 
 import argparse
+import base64
 import copy
+import hashlib
 import json
 import re
+import struct
 import threading
 import time
 import uuid
@@ -16,6 +19,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 MODELS = ("goal584-fake-a", "goal584-fake-b")
+EMBEDDING_MODEL = "goal584-fake-e"
 STATE_LOCK = threading.Lock()
 REQUESTS = []
 CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False,
@@ -115,6 +119,79 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("Expected a JSON object")
         return payload
 
+    def begin_record(self, payload, *, embedding=False):
+        with STATE_LOCK:
+            control = dict(CONTROL)
+            usage = ({"prompt_tokens": 10, "total_tokens": 10} if embedding else {
+                "prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
+                "total_tokens": control["prompt_tokens"] + control["completion_tokens"]})
+            record = {"id": ("embedding-observation-goal584-" if embedding else "chatcmpl-goal584-") + uuid.uuid4().hex,
+                "created": int(time.time()), "body": payload, "usage": usage,
+                "lifecycle": {"started": True, "stage": "started", "started_monotonic": time.monotonic(),
+                    "headers_sent": False, "chunks_sent": 0, "usage_sent": False, "terminal": False, "outcome": None,
+                    "response_status": control.get("response_status", 200), "delay_ms": control["delay_ms"],
+                    "after_first_chunk_delay_ms": control.get("after_first_chunk_delay_ms", 0)}}
+            if embedding:
+                # Not sent to the client: native embedding IDs have another owner.
+                record.update(route="/v1/embeddings", id_kind="provider_observation_only")
+            if control.get("response_status") == 500:
+                record["usage"] = None
+            REQUESTS.append(record)
+        return control, record
+
+    def controlled_failure(self, control, record, *, embedding=False):
+        if control["delay_ms"]:
+            self.mark(record, stage="before_headers_delay")
+            time.sleep(control["delay_ms"] / 1000)
+        if control.get("response_status") != 500:
+            return False
+        error = {"error": {"message": "Controlled synthetic provider failure",
+                 "type": "synthetic_provider_error", "code": "proof_provider_500"}}
+        if not embedding:
+            error["id"] = record["id"]
+        try:
+            self.send_json(500, error, record=record)
+            self.mark(record, stage="controlled_error", terminal=True, outcome="controlled_error")
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
+        return True
+
+    def embeddings(self, payload):
+        if payload.get("model") != EMBEDDING_MODEL:
+            return self.send_json(404, {"error": {"message": "Unknown synthetic model", "code": "model_not_found"}})
+        values = payload.get("input")
+        values = [values] if isinstance(values, str) else values
+        dimensions, encoding = payload.get("dimensions", 3), payload.get("encoding_format", "float")
+        try:
+            encoded_values = ([value.encode("utf-8") for value in values]
+                if isinstance(values, list) and 0 < len(values) <= 128 and all(isinstance(value, str) for value in values) else [])
+        except UnicodeEncodeError:
+            encoded_values = []
+        if not (isinstance(values, list) and 0 < len(values) <= 128
+                and len(encoded_values) == len(values) and all(0 < len(value) <= 16384 for value in encoded_values)
+                and sum(map(len, encoded_values)) <= 131072
+                and type(dimensions) is int and 1 <= dimensions <= 64
+                and encoding in ("float", "base64")
+                and ("user" not in payload or isinstance(payload["user"], str) and len(payload["user"]) <= 256)):
+            return self.send_json(400, {"error": {"message": "Invalid bounded synthetic embedding input"}})
+        control, record = self.begin_record(payload, embedding=True)
+        if self.controlled_failure(control, record, embedding=True):
+            return
+        data = []
+        for index, value in enumerate(encoded_values):
+            seed = hashlib.sha512(value).digest()
+            vector = [(seed[i] + 1) / 256 for i in range(dimensions)]
+            encoded = base64.b64encode(struct.pack("<" + "f" * dimensions, *vector)).decode("ascii") if encoding == "base64" else vector
+            data.append({"object": "embedding", "index": index, "embedding": encoded})
+        result = {"object": "list", "data": data, "model": EMBEDDING_MODEL, "usage": record["usage"]}
+        try:
+            self.send_json(200, result, record=record)
+            with STATE_LOCK:
+                record["response"] = copy.deepcopy(result)
+            self.mark(record, stage="completed", terminal=True, outcome="completed", usage_sent=True)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
+
     def do_GET(self):
         if self.path == "/healthz":
             return self.send_json(200, {"ok": True, "synthetic": True})
@@ -160,6 +237,8 @@ class Handler(BaseHTTPRequestHandler):
                         CONTROL[key] = value
                 result = dict(CONTROL)
             return self.send_json(200, result)
+        if self.path == "/v1/embeddings":
+            return self.embeddings(payload)
         if self.path != "/v1/chat/completions":
             return self.send_json(404, {"error": {"message": "Unknown synthetic endpoint"}})
         model = payload.get("model")
@@ -168,30 +247,9 @@ class Handler(BaseHTTPRequestHandler):
         messages = payload.get("messages")
         if not isinstance(messages, list) or not messages or not all(isinstance(message, dict) for message in messages):
             return self.send_json(400, {"error": {"message": "messages must be a non-empty object list"}})
-        call_id = "chatcmpl-goal584-" + uuid.uuid4().hex
-        created = int(time.time())
-        with STATE_LOCK:
-            control = dict(CONTROL)
-            record = {"id": call_id, "created": created, "body": payload, "usage": {
-                "prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
-                "total_tokens": control["prompt_tokens"] + control["completion_tokens"],
-            }, "lifecycle": {"started": True, "stage": "started", "started_monotonic": time.monotonic(),
-                "headers_sent": False, "chunks_sent": 0, "usage_sent": False, "terminal": False, "outcome": None,
-                "response_status": control.get("response_status", 200), "delay_ms": control["delay_ms"],
-                "after_first_chunk_delay_ms": control.get("after_first_chunk_delay_ms", 0)}}
-            if control.get("response_status") == 500:
-                record["usage"] = None
-            REQUESTS.append(record)
-        if control["delay_ms"]:
-            self.mark(record, stage="before_headers_delay")
-            time.sleep(control["delay_ms"] / 1000)
-        if control.get("response_status") == 500:
-            try:
-                self.send_json(500, {"id": call_id, "error": {"message": "Controlled synthetic provider failure",
-                    "type": "synthetic_provider_error", "code": "proof_provider_500"}}, record=record)
-                self.mark(record, stage="controlled_error", terminal=True, outcome="controlled_error")
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
+        control, record = self.begin_record(payload)
+        call_id, created = record["id"], record["created"]
+        if self.controlled_failure(control, record):
             return
         usage = {"prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                  "total_tokens": control["prompt_tokens"] + control["completion_tokens"]}

@@ -2,6 +2,7 @@
 import asyncio
 import copy
 import importlib.util
+import hashlib
 import json
 import multiprocessing
 import os
@@ -19,6 +20,10 @@ SOURCE = Path(__file__).with_name("capture_webui_auth.py")
 SPEC = importlib.util.spec_from_file_location("capture_concurrency_under_test", SOURCE)
 C = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(C)
+PROTOCOL_SPEC = importlib.util.spec_from_file_location("capture_rag_protocol_test",
+    SOURCE.parents[2] / "deploy/openwebui-budgets/provenance.py")
+PROTOCOL = importlib.util.module_from_spec(PROTOCOL_SPEC)
+PROTOCOL_SPEC.loader.exec_module(PROTOCOL)
 
 
 def file_writer(path, index, barrier, results):
@@ -54,7 +59,7 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
             return request.data
         def estimate(body, route, router):
             self.assertIs(router, self.router)
-            self.assertEqual(route, "/v1/chat/completions")
+            self.assertTrue(route == "/v1/chat/completions" or C.embedding_route(route))
             return .30
         def usage_patch(**kwargs):
             self.assertEqual(kwargs["route_type"], "acompletion")
@@ -89,6 +94,132 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
     def read(self):
         with C.capture_lock():
             return C._read_locked()
+
+    def embedding_request(self, index, route="/v1/embeddings"):
+        return SimpleNamespace(index=index, route=route, headers={"X-OpenWebUI-User-Id": "caller-not-the-payer",
+            "X-OpenWebUI-Task": ""}, data={"model": "goal584-e", "input": ["document: Hi\nline", "query: Hi"],
+            "dimensions": 3, "encoding_format": "float", "user": "caller-end-user-diagnostic",
+            "litellm_call_id": "caller-forged-call-id", "_observation_id": "caller-forged",
+            "metadata": {"spend_logs_metadata": {"owui_budget": {"schema": 1, "category": "service",
+                "operation": "rag_embedding"}}}, "litellm_metadata": {"owui_budget_provenance": "private-token"}})
+
+    async def test_embedding_aliases_preserve_context_and_observe_only_safe_returned_native_identity(self):
+        payer, key_hash = str(uuid4()), hashlib.sha256(b"fixture-native-key").hexdigest()
+        returned = SimpleNamespace(user_id=payer, api_key=key_hash, team_id=None)
+        calls = []
+        async def auth(request, api_key):
+            calls.append((request, api_key))
+            # External native auth owner double; capture itself changes no body.
+            request.data.pop("metadata")
+            request.data.pop("litellm_metadata")
+            return returned
+        routes = ("/embeddings", "/v1/embeddings", "/engines/goal584-e/embeddings",
+                  "/engines/nested/goal584-e/embeddings", "/openai/deployments/goal584-e/embeddings")
+        with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator") as validate:
+            for index, route in enumerate(routes):
+                request = self.embedding_request(index, route)
+                original = copy.deepcopy(request.data)
+                self.assertIs(await C.gateway_auth(request, "sk-private-native-key"), returned)
+                row = self.read()["requests"][-1]
+                expected = {field: original[field] for field in C.EMBEDDING_FIELDS if field in original}
+                self.assertEqual(row["body"], expected)
+                self.assertEqual(row["body_after_auth"], expected)
+                self.assertEqual(row["route"], route)
+                self.assertEqual(row["native_auth_user_id"], payer)
+                self.assertEqual(row["native_auth_key_hash"], key_hash)
+                self.assertNotIn("user_id", row)
+                self.assertNotIn("actor_id", row)
+                self.assertNotIn("task", row)
+                self.assertNotIn("native_stream_usage_patch", row)
+                self.assertNotIn("verified_cost_scope", row)
+                self.assertNotIn("unverified_rag_scope", row)
+                self.assertNotIn("litellm_call_id", row)
+                self.assertEqual(request.data, {k: v for k, v in original.items() if k not in ("metadata", "litellm_metadata")})
+            validate.assert_not_called()
+        self.assertEqual(len(calls), len(routes))
+        encoded = json.dumps(self.read())
+        for private in ("private-token", "sk-private-native-key", "caller-forged-call-id", "caller-not-the-payer"):
+            self.assertNotIn(private, encoded)
+
+    async def test_embedding_postauth_tag_is_only_syntax_not_verified_origin(self):
+        request = self.embedding_request(0)
+        request.data.pop("litellm_metadata")
+        returned = SimpleNamespace(user_id=str(uuid4()), api_key="a" * 64)
+        async def auth(*args):
+            return returned
+        with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator",
+                side_effect=lambda category: PROTOCOL.validate_persisted_rag_scope if category == "rag" else self.fail(category)):
+            self.assertIs(await C.gateway_auth(request, "native-secret"), returned)
+        row = self.read()["requests"][0]
+        self.assertEqual(row["unverified_rag_scope"], {"schema": 1, "category": "service", "operation": "rag_embedding"})
+        self.assertNotIn("verified_cost_scope", row)
+        self.assertNotIn("call_id", row)
+        self.assertNotIn("chat_id", row)
+        self.assertNotIn("actor_id", row)
+
+    async def test_embedding_failure_keeps_original_exception_and_cannot_label_forged_scope_or_identity(self):
+        request = self.embedding_request(0)
+        class NativeFailure(Exception):
+            status_code = 401
+            detail = "private-native-detail"
+        failure = NativeFailure("sk-private-error-body")
+        calls = []
+        async def auth(actual, api_key):
+            calls.append((actual, api_key))
+            raise failure
+        with patch.object(C, "product_auth", return_value=auth), patch.object(C, "scope_validator") as validate:
+            with self.assertRaises(NativeFailure) as caught:
+                await C.gateway_auth(request, "sk-private-native-secret")
+            validate.assert_not_called()
+        self.assertIs(caught.exception, failure)
+        self.assertEqual(len(calls), 1)
+        row = self.read()["requests"][0]
+        self.assertEqual(row["auth_failure"], {"scope": "custom_auth", "status_code": 401, "code": "unclassified"})
+        for name in ("native_auth_user_id", "native_auth_key_hash", "verified_cost_scope", "unverified_rag_scope"):
+            self.assertNotIn(name, row)
+        self.assertNotIn("private-", json.dumps(row))
+
+    async def test_embedding_overlapping_auth_records_merge_without_invented_identity_or_raw_key_leak(self):
+        requests = [self.embedding_request(index) for index in range(4)]
+        arrived, release, calls = asyncio.Event(), asyncio.Event(), []
+        native = SimpleNamespace(user_id="not-a-native-uuid", api_key="sk-private-raw-key")
+        async def auth(request, api_key):
+            calls.append(request.index)
+            if len(calls) == 4:
+                arrived.set()
+            await release.wait()
+            request.data.pop("metadata")
+            request.data.pop("litellm_metadata")
+            return native
+        with patch.object(C, "product_auth", return_value=auth):
+            pending = [asyncio.create_task(C.gateway_auth(request, "native-secret")) for request in requests]
+            await asyncio.wait_for(arrived.wait(), timeout=3)
+            self.assertEqual(len(self.read()["requests"]), 4)
+            self.assertTrue(all("body_after_auth" not in row for row in self.read()["requests"]))
+            release.set()
+            actual = await asyncio.wait_for(asyncio.gather(*pending), timeout=3)
+        self.assertTrue(all(value is native for value in actual))
+        records = self.read()["requests"]
+        self.assertEqual(len({row["_observation_id"] for row in records}), 4)
+        self.assertTrue(all(row["body"] == row["body_after_auth"] for row in records))
+        self.assertTrue(all("native_auth_user_id" not in row and "native_auth_key_hash" not in row for row in records))
+        self.assertNotIn("sk-private", json.dumps(records))
+
+    async def test_wrong_embedding_route_or_model_does_not_expand_capture_or_native_authority(self):
+        requests = [self.embedding_request(0, "/v1/embeddings/unregistered-child"), self.embedding_request(1)]
+        requests[1].data["model"] = "goal584-a"
+        native = object()
+        calls = []
+        async def auth(request, api_key):
+            calls.append(request)
+            return native
+        with patch.object(C, "product_auth", return_value=auth):
+            for request in requests:
+                before = copy.deepcopy(request.data)
+                self.assertIs(await C.gateway_auth(request, "native-secret"), native)
+                self.assertEqual(request.data, before)
+        self.assertEqual(calls, requests)
+        self.assertFalse(C.CAPTURE.exists())
 
     async def test_eight_overlapping_auth_calls_preserve_all_initial_and_final_contexts(self):
         requests = [self.request(index) for index in range(8)]

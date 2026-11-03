@@ -11,7 +11,8 @@ import copy
 import json
 import os
 from pathlib import Path
-from uuid import uuid4
+import re
+from uuid import UUID, uuid4
 
 
 CAPTURE = Path("/proof-private/webui-gateway-context.private.json")
@@ -23,6 +24,12 @@ FIELDS = (
     "reasoning_effort", "reasoning", "stream", "stream_options", "temperature", "top_p", "n", "best_of",
     "stop", "seed", "frequency_penalty", "presence_penalty", "parallel_tool_calls", "verbosity",
 )
+EMBEDDING_FIELDS = ("model", "input", "dimensions", "encoding_format", "user")
+
+
+def embedding_route(route):
+    return route in ("/embeddings", "/v1/embeddings") or re.fullmatch(
+        r"/(?:engines|openai/deployments)/.+/embeddings", route) is not None
 
 
 @lru_cache(maxsize=1)
@@ -33,11 +40,12 @@ def product_auth():
     return get_instance_fn("litellm_auth.gateway_auth", config_file_path=str(Path(__file__).with_name("config.yaml")))
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def scope_validator(category="personal"):
     from litellm.proxy.types_utils.utils import get_instance_fn
 
-    names = {"personal": "validate_persisted_scope", "service": "validate_persisted_service_scope"}
+    names = {"personal": "validate_persisted_scope", "service": "validate_persisted_service_scope",
+             "rag": "validate_persisted_rag_scope"}
     if category not in names:
         raise RuntimeError("Unknown disposable budget observation category")
     return get_instance_fn("provenance." + names[category], config_file_path=str(Path(__file__).with_name("config.yaml")))
@@ -142,14 +150,19 @@ async def gateway_auth(request, api_key):
     body = await _read_request_body(request)
     route = get_request_route(request)
     record = None
-    if route in ("/chat/completions", "/v1/chat/completions") and body.get("model") in ("goal584-a", "goal584-b"):
+    embedding = embedding_route(route) and body.get("model") == "goal584-e"
+    fields = EMBEDDING_FIELDS if embedding else FIELDS
+    if embedding or route in ("/chat/completions", "/v1/chat/completions") and body.get("model") in ("goal584-a", "goal584-b"):
         record = {
-            "user_id": request.headers.get("X-OpenWebUI-User-Id"),
-            "task": request.headers.get("X-OpenWebUI-Task"),
-            "body": copy.deepcopy({field: body[field] for field in FIELDS if field in body}),
+            "body": copy.deepcopy({field: body[field] for field in fields if field in body}),
             "native_estimated_max_cost_usd": estimate_request_max_cost(body, route, proxy_server.llm_router),
-            "attestation_present_before": bool((body.get("litellm_metadata") or {}).get("owui_budget_provenance")),
         }
+        if embedding:
+            record["route"] = route
+        else:
+            record.update(user_id=request.headers.get("X-OpenWebUI-User-Id"),
+                task=request.headers.get("X-OpenWebUI-Task"),
+                attestation_present_before=bool((body.get("litellm_metadata") or {}).get("owui_budget_provenance")))
         _append(record)
     auth = None
     try:
@@ -168,11 +181,28 @@ async def gateway_auth(request, api_key):
             after = await _read_request_body(request)
             maps = [value for key in ("metadata", "litellm_metadata")
                     if isinstance((value := after.get(key)), dict)]
-            scopes = [(value.get("spend_logs_metadata") or {}).get("owui_budget") for value in maps]
+            scopes = [value["spend_logs_metadata"].get("owui_budget") for value in maps
+                      if isinstance(value.get("spend_logs_metadata"), dict)]
             scopes = [value for value in scopes if value is not None]
             record["provenance_removed_after"] = all("owui_budget_provenance" not in value for value in maps)
-            record["body_after_auth"] = copy.deepcopy({field: after[field] for field in FIELDS if field in after})
-            if auth is not None:
+            record["body_after_auth"] = copy.deepcopy({field: after[field] for field in fields if field in after})
+            if auth is not None and embedding:
+                payer, key_hash = getattr(auth, "user_id", None), getattr(auth, "api_key", None)
+                try:
+                    if isinstance(payer, str) and str(UUID(payer)) == payer:
+                        record["native_auth_user_id"] = payer
+                except ValueError:
+                    pass
+                if isinstance(key_hash, str) and re.fullmatch(r"[0-9a-f]{64}", key_hash):
+                    record["native_auth_key_hash"] = key_hash
+                # Key-owned log metadata and native Logging/call-ID setup occur
+                # after custom_auth. Body syntax here is not origin evidence.
+                if scopes:
+                    parsed = [scope_validator("rag")(scope) for scope in scopes]
+                    if any(scope != parsed[0] for scope in parsed):
+                        raise RuntimeError("Conflicting disposable RAG scope observations")
+                    record["unverified_rag_scope"] = parsed[0]
+            elif auth is not None:
                 record["native_auth_user_id"] = auth.user_id
                 # Native preprocessing (after auth) asks supported streaming
                 # providers for usage. Record the exact owner's pure patch;
@@ -189,6 +219,6 @@ async def gateway_auth(request, api_key):
                 ))
             # A rejected forged task may leave caller metadata untouched before
             # the product projection runs. Do not label that input as verified.
-            if scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
+            if not embedding and scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
                 record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
             _finish(record)
