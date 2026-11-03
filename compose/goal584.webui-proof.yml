@@ -50,6 +50,12 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ../scripts/goal584-budget-proof/prove_rag_service.py
+        target: /proof/prove_rag_service.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../scripts/goal584-budget-proof/verify_admin_calls.py
         target: /proof/verify_admin_calls.py
         read_only: true
@@ -94,6 +100,9 @@ services:
       VECTOR_DB: pgvector
       PGVECTOR_DB_URL: postgresql+psycopg://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584_vectors
       PGVECTOR_INITIALIZE_MAX_VECTOR_LENGTH: "3"
+      PGVECTOR_PGCRYPTO: "false"
+      RAG_EMBEDDING_CONTENT_PREFIX: "document:"
+      RAG_EMBEDDING_QUERY_PREFIX: "query:"
       # Native external engine avoids loading a local SentenceTransformer model.
       # The inactive embedding profile is configured separately by its proof.
       RAG_EMBEDDING_ENGINE: openai

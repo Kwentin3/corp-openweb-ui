@@ -282,6 +282,7 @@ jobs:
                    'scripts/goal584-budget-proof/prove_background_tasks.py',
                    'scripts/goal584-budget-proof/prove_background_browser.py',
                    'scripts/goal584-budget-proof/prove_pricing_browser.py',
+                   'scripts/goal584-budget-proof/prove_rag_service.py',
                    'scripts/goal584-budget-proof/prove_ledger_retention.py',
                    'deploy/openwebui-budgets/service_pipe.py',
                    'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
@@ -613,6 +614,18 @@ jobs:
             --compose-file compose/goal584.webui-proof.yml \
             --compose-file compose/goal584.overlap-proof.yml \
             --receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
+
+      - name: Qualify native RAG text and query embeddings through the protected service key
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml up -d --scale proxy=1 --wait --wait-timeout 180 proxy
+          mkdir -p "$PROOF_OUTPUT_DIR/rag"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_rag_service.py \
+            --base-url "$PROOF_WEBUI_URL" --env-file "$PROOF_ENV_FILE" \
+            --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" --output "$PROOF_OUTPUT_DIR/rag" \
+            --prior-pricing-receipt "$PROOF_OUTPUT_DIR/pricing/pricing-browser.json" \
+            --prior-overlap-receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

@@ -6,9 +6,9 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний успешный native run
-[41640329097](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41640329097),
-HEAD `e38c3f36f656ff8e1e7a2a9dfc153d9033699dfc`, tested merge
-`807948a487a1d16f85907500f10f539a60978695`; Active CI41640329083 PASS.
+[41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
+HEAD `f84a57af7679d82828eaa507a21399d2198d3d31`, tested merge
+`73c711a5571f9a478a89577d00dd7fdabcde5c52`; Active CI41648991628 PASS.
 Повторены main/defaults/new-hire/cost/details/OFF, direct-title service,
 обычный admin footer и удаление чата с сохранением учёта. Впервые прошли
 три автоматические native задачи из обычного employee Send. Принят также
@@ -21,8 +21,8 @@ Review повторно исполнил сравнение actual service/admin
 nonce/key hash/ответ, неизменные4 personal users/8 keys и34 исторические rows;
 admin34→36 с двумя личными вызовами. Retention принят по source-bound evidence
 с явно сохранённым ограничением независимого raw DB replay.
-Parent для run37 сверил ZIP `c9c73934ea1ed6d2cf5c62f150ac21325062c6c048990b00685b4bf066a6ea32`,
-202 файла,39 source SHA и6 mounted SHA; cleanup0 containers/0 volumes.
+Parent для run38 сверил ZIP `e5ddfd802ac7a804f54b37c97d3cc0d6dfdcb63ec1b595b13f104eadbd71abe5`,
+203 файла,42 source SHA и6 mounted SHA; cleanup0 containers/0 volumes.
 Native direct service$0.20, automatic service$0.60 и personal reporting$0.40 разделены.
 Retention: DELETE200 → exact native GET401 → тот же user auth200;
 44 raw rows/5 payers/9 keys до/после имеют одинаковый финансовый hash.
@@ -130,7 +130,7 @@ bytes/монтированный hash, native financial/task/Tool state и readi
 восстановлены. Snapshot capture time не является source/version/effective
 interval; atomic tariff binding и другие категории этим не доказаны.
 
-**Следующий кандидат — два native proxy процесса.** Один общий native
+**Принятый run38 — два native proxy процесса.** Один общий native
 PostgreSQL/Redis, реальные3s unfinished provider witnesses, второй worker
 проверяет KEY и отдельно USER reservation denial без provider dispatch,
 другие модель/пользователь остаются доступны, после settlement допуск
@@ -141,8 +141,14 @@ PostgreSQL/Redis, реальные3s unfinished provider witnesses, второй
 Synthetic B выбран строго между R+C и2R. Source closure16 custom modules
 и provider bytes проверяются у двух отдельных контейнеров.19 focused tests,
 204 tracked harness,36 Bash/14 Python/actionlint/30 bind/import checks PASS;
-runtime concurrency ещё не принят. Review и точные источники:
+Native runtime и независимая приёмка PASS. Реальные R$0.98/B$1.57,
+9 successes/2 native422,9 positive rows/12 counters; recovery после held result
+1.54s(KEY)/1.49s(USER). Новые роли/allowlist/alias/metadata/reset и old baseline
+приняты по строгим source-bound runtime assertions, а не выдуманному raw replay.
+Readiness review и точные источники:
 `local/goal584/overlap-independent-readiness.md`.
+Независимая приёмка/replay:
+`local/goal584/runtime-proof-41648991609/independent-overlap-acceptance.md`.
 
 Для последующего RAG обнаружен конкретный fixture gap: stock0.12.2-slim
 возвращает native503 при default SQLite vector URL до embeddings. Поэтому
@@ -153,7 +159,35 @@ digest `0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f`
 проверен; package0.8.7/PG16.15. SQL создаёт только пустую vector DB, financial
 tables остаются в прежней DB. Read-only startup проверяет наличие extension,
 а не выдаёт его за RAG acceptance. Worker/reader/transport RAG ветка и calendar
-остаются отдельно, в этот candidate не включены. Production не затронут.
+в run38 не включены. Production не затронут.
+
+**Следующий кандидат — штатный RAG HTTP text/query.** Reader/transport/proof
+из isolated ветки интегрированы в primary без изменения личного read_employee
+и gateway monetary logic. Один прежний service User/counter, canonical A+E
+keys; expected service models читаются строго из native User.models, не из
+нового каталога. E secret находится только в protected native RAG config,
+fixed server key metadata содержит schema1/category service/operation
+rag_embedding без выдуманных Actor/Chat/root IDs. Scope syntax отдельно не
+доказывает origin: proof сверяет actual key hash/payer/model/native logging ID.
+Provider embedding response ID отсутствует; diagnostic history ID не выдаётся
+за native ID, причинность проверяется по одному вызову за шаг и native rows.
+Обычный user0 создаёт собственную native owner-bound collection и запрашивает
+её: ожидаются2 embeddings/$0.10 каждый, сохранённый документ/пригодные vectors,
+personal4 и serviceA$0.80 без изменений. E hard-zero даёт native422 без
+provider, cap восстанавливается с прежними spend/reset/identity. Ordinary
+settings denial — exact native401/ACCESS_PROHIBITED при живой той же session.
+Перед RAG parent явно возвращает proxy=1; proof только проверяет topology,
+shared worker bind находится в существующем webui overlay. Success оставляет
+E active до disposable teardown; ошибки не стирают финансовую историю.
+Непустые document:/query: prefixes и PGCRYPTO=false задаются только в stand.
+210 component tests (203 PASS/7 opt-in skips),234 harness PASS,
+37 Bash/14 Python/actionlint/31 binds/imports PASS.21 focused source tests и
+independent readiness review PASS; native RAG ещё не принят. Это не File GUI,
+универсальный публичный embedding API или runtime-demotion qualification.
+Evidence: `local/goal584/rag-proof-independent-readiness.md`,
+`local/goal584/rag-native-proof-preparation.md`. Calendar остаётся untracked
+source-подготовкой; tariff versions/checks, failures/cancel и действующие
+Responses/OfficeCLI/STT/Terminal остаются в полном GOAL.
 
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn
