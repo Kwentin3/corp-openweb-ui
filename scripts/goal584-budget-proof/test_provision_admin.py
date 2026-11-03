@@ -61,6 +61,32 @@ def row(user=IDS[2]):
 
 
 class ProvisionAdminTests(unittest.TestCase):
+    def test_model_grant_readback_accepts_native_regenerated_rows_and_order(self):
+        expected = {"id": p.MODELS[0], "name": "Synthetic", "base_model_id": None,
+                    "params": {"max_tokens": 5}, "meta": {"toolIds": ["synthetic-tool"]}, "is_active": True,
+                    "access_grants": [{"id": "old-native-row", "resource_type": "model", "resource_id": p.MODELS[0],
+                        "created_at": 1, "principal_type": "user", "principal_id": IDS[0], "permission": "read"},
+                        {"principal_type": "user", "principal_id": IDS[4], "permission": "read"}]}
+        actual = copy.deepcopy(expected)
+        actual["access_grants"] = [dict(grant, id="new-native-" + str(index), created_at=2,
+            resource_type="model", resource_id=p.MODELS[0]) for index, grant in reversed(list(enumerate(expected["access_grants"])))]
+        self.assertEqual(p.model_grant_changes(expected, actual), [])
+        self.assertNotEqual(actual, expected)
+        for field, value in (("name", "Changed"), ("params", {"max_tokens": 9}),
+                             ("meta", {"toolIds": []}), ("is_active", False), ("base_model_id", "other")):
+            changed = copy.deepcopy(actual)
+            changed[field] = value
+            with self.subTest(field=field):
+                self.assertEqual(p.model_grant_changes(expected, changed), [field])
+        for mutation in (lambda grants: grants.pop(),
+                         lambda grants: grants.append(copy.deepcopy(grants[0])),
+                         lambda grants: grants[0].update(principal_id=IDS[5]),
+                         lambda grants: grants[0].update(permission="write"),
+                         lambda grants: grants[0].update(principal_type="group")):
+            changed = copy.deepcopy(actual)
+            mutation(changed["access_grants"])
+            self.assertEqual(p.model_grant_changes(expected, changed), ["access_grants"])
+
     def test_bootstrap_setup_uses_only_webui_identity_and_native_grants(self):
         state, employees = fixture()
         state["admin"].update(token="synthetic-admin")

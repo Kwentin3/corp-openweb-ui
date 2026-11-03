@@ -117,6 +117,18 @@ Python scripts PASS. Подготовлен отдельный
 post-main native fixture: third staff не меняет старый11-call baseline; save
 template → cancel initialize → confirmed initialize → employee success/zero-cap
 denial. Следующий шаг — проверка кандидата и actual native GUI qualification.
+Первый native кандидат `aed366b48d25cebafe1b0bdf00281b64f54c4c3c`,
+[run41591143766](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41591143766),
+прошёл прежний main/cost/details/OFF и owner-role сценарии; parent replay PASS,
+29 source SHA/6 mounted SHA совпали, cleanup0/0. Остановился до нового GUI на
+bootstrap model grant readback. Native `replace_access_grants` удаляет старые
+строки и создаёт новые UUID/created_at; сравнение whole access_grants с запросом
+было ошибочным. Фикстура исправлена: сверяет точный semantic grant set/count и все
+остальные MODEL_FIELDS, как существующий add_model_meta;13 focused tests PASS,
+включая native ID regeneration/reordering и отрицательный дрейф прав/профиля.
+Следующий шаг — повтор native GUI gate. Bootstrap runtime всё ещё не принят. Artifact SHA256
+`d6ef00a2c4870317ba0999b7faa262b7556d144c6c07bdff7dc9d37b1159a254`;
+evidence `local/goal584/runtime-proof-41591143766`.
 Следом остаются services и остальные перечисленные gaps;
 business default template должен храниться за admin-role API, не в owner-writable
 Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.

@@ -263,6 +263,21 @@ def snapshot(webui, state):
             "source_endpoints": ["/user/info", "/key/list", "/spend/logs/v2"]}
 
 
+def model_grant_changes(expected, actual):
+    """Compare editable model state at the native grant meaning boundary.
+
+    Stock0.12.2 replace_access_grants regenerates every grant row's id and
+    created_at. Those row receipts and SQL ordering do not define access;
+    principal_type/principal_id/permission do. Preserve every other model field.
+    """
+    changed = [field for field in expected if field != "access_grants" and actual.get(field) != expected[field]]
+    observed_grants, requested_grants = grant_set(actual), grant_set(expected)
+    if (observed_grants != requested_grants or len(actual["access_grants"]) != len(expected["access_grants"])
+            or len(observed_grants) != len(actual["access_grants"])):
+        changed.append("access_grants")
+    return changed
+
+
 def bootstrap_setup(webui, state, path, handoff):
     """Add only a WebUI employee after the original two-employee proof phase."""
     require("bootstrap_fixture" not in state and handoff is not None and not handoff.exists(),
@@ -284,8 +299,8 @@ def bootstrap_setup(webui, state, path, handoff):
         expected = model_body(webui.model(state["admin"]["token"], model))
         expected["access_grants"].append({"principal_type": "user", "principal_id": account["id"], "permission": "read"})
         webui.ok("POST", "/api/v1/models/model/update", token=state["admin"]["token"], body=expected)
-        require(model_body(webui.model(state["admin"]["token"], model)) == expected,
-                "Bootstrap model grant changed unrelated native model fields")
+        changed = model_grant_changes(expected, model_body(webui.model(state["admin"]["token"], model)))
+        require(not changed, "Bootstrap model grant changed unrelated native model fields: " + ",".join(changed))
     webui.catalog(account)
     observed = asyncio.run(bootstrap_inspection(state))
     require(observed["kind"] == "absent", "Fresh WebUI employee already has a native budget identity")
