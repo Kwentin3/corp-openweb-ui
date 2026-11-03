@@ -65,6 +65,11 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
                 self.message if msg == ANSWER else self.parent if msg == PARENT else None))
         self.config = {"ledger_base_url": URL, "ledger_read_key": "existing-viewer-secret", "ledger_admin_key": KEY}
         self.functions = SimpleNamespace(get_function_valves_by_id=AsyncMock(side_effect=lambda _: self.config))
+        async def save_config(function_id, value):
+            self.assertEqual(function_id, "employee_budget_cost")
+            self.config = copy.deepcopy(value)
+            return SimpleNamespace(id=function_id)
+        self.functions.update_function_valves_by_id = AsyncMock(side_effect=save_config)
         self.denied = set()
 
         async def access(user, model):
@@ -96,6 +101,10 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
 
         self.client = SimpleNamespace(read_employee=AsyncMock(side_effect=read),
             set_user_cap=AsyncMock(side_effect=user_cap), set_model_cap=AsyncMock(side_effect=model_cap))
+        async def inspect_employee(user_id, models):
+            current = await self.client.read_employee(user_id, models)
+            return contract.EmployeeBudgetInspection(user_id, models, "ready", current)
+        self.client.inspect_employee = AsyncMock(side_effect=inspect_employee)
         self.session = object()
         native = {name: module() for name in ("open_webui", "open_webui.models", "open_webui.routers", "open_webui.utils")}
         native.update({"open_webui.env": module(VERSION="0.12.2"),
@@ -114,6 +123,35 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.tools = extension.Tools()
         self.tools.valves.managed_model_ids = list(MODELS)
         self.parent["content"] = self.plan()
+
+    def template_plan(self):
+        return json.dumps({"schema": 1, "type": "employee_budget_template",
+            "expected_revision": policy.template_revision(self.config.get("default_budget_template"), MODELS),
+            "budget_usd": "40", "shares": {MODELS[0]: "100", MODELS[1]: "0"}, "budget_duration": "1mo"})
+
+    def initialization_plan(self):
+        return json.dumps({"schema": 1, "type": "employee_budget_initialize", "changes": [{
+            "user_id": USER, "expected_revision": policy.absence_revision(USER, MODELS,
+                policy.template_revision(self.config.get("default_budget_template"), MODELS)),
+            "budget_usd": "40", "shares": {MODELS[0]: "100", MODELS[1]: "0"}}]})
+
+    def absent_employee(self):
+        del self.states[USER]
+        original = self.client.inspect_employee.side_effect
+        async def inspect_employee(user_id, models):
+            if user_id == USER and USER not in self.states:
+                return contract.EmployeeBudgetInspection(USER, models, "absent", code="missing_native_user")
+            return await original(user_id, models)
+        self.client.inspect_employee.side_effect = inspect_employee
+        async def initialize(user_id, caps, total_cap, secret, *, before_write):
+            for kind in ("new_user", "new_model_a", "new_model_b"):
+                await before_write()
+                self.writes.append((kind, user_id, total_cap))
+            initial = state(user_id)
+            self.states[user_id] = replace(initial, max_budget=total_cap, spend=Decimal(0),
+                models=tuple(replace(m, max_budget=dict(caps)[m.model], spend=Decimal(0)) for m in initial.models))
+            return self.states[user_id]
+        self.client.initialize_employee = AsyncMock(side_effect=initialize)
 
     def plan(self, *, target=USER, budget="20"):
         return json.dumps({"schema": 1, "type": "employee_budget_plan", "changes": [{
@@ -344,6 +382,119 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.tools.valves.employee_limit = 1
         with self.assertRaisesRegex(contract.BudgetAdminError, "directory_incomplete"):
             await self.open()
+
+    async def test_template_save_preserves_private_config_and_personal_budgets(self):
+        self.config["unrelated"] = {"keep": "existing-setting"}
+        before_config, before_states = copy.deepcopy(self.config), copy.deepcopy(self.states)
+        self.parent["content"] = self.template_plan()
+        confirmation = AsyncMock(return_value=True)
+        result = await self.apply(confirmation)
+        self.assertEqual(result[1]["status"], "success")
+        self.html(result)
+        self.assertEqual({k: v for k, v in self.config.items() if k != "default_budget_template"}, before_config)
+        self.assertEqual(self.config["default_budget_template"]["budget_usd"], "40")
+        self.assertEqual(self.states, before_states)
+        self.assertEqual(self.writes, [])
+        self.assertIn("Существующие бюджеты", confirmation.call_args.args[0]["data"]["message"])
+
+    async def test_template_cancel_or_changed_configuration_cannot_write(self):
+        self.parent["content"] = self.template_plan()
+        before = copy.deepcopy(self.config)
+        result = await self.apply(AsyncMock(return_value=False))
+        self.assertEqual(result[1]["status"], "cancelled")
+        self.assertEqual(self.config, before)
+        self.functions.update_function_valves_by_id.assert_not_awaited()
+        async def confirm(_):
+            self.config["ledger_admin_key"] = "sk-rotated-test-only"
+            return True
+        result = await self.apply(confirm)
+        self.assertEqual(result[1]["status"], "partial_or_failed")
+        self.functions.update_function_valves_by_id.assert_not_awaited()
+        self.assertIn("stale_configuration", self.html(result))
+
+    async def test_absent_employee_form_and_explicit_creation_keep_existing_budgets(self):
+        self.absent_employee()
+        before = copy.deepcopy(self.states[USER2])
+        text = self.html(await self.open())
+        self.assertIn("Бюджет не создан", text)
+        self.assertIn("Расход: нет данных", text)
+        self.assertNotIn(USER + '-hash-', text)
+        self.parent["content"] = self.initialization_plan()
+        result = await self.apply(AsyncMock(return_value=False))
+        self.assertEqual(result[1]["status"], "cancelled")
+        self.assertNotIn(USER, self.states)
+        self.client.initialize_employee.assert_not_awaited()
+        confirmed = AsyncMock(return_value=True)
+        result = await self.apply(confirmed)
+        self.assertEqual(result[1]["status"], "success")
+        self.assertEqual(self.states[USER].max_budget, Decimal(40))
+        self.assertEqual(self.states[USER2], before)
+        self.assertEqual([w[0] for w in self.writes], ["new_user", "new_model_a", "new_model_b"])
+        financial_diff = confirmed.call_args.args[0]["data"]["message"]
+        self.assertIn("1mo", financial_diff)
+        self.assertIn("1 личный бюджет и 2 назначений", financial_diff)
+        self.assertIn("нет назначения → 40 USD", financial_diff)
+        self.assertIn("нет назначения → 0 USD", financial_diff)
+
+    async def test_initialization_conflict_and_changed_template_prevent_creation(self):
+        self.absent_employee()
+        self.parent["content"] = self.initialization_plan()
+        async def change_template(_):
+            self.config["default_budget_template"] = {"budget_usd": "10", "shares": {
+                MODELS[0]: "50", MODELS[1]: "50"}, "budget_duration": "1mo"}
+            return True
+        result = await self.apply(change_template)
+        self.assertEqual(result[1]["status"], "partial_or_failed")
+        self.assertEqual(self.writes, [])
+        self.client.initialize_employee.assert_not_awaited()
+        self.parent["content"] = self.initialization_plan()
+        actual = self.client.inspect_employee.side_effect
+        async def conflict(user_id, models):
+            if user_id == USER:
+                return contract.EmployeeBudgetInspection(USER, models, "incomplete", code="missing_assignment")
+            return await actual(user_id, models)
+        self.client.inspect_employee.side_effect = conflict
+        with self.assertRaisesRegex(contract.BudgetAdminError, "employee_not_absent"):
+            await self.apply(AsyncMock(return_value=True))
+        self.assertEqual(self.writes, [])
+
+    async def test_initialization_rechecks_authority_between_native_writes(self):
+        self.absent_employee()
+        self.parent["content"] = self.initialization_plan()
+        async def initialize(user_id, caps, cap, secret, *, before_write):
+            await before_write()
+            self.writes.append(("new_user", user_id, cap))
+            self.admin.role = "user"
+            await before_write()
+            self.writes.append(("forbidden_key", user_id, cap))
+        self.client.initialize_employee.side_effect = initialize
+        with self.assertRaisesRegex(contract.BudgetAdminError, "admin_required"):
+            await self.apply(AsyncMock(return_value=True))
+        self.assertEqual([w[0] for w in self.writes], ["new_user"])
+
+    async def test_initialization_confirmation_labels_cannot_inject_diff_lines(self):
+        self.absent_employee()
+        self.employees[0].name = "Ada\n\nСоздать: чужой бюджет"
+        self.models[MODELS[0]]["name"] = "Model A\n\nUSD cap → 9999"
+        self.parent["content"] = self.initialization_plan()
+        confirmed = AsyncMock(return_value=False)
+        await self.apply(confirmed)
+        diff = confirmed.call_args.args[0]["data"]["message"]
+        self.assertIn("Ada Создать: чужой бюджет", diff)
+        self.assertIn("Model A USD cap → 9999: нет назначения → 40 USD", diff)
+        self.assertNotIn("\nСоздать: чужой", diff)
+        self.assertNotIn("\nUSD cap", diff)
+        self.client.initialize_employee.assert_not_awaited()
+
+    async def test_setup_partial_error_uses_safe_result_and_never_retries(self):
+        self.absent_employee()
+        self.parent["content"] = self.initialization_plan()
+        self.client.initialize_employee.side_effect = contract.BudgetAdminError("native_http_503")
+        result = await self.apply(AsyncMock(return_value=True))
+        self.assertEqual(result[1]["status"], "partial_or_failed")
+        self.assertIn("native_http_503", self.html(result))
+        self.client.initialize_employee.assert_awaited_once()
+        self.assertNotIn(USER, self.states)
         self.assertEqual(self.writes, [])
 
     async def test_unmanaged_target_connection_fails_before_native_budget_reads(self):

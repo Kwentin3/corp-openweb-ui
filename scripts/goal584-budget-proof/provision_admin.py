@@ -19,6 +19,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import secrets
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
@@ -44,7 +45,8 @@ SKILL = """# Employee budget administration
 
 For a request to view or configure employee budgets, call open_budget_form.
 Use view_json only for display filters. Present the native form to the admin.
-When the current user turn is a JSON employee_budget_plan, call apply_budget_form
+When the current user turn is a JSON employee_budget_plan,
+employee_budget_template or employee_budget_initialize, call apply_budget_form
 with no business arguments. The server reads the exact saved parent user turn;
 do not copy, rewrite or interpret its changes as tool arguments. Applying requires
 the native server confirmation. Treat the returned fresh form as the result;
@@ -261,6 +263,69 @@ def snapshot(webui, state):
             "source_endpoints": ["/user/info", "/key/list", "/spend/logs/v2"]}
 
 
+def bootstrap_setup(webui, state, path, handoff):
+    """Add only a WebUI employee after the original two-employee proof phase."""
+    require("bootstrap_fixture" not in state and handoff is not None and not handoff.exists(),
+            "Bootstrap setup requires a fresh private employee handoff")
+    before = snapshot(webui, state)
+    email = "newhire-" + secrets.token_hex(12) + "@example.com"
+    password = "Aa1!" + secrets.token_urlsafe(32)
+    response = webui.ok("POST", "/api/v1/auths/add", token=state["admin"]["token"], body={
+        "name": "Proof new employee", "email": email, "password": password, "role": "user"})
+    account = account_from_response(response, email, password, "user")
+    require(account["id"] not in {entry["id"] for entry in [*state["users"], state["admin"], state["role_probe_control"]]},
+            "Bootstrap employee identity duplicates the existing fixture")
+    # Persist the native identity before changing grants; no hidden signup retry.
+    state["bootstrap_fixture"] = {"stage": "installing", "employee": account,
+        "original_staff": {key: before[key] for key in ("users", "keys")},
+        "original_positive_request_ids": sorted(row["request_id"] for row in before["attributed_spend_logs"])}
+    write_private(path, state)
+    for model in MODELS:
+        expected = model_body(webui.model(state["admin"]["token"], model))
+        expected["access_grants"].append({"principal_type": "user", "principal_id": account["id"], "permission": "read"})
+        webui.ok("POST", "/api/v1/models/model/update", token=state["admin"]["token"], body=expected)
+        require(model_body(webui.model(state["admin"]["token"], model)) == expected,
+                "Bootstrap model grant changed unrelated native model fields")
+    webui.catalog(account)
+    observed = asyncio.run(bootstrap_inspection(state))
+    require(observed["kind"] == "absent", "Fresh WebUI employee already has a native budget identity")
+    state["bootstrap_fixture"]["stage"] = "setup_complete"
+    write_private(path, state)
+    write_private(handoff, {"schema": 1, "user": {key: account[key] for key in ("id", "email", "password")},
+                            "model_id": MODEL_ID})
+
+
+async def bootstrap_inspection(state):
+    employee = state["bootstrap_fixture"]["employee"]
+    async with ClientSession(trust_env=False) as session:
+        client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)["operator_token"])
+        inspection = await client.inspect_employee(employee["id"], tuple(MODELS))
+    result = {"user_id": employee["id"], "kind": inspection.kind, "code": inspection.code}
+    if inspection.employee_budget is not None:
+        result.update(normalize([inspection.employee_budget]))
+    return result
+
+
+def bootstrap_snapshot(webui, state):
+    fixture = state.get("bootstrap_fixture")
+    require(isinstance(fixture, dict) and fixture.get("stage") == "setup_complete",
+            "Bootstrap WebUI employee setup is incomplete")
+    result = snapshot(webui, state)
+    require({key: result[key] for key in ("users", "keys")} == fixture["original_staff"],
+            "Bootstrap phase changed existing employee caps/spend/reset/identities")
+    result["bootstrap"] = asyncio.run(bootstrap_inspection(state))
+    expanded = {**state, "users": [*state["users"], fixture["employee"]]}
+    rows, unqualified = positive_logs(native_client(state), expanded)
+    result["attributed_spend_logs"], result["unqualified_zero_row_count"] = rows, unqualified
+    result["baseline_positive_request_ids"] = fixture["original_positive_request_ids"]
+    result["existing_employee_native_state_unchanged"] = True
+    config = webui.ok("GET", "/api/v1/functions/id/" + FILTER_ID + "/valves", token=state["admin"]["token"])
+    result["default_template"] = copy.deepcopy(config.get("default_budget_template"))
+    result["employee_function_valves_get_status"] = denied_status(webui, "GET",
+        "/api/v1/functions/id/" + FILTER_ID + "/valves", fixture["employee"]["token"])
+    return result
+
+
 def native_probe(state, *, deny):
     before, native = read_states(state), native_client(state)
     own = before[2]
@@ -390,7 +455,8 @@ def role_probe(webui, state, path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "hash-probe", "native-probe", "role-probe"))
+    parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "hash-probe", "native-probe", "role-probe",
+                                                          "bootstrap-setup", "bootstrap-snapshot"))
     parser.add_argument("--private-state", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--browser-accounts", type=Path)
@@ -406,7 +472,7 @@ def main():
             paths.append(args.browser_accounts.resolve())
         require(len(set(paths)) == len(paths), "Private state/handoff and receipt paths must be separate")
         output_valid = True
-        require(args.browser_accounts is None or args.phase == "setup", "Browser handoff is setup-only")
+        require(args.browser_accounts is None or args.phase in ("setup", "bootstrap-setup"), "Browser handoff is setup-only")
         state = read_private(args.private_state)
         credentials.append(read_private(OPERATOR_STATE)["operator_token"])
         require(state.get("stage") == "setup_complete" and len(state.get("users", [])) == 2
@@ -427,7 +493,9 @@ def main():
             receipt["native_probe"] = native_probe(state, deny=args.phase == "native-probe")
         elif args.phase == "role-probe":
             receipt["role_probe"] = role_probe(webui, state, args.private_state)
-        receipt.update(snapshot(webui, state))
+        elif args.phase == "bootstrap-setup":
+            bootstrap_setup(webui, state, args.private_state, args.browser_accounts)
+        receipt.update(bootstrap_snapshot(webui, state) if args.phase.startswith("bootstrap-") else snapshot(webui, state))
         receipt["passed"] = True
     except ProofError as error:
         receipt["failure"] = str(error)
@@ -439,6 +507,7 @@ def main():
     rendered = json.dumps(receipt, indent=2, allow_nan=False)
     credentials += secret_values(state) + [entry["key"] for entry in state.get("admin_budgetnative_keys", [])]
     credentials += [state.get("role_probe_control", {}).get(field) for field in ("password", "token")]
+    credentials += [state.get("bootstrap_fixture", {}).get("employee", {}).get(field) for field in ("password", "token")]
     if any(value and value in rendered for value in credentials) or re.search(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", rendered):
         receipt = {"schema": 1, "proof": "goal584-native-admin-provisioning", "phase": args.phase,
                    "passed": False, "failure": "Unsafe credential-bearing receipt suppressed"}

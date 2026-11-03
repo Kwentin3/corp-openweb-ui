@@ -20,7 +20,7 @@ import subprocess
 import time
 from urllib.parse import urlsplit
 
-from playwright.sync_api import expect, sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect, sync_playwright
 from prove_webui_browser import Fixture, chat, login, require, safe_failure, same_money, text_content, write_json
 
 
@@ -31,14 +31,15 @@ MARKER = 'data-budget-editor="v1"'
 
 
 class FormParser(HTMLParser):
-    def __init__(self, html):
+    def __init__(self, html, block_id="budget-data"):
         super().__init__()
         self.current = False
         self.blocks = []
+        self.block_id = block_id
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
-        if tag == "script" and dict(attrs).get("id") == "budget-data":
+        if tag == "script" and dict(attrs).get("id") == self.block_id:
             self.current = True
             self.blocks.append("")
 
@@ -51,15 +52,16 @@ class FormParser(HTMLParser):
             self.current = False
 
 
-def editor_rows(html):
+def editor_rows(html, *, expected_count=2):
     require(isinstance(html, str) and MARKER in html, "Native editor embed is missing")
     require(not re.search(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|(?:sk-|gw-)[A-Za-z0-9_-]{16,}", html),
             "Native editor contains a credential-shaped value")
     parser = FormParser(html)
     require(len(parser.blocks) == 1, "Native editor has an ambiguous data block")
     rows = json.loads(parser.blocks[0])
-    require(isinstance(rows, list) and len(rows) == 2 and len({r["user_id"] for r in rows}) == 2,
-            "Native editor must show the two actual employees")
+    require(isinstance(rows, list) and len(rows) == expected_count
+            and len({r["user_id"] for r in rows}) == expected_count,
+            "Native editor must show the expected actual employees")
     return rows
 
 
@@ -169,7 +171,7 @@ class AdminFixture(Fixture):
         return data
 
 
-def admin_login(browser, base, account):
+def admin_login(browser, base, account, *, first_login=True):
     context = browser.new_context(locale="en-US", viewport={"width": 1440, "height": 1000})
     page = context.new_page()
     page.set_default_timeout(30_000)
@@ -186,9 +188,16 @@ def admin_login(browser, base, account):
     # This fixture signs its fresh admin into the GUI for the first time.
     # Acknowledge the stock release-notes modal through its visible control.
     release = page.get_by_role("button", name="Okay, Let's Go!", exact=True)
-    expect(release).to_be_visible(timeout=15_000)
-    release.click()
-    expect(release).not_to_be_visible()
+    if first_login:
+        expect(release).to_be_visible(timeout=15_000)
+    else:
+        try:
+            release.wait_for(state="visible", timeout=5_000)
+        except PlaywrightTimeoutError:
+            pass  # A previous ordinary sign-in may have persisted acknowledgment.
+    if release.is_visible():
+        release.click()
+        expect(release).not_to_be_visible()
     return page, session["token"]
 
 
@@ -221,7 +230,8 @@ def editor_embeds(message, method):
             if isinstance(html, str) and MARKER in html]
 
 
-def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, output, label, *, status=None):
+def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, output, label, *, status=None,
+                expected_count=2):
     deadline = time.monotonic() + 60
     method = "open_budget_form" if text == INTENT else "apply_budget_form"
     while True:
@@ -247,7 +257,7 @@ def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, outp
     require(not message.get("error"), "Native admin answer completed with an error")
     require(len(embeds) == 1, "Current native admin Tool has an ambiguous editor result")
     html = embeds[0]
-    rows = editor_rows(html)
+    rows = editor_rows(html, expected_count=expected_count)
     card = page.locator("#message-" + sent["id"])
     iframe = card.locator('iframe[srcdoc*="data-budget-editor"]').first
     expect(iframe).to_be_visible()

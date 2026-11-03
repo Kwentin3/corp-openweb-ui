@@ -152,6 +152,63 @@ class PolicyTests(unittest.TestCase):
         self.assertIn("5 → 10 USD", text)
 
 
+class BootstrapPolicyTests(unittest.TestCase):
+    labels = {"a": "Model A", "b": "Model B"}
+
+    def template_plan(self):
+        return {"schema": 1, "type": "employee_budget_template",
+                "expected_revision": policy.template_revision(None, self.labels),
+                "budget_usd": "40", "shares": {"a": "100", "b": "0"}, "budget_duration": "1mo"}
+
+    def test_template_is_exact_config_and_does_not_encode_personal_state(self):
+        value = policy.parse_template_plan(json.dumps(self.template_plan()), None, self.labels)
+        self.assertEqual(value, {"budget_usd": "40", "shares": {"a": "100", "b": "0"}, "budget_duration": "1mo"})
+        public = policy.template_public(value, self.labels)
+        self.assertEqual(public["budget_usd"], "40")
+        self.assertEqual(public["shares"][1]["share_percent"], "0")
+        self.assertNotEqual(public["revision"], policy.template_revision(None, self.labels))
+
+    def test_template_rejects_stale_unknown_models_precision_and_mixed_operations(self):
+        for update in ({"expected_revision": "0" * 64}, {"shares": {"a": "100"}},
+                       {"budget_usd": 40}, {"budget_duration": "30d"}, {"changes": []},
+                       {"budget_usd": "0.123456789012345678901"}):
+            with self.subTest(update=update), self.assertRaises(contract.BudgetAdminError):
+                policy.parse_template_plan(json.dumps(self.template_plan() | update), None, self.labels)
+        with self.assertRaisesRegex(contract.BudgetAdminError, "duplicate_json_field"):
+            policy.parse_template_plan('{"type":"employee_budget_template","type":"employee_budget_plan"}', None, self.labels)
+
+    def test_absent_revision_binds_employee_allowed_models_and_template(self):
+        rev = policy.absence_revision(USER, ("a", "b"), policy.template_revision(None, self.labels))
+        value = {"schema": 1, "type": "employee_budget_initialize", "changes": [{
+            "user_id": USER, "expected_revision": rev, "budget_usd": "40", "shares": {"a": "100", "b": "0"}}]}
+        change = policy.parse_initialization(json.dumps(value))[0]
+        absent = contract.EmployeeBudgetInspection(USER, ("a", "b"), "absent")
+        identity = {"user_id": USER, "models": ("a", "b")}
+        self.assertEqual(policy.prepare_initialization(change, absent, identity, None, self.labels),
+                         (("a", D(40)), ("b", D(0))))
+        for observation in (replace(absent, kind="incomplete"), replace(absent, kind="conflict"),
+                            replace(absent, kind="ready", employee_budget=state())):
+            with self.assertRaisesRegex(contract.BudgetAdminError, "employee_not_absent"):
+                policy.prepare_initialization(change, observation, identity, None, self.labels)
+        template = policy.parse_template_plan(json.dumps(self.template_plan()), None, self.labels)
+        with self.assertRaisesRegex(contract.BudgetAdminError, "stale_snapshot"):
+            policy.prepare_initialization(change, absent, identity, template, self.labels)
+        with self.assertRaisesRegex(contract.BudgetAdminError, "stale_snapshot"):
+            policy.prepare_initialization(change, absent, identity | {"models": ("a",)}, None, self.labels)
+
+    def test_pending_does_not_renormalize_template_or_imply_zero_spend(self):
+        template = policy.parse_template_plan(json.dumps(self.template_plan()), None, self.labels)
+        identity = {"user_id": USER, "name": "Ada", "email": "a@example.invalid", "models": ("a",)}
+        absent = contract.EmployeeBudgetInspection(USER, ("a",), "absent")
+        public = policy.public_pending(identity, absent, template, self.labels)
+        self.assertIsNone(public["suggested_budget_usd"])
+        self.assertIsNone(public["suggested_shares"])
+        self.assertNotIn("spend_usd", public)
+        matching = policy.public_pending(identity | {"models": ("a", "b")},
+            replace(absent, allowed_wire_models=("a", "b")), template, self.labels)
+        self.assertEqual(matching["suggested_shares"], {"a": "100", "b": "0"})
+
+
 class MutationTests(unittest.IsolatedAsyncioTestCase):
     async def test_lower_model_then_raise_total_then_raise_other_model(self):
         before = state()

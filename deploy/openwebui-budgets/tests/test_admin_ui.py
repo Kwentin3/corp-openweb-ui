@@ -26,6 +26,22 @@ def rows():
             for i, value in enumerate(IDS)]
 
 
+def template():
+    return {'revision': 'template-revision', 'budget_usd': '0.80', 'budget_duration': '1mo', 'shares': [
+        {'id': 'model-a', 'label': 'Model A', 'share_percent': '100'},
+        {'id': 'model-b', 'label': 'Model B', 'share_percent': '0'}]}
+
+
+def pending_rows():
+    return [{'user_id': 'pending-' + str(i), 'name': 'New employee ' + str(i),
+             'email': f'new{i}@example.invalid', 'revision': 'pending-revision-' + str(i),
+             'state': state, 'code': state + '_assignment',
+             'models': [{'id': 'model-a', 'label': 'Model A'}, {'id': 'model-b', 'label': 'Model B'}],
+             'suggested_budget_usd': '0.80' if i == 0 else None,
+             'suggested_shares': {'model-a': '100', 'model-b': '0'} if i == 0 else None}
+            for i, state in enumerate(('absent', 'absent', 'incomplete', 'conflict'))]
+
+
 class Parser(HTMLParser):
     def __init__(self, html):
         super().__init__()
@@ -48,6 +64,10 @@ class Parser(HTMLParser):
 
 
 class RendererTests(unittest.TestCase):
+    def test_optional_arguments_preserve_existing_output(self):
+        self.assertEqual(UI.render_editor(rows(), as_of='now'),
+                         UI.render_editor(rows(), as_of='now', template=None, pending=None))
+
     def test_contract_and_exact_strings(self):
         data = rows()
         data[0]['budget_usd'] = '10.000000000000000001'
@@ -102,6 +122,46 @@ class RendererTests(unittest.TestCase):
                           'sessionStorage', 'allow-same-origin', 'https://', 'ledger_read_key'):
             self.assertNotIn(forbidden, html)
 
+    def test_bootstrap_panels_project_only_public_data_and_keep_drafts_separate(self):
+        defaults, pending = template(), pending_rows()
+        defaults['secret_extra'] = 'must-never-be-rendered'
+        defaults['shares'][0]['secret_extra'] = 'must-never-be-rendered'
+        pending[0]['secret_extra'] = 'must-never-be-rendered'
+        pending[0]['models'][0]['secret_extra'] = 'must-never-be-rendered'
+        pending[0]['suggested_shares']['secret_extra'] = 'must-never-be-rendered'
+        html = UI.render_editor(rows(), as_of='now', template=defaults, pending=pending)
+        parser = Parser(html)
+        self.assertNotIn('must-never-be-rendered', html)
+        self.assertEqual(json.loads(parser.scripts[0]), rows())
+        public = json.loads(parser.scripts[1])
+        self.assertEqual(public['template'], template())
+        self.assertEqual(public['pending'], pending_rows())
+        self.assertEqual([a['data-employee-id'] for t, a in parser.tags if t == 'section'], list(IDS))
+        self.assertEqual(len([a for t, a in parser.tags if t == 'input' and a.get('type') == 'checkbox']), 2)
+        self.assertFalse(any('checked' in a for t, a in parser.tags if a.get('type') == 'checkbox'))
+        self.assertEqual(next(a['value'] for t, a in parser.tags if a.get('id') == 'pending-budget-1'), '')
+        self.assertIn('Расход: нет данных', html)
+        for forbidden in ('fetch(', 'XMLHttpRequest', 'document.cookie', 'parent.document', 'localStorage',
+                          'sessionStorage', 'allow-same-origin', 'https://', 'ledger_admin_key'):
+            self.assertNotIn(forbidden, html)
+
+    def test_bootstrap_escaping_and_readonly_states(self):
+        defaults, pending = template(), pending_rows()
+        attack = '</script><img src=x onerror="alert(1)"><&\u2028\u2029'
+        defaults['revision'] = defaults['budget_usd'] = defaults['shares'][0]['label'] = attack
+        pending[2]['name'] = pending[2]['code'] = pending[2]['models'][0]['id'] = attack
+        parser = Parser(UI.render_editor([], as_of='now', template=defaults, pending=pending[2:]))
+        self.assertNotIn('img', [tag for tag, _ in parser.tags])
+        self.assertEqual(len(parser.scripts), 3)
+        data = json.loads(parser.scripts[1])
+        self.assertEqual(data['template']['revision'], attack)
+        self.assertEqual(data['pending'][0]['name'], attack)
+        self.assertNotIn('<', parser.scripts[1])
+        self.assertFalse(any(a.get('type') == 'checkbox' for t, a in parser.tags))
+        self.assertIn(('button', {'type': 'button', 'id': 'initialize-budgets', 'disabled': None}), parser.tags)
+        empty = UI.render_editor([], as_of='now', pending=[])
+        self.assertIn('Неподготовленных бюджетов нет', empty)
+
 
 @unittest.skipUnless(os.environ.get('RUN_GOAL584_ADMIN_BROWSER') == '1', 'Opt-in local Chrome sandbox rehearsal')
 class ChromeSandboxTests(unittest.TestCase):
@@ -109,6 +169,8 @@ class ChromeSandboxTests(unittest.TestCase):
     def setUpClass(cls):
         from playwright.sync_api import sync_playwright
         cls.editor = UI.render_editor(rows(), as_of='2026-11-02 17:00 UTC')
+        cls.bootstrap_editor = UI.render_editor(rows(), as_of='2026-11-02 17:00 UTC',
+                                                template=template(), pending=pending_rows())
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *_args):
                 pass
@@ -117,7 +179,8 @@ class ChromeSandboxTests(unittest.TestCase):
                         'if(e.source===document.querySelector("iframe").contentWindow)'
                         'received.push({origin:e.origin,data:e.data});});</script>'
                         '<iframe style="width:100%;height:1000px" sandbox="allow-scripts allow-downloads" srcdoc="'
-                        + escape(cls.editor, quote=True) + '"></iframe>').encode()
+                        + escape(cls.bootstrap_editor if self.path == '/bootstrap' else cls.editor,
+                                 quote=True) + '"></iframe>').encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/html; charset=utf-8')
                 self.send_header('Content-Length', str(len(data)))
@@ -171,6 +234,98 @@ class ChromeSandboxTests(unittest.TestCase):
 
     def prompts(self):
         return self.page.evaluate("received.filter(x=>x.data.type==='input:prompt:submit')")
+
+    def open_bootstrap(self):
+        self.page.goto(f'http://127.0.0.1:{self.server.server_port}/bootstrap')
+        self.frame.locator('#template-editor').wait_for()
+
+    def test_template_exact_validation_preview_and_separate_native_payload(self):
+        self.open_bootstrap()
+        self.assertEqual(self.prompts(), [])
+        self.frame.locator('#save-template').click()
+        self.assertIn('Нет изменений', self.frame.locator('#template-feedback').inner_text())
+        self.frame.locator('#template-budget').fill('0.800000000000000001')
+        self.frame.locator('[data-template-model="model-a"]').fill('33.3333333333333333')
+        self.frame.locator('[data-template-model="model-b"]').fill('66.6666666666666666')
+        self.frame.locator('#save-template').click()
+        self.assertIn('суммой 100%', self.frame.locator('#template-feedback').inner_text())
+        self.assertEqual(self.prompts(), [])
+        self.frame.locator('[data-template-model="model-b"]').fill('66.6666666666666667')
+        self.frame.locator('#save-template').click()
+        self.page.wait_for_function("received.some(x=>x.data.type==='input:prompt:submit')")
+        received = self.prompts()
+        self.assertEqual(received[0]['origin'], 'null')
+        self.assertEqual(json.loads(received[0]['data']['text']), {
+            'schema': 1, 'type': 'employee_budget_template', 'expected_revision': 'template-revision',
+            'budget_usd': '0.800000000000000001', 'budget_duration': '1mo',
+            'shares': {'model-a': '33.3333333333333333', 'model-b': '66.6666666666666667'}})
+        self.assertIn('0.80 → 0.800000000000000001 USD', self.frame.locator('#template-preview').inner_text())
+        self.assertIn('100 → 33.3333333333333333%', self.frame.locator('#template-preview').inner_text())
+        self.assertTrue(self.frame.locator('#save-template').is_disabled())
+        self.assertIn('ещё не сохранён', self.frame.locator('#template-feedback').inner_text())
+
+    def test_pending_only_explicit_selected_rows_and_no_automatic_normalization(self):
+        self.open_bootstrap()
+        self.frame.locator('#initialize-budgets').click()
+        self.assertIn('Выберите сотрудников', self.frame.locator('#pending-feedback').inner_text())
+        first = self.frame.locator('article[data-pending-index="0"]')
+        second = self.frame.locator('article[data-pending-index="1"]')
+        second.locator('[data-pending-budget]').fill('1e3')  # Invalid unselected row must not be submitted.
+        first.locator('input[type="checkbox"]').check()
+        first.locator('[data-pending-budget]').fill('20.000000000000000001')
+        first.locator('[data-pending-model="model-a"]').fill('99.999999999999999999')
+        self.assertEqual(self.prompts(), [])
+        self.frame.locator('#initialize-budgets').click()
+        self.assertIn('суммой 100%', self.frame.locator('#pending-feedback').inner_text())
+        self.assertEqual(self.prompts(), [])
+        first.locator('[data-pending-model="model-a"]').fill('33.3333333333333333')
+        first.locator('[data-pending-model="model-b"]').fill('66.6666666666666667')
+        self.frame.locator('#initialize-budgets').click()
+        self.page.wait_for_function("received.some(x=>x.data.type==='input:prompt:submit')")
+        self.assertEqual(json.loads(self.prompts()[0]['data']['text']), {
+            'schema': 1, 'type': 'employee_budget_initialize', 'changes': [{
+                'user_id': 'pending-0', 'expected_revision': 'pending-revision-0',
+                'budget_usd': '20.000000000000000001',
+                'shares': {'model-a': '33.3333333333333333', 'model-b': '66.6666666666666667'}}]})
+        self.assertTrue(self.frame.locator('#initialize-budgets').is_disabled())
+        self.assertIn('бюджет не создан → 20.000000000000000001 USD',
+                      self.frame.locator('#pending-preview').inner_text())
+        self.assertIn('ещё не созданы', self.frame.locator('#pending-feedback').inner_text())
+
+    def test_bootstrap_and_existing_employee_forms_do_not_mix_drafts(self):
+        self.open_bootstrap()
+        self.frame.locator('#template-budget').fill('999')
+        first = self.frame.locator('article[data-pending-index="0"]')
+        first.locator('input[type="checkbox"]').check()
+        self.frame.locator('#apply').click()
+        self.assertIn('Нет изменений', self.frame.locator('#feedback').inner_text())
+        self.assertEqual(self.prompts(), [])
+        self.frame.locator('#editor [data-field="budget_usd"]').first.fill('20')
+        self.frame.locator('#apply').click()
+        self.page.wait_for_function("received.some(x=>x.data.type==='input:prompt:submit')")
+        self.assertEqual(json.loads(self.prompts()[0]['data']['text']), {
+            'schema': 1, 'type': 'employee_budget_plan', 'changes': [{
+                'user_id': IDS[0], 'expected_revision': 'revision-1', 'budget_usd': '20',
+                'shares': {'model-a': '50.00', 'model-b': '50.00'}}]})
+        self.frame.locator('#initialize-budgets').click()
+        self.page.wait_for_function("received.filter(x=>x.data.type==='input:prompt:submit').length===2")
+        self.assertEqual(json.loads(self.prompts()[1]['data']['text'])['type'], 'employee_budget_initialize')
+        self.assertFalse(self.frame.locator('#save-template').is_disabled())
+
+    def test_missing_suggestions_stay_empty_and_conflicts_have_no_action(self):
+        self.open_bootstrap()
+        missing = self.frame.locator('article[data-pending-index="1"]')
+        self.assertEqual(missing.locator('[data-pending-budget]').input_value(), '')
+        self.assertEqual(missing.locator('[data-pending-model="model-a"]').input_value(), '')
+        self.assertIn('Расход: нет данных', missing.inner_text())
+        missing.locator('input[type="checkbox"]').check()
+        self.frame.locator('#initialize-budgets').click()
+        self.assertIn('десятичной строкой', self.frame.locator('#pending-feedback').inner_text())
+        self.assertEqual(self.prompts(), [])
+        for index in (2, 3):
+            readonly = self.frame.locator(f'article[data-pending-index="{index}"]')
+            self.assertEqual(readonly.locator('input,button').count(), 0)
+            self.assertIn('требуется проверка', readonly.inner_text())
 
     def test_changed_rows_precision_and_two_employee_submission(self):
         first = self.frame.locator('section').nth(0)

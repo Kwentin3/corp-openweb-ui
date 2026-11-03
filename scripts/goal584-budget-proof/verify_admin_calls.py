@@ -115,6 +115,22 @@ def compare_provider(capture, provider, model):
             "Actual provider usage differs")
 
 
+def verify_accounting_totals(users, keys, rows, identities):
+    """Verify native payer/key counters against the same complete positive ledger."""
+    identities = set(identities)
+    require(len(users) == len(identities) and {user["user_id"] for user in users} == identities,
+            "Native payer accounting is incomplete")
+    require(len(keys) == len(identities) * len(MODELS)
+            and {(key["user_id"], key["model"]) for key in keys}
+            == {(uid, model) for uid in identities for model in MODELS},
+            "Native payer/model key accounting is incomplete")
+    for entry in [*users, *keys]:
+        matching = [row for row in rows if row["user_id"] == entry["user_id"]
+                    and ("model" not in entry or row["model_group"] == entry["model"])]
+        require(abs(Decimal(entry["spend_usd"]) - sum((Decimal(row["spend_usd"]) for row in matching), Decimal(0)))
+                <= Decimal(".000000001"), "Native payer/key spend differs from the same persisted ledger")
+
+
 def verify(browser, provider, context, native):
     require(browser.get("passed") is True and native.get("passed") is True and provider.get("synthetic") is True,
             "Browser/native/synthetic proof did not pass")
@@ -227,13 +243,7 @@ def verify(browser, provider, context, native):
                         "Native Tool name/correlation/arguments rewrote business authority")
     all_users = native["users"] + native["admin_accounting"]["users"]
     all_keys = native["keys"] + native["admin_accounting"]["keys"]
-    require(len(all_users) == 3 and {u["user_id"] for u in all_users} == {admin, *staff}, "Native payer accounting is incomplete")
-    require(len(all_keys) == 6 and {(k["user_id"], k["model"]) for k in all_keys}
-            == {(uid, model) for uid in [admin, *staff] for model in MODELS}, "Native payer/model key accounting is incomplete")
-    for entry in [*all_users, *all_keys]:
-        matching = [r for r in rows if r["user_id"] == entry["user_id"] and ("model" not in entry or r["model_group"] == entry["model"])]
-        require(abs(Decimal(entry["spend_usd"]) - sum((Decimal(r["spend_usd"]) for r in matching), Decimal(0))) <= Decimal(".000000001"),
-                "Native payer/key spend differs from the same persisted ledger")
+    verify_accounting_totals(all_users, all_keys, rows, {admin, *staff})
     admin_rows = [r for r in rows if r["user_id"] == admin]
     require(len(admin_rows) == 8 and all(r["model_group"] == MODELS[0] and r["request_id"] in physical for r in admin_rows),
             "Admin inference was billed to a staff identity, wrong model or extra history")

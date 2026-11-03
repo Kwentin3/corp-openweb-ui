@@ -74,6 +74,32 @@ def _json(text):
         raise BudgetAdminError("invalid_json") from None
 
 
+def _shares(value):
+    require(isinstance(value, dict) and 1 <= len(value) <= 100
+            and all(type(model) is str and 0 < len(model) <= 256
+                    and all(ord(c) >= 32 for c in model) for model in value), "invalid_models")
+    parsed = tuple(sorted((model, number(amount)) for model, amount in value.items()))
+    with localcontext() as context:
+        context.prec = 128
+        context.traps[Inexact] = True
+        require(all(share <= 100 for _, share in parsed)
+                and sum((share for _, share in parsed), Decimal(0)) == 100, "shares_must_total_100")
+    return parsed
+
+
+def allocation(budget, shares):
+    with localcontext() as context:
+        context.prec = 128
+        context.traps[Inexact] = True
+        caps = tuple((model, budget * share / 100) for model, share in shares)
+        require(sum((cap for _, cap in caps), Decimal(0)) == budget
+                and all(0 <= cap <= budget for _, cap in caps), "invalid_allocation")
+    native_cap(budget)
+    for _, cap in caps:
+        native_cap(cap)
+    return caps
+
+
 @dataclass(frozen=True)
 class BudgetChange:
     user_id: str
@@ -111,16 +137,7 @@ def parse_plan(text):
         ids.add(user_id)
         rev = item["expected_revision"]
         require(type(rev) is str and re.fullmatch(r"[0-9a-f]{64}", rev) is not None, "invalid_revision")
-        shares = item["shares"]
-        require(isinstance(shares, dict) and 1 <= len(shares) <= 100
-                and all(type(model) is str and 0 < len(model) <= 256
-                        and all(ord(c) >= 32 for c in model) for model in shares), "invalid_models")
-        parsed = tuple(sorted((model, number(amount)) for model, amount in shares.items()))
-        with localcontext() as context:
-            context.prec = 128
-            context.traps[Inexact] = True
-            require(all(share <= 100 for _, share in parsed)
-                    and sum((share for _, share in parsed), Decimal(0)) == 100, "shares_must_total_100")
+        parsed = _shares(item["shares"])
         result.append(BudgetChange(user_id, rev, number(item["budget_usd"]), parsed))
     return tuple(result)
 
@@ -145,16 +162,86 @@ def prepare_change(change, state):
     models = [model.model for model in state.models]
     require(len(models) == len(set(models)) and set(models) == {model for model, _ in change.shares},
             "invalid_models")
-    with localcontext() as context:
-        context.prec = 128
-        context.traps[Inexact] = True
-        caps = tuple((model, change.budget_usd * share / 100) for model, share in change.shares)
-        require(sum((cap for _, cap in caps), Decimal(0)) == change.budget_usd
-                and all(0 <= cap <= change.budget_usd for _, cap in caps), "invalid_allocation")
-    native_cap(change.budget_usd)
-    for _, cap in caps:
-        native_cap(cap)
+    caps = allocation(change.budget_usd, change.shares)
     return PreparedChange(state.user_id, state, change.budget_usd, caps, change.expected_revision)
+
+
+def submission_kind(text):
+    value = _json(text)
+    require(isinstance(value, dict) and value.get("type") in (
+        "employee_budget_plan", "employee_budget_template", "employee_budget_initialize"), "invalid_plan")
+    return value["type"]
+
+
+def parse_initialization(text):
+    value = _json(text)
+    require(isinstance(value, dict) and value.get("type") == "employee_budget_initialize", "invalid_plan")
+    # Reuse the exact bounded employee/change grammar, including duplicate keys.
+    value["type"] = "employee_budget_plan"
+    return parse_plan(json.dumps(value, ensure_ascii=True, separators=(",", ":")))
+
+
+def template_value(value, models):
+    if value is None:
+        return None
+    require(isinstance(value, dict) and set(value) == {"budget_usd", "shares", "budget_duration"}
+            and value["budget_duration"] == "1mo", "invalid_template")
+    budget, shares = number(value["budget_usd"]), _shares(value["shares"])
+    require({model for model, _ in shares} == set(models), "template_models_changed")
+    allocation(budget, shares)
+    return {"budget_usd": money(budget), "shares": {model: money(share) for model, share in shares},
+            "budget_duration": "1mo"}
+
+
+def template_revision(value, models):
+    public = {"schema": 1, "template": template_value(value, models), "models": sorted(models)}
+    return hashlib.sha256(json.dumps(public, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def parse_template_plan(text, current, models):
+    value = _json(text)
+    require(isinstance(value, dict) and set(value) == {
+        "schema", "type", "expected_revision", "budget_usd", "shares", "budget_duration"}
+        and type(value["schema"]) is int and value["schema"] == 1
+        and value["type"] == "employee_budget_template", "invalid_template")
+    require(value["expected_revision"] == template_revision(current, models), "stale_template")
+    return template_value({key: value[key] for key in ("budget_usd", "shares", "budget_duration")}, models)
+
+
+def template_public(value, labels):
+    actual = template_value(value, labels)
+    return {"revision": template_revision(actual, labels),
+            "budget_usd": actual["budget_usd"] if actual else None, "budget_duration": "1mo",
+            "shares": [{"id": model, "label": labels[model],
+                        "share_percent": actual["shares"][model] if actual else ""} for model in sorted(labels)]}
+
+
+def absence_revision(user_id, models, template_rev):
+    value = {"schema": 1, "user_id": user_id, "models": sorted(models),
+             "state": "absent", "template_revision": template_rev}
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def public_pending(identity, inspection, template, labels):
+    value = template_value(template, labels)
+    models = identity["models"]
+    matches = value is not None and set(value["shares"]) == set(models)
+    return {"user_id": identity["user_id"], "name": identity["name"], "email": identity["email"],
+            "revision": absence_revision(identity["user_id"], models, template_revision(value, labels)),
+            "state": inspection.kind, "code": inspection.code,
+            "models": [{"id": model, "label": labels[model]} for model in models],
+            "suggested_budget_usd": value["budget_usd"] if matches else None,
+            "suggested_shares": value["shares"] if matches else None}
+
+
+def prepare_initialization(change, inspection, identity, template, labels):
+    require(inspection.kind == "absent" and inspection.user_id == identity["user_id"] == change.user_id,
+            "employee_not_absent")
+    require(change.expected_revision == absence_revision(change.user_id, identity["models"],
+                template_revision(template, labels)), "stale_snapshot")
+    require(set(inspection.allowed_wire_models) == set(identity["models"])
+            == {model for model, _ in change.shares}, "invalid_models")
+    return allocation(change.budget_usd, change.shares)
 
 
 def _same_native(actual, expected):
@@ -260,11 +347,19 @@ def filter_view(rows, view):
     return selected
 
 
+def plain_label(value):
+    return " ".join(str(value).split())[:256]
+
+
+def markdown_text(value):
+    return re.sub(r"([\\`*_{}\[\]()#+.!|~\-])", r"\\\1", escape(str(value), quote=True))
+
+
 def confirmation_text(changes, identities):
     def line(value):
         # Native ConfirmDialog interprets Markdown. Directory names and labels
         # are user-controlled text, never formatting for a financial diff.
-        value = escape(" ".join(str(value).split())[:256], quote=True)
+        value = escape(plain_label(value), quote=True)
         return re.sub(r"([\\`*_{}\[\]()#+.!|~\-])", r"\\\1", value)
     def amount(value):
         return money(value) if value is not None else "не установлен"

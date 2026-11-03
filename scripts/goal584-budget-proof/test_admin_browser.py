@@ -129,6 +129,11 @@ class AdminVerifierTests(unittest.TestCase):
             DRIVER.editor_rows(html + '<p>sk-' + 'x' * 32 + '</p>')
         with self.assertRaises(AssertionError):
             DRIVER.editor_rows(html + '<script id="budget-data">[]</script>')
+        third = [*rows, dict(rows[0], user_id=ADMIN)]
+        expanded = '<main data-budget-editor="v1"></main><script id="budget-data">' + json.dumps(third) + '</script>'
+        self.assertEqual(DRIVER.editor_rows(expanded, expected_count=3), third)
+        with self.assertRaises(AssertionError):
+            DRIVER.editor_rows(expanded)
 
     def test_server_diff_expected_from_original_native_fields(self):
         rows = public_rows(snapshot())

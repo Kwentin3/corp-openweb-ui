@@ -90,6 +90,8 @@ class Filter:
         # permit their owner after demotion, so a management key cannot live there.
         ledger_admin_key: str = Field(default="", description="Native budget management key; current administrators only.",
                                       json_schema_extra={"format": "password", "writeOnly": True})
+        default_budget_template: dict | None = Field(default=None,
+            description="Explicit monthly budget/share template for new employees; never rewrites existing budgets.")
         read_wait_seconds: float = Field(default=8.0, ge=0, le=10)
 
     class UserValves(BaseModel):

@@ -1,15 +1,15 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Текущая запись работы, 02.11.2026. Источник требований и полномочий —
+Текущая запись работы, 03.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; основной admin vertical slice принят E1–E7,
-полный продукт ещё не принят. Успешный native run
-[41504333246](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41504333246),
-HEAD `6255508d9e6ccff2af2cec71689d24e78db7b574`, tested merge
-`60552c0fd52bf378daf13bef4b6626c3080f1272`; Active CI41504333117 PASS.
+полный продукт ещё не принят. Последний успешный native run
+[41508244311](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41508244311),
+HEAD `0ec2c654cfb001ca5aeafd0a0281676b1425e5a9`, tested merge
+`e0865e1b2d8967b53fba262e9a0b39bf452ad039`; Active CI41508244316 PASS.
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn
 → подтверждение server diff → native cap update/readback → реальные employee
@@ -29,14 +29,16 @@ Open WebUI владеет сотрудниками, ACL, моделями, со�
 `admin_ui.py` только отображает данные и собирает JSON. Существующий Filter остаётся
 единственным владельцем URL учёта, отдельный operator key не попадает в HTML/LLM.
 Общий native model binding выделен из Filter без изменения поведения.
-Последний локальный P1-кандидат: 100 component tests, 97 PASS и 3 opt-in Chrome skips; отдельный Chrome
-прогон выполнил все 7 renderer/sandbox checks. Это не native runtime-приёмка.
+Последний принятый P1-кандидат проверен native run ниже; следующий локальный
+defaults/new-hire кандидат: 135 component tests, 128 PASS и7 opt-in Chrome skips.
+Отдельно выполнены все14 renderer/Chrome checks. Это локальные проверки нового
+среза, не его native runtime-приёмка.
 Независимые части native provisioner, synthetic provider Tool turns и browser
 driver интегрированы; native list/hash-update, hard-zero и подтверждённая запись
 формы квалифицированы. Следующие обязательные gaps — defaults/new-hire provisioning,
 служебные расходы, lifecycle отказов/параллельности/календаря, исторические тарифы
 и полнота действующих маршрутов. Технический текст budget error пока не локализован.
-Неподготовленные назначения новых сотрудников пока отклоняются явно; скрытого
+Неподготовленные назначения новых сотрудников в принятом runtime пока отклоняются явно; скрытого
 создания, сброса spend/reset, повторных попыток или обещания общей транзакции нет.
 Подготовлены native Tool/Skill и admin-only preset, отдельный synthetic личный
 плательщик администратора, actual list/hash/zero-cap probe и обычный браузерный
@@ -61,20 +63,61 @@ Parent replay и независимый review E1–E7 PASS:
 Полный Skill, схемы, исходный JSON/history, пустые apply arguments и короткие
 Tool results сверены с фактическим provider context. Cleanup0 containers/0 volumes.
 
-**Текущий следующий срез:** исправление доступа к management credential после
+**Последний принятый срез:** закрыт доступ к management credential после
 понижения Tool owner. Native Tools GET Valves разрешает владельцу role=user и
 возвращает raw persisted blob; permission на изменение Python проверяется отдельно.
 Предыдущий E7 проверял обычных non-owner сотрудников и не доказывает эту границу.
-Ключ переносится в существующие Function Valves с native `get_admin_user`, без
+Ключ перенесён в существующие Function Valves с native `get_admin_user`, без
 fallback на старое Tool поле; old persisted ToolValves очищаются полным update.
-Для actual role-probe fixture primary admin станет только контроллером, а Tool
-owner — отдельным обычным admin: primary в0.12.2 нельзя понизить. Квоты и provider
+Для actual role-probe fixture primary admin используется только как контроллер, а Tool
+owner — отдельный обычный admin: primary в0.12.2 нельзя понизить. Квоты и provider
 calls при этом не меняются. Production установок этого feature не было.
 Код переноса подготовлен: `ledger_admin_key` в Function Valves, Tool Valves
 без credential, fresh lookup без legacy/reader fallback. 18 Tool tests и10
 provisioner tests PASS; role-probe делает native demote/signin/GET/POST/restore,
-проверяет запрет изменения Python и неизменность native state; runtime ещё не принят.
-После этого остаются defaults/new-hire, services и остальные перечисленные gaps;
+проверяет запрет изменения Python и неизменность native state. Run41508244311
+подтвердил native demote → fresh user signin → Tool Valves200 с ровно двумя
+безопасными полями → Function Valves GET/POST401 → Tool source update401 →
+restore admin. Caps/spend/reset/identities, source, модельные профили и ключ не
+изменились. Внешний provider snapshot до/после обоих probes: те же8 IDs,
+дополнительных вызовов нет. Основной admin/cost/details/OFF сценарий повторён:
+11 новых positive rows/11 physical calls,14 signed attempts/$2.20; cleanup0/0.
+Parent сверил27 source SHA и6 mounted SHA, заново исполнил verifier на raw inputs;
+ZIP SHA256 `4be1aee54582b1a360ee0939f008a3c57301b5820dc00af96f29d2723cb05bbe`.
+Evidence: `local/goal584/runtime-proof-41508244311`, parent-review.safe.json и
+role-independent-review.md. Это приёмка указанной границы и повторение main slice,
+не полная квалификация безопасности или всего продукта.
+
+**Текущий следующий срез:** defaults/new-hire. Отдельная native inspection
+должна различать полностью отсутствующий budget identity, готовое назначение,
+частичное/повреждённое состояние и недоступность. Только exact user404 + полная
+пустая key/list доказывают отсутствие. Никакого скрытого создания/ремонта.
+Локальный кандидат реализован: форма показывает готовые и неподготовленные
+бюджеты отдельно; шаблон сохраняется за admin-only Function API. Сохранение
+шаблона и создание явно выбранных личных бюджетов — разные JSON-планы и
+подтверждения. Шаблон не меняет существующие назначения. Его доли предлагаются
+только при точном совпадении разрешённых моделей, без перенормировки.
+Перед созданием повторно проверяются saved source, admin, directory/model ACL,
+template/config и actual absence; перед каждым POST — свежие полномочия/источник/
+конфигурация. Native confirmation показывает1 personal budget + число назначений,
+точные USD caps каждой модели и календарный1mo период владельца учёта.
+Native /user/new создаёт только пользователя; /key/generate получает канонические
+alias/metadata и deterministic key от существующего gateway secret с отдельным
+HMAC domain. Native token primary key/upsert(update={}) не перезаписывает winner;
+400/409 не превращаются в скрытый retry/repair. После каждого шага читаются
+actual state/caps/identity/period/routes; частичный результат показывается явно.
+Это не общая транзакция или runtime-доказательство конкурентного bootstrap.
+Native Function Valves заменяются целиком без CAS; свежие unrelated/secret fields
+сохраняются и сверяются, конкурентная замена конфигурации остаётся ограничением.
+Policy17/Tool25/real HTTP client28 и Chrome14 checks PASS. Независимый server-source
+review PASS после уточнения финансового diff и нормализации untrusted labels;
+10 изменений source/role/model ACL/template/credential во время confirmation
+не допустили записей. Harness49 checks, actionlint и static30 Bash/14 embedded
+Python scripts PASS. Подготовлен отдельный
+post-main native fixture: third staff не меняет старый11-call baseline; save
+template → cancel initialize → confirmed initialize → employee success/zero-cap
+denial. Следующий шаг — проверка кандидата и actual native GUI qualification.
+Следом остаются services и остальные перечисленные gaps;
 business default template должен храниться за admin-role API, не в owner-writable
 Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.
 

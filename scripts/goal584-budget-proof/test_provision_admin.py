@@ -61,6 +61,52 @@ def row(user=IDS[2]):
 
 
 class ProvisionAdminTests(unittest.TestCase):
+    def test_bootstrap_setup_uses_only_webui_identity_and_native_grants(self):
+        state, employees = fixture()
+        state["admin"].update(token="synthetic-admin")
+        state["role_probe_control"] = {"id": IDS[5]}
+        baseline = {"users": p.normalize(employees[:2])["users"], "keys": p.normalize(employees[:2])["keys"],
+                    "attributed_spend_logs": [{"request_id": "old-native-row"}]}
+        calls, models = [], {model: {"id": model, "access_grants": []} for model in p.MODELS}
+        class NativeWebUI:
+            def ok(self, method, path, **kwargs):
+                calls.append((method, path, copy.deepcopy(kwargs)))
+                if path == "/api/v1/auths/add":
+                    return {"id": IDS[4], "token": "synthetic-new-session", "role": "user"}
+                if path == "/api/v1/models/model/update":
+                    models[kwargs["body"]["id"]] = copy.deepcopy(kwargs["body"])
+                    return models[kwargs["body"]["id"]]
+                raise AssertionError("Bootstrap setup attempted an unexpected API")
+            def model(self, token, model):
+                return copy.deepcopy(models[model])
+            def catalog(self, account):
+                self.account = account
+        async def absent(actual):
+            self.assertEqual(actual["bootstrap_fixture"]["employee"]["id"], IDS[4])
+            return {"kind": "absent", "user_id": IDS[4], "code": "missing_native_user"}
+        with patch.object(p, "snapshot", return_value=baseline), patch.object(p, "write_private") as saved, \
+             patch.object(p, "model_body", side_effect=copy.deepcopy), patch.object(p, "bootstrap_inspection", absent):
+            p.bootstrap_setup(NativeWebUI(), state, Path("private-state.json"), Path("not-existing-handoff.json"))
+        self.assertEqual(len(state["users"]), 2)
+        self.assertEqual(len(state["native_keys"]), 4)
+        self.assertEqual(state["bootstrap_fixture"]["stage"], "setup_complete")
+        self.assertEqual(state["bootstrap_fixture"]["original_staff"], {key: baseline[key] for key in ("users", "keys")})
+        self.assertEqual([path for _, path, _ in calls], ["/api/v1/auths/add", *["/api/v1/models/model/update"] * 2])
+        for model in models.values():
+            self.assertEqual(model["access_grants"], [{"principal_type": "user", "principal_id": IDS[4], "permission": "read"}])
+        handoff = saved.call_args_list[-1].args[1]
+        self.assertEqual(set(handoff["user"]), {"id", "email", "password"})
+        self.assertNotIn("token", str(handoff))
+
+    def test_bootstrap_snapshot_rejects_existing_staff_drift(self):
+        state, employees = fixture()
+        state["bootstrap_fixture"] = {"stage": "setup_complete", "employee": {"id": IDS[4]},
+            "original_staff": p.normalize(employees[:2]), "original_positive_request_ids": []}
+        altered = p.normalize([replace(employees[0], max_budget=Decimal(99)), employees[1]])
+        with patch.object(p, "snapshot", return_value=altered):
+            with self.assertRaises(p.ProofError):
+                p.bootstrap_snapshot(None, state)
+
     def test_filter_credential_install_preserves_complete_native_configuration(self):
         state = {"admin": {"token": "synthetic-admin-session"}, "cost_reader": {"key": "sk-synthetic-reader"}}
         existing = {"ledger_base_url": "http://proxy:4000", "ledger_read_key": "sk-synthetic-reader",

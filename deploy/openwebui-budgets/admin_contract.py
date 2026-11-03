@@ -6,6 +6,7 @@ Callers must project DTOs before sending data to HTML, model context or receipts
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Literal
 
 
 class BudgetAdminError(Exception):
@@ -36,3 +37,18 @@ class EmployeeBudget:
     budget_duration: str | None
     budget_reset_at: str | None
     models: tuple[ModelBudget, ...]
+
+
+@dataclass(frozen=True)
+class EmployeeBudgetInspection:
+    """Read-only observation, never permission to create or repair native state.
+
+    Only ready carries a budget; other states carry fixed safe codes. Absence
+    requires both native user/info 404 and a complete, empty exact key/list.
+    """
+
+    user_id: str
+    allowed_wire_models: tuple[str, ...]
+    kind: Literal["absent", "ready", "incomplete", "conflict"]
+    employee_budget: EmployeeBudget | None = None
+    code: str | None = None

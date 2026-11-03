@@ -65,7 +65,8 @@ def pending_admin_tool(payload, messages):
         suffix, arguments = "open_budget_form", {"view_json": "{}"}
     else:
         if not (isinstance(proposal, dict) and type(proposal.get("schema")) is int
-                and proposal["schema"] == 1 and proposal.get("type") == "employee_budget_plan"):
+                and proposal["schema"] == 1 and proposal.get("type") in (
+                    "employee_budget_plan", "employee_budget_template", "employee_budget_initialize")):
             return None
         suffix, arguments = "apply_budget_form", {}
     tools = payload.get("tools")
