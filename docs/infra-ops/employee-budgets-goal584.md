@@ -26,15 +26,31 @@ source-bound, не raw replay. Actual successful lease acquisition/HA не за�
 входит в эту приёмку. На run41 реально сохранены naive UTC даты; значение
 упавшей даты run40 по-прежнему неизвестно.
 
-**Следующий кандидат — ещё без runtime-приёмки.** Добавлен отдельный matrix
-профиль `positive-floor`: два штатных прокси, положительный DB floor до сброса,
-native месячный reset и два вызова в пределах исходного TTL5s. Ошибка,
-неполная граница или превышение времени остаются ошибкой CI. Базовый calendar
-профиль выполняется независимо. Проверены исходники, teardown ownership и
-бюджеты времени; фактический исход нового профиля пока неизвестен.
+**Кандидат42 завершён: main/basic PASS, positive-floor FAIL, workflow FAIL.**
+[41684602955](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41684602955),
+HEAD `d1f3b5a2e2c764b0964c7683d84aef879b28e8ce`; Active CI41684603261 PASS.
+Main повторил все прежние WebUI/service/pricing/overlap/RAG gates с новыми
+capture/cost component bytes. Parent сверил206 files/43 source hashes/6 mounts,
+51PNG/cleanup0/0. Main ZIP
+`f2efe60e8ecbc7c313b2fa556ecdd45ffd59eaf3e305a43a03a2c9343226de77`;
+`local/goal584/runtime-proof-41684602955/parent-source-check.safe.json`.
+Новый matrix `positive-floor` остановился на
+`FAILED_BOUNDARY/first_post_reset/unexpected_journal_rows`: old200/prime422/post200,
+затем guard обнаружил3 raw own journal rows при2 expected success IDs
+(source-bound вывод из exact guard, не экспортированный raw snapshot).
+Причина/сумма/статус лишней строки и post Redis/provider readback неизвестны;
+final headroom request не отправлялся. Это не подтверждение stale-offset defect.
+Actual native reset записан как DB0/Redis null-null, прежний journal hash сохранён.
+Независимый replay138 checks и parent повтор PASS; сам профиль FAIL.
+ZIP `ecafe9db6cc717101aeb78604be6561ff3d959001ecb87b3ec5c16bf33c16e3e`,
+tested merge `3a1c2fbed1808dff1b802b8b486dbcb0404ba436`.
+Cleanup0containers/0volumes/0networks. Evidence:
+`local/goal584/calendar-floor42-review/independent-acceptance.md`.
+Basic calendar job PASS; parent повторил исходные calendar assertions с новой
+matrix manifest/diagnostic формой:19 source/10 mounts/10 native hashes,
+2 calls, next same-worker response5.203s<60s, cleanup0/0/0.
 Компоненты Responses (fixture/capture/покрытие стоимости signed nonce) включены
-для повторной проверки прежних маршрутов. Сам Responses GUI probe ещё проходит
-ревью в отдельной рабочей копии и не входит в этот runtime-кандидат.
+для повторной проверки прежних маршрутов; сам Responses GUI probe не входит в42.
 Локально:219 component checks (212 PASS/7 opt-in skips),302 harness checks PASS;
 42 Bash/18 embedded Python/3 Python-c, actionlint и33 mount bindings PASS.
 Evidence: `local/goal584/candidate-checks.safe.json`,
@@ -43,6 +59,24 @@ Evidence: `local/goal584/candidate-checks.safe.json`,
 Закрыта только завершённая RAG worktree после проверки patch equivalence;
 ветка provenance и общие source caches сохранены. Исходная рабочая копия с двумя
 пользовательскими WIP-файлами не менялась.
+
+Следующий source-срез сохраняет bounded failure snapshot до повторного выброса
+того же journal guard: raw rows/counters/provider только existing private file;
+наружу every-row hashes/status/cost/usage без metadata/body. Никакие строки не
+отфильтровываются, max3/TTL5s/financial assertions не ослаблены.
+Responses GUI probe исправлен по actual native TypedDict/точному missing-capsule
+guard,22 focused tests PASS и независимое повторное ревью READY. Два frozen
+файла перенесены byte-for-byte; CI mount/wiring прошёл source replay без native
+операций. Calendar matrix не менялась. Общий CI budget75m/Rstep40m и always
+teardown5m/upload2m — ограничение CI, не гарантия внутреннего browser restoration
+при зависшем driver или внешней потере runner.
+В existing browser requirements добавлен PyYAML6.0.2: clean-driver imports,
+actual config append/validator и pip check PASS. Runtime Responses пока не принят;
+полная reasoning continuity явно не квалифицируется этим финансовым профилем.
+Актуальный следующий кандидат:326 harness checks PASS/0skip;
+43 Bash/18 embedded Python/actionlint/34 literal mounts PASS.
+Диагностика floor отдельно проверена25 focused tests и independent replay:
+исходный failure leaf сохраняется даже при сбое всех diagnostic I/O.
 
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
