@@ -5,11 +5,13 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний проверенный
-native45: основной WebUI/Responses job и basic calendar PASS; positive-floor
-повторно подтвердил native false denial, workflow FAIL. После upstream research
-готовится разрешённый stand-only derivative с изменением двух функций LiteLLM;
-production не менялся. Подробности текущего среза ниже, после решения владельца.
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Native46 завершён
+SUCCESS: main/WebUI/overlap/Responses и оба calendar профиля приняты в указанном
+bounded scope по actual artifacts, independent review и parent replay. Проверен
+разрешённый stand-only derivative двух функций LiteLLM. Native45 остаётся
+исходным FAIL с подтверждённым false denial. Следующий срез — версии/источники
+тарифов и native autocheck, отдельно в pricing-version worktree. Production
+не менялся. Подробности текущего среза ниже, после решения владельца.
 
 Предыдущий полностью зелёный native41
 [41663679301](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41663679301):
@@ -305,6 +307,63 @@ assertions; source readiness не является runtime acceptance.
 входят в этот срез. Evidence: `native-floor-prototype-preparation.md`,
 `native-floor-independent-readiness.*`, `native-floor-build-integration-readiness.md`
 в existing ignored `local/goal584/`.
+
+**Native46: derivative принят в выбранном bounded scope, все3 jobs SUCCESS.**
+[41705184241](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41705184241),
+HEAD `9e2d93efe1367edf5f1231bca7725be17548944e`, tested merge
+`f80c868a3e5cde4bad7c23d7c31cfec2a3c5b057`. Basic job126158483172 SUCCESS:
+ZIP `ea13d97e5a4361ddf572c7dab851368358691ea9bae60f39dbe10d4bba803a05`,
+5 actual files,26 source hashes/12 mounts/10 native hashes. Parent воспроизвёл
+Git/base/patch/AST/build-image/source bindings и прежние financial assertions:
+4 sweeps,2 calls, period$0.20/lifetime$0.40, next1.899s<60, cleanup0/0/0.
+Floor job126158483451 SUCCESS, ZIP
+`ac4f23f40934f92f8bab22c73c90c61670f4fec7d978a8a448b548013ef84aa8`:
+независимый replay и parent повтор276 checks PASS. Actual200/422/200/200,
+3 charged rows по$0.20 и1 строго связанный prime audit0, final DB/Redis$0.40,
+lifetime$0.60, critical2.051011s real/mono<5; caps/history/next period сохранены,
+cleanup0/0/0.26 tested sources/10 helpers/12 mounts/18 native source hashes;
+actual patched proxy SHAe354… выведен из pristine Git + exact patch + AST, а не
+принят из receipt. В каждом job собран собственный immutable derivative image:
+basic f9c52a1a…; floor86d05062… на обоих workers. Разные image IDs не выдаются за
+одну сборку; совпадение base/patch/manifest и resulting SDK bytes проверено.
+Raw full-row/provider/lease/context assertions остаются source-bound; live L1
+не экспортирован. General inflight/noRedis/scheduler/load/full GOAL не приняты.
+Evidence: `calendar-basic-proof-41705184241/parent-replay.safe.json` и
+`calendar-floor46-review/replay.safe.json` в `local/goal584/`.
+Main job126158482865 SUCCESS, Active CI41705184340/147 SUCCESS. Main ZIP
+`972542eab3e378d02e1d9bbb75324baba477496eae50e30f76d55840ab12c606`:
+220 files/52 actual source hashes/6 build bindings/SDK5 сверены с tested merge.
+Независимый review и parent повтор actual replay+16 mutations PASS; parent
+просмотрел actual Responses Details PNG. Main immutable image76a4df7d… на обоих
+overlap workers, provider/WebUI stock. Overlap9 charged calls+2 budget denials,
+12 counters, old finance unchanged; settlement/re-admission7.759s(key)/7.776s(user)
+<15s без TTL workaround. Responses2×$0.20, full3-row native audit baseline до/после
+GUI неизменен, provider19/19/counters$0.40; UI/cost/details/reload/negative guards/
+restoration завершены, cleanup0containers/0volumes. Прежние main gates выполнены;
+reasoning continuity, общие inflight/noRedis/lock-pressure/production не приняты.
+Evidence: `local/goal584/native46-main-review/independent-acceptance.md` и
+`verdict.safe.json`. Завершённая native-floor worktree закрыта штатным Git;
+исходные patch/test291c… сохранены локальным provenance commit
+`e722fff4c4fa8a48b9d1d2f37efd12cdb8e07e40` в прежней ветке. Receipt:
+`local/goal584/native-floor-worktree-cleanup.safe.json`; исходная main с двумя
+пользовательскими WIP по-прежнему не менялась.
+
+**Следующий pricing срез.** Existing native Router/config, request-owned callback,
+единственный SpendLogs и native periodic model-cost-map reload остаются владельцами;
+второй каталог/ledger/scheduler не вводится. Readiness сверила15 source hashes и
+native schedule edge cases; generic effective interval, source/time в HA и live
+inflight activation не следуют из native timestamps. `user_config` dispatch сам
+по себе не доказывает обход: native auth запрещает этот body param до custom auth
+при отключённых client-side opt-ins. Никакой exploit/необходимость gateway patch
+этим не заявлены. Проверяется descriptor, связанный с protected global deployment
+и actual native billed rates; клиентский metadata marker не является источником.
+Изолированная `corp-openweb-ui-goal584-pricing-version`, branch
+`agent/goal584-pricing-version`, base9e2d93ef хранит source WIP fixture; callback
+ещё в работе. В main ничего из pricing implementation пока не интегрировано. Opt-in synthetic
+catalog fixture source-ready,51 focused checks PASS; настоящий native scheduled
+fetch/version publication и финансовая/контекстная приёмка ещё предстоят.
+Подробности: existing `local/goal584/native-pricing-version-next.md`,
+`native-pricing-version-readiness.md`, `native-pricing-catalog-fixture-preparation.md`.
 
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
