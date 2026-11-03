@@ -164,11 +164,16 @@ class ProfileHTTP(NativeProof):
 def population(counts, snapshot, payer=None, key_hash=None):
     check(set(counts) == set(calendar.TABLES) and all(type(n) is int and n >= 0 for n in counts.values()), "population_counts")
     check(all(counts[name] == 0 for name in calendar.OTHER_TABLES), "foreign_budget_population")
-    check(set(snapshot) == {"users", "keys", "journal"} and all(isinstance(v, list) for v in snapshot.values()), "population_shape")
+    check(isinstance(snapshot, dict) and set(snapshot) == {"users", "keys", "journal"}
+          and all(isinstance(v, list) for v in snapshot.values()), "population_shape")
     expected = int(payer is not None)
     check(counts[calendar.TABLES[0]] == counts[calendar.TABLES[1]] == expected
-          and counts[calendar.TABLES[2]] <= (3 if payer else 0), "population_bound")
+          and counts[calendar.TABLES[2]] <= (4 if payer else 0), "population_bound")
     check(tuple(map(len, (snapshot["users"], snapshot["keys"], snapshot["journal"]))) == tuple(counts[n] for n in calendar.TABLES[:3]), "population_row_counts")
+    identifiers = [row.get("request_id") if isinstance(row, dict) else None for row in snapshot["journal"]]
+    check(all(isinstance(value, str) and 0 < len(value) <= 256 and value != "None"
+              and not any(c.isspace() for c in value) for value in identifiers)
+          and len(set(identifiers)) == len(identifiers), "journal_identity")
     if payer is None:
         return
     uuid_value(payer)
@@ -185,42 +190,116 @@ def population(counts, snapshot, payer=None, key_hash=None):
 
 
 async def read_population(db, payer=None, key_hash=None):
-    rows = await db.writer_db.query_raw(calendar.COUNTS_SQL)
-    check(len(rows) == len(calendar.TABLES), "population_count_rows")
-    counts = {r["name"]: r["n"] for r in rows}
-    check(set(counts) == set(calendar.TABLES) and all(type(n) is int and n >= 0 for n in counts.values())
-          and all(counts[n] == 0 for n in calendar.OTHER_TABLES)
-          and counts[calendar.TABLES[0]] == counts[calendar.TABLES[1]] == int(payer is not None)
-          and counts[calendar.TABLES[2]] <= (3 if payer else 0), "preload_population_guard")
-    raw = await db.writer_db.query_raw(calendar.ROWS_SQL)
-    check(len(raw) == 1, "population_payload")
-    snapshot = raw[0]["payload"]
-    snapshot = json.loads(snapshot) if isinstance(snapshot, str) else snapshot
-    check(len(json.dumps(snapshot, allow_nan=False).encode()) <= 2 * 1024 * 1024, "population_bytes")
-    population(counts, snapshot, payer, key_hash)
-    snapshot["journal"].sort(key=lambda r: r.get("request_id", ""))
-    return snapshot
+    previous = None
+    for scan in range(3):  # At most three whole reads; no sleep, row merge or partial retry.
+        rows = await db.writer_db.query_raw(calendar.COUNTS_SQL)
+        check(len(rows) == len(calendar.TABLES), "population_count_rows")
+        counts = {r["name"]: r["n"] for r in rows}
+        check(set(counts) == set(calendar.TABLES) and all(type(n) is int and n >= 0 for n in counts.values())
+              and all(counts[n] == 0 for n in calendar.OTHER_TABLES)
+              and counts[calendar.TABLES[0]] == counts[calendar.TABLES[1]] == int(payer is not None)
+              and counts[calendar.TABLES[2]] <= (4 if payer else 0), "preload_population_guard")
+        raw = await db.writer_db.query_raw(calendar.ROWS_SQL)
+        check(len(raw) == 1, "population_payload")
+        snapshot = raw[0]["payload"]
+        snapshot = json.loads(snapshot) if isinstance(snapshot, str) else snapshot
+        check(len(json.dumps(snapshot, allow_nan=False).encode()) <= 2 * 1024 * 1024, "population_bytes")
+        check(isinstance(snapshot, dict) and set(snapshot) == {"users", "keys", "journal"}
+              and all(isinstance(v, list) for v in snapshot.values()), "population_shape")
+        journal_count = len(snapshot["journal"])
+        if counts[calendar.TABLES[2]] < journal_count <= 4:
+            # Internal shape/identity validation only, not an observed DB count.
+            # The caller still binds every row to its successful call/denial.
+            validation_counts = {**counts, calendar.TABLES[2]: journal_count}
+            population(validation_counts, snapshot, payer, key_hash)
+            if previous is not None:
+                unchanged_identity(previous, snapshot)
+            check(scan < 2, "population_append_unsettled")
+            previous = snapshot
+            continue
+        population(counts, snapshot, payer, key_hash)
+        if previous is not None:
+            unchanged_identity(previous, snapshot)
+        snapshot["journal"].sort(key=lambda r: r.get("request_id", ""))
+        return snapshot
 
 
-def journal(snapshot, expected, payer, key_hash, *, complete=True):
+def row_lineage(row):
+    metadata = row.get("metadata")
+    try:
+        metadata = json.loads(metadata) if isinstance(metadata, str) else metadata
+    except (ValueError, TypeError):
+        raise FloorError("journal_metadata") from None
+    check(isinstance(metadata, dict) and isinstance(metadata.get("spend_logs_metadata"), dict), "journal_metadata")
+    return metadata, metadata["spend_logs_metadata"]
+
+
+def denial_attempts(state):
+    """Use only validated native422 responses and their original private HTTP bodies."""
+    attempts = state.get("http", {})
+    check(isinstance(attempts, dict) and len(attempts) <= 4, "http_attempt_bound")
+    result = {}
+    for label, attempt in attempts.items():
+        check(isinstance(attempt, dict), "denial_http_evidence")
+        if attempt.get("validated_budget_denial") is not True:
+            continue
+        check(label in ("prime", "final") and attempt.get("status") == 422
+              and isinstance(attempt.get("response"), dict)
+              and isinstance(attempt["response"].get("error"), dict)
+              and attempt["response"]["error"].get("type") == "budget_exceeded", "denial_http_evidence")
+        body = attempt.get("body")
+        check(isinstance(body, dict) and body.get("model") == MODEL, "denial_body_evidence")
+        _, lineage = row_lineage(body)
+        root, chat = lineage.get("root_answer_id"), lineage.get("chat_id")
+        check(set(lineage) == {"root_answer_id", "chat_id", "call_kind"}
+              and all(isinstance(v, str) and 0 < len(v) <= 256 for v in (root, chat))
+              and lineage.get("call_kind") == "synthetic_chat" and body["metadata"].get("session_id") == chat
+              and root not in result, "denial_lineage_evidence")
+        result[root] = {"lineage": lineage, "label": label, "body_sha256": digest(body)}
+    return result
+
+
+def journal(snapshot, expected, payer, key_hash, *, complete=True, denials=None, terminal=False):
+    denials = {} if denials is None else denials
     rows = snapshot["journal"]
-    check(len(rows) <= len(expected) <= 3, "unexpected_journal_rows")
-    seen = set()
+    check(len(expected) <= 3 and len(denials) <= 2
+          and len(rows) <= len(expected) + len(denials) <= 4, "unexpected_journal_rows")
+    success_roots = {item["root"] for item in expected.values()}
+    check(len(success_roots) == len(expected) and not success_roots.intersection(denials), "attempt_lineage_collision")
+    seen, successes, failures = set(), set(), set()
     for row in rows:
         identifier = row.get("request_id")
-        check(identifier in expected and identifier not in seen, "journal_identity")
+        check(isinstance(identifier, str) and 0 < len(identifier) <= 256 and identifier != "None"
+              and not any(c.isspace() for c in identifier) and identifier not in seen, "journal_identity")
         seen.add(identifier)
+        meta, lineage = row_lineage(row)
+        if identifier not in expected:
+            root = lineage.get("root_answer_id")
+            check(isinstance(root, str) and root in denials and root not in failures
+                  and lineage == denials[root]["lineage"], "journal_denial_lineage")
+            error = meta.get("error_information")
+            check(row.get("user") == payer and row.get("api_key") == key_hash
+                  and row.get("status") == meta.get("status") == "failure"
+                  and isinstance(error, dict) and error.get("error_class") == "BudgetExceededError" and error.get("error_code") == "422"
+                  and amount(row.get("spend")) == 0
+                  and all(type(row.get(n)) is int and row[n] == 0 for n in ("prompt_tokens", "completion_tokens", "total_tokens"))
+                  and row.get("model_group") == MODEL
+                  and row.get("model_id") == "goal584-deployment-a", "journal_denial_identity_cost_usage")
+            failures.add(root)
+            continue
+        successes.add(identifier)
         item = expected[identifier]
-        meta = row.get("metadata") or {}
-        meta = json.loads(meta) if isinstance(meta, str) else meta
-        lineage = meta.get("spend_logs_metadata") or {}
         check(row.get("user") == payer and row.get("api_key") == key_hash and row.get("model_group") == MODEL
+              and row.get("status") == "success"
               and row.get("model_id") in (None, "goal584-deployment-a") and close_amount(row.get("spend"), COST)
               and tuple(row.get(n) for n in ("prompt_tokens", "completion_tokens", "total_tokens")) == (10, 5, 15)
               and lineage.get("root_answer_id") == item["root"] and lineage.get("chat_id") == item["chat"]
               and lineage.get("call_kind") == "synthetic_chat", "journal_scope_cost_usage")
     if complete:
-        check(seen == set(expected), "missing_journal_rows")
+        check(successes == set(expected), "missing_journal_rows")
+    if terminal:
+        check(failures == set(denials), "missing_denial_audit_rows")
+    return {"success_ids": successes, "denial_roots": failures}
 
 
 def retain_observation(label, snapshot, values, physical, expected, state, receipt, path, failures=()):
@@ -239,13 +318,38 @@ def retain_observation(label, snapshot, values, physical, expected, state, recei
             return None
 
     rows = snapshot["journal"]
+    try:
+        denials = denial_attempts(state)
+        denial_ready = True
+    except ProofError:
+        denials, denial_ready = {}, False
+    def denial_label(row):
+        try:
+            _, lineage = row_lineage(row)
+            item = denials.get(lineage.get("root_answer_id"))
+            return item if item and lineage == item["lineage"] else None
+        except (ProofError, TypeError):
+            return None
+    def budget_error(row):
+        try:
+            meta, _ = row_lineage(row)
+            error = meta.get("error_information")
+            return isinstance(error, dict) and error.get("error_class") == "BudgetExceededError" and error.get("error_code") == "422"
+        except ProofError:
+            return False
     receipt["last_observation"] = {"label": label, "at": observed_at,
         "journal_count": len(rows), "expected_success_count": len(expected),
+        "expected_denial_count": len(denials), "denial_evidence_ready": denial_ready,
+        "native_snapshot": calendar.public_snapshot(snapshot),
         "journal_sha256": digest(rows), "redis_key_user": None if values is None else [number(v) for v in values],
         "provider_count": None if physical is None else len(physical["requests"]),
         "capture_failures": list(failures), "private_raw_retained": False,
         "rows": [{"request_id_sha256": digest(row.get("request_id")),
             "is_expected_success_id": isinstance(row.get("request_id"), str) and row["request_id"] in expected,
+            "is_recorded_denial_lineage": denial_label(row) is not None,
+            "is_native_budget_error": budget_error(row),
+            "denial_label": denial_label(row)["label"] if denial_label(row) else None,
+            "denial_body_sha256": denial_label(row)["body_sha256"] if denial_label(row) else None,
             "status": row.get("status") if row.get("status") in ("success", "failure", "error", "pending") else "other_or_missing",
             "spend_usd": number(row.get("spend")),
             "usage": {name: row.get(name) if type(row.get(name)) is int and 0 <= row[name] <= 1_000_000 else None
@@ -277,7 +381,7 @@ async def retain_failed_observation(label, snapshot, counters, read_provider, ex
 
 
 def money(snapshot, spend, lifetime, boundary, count):
-    check(len(snapshot["journal"]) == count, "journal_count")
+    check(sum(row.get("status") == "success" for row in snapshot["journal"]) == count, "successful_journal_count")
     for row in snapshot["users"] + snapshot["keys"]:
         check(amount(row.get("max_budget")) == CAP and close_amount(row.get("spend"), spend)
               and row.get("budget_duration") == "1mo" and calendar.timestamp(row.get("budget_reset_at")) == boundary, "native_money_period")
@@ -292,6 +396,15 @@ def unchanged_identity(before, after):
     old = {r["request_id"]: r for r in before["journal"]}
     new = {r["request_id"]: r for r in after["journal"]}
     check(all(new.get(k) == v for k, v in old.items()), "historical_row_drift")
+
+
+def reset_transition(before, after, boundary, expected, denials, payer, key_hash):
+    journal(after, expected, payer, key_hash, denials=denials)
+    unchanged_identity(before, after)
+    # The existing reset owner verifies every User/key field, including lifetime.
+    # Full raw history was checked above; only explicitly bound late denial audits
+    # may be new, so project the retained history for that owner's equality check.
+    calendar.reset_delta(before, {**after, "journal": before["journal"]}, boundary)
 
 
 def stamp():
@@ -332,6 +445,8 @@ def provider_evidence(value, expected):
 
 
 def request_call(proof, token, payer, label, expected, state, receipt, path, *, long=False):
+    check(label in ("old", "prime", "post", "final") and label not in state.get("http", {})
+          and len(state.get("http", {})) < 4, "http_attempt_bound")
     semantic = copy.deepcopy(LONG_BODY) if long else {"messages": [{"role": "user", "content": "Hi"}], "max_tokens": 5, "stream": False}
     root, chat = proof.run_id + "-answer-" + uuid4().hex[:12], payer + "-chat"
     body = {"model": MODEL, **semantic, "metadata": {"session_id": chat, "spend_logs_metadata": {
@@ -362,11 +477,13 @@ def request_call(proof, token, payer, label, expected, state, receipt, path, *, 
     elif status == 422:
         check(isinstance(response.get("error"), dict) and response["error"].get("type") == "budget_exceeded", "native_budget_error")
         expected_budget_message(response, scope="key")
+        state["http"][label]["validated_budget_denial"] = True
         safe.update(outcome="budget_exceeded", scope="key", error_type="budget_exceeded")
     else:
         raise FloorError("unexpected_http_status")
     receipt.setdefault("attempts", []).append(safe)
     state["expected"] = expected
+    private_save(path, state)
     return safe
 
 
@@ -465,8 +582,12 @@ async def qualify(args, attest, receipt, secrets):
                     window(prime_start, stamp())
                 snapshot = await read_population(db, payer, key_hash)
                 try:
-                    journal(snapshot, expected, payer, key_hash, complete=False)
+                    denials = denial_attempts(state)
+                    audit = journal(snapshot, expected, payer, key_hash, complete=False, denials=denials)
                     unchanged_identity(initial, snapshot)
+                    previous = state.get("last_observation", {}).get("snapshot")
+                    if previous is not None:
+                        unchanged_identity(previous, snapshot)
                 except ProofError:
                     await retain_failed_observation(label, snapshot, counters, lambda: provider(local),
                         expected, state, receipt, args.private_state)
@@ -474,19 +595,25 @@ async def qualify(args, attest, receipt, secrets):
                 values = await counters()
                 physical = provider(local)
                 retain_observation(label, snapshot, values, physical, expected, state, receipt, args.private_state)
-                ready = len(snapshot["journal"]) == count and all(close_amount(r.get("spend"), spend) for r in snapshot["users"] + snapshot["keys"])
+                ready = (len(audit["success_ids"]) == count
+                    and (label != "final" or audit["denial_roots"] == set(denials))
+                    and all(close_amount(r.get("spend"), spend) for r in snapshot["users"] + snapshot["keys"]))
                 cache_ready = not allowed_counters or any(all(v is not None and close_amount(v, a) for v in values) for a in allowed_counters)
                 if ready and cache_ready:
+                    check(label != "final" or time.monotonic() < deadline, "native_settlement")
                     money(snapshot, spend, lifetime, period, count)
-                    journal(snapshot, expected, payer, key_hash)
+                    journal(snapshot, expected, payer, key_hash, denials=denials, terminal=label == "final")
                     provider_evidence(physical, expected)
                     state["snapshots"][label] = snapshot
                     state["stage"] = label
                     state.setdefault("provider", {})[label] = physical
                     state.setdefault("counters", {})[label] = values
                     private_save(args.private_state, state)
-                    receipt.setdefault("observations", {})[label] = {**calendar.public_snapshot(snapshot), "redis_key_user": values}
+                    receipt.setdefault("observations", {})[label] = {**calendar.public_snapshot(snapshot), "redis_key_user": values,
+                        "successful_physical_rows": len(audit["success_ids"]), "denial_audit_rows": len(audit["denial_roots"])}
                     return snapshot, values
+                if label == "final" and time.monotonic() >= deadline:
+                    journal(snapshot, expected, payer, key_hash, denials=denials, terminal=True)
                 check(settled and time.monotonic() < deadline, "native_settlement")
                 await asyncio.sleep(.05)
 
@@ -500,7 +627,6 @@ async def qualify(args, attest, receipt, secrets):
         check(prime["status"] == 422, "prime_reservation_denial")
         primed, _ = await observe("primed", COST, COST, boundary, 1, allowed_counters=(COST,))
         unchanged_identity(old, primed)
-        check(old["journal"] == primed["journal"], "prime_zero_new_rows")
         receipt["phase"] = "native_due_reset"
         # Existing full global-population guard, no filtered job or manual writes.
         await read_population(db, payer, key_hash)
@@ -518,7 +644,7 @@ async def qualify(args, attest, receipt, secrets):
             state["job"]["end"] = stamp()
             private_save(args.private_state, state)
         reset, reset_counters = await observe("reset", Decimal(0), COST, next_boundary, 1)
-        calendar.reset_delta(primed, reset, next_boundary)
+        reset_transition(primed, reset, next_boundary, expected, denial_attempts(state), payer, key_hash)
         check(reset_counters == [None, None] and await redis.async_get_cache(lock.get_redis_lock_key(jobs.RESET_BUDGET_JOB_NAME)) is None, "native_reset_counter_lease")
         receipt["phase"] = "first_post_reset"
         window(prime_start, stamp())
@@ -534,10 +660,10 @@ async def qualify(args, attest, receipt, secrets):
         spend = CAP if count == 3 else COST
         final, final_counters = await observe("final", spend, count * COST, next_boundary, count, settled=True, allowed_counters=(CAP,))
         unchanged_identity(post_snapshot, final)
-        check(final_call["status"] == 200 or post_snapshot["journal"] == final["journal"], "denial_zero_new_rows")
         result = outcome(post_counters, final_call["status"], final_counters)
         receipt.update(outcome=result, passed=result == "PASS_SELECTED_PROFILE", payer_id=payer, key_hash=key_hash,
             successful_calls=count, legitimate_reservation_denials=1, final_probe_status=final_call["status"],
+            recorded_budget_denials=len(denial_attempts(state)), raw_journal_rows=len(final["journal"]),
             final_period_spend_usd=str(spend), native_lifetime_spend_usd=str(count * COST), physical_calls=count,
             boundary_utc=boundary.isoformat(), next_boundary_utc=next_boundary.isoformat())
         receipt["phase"] = "observed"

@@ -15,8 +15,8 @@ import subprocess
 import sys
 import tempfile
 from threading import Thread
-from types import SimpleNamespace
-from typing import SupportsIndex, SupportsInt
+from types import MappingProxyType, ModuleType, SimpleNamespace
+from typing import SupportsIndex, SupportsInt, TypedDict, cast
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
@@ -57,7 +57,7 @@ def packet(count=1, period_spend=P.COST, lifetime=None):
         item = {"root": "root-" + str(index), "chat": uid + "-chat",
                 "semantic": {"messages": [{"role": "user", "content": "Hi"}], "max_tokens": 5, "stream": False}}
         expected[rid] = item
-        journal.append({"request_id": rid, "user": uid, "api_key": key_hash, "model_group": P.MODEL,
+        journal.append({"request_id": rid, "status": "success", "user": uid, "api_key": key_hash, "model_group": P.MODEL,
                         "model_id": "goal584-deployment-a", "spend": .2, "prompt_tokens": 10, "completion_tokens": 5,
                         "total_tokens": 15, "metadata": {"spend_logs_metadata": {"root_answer_id": item["root"],
                             "chat_id": item["chat"], "call_kind": "synthetic_chat"}}, "arbitrary_historical_column": {"keep": True}})
@@ -67,7 +67,99 @@ def packet(count=1, period_spend=P.COST, lifetime=None):
     return snapshot, expected, counts, uid, key_hash, boundary
 
 
+def denial_packet(snapshot, label="prime", state=None):
+    state = {} if state is None else state
+    response = {"error": {"type": "budget_exceeded", "message": P.expected_budget_message.__globals__["BUDGET_MODEL_MESSAGE"]}}
+    native = SimpleNamespace(run_id="synthetic-floor", request=lambda *a, **k: (422, response, {}))
+    with patch.object(P, "private_save"):
+        P.request_call(native, "private-key", snapshot["users"][0]["user_id"], label, {}, state, {}, Path("unused"), long=label == "prime")
+    body = state["http"][label]["body"]
+    row = {"request_id": str(uuid4()), "user": snapshot["users"][0]["user_id"], "api_key": snapshot["keys"][0]["token"],
+        "model_group": P.MODEL, "model_id": "goal584-deployment-a", "status": "failure", "spend": 0,
+        "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0,
+        "metadata": {"spend_logs_metadata": copy.deepcopy(body["metadata"]["spend_logs_metadata"]), "status": "failure",
+            "error_information": {"error_class": "BudgetExceededError", "error_code": "422", "error_message": "private native detail"}}}
+    return row, state
+
+
 class NativeOwnerTests(unittest.TestCase):
+    def test_actual_native_budget_error_information_and_default_failure_logging_policy(self):
+        exception = next(n for n in ast.parse(native_bytes("exceptions.py")).body if isinstance(n, ast.ClassDef) and n.name == "BudgetExceededError")
+        getter = next(n for n in ast.walk(ast.parse(native_bytes("litellm_core_utils/litellm_logging.py")))
+                      if isinstance(n, ast.FunctionDef) and n.name == "get_error_information")
+        getter.decorator_list = []
+        native_type = next(n for n in ast.parse(native_bytes("types/utils.py")).body
+                           if isinstance(n, ast.ClassDef) and n.name == "StandardLoggingPayloadErrorInformation")
+        ns = {"litellm": SimpleNamespace(budget_exceeded_status_code=422, log_client_error_tracebacks=False),
+            "RateLimitErrorCategory": SimpleNamespace(LITELLM_RATE_LIMIT=SimpleNamespace(value="litellm_rate_limit")),
+            "RateLimitType": SimpleNamespace(BUDGET=SimpleNamespace(value="budget")), "TypedDict": TypedDict,
+            "is_expected_client_error": lambda _: True, "validate_rate_limit_category": lambda v: v,
+            "validate_rate_limit_type": lambda v: v, "_get_provider_request_id": lambda _: None,
+            "_redact_string": lambda v: v, "normalize_error": lambda *a: None}
+        execute([exception, native_type, getter], ns)
+        constants = ModuleType("litellm.constants"); constants.MAXIMUM_TRACEBACK_LINES_TO_LOG = 100
+        proxy = ModuleType("litellm.proxy.proxy_server"); proxy.general_settings = {}
+        modules = {"litellm.constants": constants, "litellm.proxy.proxy_server": proxy}
+        with patch.dict(sys.modules, modules):
+            error = ns["BudgetExceededError"](.2, .4, entity_type="key", entity_id="synthetic")
+            result = ns["get_error_information"](error)
+            self.assertEqual((result["error_class"], result["error_code"]), ("BudgetExceededError", "422"))
+            self.assertEqual(result["error_budget_entity_type"], "key")
+            tracking = next(n for n in ast.walk(ast.parse(native_bytes("proxy/hooks/proxy_track_cost_callback.py")))
+                            if isinstance(n, ast.FunctionDef) and n.name == "_should_track_errors_in_db")
+            tracking.decorator_list = []
+            execute([tracking], ns)
+            self.assertIsNone(ns[tracking.name]())  # hook deliberately checks `is False`
+            proxy.general_settings["disable_error_logs"] = True
+            self.assertIs(ns[tracking.name](), False)
+
+    def test_actual_failure_callback_and_typed_metadata_projection_retain_original_denial_lineage(self):
+        raw, _, _, uid, key_hash, _ = packet()
+        _, state = denial_packet(raw)
+        body = copy.deepcopy(state["http"]["prime"]["body"])
+        lineage = copy.deepcopy(body["metadata"]["spend_logs_metadata"])
+        hook_tree = ast.parse(native_bytes("proxy/hooks/proxy_track_cost_callback.py"))
+        hook = next(n for n in ast.walk(hook_tree) if isinstance(n, ast.AsyncFunctionDef) and n.name == "async_post_call_failure_hook")
+        written = []
+        async def released(**kwargs): pass
+        async def enrich(**kwargs): return kwargs["metadata"]
+        async def update(**kwargs): written.append(kwargs)
+        async def no_invalidation(**kwargs): raise AssertionError("no reservation-release error")
+        auth = SimpleNamespace(budget_reservation=None, request_route="/v1/chat/completions", user_id=uid,
+            end_user_id=None, team_id=None, org_id=None, project_id=None)
+        error_information = {"error_class": "BudgetExceededError", "error_code": "422"}
+        ns = {"_release_budget_reservation": released, "_invalidate_budget_reservation_counters": no_invalidation,
+            "_ProxyDBLogger": SimpleNamespace(_should_track_errors_in_db=lambda: None, _enrich_failure_metadata_unless_db_stalled=enrich),
+            "RouteChecks": SimpleNamespace(is_llm_api_route=lambda **k: True, is_info_route=lambda **k: False),
+            "LiteLLMProxyRequestSetup": SimpleNamespace(get_sanitized_user_information_from_key=lambda **k: {"user_api_key_user_id": uid}, get_logged_api_key=lambda a: key_hash),
+            "StandardLoggingPayloadSetup": SimpleNamespace(get_error_information=lambda **k: error_information),
+            "should_suppress_spend_log_tracebacks": lambda: True, "cast": cast, "StandardLoggingPayloadErrorInformation": dict,
+            "_sanitize_error_information_for_spend_logs": lambda e, **k: e,
+            "_proxy_stamped_used_client_oauth_token": lambda *a: False, "datetime": datetime,
+            "litellm": SimpleNamespace(Usage=type("Usage", (), {})), "guardrail_information_cost": lambda _: 0}
+        execute([hook], ns)
+        asyncio.run(ns[hook.name](SimpleNamespace(_spend_writer=lambda: SimpleNamespace(update_database=update)), body, Exception("budget"), auth))
+        self.assertEqual(len(written), 1)
+        args = written[0]
+        metadata = args["kwargs"]["litellm_params"]["metadata"]
+        self.assertEqual((args["response_cost"], args["user_id"], args["token"]), (0, uid, key_hash))
+        self.assertEqual(metadata["spend_logs_metadata"], lineage)
+        self.assertEqual(metadata["status"], "failure")
+        types_tree = ast.parse(native_bytes("proxy/_types.py"))
+        native_type = next(n for n in types_tree.body if isinstance(n, ast.ClassDef) and n.name == "SpendLogsMetadata")
+        utils_tree = ast.parse(native_bytes("proxy/spend_tracking/spend_tracking_utils.py"))
+        nodes = [n for n in utils_tree.body if getattr(n, "name", None) == "_get_spend_logs_metadata"
+                 or isinstance(n, ast.AnnAssign) and getattr(n.target, "id", None) == "_STAMPED_METADATA_KEYS"]
+        projection = {"TypedDict": TypedDict, "MappingProxyType": MappingProxyType,
+            "verbose_proxy_logger": SimpleNamespace(debug=lambda *a: None), "_is_non_secret_key_value": lambda *a, **k: True,
+            "_redact_logged_api_key": lambda key, **k: key, "_get_vector_store_request_for_spend_logs_payload": lambda _: None,
+            "_sanitize_guardrail_information_for_spend_logs": lambda _: None}
+        execute([native_type, *nodes], projection)
+        stored = projection["_get_spend_logs_metadata"](metadata)
+        self.assertEqual(stored["spend_logs_metadata"], lineage)
+        self.assertEqual((stored["status"], stored["error_information"]), ("failure", error_information))
+        self.assertIs(type(stored), dict)
+
     def test_all_18_pinned_owner_blobs_are_actual_cached_revision(self):
         self.assertEqual(len(P.EXTRA_NATIVE), 8)
         self.assertEqual(len(P.NATIVE_HASHES), 18)
@@ -195,6 +287,8 @@ class NativeOwnerTests(unittest.TestCase):
         self.assertEqual({ast.unparse(n.args[0]) for n in queries}, {"calendar.COUNTS_SQL", "calendar.ROWS_SQL"})
         resets = [n for n in calls if isinstance(n.func, ast.Attribute) and n.func.attr == "reset_budget"]
         self.assertEqual(len(resets), 1)
+        http = [n for n in calls if isinstance(n.func, ast.Name) and n.func.id == "request_call"]
+        self.assertEqual([n.args[3].value for n in http], ["old", "prime", "post", "final"])
 
     def test_actual_finally_closes_redis_after_db_failure_and_does_not_claim_closed(self):
         tree = ast.parse(Path(P.__file__).read_text(encoding="utf-8"))
@@ -220,6 +314,226 @@ class NativeOwnerTests(unittest.TestCase):
 
 
 class FinancialBoundaryTests(unittest.TestCase):
+    def test_actual_async_population_whole_scan_restarts_for_own_audit_append_then_returns_all_rows(self):
+        raw, expected, counts, uid, key_hash, _ = packet(2)
+        failure, state = denial_packet(raw)
+        appended = {**copy.deepcopy(raw), "journal": copy.deepcopy(raw["journal"]) + [failure]}
+        class DB:
+            def __init__(self): self.writer_db = self; self.queries = []
+            async def query_raw(self, sql):
+                self.queries.append(sql)
+                if sql == P.calendar.COUNTS_SQL:
+                    observed = {**counts, "LiteLLM_SpendLogs": 2 if len(self.queries) == 1 else 3}
+                    return [{"name": n, "n": v} for n, v in observed.items()]
+                self.assert_rows_sql(sql)
+                return [{"payload": copy.deepcopy(appended)}]
+            def assert_rows_sql(self, sql):
+                if sql != P.calendar.ROWS_SQL: raise AssertionError("unknown query")
+        db = DB()
+        result = asyncio.run(P.read_population(db, uid, key_hash))
+        self.assertEqual(db.queries, [P.calendar.COUNTS_SQL, P.calendar.ROWS_SQL] * 2)
+        self.assertEqual(result["journal"], sorted(appended["journal"], key=lambda r: r["request_id"]))
+        P.journal(result, expected, uid, key_hash, denials=P.denial_attempts(state), terminal=True)
+
+    def test_population_retry_rejects_foreign_shrink_rewrite_schema_and_exhausted_incoherence(self):
+        raw, expected, counts, uid, key_hash, _ = packet(2)
+        failure, state = denial_packet(raw)
+        appended = {**copy.deepcopy(raw), "journal": copy.deepcopy(raw["journal"]) + [failure]}
+        class DB:
+            def __init__(self, scans): self.writer_db = self; self.scans = scans; self.calls = 0
+            async def query_raw(self, sql):
+                index = self.calls // 2; self.calls += 1
+                c, s = self.scans[min(index, len(self.scans) - 1)]
+                if sql == P.calendar.COUNTS_SQL: return [{"name": n, "n": v} for n, v in c.items()]
+                if sql != P.calendar.ROWS_SQL: raise AssertionError("unknown query")
+                if isinstance(s, Exception): raise s
+                return [{"payload": copy.deepcopy(s)}]
+        race = ({**counts, "LiteLLM_SpendLogs": 2}, appended)
+        changed = copy.deepcopy(appended); changed["journal"][0]["arbitrary_historical_column"]["keep"] = False
+        foreign = copy.deepcopy(appended); foreign["journal"][-1]["user"] = str(uuid4())
+        wrong_user = copy.deepcopy(appended); wrong_user["users"].append(copy.deepcopy(wrong_user["users"][0]))
+        duplicate = copy.deepcopy(appended); duplicate["journal"][-1]["request_id"] = duplicate["journal"][0]["request_id"]
+        malformed = copy.deepcopy(appended); malformed["journal"][-1]["request_id"] = None
+        cases = [([race] * 3, 6, "population_append_unsettled"),
+            ([race, (counts, raw)], 4, "historical_row_drift"),
+            ([race, ({**counts, "LiteLLM_SpendLogs": 3}, changed)], 4, "historical_row_drift"),
+            ([({**counts, "LiteLLM_TeamTable": 1}, appended)], 1, "preload_population_guard"),
+            ([({**counts, "LiteLLM_SpendLogs": True}, appended)], 1, "preload_population_guard"),
+            ([(counts, foreign)], 2, "foreign_journal"),
+            ([(counts, wrong_user)], 2, "population_row_counts"),
+            ([(counts, duplicate)], 2, "journal_identity"),
+            ([(counts, malformed)], 2, "journal_identity"),
+            ([({**counts, "LiteLLM_SpendLogs": 3}, raw)], 2, "population_row_counts"),
+            ([(counts, {"journal": []})], 2, "population_shape")]
+        for scans, calls, leaf in cases:
+            with self.subTest(leaf=leaf, calls=calls):
+                db = DB(scans)
+                with self.assertRaises(P.FloorError) as caught: asyncio.run(P.read_population(db, uid, key_hash))
+                self.assertEqual((db.calls, caught.exception.leaf), (calls, leaf))
+        db = DB([(counts, RuntimeError("database unavailable"))])
+        with self.assertRaises(RuntimeError): asyncio.run(P.read_population(db, uid, key_hash))
+        self.assertEqual(db.calls, 2)
+        # Scanner validation is not a denial join: unknown own rows still fail
+        # the unchanged strict caller journal boundary after a consistent read.
+        unknown = copy.deepcopy(appended)
+        unknown["journal"][-1]["metadata"]["spend_logs_metadata"]["root_answer_id"] = "unknown"
+        db = DB([({**counts, "LiteLLM_SpendLogs": 3}, unknown)])
+        result = asyncio.run(P.read_population(db, uid, key_hash))
+        with self.assertRaises(P.FloorError):
+            P.journal(result, expected, uid, key_hash, denials=P.denial_attempts(state), terminal=True)
+
+    def test_four_raw_rows_account_for_all_successes_and_exact_recorded_denials(self):
+        for count, labels in ((3, ("prime",)), (2, ("prime", "final"))):
+            with self.subTest(count=count):
+                raw, expected, counts, uid, key_hash, boundary = packet(count, P.CAP if count == 3 else P.COST)
+                state = {}
+                for label in labels:
+                    row, state = denial_packet(raw, label, state)
+                    raw["journal"].append(row)
+                denials = P.denial_attempts(state)
+                counts["LiteLLM_SpendLogs"] = 4
+                P.population(counts, raw, uid, key_hash)
+                audited = P.journal(raw, expected, uid, key_hash, denials=denials, terminal=True)
+                self.assertEqual((len(audited["success_ids"]), len(audited["denial_roots"])), (count, len(labels)))
+                P.money(raw, P.CAP if count == 3 else P.COST, count * P.COST, boundary, count)
+                receipt = {}
+                with patch.object(P, "private_save"):
+                    P.retain_observation("final", raw, [.4, .4], {"requests": [None] * count}, expected, state, receipt, Path("unused"))
+                safe = receipt["last_observation"]
+                self.assertEqual(safe["native_snapshot"], P.calendar.public_snapshot(raw))
+                self.assertEqual((safe["journal_count"], safe["expected_success_count"], safe["expected_denial_count"]), (4, count, len(labels)))
+                self.assertEqual([r["denial_label"] for r in safe["rows"][count:]], list(labels))
+                self.assertTrue(all(r["is_recorded_denial_lineage"] and r["is_native_budget_error"] for r in safe["rows"][count:]))
+                self.assertNotIn("private native detail", json.dumps(safe))
+                self.assertNotIn("spend_logs_metadata", json.dumps(safe))
+                pending = {**raw, "journal": raw["journal"][:-1]}
+                P.journal(pending, expected, uid, key_hash, denials=denials)
+                with self.assertRaises(P.FloorError):
+                    P.journal(pending, expected, uid, key_hash, denials=denials, terminal=True)
+
+    def test_failure_zero_requires_exact_lineage_identity_error_type_usage_and_unique_audit(self):
+        raw, expected, _, uid, key_hash, _ = packet(2)
+        failure, state = denial_packet(raw)
+        denials = P.denial_attempts(state)
+        mutations = [lambda r: r.update(user=str(uuid4())), lambda r: r.update(api_key="b" * 64),
+            lambda r: r.update(model_group="goal584-b"), lambda r: r.update(model_group=""),
+            lambda r: r.update(model_id="other"), lambda r: r.update(status="success"),
+            lambda r: r.update(spend=.000000001), lambda r: r.update(prompt_tokens=1), lambda r: r.update(total_tokens=False),
+            lambda r: r.update(request_id="None"), lambda r: r.update(request_id=next(iter(expected))),
+            lambda r: r.update(metadata={}), lambda r: r.update(metadata="malformed"),
+            lambda r: r["metadata"]["spend_logs_metadata"].update(root_answer_id="unrecorded"),
+            lambda r: r["metadata"]["spend_logs_metadata"].update(chat_id="foreign"),
+            lambda r: r["metadata"]["spend_logs_metadata"].update(call_kind="other"),
+            lambda r: r["metadata"]["error_information"].update(error_class="AuthenticationError"),
+            lambda r: r["metadata"]["error_information"].update(error_code="403")]
+        for index, mutate in enumerate(mutations):
+            with self.subTest(mutation=index):
+                changed = copy.deepcopy(failure); mutate(changed)
+                with self.assertRaises(P.ProofError):
+                    P.journal({**raw, "journal": raw["journal"] + [changed]}, expected, uid, key_hash, denials=denials)
+        for same_id in (True, False):
+            extra = copy.deepcopy(failure)
+            if not same_id: extra["request_id"] = str(uuid4())
+            # Stay inside the global four-attempt bound: only one observed success,
+            # so the row count itself does not hide duplicate-ID/root validation.
+            two_denials = {**denials, "pending": {"lineage": {}, "label": "final"}}
+            with self.assertRaises(P.ProofError):
+                P.journal({**raw, "journal": raw["journal"][:1] + [failure, extra]}, expected, uid, key_hash,
+                    complete=False, denials=two_denials)
+        with self.assertRaises(P.ProofError):
+            P.journal({**raw, "journal": raw["journal"] + [failure]}, expected, uid, key_hash)
+
+    def test_denial_binding_requires_validated_original_http_and_rejects_missing_or_malformed_evidence(self):
+        raw, expected, _, uid, key_hash, _ = packet()
+        failure, state = denial_packet(raw)
+        for mutate in (lambda s: s["http"]["prime"].update(response={"error": {"type": "other"}}),
+                       lambda s: s["http"]["prime"].update(status=403),
+                       lambda s: s["http"]["prime"]["body"].update(model="goal584-b"),
+                       lambda s: s["http"]["prime"]["body"]["metadata"].update(session_id="foreign"),
+                       lambda s: s["http"].update(prime=None)):
+            changed = copy.deepcopy(state); mutate(changed)
+            with self.assertRaises(P.ProofError): P.denial_attempts(changed)
+        state["http"]["prime"].pop("validated_budget_denial")
+        self.assertEqual(P.denial_attempts(state), {})
+        with self.assertRaises(P.ProofError):
+            P.journal({**raw, "journal": raw["journal"] + [failure]}, expected, uid, key_hash, denials=P.denial_attempts(state))
+
+    def test_delayed_known_failure_append_preserves_history_and_native_reset_policy(self):
+        before, expected, _, uid, key_hash, boundary = packet()
+        failure, state = denial_packet(before)
+        after = copy.deepcopy(before); after["journal"].append(failure)
+        later = boundary + timedelta(days=31)
+        for row in after["users"] + after["keys"]: row.update(spend=0, budget_reset_at=later.isoformat())
+        P.reset_transition(before, after, later, expected, P.denial_attempts(state), uid, key_hash)
+        for mutate in (lambda s: s["journal"][0]["arbitrary_historical_column"].update(keep=False),
+                       lambda s: s["keys"][0].update(total_spend=0),
+                       lambda s: s["journal"][-1]["metadata"]["spend_logs_metadata"].update(root_answer_id="foreign")):
+            changed = copy.deepcopy(after); mutate(changed)
+            with self.assertRaises(P.ProofError):
+                P.reset_transition(before, changed, later, expected, P.denial_attempts(state), uid, key_hash)
+        P.journal(before, expected, uid, key_hash, denials=P.denial_attempts(state))  # pending allowed before final
+        with self.assertRaises(P.FloorError) as caught:
+            P.journal(before, expected, uid, key_hash, denials=P.denial_attempts(state), terminal=True)
+        self.assertEqual(caught.exception.leaf, "missing_denial_audit_rows")
+
+        P.journal(after, expected, uid, key_hash, denials=P.denial_attempts(state), terminal=True)
+        changed = copy.deepcopy(after)
+        changed["journal"][-1]["metadata"]["private_unknown_native_field"] = "changed"
+        with self.assertRaises(P.FloorError): P.unchanged_identity(after, changed)
+
+    def test_final_observe_waits_for_known_audit_without_waiting_for_it_in_critical_phase(self):
+        raw, expected, _, uid, key_hash, boundary = packet(2)
+        failure, state = denial_packet(raw)
+        appended = {**copy.deepcopy(raw), "journal": copy.deepcopy(raw["journal"]) + [failure]}
+        physical = {"requests": [{"id": rid, "body": {"model": "goal584-fake-a", **{k: v for k, v in item["semantic"].items() if k != "stream"}},
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            "lifecycle": {"terminal": True, "outcome": "completed"}} for rid, item in expected.items()]}
+        observe = next(n for n in ast.walk(ast.parse(Path(P.__file__).read_text(encoding="utf-8"))) if isinstance(n, ast.AsyncFunctionDef) and n.name == "observe")
+        for label, packets, expected_reads in (("primed", [raw], 1), ("final", [raw, appended], 2)):
+            observations = []
+            async def read(*args):
+                observations.append(1)
+                return copy.deepcopy(packets[min(len(observations) - 1, len(packets) - 1)])
+            async def counters(): return [.4, .4]
+            current_state, receipt = {**copy.deepcopy(state), "snapshots": {}}, {}
+            ns = {**vars(P), "read_population": read, "provider": lambda _: physical, "counters": counters,
+                "expected": expected, "state": current_state, "receipt": receipt, "args": SimpleNamespace(private_state=Path("unused")),
+                "db": None, "local": None, "payer": uid, "key_hash": key_hash, "initial": raw, "prime_start": None,
+                "private_save": lambda *a: None}
+            execute([observe], ns)
+            with patch.object(P, "private_save"):
+                final, _ = asyncio.run(ns["observe"](label, P.COST, 2 * P.COST, boundary, 2, settled=label == "final"))
+            self.assertEqual(len(observations), expected_reads)
+            self.assertEqual(len(final["journal"]), 3 if label == "final" else 2)
+
+        # Terminal60s expiry cannot certify a known denial with its audit missing.
+        ns["state"] = {**copy.deepcopy(state), "snapshots": {}}
+        ns["time"] = SimpleNamespace(monotonic=iter((0, 61)).__next__)
+        packets = [raw]
+        execute([observe], ns)
+        with patch.object(P, "private_save"), self.assertRaises(P.FloorError) as caught:
+            asyncio.run(ns["observe"]("final", P.COST, 2 * P.COST, boundary, 2, settled=True))
+        self.assertEqual(caught.exception.leaf, "missing_denial_audit_rows")
+
+        # A complete final read at/after60s must fail after preserving its actual
+        # private observation, even though money, counters and audit are ready.
+        for elapsed in (59, 60, 61):
+            packets = [appended]
+            ns["state"] = {**copy.deepcopy(state), "snapshots": {}}
+            ns["receipt"] = {}
+            ns["time"] = SimpleNamespace(monotonic=iter((0, elapsed)).__next__)
+            execute([observe], ns)
+            with patch.object(P, "private_save"):
+                if elapsed < 60:
+                    final, _ = asyncio.run(ns["observe"]("final", P.COST, 2 * P.COST, boundary, 2, settled=True))
+                    self.assertEqual(len(final["journal"]), 3)
+                else:
+                    with self.assertRaises(P.FloorError) as caught:
+                        asyncio.run(ns["observe"]("final", P.COST, 2 * P.COST, boundary, 2, settled=True))
+                    self.assertEqual(caught.exception.leaf, "native_settlement")
+                    self.assertNotIn("final", ns["state"]["snapshots"])
+            self.assertEqual(ns["receipt"]["last_observation"]["journal_count"], 3)
+
     def test_actual_observe_retains_all_three_rows_before_preserving_two_call_failure(self):
         raw, all_expected, counts, uid, key_hash, boundary = packet(3)
         expected = dict(list(all_expected.items())[:2])
