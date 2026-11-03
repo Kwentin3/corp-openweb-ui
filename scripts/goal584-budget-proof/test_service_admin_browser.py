@@ -4,7 +4,10 @@ from decimal import Decimal
 import json
 from pathlib import Path
 import sys
+import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 from uuid import uuid4
 
 HERE = Path(__file__).resolve().parent
@@ -28,7 +31,9 @@ def packet():
                                      "budget_duration": "1mo", "budget_reset_at": reset}],
                           "keys": [{"user_id": payer, "model": "goal584-a", "key_alias": "service-assignment",
                                     "max_budget_usd": "20", "spend_usd": ".2", "budget_duration": "1mo", "budget_reset_at": reset}]},
-              "positive_spend_logs": [{"request_id": "prior-positive-history"}]}
+              "positive_spend_logs": [{"request_id": "chatcmpl-goal584-" + uuid4().hex, "user_id": uid,
+                                       "model_group": "goal584-a", "spend_usd": ".2"}
+                                      for uid in ids for _ in range(8 if uid == admin else 1)]}
     after = copy.deepcopy(before)
     for collection in (after["personal"]["users"], after["personal"]["keys"]):
         for row in collection:
@@ -67,6 +72,45 @@ def packet():
 
 
 class ServiceAdminViewTests(unittest.TestCase):
+    def snapshots(self, observations, expected_rows):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = object.__new__(B.ServiceAdminFixture)
+            fixture.sequence, fixture.command, fixture.output = 0, ["native-compose"], Path(directory)
+            responses = [subprocess.CompletedProcess([], 0, json.dumps(value), "") for value in observations]
+            with patch.object(B.subprocess, "run", side_effect=responses) as run, patch.object(B.time, "sleep"):
+                result = fixture.snapshot(expected_rows=expected_rows)
+            retained = [json.loads(path.read_text(encoding="utf-8")) for path in sorted(Path(directory).glob("service-admin-native-*.json"))]
+            return result, retained, run.call_args_list
+
+    def test_footer_snapshot_waits_for_counter_convergence_with_all_four_histories_retained(self):
+        _, complete, *_ = packet()
+        pending = copy.deepcopy(complete)
+        admin = complete["admin_id"]
+        for collection in (pending["personal"]["users"], pending["personal"]["keys"]):
+            for row in collection:
+                if row["user_id"] == admin and row.get("model", "goal584-a") == "goal584-a": row["spend_usd"] = "1.6"
+        result, retained, calls = self.snapshots([pending, complete], len(complete["positive_spend_logs"]))
+        self.assertEqual(result, complete)
+        self.assertEqual(retained, [pending, complete])
+        self.assertEqual({row["user_id"] for row in result["positive_spend_logs"]}, {row["user_id"] for row in complete["personal"]["users"]})
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(0 < call.kwargs["timeout"] <= 60 for call in calls))
+
+    def test_footer_snapshot_waits_for_missing_journal_rows_before_classifying_surplus(self):
+        _, complete, *_ = packet()
+        pending = copy.deepcopy(complete); pending["positive_spend_logs"].pop()
+        result, retained, _ = self.snapshots([pending, complete], len(complete["positive_spend_logs"]))
+        self.assertEqual(result, complete); self.assertEqual(len(retained), 2)
+
+    def test_footer_snapshot_does_not_wait_on_surplus_duplicate_or_missing_identity(self):
+        _, complete, *_ = packet()
+        for mutate in (lambda value: value["personal"]["users"][0].update(spend_usd="3"),
+                       lambda value: value["positive_spend_logs"].append(copy.deepcopy(value["positive_spend_logs"][0])),
+                       lambda value: value["personal"]["keys"].pop()):
+            changed = copy.deepcopy(complete); mutate(changed)
+            with self.subTest(mutation=mutate), self.assertRaises(AssertionError):
+                self.snapshots([changed], len(complete["positive_spend_logs"]))
+
     def test_two_admin_calls_are_separate_from_unchanged_service_and_staff(self):
         result = B.verify_view(*packet())
         self.assertEqual(result["admin_reporting_cost_usd"], "0.40")

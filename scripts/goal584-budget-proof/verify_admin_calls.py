@@ -2,7 +2,7 @@
 import argparse
 import ast
 from collections import Counter
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 from pathlib import Path
@@ -115,20 +115,53 @@ def compare_provider(capture, provider, model):
             "Actual provider usage differs")
 
 
-def verify_accounting_totals(users, keys, rows, identities):
-    """Verify native payer/key counters against the same complete positive ledger."""
+def accounting_totals_ready(users, keys, rows, identities, *, history_complete=True):
+    """Compare one complete native history; only a valid counter deficit can wait.
+
+    While the expected journal rows are still arriving, validate all identities,
+    shapes and amounts without treating an ahead-of-journal counter as surplus.
+    """
     identities = set(identities)
+    require(isinstance(users, list) and isinstance(keys, list) and isinstance(rows, list)
+            and bool(identities) and all(isinstance(entry, dict) for entry in [*users, *keys, *rows]),
+            "Native accounting observations have an invalid shape")
     require(len(users) == len(identities) and {user["user_id"] for user in users} == identities,
             "Native payer accounting is incomplete")
     require(len(keys) == len(identities) * len(MODELS)
             and {(key["user_id"], key["model"]) for key in keys}
             == {(uid, model) for uid in identities for model in MODELS},
             "Native payer/model key accounting is incomplete")
-    for entry in [*users, *keys]:
-        matching = [row for row in rows if row["user_id"] == entry["user_id"]
-                    and ("model" not in entry or row["model_group"] == entry["model"])]
-        require(abs(Decimal(entry["spend_usd"]) - sum((Decimal(row["spend_usd"]) for row in matching), Decimal(0)))
-                <= Decimal(".000000001"), "Native payer/key spend differs from the same persisted ledger")
+    require(all(isinstance(row.get("request_id"), str) and 0 < len(row["request_id"]) <= 512
+                and row.get("user_id") in identities and row.get("model_group") in MODELS for row in rows)
+            and len({row["request_id"] for row in rows}) == len(rows), "Native accounting history identity is invalid or duplicated")
+    def spend(value):
+        require(type(value) in (str, int, float, Decimal), "Native accounting amount is invalid")
+        try:
+            result = Decimal(str(value))
+        except (InvalidOperation, ValueError):
+            raise AssertionError("Native accounting amount is invalid") from None
+        require(result.is_finite() and result >= 0, "Native accounting amount is invalid")
+        return result
+    actual = [spend(entry.get("spend_usd")) for entry in [*users, *keys]]
+    costs = [spend(row.get("spend_usd")) for row in rows]
+    require(all(cost > 0 for cost in costs), "Native accounting history contains a nonpositive row")
+    if not history_complete:
+        return False
+    ready = True
+    for entry, observed in zip([*users, *keys], actual):
+        expected = sum((cost for row, cost in zip(rows, costs) if row["user_id"] == entry["user_id"]
+                        and ("model" not in entry or row["model_group"] == entry["model"])), Decimal(0))
+        require(observed == 0 if expected == 0 else observed - expected <= Decimal(".000000001"),
+                "Native payer/key spend exceeds the same persisted ledger")
+        if expected - observed > Decimal(".000000001"):
+            ready = False
+    return ready
+
+
+def verify_accounting_totals(users, keys, rows, identities):
+    """Strict final verification; a pending native counter is not accepted."""
+    require(accounting_totals_ready(users, keys, rows, identities),
+            "Native payer/key spend differs from the same persisted ledger")
 
 
 def verify(browser, provider, context, native):

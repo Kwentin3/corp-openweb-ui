@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import expect, sync_playwright
 from prove_admin_browser import (FormParser, INTENT, MODELS, acknowledgement, admin_login,
-                                 wait_editor)
+                                 wait_editor, wait_inference_delta)
 from prove_webui_browser import Fixture, chat, login, require, safe_failure, same_money, text_content, write_json
 
 
@@ -71,41 +71,26 @@ def verify_newhire(snapshot, user_id, *, spend):
 
 
 def wait_newhire_settlement(fixture, created, user_id, *, spend, timeout=60):
-    """Read native materialized counters until they match the persisted event.
-
-    Each observation is retained by snapshot(). No inference or financial write
-    is repeated. A changed identity/cap/period or excess spend fails immediately.
-    """
+    """Adapt the bootstrap read shape to the common inference settlement owner."""
     verify_newhire(created, user_id, spend=Decimal(0))
-    expected = copy.deepcopy(created["bootstrap"])
-    for row in expected["users"] + expected["keys"]:
-        row.pop("spend_usd")
-    started = time.monotonic()
-    observations = 0
-    while True:
-        snapshot = fixture.snapshot()
-        observations += 1
-        actual = copy.deepcopy(snapshot["bootstrap"])
-        values = []
-        for row in actual["users"] + actual["keys"]:
-            value = Decimal(row.pop("spend_usd"))
-            limit = spend if row.get("model", MODELS[0]) == MODELS[0] else Decimal(0)
-            require(value.is_finite() and value >= 0
-                    and (value == 0 if limit == 0 else value <= limit + Decimal("0.000000001")),
-                    "Native new-hire spend exceeds the completed call")
-            values.append(same_money(value, limit))
-        require(actual == expected, "Native new-hire identity/cap/period changed while settling")
-        rows = [row for row in snapshot["attributed_spend_logs"] if row.get("user_id") == user_id]
-        require(len(rows) <= 1, "New-hire settlement observed an extra native cost row")
-        if rows:
-            require(rows[0].get("model_group") == MODELS[0]
-                    and same_money(rows[0]["spend_usd"], spend), "New-hire native event differs from completed call")
-        if all(values) and len(rows) == 1:
-            verify_newhire(snapshot, user_id, spend=spend)
-            return snapshot, {"observations": observations, "elapsed_seconds": time.monotonic() - started,
-                              "native_counter_and_ledger_converged": True}
-        require(time.monotonic() - started < timeout, "Native new-hire counters/ledger did not settle")
-        time.sleep(0.25)
+    require(spend == Decimal(".20"), "New-hire settlement expects its single completed native call")
+    envelope = {key:value for key,value in created["bootstrap"].items() if key not in ("users", "keys")}
+    def adapt(snapshot):
+        bootstrap = snapshot["bootstrap"]
+        require({key:value for key,value in bootstrap.items() if key not in ("users", "keys")} == envelope,
+                "Native new-hire state/identity changed while settling")
+        return {"users": bootstrap["users"], "keys": bootstrap["keys"],
+                "attributed_spend_logs": snapshot.get("attributed_spend_logs", [])}
+    class Reader:
+        latest = None
+        def snapshot(self):
+            self.latest = fixture.snapshot()
+            return adapt(self.latest)
+    reader = Reader()
+    _, evidence = wait_inference_delta(reader, adapt(created), (user_id,), [(user_id, MODELS[0])],
+                                       timeout=timeout, label="new-hire")
+    verify_newhire(reader.latest, user_id, spend=spend)
+    return reader.latest, evidence
 
 
 class BootstrapFixture(Fixture):

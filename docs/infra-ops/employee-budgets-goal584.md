@@ -316,6 +316,34 @@ budget writes, repair или пересчёта нет.9 targeted tests PASS. Of
 сходимости; после него остаются прежние полные финансовые/context проверки.
 Evidence `local/goal584/runtime-proof-41615522053`, cleanup0/0, ZIP SHA256
 `17aaa04cf26e9d65970237a8070ff4f39d6992b31bbe789d778444d4dab8de3d`.
+Run32 [41618051782](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41618051782),
+HEAD `31ddd53ac790a3d780dd76452cc1eddd62622d96`, tested merge
+`dd16f0810abd34422524988a389caebad72841c1`, остановился на аналогичном однократном
+admin final readback: ledger24→25, ровно один новый U2/B event0.20, но user/key
+ещё0.4/0.2 вместо0.6/0.4. Остальные поля сохранены. Bootstrap/service/retention
+этой попыткой не проверены; cleanup0/0, ZIP SHA256
+`4006aa96870e9543ba7fd48f21f12f7afcbfd24becbbd36d19b7f37939c770b7`.
+Общий read-only `wait_inference_delta` теперь обслуживает admin и newhire,
+проверяя каждое неизменяемое поле и точные новые события; старые финальные
+assertions сохранены.24 focused tests PASS, оба неизменённых failing inputs
+завершаются timeout, а не ложным PASS.
+Для полного personal history используется существующий owner
+`verify_admin_calls.accounting_totals_ready`: deficit может ждать, surplus,
+неверные identities, строки и суммы отклоняются; zero total требует exact zero.
+Он применён к pre-service baseline и service-admin snapshot. Последний теперь
+включает newhire history (полные34→36 rows вместо прежних33→35) и ждёт counters
+после достижения количества строк. Финальный verifier остаётся строгим.
+Для proxy CLI добавлен readonly bind этого же owner;25 literal sources/imports,
+33 Bash/14 Python snippets и actionlint PASS. В admin HTML добавлено пояснение,
+что недавние расходы могут появляться с задержкой; финансовая логика не менялась.
+Вся текущая рабочая копия, включая отдельные неинтегрированные следующие срезы:
+191 component tests (184 PASS/7 opt-in skips),176 harness tests PASS.
+Source audit15 pinned native files подтвердил раздельные journal/entity queues и
+management DB reads: configured interval1 получает startup jitter0..5s. Это
+lag-permitting механизм, не наблюдённая сходимость конкретных runs. Cap-only updates
+на проверенных путях не удаляют prefixed scalar Redis counters; explicit spend
+update — другой путь. Подробности и следующий bounded probe:
+`local/goal584/native-materialized-spend-read-seam.md`.
 К следующему кандидату добавлена отдельная финальная retention-проверка: свежий
 native login сотрудника, один его завершённый оплаченный synthetic Hi/Proof chat,
 native DELETE и повторный GET, readonly PostgreSQL snapshots всех колонок

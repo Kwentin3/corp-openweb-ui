@@ -33,6 +33,7 @@ from provision_webui import (MODELS, OPERATOR_STATE, PROXY_URL, TASK_FLAGS, WEBU
                              native_client, read_private, write_private, NoRedirects, ProofError, require)
 from provision_cost_display import FILTER_ID, STATE, secret_values, source_hash, model_body, grant_set
 from provision_admin import model_grant_changes, normalize, positive_logs
+from verify_admin_calls import accounting_totals_ready
 
 
 FUNCTION_ID = "employee_budget_service"
@@ -412,22 +413,35 @@ def verify_context(observed, provider_data, row, result, payer, actor, chat_id, 
 
 
 def run(webui, state, args, receipt=None):
+    receipt = {} if receipt is None else receipt
     admin, actor = state["admin"], state["users"][0]
     webui.session(admin, "admin")
     webui.session(actor, "user")
     source, source_id = owned_source(webui, actor)
     foreign, _ = owned_source(webui, state["users"][1])
-    personal_before, _ = asyncio.run(budgets(state))
     native = native_client(state)
-    personal_ids = {budget.user_id: sorted(row["request_id"] for row in native.logs(budget.user_id)
-                    if Decimal(str(row.get("spend", 0))) > 0) for budget in personal_before}
+    expanded = {**state, "users": [*state["users"], state["bootstrap_fixture"]["employee"]]}
+    identities = [account["id"] for account in [*expanded["users"], state["admin"]]]
+    receipt["stage"] = "settle_personal_baseline"
+    receipt["personal_baseline_observations"] = []
+    def baseline():
+        personal, _ = asyncio.run(budgets(state))
+        observed = normalize(personal)
+        rows, unknown = positive_logs(native, expanded)
+        receipt["personal_baseline_observations"].append({"personal": observed, "positive_spend_logs": rows,
+                                                        "unqualified_zero_row_count": unknown})
+        require(len(observed["users"]) == 4 and len(observed["keys"]) == 8,
+                "Service personal baseline requires four payers and eight keys")
+        if not accounting_totals_ready(observed["users"], observed["keys"], rows, identities):
+            return None
+        return personal, {uid: sorted(row["request_id"] for row in rows if row["user_id"] == uid) for uid in identities}
+    personal_before, personal_ids = native.poll("complete personal baseline accounting", baseline)
     payer = install(webui, state, args.private_state)
     _, before = asyncio.run(budgets(state, payer))
     require(before.spend == 0 and before.max_budget == 20, "Service payer is not a fresh native budget")
     original = webui.ok("GET", "/api/v1/tasks/config", token=admin["token"])
     state["service_fixture"]["original_task_config"] = copy.deepcopy(original)
     write_private(args.private_state, state)
-    receipt = {} if receipt is None else receipt
     receipt.update({"actor_id": actor["id"], "payer_id": payer, "chat_id": source["chat_id"],
                "native_source_message_id": source_id, "source_kind": "persisted_fixture_owned_Hi",
                "pipe_source_sha256": state["service_fixture"]["pipe_sha256"], "stage": "installed", "negatives": []})
@@ -537,7 +551,8 @@ def admin_snapshot(webui, state):
             "Admin service view requires the completed restored direct-title phase")
     webui.session(state["admin"], "admin")
     personal, service = asyncio.run(budgets(state, canonical(fixture.get("payer_id"))))
-    rows, unknown = positive_logs(native_client(state), state)
+    expanded = {**state, "users": [*state["users"], state["bootstrap_fixture"]["employee"]]}
+    rows, unknown = positive_logs(native_client(state), expanded)
     return {"personal": normalize(personal), "service": normalize([service]),
             "positive_spend_logs": rows, "unqualified_zero_row_count": unknown,
             "admin_id": state["admin"]["id"], "service_payer_id": service.user_id,

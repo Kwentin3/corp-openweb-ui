@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import expect, sync_playwright
 from prove_admin_browser import INTENT, acknowledgement, admin_login, wait_editor
 from prove_webui_browser import Fixture, require, safe_failure, same_money, write_json
-from verify_admin_calls import compare_provider, source_contract, text, tool_schemas, uuid
+from verify_admin_calls import accounting_totals_ready, compare_provider, source_contract, text, tool_schemas, uuid, verify_accounting_totals
 
 
 MODEL = "goal584-budget-admin"
@@ -24,17 +24,25 @@ class ServiceAdminFixture(Fixture):
     def snapshot(self, *, expected_rows=None):
         deadline = time.monotonic() + 60
         while True:
+            remaining = deadline - time.monotonic()
+            require(remaining > 0, "Admin footer native accounting did not converge before the read deadline")
             self.sequence += 1
             result = subprocess.run(self.command + ["exec", "-T", "proxy", "python", "-B", "/proof/prove_service_tasks.py",
                 "--phase", "admin-snapshot", "--private-state", "/proof-private/webui-state.private.json",
-                "--receipt", "/proof-private/service-admin-observed.safe.json"], capture_output=True, text=True, timeout=75)
+                "--receipt", "/proof-private/service-admin-observed.safe.json"], capture_output=True, text=True, timeout=min(75, remaining))
             data = json.loads(result.stdout)
             write_json(self.output / ("service-admin-native-%02d.json" % self.sequence), data)
             require(result.returncode == 0 and data.get("passed") is True, "Native service admin snapshot failed")
             count = len(data["positive_spend_logs"])
-            if expected_rows is None or count == expected_rows:
+            require(expected_rows is None or count <= expected_rows, "Admin footer spend rows exceeded the expected two calls")
+            personal = data["personal"]
+            require(len(personal["users"]) == 4 and len(personal["keys"]) == 8,
+                    "Admin footer requires all four personal payers and eight keys")
+            ready = accounting_totals_ready(personal["users"], personal["keys"], data["positive_spend_logs"],
+                [row["user_id"] for row in personal["users"]], history_complete=expected_rows is None or count == expected_rows)
+            if ready:
                 return data
-            require(count < expected_rows and time.monotonic() < deadline, "Admin footer spend rows did not reach the expected two calls")
+            require(time.monotonic() < deadline, "Admin footer native accounting did not converge before the read deadline")
             time.sleep(.25)
 
 
@@ -64,6 +72,9 @@ def verify_view(before, after, opened, context, provider):
             and admin in {row["user_id"] for row in before["personal"]["users"]}
             and after["service_payer_id"] not in {row["user_id"] for row in before["personal"]["users"]},
             "Admin/staff personal accounting is incomplete or includes the service payer")
+    for snapshot in (before, after):
+        verify_accounting_totals(snapshot["personal"]["users"], snapshot["personal"]["keys"],
+                                 snapshot["positive_spend_logs"], [row["user_id"] for row in before["personal"]["users"]])
     for section in ("users", "keys"):
         key = lambda row: (row["user_id"], row.get("model", ""))
         previous = sorted(before["personal"][section], key=key)

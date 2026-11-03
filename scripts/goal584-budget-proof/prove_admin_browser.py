@@ -105,12 +105,13 @@ def verify_parent(stored, sent, admin_id, model_id, *, expected_text):
 
 
 def staff_projection(snapshot, staff_ids):
+    require(len(staff_ids) > 0 and len(set(staff_ids)) == len(staff_ids), "Native target employee set is ambiguous")
     user_fields = ("user_id", "max_budget_usd", "spend_usd", "budget_duration", "budget_reset_at")
     key_fields = ("user_id", "model", "key_alias", "max_budget_usd", "spend_usd", "budget_duration", "budget_reset_at")
     users = [{key: row[key] for key in user_fields} for row in snapshot["users"] if row["user_id"] in staff_ids]
     keys = [{key: row[key] for key in key_fields} for row in snapshot["keys"] if row["user_id"] in staff_ids]
-    require(len(users) == 2 and {r["user_id"] for r in users} == set(staff_ids)
-            and len(keys) == 4 and {(r["user_id"], r["model"]) for r in keys}
+    require(len(users) == len(staff_ids) and {r["user_id"] for r in users} == set(staff_ids)
+            and len(keys) == len(staff_ids) * len(MODELS) and {(r["user_id"], r["model"]) for r in keys}
             == {(uid, model) for uid in staff_ids for model in MODELS}, "Native staff snapshot is incomplete")
     return {"users": sorted(users, key=lambda r: r["user_id"]),
             "keys": sorted(keys, key=lambda r: (r["user_id"], r["model"]))}
@@ -154,6 +155,66 @@ def verify_inference_delta(before, after, staff_ids, successful_pairs):
                     and {k: v for k, v in previous.items() if k != "spend_usd"}
                     == {k: v for k, v in current.items() if k != "spend_usd"},
                     "Employee inference changed cap/reset/identity or unexpected native spend")
+
+
+def wait_inference_delta(fixture, before, staff_ids, successful_pairs, *, timeout=60, label="employee"):
+    """Observe counters and exact new ledger rows; never repeat model work.
+
+    Every snapshot is retained by its existing owner. Timeout is a nominal
+    between-read budget; the existing 75-second snapshot read can overrun it.
+    """
+    targets, counts = tuple(staff_ids), Counter(successful_pairs)
+    require(counts and all(uid in targets and model in MODELS for uid, model in counts),
+            "Native settlement expected calls are outside the target employees/models")
+    previous = staff_projection(before, targets)
+    def selected_rows(snapshot):
+        rows = [row for row in snapshot["attributed_spend_logs"] if row.get("user_id") in targets]
+        require(all(isinstance(row.get("request_id"), str) and 0 < len(row["request_id"]) <= 512 for row in rows)
+                and len({row["request_id"] for row in rows}) == len(rows), "Native settlement cost row identity duplicated or missing")
+        return {row["request_id"]: row for row in rows}
+    old_rows = selected_rows(before)
+    started, observations = time.monotonic(), 0
+    while True:
+        snapshot = fixture.snapshot()
+        observations += 1
+        current = staff_projection(snapshot, targets)
+        ready = True
+        for kind in ("users", "keys"):
+            for old, new in zip(previous[kind], current[kind]):
+                require({key:value for key,value in old.items() if key != "spend_usd"}
+                        == {key:value for key,value in new.items() if key != "spend_usd"},
+                        "Native settlement changed employee identity/cap/period/alias")
+                prior, actual = Decimal(old["spend_usd"]), Decimal(new["spend_usd"])
+                require(prior.is_finite() and prior >= 0 and actual.is_finite() and actual >= 0,
+                        "Native settlement counter is negative or nonfinite")
+                count = (sum(number for (uid, _), number in counts.items() if uid == new["user_id"])
+                         if kind == "users" else counts[(new["user_id"], new["model"])])
+                expected = prior + Decimal(".20") * count
+                if count == 0:
+                    require(actual == prior, "Native settlement changed an unchanged employee/model counter")
+                else:
+                    require(actual >= prior or same_money(actual, prior), "Native settlement counter regressed")
+                    require(actual <= expected or same_money(actual, expected), "Native settlement counter exceeded completed calls")
+                    if not same_money(actual, expected):
+                        ready = False
+        rows = selected_rows(snapshot)
+        require(old_rows.keys() <= rows.keys() and all(rows[identifier] == row for identifier,row in old_rows.items()),
+                "Native settlement removed or changed existing employee cost rows")
+        added = [row for identifier,row in rows.items() if identifier not in old_rows]
+        actual_counts = Counter()
+        for row in added:
+            pair = (row["user_id"], row.get("model_group"))
+            require(pair in counts and Decimal(row["spend_usd"]) == Decimal(".20"),
+                    "Native settlement added an unexpected employee/model/cost row")
+            actual_counts[pair] += 1
+        require(all(number <= counts[pair] for pair,number in actual_counts.items()),
+                "Native settlement observed an extra completed cost row")
+        if ready and actual_counts == counts:
+            return snapshot, {"observations": observations, "elapsed_seconds": time.monotonic() - started,
+                "expected_successful_calls": sum(counts.values()), "matched_new_native_rows": len(added),
+                "native_counter_and_ledger_converged": True}
+        require(time.monotonic() - started < timeout, "Native " + label + " counters/ledger did not settle")
+        time.sleep(.25)
 
 
 class AdminFixture(Fixture):
@@ -405,9 +466,11 @@ def main():
                         "admin-staff-%02d-%s" % (index, outcome), args.output)
             call.update(user_id=staff_ids[owner], phase="after_admin_apply")
             receipt["calls"].append(call)
-        after_quota = fixture.snapshot()
+        quota_pairs = [(staff_ids[0], MODELS[0]), (staff_ids[1], MODELS[1])]
+        after_quota, quota_settlement = wait_inference_delta(fixture, after_apply, staff_ids, quota_pairs)
+        receipt.setdefault("native_settlements", {})["after_quota"] = quota_settlement
         quota_after = staff_projection(after_quota, staff_ids)
-        verify_inference_delta(after_apply, after_quota, staff_ids, [(staff_ids[0], MODELS[0]), (staff_ids[1], MODELS[1])])
+        verify_inference_delta(after_apply, after_quota, staff_ids, quota_pairs)
         recovery = planned_changes(saved_rows, staff_ids, second_budget="0.8")
         require(len(recovery["changes"]) == 1 and recovery["changes"][0]["user_id"] == staff_ids[1],
                 "Recovery form must change only employee two")
@@ -422,9 +485,11 @@ def main():
                        "admin-staff-recovered", args.output)
         resumed.update(user_id=staff_ids[1], phase="after_admin_recovery")
         receipt["calls"].append(resumed)
-        final = fixture.snapshot()
+        recovery_pairs = [(staff_ids[1], MODELS[1])]
+        final, recovery_settlement = wait_inference_delta(fixture, after_recovery, staff_ids, recovery_pairs)
+        receipt["native_settlements"]["after_recovery"] = recovery_settlement
         receipt["final_native_receipt"] = "admin-native-%02d.json" % fixture.sequence
-        verify_inference_delta(after_recovery, final, staff_ids, [(staff_ids[1], MODELS[1])])
+        verify_inference_delta(after_recovery, final, staff_ids, recovery_pairs)
         recovered_user = next(u for u in final["users"] if u["user_id"] == staff_ids[1])
         require(same_money(recovered_user["spend_usd"], Decimal(".60")), "Recovered employee native spend differs")
         fixture.provider()

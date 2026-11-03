@@ -133,6 +133,7 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
 <style>body{font:14px system-ui;margin:16px;color:#222;background:white}main{max-width:100%}section{border:1px solid #ccc;padding:12px;margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%;margin-top:12px}td,th{text-align:left;padding:7px;border-bottom:1px solid #ddd}small{display:block;font-weight:normal}input{font:inherit;width:12em;max-width:85%;padding:5px}button{font:inherit;padding:8px;margin:8px 8px 8px 0}input:focus,button:focus{outline:2px solid #2365bd;outline-offset:2px}pre{white-space:pre-wrap;overflow-wrap:anywhere}[role=alert]{color:#a20}p{line-height:1.5}</style></head><body>
 <main data-budget-editor="v1"><h1>Бюджеты сотрудников</h1>'''
         + f'<p>Данные на: <time>{_text(as_of)}</time>.</p><p>{_text(status, "")}</p>'
+        + '<p>Недавние расходы могут появиться с небольшой задержкой.</p>'
         + '<p>Правки действуют только в этом экране и не сохраняются при обновлении. '
           'Применение отправит JSON в чат через штатное подтверждение. Затем сервер заново проверит '
           'права и данные и отдельно запросит подтверждение изменения бюджета.</p>'

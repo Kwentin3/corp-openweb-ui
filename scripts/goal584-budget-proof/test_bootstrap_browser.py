@@ -12,6 +12,7 @@ from uuid import uuid4
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import prove_bootstrap_browser as B
+import prove_admin_browser as A
 import verify_bootstrap_calls as V
 import mock_provider as P
 from verify_admin_calls import PHYSICAL, source_contract
@@ -116,7 +117,7 @@ class BootstrapTests(unittest.TestCase):
         clock = [0.0]
         def sleep(seconds):
             clock[0] += seconds
-        with patch.object(B, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep)):
+        with patch.object(A, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep)):
             return B.wait_newhire_settlement(fixture, created, uid, spend=Decimal(".20"), timeout=timeout)
 
     def test_waits_for_user_and_key_materialization_without_repeating_inference(self):
@@ -160,6 +161,23 @@ class BootstrapTests(unittest.TestCase):
             with self.subTest(mutation=mutate), self.assertRaises(AssertionError):
                 self.settle(fixture, created, uid)
             self.assertEqual(fixture.snapshot.call_count, 1)
+
+    def test_unchanged_actual_run31_event_with_zero_counters_times_out_through_common_owner(self):
+        root=HERE.parents[1]/"local/goal584/runtime-proof-41615522053/receipts/bootstrap"
+        if not (root/"bootstrap-native-05.json").is_file():self.skipTest("Optional actual run31 evidence unavailable")
+        created=json.loads((root/"bootstrap-native-04.json").read_text(encoding="utf-8"))
+        observed=json.loads((root/"bootstrap-native-05.json").read_text(encoding="utf-8"))
+        uid=observed["bootstrap"]["user_id"]
+        rows=[row for row in observed["attributed_spend_logs"] if row["user_id"] == uid]
+        self.assertEqual(len(rows),1)
+        self.assertEqual(Decimal(rows[0]["spend_usd"]),Decimal(".20"))
+        self.assertEqual(Decimal(observed["bootstrap"]["users"][0]["spend_usd"]),0)
+        preserved=copy.deepcopy(observed)
+        fixture=SimpleNamespace(snapshot=Mock(return_value=observed))
+        with self.assertRaisesRegex(AssertionError,"did not settle"):
+            self.settle(fixture,created,uid,timeout=.5)
+        self.assertEqual(fixture.snapshot.call_count,3)
+        self.assertEqual(observed,preserved)
 
     def test_native_shaped_phase_is_independent_nine_calls_ten_attempts(self):
         result = V.verify(*packet())

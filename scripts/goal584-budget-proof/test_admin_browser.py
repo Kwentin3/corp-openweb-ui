@@ -1,10 +1,13 @@
 """Verifier rehearsal only: no browser, API, fixture process or provider calls."""
 import copy
+from decimal import Decimal
 import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -153,6 +156,122 @@ class AdminVerifierTests(unittest.TestCase):
             self.assertEqual(DRIVER.editor_embeds(broken, 'open_budget_form'), [])
         self.assertEqual(DRIVER.editor_embeds(message, 'apply_budget_form'), [])
         self.assertEqual(DRIVER.editor_embeds({'embeds': [html]}, 'open_budget_form'), [])
+
+
+class InferenceSettlementTests(unittest.TestCase):
+    def packet(self, pairs=None):
+        before=snapshot()
+        rows=[]
+        for uid,model,count in ((IDS[0],DRIVER.MODELS[0],7),(IDS[0],DRIVER.MODELS[1],6),(IDS[1],DRIVER.MODELS[0],1)):
+            for _ in range(count):
+                rows.append({'request_id':'old-'+str(len(rows)), 'user_id':uid,'model_group':model,'spend_usd':'.20',
+                             'owui_budget':{'retained':'synthetic historical row'}})
+        rows.append({'request_id':'old-admin','user_id':ADMIN,'model_group':DRIVER.MODELS[0],'spend_usd':'2.00'})
+        before['attributed_spend_logs']=rows
+        pairs=[(IDS[0],DRIVER.MODELS[0]),(IDS[1],DRIVER.MODELS[1])] if pairs is None else pairs
+        final=copy.deepcopy(before)
+        for index,(uid,model) in enumerate(pairs):
+            user=next(row for row in final['users'] if row['user_id']==uid)
+            key=next(row for row in final['keys'] if row['user_id']==uid and row['model']==model)
+            user['spend_usd']=str(Decimal(user['spend_usd'])+Decimal('.20'))
+            key['spend_usd']=str(Decimal(key['spend_usd'])+Decimal('.20'))
+            final['attributed_spend_logs'].append({'request_id':'new-'+str(index),'user_id':uid,
+                'model_group':model,'spend_usd':'.20'})
+        return before,final,pairs
+
+    def settle(self, fixture, before, pairs, *, targets=IDS, timeout=1):
+        clock=[0.0]
+        def sleep(seconds):clock[0]+=seconds
+        with patch.object(DRIVER,'time',SimpleNamespace(monotonic=lambda:clock[0],sleep=sleep)):
+            return DRIVER.wait_inference_delta(fixture,before,targets,pairs,timeout=timeout)
+
+    def test_partial_user_key_and_event_lag_require_all_observed_values_without_input_mutation(self):
+        before,final,pairs=self.packet()
+        pending=copy.deepcopy(final)
+        pending['users']=copy.deepcopy(before['users']);pending['keys']=copy.deepcopy(before['keys'])
+        partial=copy.deepcopy(pending);partial['users']=copy.deepcopy(final['users'])
+        missing_row=copy.deepcopy(final);missing_row['attributed_spend_logs'].pop()
+        sequence=[pending,partial,missing_row,final]
+        unchanged=copy.deepcopy(sequence)
+        fixture=SimpleNamespace(snapshot=Mock(side_effect=sequence))
+        actual,evidence=self.settle(fixture,before,pairs)
+        self.assertIs(actual,final)
+        self.assertEqual(fixture.snapshot.call_count,4)
+        self.assertEqual((evidence['observations'],evidence['expected_successful_calls'],evidence['matched_new_native_rows']),(4,2,2))
+        self.assertEqual(sequence,unchanged)
+        DRIVER.verify_inference_delta(before,actual,IDS,pairs)
+
+    def test_unrelated_admin_ledger_rows_are_not_counted_as_staff_inference(self):
+        before,final,pairs=self.packet()
+        final['attributed_spend_logs'][-3]['spend_usd']='999'
+        final['attributed_spend_logs'].append({'request_id':'new-admin','user_id':ADMIN,'model_group':DRIVER.MODELS[1],'spend_usd':'.20'})
+        actual,evidence=self.settle(SimpleNamespace(snapshot=Mock(return_value=final)),before,pairs)
+        self.assertIs(actual,final)
+        self.assertEqual(evidence['matched_new_native_rows'],2)
+
+    def test_pending_snapshots_timeout_and_never_repeat_a_model_or_financial_write(self):
+        before,final,pairs=self.packet()
+        pending=copy.deepcopy(final);pending['users']=copy.deepcopy(before['users']);pending['keys']=copy.deepcopy(before['keys'])
+        fixture=SimpleNamespace(snapshot=Mock(return_value=pending))
+        with self.assertRaisesRegex(AssertionError,'counters/ledger did not settle'):
+            self.settle(fixture,before,pairs,timeout=.5)
+        self.assertEqual(fixture.snapshot.call_count,3)
+
+    def test_conflicts_regression_excess_and_ledger_mutations_fail_even_while_another_counter_is_pending(self):
+        before,final,pairs=self.packet()
+        mutations=[lambda s:s['keys'][0].update(max_budget_usd='9'),
+                   lambda s:s['keys'][0].update(key_alias='changed'),
+                   lambda s:s['users'][0].update(budget_reset_at='2030-01-01'),
+                   lambda s:s['users'][1].update(spend_usd='.19'),
+                   lambda s:s['users'][1].update(spend_usd='.41'),
+                   lambda s:s['keys'][-1].update(spend_usd='.40'),
+                   lambda s:s['keys'][1].update(spend_usd='1.200000000001'),
+                   lambda s:s['users'][1].update(spend_usd='NaN'),
+                   lambda s:s['attributed_spend_logs'].pop(0),
+                   lambda s:s['attributed_spend_logs'][0]['owui_budget'].update(retained='changed'),
+                   lambda s:s['attributed_spend_logs'].append(copy.deepcopy(s['attributed_spend_logs'][-1])),
+                   lambda s:s['attributed_spend_logs'].append({'request_id':'extra','user_id':IDS[1],'model_group':DRIVER.MODELS[1],'spend_usd':'.20'}),
+                   lambda s:s['attributed_spend_logs'][-1].update(spend_usd='.2000000001'),
+                   lambda s:s['attributed_spend_logs'][-1].update(model_group=DRIVER.MODELS[0])]
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                bad=copy.deepcopy(final);bad['users'][0]['spend_usd']=before['users'][0]['spend_usd'];mutate(bad)
+                fixture=SimpleNamespace(snapshot=Mock(side_effect=[bad,final]))
+                with self.assertRaises(AssertionError):self.settle(fixture,before,pairs)
+                self.assertEqual(fixture.snapshot.call_count,1)
+
+    def test_single_user_adapter_uses_same_counter_owner_and_preserves_hard_zero_model_b(self):
+        before,final,pairs=self.packet([(IDS[1],DRIVER.MODELS[0])])
+        self.settle(SimpleNamespace(snapshot=Mock(return_value=final)),before,pairs,targets=(IDS[1],))
+        bad=copy.deepcopy(final);bad['keys'][-1]['spend_usd']='.000000000001'
+        with self.assertRaisesRegex(AssertionError,'unchanged'):
+            self.settle(SimpleNamespace(snapshot=Mock(return_value=bad)),before,pairs,targets=(IDS[1],))
+
+    def test_binary_float_rounding_uses_existing_browser_bound_without_changing_ledger_values(self):
+        before,final,pairs=self.packet([(IDS[0],DRIVER.MODELS[0])])
+        before['users'][0]['spend_usd']='2.6000000000000001'
+        final['users'][0]['spend_usd']='2.8000000000000003'
+        final['keys'][0]['spend_usd']='1.5999999999999999'
+        actual,_=self.settle(SimpleNamespace(snapshot=Mock(return_value=final)),before,pairs)
+        self.assertEqual(actual['attributed_spend_logs'][-1]['spend_usd'],'.20')
+        DRIVER.verify_inference_delta(before,actual,IDS,pairs)
+
+    def test_unchanged_actual_run32_event_with_stale_counters_times_out(self):
+        root=HERE.parents[1]/'local/goal584/runtime-proof-41618051782/receipts/admin'
+        if not (root/'admin-native-06.json').is_file():self.skipTest('Optional actual run32 evidence unavailable')
+        before=json.loads((root/'admin-native-05.json').read_text(encoding='utf-8'))
+        observed=json.loads((root/'admin-native-06.json').read_text(encoding='utf-8'))
+        old_ids={row['request_id'] for row in before['attributed_spend_logs']}
+        added=[row for row in observed['attributed_spend_logs'] if row['request_id'] not in old_ids]
+        self.assertEqual(len(added),1)
+        self.assertEqual((added[0]['model_group'],Decimal(added[0]['spend_usd'])),(DRIVER.MODELS[1],Decimal('.20')))
+        targets=[row['user_id'] for row in before['users']]
+        preserved=copy.deepcopy(observed)
+        fixture=SimpleNamespace(snapshot=Mock(return_value=observed))
+        with self.assertRaisesRegex(AssertionError,'did not settle'):
+            self.settle(fixture,before,[(added[0]['user_id'],DRIVER.MODELS[1])],targets=targets,timeout=.5)
+        self.assertEqual(fixture.snapshot.call_count,3)
+        self.assertEqual(observed,preserved)
 
 
 if __name__ == '__main__':

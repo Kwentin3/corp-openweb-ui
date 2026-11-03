@@ -59,7 +59,46 @@ def packet():
     return [capture, provider, row, result, payer, actor, chat, key_hash]
 
 
+def personal_rows(user_ids):
+    result = {}
+    for uid in user_ids:
+        chat, answer, call = [str(uuid4()) for _ in range(3)]
+        scope = {"schema": 1, "category": "personal", "user_id": uid, "model": S.MODELS[0], "chat_id": chat,
+                 "root_chat_id": chat, "answer_id": answer, "root_answer_id": answer, "call_id": call}
+        result[uid] = [{"request_id": "chatcmpl-goal584-" + uuid4().hex, "user": uid, "session_id": chat,
+            "model_group": S.MODELS[0], "spend": .2, "status": "success", "prompt_tokens": 10,
+            "completion_tokens": 5, "total_tokens": 15, "metadata": {"spend_logs_metadata": {"owui_budget": scope}}}]
+    return result
+
+
 class ServiceProofTests(unittest.TestCase):
+    def test_admin_snapshot_reads_all_four_personal_histories_including_newhire(self):
+        staff1, staff2, admin, newhire, payer = [str(uuid4()) for _ in range(5)]
+        ids = [staff1, staff2, admin, newhire]
+        histories = personal_rows(ids)
+        def budget(uid):
+            models = S.MODELS[:1] if uid == payer else S.MODELS
+            keys = tuple(ModelBudget(model, "a" * 64, "owui-budget-v1-" + "b" * 64, Decimal(10),
+                Decimal(".2") if model == S.MODELS[0] else Decimal(0), "1mo", "2026-12-01T00:00:00Z", False)
+                for model in models)
+            return EmployeeBudget(uid, Decimal(20), Decimal(".2"), "1mo", "2026-12-01T00:00:00Z", keys)
+        state = {"users": [{"id": staff1}, {"id": staff2}], "admin": {"id": admin},
+            "bootstrap_fixture": {"employee": {"id": newhire}}, "service_fixture": {
+                "stage": "qualified_direct_title", "task_config_restored": True, "payer_id": payer}}
+        async def budgets(actual, selected):
+            self.assertIs(actual, state); self.assertEqual(selected, payer)
+            return [budget(uid) for uid in ids], budget(payer)
+        observed = []
+        def logs(uid):
+            observed.append(uid); return histories[uid]
+        with patch.object(S, "budgets", budgets), patch.object(S, "native_client", return_value=SimpleNamespace(logs=logs)):
+            result = S.admin_snapshot(SimpleNamespace(session=lambda *args: None), state)
+        self.assertEqual(set(observed), set(ids)); self.assertEqual(len(observed), 4)
+        self.assertEqual({row["user_id"] for row in result["positive_spend_logs"]}, set(ids))
+        self.assertEqual(len(result["positive_spend_logs"]), 4)
+        self.assertEqual(len(result["personal"]["keys"]), 8)
+        self.assertEqual(state["users"], [{"id": staff1}, {"id": staff2}])
+
     def test_personal_history_evidence_includes_all_four_payers_and_only_native_fixture_ids(self):
         users = [str(uuid4()) for _ in range(4)]
         histories = {uid: ["chatcmpl-goal584-" + uuid4().hex for _ in range(2)] for uid in users}
@@ -162,19 +201,28 @@ class ServiceProofTests(unittest.TestCase):
         observed, physical, row, result, payer, actor, chat, key_hash = packet()
         admin, foreign, newhire = str(uuid4()), str(uuid4()), str(uuid4())
         state = {"admin": {"id": admin, "token": "native-admin"}, "users": [
-            {"id": actor, "token": "native-actor"}, {"id": str(uuid4()), "token": "native-foreign"}]}
+            {"id": actor, "token": "native-actor"}, {"id": str(uuid4()), "token": "native-foreign"}],
+            "bootstrap_fixture": {"employee": {"id": newhire}}}
         original = {"TASK_MODEL": "original", "TASK_MODEL_EXTERNAL": "original", "TASK_MODEL_PARAMS": {},
                     **{flag: False for flag in S.TASK_FLAGS}}
         current, signed = copy.deepcopy(original), False
         personal_users = [actor, state["users"][1]["id"], admin, newhire]
-        histories = {uid: [{"request_id": "chatcmpl-goal584-" + uuid4().hex, "spend": .2}] for uid in personal_users}
+        histories = personal_rows(personal_users)
         def budget(uid, spend):
-            return EmployeeBudget(uid, Decimal(20), Decimal(spend), "1mo", "2026-12-01T00:00:00Z",
-                (ModelBudget(S.MODELS[0], key_hash, "owui-budget-v1-" + "d" * 64, Decimal(20),
-                             Decimal(spend), "1mo", "2026-12-01T00:00:00Z", False),))
+            keys = (ModelBudget(S.MODELS[0], key_hash, "owui-budget-v1-" + "d" * 64, Decimal(20),
+                                Decimal(spend), "1mo", "2026-12-01T00:00:00Z", False),)
+            if uid != payer:
+                keys += (ModelBudget(S.MODELS[1], "b" * 64, "owui-budget-v1-" + "e" * 64, Decimal(0),
+                                     Decimal(0), "1mo", "2026-12-01T00:00:00Z", False),)
+            return EmployeeBudget(uid, Decimal(20), Decimal(spend), "1mo", "2026-12-01T00:00:00Z", keys)
+        personal_reads = 0
         async def budgets(_state, payer_id=None):
-            return [budget(uid, 0) for uid in personal_users], budget(payer, ".2" if signed else "0") if payer_id else None
+            nonlocal personal_reads
+            if payer_id is None: personal_reads += 1
+            personal_spend = "0" if payer_id is None and personal_reads == 1 else ".2"
+            return [budget(uid, personal_spend) for uid in personal_users], budget(payer, ".2" if signed else "0") if payer_id else None
         def install(_webui, actual, _path):
+            self.assertEqual(personal_reads, 2)
             actual["service_fixture"] = {"stage": "setup_complete", "pipe_sha256": "fixture-source", "key_hash": key_hash}
             return payer
         class WebUI:
@@ -202,8 +250,12 @@ class ServiceProofTests(unittest.TestCase):
             if path == "/api/chat/completions":
                 return 200, {"error": "unsupported_task"}
             return 403, {"error": {"message": S.UNSIGNED_REASON}}
-        native = SimpleNamespace(logs=lambda uid: [row] if signed and uid == payer else histories.get(uid, []),
-                                 poll=lambda _name, fn: fn())
+        def poll(_name, fn):
+            for _ in range(3):
+                value = fn()
+                if value is not None: return value
+            raise AssertionError("Native fixture did not settle")
+        native = SimpleNamespace(logs=lambda uid: [row] if signed and uid == payer else histories.get(uid, []), poll=poll)
         receipt = {}
         with patch.object(S, "owned_source", side_effect=owned), patch.object(S, "budgets", budgets), \
              patch.object(S, "install", side_effect=install), patch.object(S, "native_client", return_value=native), \
@@ -215,6 +267,10 @@ class ServiceProofTests(unittest.TestCase):
             with self.assertRaisesRegex(S.ProofError, "context drift"):
                 S.run(WebUI(), state, SimpleNamespace(private_state=Path("private.json")), receipt)
         self.assertEqual(receipt["native_service_row"]["request_id"], row["request_id"])
+        self.assertEqual(len(receipt["personal_baseline_observations"]), 2)
+        self.assertEqual(receipt["personal_baseline_observations"][0]["personal"]["users"][0]["spend_usd"], "0")
+        self.assertEqual(receipt["personal_baseline_observations"][-1]["personal"], receipt["personal_before"])
+        self.assertEqual({r["user_id"] for r in receipt["personal_baseline_observations"][-1]["positive_spend_logs"]}, set(personal_users))
         self.assertEqual(receipt["native_title_response"], result)
         self.assertEqual(set(receipt["personal_ids_before"]), set(personal_users))
         self.assertEqual(receipt["personal_ids_before"], receipt["personal_ids_after"])
@@ -463,7 +519,8 @@ class ServiceProofTests(unittest.TestCase):
     def failed_title_phase(self, *, negative=False):
         actor, payer, chat, foreign = [str(uuid4()) for _ in range(4)]
         state = {"admin": {"id": str(uuid4()), "token": "admin"},
-                 "users": [{"id": actor, "token": "actor"}, {"id": str(uuid4()), "token": "foreign"}]}
+                 "users": [{"id": actor, "token": "actor"}, {"id": str(uuid4()), "token": "foreign"}],
+                 "bootstrap_fixture": {"employee": {"id": foreign}}}
         original = {"TASK_MODEL": "original-model", "TASK_MODEL_EXTERNAL": "original-external",
                     "TASK_MODEL_PARAMS": {"temperature": .7}, "ENABLE_TITLE_GENERATION": False,
                     "TITLE_GENERATION_PROMPT_TEMPLATE": "original-prompt", **{flag: False for flag in S.TASK_FLAGS}}
@@ -482,9 +539,12 @@ class ServiceProofTests(unittest.TestCase):
             return payer
         async def budgets(_state, payer_id=None):
             def budget(uid, cap):
-                return EmployeeBudget(uid, Decimal(cap), Decimal(0), "1mo", "2026-12-01T00:00:00Z",
-                    (ModelBudget(S.MODELS[0], "a" * 64, "owui-budget-v1-" + "d" * 64, Decimal(cap),
-                                 Decimal(0), "1mo", "2026-12-01T00:00:00Z", False),))
+                keys = (ModelBudget(S.MODELS[0], "a" * 64, "owui-budget-v1-" + "d" * 64, Decimal(cap),
+                                    Decimal(0), "1mo", "2026-12-01T00:00:00Z", False),)
+                if uid != payer:
+                    keys += (ModelBudget(S.MODELS[1], "b" * 64, "owui-budget-v1-" + "e" * 64, Decimal(0),
+                                         Decimal(0), "1mo", "2026-12-01T00:00:00Z", False),)
+                return EmployeeBudget(uid, Decimal(cap), Decimal(0), "1mo", "2026-12-01T00:00:00Z", keys)
             return [budget(uid, 40) for uid in (actor, state["users"][1]["id"], state["admin"]["id"], foreign)], \
                    budget(payer, 20) if payer_id else None
         def owned(_webui, account):
@@ -505,7 +565,7 @@ class ServiceProofTests(unittest.TestCase):
             return {"requests": [{"id": title["id"]}] if positive else []}
         partial = {}
         with patch.object(S, "owned_source", side_effect=owned), patch.object(S, "budgets", budgets), \
-             patch.object(S, "native_client", return_value=SimpleNamespace(logs=lambda _user: [])), \
+             patch.object(S, "native_client", return_value=SimpleNamespace(logs=lambda _user: [], poll=lambda _name, fn: fn())), \
              patch.object(S, "install", side_effect=install), patch.object(S, "write_private"), \
              patch.object(S, "provider", side_effect=observe_provider), patch.object(S, "save_capture"), \
              patch.object(S, "captured", return_value={"requests": [{}]}), \
