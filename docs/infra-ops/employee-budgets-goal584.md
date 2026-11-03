@@ -187,6 +187,17 @@ exception/converter source и независимые10 targeted checks подт�
 422/budget_exceeded и остальных полей исключения. Native prompt-body storage
 явно выключен config/env; полная DB privacy и failure/cancel paths остаются отдельным gate.
 Далее остаются остальные перечисленные gaps;
+Первый service/error кандидат `afdf38dcef916a5f46e2fce72f10e706b8746c14`,
+[run41603889448](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41603889448),
+подтвердил native callback на scalar key/user, gateway и cold restart с сохранением
+422/budget_exceeded. До WebUI не дошёл: старый config transition требовал отсутствия
+store_prompts_in_spend_logs, уже заданного в новом базовом конфиге. Исправлено:
+проверяется ровно одно значение false, повторной вставки нет. Локальная репетиция
+двух фактических workflow Python stages на полном базовом YAML PASS; callback,
+common checks, capture delegate и privacy flag сохранены. Static32/14 и actionlint PASS.
+Следующий шаг — повтор того же native GUI/service gate. Cleanup0/0, ZIP SHA256
+`e4347afc172b0e7de19571a9040d21ab3aa3a3764eefc412f14269e2f999bf4c`,
+`local/goal584/runtime-proof-41603889448`. Service/UI этой попыткой не квалифицированы.
 business default template должен храниться за admin-role API, не в owner-writable
 Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.
 

@@ -228,8 +228,9 @@ jobs:
           content = config.read_text(encoding='utf-8')
           assert content.count('custom_auth: litellm_auth.gateway_auth') == 1
           assert 'missing_session_id:' not in content
-          assert 'store_prompts_in_spend_logs:' not in content
-          content = content.replace('general_settings:\n', 'general_settings:\n  missing_session_id: omit\n  store_prompts_in_spend_logs: false\n', 1)
+          assert content.count('store_prompts_in_spend_logs:') == 1
+          assert content.count('store_prompts_in_spend_logs: false') == 1
+          content = content.replace('general_settings:\n', 'general_settings:\n  missing_session_id: omit\n', 1)
           config.write_text(content.replace('custom_auth: litellm_auth.gateway_auth',
                                            'custom_auth: capture_webui_auth.gateway_auth'), encoding='utf-8')
           PY
