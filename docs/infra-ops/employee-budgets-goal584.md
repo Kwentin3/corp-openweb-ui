@@ -31,6 +31,32 @@ Raw privacy scan выполнен source-bound runtime script; private DB JSON �
 пустые body-поля, точные сохранённые значения, подстроки от32 символов и полные
 credentials в выбранном scope; global privacy/failure/cancel этим не приняты.
 
+**Текущий RAG-кандидат — ошибка подготовки, не принят.**
+[run39 41655596690](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41655596690),
+HEAD `23c03af13191f3967ee378d9b75e52e97d02bef4`, tested merge
+`5844cd3a4e6bc6822ba48e625e7ebf6eee869f1a`: все прежние stages, включая pricing
+и два proxy, прошли; новый RAG stage остановился в `prepare`. Подтверждены
+runtime pgvector/prefix environment и один proxy. Worker receipt не сохранён:
+ошибка возникла до записи `rag-prepare.json`; точная причина пока неизвестна.
+Это не доказательство сбоя embeddings, начисления или векторной БД.
+Parent сверил ZIP `4b7e251976412dd18839b51874e871559342cfa81b8ae627dba780fabf42547c`,
+204 файла,43 source hashes/6 mounts и cleanup0 containers/0 volumes.
+Evidence: `local/goal584/runtime-proof-41655596690/parent-source-check.safe.json`.
+Следующий шаг — source/offline разбор worker boundary и ограниченная диагностика
+до повторного native запуска; production и реальные API не затронуты.
+
+**Месячный сброс — отдельная подготовка.** Новый calendar job использует свой
+проект `goal584-calendar-<12hex>`, БД `goal584_calendar` и Redis; штатный global
+ResetBudgetJob не запускается на общем WebUI fixture. Source review обнаружил
+несовместимость старого NativeProof (`30d`, A+B, lifetime вместо period spend).
+Тонкая calendar проверка сохраняет общий inference transport и отдельно
+сверяет журнал/период/накопительный расход. Readback выполняется однократно после
+DB/Redis settlement, без API retry/ожидания TTL; после сброса до следующего вызова
+нет management read или очистки кэша.12 focused tests PASS,42 Bash/18 embedded
+Python и actionlint PASS. Native календарный runtime ещё не запускался; stale
+positive DB floor, live scheduler и multiworker invalidation этим не приняты.
+Рабочий review: `local/goal584/calendar-independent-readiness.md`.
+
 **BG-срез run35:** три автоматические задачи title/tags/follow-up после
 двух обычных свежих Hi-чатов с одной выбранной моделью A. Тот же native service
 payer и journal; новых регистров, frontend/core patch или фиктивных answer IDs нет.

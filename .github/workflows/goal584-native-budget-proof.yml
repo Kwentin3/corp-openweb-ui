@@ -7,6 +7,7 @@ on:
       - .github/workflows/goal584-native-budget-proof.yml
       - compose/goal584.native-budget-proof.yml
       - compose/goal584.webui-proof.yml
+      - compose/goal584.calendar-proof.yml
       - scripts/goal584-budget-proof/**
       - deploy/openwebui-budgets/**
   workflow_dispatch:
@@ -672,5 +673,190 @@ jobs:
         with:
           name: goal584-native-budget-proof-${{ github.sha }}
           path: ${{ runner.temp }}/goal584-native-budget-proof/
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-calendar-reset:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Check out the calendar candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare a separate disposable calendar project
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, secrets
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          private = root / 'goal584-calendar-private'
+          private.mkdir(mode=0o700)
+          output = root / 'goal584-calendar-proof'
+          output.mkdir()
+          config = private / 'config.yaml'
+          raw = Path('scripts/goal584-budget-proof/litellm_config.yaml').read_text(encoding='utf-8')
+          assert raw.count('\ngeneral_settings:\n') == raw.count('\nlitellm_settings:\n') == 1
+          raw = raw.replace('\ngeneral_settings:\n', '\ngeneral_settings:\n  disable_reset_budget: true\n')
+          raw = raw.replace('\nlitellm_settings:\n', '\nlitellm_settings:\n  timezone: Europe/Moscow\n  budget_reset_time: "00:00"\n  budget_rollover: false\n')
+          with os.fdopen(os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as handle:
+              handle.write(raw)
+          project = 'goal584-calendar-' + secrets.token_hex(6)
+          paths = {'CALENDAR_PROJECT': project, 'PROOF_ENV_FILE': str(private / 'proof.env'),
+                   'PROOF_PRIVATE_DIR': str(private), 'PROOF_CONFIG_FILE': str(config),
+                   'PROOF_OUTPUT_DIR': str(output)}
+          values = {**paths, 'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
+                    'PROOF_DB_PASSWORD': secrets.token_hex(32),
+                    'OWUI_BUDGET_GATEWAY_SECRET': 'gw-' + secrets.token_hex(32)}
+          with os.fdopen(os.open(paths['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as handle:
+              for key, value in values.items():
+                  handle.write(f'{key}={value}\n')
+                  if key in ('PROOF_MASTER_KEY', 'PROOF_DB_PASSWORD', 'OWUI_BUDGET_GATEWAY_SECRET'):
+                      print(f'::add-mask::{value}')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              for key, value in paths.items():
+                  handle.write(f'{key}={value}\n')
+          PY
+
+      - name: Start only the fresh calendar backend
+        shell: bash
+        run: |
+          label="label=com.docker.compose.project=$CALENDAR_PROJECT"
+          test -z "$(docker ps -aq --filter "$label")"
+          test -z "$(docker volume ls -q --filter "$label")"
+          docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml config --quiet
+          docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml \
+            up -d --wait --wait-timeout 240
+
+      - name: Attest calendar containers and their exact mounted sources
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, re, subprocess
+          from pathlib import Path
+          project = os.environ['CALENDAR_PROJECT']
+          assert re.fullmatch(r'goal584-calendar-[0-9a-f]{12}', project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.calendar-proof.yml']
+          def read(argv):
+              return subprocess.check_output(argv, text=True).strip()
+          attest = {'schema':1, 'project':project}
+          images = []
+          assert len(read(command + ['ps','-q']).split()) == 4
+          for service in ('proxy','postgres','redis','provider'):
+              ids = read(command + ['ps','-q',service]).split()
+              assert len(ids) == 1 and re.fullmatch('[0-9a-f]{64}',ids[0])
+              item = json.loads(read(['docker','inspect',ids[0]]))[0]
+              labels = item['Config']['Labels']
+              assert labels['com.docker.compose.project'] == project and labels['com.docker.compose.service'] == service
+              assert item['State']['Health']['Status'] == 'healthy' and '@sha256:' in item['Config']['Image']
+              images.append({'service':service, 'container_id':ids[0], 'image_ref':item['Config']['Image'], 'image_id':item['Image']})
+              if service != 'provider': attest[service+'_container_id'] = ids[0]
+              if service == 'proxy':
+                  assert item['Config']['Cmd'] == ['--config','/proof/config.yaml','--host','0.0.0.0','--port','4000','--num_workers','1','--telemetry','false']
+          info = read(command + ['exec','-T','redis','redis-cli','INFO','server'])
+          attest['redis_run_id'] = next(line.split(':',1)[1] for line in info.splitlines() if line.startswith('run_id:'))
+          assert re.fullmatch('[0-9a-f]{40}',attest['redis_run_id'])
+          path = Path(os.environ['PROOF_PRIVATE_DIR'],'calendar-attestation.private.json')
+          with os.fdopen(os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              json.dump(attest,handle)
+          files = ['.github/workflows/goal584-native-budget-proof.yml','compose/goal584.native-budget-proof.yml',
+                   'compose/goal584.calendar-proof.yml','scripts/goal584-budget-proof/litellm_config.yaml',
+                   'scripts/goal584-budget-proof/init_vector_database.sql','scripts/goal584-budget-proof/mock_provider.py',
+                   'scripts/goal584-budget-proof/prove_calendar_reset.py','scripts/goal584-budget-proof/prove_native_budgets.py',
+                   'scripts/goal584-budget-proof/prove_gateway_auth.py','deploy/openwebui-budgets/budget_errors.py',
+                   'deploy/openwebui-budgets/pricing_snapshot.py','deploy/openwebui-budgets/litellm_auth.py',
+                   'deploy/openwebui-budgets/assignment.py','scripts/goal584-budget-proof/prove_pricing_snapshots.py']
+          hashes = {name:hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files}
+          mounted = {'/proof/prove_calendar_reset.py':'scripts/goal584-budget-proof/prove_calendar_reset.py',
+                     '/proof/prove_native_budgets.py':'scripts/goal584-budget-proof/prove_native_budgets.py',
+                     '/proof/prove_gateway_auth.py':'scripts/goal584-budget-proof/prove_gateway_auth.py',
+                     '/proof/budget_errors.py':'deploy/openwebui-budgets/budget_errors.py',
+                     '/proof/pricing_snapshot.py':'deploy/openwebui-budgets/pricing_snapshot.py'}
+          code = 'import hashlib,json,pathlib,sys;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          actual = json.loads(read(command + ['exec','-T','proxy','python','-B','-c',code,*mounted]))
+          assert actual == {target:hashes[source] for target,source in mounted.items()}
+          provider = json.loads(read(command + ['exec','-T','provider','python','-B','-c',code,'/proof/mock_provider.py']))
+          assert provider['/proof/mock_provider.py'] == hashes['scripts/goal584-budget-proof/mock_provider.py']
+          config_hash = hashlib.sha256(Path(os.environ['PROOF_CONFIG_FILE']).read_bytes()).hexdigest()
+          assert json.loads(read(command + ['exec','-T','proxy','python','-B','-c',code,'/proof/config.yaml']))['/proof/config.yaml'] == config_hash
+          rev = read(['git','rev-parse','HEAD'])
+          assert rev == os.environ['GITHUB_SHA']
+          receipt = {'source_commit':rev, 'project':project, 'images':images, 'files_sha256':hashes,
+                     'mounted_sha256':actual, 'provider_sha256':provider, 'private_config_sha256':config_hash,
+                     'redis_run_id':attest['redis_run_id'], 'scope':'Dedicated native calendar job only; no WebUI or production'}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'runtime-identity.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+          PY
+
+      - name: Qualify the actual native monthly reset and immediate next call
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          private, output = Path(os.environ['PROOF_PRIVATE_DIR']), Path(os.environ['PROOF_OUTPUT_DIR'])
+          command = ['docker','compose','-p',os.environ['CALENDAR_PROJECT'],'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.calendar-proof.yml']
+          result = subprocess.run(command + ['exec','-T','proxy','python','-B','/proof/prove_calendar_reset.py',
+              '--project',os.environ['CALENDAR_PROJECT'],'--attestation','/proof-private/calendar-attestation.private.json',
+              '--private-state','/proof-private/calendar-state.private.json','--receipt','/proof-private/calendar.safe.json'],
+              capture_output=True,text=True,timeout=150)
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          # Native write_private creates root-owned 0600 files. Keep permissions;
+          # read through the owning container, retaining the raw key only in memory.
+          handoff = '''import json
+          from pathlib import Path
+          root=Path('/proof-private')
+          state=json.loads((root/'calendar-state.private.json').read_text()) if (root/'calendar-state.private.json').exists() else {}
+          receipt=json.loads((root/'calendar.safe.json').read_text()) if (root/'calendar.safe.json').exists() else {'passed':False,'failure':'Native helper produced no receipt'}
+          print(json.dumps({'key':state.get('key'),'receipt':receipt}))'''
+          transferred = subprocess.run(command+['exec','-T','proxy','python','-B','-c',handoff],capture_output=True,text=True,timeout=15)
+          assert transferred.returncode == 0 and len(transferred.stdout) <= 4*1024*1024, 'Native private handoff failed'
+          value = json.loads(transferred.stdout)
+          if value.get('key'): secrets.append(value['key'])
+          receipt = value['receipt']
+          rendered = json.dumps(receipt,indent=2,allow_nan=False)
+          assert not any(value and value in rendered for value in secrets)
+          assert not re.search(r'sk-[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',rendered)
+          (output/'calendar.safe.json').write_text(rendered,encoding='utf-8')
+          diagnostic = (result.stdout + result.stderr)[-16000:]
+          for secret in secrets: diagnostic = diagnostic.replace(secret,'[redacted]')
+          diagnostic = re.sub(r'sk-[A-Za-z0-9_-]+|postgresql://[^\s]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[redacted]',diagnostic)
+          (output/'helper-diagnostic.txt').write_text(diagnostic,encoding='utf-8')
+          print(rendered)
+          assert result.returncode == 0 and receipt.get('passed') is True, 'Native calendar qualification failed; inspect safe receipts'
+          PY
+
+      - name: Remove the calendar project and verify cleanup
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$PROOF_ENV_FILE"; then
+            docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
+              -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml down --volumes --remove-orphans
+            python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          project = os.environ['CALENDAR_PROJECT']
+          assert re.fullmatch(r'goal584-calendar-[0-9a-f]{12}',project)
+          label = 'label=com.docker.compose.project='+project
+          remaining = {kind:subprocess.check_output(command+['--filter',label],text=True).split() for kind,command in (
+              ('containers',['docker','ps','-aq']),('volumes',['docker','volume','ls','-q']),('networks',['docker','network','ls','-q']))}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'cleanup.json').write_text(json.dumps({'project':project,**remaining},indent=2),encoding='utf-8')
+          assert not any(remaining.values()), 'Disposable calendar resources remain'
+          PY
+          fi
+
+      - name: Retain only safe calendar evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-calendar-proof-${{ github.sha }}
+          path: ${{ runner.temp }}/goal584-calendar-proof/
           if-no-files-found: warn
           retention-days: 7
