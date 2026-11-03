@@ -5,7 +5,10 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний успешный native run
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Основной WebUI/RAG job
+native40 PASS и принят независимо; отдельный calendar job FAIL до первого
+модельного вызова. Весь native40 не green. Последний полностью успешный workflow
+до добавления calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
 HEAD `f84a57af7679d82828eaa507a21399d2198d3d31`, tested merge
 `73c711a5571f9a478a89577d00dd7fdabcde5c52`; Active CI41648991628 PASS.
@@ -66,6 +69,44 @@ raw stderr/commands/секреты в receipt не попадают. Исход�
 повтора, page1-only и terminal error сохранены,20 reader tests/полный component
 suite PASS. Runtime RAG и calendar ещё не приняты.
 
+**Native40 завершён — RAG принят, calendar не принят:**
+[41660087821](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41660087821),
+HEAD `e51a2df6d1843d18bb89650dbbf6331fa43664c7`, tested merge
+`7d1925b9aa690770a43880f29948c52d3ac807a6`, Active CI41660088091 PASS.
+Основной WebUI/RAG job126000683806 PASS. Parent сверил native ZIP
+`31a6ae10ebbfe65aea55bb9bf85abd16a9ec715bfd38a739cb9ba245deb7e741`,206 файлов,
+43 source hashes/6 mounts и cleanup0 containers/0 volumes. Независимое R1–R4
+review и parent replay322 checks PASS:
+`local/goal584/runtime-proof-41660087821/independent-rag-acceptance.md`.
+Две native RAG операции text/query создали2 positive E rows по$0.10 с usage10/0/10;
+сохранены45 прежних full-row hashes и4 personal DTO. Service A$0.80 не изменился,
+E$0.20, общий service$1.00. Exact prefixes/3D vectors/owned collection/retrieval
+проверены. Ordinary protected config GET/POST:401+точный ACCESS_PROHIBITED при
+валидной session до/после. Cap-only Ezero дал RAG500; budget denial дополнительно
+подтверждён auth422/native422 budget_exceeded и отсутствием provider dispatch,
+расхода и новых financial rows. Сам500 не является доказательством лимита.
+Cap restore точно восстанавливает прежние exported fields. Часть raw HTTP/config/
+DB invariants подтверждена source-bound private assertions, не независимым raw
+replay; intrinsic provider/native embedding response ID, File GUI и globalprivacy
+не заявляются.
+Отдельный calendar job остановился после startup/attestation/native schema и
+создания одного собственного user/key, до первого inference: `Native reset
+timestamp is not timezone-aware`. Значение самой даты не экспортировано;
+native PostgreSQL/Prisma UTC representation проверяется по exact source, а не
+угадывается. Sweeps и восстановление допуска этим не проверены. Calendar ZIP
+`3418ebd6475d144c14fd24ab69953274cdfdcda71f93373c8c892bae5522df7c`,4 файла,
+14 source hashes/5 mounted hashes, private-config derivation и cleanup0
+containers/volumes/networks сверены parent:
+`local/goal584/calendar-proof-41660087821/parent-source-check.safe.json`.
+Следующий calendar candidate следует exact native `_as_utc`: naive datetime
+трактуется как UTC; None/date-only/неверные типы остаются ошибкой. Прочитан полный
+API creation→helper→Prisma path сохранения user/key reset_at. Само упавшее значение
+native40 неизвестно, поэтому naive JSONB остаётся обоснованной гипотезой, а не
+прочитанным фактом. Теперь created public profile сохраняется до decode и ошибки
+имеют fixed phase.16 focused tests и независимое source review READY;253 harness
+tests PASS. Native job/SQL/clocks/TTL/invariants не менялись. Evidence:
+`local/goal584/calendar-timestamp-fix.md`.
+
 **Месячный сброс — отдельная подготовка.** Новый calendar job использует свой
 проект `goal584-calendar-<12hex>`, БД `goal584_calendar` и Redis; штатный global
 ResetBudgetJob не запускается на общем WebUI fixture. Source review обнаружил
@@ -74,8 +115,8 @@ ResetBudgetJob не запускается на общем WebUI fixture. Source
 сверяет журнал/период/накопительный расход. Readback выполняется однократно после
 DB/Redis settlement, без API retry/ожидания TTL; после сброса до следующего вызова
 нет management read или очистки кэша.12 focused tests PASS,42 Bash/18 embedded
-Python и actionlint PASS. Native календарный runtime ещё не запускался; stale
-positive DB floor, live scheduler и multiworker invalidation этим не приняты.
+Python и actionlint PASS. Первый календарный runtime описан выше; stale positive
+DB floor, live scheduler и multiworker invalidation этим не приняты.
 Рабочий review: `local/goal584/calendar-independent-readiness.md`.
 
 После этих двух runtime gates остаётся совместимость Responses: отдельный
@@ -83,6 +124,10 @@ source-only review `local/goal584/responses-native-next.md` сохраняет e
 native-ID rewriting, минимум max_output_tokens16 и gap восстановления plain
 encrypted reasoning из сохранённой истории. Replay нормализации system/Tool
 context прошёл; это не runtime приёмка Responses/OfficeCLI/STT/Terminal.
+Только provider fixture готовится отдельно в task-owned worktree
+`D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-responses`, branch
+`agent/goal584-responses-contract`, base `e51a2df6`. Он не входит в native40;
+cleanup после интеграции/приёмки, когда уникальная работа сохранена.
 
 **BG-срез run35:** три автоматические задачи title/tags/follow-up после
 двух обычных свежих Hi-чатов с одной выбранной моделью A. Тот же native service

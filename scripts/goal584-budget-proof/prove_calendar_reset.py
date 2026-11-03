@@ -68,8 +68,17 @@ def clock_at(at):
 
 
 def timestamp(value):
-    result = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else value
-    require(isinstance(result, datetime) and result.tzinfo is not None, "Native reset timestamp is not timezone-aware")
+    if isinstance(value,str):
+        require(re.fullmatch(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?",value) is not None,
+                "Native reset timestamp is not an ISO datetime")
+        try:result=datetime.fromisoformat(value.replace("Z","+00:00"))
+        except ValueError:raise ProofError("Native reset timestamp is invalid") from None
+    else:result=value
+    require(isinstance(result, datetime), "Native reset timestamp is not a datetime")
+    # Exact pinned ResetBudgetJob._as_utc contract: naive native values are UTC,
+    # never host-local or the configured Moscow wall-clock timezone.
+    if result.tzinfo is None:result=result.replace(tzinfo=timezone.utc)
+    require(result.utcoffset() is not None,"Native reset timestamp has no UTC offset")
     return result.astimezone(timezone.utc)
 
 
@@ -225,6 +234,7 @@ class CalendarProof(NativeProof):
 
 
 async def qualify(args, attest, receipt, secrets):
+    receipt["phase"]="native_source_settings"
     import litellm
     from litellm.proxy import proxy_server as ps
     from litellm.proxy.common_utils import reset_budget_job as job_module, timezone_utils as tz_module
@@ -243,6 +253,7 @@ async def qualify(args, attest, receipt, secrets):
     settings = tz_module.BudgetResetSettings(timezone="Europe/Moscow", reset_time_of_day=tz_module.parse_budget_reset_time("00:00"))
     ZoneInfo(settings.timezone)
     require(litellm.budget_rollover is False, "Native calendar rollover must be disabled")
+    receipt["phase"]="native_owner_wiring"
     redis = ps.proxy_config._init_coordination_redis(config=config)
     require(redis is not None and redis.namespace is None, "Calendar requires native dedicated coordination Redis")
     ps._set_redis_usage_cache(redis)
@@ -262,28 +273,39 @@ async def qualify(args, attest, receipt, secrets):
         require(data.get("synthetic") is True and isinstance(data.get("requests"),list),"Calendar provider is not the isolated synthetic owner")
         return data["requests"]
     try:
+        receipt["phase"]="connect_isolated_owners"
         await db.connect()
         require(await redis.ping() and redis.redis_client.info("server")["run_id"] == attest["redis_run_id"],
                 "Calendar Redis does not match the dedicated project attestation")
+        receipt["phase"]="empty_population"
         await read_db(db)  # Must be empty BEFORE any budget creation.
         require(provider_rows()==[],"Calendar requires a fresh dedicated provider")
+        receipt["phase"]="native_schema"
         proof.schema()
+        receipt["phase"]="native_user_create"
         proof.ok("POST", "/user/new", body={"user_id":payer,"user_role":"internal_user","models":["goal584-a"],
             "max_budget":.20,"budget_duration":"1mo","auto_create_key":False,"send_invite_email":False})
         state={"schema":1,"proof":"goal584-calendar","project":args.project,"payer_id":payer,"stage":"user_created"}
         write_private(args.private_state,state)
+        receipt["phase"]="native_key_create"
         created=proof.ok("POST","/key/generate",body={"user_id":payer,"models":["goal584-a"],"max_budget":.20,
             "budget_duration":"1mo","duration":None,"key_alias":args.project,"allowed_routes":["llm_api_routes"]})
         token=created["key"]; secrets.append(token); key_hash=hashlib.sha256(token.encode()).hexdigest()
         state.update(key=token,key_hash=key_hash,stage="key_created");write_private(args.private_state,state)
         proof.keys[payer,"goal584-a"]={"token":token,"alias":args.project,"hash":key_hash,"cap":Decimal(".20")}
+        receipt["phase"]="created_profile_readback"
         initial=await read_db(db,payer,key_hash)
+        receipt["created_profile"]=public_snapshot(initial)
+        receipt["phase"]="created_reset_decode"
         boundary=timestamp(initial["users"][0]["budget_reset_at"])
+        receipt["phase"]="created_reset_calendar"
         local=boundary.astimezone(ZoneInfo("Europe/Moscow"))
         require((local.day,local.hour,local.minute,local.second,local.microsecond)==(1,0,0,0,0), "Native 1mo creation is not Moscow midnight")
+        receipt["phase"]="created_budget_zero"
         money_snapshot(initial,Decimal(0),boundary,journal_count=0)
         proof.reset_at=boundary
         old_request_started=time.monotonic()
+        receipt["phase"]="old_period_inference"
         proof.infer(payer,"goal584-a")
         counter_keys=("spend:user:"+payer,"spend:key:"+key_hash)
         async def settled(expected_count):
@@ -296,18 +318,24 @@ async def qualify(args, attest, receipt, secrets):
                     return current
                 require(time.monotonic()<deadline,"Calendar native DB/cache counters did not settle")
                 await asyncio.sleep(.1)
+        receipt["phase"]="old_period_settlement"
         before=await settled(1)
+        receipt["phase"]="old_period_api_readback"
         proof.calendar_api_readback()
         receipt["before_reset"]=public_snapshot(before)
+        receipt["phase"]="old_period_financial_assertions"
         money_snapshot(before,Decimal(".20"),boundary,journal_count=1)
         require(Decimal(str(before["journal"][0]["spend"]))==Decimal(".20"),"Native old-period event cost differs")
         next_local=local.replace(year=local.year+(local.month==12),month=1 if local.month==12 else local.month+1)
         next_boundary=next_local.astimezone(timezone.utc)
+        receipt["phase"]="job_configuration"
         job=job_module.ResetBudgetJob(proxy_logging_obj=ps.proxy_logging_obj,prisma_client=db,reset_settings=settings,pod_lock_manager=lock)
         ps.prisma_client=db  # This helper's native process only, never live-server globals.
         receipt["sweeps"]=[]
         after_reset=None
         for label,at in (("before",boundary-timedelta(seconds=1)),("exact",boundary),("after",boundary+timedelta(seconds=1)),("repeat",boundary+timedelta(seconds=1))):
+            receipt["phase"]={"before":"native_reset_before","exact":"native_reset_exact",
+                              "after":"native_reset_after","repeat":"native_reset_repeat"}[label]
             await read_db(db,payer,key_hash)  # Global job safety guard before EVERY sweep.
             require(await redis.async_get_cache(lock.get_redis_lock_key(job_module.RESET_BUDGET_JOB_NAME)) is None,
                     "Native reset lease is already owned; no bypass or deletion allowed")
@@ -329,14 +357,18 @@ async def qualify(args, attest, receipt, secrets):
             require(await redis.async_get_cache(lock.get_redis_lock_key(job_module.RESET_BUDGET_JOB_NAME)) is None,"Native reset lease was not released")
         # Do not refresh live API/auth caches, restart the worker or clear Redis
         # between the native reset and this actual admission on the same worker.
+        receipt["phase"]="warm_worker_admission"
         require(time.monotonic()-old_request_started<native_cache_ttl,"Calendar observation outlived native auth TTL before next admission")
         proof.reset_at=next_boundary
         proof.infer(payer,"goal584-a")
         admitted_after=time.monotonic()-old_request_started
         require(admitted_after<native_cache_ttl,"Calendar next admission cannot be attributed before native auth TTL expiry")
+        receipt["phase"]="new_period_settlement"
         final=await settled(2)
+        receipt["phase"]="new_period_api_readback"
         proof.calendar_api_readback()
         receipt["after_admission"]=public_snapshot(final)
+        receipt["phase"]="final_financial_assertions"
         money_snapshot(final,Decimal(".20"),next_boundary,journal_count=2)
         require(before["journal"][0] in final["journal"] and all(Decimal(str(row["spend"]))==Decimal(".20") for row in final["journal"])
                 and close_amount(final["keys"][0]["total_spend"],Decimal(".40")), "Calendar next call lost historical/lifetime native cost")
@@ -355,6 +387,7 @@ async def qualify(args, attest, receipt, secrets):
         receipt.update(native_api_readback_observations=2,old_call_to_next_response_seconds=admitted_after,
                        unchanged_native_auth_ttl_seconds=native_cache_ttl,bare_auth_invalidation_claimed=False)
         state.update(stage="qualified_job_only",boundary=boundary.isoformat(),next_boundary=next_boundary.isoformat());write_private(args.private_state,state)
+        receipt["phase"]="qualified_job_only"
     finally:
         ps.prisma_client=None
         try:await db.disconnect()
@@ -374,8 +407,10 @@ def main():
         require(len({path.resolve() for path in (args.attestation,args.private_state,args.receipt)})==3,"Calendar evidence/state paths overlap")
         asyncio.run(qualify(args,read_private(args.attestation),receipt,secrets))
         receipt["passed"]=True
-    except ProofError as error:receipt["failure"]=str(error)
-    except Exception as error:receipt["failure"]="Native calendar proof failed: "+type(error).__name__
+    except ProofError as error:
+        receipt.update(failure=str(error),failure_phase=receipt.get("phase","initialization"))
+    except Exception as error:
+        receipt.update(failure="Native calendar proof failed: "+type(error).__name__,failure_phase=receipt.get("phase","initialization"))
     rendered=json.dumps(receipt,indent=2,allow_nan=False)
     require(not any(secret and secret in rendered for secret in secrets),"Credential-bearing calendar receipt suppressed")
     write_private(args.receipt,receipt)

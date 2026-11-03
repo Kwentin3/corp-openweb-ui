@@ -55,6 +55,62 @@ def packet():
 
 
 class NativeSourceTests(unittest.TestCase):
+    def test_decoder_matches_actual_native_as_utc_for_naive_aware_and_strict_boundary_instants(self):
+        tree=native_tree("proxy/common_utils/reset_budget_job.py")
+        nodes=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="_as_utc"]
+        namespace={"datetime":datetime,"timezone":timezone}
+        exec(compile(ast.Module(body=nodes,type_ignores=[]),"<actual native _as_utc>","exec"),namespace)
+        native=namespace["_as_utc"]
+        for text in ("2026-11-30T21:00:00Z","2026-12-01T00:00:00+03:00","2026-11-30T21:00:00",
+                     "2026-11-30 21:00:00.123456","2028-02-29T21:00:00"):
+            value=datetime.fromisoformat(text.replace("Z","+00:00"))
+            with self.subTest(text=text):
+                expected=native(value).astimezone(timezone.utc)
+                self.assertEqual(P.timestamp(text),expected)
+                self.assertEqual(P.timestamp(value),expected)
+                self.assertIs(P.timestamp(value).tzinfo,timezone.utc)
+        boundary=datetime(2026,11,30,21)
+        for offset,due in ((-1,False),(0,False),(1,True)):
+            cutoff=boundary+timedelta(microseconds=offset)
+            self.assertEqual(P.timestamp(boundary)<P.timestamp(cutoff),due)
+            self.assertEqual(P.timestamp(boundary)<P.timestamp(cutoff),native(boundary)<native(cutoff))
+        self.assertIsNone(boundary.tzinfo)  # Decoder never mutates a source value.
+        compute=native_duration()
+        for current,expected in (("2026-11-30T21:00:00","2026-12-31T21:00:00Z"),
+                                 ("2027-12-31T21:00:00","2028-01-31T21:00:00Z"),
+                                 ("2028-02-28T21:00:00","2028-02-29T21:00:00Z")):
+            self.assertEqual(compute("1mo",P.timestamp(current),"Europe/Moscow",time(0,0)).astimezone(timezone.utc),P.timestamp(expected))
+
+    def test_native_creation_source_starts_utc_and_prisma_schema_uses_datetime_fields(self):
+        tree=native_tree("proxy/common_utils/timezone_utils.py")
+        node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="compute_budget_reset_at")
+        namespace={"datetime":P.clock_at(datetime(2026,11,3,10,tzinfo=timezone.utc)),"timezone":timezone,
+                   "get_next_standardized_reset_time":native_duration(),"BudgetResetSettings":object}
+        exec(compile(ast.Module(body=[node],type_ignores=[]),"<actual native reset creation>","exec"),namespace)
+        created=namespace["compute_budget_reset_at"]("1mo",SimpleNamespace(timezone="Europe/Moscow",reset_time_of_day=time(0,0)))
+        self.assertEqual(created.isoformat(),"2026-12-01T00:00:00+03:00")
+        self.assertEqual(P.timestamp(created),P.timestamp("2026-11-30T21:00:00"))
+        keys=native_tree("proxy/management_endpoints/key_management_endpoints.py")
+        key_node=next(n for n in keys.body if isinstance(n,ast.FunctionDef) and n.name=="_effective_key_for_generate")
+        reset=next(n.value for n in key_node.body if isinstance(n,ast.AnnAssign) and isinstance(n.target,ast.Name) and n.target.id=="budget_reset_at")
+        actual=eval(compile(ast.Expression(reset),"<actual native key reset creation>","eval"),
+                    {"data":SimpleNamespace(budget_duration="1mo"),"get_budget_reset_time":lambda **kwargs:namespace["compute_budget_reset_at"](
+                        kwargs["budget_duration"],SimpleNamespace(timezone="Europe/Moscow",reset_time_of_day=time(0,0)))})
+        self.assertEqual(actual,created)
+        user=native_tree("proxy/management_endpoints/internal_user_endpoints.py")
+        new_user=next(n for n in user.body if isinstance(n,ast.AsyncFunctionDef) and n.name=="new_user")
+        self.assertTrue(any(isinstance(n,ast.Call) and isinstance(n.func,ast.Name) and n.func.id=="generate_key_helper_fn"
+            and any(k.arg=="request_type" and isinstance(k.value,ast.Constant) and k.value.value=="user" for k in n.keywords)
+            for n in ast.walk(new_user)))
+        helper=next(n for n in keys.body if isinstance(n,ast.AsyncFunctionDef) and n.name=="generate_key_helper_fn")
+        self.assertTrue(any(isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=="reset_at" for t in n.targets)
+            and isinstance(n.value,ast.Call) and isinstance(n.value.func,ast.Name) and n.value.func.id=="get_budget_reset_time"
+            for n in ast.walk(helper)))
+        schema=(UPSTREAM/"schema.prisma").read_text(encoding="utf8")
+        for model in ("LiteLLM_UserTable","LiteLLM_VerificationToken"):
+            fields=re.search(r"model "+model+r"\s*\{(.*?)\n\}",schema,re.S).group(1)
+            self.assertRegex(fields,r"(?m)^\s*budget_reset_at\s+DateTime\?\s*$")
+
     def test_native_source_fingerprints_are_the_exact_pinned_git_objects(self):
         if not (UPSTREAM/".git").exists():self.skipTest("Pinned native source repository unavailable")
         revision=subprocess.check_output(["git","-C",str(UPSTREAM),"rev-parse","HEAD"],text=True).strip()
@@ -117,6 +173,36 @@ class NativeSourceTests(unittest.TestCase):
 
 
 class IsolationTests(unittest.TestCase):
+    def test_timestamp_decoder_rejects_non_datetime_and_invalid_calendar_values(self):
+        for value in (None,True,0,1.2,"", "2026-12-01", "2026-02-30T21:00:00", "2026-12-01T00:00:00local",
+                      datetime(2026,12,1).date()):
+            with self.subTest(value=value),self.assertRaises(P.ProofError):P.timestamp(value)
+
+    def test_actual_created_readback_is_projected_before_timestamp_assertion(self):
+        tree=ast.parse(Path(P.__file__).read_text(encoding="utf8"))
+        qualify=next(n for n in tree.body if isinstance(n,ast.AsyncFunctionDef) and n.name=="qualify")
+        body=next(n.body for n in qualify.body if isinstance(n,ast.Try))
+        start=next(i for i,n in enumerate(body) if isinstance(n,ast.Assign)
+                   and any(isinstance(t,ast.Name) and t.id=="initial" for t in n.targets))
+        end=next(i for i,n in enumerate(body) if isinstance(n,ast.Assign)
+                 and any(isinstance(t,ast.Name) and t.id=="boundary" for t in n.targets))
+        before,_=packet();before["journal"]=[]
+        before["users"][0].update(budget_reset_at="invalid-native-timestamp",password="private-password")
+        before["keys"][0]["actual_secret"]="sk-private-must-not-export"
+        async def read(*args):return before
+        receipt={}
+        namespace={"read_db":read,"db":None,"payer":"own","key_hash":"a"*64,
+                   "receipt":receipt,"public_snapshot":P.public_snapshot,"timestamp":P.timestamp}
+        function=ast.AsyncFunctionDef(name="actual_initial_readback",args=ast.arguments(posonlyargs=[],args=[],kwonlyargs=[],kw_defaults=[],defaults=[]),
+                                     body=body[start:end+1],decorator_list=[])
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[function],type_ignores=[])),"<actual created readback>","exec"),namespace)
+        with self.assertRaises(P.ProofError):__import__("asyncio").run(namespace["actual_initial_readback"]())
+        self.assertEqual(receipt["phase"],"created_reset_decode")
+        self.assertEqual(receipt["created_profile"]["users"][0]["budget_reset_at"],"invalid-native-timestamp")
+        self.assertEqual(receipt["created_profile"]["keys"][0]["token"],"a"*64)
+        self.assertNotIn("private-password",json.dumps(receipt))
+        self.assertNotIn("sk-private-must-not-export",json.dumps(receipt))
+
     def fixture(self,directory):
         project="goal584-calendar-"+"a"*12
         args=SimpleNamespace(project=project,private_state=Path(directory)/"calendar-state.private.json")
