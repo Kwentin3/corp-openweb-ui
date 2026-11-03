@@ -17,11 +17,13 @@ import argparse
 import copy
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from email.utils import parsedate_to_datetime
 import json
 import os
 from pathlib import Path
 import secrets
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import ProxyHandler, Request, build_opener
@@ -48,6 +50,7 @@ TASK_FLAGS = (
 class WebUI:
     def __init__(self):
         self.opener = build_opener(ProxyHandler({}), NoRedirects())
+        self.server_second = None
 
     def ok(self, method: str, path: str, *, token: str | None = None,
            body: dict | None = None) -> dict:
@@ -57,6 +60,7 @@ class WebUI:
             headers["Authorization"] = "Bearer " + token
         request = Request(WEBUI_URL + path, method=method, headers=headers,
                           data=None if body is None else json.dumps(body, allow_nan=False).encode("utf-8"))
+        self.server_second = None  # Never reuse a prior response's clock.
         try:
             response = self.opener.open(request, timeout=20)
         except HTTPError as error:
@@ -66,6 +70,12 @@ class WebUI:
         with response:
             status = response.code
             raw = response.read(4 * 1024 * 1024 + 1)
+            try:
+                server_date = parsedate_to_datetime(response.headers.get("Date"))
+                if server_date.tzinfo is not None:
+                    self.server_second = int(server_date.timestamp())
+            except (TypeError, ValueError, OverflowError, AttributeError):
+                pass
         require(status == 200, "Unexpected WebUI HTTP " + str(status) + " at " + path.split("?")[0])
         require(len(raw) <= 4 * 1024 * 1024, "WebUI fixture response exceeded size bound")
         try:
@@ -125,6 +135,49 @@ def account_from_response(response: dict, email: str, password: str, role: str) 
             and isinstance(token, str) and bool(token),
             "Native WebUI account did not return expected identity/role/session")
     return {"id": user_id, "email": email, "password": password, "token": token}
+
+
+def native_admin_created_at(webui: WebUI, account: dict, controller: dict) -> int:
+    record = webui.ok("GET", "/api/v1/users/" + account["id"], token=controller["token"])
+    created = record.get("created_at")
+    require(record.get("id") == account["id"] and record.get("role") == "admin"
+            and type(created) is int and created > 0, "Native admin creation timestamp is unavailable")
+    return created
+
+
+def wait_after_controller_creation(webui: WebUI, controller: dict, *, timeout: float = 5.0) -> dict:
+    """Wait on this WebUI server's Date, not the runner's wall clock.
+
+    Native first-user ordering breaks second-resolution ties by UUID. Creating
+    the regular owner only in a later server second removes that random tie.
+    """
+    deadline, created = time.monotonic() + timeout, None
+    while True:
+        actual = native_admin_created_at(webui, controller, controller)
+        require(created is None or actual == created, "Native controller creation timestamp changed")
+        created = actual
+        second = webui.server_second
+        require(type(second) is int and second > 0, "Native WebUI HTTP Date is unavailable")
+        if second > created:
+            return {"controller_created_at": created, "server_second_before_owner_create": second}
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, "Native WebUI clock did not advance beyond controller creation")
+        time.sleep(min(.1, remaining))
+
+
+def read_admin_creation_order(webui: WebUI, state: dict) -> dict:
+    controller, owner = state["role_probe_control"], state["admin"]
+    expected = state.get("admin_creation_order")
+    require(controller["id"] != owner["id"] and isinstance(expected, dict), "Fixture admin ordering evidence is missing")
+    control_created = native_admin_created_at(webui, controller, controller)
+    owner_created = native_admin_created_at(webui, owner, controller)
+    second = expected.get("server_second_before_owner_create")
+    require(type(second) is int and control_created == expected.get("controller_created_at")
+            and control_created < second <= owner_created
+            and ("owner_created_at" not in expected or owner_created == expected["owner_created_at"]),
+            "Native controller must be strictly older than the regular admin")
+    return {"controller_created_at": control_created, "owner_created_at": owner_created,
+            "server_second_before_owner_create": second}
 
 
 def native_client(state: dict | None = None) -> NativeProof:
@@ -197,6 +250,8 @@ def setup(args, webui: WebUI) -> dict:
     # only as a fixture controller; the actual Tool owner is a normal admin.
     state["role_probe_control"] = account_from_response(response, email, password, "admin")
     write_private(args.private_state, state)
+    state["admin_creation_order"] = wait_after_controller_creation(webui, state["role_probe_control"])
+    write_private(args.private_state, state)
     email = "admin-" + run_id + "@example.com"
     password = "Aa1!" + secrets.token_urlsafe(32)
     response = webui.ok("POST", "/api/v1/auths/add", token=state["role_probe_control"]["token"], body={
@@ -204,6 +259,8 @@ def setup(args, webui: WebUI) -> dict:
     })
     state["admin"] = account_from_response(response, email, password, "admin")
     require(state["admin"]["id"] != state["role_probe_control"]["id"], "Fixture admins must be separate")
+    write_private(args.private_state, state)
+    state["admin_creation_order"] = read_admin_creation_order(webui, state)
     webui.session(state["admin"], "admin")
     write_private(args.private_state, state)
     for index in (1, 2):
@@ -246,6 +303,8 @@ def snapshot(webui: WebUI, state: dict) -> dict:
             and len(state.get("native_keys", [])) == 4, "Private WebUI fixture setup is incomplete")
     require(webui.ok("GET", "/api/version").get("version") == "0.12.2", "WebUI fixture version changed")
     admin_session = webui.session(state["admin"], "admin")
+    admin_order = read_admin_creation_order(webui, state)
+    require(admin_order == state["admin_creation_order"], "Fixture admin ordering changed")
     catalogs = {user["id"]: webui.catalog(user) for user in state["users"]}
     webui_models = [builtin_tool_capability(webui.model(state["admin"]["token"], model)) for model in MODELS]
     native = native_client(state)
@@ -318,6 +377,8 @@ def snapshot(webui: WebUI, state: dict) -> dict:
 
     result = native.poll("WebUI/native spend reconciliation", consistent_readback)
     result.update(webui_admin_role=admin_session["role"], task_generation_disabled=True,
+                  primary_control_strictly_earlier=True,
+                  primary_admin_creation_order=admin_order,
                   webui_models=webui_models,
                   native_catalog_owner="OpenWebUI connection model_ids and native model read grants")
     actual_tasks = webui.ok("GET", "/api/v1/tasks/config", token=state["admin"]["token"])

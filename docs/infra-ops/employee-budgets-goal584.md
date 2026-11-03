@@ -129,6 +129,18 @@ bootstrap model grant readback. Native `replace_access_grants` удаляет с
 Следующий шаг — повтор native GUI gate. Bootstrap runtime всё ещё не принят. Artifact SHA256
 `d6ef00a2c4870317ba0999b7faa262b7556d144c6c07bdff7dc9d37b1159a254`;
 evidence `local/goal584/runtime-proof-41591143766`.
+Следующий run41592272718 (`40e5f5b1`) прошёл cost/details/OFF, но остановился
+раньше admin GUI: native role-probe получил403 при понижении владельца. Источник
+показал ошибочную предпосылку fixture: `get_first_user` сортирует admins с одинаковым
+second-resolution created_at по UUID. Controller и owner могли создаться в одну
+секунду, и owner оказывался защищённым primary. Исправлено без изменения native
+timestamps/прав: fixture ждёт подтверждённый переход серверного HTTP Date,
+читает actual created_at обоих admins и требует строгий порядок. Каждая base
+snapshot повторяет readback и сохраняет три безопасных временных значения.
+6 HTTP clock/order tests и13 provisioner tests PASS. Следующий шаг — новый native
+прогон до bootstrap GUI. Cleanup0/0; artifact SHA256
+`1fe07833946752fddef9aa03e1bbd40e541050339184ace9150d9b3dc7dddb30`,
+`local/goal584/runtime-proof-41592272718`. Bootstrap runtime по-прежнему не принят.
 Следом остаются services и остальные перечисленные gaps;
 business default template должен храниться за admin-role API, не в owner-writable
 Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.
