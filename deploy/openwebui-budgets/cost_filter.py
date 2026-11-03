@@ -92,6 +92,8 @@ class Filter:
                                       json_schema_extra={"format": "password", "writeOnly": True})
         default_budget_template: dict | None = Field(default=None,
             description="Explicit monthly budget/share template for new employees; never rewrites existing budgets.")
+        service_payer_id: str = Field(default="",
+            description="Native service budget identity; used only by qualified signed service tasks.")
         read_wait_seconds: float = Field(default=8.0, ge=0, le=10)
 
     class UserValves(BaseModel):

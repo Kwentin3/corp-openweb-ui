@@ -16,12 +16,15 @@ import jwt
 
 ISSUER = "corp-openwebui-budget-v1"
 CALL_AUDIENCE = "litellm-budget-call-v1"
+SERVICE_AUDIENCE = "litellm-budget-service-call-v1"
 ROOT_AUDIENCE = "openwebui-budget-root-v1"
 CALL_TTL = 300
 ROOT_TTL = 86400
 _COMMON = {"schema", "iss", "aud", "sub", "jti", "iat", "exp"}
 _ROOT_IDS = {"root_chat_id", "root_answer_id"}
 _CALL_IDS = {"chat_id", "answer_id", *_ROOT_IDS}
+_SERVICE_IDS = {"payer_id", "chat_id"}
+SERVICE_TASKS = frozenset({"title_generation"})
 
 
 class ProtocolError(ValueError):
@@ -51,8 +54,13 @@ def _model(model: object) -> None:
 
 
 def _validate(claims: dict, audience: str, limit: int) -> None:
-    ids = _CALL_IDS if audience == CALL_AUDIENCE else _ROOT_IDS
-    expected = _COMMON | ids | ({"model"} if audience == CALL_AUDIENCE else set())
+    if audience == SERVICE_AUDIENCE:
+        ids, fields = _SERVICE_IDS, {"model", "task"}
+    else:
+        _check(audience in (CALL_AUDIENCE, ROOT_AUDIENCE))
+        ids = _CALL_IDS if audience == CALL_AUDIENCE else _ROOT_IDS
+        fields = {"model"} if audience == CALL_AUDIENCE else set()
+    expected = _COMMON | ids | fields
     _check(set(claims) == expected)
     _check(type(claims["schema"]) is int and claims["schema"] == 1)
     _check(claims["iss"] == ISSUER and claims["aud"] == audience)
@@ -60,8 +68,11 @@ def _validate(claims: dict, audience: str, limit: int) -> None:
         _uuid(claims[field])
     _check(type(claims["iat"]) is int and type(claims["exp"]) is int)
     _check(0 <= claims["iat"] < claims["exp"] <= claims["iat"] + limit)
-    if audience == CALL_AUDIENCE:
+    if audience in (CALL_AUDIENCE, SERVICE_AUDIENCE):
         _model(claims["model"])
+    if audience == SERVICE_AUDIENCE:
+        _check(type(claims["task"]) is str and claims["task"] in SERVICE_TASKS
+               and claims["sub"] != claims["payer_id"])
 
 
 def validate_persisted_scope(scope: object) -> dict:
@@ -71,6 +82,19 @@ def validate_persisted_scope(scope: object) -> dict:
     _check(type(scope["schema"]) is int and scope["schema"] == 1 and scope["category"] == "personal")
     for name in ids:
         _uuid(scope[name])
+    _model(scope["model"])
+    return scope.copy()
+
+
+def validate_persisted_service_scope(scope: object) -> dict:
+    """Separate service event representation; never invent an answer/root ID."""
+    ids = {"user_id", "actor_id", "chat_id", "call_id"}
+    _check(isinstance(scope, dict) and set(scope) == ids | {"schema", "model", "category", "task"})
+    _check(type(scope["schema"]) is int and scope["schema"] == 1 and scope["category"] == "service"
+           and type(scope["task"]) is str and scope["task"] in SERVICE_TASKS)
+    for name in ids:
+        _uuid(scope[name])
+    _check(scope["user_id"] != scope["actor_id"])
     _model(scope["model"])
     return scope.copy()
 
@@ -112,6 +136,20 @@ def encode_call(secret: str, *, user_id: str, chat_id: str, answer_id: str,
 def decode_call(token: str, secret: str, *, user_id: str, model: str) -> dict:
     claims = _decode(token, secret, CALL_AUDIENCE, CALL_TTL)
     _check(claims["sub"] == user_id and claims["model"] == model)
+    return claims
+
+
+def encode_service_call(secret: str, *, user_id: str, payer_id: str, chat_id: str,
+                        model: str, task: str, now: int | None = None,
+                        ttl_seconds: int = CALL_TTL) -> str:
+    return _encode(secret, audience=SERVICE_AUDIENCE, limit=CALL_TTL, user_id=user_id,
+                   scope={"payer_id": payer_id, "chat_id": chat_id, "model": model, "task": task},
+                   ttl_seconds=ttl_seconds, now=now)
+
+
+def decode_service_call(token: str, secret: str, *, user_id: str, model: str, task: str) -> dict:
+    claims = _decode(token, secret, SERVICE_AUDIENCE, CALL_TTL)
+    _check(claims["sub"] == user_id and claims["model"] == model and claims["task"] == task)
     return claims
 
 

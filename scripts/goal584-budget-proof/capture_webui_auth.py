@@ -29,11 +29,14 @@ def product_auth():
     return get_instance_fn("litellm_auth.gateway_auth", config_file_path=str(Path(__file__).with_name("config.yaml")))
 
 
-@lru_cache(maxsize=1)
-def scope_validator():
+@lru_cache(maxsize=2)
+def scope_validator(category="personal"):
     from litellm.proxy.types_utils.utils import get_instance_fn
 
-    return get_instance_fn("provenance.validate_persisted_scope", config_file_path=str(Path(__file__).with_name("config.yaml")))
+    names = {"personal": "validate_persisted_scope", "service": "validate_persisted_service_scope"}
+    if category not in names:
+        raise RuntimeError("Unknown disposable budget observation category")
+    return get_instance_fn("provenance." + names[category], config_file_path=str(Path(__file__).with_name("config.yaml")))
 
 
 def save(state):
@@ -79,6 +82,7 @@ async def gateway_auth(request, api_key):
             record["provenance_removed_after"] = all("owui_budget_provenance" not in value for value in maps)
             record["body_after_auth"] = copy.deepcopy({field: after[field] for field in FIELDS if field in after})
             if auth is not None:
+                record["native_auth_user_id"] = auth.user_id
                 # Native preprocessing (after auth) asks supported streaming
                 # providers for usage. Record the exact owner's pure patch;
                 # do not equate this transport normalization with auth changes.
@@ -92,6 +96,8 @@ async def gateway_auth(request, api_key):
                         model=after.get("model"), llm_router=proxy_server.llm_router,
                         team_id=auth.team_id),
                 ))
-            if scopes:
-                record["verified_cost_scope"] = scope_validator()(scopes[0])
+            # A rejected forged task may leave caller metadata untouched before
+            # the product projection runs. Do not label that input as verified.
+            if scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
+                record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
             save(state)

@@ -17,7 +17,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MODELS = ("goal584-fake-a", "goal584-fake-b")
 STATE_LOCK = threading.Lock()
 REQUESTS = []
-CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False, "admin_mode": False}
+CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False,
+           "admin_mode": False, "title_mode": False}
 
 
 def pending_tool_name(payload, messages):
@@ -124,12 +125,13 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/__proof/reset":
             with STATE_LOCK:
                 REQUESTS.clear()
-                CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0, tool_round=False, admin_mode=False)
+                CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0, tool_round=False,
+                               admin_mode=False, title_mode=False)
             return self.send_json(200, {"ok": True})
         if self.path == "/__proof/control":
             limits = {"prompt_tokens": (0, 10000), "completion_tokens": (0, 10000), "delay_ms": (0, 10000)}
             if not payload or any(
-                (type(value) is not bool if key in ("tool_round", "admin_mode") else
+                (type(value) is not bool if key in ("tool_round", "admin_mode", "title_mode") else
                  key not in limits or type(value) is not int or not limits[key][0] <= value <= limits[key][1])
                 for key, value in payload.items()
             ):
@@ -158,7 +160,9 @@ class Handler(BaseHTTPRequestHandler):
             time.sleep(control["delay_ms"] / 1000)
         usage = {"prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                  "total_tokens": control["prompt_tokens"] + control["completion_tokens"]}
-        if control["admin_mode"]:
+        if control["title_mode"]:
+            selection = None
+        elif control["admin_mode"]:
             selection = pending_admin_tool(payload, messages)
         else:
             name = pending_tool_name(payload, messages) if control["tool_round"] else None
@@ -167,7 +171,7 @@ class Handler(BaseHTTPRequestHandler):
         tool_call = {"id": "call-goal584-" + uuid.uuid4().hex, "type": "function",
                      "function": {"name": tool_name, "arguments": json.dumps(tool_arguments, separators=(",", ":"))}} if tool_name else None
         message = {"role": "assistant", "content": None, "tool_calls": [tool_call]} if tool_call else {
-            "role": "assistant", "content": "Proof"}
+            "role": "assistant", "content": '{"title":"Proof"}' if control["title_mode"] else "Proof"}
         finish_reason = "tool_calls" if tool_call else "stop"
         result = {"id": call_id, "object": "chat.completion", "created": created, "model": model,
                   "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
@@ -180,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         base = {"id": call_id, "object": "chat.completion.chunk", "created": created, "model": model}
         delta = {"role": "assistant", "content": None, "tool_calls": [{"index": 0, **tool_call}]} if tool_call else {
-            "role": "assistant", "content": "Proof"}
+            "role": "assistant", "content": message["content"]}
         chunks = [
             {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": None}]},
             {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]},

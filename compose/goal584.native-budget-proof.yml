@@ -72,6 +72,7 @@ services:
       OWUI_BUDGET_GATEWAY_SECRET: ${OWUI_BUDGET_GATEWAY_SECRET:?Generate a separate synthetic gateway secret}
       DATABASE_URL: postgresql://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      STORE_PROMPTS_IN_SPEND_LOGS: "false"
       NO_PROXY: localhost,127.0.0.1,postgres,redis,provider
     volumes:
       - type: bind
@@ -89,6 +90,12 @@ services:
       - type: bind
         source: ../deploy/openwebui-budgets/litellm_auth.py
         target: /proof/litellm_auth.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/budget_errors.py
+        target: /proof/budget_errors.py
         read_only: true
         bind:
           create_host_path: false

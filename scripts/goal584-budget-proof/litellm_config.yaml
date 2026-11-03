@@ -38,9 +38,11 @@ general_settings:
     port: 6379
   fail_closed_budget_enforcement: true
   disable_spend_logs: false
+  store_prompts_in_spend_logs: false
   proxy_batch_write_at: 1
 
 litellm_settings:
+  callbacks: ["budget_errors.handler"]
   block_requests_for_models_without_pricing: true
   num_retries: 0
   request_timeout: 30

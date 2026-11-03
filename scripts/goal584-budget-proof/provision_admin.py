@@ -34,7 +34,7 @@ from provision_cost_display import (
     STATE, FILTER_ID, assert_private_text_absent, denied_admin_get, grant_set,
     model_body, persisted_scope, secret_values, source_hash,
 )
-from prove_native_budgets import BUDGET_EXCEEDED_STATUS, amount
+from prove_native_budgets import BUDGET_EXCEEDED_STATUS, amount, expected_budget_message
 
 
 TOOL_ID = "employee_budget_admin"
@@ -373,11 +373,12 @@ def native_probe(state, *, deny):
                   "max_tokens": 5, "stream": False})
         error = payload.get("error")
         require(status == BUDGET_EXCEEDED_STATUS and isinstance(error, dict)
-                and error.get("type") == "budget_exceeded"
-                and "Key=" + key.key_alias in str(error.get("message", "")),
+                and error.get("type") == "budget_exceeded",
                 "Zero-cap native admin key did not yield the expected native key budget denial")
+        message = expected_budget_message(error, scope="key")
         expect(limited)
         result.update(zero_cap_readback=True, denial_http_status=status, denial_type="budget_exceeded",
+                      budget_message=message, friendly_budget_feedback=True,
                       provider_absence_requires_external_comparison=True)
     finally:
         # Explicit disposable probe restoration; do not conceal partial failure or replace identities.

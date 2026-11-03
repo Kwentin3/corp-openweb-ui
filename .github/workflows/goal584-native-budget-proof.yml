@@ -95,6 +95,7 @@ jobs:
           files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
                    'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
                    'deploy/openwebui-budgets/litellm_auth.py', 'deploy/openwebui-budgets/assignment.py',
+                   'deploy/openwebui-budgets/budget_errors.py',
                    'scripts/goal584-budget-proof/prove_gateway_auth.py']
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
@@ -265,6 +266,9 @@ jobs:
                    'scripts/goal584-budget-proof/verify_admin_calls.py',
                    'scripts/goal584-budget-proof/prove_bootstrap_browser.py',
                    'scripts/goal584-budget-proof/verify_bootstrap_calls.py',
+                   'scripts/goal584-budget-proof/prove_service_tasks.py',
+                   'scripts/goal584-budget-proof/prove_service_admin_browser.py',
+                   'deploy/openwebui-budgets/service_pipe.py',
                    'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
                    'deploy/openwebui-budgets/admin_client.py', 'deploy/openwebui-budgets/admin_policy.py',
                    'deploy/openwebui-budgets/admin_ui.py', 'deploy/openwebui-budgets/admin_tools.py',
@@ -519,6 +523,43 @@ jobs:
               '--context', str(output / 'webui-gateway-context.json'), '--native', str(final),
               '--receipt', str(output / 'bootstrap-boundary.json')], check=True)
           PY
+
+      - name: Qualify a native title task against its unchanged model context and separate service payer
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/service"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/prove_service_tasks.py \
+            --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/service-title.safe.json \
+            --context-receipt /proof-private/service-context.safe.json \
+            --provider-receipt /proof-private/service-provider.safe.json \
+            > "$PROOF_OUTPUT_DIR/service/service-tasks.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/service/service-tasks.json"
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/service-context.safe.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_OUTPUT_DIR/service/gateway-context.json"
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/service-provider.safe.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_OUTPUT_DIR/service/provider-calls.json"
+          test "$proof_result" -eq 0
+
+      - name: Observe the service spend through the ordinary admin form as a separate paid admin turn
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/service-admin"
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read(); urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/control", data=b"{\"admin_mode\":true}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_service_admin_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/service-admin"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

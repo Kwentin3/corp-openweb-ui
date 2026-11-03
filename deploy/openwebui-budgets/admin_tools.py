@@ -97,6 +97,7 @@ class LoadedDirectory:
     secrets: dict
     inspections: dict
     labels: dict
+    service: dict | None = None
 
     def configuration(self):
         # Server-only comparison; never project credentials into HTML or context.
@@ -166,7 +167,24 @@ class Tools:
             inspections[user_id] = inspection
             if inspection.kind == "ready":
                 states[user_id] = inspection.employee_budget
-        return LoadedDirectory(url, identities, states, client, copy.deepcopy(config), secrets, inspections, labels)
+        service = None
+        payer = config.get("service_payer_id")
+        if payer:
+            payer = canonical_id(payer)
+            require(await Users.get_user_by_id(payer) is None, "personal_payer_forbidden")
+            service_config = await Functions.get_function_valves_by_id("employee_budget_service")
+            require(isinstance(service_config, dict), "service_configuration_unavailable")
+            target = service_config.get("target_model_id")
+            require(isinstance(target, str) and bool(target), "invalid_service_configuration")
+            model = request.app.state.MODELS.get(target)
+            _, wire = await native_connection({"model": target}, model, request, url, require=require)
+            budget = await client.read_employee(payer, (wire,))
+            policy.monthly(budget)
+            service = {"label": "Генерация названий чатов", "budget_usd": policy.money(budget.max_budget),
+                       "spend_usd": policy.money(budget.spend), "budget_reset_at": budget.budget_reset_at,
+                       "remaining_usd": policy.money(budget.max_budget - budget.spend)
+                           if budget.max_budget is not None else None}
+        return LoadedDirectory(url, identities, states, client, copy.deepcopy(config), secrets, inspections, labels, service)
 
     @staticmethod
     def _result(data, *, view=None, status="", outcome="success"):
@@ -176,7 +194,7 @@ class Tools:
         pending = [policy.public_pending(data.identities[uid], inspection, template, data.labels)
                    for uid, inspection in data.inspections.items() if inspection.kind != "ready"]
         html = render_editor(rows, as_of=datetime.now(timezone.utc).isoformat(), status=status,
-                             template=policy.template_public(template, data.labels), pending=pending)
+                             template=policy.template_public(template, data.labels), pending=pending, service=data.service)
         return (HTMLResponse(html, headers={"Content-Disposition": "inline", "Cache-Control": "no-store"}),
                 {"status": outcome, "message": status or "Budget form opened. Apply its next stored JSON turn with apply_budget_form and no arguments."})
 

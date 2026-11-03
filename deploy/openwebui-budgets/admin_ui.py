@@ -86,7 +86,8 @@ def _bootstrap_panels(template, pending):
 
 
 def render_editor(rows: list[dict], *, as_of: str, status: str = "",
-                  template: dict | None = None, pending: list[dict] | None = None) -> str:
+                  template: dict | None = None, pending: list[dict] | None = None,
+                  service: dict | None = None) -> str:
     # Only the public presentation contract enters HTML; caller owns policy/order.
     public = [{key: row.get(key) for key in ("user_id", "name", "email", "department", "revision",
                "budget_usd", "spend_usd", "remaining_usd")} | {"models": [
@@ -115,6 +116,14 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
             '<th>Новая доля</th></tr></thead><tbody>' + "".join(models) + '</tbody></table></section>')
     empty = '<p>Сотрудники для этого представления не найдены.</p>' if not public else ""
     bootstrap_html, bootstrap = _bootstrap_panels(template, pending)
+    service_html = ""
+    if service is not None:
+        service_html = ('<aside data-service-budget="v1"><h2>Служебные расходы</h2>'
+            f'<p>{_text(service.get("label"))}. Этот расход не уменьшает личные бюджеты сотрудников.</p>'
+            f'<p>Бюджет: <span data-service-cap>{_text(service.get("budget_usd"), "не установлен")}</span> USD · '
+            f'Расход: <span data-service-spend>{_text(service.get("spend_usd"))}</span> USD · '
+            f'Остаток: <span data-service-remaining>{_text(service.get("remaining_usd"))}</span> USD</p>'
+            f'<p>Следующее обновление бюджета: {_text(service.get("budget_reset_at"))}.</p></aside>')
     program = _PROGRAM
     if bootstrap:
         program = program.replace("const height=()=>", _BOOTSTRAP_PROGRAM + "\nconst height=()=>", 1)
@@ -132,7 +141,7 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
         + '<button type="button" id="apply"' + (' disabled' if not public else '')
         + '>Применить изменения</button></form><p id="feedback" role="alert" aria-live="polite"></p>'
           '<pre id="preview" aria-label="Было → станет" aria-live="polite"></pre>'
-        + bootstrap_html + '</main>'
+        + bootstrap_html + service_html + '</main>'
         + '<script id="budget-data" type="application/json">' + _script_json(public) + '</script>'
         + ('<script id="budget-bootstrap-data" type="application/json">' + _script_json(bootstrap) + '</script>' if bootstrap else '')
         + program + '</body></html>')

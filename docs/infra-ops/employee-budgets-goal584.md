@@ -5,11 +5,11 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; основной admin vertical slice принят E1–E7,
+**Состояние:** GOAL в работе; приняты основной admin vertical slice и defaults/new-hire,
 полный продукт ещё не принят. Последний успешный native run
-[41508244311](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41508244311),
-HEAD `0ec2c654cfb001ca5aeafd0a0281676b1425e5a9`, tested merge
-`e0865e1b2d8967b53fba262e9a0b39bf452ad039`; Active CI41508244316 PASS.
+[41596060610](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41596060610),
+HEAD `e64b720910643b65731683f2f49063a5d7a8f86e`, tested merge
+`a803e25d948c329c7cbe0dd6e39ee82ccbe5d84b`; Active CI41596060611 PASS.
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn
 → подтверждение server diff → native cap update/readback → реальные employee
@@ -29,17 +29,17 @@ Open WebUI владеет сотрудниками, ACL, моделями, со�
 `admin_ui.py` только отображает данные и собирает JSON. Существующий Filter остаётся
 единственным владельцем URL учёта, отдельный operator key не попадает в HTML/LLM.
 Общий native model binding выделен из Filter без изменения поведения.
-Последний принятый P1-кандидат проверен native run ниже; следующий локальный
-defaults/new-hire кандидат: 135 component tests, 128 PASS и7 opt-in Chrome skips.
-Отдельно выполнены все14 renderer/Chrome checks. Это локальные проверки нового
-среза, не его native runtime-приёмка.
+Defaults/new-hire прошёл native run выше; локальные проверки кандидата:
+135 component tests, 128 PASS и7 opt-in Chrome skips, отдельно все14 renderer/Chrome.
 Независимые части native provisioner, synthetic provider Tool turns и browser
 driver интегрированы; native list/hash-update, hard-zero и подтверждённая запись
-формы квалифицированы. Следующие обязательные gaps — defaults/new-hire provisioning,
-служебные расходы, lifecycle отказов/параллельности/календаря, исторические тарифы
-и полнота действующих маршрутов. Технический текст budget error пока не локализован.
-Неподготовленные назначения новых сотрудников в принятом runtime пока отклоняются явно; скрытого
-создания, сброса spend/reset, повторных попыток или обещания общей транзакции нет.
+формы квалифицированы. Следующие обязательные gaps — служебные расходы,
+lifecycle отказов/параллельности/календаря, исторические тарифы
+и полнота действующих маршрутов. В последнем принятом native run budget error
+ещё технический; локальный кандидат локализован и ожидает следующий runtime gate.
+Полностью отсутствующий бюджет нового сотрудника создаётся только после явного
+выбора и подтверждения. Неполные/конфликтующие назначения показываются без ремонта;
+сброса spend/reset, скрытых повторов или обещания общей транзакции нет.
 Подготовлены native Tool/Skill и admin-only preset, отдельный synthetic личный
 плательщик администратора, actual list/hash/zero-cap probe и обычный браузерный
 сценарий cancel → apply двум сотрудникам → model/personal denial → recovery через
@@ -88,11 +88,11 @@ Evidence: `local/goal584/runtime-proof-41508244311`, parent-review.safe.json и
 role-independent-review.md. Это приёмка указанной границы и повторение main slice,
 не полная квалификация безопасности или всего продукта.
 
-**Текущий следующий срез:** defaults/new-hire. Отдельная native inspection
-должна различать полностью отсутствующий budget identity, готовое назначение,
+**Принятый срез defaults/new-hire.** Отдельная native inspection
+различает полностью отсутствующий budget identity, готовое назначение,
 частичное/повреждённое состояние и недоступность. Только exact user404 + полная
 пустая key/list доказывают отсутствие. Никакого скрытого создания/ремонта.
-Локальный кандидат реализован: форма показывает готовые и неподготовленные
+Форма показывает готовые и неподготовленные
 бюджеты отдельно; шаблон сохраняется за admin-only Function API. Сохранение
 шаблона и создание явно выбранных личных бюджетов — разные JSON-планы и
 подтверждения. Шаблон не меняет существующие назначения. Его доли предлагаются
@@ -116,7 +116,20 @@ review PASS после уточнения финансового diff и нор�
 Python scripts PASS. Подготовлен отдельный
 post-main native fixture: third staff не меняет старый11-call baseline; save
 template → cancel initialize → confirmed initialize → employee success/zero-cap
-denial. Следующий шаг — проверка кандидата и actual native GUI qualification.
+denial. Run41596060610 подтвердил этот сценарий: before/template/cancel остаются
+absent; после подтверждения создан ровно1 native user и2 key assignments с
+caps0.8/0.8/0, периодом1mo и одинаковым reset timestamp. Ответ A начислил0.20,
+B cap0 отклонён до provider.4 admin turns/8 physical +1 staff physical =9 новых
+native rows,10 signed attempts/$1.80. Все25 прежних positive rows сохранены
+полностью; итог34. Existing staff caps/spend/reset/identity неизменны.
+Parent сверил29 source SHA/6 mounted SHA с tested merge, ZIP SHA256
+`9688537008871d740f40a8e91eae96f638cdeda7bd47b83654f3929462e9c3d8`, заново
+исполнил оба verifier на raw inputs. Независимый reviewer сверил source/context,
+native user/key totals со всеми ledger rows и11 PNG: PASS. Native primary order
+controller1793690822 < server Date1793690823 <= owner1793690823 стабилен в12
+base readbacks. Cleanup0/0. Evidence:
+`local/goal584/runtime-proof-41596060610/{parent-review.safe.json,independent-bootstrap-review.md}`.
+Это не runtime-приёмка concurrent bootstrap, partial recovery или перехода месяца.
 Первый native кандидат `aed366b48d25cebafe1b0bdf00281b64f54c4c3c`,
 [run41591143766](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41591143766),
 прошёл прежний main/cost/details/OFF и owner-role сценарии; parent replay PASS,
@@ -141,7 +154,39 @@ snapshot повторяет readback и сохраняет три безопас
 прогон до bootstrap GUI. Cleanup0/0; artifact SHA256
 `1fe07833946752fddef9aa03e1bbd40e541050339184ace9150d9b3dc7dddb30`,
 `local/goal584/runtime-proof-41592272718`. Bootstrap runtime по-прежнему не принят.
-Следом остаются services и остальные перечисленные gaps;
+**Текущий следующий срез:** services. Native task paths обходят Function request
+Filter, а X-Task из raw OpenAI proxy не является доверенным выбором плательщика.
+Подготовлен локальный native Pipe для direct title endpoint: fresh actor/chat ACL,
+существующий model binding, отдельный signed service audience и native service payer.
+Нет выдуманных answer/root IDs; service session отделена от personal cost readback.
+Код ещё не квалифицирован в native runtime. Native Users дополнительно запрещает
+service payer, совпадающий с существующей учётной записью WebUI; ошибка directory
+не считается отсутствием. Read-only блок служебных расходов в admin форме читает
+native service user/model counters без включения их в personal totals. Обязательный следующий
+proof сравнит фактический native target-model task (unsigned отказ до provider)
+и Pipe→тот же target (signed service оплата) при одинаковых native task params,
+включая финальный provider context. Task-model fallback max_tokens и target system/
+custom params нельзя считать сохранёнными лишь по mock dispatch. Реальный Pipe
+также требует Workspace Model/ACL; отдельный Function без этой регистрации
+не виден обычному actor. Raw negatives принимают только403 с причиной отказа
+подписанного provenance, а не произвольную HTTP ошибку. Title phase ожидает1
+physical call/$0.20; последующий отдельный admin GUI open — ещё2 personal admin
+calls/$0.40, footer20/0.2/19.8 и неизменные staff/service counters. Эти фазы
+сохраняют раздельные provider/context receipts и полный native ledger.
+Локально172 component tests (165 PASS/7 opt-in Chrome skips),73 harness checks,
+static32 Bash/14 embedded Python scripts,24 bind paths/imports и actionlint PASS
+включая4 focused checks нового admin-browser fixture.
+Automatic
+background tasks и RAG/public embeddings остаются отдельными gaps. Источники:
+`local/goal584/{service-native-path-review.md,service-pipe-independent-review.md}`.
+Реализована штатная CustomLogger failure hook для понятного budget error без изменения
+status/type/учёта; её кандидат также требует actual422/UI gate. Исходная фраза
+«исчерпан» была неверна для strict reservation с остатком0.6 и оценкой0.7;
+используется «недостаточно бюджета для этого запроса». Actual native reservation/
+exception/converter source и независимые10 targeted checks подтверждают сохранение
+422/budget_exceeded и остальных полей исключения. Native prompt-body storage
+явно выключен config/env; полная DB privacy и failure/cancel paths остаются отдельным gate.
+Далее остаются остальные перечисленные gaps;
 business default template должен храниться за admin-role API, не в owner-writable
 Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.
 

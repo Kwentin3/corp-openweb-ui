@@ -164,6 +164,7 @@ class ProviderHTTPTests(unittest.TestCase):
     def test_control_boolean_validation_and_reset(self):
         for payload in ({}, {"tool_round": 1}, {"tool_round": "true"}, {"tool_round": None},
                         {"admin_mode": 1}, {"admin_mode": "true"}, {"admin_mode": None},
+                        {"title_mode": 1}, {"title_mode": "true"}, {"title_mode": None},
                         {"unknown": True}, {"prompt_tokens": True},
                         {"tool_round": True, "delay_ms": -1}):
             with self.subTest(payload=payload):
@@ -174,8 +175,20 @@ class ProviderHTTPTests(unittest.TestCase):
         self.chat()
         self.http("/__proof/reset", {})
         self.assertEqual(self.receipts()["control"], {"prompt_tokens": 10, "completion_tokens": 5,
-                                                     "delay_ms": 0, "tool_round": False, "admin_mode": False})
+                                                     "delay_ms": 0, "tool_round": False, "admin_mode": False,
+                                                     "title_mode": False})
         self.assertEqual(self.receipts()["requests"], [])
+
+    def test_title_mode_returns_one_json_title_with_original_native_usage(self):
+        self.http("/__proof/control", {"title_mode": True, "admin_mode": True, "tool_round": True})
+        for stream in (False, True):
+            with self.subTest(stream=stream):
+                _, message, reason = self.chat(stream=stream, messages=[{"role": "user", "content": json.dumps(PLAN)}],
+                                                tools=ADMIN_TOOLS)
+                self.assertEqual(reason, "stop")
+                self.assertEqual(json.loads(message["content"]), {"title": "Proof"})
+                self.assertNotIn("tool_calls", message)
+        self.assertEqual(len(self.receipts()["requests"]), 2)
 
     def test_admin_schema_fixture_matches_actual_public_tool_signatures(self):
         source = Path(__file__).resolve().parents[2] / "deploy/openwebui-budgets/admin_tools.py"

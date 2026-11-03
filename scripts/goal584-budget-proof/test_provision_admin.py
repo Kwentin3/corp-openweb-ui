@@ -1,4 +1,5 @@
 """Bounded orchestration rehearsal, not native server/runtime acceptance."""
+import ast
 import copy
 from dataclasses import replace
 from decimal import Decimal
@@ -28,6 +29,7 @@ load("employee_budget_assignment", BUDGETS / "assignment.py")
 contract = load("employee_budget_admin_contract", BUDGETS / "admin_contract.py")
 load("employee_budget_admin_client", BUDGETS / "admin_client.py")
 p = load("goal584_provision_admin_under_test", HERE / "provision_admin.py")
+import prove_native_budgets as N
 IDS = [f"{n:08d}-1111-4111-8111-111111111111" for n in range(1, 7)]
 
 
@@ -289,7 +291,7 @@ class ProvisionAdminTests(unittest.TestCase):
                 return [{"spend": 0, "status": "failure"}] if user == IDS[2] else []
         self.assertEqual(p.positive_logs(Native(), state), ([], 1))
 
-    def probe(self, wrong_denial=False):
+    def probe(self, wrong_denial=False, *, denial_message=None, denial_type="budget_exceeded", expect_failure=False):
         state, employees = fixture()
         actual, updates, requests = copy.deepcopy(employees), [], []
         b = employees[2].models[1]
@@ -314,17 +316,19 @@ class ProvisionAdminTests(unittest.TestCase):
             def request(self, method, path, **kwargs):
                 requests.append((method, path, kwargs))
                 return (403 if wrong_denial else p.BUDGET_EXCEEDED_STATUS,
-                        {"error": {"type": "budget_exceeded", "message": "Key=" + b.key_alias}}, {})
+                        {"error": {"type": denial_type, "message": denial_message or N.BUDGET_MODEL_MESSAGE}}, {})
         with patch.object(p, "BudgetAdminClient", Client), \
              patch.object(p, "read_private", return_value={"operator_token": "sk-synthetic-operator"}), \
              patch.object(p, "read_states", side_effect=lambda _: copy.deepcopy(actual)), \
              patch.object(p, "native_client", return_value=Native()):
-            if wrong_denial:
+            if wrong_denial or expect_failure:
                 with self.assertRaises(p.ProofError):
                     p.native_probe(state, deny=True)
             else:
                 result = p.native_probe(state, deny=True)
                 self.assertTrue(result["original_cap_restored_exactly"])
+                self.assertEqual(result["budget_message"], denial_message or N.BUDGET_MODEL_MESSAGE)
+                self.assertTrue(result["friendly_budget_feedback"])
         self.assertEqual(updates, [(b.key_hash, Decimal(500)), (b.key_hash, Decimal(0)), (b.key_hash, Decimal(500))])
         self.assertEqual(actual, employees)
         self.assertEqual(requests[0][2]["token"], state["admin_budgetnative_keys"][1]["key"])
@@ -335,6 +339,41 @@ class ProvisionAdminTests(unittest.TestCase):
 
     def test_probe_restores_original_cap_after_unexpected_denial(self):
         self.probe(wrong_denial=True)
+
+    def test_probe_requires_approved_key_feedback_and_native_error_type(self):
+        self.probe(denial_message=N.BUDGET_GENERIC_MESSAGE)
+        for message in (N.BUDGET_USER_MESSAGE, "Budget has been exceeded! Key=private", "Ошибка бюджета",
+                        N.BUDGET_MODEL_MESSAGE + " sk-private"):
+            with self.subTest(message=message):
+                self.probe(denial_message=message, expect_failure=True)
+        self.probe(denial_type="auth_error", expect_failure=True)
+
+
+class BudgetFeedbackContractTests(unittest.TestCase):
+    def test_native_and_persisted_error_envelopes_preserve_exact_scope(self):
+        tree = ast.parse((BUDGETS / "budget_errors.py").read_text(encoding="utf-8"))
+        messages = {node.targets[0].id: ast.literal_eval(node.value) for node in tree.body
+                    if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+                    and node.targets[0].id in {"USER_MESSAGE", "MODEL_MESSAGE", "GENERIC_MESSAGE"}}
+        self.assertEqual(messages, {"USER_MESSAGE": N.BUDGET_USER_MESSAGE,
+                                    "MODEL_MESSAGE": N.BUDGET_MODEL_MESSAGE,
+                                    "GENERIC_MESSAGE": N.BUDGET_GENERIC_MESSAGE})
+        for message in (N.BUDGET_MODEL_MESSAGE, N.BUDGET_GENERIC_MESSAGE):
+            error = {"error": {"type": "budget_exceeded", "code": "422", "message": message}}
+            self.assertEqual(N.expected_budget_message(error, scope="key"), message)
+            self.assertEqual(N.expected_budget_message({"content": error}, scope="key"), message)
+        self.assertEqual(N.expected_budget_message({"content": N.BUDGET_USER_MESSAGE}, scope="user"),
+                         N.BUDGET_USER_MESSAGE)
+
+    def test_ordinary_failures_aliases_and_incidental_text_are_not_budget_denials(self):
+        for error in (None, {}, {"content": "Ошибка бюджета"}, {"message": "Network problem"},
+                      {"message": "Prefix " + N.BUDGET_USER_MESSAGE},
+                      {"message": N.BUDGET_USER_MESSAGE, "private": "owui-budget-v1-hidden"},
+                      {"content": {"message": N.BUDGET_MODEL_MESSAGE, "private": "sk-hidden"}}):
+            with self.subTest(error=error), self.assertRaises(N.ProofError):
+                N.expected_budget_message(error)
+        with self.assertRaises(N.ProofError):
+            N.expected_budget_message(N.BUDGET_GENERIC_MESSAGE, scope="user")
 
 
 if __name__ == "__main__":

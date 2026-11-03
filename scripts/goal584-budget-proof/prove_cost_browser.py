@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import expect, sync_playwright
 
 from capture_webui_auth import FIELDS as SEMANTIC_FIELDS
+from prove_native_budgets import expected_budget_message
 from prove_webui_browser import (Fixture, chat, login, require, safe_failure,
                                 same_money, text_content, write_json)
 
@@ -260,6 +261,8 @@ def verify(result, provider, context, before, final):
             and attempt["provenance_removed_after"] is True and attempt["body"] == attempt["body_after_auth"],
             "OFF denied attempt differs from its actual browser/server scope")
     require(denial["key_budget_feedback"] is True and denial["cost_status_absent"] is True
+            and denial["friendly_budget_feedback"] is True and denied_call["friendly_budget_feedback"] is True
+            and expected_budget_message(denial["budget_message"], scope="key") == denied_call["budget_message"]
             and len(denial["provider_ids_before"]) == 4
             and denial["provider_ids_before"] == denial["provider_ids_after"]
             and set(denial["provider_ids_before"]) <= ids,
@@ -434,7 +437,9 @@ def main():
                         "cost-off-budget-denied", args.output, start_new=True, expected_costs=None)
         off_call["user_id"] = user_id
         saved_denial = chat_state(page, args.base_url, token, off_call["chat_id"])[off_call["message_id"]]
-        require("Key=" + limited["key_alias"] in json.dumps(saved_denial.get("error"))
+        denial_message = expected_budget_message(saved_denial.get("error"), scope="key")
+        require(saved_denial.get("done") is True and off_call["budget_message"] == denial_message
+                and off_call["friendly_budget_feedback"] is True
                 and not any(status.get("action") == FILTER_ID for status in (saved_denial.get("statusHistory") or [])),
                 "OFF attempt did not preserve the expected key-budget denial without a cost status")
         provider_ids_after = sorted(request["id"] for request in fixture.provider()["requests"])
@@ -446,7 +451,8 @@ def main():
         restored = fixture.phase("off-restore")["off_denial"]
         result["off_budget_denial"] = {"call": off_call, "limit": limited, "native_observation": denied_native,
             "restored": restored, "provider_ids_before": provider_ids_before,
-            "provider_ids_after": provider_ids_after, "key_budget_feedback": True, "cost_status_absent": True}
+            "provider_ids_after": provider_ids_after, "key_budget_feedback": True, "cost_status_absent": True,
+            "budget_message": denial_message, "friendly_budget_feedback": True}
         page.goto(args.base_url + "/c/" + first["chat_id"], wait_until="domcontentloaded")
         send(MODELS[1], "cost-04-hidden", costs=None)
         page.reload(wait_until="domcontentloaded")

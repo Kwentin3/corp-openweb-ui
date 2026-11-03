@@ -21,6 +21,8 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import expect, sync_playwright
 
+from prove_native_budgets import expected_budget_message
+
 
 MODELS = ("goal584-a", "goal584-b")
 CALL_COST = Decimal("0.20")
@@ -82,6 +84,9 @@ def verify_provider(browser, provider, observed):
     successes = [call for call in browser["calls"] if call["outcome"] == "success"]
     denials = [call for call in browser["calls"] if call["outcome"] == "budget_blocked"]
     require(len(successes) == 6 and len(denials) == 2, "The real WebUI scenario must complete six calls and two denials")
+    require(all(call["terminal_persisted"] is True and call["friendly_budget_feedback"] is True
+                and expected_budget_message(call["budget_message"]) == call["budget_message"] for call in denials),
+            "Browser denial lost its exact persisted and visible friendly feedback")
     require(len({call["chat_id"] for call in browser["calls"]}) == 8,
             "Every fixture request must start a fresh native chat")
     logs = observed["positive_spend_logs"]
@@ -260,7 +265,7 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output,
         require(time.monotonic() < deadline, "Native chat task did not finish its outlet lifecycle")
         page.wait_for_timeout(250)
     card = page.locator("#message-" + message_id)
-    reported_estimate = None
+    budget_message = None
     if expected_outcome == "success":
         require(not terminal.get("error") and terminal.get("content") == "Proof", "Native chat completion content/error differs")
         expect(card.locator("#response-content-container")).to_contain_text("Proof")
@@ -278,18 +283,19 @@ def chat(page, base_url, token, user_id, model, expected_outcome, label, output,
         require(saved.get("content") == "Proof", "Cost display changed model history content")
     else:
         error = terminal.get("error")
-        require(bool(error) and "budget" in json.dumps(error).lower() and terminal.get("content", "") != "Proof",
+        require(bool(error) and terminal.get("done") is True and terminal.get("content", "") != "Proof",
                 "Native terminal denial is not an explicit budget failure")
-        estimate = re.search(r"Estimated request cost: ([0-9.]+)", json.dumps(error))
-        if estimate:
-            reported_estimate = estimate.group(1)
-        expect(card).to_contain_text(re.compile("budget", re.I))
+        budget_message = expected_budget_message(error)
+        expect(card).to_contain_text(budget_message)
+        visible = card.inner_text()
+        require("owui-budget-v1-" not in visible and "sk-" not in visible,
+                "Visible budget denial leaked a native assignment alias or key fragment")
     expect(page.locator("#chat-input")).to_be_visible()
     page.screenshot(path=str(output / (label + ".png")), full_page=False)
     return {"model": model, "chat_id": chat_id, "message_id": message_id, "outcome": expected_outcome,
             "terminal_persisted": True, "visible_feedback": True, "browser_chat_status": response.status,
             "native_cost_status": expected_outcome == "success" and expected_costs is not None,
-            "reported_estimated_cost_usd": reported_estimate}
+            "budget_message": budget_message, "friendly_budget_feedback": budget_message is not None}
 
 
 def main():
@@ -334,8 +340,7 @@ def main():
         require(len(context_before) == 1, "Default UI attempt must create exactly one gateway observation")
         verify_context_row(context_before[0], before, builtin_tools=True)
         require(Decimal(str(context_before[0]["native_estimated_max_cost_usd"])) > Decimal("0.40")
-                and before["reported_estimated_cost_usd"] is not None
-                and Decimal(before["reported_estimated_cost_usd"]) == Decimal(str(context_before[0]["native_estimated_max_cost_usd"])),
+                and before["friendly_budget_feedback"] is True,
                 "Default native built-in context does not explain the observed reservation denial")
         receipt["default_builtin_context"] = before
         observed = fixture.observe("plainchat", expected_total=0)

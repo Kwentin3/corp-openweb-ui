@@ -497,6 +497,25 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn(USER, self.states)
         self.assertEqual(self.writes, [])
 
+    async def test_service_summary_uses_dedicated_native_owner_without_employee_or_secret_projection(self):
+        self.config['service_payer_id'] = OTHER
+        self.users.get_user_by_id.side_effect = lambda uid: self.admin if uid == ADMIN else None
+        self.functions.get_function_valves_by_id.side_effect = lambda fid: (
+            {'target_model_id': MODELS[0]} if fid == 'employee_budget_service' else self.config)
+        self.states[OTHER] = replace(state(OTHER), max_budget=Decimal(20), spend=Decimal('.2'),
+            models=(replace(state(OTHER).models[0], max_budget=Decimal(20)),))
+        rendered = self.html(await self.open())
+        self.assertIn('data-service-spend>0.2</span>', rendered)
+        self.assertIn('data-service-remaining>19.8</span>', rendered)
+        self.assertIn('Генерация названий чатов', rendered)
+        self.assertNotIn(OTHER, rendered)
+        self.assertIn((OTHER, (MODELS[0],)), self.reads)
+        self.assertEqual(len(self.employees), 2)
+        self.assertEqual(self.writes, [])
+        self.users.get_user_by_id.side_effect = lambda uid: self.admin if uid == ADMIN else SimpleNamespace(id=uid, role='user')
+        with self.assertRaisesRegex(contract.BudgetAdminError, 'personal_payer_forbidden'):
+            await self.open()
+
     async def test_unmanaged_target_connection_fails_before_native_budget_reads(self):
         self.connection.return_value = ("http://other.invalid/v1", "other-secret", {})
         with self.assertRaisesRegex(contract.BudgetAdminError, "gateway_configuration"):

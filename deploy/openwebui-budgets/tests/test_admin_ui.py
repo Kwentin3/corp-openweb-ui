@@ -64,6 +64,21 @@ class Parser(HTMLParser):
 
 
 class RendererTests(unittest.TestCase):
+    def test_service_summary_is_readonly_escaped_and_excludes_private_fields(self):
+        value = {'label': '<script>bad()</script>', 'budget_usd': '20', 'spend_usd': '0.2',
+                 'remaining_usd': '19.8', 'budget_reset_at': '2026-12-01T00:00:00Z',
+                 'payer_id': 'private-payer-id', 'operator_key': 'private-management-key'}
+        rendered = UI.render_editor([], as_of='now', service=value)
+        panel = rendered.split('<aside data-service-budget="v1">')[1].split('</aside>')[0]
+        self.assertIn('&lt;script&gt;bad()&lt;/script&gt;', panel)
+        self.assertIn('data-service-spend>0.2</span>', panel)
+        self.assertNotIn('<input', panel)
+        self.assertNotIn('<button', panel)
+        self.assertNotIn('private-payer-id', rendered)
+        self.assertNotIn('private-management-key', rendered)
+        unknown = UI.render_editor([], as_of='now', service={'label': 'Titles'})
+        self.assertIn('data-service-spend>нет данных</span>', unknown)
+
     def test_optional_arguments_preserve_existing_output(self):
         self.assertEqual(UI.render_editor(rows(), as_of='now'),
                          UI.render_editor(rows(), as_of='now', template=None, pending=None))

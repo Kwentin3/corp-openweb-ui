@@ -37,6 +37,13 @@ import uuid
 VERSION = "1.105.1"
 # Pinned litellm/__init__.py:409; BudgetExceededError and auth conversion preserve it.
 BUDGET_EXCEEDED_STATUS = 422
+# Public fixture contract mirrors budget_errors.py without importing LiteLLM.
+BUDGET_USER_MESSAGE = ("Недостаточно общего бюджета для этого запроса. Уменьшите запрос "
+                       "или обратитесь к администратору для изменения лимита.")
+BUDGET_MODEL_MESSAGE = ("Недостаточно бюджета этой модели для запроса. Уменьшите запрос, "
+                        "выберите другую разрешённую модель или обратитесь к администратору.")
+BUDGET_GENERIC_MESSAGE = ("Недостаточно бюджета для этого запроса. Уменьшите запрос "
+                          "или обратитесь к администратору.")
 MODELS = ("goal584-a", "goal584-b")
 PROMPT_TOKENS = 10
 COMPLETION_TOKENS = 5
@@ -51,6 +58,30 @@ class ProofError(Exception):
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise ProofError(message)
+
+
+def expected_budget_message(error: object, *, scope: str | None = None) -> str:
+    """Require an exact approved message on native/persisted error envelopes.
+
+    This validates presentation only. Callers still prove native status/type or
+    persisted terminal error and provider/accounting absence independently.
+    """
+    require(scope in (None, "key", "user"), "Unknown expected native budget scope")
+    allowed = ({BUDGET_USER_MESSAGE} if scope == "user" else
+               {BUDGET_MODEL_MESSAGE, BUDGET_GENERIC_MESSAGE} if scope == "key" else
+               {BUDGET_USER_MESSAGE, BUDGET_MODEL_MESSAGE, BUDGET_GENERIC_MESSAGE})
+    serialized = json.dumps(error, ensure_ascii=False)
+    require("owui-budget-v1-" not in serialized and "sk-" not in serialized,
+            "Budget error leaked a native assignment alias or key fragment")
+    value = error
+    for _ in range(5):
+        if not isinstance(value, dict):
+            break
+        field = next((key for key in ("message", "error", "content", "detail") if key in value), None)
+        require(field is not None, "Budget error has no explicit message envelope")
+        value = value[field]
+    require(isinstance(value, str) and value in allowed, "Expected an exact localized native budget message")
+    return value
 
 
 def amount(value: Any) -> Decimal:
@@ -355,11 +386,11 @@ class NativeProof:
             error = payload.get("error")
             require(status == BUDGET_EXCEEDED_STATUS and isinstance(error, dict) and error.get("type") == "budget_exceeded",
                     "Expected native budget rejection; received HTTP " + str(status))
-            marker = "Key=" + key["alias"] if blocked_scope == "key" else "User=" + user
-            require(marker in str(error.get("message", "")), "Budget rejection did not identify expected native scope")
+            message = expected_budget_message(error, scope=blocked_scope)
             self.receipt["calls"].append({"user": user, "model": model, "outcome": "budget_blocked",
                                           "scope": blocked_scope, "http_status": status,
-                                          "error_type": error["type"]})
+                                          "error_type": error["type"], "budget_message": message,
+                                          "friendly_budget_feedback": True})
         else:
             require(status == 200, "Native inference unexpectedly returned HTTP " + str(status))
             provider_response_id = payload.get("id")

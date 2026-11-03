@@ -32,6 +32,7 @@ from provision_webui import (
     read_private, require, snapshot as base_snapshot, write_private, ProofError,
 )
 from provenance import ProtocolError, validate_persisted_scope
+from prove_native_budgets import expected_budget_message
 
 
 STATE = Path("/proof-private/webui-state.private.json")
@@ -499,8 +500,9 @@ def off_denial_observe(webui: WebUI, state: dict, path: Path, chat_id: str) -> d
     require(len(assistants) == 1, "OFF denial chat must contain one fresh assistant answer")
     answer_id, answer = assistants[0]
     require(str(uuid.UUID(answer_id)) == answer_id and answer.get("model") == control["model"]
-            and answer.get("done") is True and bool(answer.get("error"))
-            and "budget" in json.dumps(answer["error"]).lower(), "OFF native terminal answer is not a budget failure")
+            and answer.get("done") is True and bool(answer.get("error")),
+            "OFF native terminal answer is not a localized budget failure")
+    expected_budget_message(answer["error"], scope="key")
     statuses = answer.get("statusHistory")
     require(statuses is None or isinstance(statuses, list) and all(isinstance(item, dict) for item in statuses),
             "OFF denial native status history is malformed")

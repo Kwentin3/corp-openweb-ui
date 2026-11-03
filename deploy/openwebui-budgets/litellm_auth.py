@@ -4,12 +4,13 @@
 Boundary: OpenWebUI authenticates USER_ID and expands the native {{TASK}}
 connection template into X-OpenWebUI-Task. The distinct server-held gateway
 secret authenticates the transport; it does not prove task/chat provenance.
-Only USER_ID is used for personal-key selection. Empty TASK means ordinary
-inference; missing or nonempty TASK is unsupported on that branch.
-OWUI_BUDGET_REQUIRE_PROVENANCE=true additionally requires signed server scope.
-The shared provenance module only authenticates representation; this adapter
-projects it into native log fields and consumes tokens before downstream reads.
-Model-less discovery and service-task classification are deliberately unresolved.
+On the shared bearer, TASK must be present: empty TASK selects USER_ID's personal
+assignment; nonempty TASK requires a separate signed service-call audience
+binding the verified actor, native model, task and payer before assignment lookup.
+Native virtual keys cannot authorize a nonempty TASK. Model-less discovery is
+unsupported. OWUI_BUDGET_REQUIRE_PROVENANCE=true additionally requires signed
+personal scope. The shared provenance module authenticates representation;
+this adapter projects native log fields and consumes tokens before downstream reads.
 
 Assignment state belongs to existing native virtual keys: canonical
 assignment_alias(user_id, model), assignment_metadata(model), models=[model],
@@ -114,7 +115,8 @@ def _metadata_maps(data: dict) -> list[dict]:
 def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
                       required: bool, secret: str, user_id: str | None,
                       model: str | None, decoder, chain_id: str | None,
-                      metadata_slot: str, metadata_session_id: str | None) -> None:
+                      metadata_slot: str, metadata_session_id: str | None,
+                      task: str = "") -> None:
     """Change log-only fields in place; native cached-body setter follows this.
 
     Both aliases are cleaned because native normalization merges them later.
@@ -148,12 +150,16 @@ def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
         ), 403, "Client budget attribution header is forbidden")
 
     if not shared_gateway:
+        _require(not task, 403, "Native virtual keys cannot authorize service tasks")
         return
-    _require(not required or token is not None, 403, "Signed budget provenance required")
+    _require(not (required or task) or token is not None, 403, "Signed budget provenance required")
     if token is None:
         return
     try:
-        claims = decoder(token, secret, user_id=user_id, model=model)
+        scope_args = {"user_id": user_id, "model": model}
+        if task:
+            scope_args["task"] = task
+        claims = decoder(token, secret, **scope_args)
     except ValueError:
         _require(False, 403, "Invalid signed budget provenance")
     # Header processing runs after custom_auth and would overwrite our fields.
@@ -162,12 +168,19 @@ def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
              403, "Competing budget correlation headers are forbidden")
     # Native normalization also derives session correlation from metadata.user_id
     # after auth, including on Responses' otherwise provider-owned metadata slot.
-    _require(metadata_session_id is None or metadata_session_id == claims["root_chat_id"],
+    session_id = "owui-service:" + claims["chat_id"] if task else claims["root_chat_id"]
+    trace_id = claims["jti"] if task else claims["root_answer_id"]
+    _require(metadata_session_id is None or metadata_session_id == session_id,
              403, "Competing budget metadata session is forbidden")
-    scope = {"schema": 1, "user_id": claims["sub"], "chat_id": claims["chat_id"],
-             "answer_id": claims["answer_id"], "root_chat_id": claims["root_chat_id"],
-             "root_answer_id": claims["root_answer_id"], "model": claims["model"],
-             "call_id": claims["jti"], "category": "personal"}
+    if task:
+        scope = {"schema": 1, "user_id": claims["payer_id"], "actor_id": claims["sub"],
+                 "chat_id": claims["chat_id"], "call_id": claims["jti"],
+                 "model": claims["model"], "category": "service", "task": claims["task"]}
+    else:
+        scope = {"schema": 1, "user_id": claims["sub"], "chat_id": claims["chat_id"],
+                 "answer_id": claims["answer_id"], "root_chat_id": claims["root_chat_id"],
+                 "root_answer_id": claims["root_answer_id"], "model": claims["model"],
+                 "call_id": claims["jti"], "category": "personal"}
     # Only the native route-selected logging slot may acquire scope. Responses
     # keeps body.metadata as provider metadata, which must remain independent.
     _require(metadata_slot in ("metadata", "litellm_metadata"), 503,
@@ -175,14 +188,14 @@ def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
     value = data.setdefault(metadata_slot, {})
     if value is None:
         value = data[metadata_slot] = {}
-    value["session_id"] = claims["root_chat_id"]
-    value["trace_id"] = claims["root_answer_id"]
+    value["session_id"] = session_id
+    value["trace_id"] = trace_id
     spend = value.get("spend_logs_metadata")
     if spend is None:
         spend = value["spend_logs_metadata"] = {}
     spend["owui_budget"] = scope
-    data["litellm_session_id"] = claims["root_chat_id"]
-    data["litellm_trace_id"] = claims["root_answer_id"]
+    data["litellm_session_id"] = session_id
+    data["litellm_trace_id"] = trace_id
 
 
 async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
@@ -229,15 +242,17 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     _require(route not in LiteLLMRoutes.master_key_only_routes.value, 403,
              "Master-only routes are unavailable through the budget adapter")
     task = _header(request, TASK_HEADER, required=False)
-    _require(task is None or task == "", 403, "Service tasks are not qualified for budget routing")
     request_data = await _read_request_body(request)
     shared_gateway = _same_secret(api_key, gateway_secret)
+    _require(shared_gateway or not task, 403, "Native virtual keys cannot authorize service tasks")
     user_id = None
+    actor_id = None
     model = None
 
     if shared_gateway:
         _header(request, TASK_HEADER, required=True)
         user_id = _header(request, USER_ID_HEADER, required=True)
+        actor_id = user_id
         _require(bool(user_id), 403, "Authenticated OpenWebUI user identity required")
         _require(RouteChecks.is_llm_api_route(route), 403,
                  "Shared budget bearer only supports qualified model inference")
@@ -249,6 +264,17 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
                  "Exactly one explicit native model is required for budget routing")
         _require(request_data.get("model") == model, 403,
                  "Exactly one explicit wire model is required for budget provenance")
+        if task:
+            _metadata_maps(request_data)
+            carrier = request_data.get("litellm_metadata")
+            token = carrier.get(PROVENANCE_FIELD) if isinstance(carrier, dict) else None
+            try:
+                claims = get_instance_fn("provenance.decode_service_call", config_file_path=__file__)(
+                    token, gateway_secret, user_id=actor_id, model=model, task=task,
+                )
+            except ValueError:
+                _require(False, 403, "Invalid signed budget provenance")
+            user_id = claims["payer_id"]
         candidates = await VerificationTokenRepository(proxy_server.prisma_client).table.find_many(
             take=2, where={"user_id": user_id, "key_alias": assignment_alias(user_id, model)},
         )
@@ -268,15 +294,16 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     _metadata_maps(request_data)
     _apply_provenance(
         request, request_data, shared_gateway=shared_gateway,
-        required=_provenance_required(), secret=gateway_secret, user_id=user_id, model=model,
+        required=_provenance_required(), secret=gateway_secret, user_id=actor_id, model=model,
         # Keep unsigned legacy/native-key paths independent of this optional
         # mount. Strict shared calls fail closed before routing without a token.
         decoder=lambda token, secret, **scope: get_instance_fn(
-            "provenance.decode_call", config_file_path=__file__
+            "provenance.decode_service_call" if task else "provenance.decode_call", config_file_path=__file__
         )(token, secret, **scope),
         chain_id=get_chain_id_from_headers(dict(request.headers)),
         metadata_slot=metadata_variable_name_for_route(route),
         metadata_session_id=_get_anthropic_session_id_from_metadata(request_data.get("metadata")),
+        task=task or "",
     )
     _safe_set_request_parsed_body(request=request, parsed_body=request_data)
 
@@ -298,4 +325,6 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
         end_user_id=None, end_user_params={}, _end_user_object=None,
     )
     _require(auth.budget_reservation is None, 503, "Native validation unexpectedly reserved budget")
+    if shared_gateway:
+        _require(auth.user_id == user_id, 403, "Validated native payer does not match its assignment")
     return auth
