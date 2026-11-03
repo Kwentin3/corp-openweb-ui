@@ -1,9 +1,9 @@
 """
-title: Employee budget service title task
+title: Employee budget service tasks
 author: Corporate Open WebUI
 version: 0.1.0
 required_open_webui_version: 0.12.2
-description: Guarded direct native title tasks only; automatic background tasks are not qualified.
+description: Guarded direct titles and bounded single-model native background title/tag/follow-up tasks.
 
 Install as native Function employee_budget_service only after isolated proof.
 Native LiteLLM owns service payer keys/caps/spend; this Pipe only validates the
@@ -19,12 +19,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from employee_budget_provenance import SERVICE_TASKS
 from employee_budget_webui_model_binding import native_connection
 
 
 FUNCTION_ID = "employee_budget_service"
 TASK = "title_generation"
 TITLE_PATH = "/api/v1/tasks/title/completions"
+MAIN_PATHS = frozenset({"/api/chat/completions", "/api/v1/chat/completions"})
 
 
 class ServiceTaskError(ValueError):
@@ -32,7 +34,7 @@ class ServiceTaskError(ValueError):
 
     def __init__(self, code):
         self.code = code
-        super().__init__("Service title task could not be verified (" + code + ").")
+        super().__init__("Service task could not be verified (" + code + ").")
 
 
 def require(condition, code):
@@ -54,8 +56,10 @@ def native_context(request, actor, task, task_body, metadata):
 
     require(VERSION == "0.12.2" and request is not None, "unsupported_context")
     scope = getattr(request, "scope", {})
-    require(scope.get("path") == TITLE_PATH and scope.get("method") == "POST"
-            and task == TASK, "unsupported_task")
+    background = scope.get("path") in MAIN_PATHS
+    require(scope.get("method") == "POST" and (
+        scope.get("path") == TITLE_PATH and task == TASK
+        or background and type(task) is str and task in SERVICE_TASKS), "unsupported_task")
     require(not getattr(request.state, "direct", False) and not getattr(request.state, "internal", False)
             and not getattr(request.state, "bypass_filter", False)
             and not getattr(request.state, "bypass_system_prompt", False)
@@ -63,7 +67,7 @@ def native_context(request, actor, task, task_body, metadata):
     require(isinstance(actor, dict) and isinstance(task_body, dict) and isinstance(metadata, dict),
             "invalid_context")
     user_id, chat_id = canonical_id(actor.get("id")), canonical_id(task_body.get("chat_id"))
-    require(metadata.get("task") == TASK and metadata.get("task_body") == task_body
+    require(metadata.get("task") == task and metadata.get("task_body") == task_body
             and metadata.get("chat_id") == chat_id
             and metadata.get("user_id") in (None, user_id)
             and not metadata.get("direct") and not metadata.get("internal"), "invalid_context")
@@ -73,6 +77,25 @@ def native_context(request, actor, task, task_body, metadata):
         # any override that would change the exact task context after signing.
         require(isinstance(inherited, dict)
                 and all(key in metadata and metadata[key] == value for key, value in inherited.items()),
+                "conflicting_metadata")
+    if background:
+        inherited = getattr(request.state, "metadata", None)
+        require(isinstance(inherited, dict) and "task" not in inherited and "task_body" not in inherited
+                and inherited.get("user_id") == user_id and inherited.get("chat_id") == chat_id
+                and inherited.get("direct") is False and inherited.get("internal") is False
+                and inherited.get("automation_id") is None, "invalid_background_context")
+        source = inherited.get("model")
+        require(isinstance(source, dict) and source.get("owned_by") == "openai"
+                and not source.get("pipe") and not source.get("arena")
+                and source.get("id") != FUNCTION_ID and task_body.get("model") == source.get("id"),
+                "unsupported_background_source")
+        fields = {"model", "messages", "chat_id"}
+        if task == "follow_up_generation":
+            fields.add("message_id")
+            canonical_id(task_body.get("message_id"))
+        require(set(task_body) == fields and isinstance(task_body.get("messages"), list)
+                and bool(task_body["messages"]), "invalid_background_context")
+        require(metadata == {**inherited, "task": task, "task_body": task_body, "chat_id": chat_id},
                 "conflicting_metadata")
     return user_id, chat_id
 
@@ -121,7 +144,7 @@ class _Binding:
 
 class Pipe:
     class Valves(BaseModel):
-        target_model_id: str = Field(default="", description="Existing native OpenAI workspace model for direct title tasks.")
+        target_model_id: str = Field(default="", description="Existing native OpenAI workspace model for service tasks.")
 
     def __init__(self):
         self.valves = self.Valves()
@@ -135,6 +158,10 @@ class Pipe:
         require(not self.valves.target_model_id or self.valves.target_model_id == target, "stale_configuration")
         model = copy.deepcopy(request.app.state.MODELS.get(target))
         require(isinstance(model, dict) and model.get("id") == target, "model_unavailable")
+        if request.scope.get("path") in MAIN_PATHS:
+            source = request.state.metadata.get("model")
+            require(source == model and source.get("id") == target and not model.get("pipe"),
+                    "unsupported_background_source")
         await check_model_access(user, model)
         secret, wire = await native_connection({"model": target}, model, request, url, require=require)
         return _Binding(settings, model, secret, wire)
@@ -176,7 +203,7 @@ class Pipe:
         require(carrier is None or isinstance(carrier, dict), "invalid_metadata")
         carrier = dict(carrier or {})
         carrier["owui_budget_provenance"] = encode_service_call(binding.secret,
-            user_id=user_id, payer_id=payer, chat_id=chat_id, model=binding.wire_model, task=TASK)
+            user_id=user_id, payer_id=payer, chat_id=chat_id, model=binding.wire_model, task=task)
         prepared["litellm_metadata"] = carrier
         result = await generate_chat_completion(request, prepared, user=user)
         require(not (isinstance(result, dict) and result.get("error"))

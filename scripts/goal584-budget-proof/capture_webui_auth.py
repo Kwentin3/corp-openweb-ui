@@ -6,13 +6,17 @@ leave native authentication and the outer reservation lifecycle unchanged.
 """
 
 from functools import lru_cache
+from contextlib import contextmanager
 import copy
 import json
 import os
 from pathlib import Path
+from uuid import uuid4
 
 
 CAPTURE = Path("/proof-private/webui-gateway-context.private.json")
+MAX_RECORDS = 32
+MAX_BYTES = 4 * 1024 * 1024
 FIELDS = (
     "model", "messages", "input", "tools", "tool_choice", "functions", "function_call",
     "response_format", "max_tokens", "max_completion_tokens", "max_output_tokens",
@@ -39,11 +43,94 @@ def scope_validator(category="personal"):
     return get_instance_fn("provenance." + names[category], config_file_path=str(Path(__file__).with_name("config.yaml")))
 
 
-def save(state):
+@contextmanager
+def capture_lock():
+    """Short cross-process file lock; callers do no awaited/native work here."""
+    descriptor = os.open(CAPTURE.with_name(CAPTURE.name + ".lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o600)
+        if os.name == "nt":
+            import msvcrt
+            if os.fstat(descriptor).st_size == 0:
+                os.write(descriptor, b"\0")
+            os.lseek(descriptor, 0, os.SEEK_SET)
+            msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if os.name == "nt":
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
+def _validate(state):
+    if (not isinstance(state, dict) or type(state.get("schema")) is not int or state["schema"] != 1
+            or not isinstance(state.get("requests"), list) or len(state["requests"]) > MAX_RECORDS
+            or not all(isinstance(record, dict) for record in state["requests"])):
+        raise RuntimeError("Invalid disposable context observation")
+
+
+def _read_locked():
+    if not CAPTURE.exists():
+        return {"schema": 1, "requests": []}
+    with CAPTURE.open("rb") as handle:
+        raw = handle.read(MAX_BYTES + 1)
+    if len(raw) > MAX_BYTES:
+        raise RuntimeError("Disposable context observation byte bound exceeded")
+    try:
+        state = json.loads(raw)
+    except (ValueError, UnicodeError):
+        raise RuntimeError("Invalid disposable context observation") from None
+    _validate(state)
+    return state
+
+
+def _write_locked(state):
+    _validate(state)
+    raw = (json.dumps(state, allow_nan=False) + "\n").encode("utf-8")
+    if len(raw) > MAX_BYTES:
+        raise RuntimeError("Disposable context observation byte bound exceeded")
     descriptor = os.open(CAPTURE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        json.dump(state, handle, allow_nan=False)
-        handle.write("\n")
+    with os.fdopen(descriptor, "wb") as handle:
+        if hasattr(os, "fchmod"):
+            os.fchmod(handle.fileno(), 0o600)
+        handle.write(raw)
+
+
+def save(state):
+    """Existing phase-reset interface; reset only after in-flight tasks settle."""
+    with capture_lock():
+        _write_locked(state)
+
+
+def _append(record):
+    record["_observation_id"] = uuid4().hex  # Private producer ID, never caller metadata.
+    with capture_lock():
+        state = _read_locked()
+        if len(state["requests"]) >= MAX_RECORDS:
+            raise RuntimeError("Disposable context observation bound exceeded")
+        if any(row.get("_observation_id") == record["_observation_id"] for row in state["requests"]):
+            raise RuntimeError("Duplicate disposable observation identity")
+        state["requests"].append(record)
+        _write_locked(state)
+
+
+def _finish(record):
+    with capture_lock():
+        state = _read_locked()
+        matches = [row for row in state["requests"] if row.get("_observation_id") == record["_observation_id"]]
+        if len(matches) != 1:
+            raise RuntimeError("Disposable observation identity missing or ambiguous")
+        matches[0].update(record)
+        _write_locked(state)
 
 
 async def gateway_auth(request, api_key):
@@ -56,9 +143,6 @@ async def gateway_auth(request, api_key):
     route = get_request_route(request)
     record = None
     if route in ("/chat/completions", "/v1/chat/completions") and body.get("model") in ("goal584-a", "goal584-b"):
-        state = json.loads(CAPTURE.read_text(encoding="utf-8")) if CAPTURE.exists() else {"schema": 1, "requests": []}
-        if len(state["requests"]) >= 32:
-            raise RuntimeError("Disposable context observation bound exceeded")
         record = {
             "user_id": request.headers.get("X-OpenWebUI-User-Id"),
             "task": request.headers.get("X-OpenWebUI-Task"),
@@ -66,12 +150,19 @@ async def gateway_auth(request, api_key):
             "native_estimated_max_cost_usd": estimate_request_max_cost(body, route, proxy_server.llm_router),
             "attestation_present_before": bool((body.get("litellm_metadata") or {}).get("owui_budget_provenance")),
         }
-        state["requests"].append(record)
-        save(state)
+        _append(record)
     auth = None
     try:
         auth = await product_auth()(request, api_key)
         return auth
+    except Exception as error:
+        if record is not None:
+            status = getattr(error, "status_code", None)
+            status = status if type(status) is int and 400 <= status <= 599 else None
+            known = status == 403 and getattr(error, "detail", None) == "Invalid signed budget provenance"
+            record["auth_failure"] = {"scope": "custom_auth", "status_code": status,
+                                      "code": "invalid_signed_budget_provenance" if known else "unclassified"}
+        raise
     finally:
         if record is not None:
             after = await _read_request_body(request)
@@ -100,4 +191,4 @@ async def gateway_auth(request, api_key):
             # the product projection runs. Do not label that input as verified.
             if scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
                 record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
-            save(state)
+            _finish(record)

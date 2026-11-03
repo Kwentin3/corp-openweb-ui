@@ -1,6 +1,8 @@
 """Real Pipe, binding helper and provenance; native external owners are doubled."""
 
+import ast
 import copy
+from enum import Enum
 import importlib.util
 import json
 from pathlib import Path
@@ -31,8 +33,8 @@ native_ids = HERE.parents[1] / "local/goal584/cost-display/open-webui/backend/op
 if not native_ids.exists():
     native_ids = Path("/app/backend/open_webui/utils/model_ids.py")
 prefix_owner = load("native_model_ids_for_service_test", native_ids) if native_ids.exists() else None
-USER, OTHER, CHAT, PAYER = (str(uuid5(NAMESPACE_URL, name)) for name in
-                           ("service-actor", "service-other", "service-chat", "service-payer"))
+USER, OTHER, CHAT, PAYER, ANSWER = (str(uuid5(NAMESPACE_URL, name)) for name in
+                           ("service-actor", "service-other", "service-chat", "service-payer", "service-answer"))
 TARGET = "native-title-model"
 WIRE = "title-wire-model"
 URL = "http://native-proxy.invalid"
@@ -114,6 +116,39 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
                   "__request__": self.request, "__task__": extension.TASK, "__task_body__": self.task_body}
         inputs.update(overrides)
         return await self.pipe.pipe(**inputs)
+
+    def background(self, task="title_generation", path="/api/chat/completions"):
+        """Execute the pinned native task payload constructor, not a hand-made marker."""
+        native = native_ids.parent.parent
+        tasks_path, constants_path = native / "routers/tasks.py", native / "constants.py"
+        if not tasks_path.exists() or not constants_path.exists():
+            self.skipTest("Exact native task constructor unavailable; installed-image proof is still required")
+        controller = {"title_generation": "generate_title", "tags_generation": "generate_chat_tags",
+                      "follow_up_generation": "generate_follow_ups"}[task]
+        owner = next(node for node in ast.parse(tasks_path.read_text(encoding="utf-8")).body
+                     if isinstance(node, ast.AsyncFunctionDef) and node.name == controller)
+        payload = next(node for node in owner.body if isinstance(node, ast.Assign)
+                       and any(isinstance(target, ast.Name) and target.id == "payload" for target in node.targets))
+        native_tasks = next(node for node in ast.parse(constants_path.read_text(encoding="utf-8")).body
+                            if isinstance(node, ast.ClassDef) and node.name == "TASKS")
+        self.request.scope = {"method": "POST", "path": path}
+        inherited = {"user_id": USER, "chat_id": CHAT, "internal": False, "direct": False,
+                     "automation_id": None, "model": copy.deepcopy(self.model),
+                     "chat_context": {"messages": [], "params": {}},
+                     "native_extra": {"preserve": ["parent", "context"]}}
+        self.request.state.metadata = inherited
+        self.task_body = {"model": TARGET, "chat_id": CHAT,
+                          "messages": [{"role": "user", "content": "Hi"},
+                                       {"id": ANSWER, "role": "assistant", "content": "Proof"}]}
+        if task == "follow_up_generation":
+            self.task_body["message_id"] = ANSWER
+        namespace = {"Enum": Enum, "request": self.request, "form_data": self.task_body,
+                     "task_model_id": extension.FUNCTION_ID, "content": "NATIVE TASK USER: Hi\nASSISTANT: Proof"}
+        exec(compile(ast.Module(body=[native_tasks, payload], type_ignores=[]), str(tasks_path), "exec"), namespace)
+        prepared = namespace["payload"]
+        prepared.update(max_tokens=5, temperature=0, response_format={"type": "json_object"})
+        self.metadata = prepared.pop("metadata")  # native Functions extraction
+        self.body = prepared
 
     async def test_prepared_task_context_restored_verbatim_and_only_target_and_signed_capsule_change(self):
         source = copy.deepcopy({**self.body, "metadata": self.metadata})
@@ -345,6 +380,121 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(PRIVATE, str(caught.exception))
             self.assertNotIn(SECRET, str(caught.exception))
             self.dispatch.assert_awaited_once()
+
+    async def test_all_three_native_background_envelopes_preserve_context_and_sign_actual_task_on_both_aliases(self):
+        for path in extension.MAIN_PATHS:
+            for task in ("title_generation", "tags_generation", "follow_up_generation"):
+                self.background(task, path)
+                self.dispatch.reset_mock()
+                original = copy.deepcopy({**self.body, "metadata": self.metadata})
+                inherited = copy.deepcopy(self.request.state.metadata)
+                with self.subTest(path=path, task=task):
+                    result = await self.invoke(__task__=task)
+                    self.assertIs(result, self.response)
+                    self.dispatch.assert_awaited_once()
+                    sent = self.dispatch.await_args.args[1]
+                    token = sent["litellm_metadata"]["owui_budget_provenance"]
+                    expected = copy.deepcopy(original)
+                    expected["model"] = TARGET
+                    expected["litellm_metadata"] = {"owui_budget_provenance": token}
+                    self.assertEqual(sent, expected)
+                    claims = protocol.decode_service_call(token, SECRET, user_id=USER, model=WIRE, task=task)
+                    self.assertEqual((claims["sub"], claims["payer_id"], claims["chat_id"], claims["task"]),
+                                     (USER, PAYER, CHAT, task))
+                    self.assertTrue(set(claims).isdisjoint({"answer_id", "root_answer_id", "root_chat_id"}))
+                    self.assertNotIn("message_id", self.metadata)
+                    self.assertNotIn("task", inherited)
+                    self.assertEqual(self.request.state.metadata, inherited)
+                    self.assertEqual({**self.body, "metadata": self.metadata}, original)
+
+    async def test_background_caller_markers_inherited_task_and_conflicting_metadata_never_dispatch(self):
+        for kind in ("ordinary_no_task", "inherited_task", "inherited_task_body", "extra_task_metadata",
+                     "conflicting_body_metadata", "wrong_actor", "wrong_chat", "automation"):
+            self.background()
+            task = extension.TASK
+            if kind == "ordinary_no_task":
+                task = None
+                self.body.update(task=extension.TASK, __task__=extension.TASK)
+            elif kind == "inherited_task":
+                self.request.state.metadata["task"] = extension.TASK
+            elif kind == "inherited_task_body":
+                self.request.state.metadata["task_body"] = self.task_body
+            elif kind == "extra_task_metadata":
+                self.metadata["unexpected_controller_field"] = True
+            elif kind == "conflicting_body_metadata":
+                self.body["metadata"] = {"task": extension.TASK}
+            elif kind == "wrong_actor":
+                self.request.state.metadata["user_id"] = OTHER
+            elif kind == "wrong_chat":
+                self.task_body["chat_id"] = OTHER
+            else:
+                self.request.state.metadata["automation_id"] = "unsupported-automation"
+                self.metadata["automation_id"] = "unsupported-automation"
+            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError):
+                await self.invoke(__task__=task)
+        self.dispatch.assert_not_awaited()
+
+    async def test_background_service_pipe_other_primary_and_stale_model_sources_are_denied(self):
+        for kind in ("service_pipe", "other_primary", "stale_cache_model", "arena", "ollama"):
+            self.background()
+            source = self.request.state.metadata["model"]
+            if kind == "service_pipe":
+                source.update(id=extension.FUNCTION_ID, pipe={"type": "pipe"})
+                self.task_body["model"] = extension.FUNCTION_ID
+            elif kind == "other_primary":
+                source["id"] = self.task_body["model"] = "other-native-primary"
+            elif kind == "stale_cache_model":
+                source["name"] = "different from fresh native target"
+            elif kind == "arena":
+                source["arena"] = True
+            else:
+                source["owned_by"] = "ollama"
+            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError):
+                await self.invoke()
+        self.dispatch.assert_not_awaited()
+
+    async def test_background_missing_parent_and_malformed_native_task_shape_are_denied(self):
+        for kind in ("missing_state", "marked_state", "bad_followup_id", "extra_task_field", "no_messages"):
+            self.background("follow_up_generation")
+            if kind == "missing_state":
+                del self.request.state.metadata
+            elif kind == "marked_state":
+                self.request.state.internal = True
+            elif kind == "bad_followup_id":
+                self.task_body["message_id"] = "caller-answer"
+            elif kind == "extra_task_field":
+                self.task_body["root_answer_id"] = ANSWER
+            else:
+                self.task_body["messages"] = []
+            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError):
+                await self.invoke(__task__="follow_up_generation")
+            self.request.state.internal = False
+        self.dispatch.assert_not_awaited()
+
+    async def test_background_final_owner_reads_still_reject_actor_chat_config_and_context_drift(self):
+        original_model = copy.deepcopy(self.model)
+        for kind in ("actor", "chat", "target_config", "source_cache", "inherited_context"):
+            self.user = SimpleNamespace(id=USER, role="user")
+            self.chat = SimpleNamespace(id=CHAT, user_id=USER)
+            self.model = copy.deepcopy(original_model)
+            self.request.app.state.MODELS[TARGET] = self.model
+            self.own_config["target_model_id"] = TARGET
+            self.background("tags_generation")
+            reads = 0
+            async def changed(_):
+                nonlocal reads
+                reads += 1
+                if reads == 2:
+                    if kind == "actor": self.user = SimpleNamespace(id=USER, role="pending")
+                    elif kind == "chat": self.chat = SimpleNamespace(id=CHAT, user_id=OTHER)
+                    elif kind == "target_config": self.own_config["target_model_id"] = "changed-target"
+                    elif kind == "source_cache": self.model["name"] = "changed cache owner"
+                    else: self.request.state.metadata["unexpected_late_state"] = True
+                return URL + "/v1", SECRET, {"prefix_id": "gateway"}
+            self.connection.side_effect = changed
+            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError):
+                await self.invoke(__task__="tags_generation")
+        self.dispatch.assert_not_awaited()
 
 
 if __name__ == "__main__":

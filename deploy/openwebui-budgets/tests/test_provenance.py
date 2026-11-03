@@ -421,6 +421,23 @@ class ServiceProtocolTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(protocol.ProtocolError):
                 protocol.validate_persisted_service_scope(scope | changes)
 
+    def test_three_native_task_names_bind_actual_task_without_changing_personal_serialization(self):
+        self.assertEqual(protocol.SERVICE_TASKS, {"title_generation", "tags_generation", "follow_up_generation"})
+        personal = protocol.decode_call(call(), SECRET, user_id=USER, model=MODEL)
+        self.assertEqual(set(personal), {"schema", "iss", "aud", "sub", "jti", "iat", "exp", "chat_id",
+                                        "answer_id", "root_chat_id", "root_answer_id", "model"})
+        for task in ("title_generation", "tags_generation", "follow_up_generation"):
+            with self.subTest(task=task):
+                token = self.token(task=task)
+                claims = self.decode(token, task=task)
+                self.assertEqual((claims["sub"], claims["payer_id"], claims["task"]), (USER, OTHER, task))
+                self.assertEqual(set(claims), {"schema", "iss", "aud", "sub", "jti", "iat", "exp",
+                                              "payer_id", "chat_id", "model", "task"})
+                with self.assertRaises(protocol.ProtocolError):
+                    protocol.decode_call(token, SECRET, user_id=USER, model=MODEL)
+                with self.assertRaises(protocol.ProtocolError):
+                    self.decode(call(), task=task)
+
 
 class ServiceBoundaryTests(unittest.TestCase):
     def token(self, **changes):
@@ -460,6 +477,22 @@ class ServiceBoundaryTests(unittest.TestCase):
                 self.assertNotIn(private, json.dumps(data))
             if slot == "litellm_metadata":
                 self.assertNotIn("owui_budget", data["metadata"]["spend_logs_metadata"])
+
+    def test_native_background_tasks_keep_one_service_scope_and_leave_model_context_intact(self):
+        for task in ("title_generation", "tags_generation", "follow_up_generation"):
+            token = self.token(task=task)
+            data = payload(token)
+            data.update(response_format={"type": "json_object"}, temperature=0, max_tokens=5)
+            context = copy.deepcopy({key: value for key, value in data.items()
+                                     if key not in ("metadata", "litellm_metadata")})
+            with self.subTest(task=task):
+                apply(data, task=task)
+                self.assertEqual({key: data[key] for key in context}, context)
+                scope = protocol.validate_persisted_service_scope(data["metadata"]["spend_logs_metadata"]["owui_budget"])
+                self.assertEqual((scope["user_id"], scope["actor_id"], scope["task"]), (OTHER, USER, task))
+                self.assertEqual(data["litellm_session_id"], "owui-service:" + CHAT)
+                self.assertFalse(any(field in scope for field in ("answer_id", "root_chat_id", "root_answer_id")))
+                self.assertNotIn(token, json.dumps(data))
 
     def test_unsigned_wrong_scope_audience_and_extra_claims_never_authorize_service(self):
         claims = protocol.decode_service_call(self.token(), SECRET, user_id=USER, model=MODEL,
@@ -625,6 +658,24 @@ class ServiceGatewayTests(unittest.TestCase):
                        {"token": valid, "api_key": "sk-native-test"}):
             result, events, data = self.run_gateway(**kwargs)
             with self.subTest(kwargs=list(kwargs)):
+                self.assertIsInstance(result, HTTPException)
+                self.assertEqual(result.status_code, 403)
+                self.assertFalse(any(name in ("assignment", "resolve", "validate") for name, value in events))
+
+    def test_three_native_tasks_use_the_same_payer_and_unsigned_known_tasks_stay_denied(self):
+        for task in ("title_generation", "tags_generation", "follow_up_generation"):
+            token = protocol.encode_service_call(SECRET, user_id=USER, payer_id=OTHER, chat_id=CHAT,
+                                                 model=MODEL, task=task)
+            result, events, data = self.run_gateway(token=token, task=task)
+            with self.subTest(task=task, signed=True):
+                self.assertNotIsInstance(result, HTTPException)
+                self.assertEqual(result.user_id, OTHER)
+                self.assertEqual(next(value for name, value in events if name == "assignment")["where"]["user_id"], OTHER)
+                self.assertEqual(sum(name == "validate" for name, value in events), 1)
+                scope = protocol.validate_persisted_service_scope(data["metadata"]["spend_logs_metadata"]["owui_budget"])
+                self.assertEqual((scope["actor_id"], scope["user_id"], scope["task"]), (USER, OTHER, task))
+            result, events, _ = self.run_gateway(task=task)
+            with self.subTest(task=task, signed=False):
                 self.assertIsInstance(result, HTTPException)
                 self.assertEqual(result.status_code, 403)
                 self.assertFalse(any(name in ("assignment", "resolve", "validate") for name, value in events))

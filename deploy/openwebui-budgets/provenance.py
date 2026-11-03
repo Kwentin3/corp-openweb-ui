@@ -24,7 +24,7 @@ _COMMON = {"schema", "iss", "aud", "sub", "jti", "iat", "exp"}
 _ROOT_IDS = {"root_chat_id", "root_answer_id"}
 _CALL_IDS = {"chat_id", "answer_id", *_ROOT_IDS}
 _SERVICE_IDS = {"payer_id", "chat_id"}
-SERVICE_TASKS = frozenset({"title_generation"})
+SERVICE_TASKS = frozenset({"title_generation", "tags_generation", "follow_up_generation"})
 
 
 class ProtocolError(ValueError):

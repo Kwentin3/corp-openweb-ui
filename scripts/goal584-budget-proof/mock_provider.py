@@ -6,6 +6,7 @@ to the disposable network and are deliberately not a public application API.
 """
 
 import argparse
+import copy
 import json
 import re
 import threading
@@ -19,6 +20,7 @@ STATE_LOCK = threading.Lock()
 REQUESTS = []
 CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False,
            "admin_mode": False, "title_mode": False}
+OPTIONAL_CONTROLS = frozenset({"native_tasks_mode", "response_status", "after_first_chunk_delay_ms"})
 
 
 def pending_tool_name(payload, messages):
@@ -86,13 +88,23 @@ class Handler(BaseHTTPRequestHandler):
         # Do not log bearer keys, prompts, or arbitrary paths.
         pass
 
-    def send_json(self, status, payload):
+    def mark(self, record, *, stage, terminal=False, outcome=None, **fields):
+        with STATE_LOCK:
+            record["lifecycle"].update(stage=stage, **fields)
+            if terminal:
+                record["lifecycle"].update(terminal=True, outcome=outcome,
+                                           terminal_monotonic=time.monotonic())
+
+    def send_json(self, status, payload, *, record=None):
         data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
+        if record is not None:
+            self.mark(record, stage="headers_sent", headers_sent=True)
         self.wfile.write(data)
+        self.wfile.flush()
 
     def read_json(self):
         length = int(self.headers.get("Content-Length", "0"))
@@ -113,7 +125,7 @@ class Handler(BaseHTTPRequestHandler):
             ]})
         if self.path == "/__proof/requests":
             with STATE_LOCK:
-                result = {"synthetic": True, "requests": list(REQUESTS), "control": dict(CONTROL)}
+                result = {"synthetic": True, "requests": copy.deepcopy(REQUESTS), "control": dict(CONTROL)}
             return self.send_json(200, result)
         self.send_json(404, {"error": {"message": "Unknown synthetic endpoint"}})
 
@@ -125,19 +137,27 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/__proof/reset":
             with STATE_LOCK:
                 REQUESTS.clear()
+                CONTROL.clear()
                 CONTROL.update(prompt_tokens=10, completion_tokens=5, delay_ms=0, tool_round=False,
                                admin_mode=False, title_mode=False)
             return self.send_json(200, {"ok": True})
         if self.path == "/__proof/control":
-            limits = {"prompt_tokens": (0, 10000), "completion_tokens": (0, 10000), "delay_ms": (0, 10000)}
+            limits = {"prompt_tokens": (0, 10000), "completion_tokens": (0, 10000), "delay_ms": (0, 10000),
+                      "after_first_chunk_delay_ms": (0, 10000)}
             if not payload or any(
-                (type(value) is not bool if key in ("tool_round", "admin_mode", "title_mode") else
+                (False if key in OPTIONAL_CONTROLS and value is None else
+                 type(value) is not bool if key in ("tool_round", "admin_mode", "title_mode", "native_tasks_mode") else
+                 type(value) is not int or value not in (200, 500) if key == "response_status" else
                  key not in limits or type(value) is not int or not limits[key][0] <= value <= limits[key][1])
                 for key, value in payload.items()
             ):
                 return self.send_json(400, {"error": {"message": "Invalid proof control"}})
             with STATE_LOCK:
-                CONTROL.update(payload)
+                for key, value in payload.items():
+                    if value is None:
+                        CONTROL.pop(key, None)
+                    else:
+                        CONTROL[key] = value
                 result = dict(CONTROL)
             return self.send_json(200, result)
         if self.path != "/v1/chat/completions":
@@ -152,15 +172,32 @@ class Handler(BaseHTTPRequestHandler):
         created = int(time.time())
         with STATE_LOCK:
             control = dict(CONTROL)
-            REQUESTS.append({"id": call_id, "created": created, "body": payload, "usage": {
+            record = {"id": call_id, "created": created, "body": payload, "usage": {
                 "prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                 "total_tokens": control["prompt_tokens"] + control["completion_tokens"],
-            }})
+            }, "lifecycle": {"started": True, "stage": "started", "started_monotonic": time.monotonic(),
+                "headers_sent": False, "chunks_sent": 0, "usage_sent": False, "terminal": False, "outcome": None,
+                "response_status": control.get("response_status", 200), "delay_ms": control["delay_ms"],
+                "after_first_chunk_delay_ms": control.get("after_first_chunk_delay_ms", 0)}}
+            if control.get("response_status") == 500:
+                record["usage"] = None
+            REQUESTS.append(record)
         if control["delay_ms"]:
+            self.mark(record, stage="before_headers_delay")
             time.sleep(control["delay_ms"] / 1000)
+        if control.get("response_status") == 500:
+            try:
+                self.send_json(500, {"id": call_id, "error": {"message": "Controlled synthetic provider failure",
+                    "type": "synthetic_provider_error", "code": "proof_provider_500"}}, record=record)
+                self.mark(record, stage="controlled_error", terminal=True, outcome="controlled_error")
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
+            return
         usage = {"prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                  "total_tokens": control["prompt_tokens"] + control["completion_tokens"]}
-        if control["title_mode"]:
+        native_task = (control.get("native_tasks_mode", False)
+                       and payload.get("response_format") == {"type": "json_object"})
+        if control["title_mode"] or native_task:
             selection = None
         elif control["admin_mode"]:
             selection = pending_admin_tool(payload, messages)
@@ -170,18 +207,25 @@ class Handler(BaseHTTPRequestHandler):
         tool_name, tool_arguments = selection if selection else (None, None)
         tool_call = {"id": "call-goal584-" + uuid.uuid4().hex, "type": "function",
                      "function": {"name": tool_name, "arguments": json.dumps(tool_arguments, separators=(",", ":"))}} if tool_name else None
+        content = ('{"title":"Proof"}' if control["title_mode"] else
+                   '{"title":"Proof","tags":["Proof"],"follow_ups":["Proof"]}' if native_task else "Proof")
         message = {"role": "assistant", "content": None, "tool_calls": [tool_call]} if tool_call else {
-            "role": "assistant", "content": '{"title":"Proof"}' if control["title_mode"] else "Proof"}
+            "role": "assistant", "content": content}
         finish_reason = "tool_calls" if tool_call else "stop"
         result = {"id": call_id, "object": "chat.completion", "created": created, "model": model,
                   "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
                   "usage": usage}
         if not payload.get("stream"):
-            return self.send_json(200, result)
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream")
-        self.send_header("Cache-Control", "no-cache")
-        self.end_headers()
+            try:
+                self.send_json(200, result, record=record)
+                # This is the actual successful synthetic wire response, not a
+                # reconstructed expected answer or a billing authority.
+                with STATE_LOCK:
+                    record["response"] = copy.deepcopy(result)
+                self.mark(record, stage="completed", terminal=True, outcome="completed", usage_sent=True)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
+            return
         base = {"id": call_id, "object": "chat.completion.chunk", "created": created, "model": model}
         delta = {"role": "assistant", "content": None, "tool_calls": [{"index": 0, **tool_call}]} if tool_call else {
             "role": "assistant", "content": message["content"]}
@@ -191,13 +235,23 @@ class Handler(BaseHTTPRequestHandler):
             {**base, "choices": [], "usage": usage},
         ]
         try:
-            for chunk in chunks:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.mark(record, stage="headers_sent", headers_sent=True)
+            for index, chunk in enumerate(chunks):
                 self.wfile.write(("data: " + json.dumps(chunk, separators=(",", ":")) + "\n\n").encode("utf-8"))
                 self.wfile.flush()
+                self.mark(record, stage="streaming", chunks_sent=index + 1, usage_sent="usage" in chunk)
+                if index == 0 and control.get("after_first_chunk_delay_ms", 0):
+                    self.mark(record, stage="after_first_chunk_delay")
+                    time.sleep(control["after_first_chunk_delay_ms"] / 1000)
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+            self.mark(record, stage="completed", terminal=True, outcome="completed")
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
 
 
 def main():

@@ -507,7 +507,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         rendered = self.html(await self.open())
         self.assertIn('data-service-spend>0.2</span>', rendered)
         self.assertIn('data-service-remaining>19.8</span>', rendered)
-        self.assertIn('Генерация названий чатов', rendered)
+        self.assertIn('Служебные LLM-задачи', rendered)
         self.assertNotIn(OTHER, rendered)
         self.assertIn((OTHER, (MODELS[0],)), self.reads)
         self.assertEqual(len(self.employees), 2)
