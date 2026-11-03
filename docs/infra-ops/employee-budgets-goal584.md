@@ -6,20 +6,23 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний успешный native run
-[41632718620](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41632718620),
-HEAD `bf3661415f8c6f1cf5ad869d94ee72ccc9364495`, tested merge
-`8f96f212184f89836004c505ba5b4097d104ae8b`; Active CI41632718621 PASS.
+[41640329097](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41640329097),
+HEAD `e38c3f36f656ff8e1e7a2a9dfc153d9033699dfc`, tested merge
+`807948a487a1d16f85907500f10f539a60978695`; Active CI41640329083 PASS.
 Повторены main/defaults/new-hire/cost/details/OFF, direct-title service,
 обычный admin footer и удаление чата с сохранением учёта. Впервые прошли
-три автоматические native задачи из обычного employee Send.
+три автоматические native задачи из обычного employee Send. Принят также
+bounded pricing-срез: actual native rate snapshot, новая цена$0.40, старая
+история сохранена. Независимый report/replay PASS:
+`local/goal584/runtime-proof-41640329097/independent-pricing-acceptance.md`.
 Предыдущая независимая приёмка direct service/admin/retention PASS:
 `local/goal584/runtime-proof-41626578069/independent-service-acceptance.md`.
 Review повторно исполнил сравнение actual service/admin inputs: один service row,
 nonce/key hash/ответ, неизменные4 personal users/8 keys и34 исторические rows;
 admin34→36 с двумя личными вызовами. Retention принят по source-bound evidence
 с явно сохранённым ограничением независимого raw DB replay.
-Parent для run35 сверил ZIP `4573957896de9b01111e22d92e34f1405ea626373f3b4578b63de66d77f059de`,
-189 файлов,36 source SHA и6 mounted SHA; cleanup0 containers/0 volumes.
+Parent для run37 сверил ZIP `c9c73934ea1ed6d2cf5c62f150ac21325062c6c048990b00685b4bf066a6ea32`,
+202 файла,39 source SHA и6 mounted SHA; cleanup0 containers/0 volumes.
 Native direct service$0.20, automatic service$0.60 и personal reporting$0.40 разделены.
 Retention: DELETE200 → exact native GET401 → тот же user auth200;
 44 raw rows/5 payers/9 keys до/после имеют одинаковый финансовый hash.
@@ -81,7 +84,7 @@ recovery двух чтений и отказ непрерывно несовме
 не runtime PASS. Ровно candidate suites:186 component tests (179 PASS/7 opt-in
 skips) и157 harness PASS. Diagnostics/review:
 `local/goal584/runtime-proof-41630590813/cost-pending-diagnosis.md`.
-Следующий минимальный кандидат — actual billed-rate snapshot в той же native
+Pricing-кандидат run37 — actual billed-rate snapshot в той же native
 SpendLogs row: существующий per-request Logging/CustomLogger копирует7 nullable
 полей BilledTokenRates после расчёта, без price lookup/пересчёта/нового журнала.
 Controlled synthetic modelA price0.01/0.02 →0.02/0.04, proxy restart, один обычный
@@ -92,7 +95,7 @@ callback, readonly mounts и этот phase после retention; production н�
 Source reviews: `local/goal584/pricing-snapshot-independent-review.md`,
 `local/goal584/pricing-browser-independent-review.md`; actual run34 Hi context
 повторно проверен.197 component tests (190 PASS/7 opt-in skips),183 harness PASS,
-35 Bash/14 Python/actionlint/28 binds/imports PASS. Native pricing ещё не принят;
+35 Bash/14 Python/actionlint/28 binds/imports PASS. Native flat pricing принят ниже;
 source/version/effective interval, atomic tariff binding и regular automatic
 checks этим снимком не доказаны. Overlap/calendar/RAG остаются отдельной
 source-подготовкой и не включены в next pricing candidate.
@@ -114,6 +117,43 @@ source review; actual run36 pair/financial snapshots replay PASS. Продукт
 callback не менялся. Добавлены только exact approved Tool checks и fixed
 phase/category diagnostics, сохраняющие исходную ошибку при выполнении finally:
 `local/goal584/runtime-proof-41635338717/independent-pricing-fix-review.md`.
+
+**Принятый pricing-срез run37.** Native callback сохранил7 полей фактического
+BilledTokenRates в существующей строке учёта.44 старые pricing projections
+(42 positive +2 zero) сохранили cost/usage/ставки/IDs/user/key/model; у42 positive
+полные scopes неизменны. Произвольная raw metadata нулевых строк этой
+проекцией не проверяется. Один новый запрос дал actual input/output0.02/0.04,
+usage10/5/15 и$0.40; его provider ID/key hash/nonce/actor/model связаны точно.
+Полный контекст с legitimate budget_echo сохранён; пять payer/key counters
+согласованы, вырос только личный A на$0.40, service остался$0.80. Исходные YAML
+bytes/монтированный hash, native financial/task/Tool state и readiness
+восстановлены. Snapshot capture time не является source/version/effective
+interval; atomic tariff binding и другие категории этим не доказаны.
+
+**Следующий кандидат — два native proxy процесса.** Один общий native
+PostgreSQL/Redis, реальные3s unfinished provider witnesses, второй worker
+проверяет KEY и отдельно USER reservation denial без provider dispatch,
+другие модель/пользователь остаются доступны, после settlement допуск
+восстанавливается без TTL wait. План9 успешных calls/2 denials; прежние строки
+и fixtures, новые caps/roles/allowlists/alias/metadata/blocked/period/reset и
+нетронутые нули сравниваются строго. USER fixture намеренно имеет key caps
+выше personal cap, чтобы изолировать native USER guard; это не admin policy.
+Synthetic B выбран строго между R+C и2R. Source closure16 custom modules
+и provider bytes проверяются у двух отдельных контейнеров.19 focused tests,
+204 tracked harness,36 Bash/14 Python/actionlint/30 bind/import checks PASS;
+runtime concurrency ещё не принят. Review и точные источники:
+`local/goal584/overlap-independent-readiness.md`.
+
+Для последующего RAG обнаружен конкретный fixture gap: stock0.12.2-slim
+возвращает native503 при default SQLite vector URL до embeddings. Поэтому
+следующий stand сохраняет metadata SQLite и использует тот же PostgreSQL
+service с официальным pgvector16 образом, отдельной пустой DB
+`goal584_vectors`, native PGVECTOR_DB_URL и synthetic dimension3. Registry
+digest `0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f`
+проверен; package0.8.7/PG16.15. SQL создаёт только пустую vector DB, financial
+tables остаются в прежней DB. Read-only startup проверяет наличие extension,
+а не выдаёт его за RAG acceptance. Worker/reader/transport RAG ветка и calendar
+остаются отдельно, в этот candidate не включены. Production не затронут.
 
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn

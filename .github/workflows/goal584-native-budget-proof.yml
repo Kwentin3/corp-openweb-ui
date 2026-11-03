@@ -93,6 +93,8 @@ jobs:
               })
               assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
           files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
+                   'compose/goal584.overlap-proof.yml', 'scripts/goal584-budget-proof/prove_budget_overlap.py',
+                   'scripts/goal584-budget-proof/init_vector_database.sql',
                    'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
                    'deploy/openwebui-budgets/litellm_auth.py', 'deploy/openwebui-budgets/assignment.py',
                    'deploy/openwebui-budgets/budget_errors.py',
@@ -106,6 +108,12 @@ jobs:
               'scope': 'Disposable native LiteLLM core with a synthetic provider; no WebUI or key-selection adapter acceptance',
           }
           assert receipt['source_commit'] == os.environ['GITHUB_SHA']
+          vector_db = subprocess.check_output(command + ['exec', '-T', 'postgres', 'psql', '-U', 'goal584',
+              '-d', 'goal584_vectors', '-tA', '-c',
+              "SELECT current_database() || ':' || default_version FROM pg_available_extensions WHERE name = 'vector'"], text=True).strip()
+          assert vector_db == 'goal584_vectors:0.8.7', 'Native vector database prerequisite unavailable'
+          receipt['vector_prerequisite'] = {'database': 'goal584_vectors', 'available_extension': '0.8.7',
+              'scope': 'Empty separate database and installed extension package; embedding flow not yet exercised'}
           Path(os.environ['PROOF_OUTPUT_DIR'], 'runtime-identity.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
           PY
 
@@ -592,6 +600,19 @@ jobs:
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_pricing_browser.py \
             --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/pricing"
+
+      - name: Qualify simultaneous native reservations across two isolated proxy processes
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml -f compose/goal584.overlap-proof.yml \
+            up -d --scale proxy=2 --wait --wait-timeout 180 proxy
+          python -B scripts/goal584-budget-proof/prove_budget_overlap.py \
+            --project goal584-native-budget-proof --env-file "$PROOF_ENV_FILE" \
+            --compose-file compose/goal584.native-budget-proof.yml \
+            --compose-file compose/goal584.webui-proof.yml \
+            --compose-file compose/goal584.overlap-proof.yml \
+            --receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

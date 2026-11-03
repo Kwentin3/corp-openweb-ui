@@ -91,8 +91,11 @@ services:
       ENABLE_OPENAI_API_PASSTHROUGH: "False"
       OFFLINE_MODE: "True"
       HF_HUB_OFFLINE: "1"
+      VECTOR_DB: pgvector
+      PGVECTOR_DB_URL: postgresql+psycopg://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584_vectors
+      PGVECTOR_INITIALIZE_MAX_VECTOR_LENGTH: "3"
       # Native external engine avoids loading a local SentenceTransformer model.
-      # No embedding request is part of this proof; the stub has no embedding API.
+      # The inactive embedding profile is configured separately by its proof.
       RAG_EMBEDDING_ENGINE: openai
       RAG_EMBEDDING_MODEL: goal584-unused-embedding
       RAG_OPENAI_API_BASE_URL: http://provider:8000/v1
