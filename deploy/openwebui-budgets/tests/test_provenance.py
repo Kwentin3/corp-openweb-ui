@@ -76,6 +76,31 @@ def payload(token=None):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_persisted_rag_scope_has_exact_key_owned_tag_without_chat_or_actor(self):
+        scope = {"schema": 1, "category": "service", "operation": "rag_embedding"}
+        actual = protocol.validate_persisted_rag_scope(scope)
+        self.assertEqual(actual, scope)
+        self.assertIsNot(actual, scope)
+        actual["operation"] = "changed"
+        self.assertEqual(scope["operation"], "rag_embedding")
+        for validator in (protocol.validate_persisted_scope, protocol.validate_persisted_service_scope):
+            with self.assertRaises(protocol.ProtocolError):
+                validator(scope)
+        self.assertEqual(protocol.SERVICE_TASKS, {"title_generation", "tags_generation", "follow_up_generation"})
+
+    def test_persisted_rag_scope_rejects_missing_extra_identity_and_wrong_values_or_types(self):
+        scope = {"schema": 1, "category": "service", "operation": "rag_embedding"}
+        invalid = [None, [], "rag_embedding", {}, {k: v for k, v in scope.items() if k != "operation"}]
+        invalid += [scope | {field: USER} for field in ("actor_id", "user_id", "payer_id", "chat_id", "answer_id",
+                    "root_chat_id", "root_answer_id", "call_id", "model", "task", "extra")]
+        invalid += [scope | changes for changes in ({"schema": True}, {"schema": "1"}, {"schema": 1.0}, {"schema": 2},
+                    {"category": "personal"}, {"category": None}, {"category": 1},
+                    {"operation": "title_generation"}, {"operation": "rag_embedding "},
+                    {"operation": None}, {"operation": False}, {"operation": []})]
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaisesRegex(protocol.ProtocolError, "Invalid budget provenance"):
+                protocol.validate_persisted_rag_scope(value)
+
     def test_persisted_scope_is_exact_and_bounded(self):
         valid = {"schema": 1, "user_id": USER, "chat_id": CHAT, "answer_id": ANSWER,
                  "root_chat_id": ROOT_CHAT, "root_answer_id": ROOT_ANSWER, "model": MODEL,

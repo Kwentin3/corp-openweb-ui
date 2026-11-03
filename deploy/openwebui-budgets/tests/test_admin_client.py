@@ -467,6 +467,122 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
                 await self.initialize(**kwargs)
         self.assertEqual(self.requests, [])
 
+    async def test_service_uses_explicit_native_models_and_same_readonly_decimal_dto(self):
+        embedding = "embedding-e"
+        self.user.update(models=[MODELS[0], embedding], max_budget="20", spend=".6")
+        self.rows = [row(MODELS[0]), row(embedding)]
+        self.rows[1].update(max_budget=0, spend=".4", blocked=None)
+        actual = await self.admin.read_service(USER)
+        self.assertEqual(tuple(v.model for v in actual.models), tuple(sorted([MODELS[0], embedding])))
+        self.assertEqual((actual.max_budget, actual.spend), (Decimal(20), Decimal(".6")))
+        self.assertEqual(actual.models[0].max_budget, Decimal(0))
+        self.assertIsNone(actual.models[0].blocked)
+        self.assertEqual(actual.models[0].spend, Decimal(".4"))
+        self.assertNotIn(PRIVATE, repr(asdict(actual)))
+        self.assertEqual([(method, path) for method, path, _, _ in self.requests],
+                         [("GET", "/user/info"), ("GET", "/key/list"), ("GET", "/user/info")])
+        with self.assertRaises(FrozenInstanceError):
+            actual.spend = Decimal(0)
+
+    async def test_service_rejects_missing_malformed_wildcard_and_native_sentinel_models_before_keys(self):
+        for value in (None, [], MODELS[0], {}, [MODELS[0], MODELS[0]], [1], [None], [""],
+                      [" model"], ["model\n"], ["x" * 257], [str(i) for i in range(101)],
+                      ["*"], ["openai/*"], ["all-proxy-models"], ["all-team-models"], ["no-default-models"]):
+            self.requests.clear()
+            self.user["models"] = value
+            with self.subTest(value=value), self.assertRaisesRegex(contract.BudgetAdminError, "invalid_models"):
+                await self.admin.read_service(USER)
+            self.assertEqual(len(self.requests), 1)
+        self.requests.clear()
+        self.user.pop("models")
+        with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_models"):
+            await self.admin.read_service(USER)
+        self.assertEqual(len(self.requests), 1)
+        # Existing personal read deliberately retains its caller-model contract.
+        self.user["models"] = ["*"]
+        self.assertEqual(await self.read(), await self.admin.read_employee(USER, MODELS))
+
+    async def test_service_missing_or_unknown_canonical_assignment_does_not_infer_or_repair(self):
+        original = copy.deepcopy(self.rows)
+        variants = [([original[0]], "missing_assignment"),
+                    ([*original, row("unknown-canonical")], "unsupported_assignment"),
+                    ([original[0], original[0]], "duplicate_key"),
+                    ([dict(original[0], team_id="team"), original[1]], "invalid_assignment")]
+        for rows, code in variants:
+            self.requests.clear()
+            self.rows = rows
+            with self.subTest(code=code), self.assertRaisesRegex(contract.BudgetAdminError, code):
+                await self.admin.read_service(USER)
+            self.assertTrue(all(method == "GET" for method, *_ in self.requests))
+        self.rows = original
+        self.user["models"] = [MODELS[0]]
+        with self.assertRaisesRegex(contract.BudgetAdminError, "unsupported_assignment"):
+            await self.admin.read_service(USER)
+
+    async def test_service_reads_all_pages_and_rejects_allowlist_drift_without_retry(self):
+        canonical = copy.deepcopy(self.rows)
+        self.rows = canonical + [dict(row("app-" + str(i)), key_alias="application-" + str(i), metadata={})
+                                 for i in range(100)]
+        actual = await self.admin.read_service(USER)
+        self.assertEqual(len(actual.models), 2)
+        self.assertEqual([q[2]["page"] for q in self.requests if q[1] == "/key/list"], ["1", "2"])
+        self.requests.clear()
+        async def drift(request):
+            if request.path == "/key/list" and request.query["page"] == "2":
+                self.user["models"] = [MODELS[0]]
+        self.handler = drift
+        with self.assertRaisesRegex(contract.BudgetAdminError, "service_configuration_changed"):
+            await self.admin.read_service(USER)
+        self.assertEqual([q[1] for q in self.requests], ["/user/info", "/key/list", "/key/list", "/user/info"])
+        self.assertTrue(all(q[0] == "GET" for q in self.requests))
+
+    async def test_service_final_recheck_accepts_order_only_and_uses_latest_native_scalar(self):
+        async def update(request):
+            if request.path == "/key/list":
+                self.user.update(models=list(reversed(MODELS)), spend=".6", max_budget="21")
+        self.handler = update
+        actual = await self.admin.read_service(USER)
+        self.assertEqual(tuple(v.model for v in actual.models), MODELS)
+        self.assertEqual((actual.spend, actual.max_budget), (Decimal(".6"), Decimal(21)))
+        self.assertEqual(tuple(v.spend for v in actual.models), (Decimal(".2"), Decimal(".2")))
+
+    async def test_service_native_user_identity_amount_and_final_unavailability_fail_closed(self):
+        original = copy.deepcopy(self.user)
+        for field, value, code in (("user_id", OTHER, "invalid_employee"),
+                                  ("user_role", "proxy_admin", "invalid_employee"),
+                                  ("spend", None, "invalid_native_amount")):
+            self.user = {**original, field: value}
+            with self.subTest(field=field), self.assertRaisesRegex(contract.BudgetAdminError, code):
+                await self.admin.read_service(USER)
+        self.user = original
+        for status in (401, 403, 404, 500, 503):
+            self.requests.clear()
+            async def unavailable(request):
+                if request.path == "/user/info" and len([q for q in self.requests if q[1] == "/user/info"]) == 2:
+                    return web.json_response({"private": PRIVATE}, status=status)
+            self.handler = unavailable
+            with self.subTest(status=status), self.assertRaises(contract.BudgetAdminError) as caught:
+                await self.admin.read_service(USER)
+            self.assertEqual(caught.exception.code, "native_http_" + str(status))
+            self.assertNotIn(PRIVATE, str(caught.exception))
+            self.assertEqual(len(self.requests), 3)
+
+    async def test_service_transport_and_incomplete_pagination_have_existing_safe_bounds(self):
+        async def incomplete(request):
+            if request.path == "/key/list":
+                return web.json_response({"keys": self.rows, "total_count": 3, "total_pages": 1, "current_page": 1})
+        self.handler = incomplete
+        with self.assertRaisesRegex(contract.BudgetAdminError, "incomplete_pagination"):
+            await self.admin.read_service(USER)
+        self.requests.clear()
+        async def slow(request):
+            await asyncio.sleep(.05)
+        self.handler = slow
+        with patch.object(client, "READ_TIMEOUT", .01), self.assertRaisesRegex(contract.BudgetAdminError, "native_transport"):
+            await self.admin.read_service(USER)
+        # The operation deadline may cancel before the HTTP connection arrives.
+        self.assertLessEqual(len(self.requests), 1)
+
     async def test_typed_native_read_discards_private_fields_and_preserves_decimal_none(self):
         self.rows[0]["max_budget"] = None
         self.rows[0]["blocked"] = None

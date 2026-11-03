@@ -99,6 +99,19 @@ def validate_persisted_service_scope(scope: object) -> dict:
     return scope.copy()
 
 
+def validate_persisted_rag_scope(scope: object) -> dict:
+    """Validate only the key-owned log tag; native row identity proves origin.
+
+    RAG has no Chat or claimed actor. Consumers must bind the actual native
+    payer, canonical key hash and model from the persisted row separately.
+    """
+    _check(isinstance(scope, dict) and set(scope) == {"schema", "category", "operation"})
+    _check(type(scope["schema"]) is int and scope["schema"] == 1
+           and type(scope["category"]) is str and scope["category"] == "service"
+           and type(scope["operation"]) is str and scope["operation"] == "rag_embedding")
+    return scope.copy()
+
+
 def _encode(secret: str, *, audience: str, limit: int, user_id: str,
             scope: dict, ttl_seconds: int, now: int | None) -> str:
     _secret(secret)

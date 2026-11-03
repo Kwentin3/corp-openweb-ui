@@ -178,9 +178,10 @@ class Tools:
             require(isinstance(target, str) and bool(target), "invalid_service_configuration")
             model = request.app.state.MODELS.get(target)
             _, wire = await native_connection({"model": target}, model, request, url, require=require)
-            budget = await client.read_employee(payer, (wire,))
+            budget = await client.read_service(payer)
+            require(any(model.model == wire for model in budget.models), "invalid_service_configuration")
             policy.monthly(budget)
-            service = {"label": "Служебные LLM-задачи", "budget_usd": policy.money(budget.max_budget),
+            service = {"label": "Служебные задачи и RAG", "budget_usd": policy.money(budget.max_budget),
                        "spend_usd": policy.money(budget.spend), "budget_reset_at": budget.budget_reset_at,
                        "remaining_usd": policy.money(budget.max_budget - budget.spend)
                            if budget.max_budget is not None else None}

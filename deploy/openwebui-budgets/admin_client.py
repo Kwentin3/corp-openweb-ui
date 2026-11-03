@@ -103,6 +103,16 @@ def _models(models: tuple[str, ...]) -> tuple[str, ...]:
     return models
 
 
+def _service_models(user: dict) -> tuple[str, ...]:
+    value = user.get("models")
+    _require(isinstance(value, list), "invalid_models")
+    models = _models(tuple(value))
+    _require(all("*" not in model and model not in {
+        "all-proxy-models", "all-team-models", "no-default-models",
+    } for model in models), "invalid_models")
+    return tuple(sorted(models))
+
+
 def _employee_user(payload: dict, user_id: str) -> dict:
     user = payload.get("user_info")
     _require(isinstance(user, dict) and user.get("user_id") == user_id
@@ -214,6 +224,30 @@ class BudgetAdminClient:
         selected, _ = await self._read_assignments(user_id, models)
         _require(set(selected) == set(models), "missing_assignment")
         return _employee_budget(user, user_id, tuple(selected[model] for model in models))
+
+    async def read_service(self, user_id: str) -> EmployeeBudget:
+        """Read explicit native service models and their canonical assignments.
+
+        This proves User/key structural consistency, not live Router or RAG
+        configuration freshness. The caller owns service-payer exclusion and
+        fresh native task-target binding.
+        """
+        user_id = _user_id(user_id)
+        try:
+            async with asyncio.timeout(READ_TIMEOUT):
+                return await self._read_service(user_id)
+        except asyncio.TimeoutError:
+            raise BudgetAdminError("native_transport") from None
+
+    async def _read_service(self, user_id: str) -> EmployeeBudget:
+        user = _employee_user(await self._request("GET", "/user/info", params={"user_id": user_id}), user_id)
+        _employee_budget(user, user_id, ())  # Validate scalars before enumerating keys.
+        models = _service_models(user)
+        selected, _ = await self._read_assignments(user_id, models)
+        _require(set(selected) == set(models), "missing_assignment")
+        latest = _employee_user(await self._request("GET", "/user/info", params={"user_id": user_id}), user_id)
+        _require(_service_models(latest) == models, "service_configuration_changed")
+        return _employee_budget(latest, user_id, tuple(selected[model] for model in models))
 
     async def inspect_employee(self, user_id: str, models: tuple[str, ...]) -> EmployeeBudgetInspection:
         """Distinguish absence from ready/incomplete/conflicting native state.

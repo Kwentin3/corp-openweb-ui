@@ -101,6 +101,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
 
         self.client = SimpleNamespace(read_employee=AsyncMock(side_effect=read),
             set_user_cap=AsyncMock(side_effect=user_cap), set_model_cap=AsyncMock(side_effect=model_cap))
+        self.client.read_service = AsyncMock(side_effect=lambda uid: self.states[uid])
         async def inspect_employee(user_id, models):
             current = await self.client.read_employee(user_id, models)
             return contract.EmployeeBudgetInspection(user_id, models, "ready", current)
@@ -507,14 +508,67 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         rendered = self.html(await self.open())
         self.assertIn('data-service-spend>0.2</span>', rendered)
         self.assertIn('data-service-remaining>19.8</span>', rendered)
-        self.assertIn('Служебные LLM-задачи', rendered)
+        self.assertIn('Служебные задачи и RAG', rendered)
         self.assertNotIn(OTHER, rendered)
-        self.assertIn((OTHER, (MODELS[0],)), self.reads)
+        self.client.read_service.assert_awaited_once_with(OTHER)
+        self.assertNotIn(OTHER, [uid for uid, _ in self.reads])
         self.assertEqual(len(self.employees), 2)
         self.assertEqual(self.writes, [])
         self.users.get_user_by_id.side_effect = lambda uid: self.admin if uid == ADMIN else SimpleNamespace(id=uid, role='user')
         with self.assertRaisesRegex(contract.BudgetAdminError, 'personal_payer_forbidden'):
             await self.open()
+
+    def service_footer(self):
+        self.config['service_payer_id'] = OTHER
+        self.users.get_user_by_id.side_effect = lambda uid: self.admin if uid == ADMIN else None
+        self.functions.get_function_valves_by_id.side_effect = lambda fid: (
+            {'target_model_id': MODELS[0]} if fid == 'employee_budget_service' else self.config)
+        current = state(OTHER)
+        self.states[OTHER] = replace(current, max_budget=Decimal(20), spend=Decimal('.3'),
+            models=(current.models[0], replace(current.models[1], model='embedding-e', spend=Decimal('.1'))))
+
+    async def test_service_footer_keeps_one_native_total_with_embedding_assignment_and_private_exclusion(self):
+        self.service_footer()
+        existing = copy.deepcopy(self.states)
+        rendered = self.html(await self.open())
+        self.assertIn('data-service-spend>0.3</span>', rendered)
+        self.assertIn('data-service-remaining>19.7</span>', rendered)
+        self.assertEqual(rendered.count('data-service-spend'), 1)
+        for private in (OTHER, 'embedding-e', KEY, 'existing-gateway-secret'):
+            self.assertNotIn(private, rendered)
+        self.assertEqual(self.states, existing)
+        self.client.read_service.assert_awaited_once_with(OTHER)
+        self.assertEqual(set(uid for uid, _ in self.reads), {USER, USER2})
+        self.assertEqual(self.writes, [])
+
+    async def test_service_footer_requires_fresh_native_target_membership(self):
+        self.service_footer()
+        self.states[OTHER] = replace(self.states[OTHER], models=(self.states[OTHER].models[1],))
+        with self.assertRaisesRegex(contract.BudgetAdminError, 'invalid_service_configuration'):
+            await self.open()
+        self.client.read_service.assert_awaited_once_with(OTHER)
+        self.assertEqual(self.writes, [])
+
+    async def test_service_footer_still_binds_native_target_before_service_read(self):
+        self.service_footer()
+        async def connection(_):
+            return ('http://foreign.invalid/v1' if self.connection.await_count == 3 else URL + '/v1',
+                    'existing-gateway-secret', {})
+        self.connection.side_effect = connection
+        with self.assertRaisesRegex(contract.BudgetAdminError, 'gateway_configuration'):
+            await self.open()
+        self.client.read_service.assert_not_awaited()
+        self.assertEqual(self.writes, [])
+
+    async def test_service_read_cannot_hide_revoked_native_admin_authority(self):
+        self.service_footer()
+        async def revoked(uid):
+            self.admin.role = 'user'
+            return self.states[uid]
+        self.client.read_service.side_effect = revoked
+        with self.assertRaises(contract.BudgetAdminError):
+            await self.open()
+        self.assertEqual(self.writes, [])
 
     async def test_unmanaged_target_connection_fails_before_native_budget_reads(self):
         self.connection.return_value = ("http://other.invalid/v1", "other-secret", {})
