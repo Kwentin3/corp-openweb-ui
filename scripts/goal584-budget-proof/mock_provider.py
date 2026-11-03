@@ -20,6 +20,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MODELS = ("goal584-fake-a", "goal584-fake-b")
 EMBEDDING_MODEL = "goal584-fake-e"
+RESPONSES_MODEL = "goal584-fake-r"
+RESPONSES_MAX_OUTPUT_TOKENS = 16
 STATE_LOCK = threading.Lock()
 REQUESTS = []
 CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False,
@@ -87,6 +89,112 @@ def pending_admin_tool(payload, messages):
     return (names[0], arguments) if len(names) == 1 else None
 
 
+def responses_input(payload):
+    """Bounded stateless text/Tool profile, not a general Responses emulator."""
+    allowed = {"model", "input", "instructions", "max_output_tokens", "stream", "tools", "tool_choice",
+        "parallel_tool_calls", "reasoning", "include", "store", "metadata", "temperature", "top_p", "text",
+        "truncation", "user", "previous_response_id", "background"}
+    values = payload.get("input")
+    if isinstance(values, str):
+        values = [{"type": "message", "role": "user", "content": values}]
+    if (set(payload) - allowed or not isinstance(values, list) or not 0 < len(values) <= 128
+            or not all(isinstance(item, dict) for item in values)
+            or payload.get("max_output_tokens", RESPONSES_MAX_OUTPUT_TOKENS) != RESPONSES_MAX_OUTPUT_TOKENS
+            or type(payload.get("max_output_tokens", RESPONSES_MAX_OUTPUT_TOKENS)) is not int
+            or type(payload.get("stream", False)) is not bool
+            or payload.get("previous_response_id") is not None or payload.get("background", False) is not False
+            or payload.get("store", False) is not False or payload.get("tool_choice", "auto") not in ("auto", "none")):
+        raise ValueError("Unsupported bounded synthetic Responses request")
+    if "instructions" in payload and not isinstance(payload["instructions"], str):
+        raise ValueError("Invalid synthetic Responses instructions")
+    if "reasoning" in payload and not isinstance(payload["reasoning"], dict):
+        raise ValueError("Invalid synthetic Responses reasoning")
+    if "metadata" in payload and not isinstance(payload["metadata"], dict):
+        raise ValueError("Invalid synthetic Responses metadata")
+    if (type(payload.get("parallel_tool_calls", True)) is not bool
+            or payload.get("truncation", "disabled") != "disabled"
+            or payload.get("text", {"format": {"type": "text"}}) != {"format": {"type": "text"}}
+            or ("user" in payload and not isinstance(payload["user"], str))):
+        raise ValueError("Unsupported synthetic Responses options")
+    include = payload.get("include", [])
+    if not isinstance(include, list) or any(value != "reasoning.encrypted_content" for value in include):
+        raise ValueError("Unsupported synthetic Responses include")
+    tools = payload.get("tools", [])
+    if not isinstance(tools, list) or len(tools) > 8 or not all(isinstance(tool, dict) and tool.get("type") == "function"
+            and isinstance(tool.get("name"), str) and isinstance(tool.get("parameters"), dict) for tool in tools):
+        raise ValueError("Invalid synthetic Responses function tools")
+    for item in values:
+        kind = item.get("type", "message")
+        if kind == "message":
+            content = item.get("content")
+            if (item.get("role") not in ("user", "assistant", "system", "developer") or not (
+                    isinstance(content, str) and content or isinstance(content, list) and content and all(
+                        isinstance(part, dict) and part.get("type") in ("input_text", "output_text")
+                        and isinstance(part.get("text"), str) for part in content))):
+                raise ValueError("Invalid synthetic Responses text input")
+        elif kind == "function_call":
+            if not (isinstance(item.get("call_id"), str) and item["call_id"] and isinstance(item.get("name"), str)
+                    and isinstance(item.get("arguments"), str)):
+                raise ValueError("Invalid synthetic Responses function call")
+        elif kind == "function_call_output":
+            if not (isinstance(item.get("call_id"), str) and item["call_id"] and isinstance(item.get("output"), str)
+                    and any(call.get("type") == "function_call" and call.get("call_id") == item["call_id"] for call in values)):
+                raise ValueError("Unpaired synthetic Responses function output")
+        elif kind == "reasoning":
+            if not (isinstance(item.get("id"), str) and isinstance(item.get("summary"), list)
+                    and ("encrypted_content" not in item or isinstance(item["encrypted_content"], str))):
+                raise ValueError("Invalid synthetic Responses reasoning input")
+        else:
+            raise ValueError("Unsupported synthetic Responses input item")
+    if len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 131072:
+        raise ValueError("Synthetic Responses request exceeds bound")
+    return values
+
+
+def responses_tool(payload, values, control):
+    if not control["tool_round"] or payload.get("tool_choice") == "none":
+        return None
+    names = [tool["name"] for tool in payload.get("tools", []) if tool["name"].endswith("budget_echo")]
+    if len(names) != 1:
+        return None
+    last_user = next((index for index in range(len(values) - 1, -1, -1) if values[index].get("role") == "user"), None)
+    if last_user is None or any(item.get("type") == "function_call_output" for item in values[last_user + 1:]):
+        return None
+    return names[0]
+
+
+def responses_events(result):
+    """Native Responses SSE event names/shapes; no Chat [DONE] sentinel."""
+    initial = {**copy.deepcopy(result), "status": "in_progress", "output": [], "usage": None}
+    events = [{"type": "response.created", "response": initial},
+              {"type": "response.in_progress", "response": copy.deepcopy(initial)}]
+    for index, item in enumerate(result["output"]):
+        start = {**copy.deepcopy(item), "status": "in_progress"}
+        if item["type"] == "message":
+            start["content"] = []
+        elif item["type"] == "function_call":
+            start["arguments"] = ""
+        events.append({"type": "response.output_item.added", "output_index": index, "item": start})
+        identity = {"item_id": item["id"], "output_index": index}
+        if item["type"] == "message":
+            part = item["content"][0]
+            events.extend([
+                {"type": "response.content_part.added", **identity, "content_index": 0,
+                 "part": {"type": "output_text", "text": "", "annotations": []}},
+                {"type": "response.output_text.delta", **identity, "content_index": 0, "delta": part["text"], "logprobs": []},
+                {"type": "response.output_text.done", **identity, "content_index": 0, "text": part["text"], "logprobs": []},
+                {"type": "response.content_part.done", **identity, "content_index": 0, "part": part},
+            ])
+        elif item["type"] == "function_call":
+            events.extend([
+                {"type": "response.function_call_arguments.delta", **identity, "delta": item["arguments"]},
+                {"type": "response.function_call_arguments.done", **identity, "name": item["name"], "arguments": item["arguments"]},
+            ])
+        events.append({"type": "response.output_item.done", "output_index": index, "item": copy.deepcopy(item)})
+    events.append({"type": "response.completed", "response": copy.deepcopy(result)})
+    return [{**event, "sequence_number": index} for index, event in enumerate(events)]
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, _format, *args):
         # Do not log bearer keys, prompts, or arbitrary paths.
@@ -119,13 +227,15 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("Expected a JSON object")
         return payload
 
-    def begin_record(self, payload, *, embedding=False):
+    def begin_record(self, payload, *, embedding=False, responses=False):
         with STATE_LOCK:
             control = dict(CONTROL)
             usage = ({"prompt_tokens": 10, "total_tokens": 10} if embedding else {
+                "input_tokens": 10, "output_tokens": 5, "total_tokens": 15,
+                "input_tokens_details": {"cached_tokens": 0}, "output_tokens_details": {"reasoning_tokens": 0}} if responses else {
                 "prompt_tokens": control["prompt_tokens"], "completion_tokens": control["completion_tokens"],
                 "total_tokens": control["prompt_tokens"] + control["completion_tokens"]})
-            record = {"id": ("embedding-observation-goal584-" if embedding else "chatcmpl-goal584-") + uuid.uuid4().hex,
+            record = {"id": ("embedding-observation-goal584-" if embedding else "resp_goal584_" if responses else "chatcmpl-goal584-") + uuid.uuid4().hex,
                 "created": int(time.time()), "body": payload, "usage": usage,
                 "lifecycle": {"started": True, "stage": "started", "started_monotonic": time.monotonic(),
                     "headers_sent": False, "chunks_sent": 0, "usage_sent": False, "terminal": False, "outcome": None,
@@ -134,6 +244,8 @@ class Handler(BaseHTTPRequestHandler):
             if embedding:
                 # Not sent to the client: native embedding IDs have another owner.
                 record.update(route="/v1/embeddings", id_kind="provider_observation_only")
+            elif responses:
+                record.update(route="/v1/responses", id_kind="provider_response")
             if control.get("response_status") == 500:
                 record["usage"] = None
             REQUESTS.append(record)
@@ -192,6 +304,59 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
 
+    def serve_responses(self, payload):
+        if payload.get("model") != RESPONSES_MODEL:
+            return self.send_json(404, {"error": {"message": "Unknown synthetic model", "code": "model_not_found"}})
+        try:
+            values = responses_input(payload)
+        except (ValueError, UnicodeError):
+            return self.send_json(400, {"error": {"message": "Invalid bounded synthetic Responses request"}})
+        control, record = self.begin_record(payload, responses=True)
+        if self.controlled_failure(control, record):
+            return
+        name = responses_tool(payload, values, control)
+        output = []
+        if payload.get("reasoning") or "reasoning.encrypted_content" in payload.get("include", []):
+            output.append({"id": "rs_" + uuid.uuid4().hex, "type": "reasoning", "status": "completed",
+                "summary": [{"type": "summary_text", "text": "Synthetic fixture reasoning summary"}],
+                "encrypted_content": "synthetic-opaque-reasoning-not-provider-cryptography"})
+        if name:
+            output.append({"id": "fc_" + uuid.uuid4().hex, "type": "function_call", "status": "completed",
+                "call_id": "call-goal584-" + uuid.uuid4().hex, "name": name, "arguments": "{}"})
+        else:
+            output.append({"id": "msg_" + uuid.uuid4().hex, "type": "message", "status": "completed", "role": "assistant",
+                "content": [{"type": "output_text", "text": "Proof", "annotations": []}]})
+        result = {"id": record["id"], "object": "response", "created_at": record["created"], "status": "completed",
+            "error": None, "incomplete_details": None, "instructions": payload.get("instructions"),
+            "model": RESPONSES_MODEL, "output": output, "usage": record["usage"],
+            "max_output_tokens": RESPONSES_MAX_OUTPUT_TOKENS, "parallel_tool_calls": payload.get("parallel_tool_calls", True),
+            "tool_choice": payload.get("tool_choice", "auto"), "tools": copy.deepcopy(payload.get("tools", [])),
+            "reasoning": copy.deepcopy(payload.get("reasoning")), "store": False, "previous_response_id": None,
+            "metadata": copy.deepcopy(payload.get("metadata", {})), "temperature": payload.get("temperature", 1.0),
+            "top_p": payload.get("top_p", 1.0), "text": copy.deepcopy(payload.get("text", {"format": {"type": "text"}})),
+            "truncation": payload.get("truncation", "disabled"), "user": payload.get("user")}
+        try:
+            if payload.get("stream"):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.mark(record, stage="headers_sent", headers_sent=True)
+                for index, event in enumerate(responses_events(result)):
+                    self.wfile.write(("event: " + event["type"] + "\ndata: " + json.dumps(event, separators=(",", ":")) + "\n\n").encode())
+                    self.wfile.flush()
+                    self.mark(record, stage="streaming", chunks_sent=index + 1, usage_sent=event["type"] == "response.completed")
+                    if index == 0 and control.get("after_first_chunk_delay_ms", 0):
+                        self.mark(record, stage="after_first_chunk_delay")
+                        time.sleep(control["after_first_chunk_delay_ms"] / 1000)
+            else:
+                self.send_json(200, result, record=record)
+            with STATE_LOCK:
+                record["response"] = copy.deepcopy(result)
+            self.mark(record, stage="completed", terminal=True, outcome="completed", usage_sent=True)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
+
     def do_GET(self):
         if self.path == "/healthz":
             return self.send_json(200, {"ok": True, "synthetic": True})
@@ -239,6 +404,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, result)
         if self.path == "/v1/embeddings":
             return self.embeddings(payload)
+        if self.path == "/v1/responses":
+            return self.serve_responses(payload)
         if self.path != "/v1/chat/completions":
             return self.send_json(404, {"error": {"message": "Unknown synthetic endpoint"}})
         model = payload.get("model")
