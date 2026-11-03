@@ -6,40 +6,45 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний успешный native run
-[41626578069](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41626578069),
-HEAD `2322598df511bd45f401295248a6069f35ea04ee`, tested merge
-`49e8ae99d5279ecb834f08dc58bd5affdd8bc5e2`; Active CI41626577927 PASS.
-Повторены main/defaults/new-hire/cost/details/OFF; впервые весь gate прошёл
-direct-title service, обычный admin footer и удаление чата с сохранением учёта.
-Независимая приёмка этих последних этапов PASS:
+[41632718620](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41632718620),
+HEAD `bf3661415f8c6f1cf5ad869d94ee72ccc9364495`, tested merge
+`8f96f212184f89836004c505ba5b4097d104ae8b`; Active CI41632718621 PASS.
+Повторены main/defaults/new-hire/cost/details/OFF, direct-title service,
+обычный admin footer и удаление чата с сохранением учёта. Впервые прошли
+три автоматические native задачи из обычного employee Send.
+Предыдущая независимая приёмка direct service/admin/retention PASS:
 `local/goal584/runtime-proof-41626578069/independent-service-acceptance.md`.
 Review повторно исполнил сравнение actual service/admin inputs: один service row,
 nonce/key hash/ответ, неизменные4 personal users/8 keys и34 исторические rows;
 admin34→36 с двумя личными вызовами. Retention принят по source-bound evidence
 с явно сохранённым ограничением независимого raw DB replay.
-Parent сверил ZIP `afba94eeebe6d0e673bf21cca12a3f28cf63ddd4dca760b3529191df00eec8c4`,
-175 файлов,34 source SHA и6 mounted SHA; cleanup0 containers/0 volumes.
-Native service row $0.20 и personal admin reporting $0.40 разделены.
+Parent для run35 сверил ZIP `4573957896de9b01111e22d92e34f1405ea626373f3b4578b63de66d77f059de`,
+189 файлов,36 source SHA и6 mounted SHA; cleanup0 containers/0 volumes.
+Native direct service$0.20, automatic service$0.60 и personal reporting$0.40 разделены.
 Retention: DELETE200 → exact native GET401 → тот же user auth200;
-39 raw rows/5 payers/9 keys до/после имеют одинаковый финансовый hash.
+44 raw rows/5 payers/9 keys до/после имеют одинаковый финансовый hash.
 Raw privacy scan выполнен source-bound runtime script; private DB JSON не
 загружается в artifact и независимо из hashes не воспроизводится. Проверены
 пустые body-поля, точные сохранённые значения, подстроки от32 символов и полные
 credentials в выбранном scope; global privacy/failure/cancel этим не приняты.
 
-**Следующий кандидат:** три автоматические задачи title/tags/follow-up после
+**BG-срез run35:** три автоматические задачи title/tags/follow-up после
 двух обычных свежих Hi-чатов с одной выбранной моделью A. Тот же native service
 payer и journal; новых регистров, frontend/core patch или фиктивных answer IDs нет.
-Baseline ожидает один личный вызов и3 unsigned custom-auth403, signed phase —
+Baseline дал один личный вызов и3 unsigned custom-auth403, signed phase —
 один личный и3 service: вместе5 provider calls/$1.00, personal+$0.40,
 service+$0.60 (итог$0.80). Сверяются полный реальный context до/после auth и
 на provider boundary, native title/tags/follow-up и личная цена ответа/чата.
 Полные TaskConfig/provider controls восстанавливаются, история сохраняется.
-Этот кандидат ещё не исполнялся в native runtime. Fanout/arena/automation,
+Runtime и независимая приёмка BG/newhire cost path PASS:
+`local/goal584/runtime-proof-41632718620/independent-background-acceptance.md`.
+Пять новых rows совпали с пятью provider IDs, все37 прежних positive rows
+сохранены;4 personal и1 service payer/9 keys согласованы с журналом.
+Baseline cost доказан visible+native GET, signed results — также после reload.
+Итоговый scan-retry в run35 не наблюдался и не заявляется. Fanout/arena/automation,
 embeddings и другие модели остаются неквалифицированными; source guard не
-доказывает запрет fanout. Pricing snapshot и overlap probes остаются отдельным
-неинтегрированным WIP; ни один из них здесь не включён.
-Локально проверен ровно staged candidate:180 component tests (173 PASS,
+доказывает запрет fanout. Pricing snapshot и overlap в этот run не включены.
+Перед исходным BG-кандидатом локально проверены180 component tests (173 PASS,
 7 opt-in Chrome skips) и157 harness tests PASS; pricing/overlap WIP исключён.
 34 Bash/14 embedded Python, actionlint и26 literal bind/import checks PASS.
 До runtime исправлены два proof gaps: provider controls восстанавливаются
@@ -76,7 +81,21 @@ recovery двух чтений и отказ непрерывно несовме
 не runtime PASS. Ровно candidate suites:186 component tests (179 PASS/7 opt-in
 skips) и157 harness PASS. Diagnostics/review:
 `local/goal584/runtime-proof-41630590813/cost-pending-diagnosis.md`.
-Pricing/calendar source-подготовка продолжается отдельно.
+Следующий минимальный кандидат — actual billed-rate snapshot в той же native
+SpendLogs row: существующий per-request Logging/CustomLogger копирует7 nullable
+полей BilledTokenRates после расчёта, без price lookup/пересчёта/нового журнала.
+Controlled synthetic modelA price0.01/0.02 →0.02/0.04, proxy restart, один обычный
+Hi должен дать$0.40; старые суммы/usage/ставки/идентичности должны сохраниться,
+service — не измениться. Полные исходные YAML bytes и native readiness
+восстанавливаются в finally, включая ошибки. В next candidate добавлены только
+callback, readonly mounts и этот phase после retention; production не затронут.
+Source reviews: `local/goal584/pricing-snapshot-independent-review.md`,
+`local/goal584/pricing-browser-independent-review.md`; actual run34 Hi context
+повторно проверен.197 component tests (190 PASS/7 opt-in skips),183 harness PASS,
+35 Bash/14 Python/actionlint/28 binds/imports PASS. Native pricing ещё не принят;
+source/version/effective interval, atomic tariff binding и regular automatic
+checks этим снимком не доказаны. Overlap/calendar/RAG остаются отдельной
+source-подготовкой и не включены в next pricing candidate.
 
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn

@@ -42,7 +42,7 @@ general_settings:
   proxy_batch_write_at: 1
 
 litellm_settings:
-  callbacks: ["budget_errors.handler"]
+  callbacks: ["budget_errors.handler", "pricing_snapshot.handler"]
   block_requests_for_models_without_pricing: true
   num_retries: 0
   request_timeout: 30

@@ -96,6 +96,8 @@ jobs:
                    'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
                    'deploy/openwebui-budgets/litellm_auth.py', 'deploy/openwebui-budgets/assignment.py',
                    'deploy/openwebui-budgets/budget_errors.py',
+                   'deploy/openwebui-budgets/pricing_snapshot.py',
+                   'scripts/goal584-budget-proof/prove_pricing_snapshots.py',
                    'scripts/goal584-budget-proof/prove_gateway_auth.py']
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
@@ -271,6 +273,7 @@ jobs:
                    'scripts/goal584-budget-proof/prove_service_admin_browser.py',
                    'scripts/goal584-budget-proof/prove_background_tasks.py',
                    'scripts/goal584-budget-proof/prove_background_browser.py',
+                   'scripts/goal584-budget-proof/prove_pricing_browser.py',
                    'scripts/goal584-budget-proof/prove_ledger_retention.py',
                    'deploy/openwebui-budgets/service_pipe.py',
                    'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
@@ -581,6 +584,14 @@ jobs:
             --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
             --output "$PROOF_OUTPUT_DIR/retention" \
             --private-output "$PROOF_PRIVATE_DIR/ledger-retention.raw.private.json"
+
+      - name: Preserve actual billed rates across a controlled synthetic price change and ordinary employee call
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/pricing"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_pricing_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/pricing"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

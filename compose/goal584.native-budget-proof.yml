@@ -100,6 +100,18 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ../deploy/openwebui-budgets/pricing_snapshot.py
+        target: /proof/pricing_snapshot.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_pricing_snapshots.py
+        target: /proof/prove_pricing_snapshots.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../deploy/openwebui-budgets/assignment.py
         target: /proof/employee_budget_assignment.py
         read_only: true
