@@ -30,6 +30,12 @@ LITELLM = p.ROOT / 'local/goal584/litellm/upstream'
 IDS = [f'{i:08d}-1111-4111-8111-111111111111' for i in range(1, 7)]
 PAYER, ACTOR = IDS[4], IDS[0]
 KEY_HASH = 'f' * 64
+RUN38_CONTROL = {'prompt_tokens': 10, 'completion_tokens': 5, 'delay_ms': 0,
+                 'tool_round': False, 'admin_mode': True, 'title_mode': False}
+RUN38_IDS = ['chatcmpl-goal584-' + value for value in (
+    '90d15ed5fc2645aea4e3d0fa46db8230', '282f51d0ffe94b7699d548310c7b5179',
+    '3bd2e119c0b4475a8b139369de843723', 'f4a384c625af457faef8c2349d26620d',
+    '11e9b01f5f60441d8a2030c318e7131e', '6dac052e15a546928ceaf83da49e2d08')]
 
 
 def extract(source, names, globals):
@@ -90,6 +96,80 @@ def capture_pair():
 
 
 class EvidenceBoundaryTests(unittest.TestCase):
+    def test_actual_run38_control_preserves_chat_mode_and_old_ids_for_native_embedding_handler(self):
+        # Exact safe controls/IDs from run38 pricing-provider-after, not a reset
+        # profile. Its full optional artifact is read-only when locally present.
+        paths = [p.ROOT / 'local/goal584/runtime-proof-41648991609/receipts/pricing/pricing-provider-after.json',
+                 p.ROOT.parent / 'corp-openweb-ui-goal584/local/goal584/runtime-proof-41648991609/receipts/pricing/pricing-provider-after.json']
+        artifact = next((path for path in paths if path.is_file()), None)
+        if artifact:
+            raw = artifact.read_bytes()
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), 'ec2ea9f6aa1197e775aa4624fe23f228b960bd31e0c90a32926e1b6485c4185d')
+            previous = json.loads(raw)
+            self.assertEqual(previous['control'], RUN38_CONTROL)
+            self.assertEqual([r['id'] for r in previous['requests']], RUN38_IDS)
+        else:
+            previous = {'synthetic': True, 'control': copy.deepcopy(RUN38_CONTROL),
+                        'requests': [{'id': value, 'lifecycle': {'terminal': True}} for value in RUN38_IDS]}
+        original = copy.deepcopy(previous)
+        readiness = p.embedding_readiness(previous, {'requests': []}, 32)
+        self.assertEqual(readiness['effective_embedding_controls'], {'delay_ms': 0, 'response_status': 200})
+        self.assertEqual(readiness['prior_provider_ids'], RUN38_IDS)
+        self.assertEqual(previous, original)
+        class Handler:
+            begin_record = mock_provider.Handler.begin_record
+            controlled_failure = mock_provider.Handler.controlled_failure
+            send_json = mock_provider.Handler.send_json
+            mark = mock_provider.Handler.mark
+            def __init__(self): self.wfile = io.BytesIO()
+            def send_response(self, status): self.status = status
+            def send_header(self, *args): pass
+            def end_headers(self): pass
+        controls = copy.deepcopy(RUN38_CONTROL)
+        old_rows = copy.deepcopy(previous['requests'])
+        with patch.object(mock_provider, 'CONTROL', controls), patch.object(mock_provider, 'REQUESTS', old_rows):
+            handler = Handler()
+            mock_provider.Handler.embeddings(handler, {'model': p.WIRE, 'input': ['proof abc123']})
+            self.assertEqual(handler.status, 200)
+            response = json.loads(handler.wfile.getvalue())
+            self.assertEqual(response['usage'], {'prompt_tokens': 10, 'total_tokens': 10})
+            self.assertEqual(len(response['data'][0]['embedding']), 3)
+            self.assertEqual(mock_provider.CONTROL, RUN38_CONTROL)
+            self.assertEqual(mock_provider.REQUESTS[:-1], original['requests'])
+            self.assertEqual([r['id'] for r in mock_provider.REQUESTS[:-1]], RUN38_IDS)
+            self.assertTrue(mock_provider.REQUESTS[-1]['lifecycle']['terminal'])
+        self.assertEqual(previous, original)
+
+    def test_embedding_readiness_checks_effective_controls_and_quiescence_not_chat_controls(self):
+        provider = {'synthetic': True, 'control': {**RUN38_CONTROL, 'prompt_tokens': 99, 'completion_tokens': 88,
+            'tool_round': True, 'title_mode': True, 'native_tasks_mode': True, 'after_first_chunk_delay_ms': 2000},
+            'requests': [{'id': RUN38_IDS[0], 'lifecycle': {'terminal': True}}]}
+        self.assertTrue(p.embedding_readiness(provider, {'requests': []}, 32)['prior_provider_quiescent'])
+        for mutate in [lambda x: x['control'].update(delay_ms=1), lambda x: x['control'].update(response_status=500),
+                       lambda x: x['control'].update(response_status=True), lambda x: x['requests'][0]['lifecycle'].update(terminal=False),
+                       lambda x: x['requests'].append(copy.deepcopy(x['requests'][0]))]:
+            bad = copy.deepcopy(provider); mutate(bad)
+            with self.subTest(mutate=mutate), self.assertRaises(p.ProofError): p.embedding_readiness(bad, {'requests': []}, 32)
+        with self.assertRaises(p.ProofError): p.embedding_readiness(provider, {'requests': [{}] * 29}, 32)
+
+    def test_settings_denial_rejects_expired_token_or_generic_401_and_403(self):
+        p.settings_denied(401, {'detail': p.ACCESS_PROHIBITED})
+        for status, body in [(403, {'detail': p.ACCESS_PROHIBITED}), (401, {'detail': 'Invalid token'}),
+                             (401, {'detail': '401 Unauthorized'}), (200, {'detail': p.ACCESS_PROHIBITED})]:
+            with self.subTest(status=status, body=body), self.assertRaises(p.ProofError): p.settings_denied(status, body)
+
+    def test_serial_proxy_gate_observes_count_and_ids_without_scaling_or_restarting(self):
+        command = ['existing-compose-owner']
+        for stdout, valid in [(b'a' * 64 + b'\n', True), (b'', False),
+                              (b'a' * 64 + b'\n' + b'b' * 64 + b'\n', False), (b'not-a-container\n', False)]:
+            with self.subTest(stdout=stdout), patch.object(subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout=stdout)) as run:
+                if valid:
+                    self.assertEqual(p.serial_proxy(SimpleNamespace(command=command)),
+                        {'running_proxy_count': 1, 'running_proxy_container_ids': ['a' * 64]})
+                else:
+                    with self.assertRaises(p.ProofError): p.serial_proxy(SimpleNamespace(command=command))
+                self.assertEqual(run.call_args.args[0], command + ['ps', '-q', 'proxy'])
+
     def test_append_preserves_all_original_bytes_and_only_adds_approved_local_model(self):
         raw = (HERE / 'litellm_config.yaml').read_bytes()
         for raw in (raw, raw.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')):
@@ -291,6 +371,8 @@ class EvidenceBoundaryTests(unittest.TestCase):
             def run(command, **kwargs):
                 if 'config' in command:
                     return SimpleNamespace(returncode=0, stdout=json.dumps(composition).encode())
+                if command[-3:] == ['ps', '-q', 'proxy']:
+                    return SimpleNamespace(returncode=0, stdout=b'a' * 64 + b'\n')
                 phase = command[command.index('--worker-action') + 1]; phases.append(phase)
                 value = {'schema': 1, 'passed': phase != 'run', 'source_sha256': source_sha}
                 return SimpleNamespace(returncode=1 if phase == 'run' else 0, stdout=json.dumps(value).encode())
@@ -305,12 +387,62 @@ class EvidenceBoundaryTests(unittest.TestCase):
             self.assertFalse(receipt['passed'])
             self.assertTrue(receipt['restoration']['yaml_bytes_and_readiness_restored'])
             self.assertTrue(receipt['restoration']['partial_native_state_retained'])
+            self.assertEqual(receipt['serial_proxy_before']['running_proxy_count'], 1)
+            self.assertEqual(receipt['serial_proxy_after_reload']['running_proxy_count'], 1)
+            self.assertEqual(receipt['restoration']['serial_proxy_after_restoration']['running_proxy_count'], 1)
 
 
 class ActualPinnedNativeTests(unittest.TestCase):
     def setUp(self):
         if not (PINNED / 'backend/open_webui/retrieval/utils.py').is_file() or not (LITELLM / 'litellm/proxy/spend_tracking/spend_tracking_utils.py').is_file():
             self.skipTest('Pinned ignored native sources unavailable; runtime context/ledger gates remain mandatory')
+
+    def test_actual_native_admin_guard_fastapi_401_keeps_same_ordinary_session_live(self):
+        from fastapi import Depends, FastAPI, HTTPException, Request, status
+        import httpx
+        source = (PINNED / 'backend/open_webui/utils/auth.py').read_text(encoding='utf8')
+        constants = ast.parse((PINNED / 'backend/open_webui/constants.py').read_text(encoding='utf8'))
+        cls = next(n for n in constants.body if isinstance(n, ast.ClassDef) and n.name == 'ERROR_MESSAGES')
+        message = next(ast.literal_eval(n.value) for n in cls.body if isinstance(n, ast.Assign)
+                       and any(isinstance(t, ast.Name) and t.id == 'ACCESS_PROHIBITED' for t in n.targets))
+        self.assertEqual(message, p.ACCESS_PROHIBITED)
+        async def identity(request: Request):
+            if request.headers.get('Authorization') != 'Bearer actual-fixture-session':
+                raise HTTPException(401, detail='Invalid token')
+            return SimpleNamespace(id=ACTOR, role='user')
+        globals = {'Depends': Depends, 'get_current_user': identity, 'HTTPException': HTTPException, 'status': status,
+                   'ERROR_MESSAGES': SimpleNamespace(ACCESS_PROHIBITED=message), 'VERIFIED_USER_ROLES': {'user', 'admin'}}
+        extract(source, {'get_admin_user', 'get_verified_user'}, globals)
+        retrieval = ast.parse((PINNED / 'backend/open_webui/routers/retrieval.py').read_text(encoding='utf8'))
+        for name in ('get_embedding_config', 'update_embedding_config'):
+            node = next(n for n in retrieval.body if isinstance(n, ast.AsyncFunctionDef) and n.name == name)
+            self.assertTrue(any(isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id == 'Depends'
+                and value.args and isinstance(value.args[0], ast.Name) and value.args[0].id == 'get_admin_user' for value in node.args.defaults))
+        app = FastAPI()
+        reached = []
+        @app.get('/session')
+        def session(user=Depends(globals['get_verified_user'])):
+            return {'id': user.id, 'role': user.role}
+        @app.get('/embedding')
+        def settings(user=Depends(globals['get_admin_user'])):
+            reached.append('get'); return {'secret': 'must never be read'}
+        @app.post('/embedding/update')
+        def update(body: dict, user=Depends(globals['get_admin_user'])):
+            reached.append('post'); return {'updated': True}
+        async def observe():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://native-fixture') as client:
+                headers = {'Authorization': 'Bearer actual-fixture-session'}
+                for method, path in [('GET', '/embedding'), ('POST', '/embedding/update')]:
+                    before = await client.get('/session', headers=headers)
+                    self.assertEqual(before.status_code, 200); self.assertEqual(before.json(), {'id': ACTOR, 'role': 'user'})
+                    denied = await client.request(method, path, headers=headers, **({'json': {}} if method == 'POST' else {}))
+                    p.settings_denied(denied.status_code, denied.json())
+                    after = await client.get('/session', headers=headers)
+                    self.assertEqual(after.status_code, 200); self.assertEqual(after.json(), before.json())
+                expired = await client.get('/embedding', headers={'Authorization': 'Bearer expired'})
+                with self.assertRaises(p.ProofError): p.settings_denied(expired.status_code, expired.json())
+        asyncio.run(observe())
+        self.assertEqual(reached, [])
 
     def test_actual_native_pgvector_metadata_producer_uses_dict_string_not_guessed_json_object(self):
         source = (PINNED / 'backend/open_webui/retrieval/vector/utils.py').read_text(encoding='utf8')

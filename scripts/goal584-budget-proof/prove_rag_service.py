@@ -37,10 +37,12 @@ WIRE = 'goal584-fake-e'
 DEPLOYMENT = 'goal584-deployment-e'
 RAG = '/api/v1/retrieval'
 SCOPE = {'schema': 1, 'category': 'service', 'operation': 'rag_embedding'}
+ACCESS_PROHIBITED = 'You do not have permission to access this resource. Please contact your administrator for assistance.'
 MAX_BYTES = 4 * 1024 * 1024
 ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}')
 CREDENTIAL = re.compile(r'(?:sk-|gw-)[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+')
 LIMITS = ['native RAG HTTP text/query only; no File upload GUI',
+          'exactly one proxy in serial RAG phase; no two-proxy RAG qualification',
           'serial causal attribution; no intrinsic provider/native cross-network embedding response ID',
           'selected four personal payers plus existing service payer only; other/unattributed rows excluded',
           'no chat/actor provenance tag on embeddings; optional forwarded headers are not authority',
@@ -74,6 +76,46 @@ def safe(value, secrets=()):
 def identifier(value):
     require(isinstance(value, str) and ID.fullmatch(value) is not None, 'Native RAG identity is malformed')
     return value
+
+
+def embedding_readiness(provider, context, max_records):
+    """Admit the actual embedding branch, preserving unrelated chat controls."""
+    require(isinstance(provider, dict) and provider.get('synthetic') is True
+            and isinstance(provider.get('control'), dict) and isinstance(provider.get('requests'), list)
+            and isinstance(context, dict) and isinstance(context.get('requests'), list)
+            and len(context['requests']) + 4 <= max_records, 'RAG requires bounded existing provider/context observations')
+    controls = provider['control']
+    delay, status = controls.get('delay_ms'), controls.get('response_status', 200)
+    require(type(delay) is int and delay == 0 and type(status) is int and status == 200
+            and all(isinstance(row, dict) and row.get('lifecycle', {}).get('terminal') is True for row in provider['requests']),
+            'RAG requires quiescent provider and successful undelayed embedding controls')
+    ids = [identifier(row.get('id')) for row in provider['requests']]
+    require(len(ids) == len(set(ids)), 'RAG prior provider observations duplicated IDs')
+    # Native Handler.begin_record(embedding=True) fixes usage10; embeddings calls
+    # controlled_failure (delay/status), then send_json. Chat admin/tool/title,
+    # chat token counts and after-first-chunk controls do not alter this path.
+    return {'effective_embedding_controls': {'delay_ms': delay, 'response_status': status},
+            'preserved_control_sha256': digest(controls), 'prior_provider_ids': ids,
+            'prior_context_count': len(context['requests']), 'prior_provider_quiescent': True}
+
+
+def settings_denied(status, body):
+    require(status == 401 and body == {'detail': ACCESS_PROHIBITED},
+            'Ordinary RAG settings response differs from the native role guard')
+
+
+def serial_proxy(fixture):
+    """Observe the existing Compose owner; parent normalizes scale beforehand."""
+    import subprocess
+    try:
+        result = subprocess.run(fixture.command + ['ps', '-q', 'proxy'], cwd=ROOT, capture_output=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        raise ProofError('RAG proxy topology observation unavailable') from None
+    require(result.returncode == 0 and len(result.stdout) <= 1024, 'RAG proxy topology observation failed')
+    identifiers = result.stdout.decode('ascii').splitlines()
+    require(len(identifiers) == 1 and re.fullmatch(r'[0-9a-f]{64}', identifiers[0]) is not None,
+            'Serial RAG requires exactly one existing running proxy; parent owns scale normalization')
+    return {'running_proxy_count': 1, 'running_proxy_container_ids': identifiers}
 
 
 def append_embedding(raw):
@@ -337,10 +379,7 @@ class Worker:
         tasks = self.webui.ok('GET', '/api/v1/tasks/config', token=self.state['admin']['token'])
         require(all(tasks.get(v) is False for v in self.d['TASK_FLAGS']), 'RAG requires settled disabled automatic tasks')
         p, c = self.captures()
-        require(p.get('synthetic') is True and len(c['requests']) + 4 <= self.d['capture'].MAX_RECORDS
-                and all(v.get('lifecycle', {}).get('terminal') is True for v in p['requests'])
-                and not any(p['control'].get(v, False) for v in ('delay_ms', 'tool_round', 'admin_mode', 'title_mode', 'native_tasks_mode', 'after_first_chunk_delay_ms'))
-                and p['control'].get('response_status', 200) == 200, 'RAG requires a quiescent normal synthetic provider')
+        readiness = embedding_readiness(p, c, self.d['capture'].MAX_RECORDS)
         before = self.snapshot()
         service = next(v for v in before['budgets'] if v['user_id'] == self.payer)
         require(len(service['models']) == 1 and service['models'][0]['model'] == 'goal584-a'
@@ -359,10 +398,12 @@ class Worker:
         rag_update(original)
         self.rag = {'schema': 1, 'payer': self.payer, 'actor': actor['id'], 'original_rag': original,
             'baseline': before, 'original_native_user': self.native.user_info(self.payer), 'tasks_sha256': digest(tasks),
-            'provider_baseline': p, 'context_baseline': c, 'source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
+            'provider_baseline': p, 'context_baseline': c, 'embedding_readiness': readiness,
+            'source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
         self.save('prepared')
         return {'baseline': before, 'protected_rag_sha256': digest(original), 'actor_id': actor['id'], 'payer_id': self.payer,
-                'source_sha256': self.rag['source_sha256'], 'provider_request_count': len(p['requests']), 'context_count': len(c['requests'])}
+                'source_sha256': self.rag['source_sha256'], 'provider_request_count': len(p['requests']), 'context_count': len(c['requests']),
+                'embedding_readiness': readiness}
 
     def configure(self):
         require(self.rag.get('stage') == 'prepared', 'RAG configuration requires prepared state')
@@ -389,7 +430,7 @@ class Worker:
         require(isinstance(key, str) and re.fullmatch(r'sk-[A-Za-z0-9_-]{16,}', key), 'Native generated E secret is unavailable')
         self.rag.update(key=key, key_hash=hashlib.sha256(key.encode()).hexdigest(), config=config)
         self.secrets.append(key); self.save('reading_canonical_e_key')
-        info = self.native.ok('GET', '/key/info', query={'key': key}).get('info')
+        info = self.native.ok('GET', '/key/info', query={'key': self.rag['key_hash']}).get('info')
         self.rag['native_e_info'] = info
         self.save('validating_canonical_e_key')
         from types import SimpleNamespace
@@ -416,11 +457,15 @@ class Worker:
         status, active = self.api('GET', '/embedding')
         require(status == 200 and rag_update(active) == rag_update(self.rag['original_rag'], key),
                 'Protected native RAG config readback differs')
-        get_status, _ = self.api('GET', '/embedding', actor=True)
-        post_status, _ = self.api('POST', '/embedding/update',
+        get_status, get_body = self.api('GET', '/embedding', actor=True)
+        settings_denied(get_status, get_body)
+        self.webui.session(self.state['users'][0], 'user')
+        post_status, post_body = self.api('POST', '/embedding/update',
             {'RAG_EMBEDDING_ENGINE': 'openai', 'RAG_EMBEDDING_MODEL': MODEL}, actor=True)
-        require(get_status == post_status == 403, 'Ordinary user reached protected RAG settings')
-        self.rag['ordinary_settings_denied'] = {'get': get_status, 'post': post_status}
+        settings_denied(post_status, post_body)
+        self.webui.session(self.state['users'][0], 'user')
+        self.rag['ordinary_settings_denied'] = {'get': get_status, 'post': post_status,
+            'detail': ACCESS_PROHIBITED, 'same_actor_valid_user_session_before_and_after': True}
         self.rag['active_rag_sha256'] = digest(active)
         self.save('rag_active')
         return configured
@@ -659,6 +704,7 @@ def host_main(args):
         receipt['vector_runtime_env'] = observed_env
         prefixes = {short: observed_env['values'].get('RAG_EMBEDDING_' + name) for short, name in
                     (('content', 'CONTENT_PREFIX'), ('query', 'QUERY_PREFIX'), ('field', 'PREFIX_FIELD_NAME'))}
+        receipt['serial_proxy_before'] = serial_proxy(fixture)
         receipt['phase'] = 'prepare'
         receipt['prepare'] = command(['exec', '-T', 'proxy', 'python', '-B', '/proof/prove_rag_service.py',
                                      '--worker-action', 'prepare', '--prefix-json', json.dumps(prefixes)], 'prepare')
@@ -671,8 +717,10 @@ def host_main(args):
         receipt['phase'] = 'append_e_and_native_reload'; attempted = True
         overwrite_config(config, changed)
         fixture.restart()
+        receipt['serial_proxy_after_reload'] = serial_proxy(fixture)
         receipt['phase'] = 'native_rag_text_query_hard_zero'
         receipt['runtime'] = command(['exec', '-T', 'proxy', 'python', '-B', '/proof/prove_rag_service.py', '--worker-action', 'run'], 'runtime')
+        receipt['serial_proxy_after_phase'] = serial_proxy(fixture)
         receipt.update(passed=True, phase='qualified_native_rag_http_text_query',
             success_e_lifetime='active until existing disposable teardown', original_config_sha256=hashlib.sha256(original).hexdigest(),
             active_config_sha256=hashlib.sha256(config.read_bytes()).hexdigest())
@@ -691,6 +739,7 @@ def host_main(args):
                 overwrite_config(config, original)
                 fixture.restart()
                 fixture.config_observation()
+                receipt['restoration']['serial_proxy_after_restoration'] = serial_proxy(fixture)
                 receipt['restoration']['yaml_bytes_and_readiness_restored'] = config.read_bytes() == original
             except Exception:
                 receipt['restoration']['yaml_bytes_and_readiness_restored'] = False
