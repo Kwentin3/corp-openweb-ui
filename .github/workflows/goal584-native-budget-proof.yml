@@ -269,6 +269,7 @@ jobs:
                    'scripts/goal584-budget-proof/verify_bootstrap_calls.py',
                    'scripts/goal584-budget-proof/prove_service_tasks.py',
                    'scripts/goal584-budget-proof/prove_service_admin_browser.py',
+                   'scripts/goal584-budget-proof/prove_ledger_retention.py',
                    'deploy/openwebui-budgets/service_pipe.py',
                    'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
                    'deploy/openwebui-budgets/admin_client.py', 'deploy/openwebui-budgets/admin_policy.py',
@@ -561,6 +562,15 @@ jobs:
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_service_admin_browser.py \
             --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/service-admin"
+
+      - name: Delete one owned fixture chat and verify native ledger retention and raw body privacy
+        shell: bash
+        run: |
+          python -B scripts/goal584-budget-proof/prove_ledger_retention.py \
+            --base-url "$PROOF_WEBUI_URL" --env-file "$PROOF_ENV_FILE" \
+            --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --output "$PROOF_OUTPUT_DIR/retention" \
+            --private-output "$PROOF_PRIVATE_DIR/ledger-retention.raw.private.json"
 
       - name: Show bounded sanitized startup diagnostics on failure
         if: failure()

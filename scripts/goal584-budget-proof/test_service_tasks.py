@@ -1,4 +1,7 @@
 """Representative actual-boundary receipts and negative native service mutations."""
+import ast
+import asyncio
+from contextlib import asynccontextmanager
 import copy
 import importlib.util
 import json
@@ -51,6 +54,77 @@ def packet():
 
 
 class ServiceProofTests(unittest.TestCase):
+    def test_native_admission_replay_proves_saved_chat_409_and_stateless_request(self):
+        root = HERE.parents[1] / "local/goal584/cost-display/open-webui/backend/open_webui"
+        if not (root / "main.py").exists():
+            self.skipTest("Pinned native main source unavailable; runtime guard still required")
+        owner = next(node for node in ast.parse((root / "main.py").read_text(encoding="utf-8")).body
+                     if isinstance(node, ast.AsyncFunctionDef) and node.name == "chat_completion")
+        nodes = list(ast.walk(owner))
+        message_assignment = next(node for node in nodes if isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute)
+            and node.value.func.attr == "pop" and node.value.args and isinstance(node.value.args[0], ast.Constant)
+            and node.value.args[0].value == "message_ids")
+        message_if = next(node for node in nodes if isinstance(node, ast.If) and isinstance(node.test, ast.Call)
+            and isinstance(node.test.func, ast.Name) and node.test.func.id == "isinstance"
+            and isinstance(node.test.args[0], ast.Name) and node.test.args[0].id == "message_ids"
+            and node.lineno > message_assignment.lineno)
+        chat_assignment = next(node for node in nodes if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "chat_id" for target in node.targets)
+            and isinstance(node.value, ast.BoolOp) and isinstance(node.value.values[0], ast.Call)
+            and isinstance(node.value.values[0].func, ast.Attribute) and node.value.values[0].func.attr == "pop")
+        admission = compile(ast.fix_missing_locations(ast.Module(body=[message_assignment, message_if, chat_assignment],
+                                                                type_ignores=[])), "native-main-admission", "exec")
+        source = {"model": S.MODELS[0], "chat_id": str(uuid4()), "messages": [{"role": "user", "content": "Hi"}]}
+        original = {**S.ordinary_pipe_request(source), "chat_id": source["chat_id"]}
+        old = {"form_data": original, "model_id": S.FUNCTION_ID}
+        exec(admission, old)
+        self.assertEqual(old["message_ids"], [{"model_id": S.FUNCTION_ID, "message_id": None}])
+        self.assertEqual(old["chat_id"], source["chat_id"])
+        tree = ast.parse((root / "models/chats.py").read_text(encoding="utf-8"))
+        insertion = next(node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "insert_chat_turn")
+        future = ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0)
+        native = {}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[future, insertion], type_ignores=[])),
+                     "native-insert-chat-turn", "exec"), native)
+        @asynccontextmanager
+        async def transaction(_chat_id):
+            yield None, SimpleNamespace(chat={"history": {"messages": {}, "currentId": None}})
+        async def accessible(*args, **kwargs):
+            return True
+        fake = SimpleNamespace(get_accessible_chat_by_id=accessible, _chat_transaction=transaction)
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as caught:
+            asyncio.run(native["insert_chat_turn"](fake, old["chat_id"], SimpleNamespace(id=str(uuid4())), {}, old["message_ids"]))
+        self.assertEqual((caught.exception.status_code, caught.exception.detail),
+                         (409, "Message already exists or has an invalid ID."))
+        fixed = S.ordinary_pipe_request(source)
+        self.assertEqual(fixed["metadata"], {"task": S.TASK})
+        self.assertFalse(any(fixed["background_tasks"].values()))
+        self.assertTrue(set(fixed).isdisjoint({"chat_id", "id", "session_id", "user_message", "parent_id"}))
+        new = {"form_data": fixed, "model_id": S.FUNCTION_ID}
+        exec(admission, new)
+        self.assertEqual(new["chat_id"], "")
+        spec = importlib.util.spec_from_file_location("native_chat_id_for_service_negative", root / "utils/chat_id.py")
+        chat_ids = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(chat_ids)
+        self.assertFalse(chat_ids.is_saved_chat_id(new["chat_id"]))
+
+    def test_negative_diagnostics_bind_response_without_echoing_secrets_or_accepting_wrong_guard(self):
+        secret = "sk-" + "s" * 32
+        body = {"detail": "Message already exists or has an invalid ID.", "private": secret}
+        observed = S.negative_diagnostic("ordinary_selected_pipe", 409, body, "unsupported_task")
+        self.assertEqual(observed["observed_known_codes"], ["invalid_message_id"])
+        self.assertFalse(observed["guard_verified"])
+        self.assertEqual(len(observed["response_sha256"]), 64)
+        self.assertNotIn(secret, json.dumps(observed))
+        self.assertNotIn(body["detail"], json.dumps(observed))
+        with self.assertRaises(S.ProofError):
+            S.denied(409, body, "unsupported_task")
+        for status in (400, 503):
+            with self.assertRaises(S.ProofError):
+                S.unsigned_denied(status, {"error": {"message": "native database unavailable"}})
+
     def test_native_workspace_model_registration_has_actor_grant_and_preserves_other_models(self):
         admin, actor = str(uuid4()), str(uuid4())
         state = {"admin": {"id": admin, "token": "native-admin"}, "users": [{"id": actor}], "service_fixture": {}}
@@ -182,7 +256,7 @@ class ServiceProofTests(unittest.TestCase):
             with self.assertRaises(S.ProofError):
                 S.owned_source(None, {"id": actor, "token": "synthetic-actor-session"})
 
-    def test_failed_actual_title_phase_restores_entire_original_task_config(self):
+    def failed_title_phase(self, *, negative=False):
         actor, payer, chat, foreign = [str(uuid4()) for _ in range(4)]
         state = {"admin": {"id": str(uuid4()), "token": "admin"},
                  "users": [{"id": actor, "token": "actor"}, {"id": str(uuid4()), "token": "foreign"}]}
@@ -207,18 +281,46 @@ class ServiceProofTests(unittest.TestCase):
         def owned(_webui, account):
             return {"model": S.MODELS[0], "chat_id": chat if account["id"] == actor else foreign,
                     "messages": [{"role": "user", "content": "Hi"}]}, str(uuid4())
+        replies = [(403, {"error": {"message": S.UNSIGNED_REASON}}),
+                   (200, {"id": "synthetic-service-response"}) if negative else (400, {"error": {"type": "native-service-failure"}}),
+                   (409, {"detail": "Message already exists or has an invalid ID."})]
+        positive = False
+        def respond(*args, **kwargs):
+            nonlocal positive
+            result = replies.pop(0)
+            positive = positive or result[0] == 200
+            return result
+        def observe_provider(*args, **kwargs):
+            return {"requests": [{"id": "synthetic-service-response"}] if positive else []}
+        partial = {}
         with patch.object(S, "owned_source", side_effect=owned), patch.object(S, "budgets", budgets), \
              patch.object(S, "native_client", return_value=SimpleNamespace(logs=lambda _user: [])), \
              patch.object(S, "install", side_effect=install), patch.object(S, "write_private"), \
-             patch.object(S, "provider", return_value={"requests": []}), patch.object(S, "save_capture"), \
+             patch.object(S, "provider", side_effect=observe_provider), patch.object(S, "save_capture"), \
              patch.object(S, "captured", return_value={"requests": [{}]}), \
-             patch.object(S, "response", side_effect=[(403, {"error": {"message": S.UNSIGNED_REASON}}),
-                                                     (400, {"error": {"type": "native-service-failure"}})]):
-            with self.assertRaisesRegex(S.ProofError, "Signed native service title failed"):
-                S.run(WebUI(), state, SimpleNamespace(private_state=Path("synthetic-private-state.json")))
+             patch.object(S, "response", side_effect=respond):
+            with self.assertRaisesRegex(S.ProofError, "intended native guard" if negative else "Signed native service title failed"):
+                S.run(WebUI(), state, SimpleNamespace(private_state=Path("synthetic-private-state.json")), partial)
         self.assertEqual(current, original)
         self.assertEqual([body["TASK_MODEL"] for body in writes], [S.MODELS[0], S.FUNCTION_ID, "original-model"])
         self.assertTrue(state["service_fixture"]["task_config_restored"])
+        self.assertTrue(partial["baseline_observation"]["guard_verified"])
+        return partial
+
+    def test_failed_actual_title_phase_restores_entire_original_task_config(self):
+        partial = self.failed_title_phase()
+        self.assertEqual(partial["stage"], "unsigned_baseline_verified")
+
+    def test_failed_negative_preserves_prior_title_and_safe_case_before_assertion(self):
+        partial = self.failed_title_phase(negative=True)
+        self.assertEqual(partial["stage"], "negative_observed")
+        self.assertEqual(partial["positive_title_provider_ids"], ["synthetic-service-response"])
+        self.assertEqual(partial["current_negative_case"], "ordinary_selected_pipe")
+        observed = partial["negatives"][0]
+        self.assertEqual((observed["http_status"], observed["expected_guard"], observed["observed_known_codes"]),
+                         (409, "unsupported_task", ["invalid_message_id"]))
+        self.assertFalse(observed["guard_verified"])
+        self.assertTrue(observed["provider_ids_unchanged"])
 
 
 if __name__ == "__main__":

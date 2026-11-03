@@ -240,6 +240,28 @@ def unsigned_denied(status, data):
     return {"http_status": 403, "native_guard": "invalid_signed_budget_provenance", "message": UNSIGNED_REASON}
 
 
+def ordinary_pipe_request(source):
+    # Native main treats a saved chat_id as a request to insert/continue a turn,
+    # which requires real message IDs. Its supported stateless synchronous path
+    # needs neither a saved chat_id nor invented message IDs for this spoof test.
+    return {"model": FUNCTION_ID, "messages": copy.deepcopy(source["messages"]), "stream": False,
+            "background_tasks": {"title_generation": False, "tags_generation": False, "follow_up_generation": False},
+            "metadata": {"task": TASK}}
+
+
+def negative_diagnostic(case, status, data, expected):
+    encoded = json.dumps(data, ensure_ascii=False, sort_keys=True, allow_nan=False)
+    known = {"unsupported_task": "unsupported_task", "chat_access_denied": "chat_access_denied",
+             "invalid_signed_budget_provenance": UNSIGNED_REASON,
+             "invalid_message_id": "Message already exists or has an invalid ID.",
+             "model_unregistered": "model_unregistered"}
+    return {"case": case, "http_status": status, "expected_guard": expected,
+            "observed_known_codes": [code for code, marker in known.items() if marker in encoded],
+            "response_sha256": hashlib.sha256(encoded.encode("utf-8")).hexdigest(),
+            "response_shape": "object" if isinstance(data, dict) else "list",
+            "guard_verified": False, "provider_ids_unchanged": None}
+
+
 def service_scope(row, payer, actor, chat_id, key_hash):
     metadata = row.get("metadata")
     if isinstance(metadata, str):
@@ -296,7 +318,7 @@ def verify_context(observed, provider_data, row, result, payer, actor, chat_id, 
             "native_semantic_sha256": hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()}
 
 
-def run(webui, state, args):
+def run(webui, state, args, receipt=None):
     admin, actor = state["admin"], state["users"][0]
     webui.session(admin, "admin")
     webui.session(actor, "user")
@@ -312,26 +334,31 @@ def run(webui, state, args):
     original = webui.ok("GET", "/api/v1/tasks/config", token=admin["token"])
     state["service_fixture"]["original_task_config"] = copy.deepcopy(original)
     write_private(args.private_state, state)
-    receipt = {"actor_id": actor["id"], "payer_id": payer, "chat_id": source["chat_id"],
+    receipt = {} if receipt is None else receipt
+    receipt.update({"actor_id": actor["id"], "payer_id": payer, "chat_id": source["chat_id"],
                "native_source_message_id": source_id, "source_kind": "persisted_fixture_owned_Hi",
-               "pipe_source_sha256": state["service_fixture"]["pipe_sha256"], "negatives": []}
+               "pipe_source_sha256": state["service_fixture"]["pipe_sha256"], "stage": "installed", "negatives": []})
     try:
         provider("POST", "/__proof/reset", {})
         provider("POST", "/__proof/control", {"title_mode": True})
         save_capture({"schema": 1, "requests": []})
         baseline_config = task_config(webui, admin, original, MODELS[0])
         status, baseline = response(webui, "POST", TITLE_PATH, actor["token"], source)
+        receipt["baseline_observation"] = negative_diagnostic("unsigned_native_title", status, baseline,
+                                                               "invalid_signed_budget_provenance")
         receipt["baseline_denial"] = unsigned_denied(status, baseline)
         require(len(captured()["requests"]) == 1 and provider()["requests"] == [], "Unsigned native title reached provider or bypassed native gateway")
+        receipt["baseline_observation"].update(guard_verified=True, provider_ids_unchanged=True, provider_call_count=0)
+        receipt["stage"] = state["service_fixture"]["stage"] = "unsigned_baseline_verified"
         service_config = task_config(webui, admin, original, FUNCTION_ID)
         status, result = response(webui, "POST", TITLE_PATH, actor["token"], source)
         require(status == 200 and isinstance(result, dict) and not result.get("error"), "Signed native service title failed")
         identifiers = [entry["id"] for entry in provider()["requests"]]
         require(len(identifiers) == 1, "Native title did not dispatch exactly once")
-        tests = [("ordinary_selected_pipe", "/api/chat/completions", {
-                    "model": FUNCTION_ID, "chat_id": source["chat_id"], "messages": source["messages"], "stream": False,
-                    "background_tasks": {"title_generation": False, "tags_generation": False, "follow_up_generation": False},
-                    "metadata": {"task": TASK}}, "unsupported_task"),
+        receipt["positive_title_provider_ids"] = identifiers
+        receipt["stage"] = state["service_fixture"]["stage"] = "signed_title_returned"
+        write_private(args.private_state, state)
+        tests = [("ordinary_selected_pipe", "/api/chat/completions", ordinary_pipe_request(source), "unsupported_task"),
                  ("raw_forged_title", "/openai/chat/completions", {"model": MODELS[0], "messages": source["messages"],
                     "stream": False, "max_tokens": 5, "metadata": {"task": TASK, "chat_id": source["chat_id"]}}, None),
                  ("raw_unknown_task", "/openai/chat/completions", {"model": MODELS[0], "messages": source["messages"],
@@ -339,14 +366,20 @@ def run(webui, state, args):
                  ("foreign_chat", TITLE_PATH, {**source, "chat_id": foreign["chat_id"]}, "chat_access_denied")]
         for label, path, body, code in tests:
             status, rejected = response(webui, "POST", path, actor["token"], body)
+            diagnostic = negative_diagnostic(label, status, rejected, code or "invalid_signed_budget_provenance")
+            receipt["negatives"].append(diagnostic)
+            receipt["stage"], receipt["current_negative_case"] = "negative_observed", label
+            observed_ids = [entry["id"] for entry in provider()["requests"]]
+            diagnostic.update(provider_ids_unchanged=observed_ids == identifiers, provider_call_count=len(observed_ids))
             if label.startswith("raw_"):
                 rejection = unsigned_denied(status, rejected)
             else:
                 denied(status, rejected, code)
                 rejection = {"http_status": status, "native_guard": code}
-            require([entry["id"] for entry in provider()["requests"]] == identifiers,
+            require(diagnostic["provider_ids_unchanged"],
                     "Rejected service path reached provider: " + label)
-            receipt["negatives"].append({"case": label, "provider_ids_unchanged": True, **rejection})
+            diagnostic.update(rejection, guard_verified=True)
+        receipt["stage"] = state["service_fixture"]["stage"] = "negative_guards_verified"
         def persisted():
             personal_after, service_after = asyncio.run(budgets(state, payer))
             require(personal_after == personal_before, "Service task changed personal caps/spend/reset/assignment")
@@ -379,6 +412,7 @@ def run(webui, state, args):
                 if key not in ("TASK_MODEL", "TASK_MODEL_EXTERNAL")} == {key: value for key, value in service_config.items()
                 if key not in ("TASK_MODEL", "TASK_MODEL_EXTERNAL")})
         state["service_fixture"]["stage"] = "event_verified"
+        receipt["stage"] = "event_verified"
         write_private(args.private_state, state)
         return receipt
     finally:
@@ -434,7 +468,7 @@ def main():
             receipt["proof"] = "goal584-service-admin-native-snapshot"
             receipt.update(admin_snapshot(WebUI(), state))
         else:
-            receipt.update(run(WebUI(), state, args))
+            receipt.update(run(WebUI(), state, args, receipt))
         receipt.update(passed=True, task_config_restored=state["service_fixture"].get("task_config_restored") is True)
     except ProofError as error:
         receipt["failure"] = str(error)

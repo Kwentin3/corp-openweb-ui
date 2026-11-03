@@ -35,8 +35,9 @@ Defaults/new-hire прошёл native run выше; локальные пров�
 driver интегрированы; native list/hash-update, hard-zero и подтверждённая запись
 формы квалифицированы. Следующие обязательные gaps — служебные расходы,
 lifecycle отказов/параллельности/календаря, исторические тарифы
-и полнота действующих маршрутов. В последнем принятом native run budget error
-ещё технический; локальный кандидат локализован и ожидает следующий runtime gate.
+и полнота действующих маршрутов. Локализованные budget errors приняты отдельно
+по pre-service phases run41605241110; служебный этап этого run завершился ошибкой,
+поэтому весь прогон успешным не считается.
 Полностью отсутствующий бюджет нового сотрудника создаётся только после явного
 выбора и подтверждения. Неполные/конфликтующие назначения показываются без ремонта;
 сброса spend/reset, скрытых повторов или обещания общей транзакции нет.
@@ -198,6 +199,44 @@ common checks, capture delegate и privacy flag сохранены. Static32/14 
 Следующий шаг — повтор того же native GUI/service gate. Cleanup0/0, ZIP SHA256
 `e4347afc172b0e7de19571a9040d21ab3aa3a3764eefc412f14269e2f999bf4c`,
 `local/goal584/runtime-proof-41603889448`. Service/UI этой попыткой не квалифицированы.
+Повтор [run41605241110](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41605241110),
+HEAD `35b4405779c9a0170aef7f35d59de7e21e234fe7`, tested merge
+`750d9d4efaf814c37d19702b227793dc600efc53`, прошёл прежние GUI phases,
+включая локализованные budget errors, и остановился на первом service negative.
+Native title baseline вернул403 signed-provenance guard; подписанный title вернул200
+и дал один physical provider call с отдельным service payer в auth scope.
+Обычный запрос с выбранным Pipe вернул409 до ожидаемого `unsupported_task`;
+такой отказ не доказывает нужную защиту. Причина и валидность fixture-запроса
+проверяются; service accounting/context и admin footer ещё не приняты.
+Настройки native task восстановлены; cleanup0/0. Evidence:
+`local/goal584/runtime-proof-41605241110`; ZIP SHA256
+`aa4bac96a08f5c1ad32ead453ee84eaafcfd77896c8d397ad40031e8c39ff332`.
+Независимая повторная сверка pre-service phases PASS:33 source SHA и6 mounted
+SHA совпали с tested merge; main11/14/$2.20 и defaults9/10/$1.80 согласованы с
+physical provider calls, signed scopes, native ledger и всеми personal/model
+counters. Все25 исторических rows сохранены, итог34. Проверены14 PNG, включая
+понятные model-specific/generic отказы и OFF enforcement; native422 и
+budget_exceeded сохранены. Evidence:
+`local/goal584/runtime-proof-41605241110/independent-pre-service-review.safe.json`.
+Причина409 подтверждена исполнением actual native main admission AST и
+`Chats.insert_chat_turn`: сохранённый chat_id без нового message ID отклоняется
+до Pipe. Negative fixture использует штатный stateless synchronous путь без
+chat/message IDs, со всеми background flags=false; требование точного
+`unsupported_task` сохранено. Safe case/status/known-code/hash diagnostics и
+частичные стадии теперь сохраняются до проверки, без публикации raw response.
+Перед новым runtime:172 component tests (165 PASS/7 opt-in skips),85 harness
+tests PASS,33 Bash/14 Python workflow snippets, actionlint и24 literal bindings
+проверены. Это локальная проверка кандидата, runtime result ещё ожидается.
+К следующему кандидату добавлена отдельная финальная retention-проверка: свежий
+native login сотрудника, один его завершённый оплаченный synthetic Hi/Proof chat,
+native DELETE и повторный GET, readonly PostgreSQL snapshots всех колонок
+финансовых строк пяти fixture payers до/после. Требуются неизменные строки,
+идентичности/caps/spend/reset и provider IDs. Raw snapshots пишутся только в новый
+0600 private-файл вне artifact tree. Публичная квитанция содержит hashes/counts,
+пустые native body columns и результат проверки exact saved content values/full
+credentials; короткий текст внутри иных строк и глобальная DB privacy этим не
+квалифицируются. Это подготовленный исходный срез с9 локальными tests PASS,
+а не выполненное удаление или принятый runtime результат.
 business default template должен храниться за admin-role API, не в owner-writable
 Tool Valves. Source review bootstrap: `local/goal584/admin-bootstrap-source-review.md`.
 
