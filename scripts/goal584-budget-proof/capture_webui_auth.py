@@ -199,10 +199,12 @@ async def gateway_auth(request, api_key):
                 attestation_present_before=bool((body.get("litellm_metadata") or {}).get("owui_budget_provenance")))
         _append(record)
     auth = None
+    auth_failed = False
     try:
         auth = await product_auth()(request, api_key)
         return auth
-    except Exception as error:
+    except BaseException as error:
+        auth_failed = True
         if record is not None:
             status = getattr(error, "status_code", None)
             status = status if type(status) is int and 400 <= status <= 599 else None
@@ -211,70 +213,76 @@ async def gateway_auth(request, api_key):
                                       "code": "invalid_signed_budget_provenance" if known else "unclassified"}
         raise
     finally:
-        if record is not None:
-            after = await _read_request_body(request)
-            maps = [value for key in ("metadata", "litellm_metadata")
-                    if isinstance((value := after.get(key)), dict)]
-            scopes = [value["spend_logs_metadata"].get("owui_budget") for value in maps
-                      if isinstance(value.get("spend_logs_metadata"), dict)]
-            scopes = [value for value in scopes if value is not None]
-            record["provenance_removed_after"] = all("owui_budget_provenance" not in value for value in maps)
-            if responses:
-                try:
-                    record["body_after_auth"] = responses_projection(after)
-                except (RuntimeError, ValueError, UnicodeError):
-                    record["responses_projection_rejected_after_auth"] = True
-                    if "auth_failure" not in record:
-                        _finish(record)
-                        raise
-                    # Keep the original product rejection, while explicitly
-                    # marking that no complete safe after-context was exported.
-            else:
-                record["body_after_auth"] = copy.deepcopy({field: after[field] for field in fields if field in after})
-            if auth is not None and (embedding or responses):
-                payer, key_hash = getattr(auth, "user_id", None), getattr(auth, "api_key", None)
-                try:
-                    if isinstance(payer, str) and str(UUID(payer)) == payer:
-                        record["native_auth_user_id"] = payer
-                except ValueError:
-                    pass
-                if isinstance(key_hash, str) and re.fullmatch(r"[0-9a-f]{64}", key_hash):
-                    record["native_auth_key_hash"] = key_hash
-                if embedding and scopes:
-                    # Key-owned log metadata and native Logging/call-ID setup
-                    # occur after custom_auth; syntax is not origin evidence.
-                    parsed = [scope_validator("rag")(scope) for scope in scopes]
-                    if any(scope != parsed[0] for scope in parsed):
-                        raise RuntimeError("Conflicting disposable RAG scope observations")
-                    record["unverified_rag_scope"] = parsed[0]
-            elif auth is not None:
-                record["native_auth_user_id"] = auth.user_id
-                # Native preprocessing (after auth) asks supported streaming
-                # providers for usage. Record the exact owner's pure patch;
-                # do not equate this transport normalization with auth changes.
-                from litellm.proxy.common_request_processing import (
-                    _model_deployments_support_stream_options, _stream_usage_tracking_updates,
-                )
-                record["native_stream_usage_patch"] = dict(_stream_usage_tracking_updates(
-                    data=after, general_settings=proxy_server.general_settings,
-                    route_type="acompletion",
-                    supports_stream_options=lambda: _model_deployments_support_stream_options(
-                        model=after.get("model"), llm_router=proxy_server.llm_router,
-                        team_id=auth.team_id),
-                ))
-            # A rejected forged task may leave caller metadata untouched before
-            # the product projection runs. Do not label that input as verified.
-            if responses and auth is not None and record["attestation_present_before"] and record["provenance_removed_after"]:
-                # Responses metadata is provider-owned. Only the product's
-                # route-selected litellm_metadata slot can supply signed scope.
-                carrier = after.get("litellm_metadata")
-                scope = (carrier.get("spend_logs_metadata") or {}).get("owui_budget") if isinstance(carrier, dict) else None
-                if scope is not None:
-                    scope = scope_validator(scope.get("category"))(scope)
-                    if (scope.get("user_id") != record.get("native_auth_user_id")
-                            or scope.get("model") != after.get("model") or "native_auth_key_hash" not in record):
-                        raise RuntimeError("Conflicting disposable Responses scope identity")
-                    record["verified_cost_scope"] = scope
-            elif not embedding and not responses and scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
-                record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
-            _finish(record)
+        try:
+            if record is not None:
+                after = await _read_request_body(request)
+                maps = [value for key in ("metadata", "litellm_metadata")
+                        if isinstance((value := after.get(key)), dict)]
+                scopes = [value["spend_logs_metadata"].get("owui_budget") for value in maps
+                          if isinstance(value.get("spend_logs_metadata"), dict)]
+                scopes = [value for value in scopes if value is not None]
+                record["provenance_removed_after"] = all("owui_budget_provenance" not in value for value in maps)
+                if responses:
+                    try:
+                        record["body_after_auth"] = responses_projection(after)
+                    except (RuntimeError, ValueError, UnicodeError):
+                        record["responses_projection_rejected_after_auth"] = True
+                        if "auth_failure" not in record:
+                            _finish(record)
+                            raise
+                        # Keep the original product rejection, while explicitly
+                        # marking that no complete safe after-context was exported.
+                else:
+                    record["body_after_auth"] = copy.deepcopy({field: after[field] for field in fields if field in after})
+                if auth is not None and (embedding or responses):
+                    payer, key_hash = getattr(auth, "user_id", None), getattr(auth, "api_key", None)
+                    try:
+                        if isinstance(payer, str) and str(UUID(payer)) == payer:
+                            record["native_auth_user_id"] = payer
+                    except ValueError:
+                        pass
+                    if isinstance(key_hash, str) and re.fullmatch(r"[0-9a-f]{64}", key_hash):
+                        record["native_auth_key_hash"] = key_hash
+                    if embedding and scopes:
+                        # Key-owned log metadata and native Logging/call-ID setup
+                        # occur after custom_auth; syntax is not origin evidence.
+                        parsed = [scope_validator("rag")(scope) for scope in scopes]
+                        if any(scope != parsed[0] for scope in parsed):
+                            raise RuntimeError("Conflicting disposable RAG scope observations")
+                        record["unverified_rag_scope"] = parsed[0]
+                elif auth is not None:
+                    record["native_auth_user_id"] = auth.user_id
+                    # Native preprocessing (after auth) asks supported streaming
+                    # providers for usage. Record the exact owner's pure patch;
+                    # do not equate this transport normalization with auth changes.
+                    from litellm.proxy.common_request_processing import (
+                        _model_deployments_support_stream_options, _stream_usage_tracking_updates,
+                    )
+                    record["native_stream_usage_patch"] = dict(_stream_usage_tracking_updates(
+                        data=after, general_settings=proxy_server.general_settings,
+                        route_type="acompletion",
+                        supports_stream_options=lambda: _model_deployments_support_stream_options(
+                            model=after.get("model"), llm_router=proxy_server.llm_router,
+                            team_id=auth.team_id),
+                    ))
+                # A rejected forged task may leave caller metadata untouched before
+                # the product projection runs. Do not label that input as verified.
+                if responses and auth is not None and record["attestation_present_before"] and record["provenance_removed_after"]:
+                    # Responses metadata is provider-owned. Only the product's
+                    # route-selected litellm_metadata slot can supply signed scope.
+                    carrier = after.get("litellm_metadata")
+                    scope = (carrier.get("spend_logs_metadata") or {}).get("owui_budget") if isinstance(carrier, dict) else None
+                    if scope is not None:
+                        scope = scope_validator(scope.get("category"))(scope)
+                        if (scope.get("user_id") != record.get("native_auth_user_id")
+                                or scope.get("model") != after.get("model") or "native_auth_key_hash" not in record):
+                            raise RuntimeError("Conflicting disposable Responses scope identity")
+                        record["verified_cost_scope"] = scope
+                elif not embedding and not responses and scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
+                    record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
+                _finish(record)
+        except BaseException:
+            # Observation must never replace an existing product rejection.
+            # After successful auth, an incomplete observation is a hard failure.
+            if not auth_failed:
+                raise

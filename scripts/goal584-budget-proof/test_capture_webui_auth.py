@@ -293,6 +293,57 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("private-context-value", json.dumps(row))
         self.assertNotIn("private-original-product-error", json.dumps(row))
 
+    async def test_auth_failure_identity_survives_observer_read_and_finish_failures_for_cc_e_r(self):
+        for factory in (self.request, self.embedding_request, self.responses_request):
+            for boundary in ("read_after", "finish"):
+                with self.subTest(family=factory.__name__, boundary=boundary):
+                    request, original = factory(0), ValueError("original product auth error")
+                    observer_error, reads = RuntimeError("observer finalization error"), 0
+                    async def read_body(actual):
+                        nonlocal reads
+                        reads += 1
+                        if boundary == "read_after" and reads == 2:
+                            raise observer_error
+                        return actual.data
+                    async def auth(*args):
+                        raise original
+                    with patch.object(C, "product_auth", return_value=auth), patch.object(C, "_finish", side_effect=observer_error), patch(
+                            "litellm.proxy.common_utils.http_parsing_utils._read_request_body", read_body):
+                        with self.assertRaises(ValueError) as caught:
+                            await C.gateway_auth(request, "native-secret")
+                    self.assertIs(caught.exception, original)
+                    self.assertEqual(reads, 2)
+                    row = self.read()["requests"][-1]
+                    self.assertNotIn("body_after_auth", row)
+                    self.assertNotIn("verified_cost_scope", row)
+
+    async def test_successful_auth_still_surfaces_observer_read_and_finish_failures_for_cc_e_r(self):
+        for factory in (self.request, self.embedding_request, self.responses_request):
+            for boundary in ("read_after", "finish"):
+                with self.subTest(family=factory.__name__, boundary=boundary):
+                    request = factory(0)
+                    observer_error, reads = RuntimeError("observer finalization error"), 0
+                    async def read_body(actual):
+                        nonlocal reads
+                        reads += 1
+                        if boundary == "read_after" and reads == 2:
+                            raise observer_error
+                        return actual.data
+                    async def auth(actual, key):
+                        if C.responses_route(actual.route):
+                            return await self.responses_auth()(actual, key)
+                        if C.embedding_route(actual.route):
+                            actual.data.pop("metadata")
+                            actual.data.pop("litellm_metadata")
+                        return SimpleNamespace(user_id=str(uuid4()), api_key="a" * 64, team_id=None)
+                    with patch.object(C, "product_auth", return_value=auth), patch.object(C, "_finish", side_effect=observer_error), patch.object(
+                            C, "scope_validator", side_effect=self.responses_validator), patch(
+                            "litellm.proxy.common_utils.http_parsing_utils._read_request_body", read_body):
+                        with self.assertRaises(RuntimeError) as caught:
+                            await C.gateway_auth(request, "native-secret")
+                    self.assertIs(caught.exception, observer_error)
+                    self.assertEqual(reads, 2)
+
     async def test_responses_unsafe_jwt_in_actual_model_context_is_rejected_without_export_or_mutation(self):
         token = "eyJmaXh0dXJlIjp0cnVlfQ.c3ludGhldGlj.c2lnbmF0dXJl"
         for field, value in (("metadata", {"nested": {"unsafe": token}}), ("instructions", token),
