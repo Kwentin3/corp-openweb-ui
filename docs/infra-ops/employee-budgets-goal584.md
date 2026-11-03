@@ -142,6 +142,70 @@ Evidence: `calendar-floor-native-audit-independent-readiness.md`,
 Завершённая Responses worktree закрыта после проверки4 patch equivalents и
 exact SHA перенесённых файлов; ветка provenance сохранена. Остаются primary
 GOAL-worktree и исходная main с двумя прежними пользовательскими WIP.
+Кандидат `b6a00d0ce5a278e7da2a3b55d118ee34ab23b67e` отправлен:
+[native44 41692849568](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41692849568),
+Active CI41692849565. Runtime выполняется, источник результата ещё ожидается.
+Floor44 завершил полный выбранный reproducer:
+`FAIL_STALE_POSITIVE_FLOOR`, observed native false-denial подтверждён независимым
+review/238-check replay и parent повтором. Old200/prime422/resetDB0+Redis absent/
+post200: DBUser/key$0.20 при cap$0.40, lifetime$0.40, Redis$0.40/$0.40;
+final тот же worker422 без нового provider dispatch. Всего2 actual charged
+rows по$0.20 и2 строгих native audit0, точно связанных с prime/final;
+все4 raw rows учтены. Critical2.937201738s(real)/2.937201748s(monotonic)<5;
+final retained projection+2.956943s<60. Helperclosed, cleanup0/0/0.
+Feature acceptance FAIL; L1 причина source-inferred, не live cache dump.
+ZIP `0bb15c99a97f5814e282e13a3dd0368874259c0fbe8aa0d027f80103f288357a`,
+tested merge `8df81e372414928337556c19b62e92c9c2c9f9a0`.
+Evidence: `local/goal584/calendar-floor44-review/independent-acceptance.md`.
+Основной WebUI/Responses job44 завершился FAIL на известном strict raw-journal
+guard; Active CI41692849565 PASS. Новая диагностика различила причину predicate:
+provider snapshot exact equal/19 calls до и после; raw own-R rows3 вместо2 —
+2 original success по$0.20 byte-unchanged и1 failure/$0/usage0. User/key spend
+остался$0.40, caps20/0, protected fields except key cap equal; diagnostic I/O
+без ошибок, raw privately retained. Источник именно этой audit row не привязан
+по intrinsic ID; не приписывать её задним числом direct422 или GUI422.
+Исходный whole R-profile всё ещё FAIL; новый verifier должен явно учитывать
+строго классифицированный native audit в serial direct-key422 bracket до UI,
+а затем проверять отсутствие новых own-R rows/provider/spend после UI.
+Restoration5/5 completed, original YAML bytes equal; cleanup0containers/0volumes.
+Main ZIP `5c60ca98af4722c857fd31eb68c9470c9b30b1a54e246c69c6e36a685c865804`:
+parent exact ZIP/source check220files/44sources/6mounts/54PNG PASS.
+Basic44 PASS/parent replay:19sources/10mounts/10native,2calls,$0.20period/
+$0.40lifetime, next same-worker3.411s<60s, cleanup0/0/0.
+R diagnostic test reviewed Windows bytes SHA65cef81e… нормализованы Git в LF
+SHA54569790…; обе стороны byte-for-byte CRLF→LF совпали, semantic delta нет.
+Полные SHA сохранены independent R44 reviewer в `responses44-review`.
+Патч LiteLLM не применялся:
+issue584 требует отдельного согласования узкого native patch. До решения
+готовятся конкретные варианты/лицензия/upstream comparison/test+rollback scope;
+другая независимая работа GOAL продолжается.
+Владельцу задан отдельный вопрос об одобрении stand-only prototype в двух
+функциях `proxy_server.get_current_spend` / `_authoritative_floor_spend`.
+Ответ ещё не получен; постановка вопроса не является разрешением. Пакет
+`local/goal584/calendar-floor-native-fix-options.md` содержит source/race scope,
+проверку лицензии, upstream seam comparison, критерии теста, сборки и отката.
+R45 serial native-audit correction выполняется независимо в прежнем разрешённом
+объёме proof; native package/production/финансовые данные не меняются.
+R45 source candidate: прежний direct-key zero422 остаётся единственным таким
+вызовом, до GUI. После него read-only bounded poll обязан получить ровно1 own-R
+audit: точные user/key/model/deployment/aresponses, BudgetExceededError/422,
+нулевые spend/int-usage и уникальный ID; обе положительные строки неизменны.
+Существующие native budget-owner поля проверяются, если сериализованы; если
+их нет, key-scope опирается на прежний exactHTTP witness и capsUser20/key0.
+Привязка audit причинная — изолированный before/after одного HTTP-вызова;
+intrinsic provider ID не заявляется. Полный снимок3 rows сохраняется ДО GUI.
+Последующий GUI отказ обязан сохранить все3 rows/provider/counters/period,
+плюс все прежние signed/unsigned/body/cardinality/old5/restore guards.
+Неизвестная, вторая, изменённая или ненулевая audit row сразу FAIL. Ошибки API
+не трактуются как pending. Нативные request body/count и positive context не
+менялись; новые metadata markers/подписи/финансовые записи не генерируются.
+44 focused tests и independent18-check/AST review PASS, source READY.
+Рабочий source SHA662eca59… совпадает с GitLF; test workingCRLF6bd2893d…
+переходит в GitLF5c25977b… без semantic delta. Полные identities:
+`local/goal584/responses45-reviewed-byte-identities.safe.json`.
+Полный актуальный harness357 tests PASS/0skip;34 literal bindings PASS.
+219 component checks (212PASS/7opt-in skips) переиспользованы при неизменных
+product bytes. Native/production patch разрешение по-прежнему не получено.
 
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
