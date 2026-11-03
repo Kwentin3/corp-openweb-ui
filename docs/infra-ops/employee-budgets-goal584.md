@@ -227,6 +227,26 @@ chat/message IDs, со всеми background flags=false; требование �
 Перед новым runtime:172 component tests (165 PASS/7 opt-in skips),85 harness
 tests PASS,33 Bash/14 Python workflow snippets, actionlint и24 literal bindings
 проверены. Это локальная проверка кандидата, runtime result ещё ожидается.
+Кандидат `4543f6e91d36fb0faab45a611c4820692c14560d`,
+[run41608210940](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41608210940),
+tested merge `0005e2f2016cd09892a2d137c8a583f7a8e9c446`, прошёл все четыре
+service negative guards с нулевым приростом provider calls. Остановился дальше:
+сравнение ожидало явное `stream:false` на provider wire, а actual native OpenAI
+handler извлекает этот параметр до non-stream dispatch. Остальные captured поля,
+кроме ожидаемого model alias, совпали. Исправление ограничено proof: baseline/signed
+и before/after auth остаются строго равны; provider должен опускать stream,
+остальные поля сравниваются целиком. Исполнение трёх assignments exact native
+handler (SHA e6d25eea6d0a12d16f781ea175982830ab7eaa945ca32b4c5b424580d84f8831)
+подтвердило преобразование;13 targeted tests PASS, включая запрет wire stream=true/false.
+Service/admin-footer/retention runtime всё ещё не принят; следующий gate повторяет
+эти этапы. Cleanup0/0; evidence `local/goal584/runtime-proof-41608210940`, ZIP SHA256
+`0792c7104ee908546a4141e054276194962467364e9a525e9eb0e98c69eb5334`.
+Независимый replay actual raw gateway/provider bodies подтвердил полное равенство
+после этих двух native transport преобразований (model alias и отсутствие
+stream=false), без конструирования фиктивной native ledger row. Отдельно проверены
+точные bytes handler из pinned Git blob и13 targeted tests:
+`local/goal584/service-nonstream-run28-review.md`. Следующий кандидат меняет только
+proof и эту запись; product guard, provenance и финансовые проверки сохранены.
 К следующему кандидату добавлена отдельная финальная retention-проверка: свежий
 native login сотрудника, один его завершённый оплаченный synthetic Hi/Proof chat,
 native DELETE и повторный GET, readonly PostgreSQL snapshots всех колонок

@@ -3,6 +3,7 @@ import ast
 import asyncio
 from contextlib import asynccontextmanager
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -49,11 +50,41 @@ def packet():
            "metadata": {"spend_logs_metadata": {"owui_budget": scope}}}
     provider = {"synthetic": True, "requests": [{"id": identifier, "body": {**copy.deepcopy(body), "model": "goal584-fake-a"},
                 "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}]}
+    provider["requests"][0]["body"].pop("stream")
     result = {"id": identifier, "choices": [{"message": {"role": "assistant", "content": '{"title":"Proof"}'}}]}
     return [capture, provider, row, result, payer, actor, chat, key_hash]
 
 
 class ServiceProofTests(unittest.TestCase):
+    def test_pinned_native_openai_handler_extracts_nonstream_flag_before_dispatch(self):
+        path = HERE.parents[1] / "local/goal584/native-openai-handler.py"
+        if not path.exists():
+            self.skipTest("Pinned native OpenAI handler source unavailable")
+        source = path.read_bytes()
+        self.assertEqual(hashlib.sha256(source).hexdigest(),
+                         "e6d25eea6d0a12d16f781ea175982830ab7eaa945ca32b4c5b424580d84f8831")
+        owner = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef)
+                     and n.name == "OpenAIChatCompletion")
+        method = next(n for n in owner.body if isinstance(n, ast.FunctionDef) and n.name == "completion")
+        assignments = []
+        for node in ast.walk(method):
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                if len(targets) == 1 and isinstance(targets[0], ast.Name) and targets[0].id in (
+                        "inference_params", "stream_options", "stream") and isinstance(node.value, ast.Call) \
+                        and isinstance(node.value.func, ast.Attribute) and node.value.func.attr in ("copy", "pop"):
+                    assignments.append((node.lineno, ast.Assign(targets=targets, value=node.value)))
+        self.assertEqual(len(assignments), 3)
+        code = compile(ast.fix_missing_locations(ast.Module(body=[n for _, n in sorted(assignments)],
+                                                           type_ignores=[])), "native-openai-transport", "exec")
+        original = copy.deepcopy(packet()[0]["requests"][1]["body"])
+        namespace = {"optional_params": original}
+        exec(code, namespace)
+        self.assertIs(namespace["stream"], False)
+        self.assertNotIn("stream", namespace["inference_params"])
+        self.assertEqual(namespace["inference_params"], {k: v for k, v in original.items() if k != "stream"})
+        self.assertIs(original["stream"], False)
+
     def test_native_admission_replay_proves_saved_chat_409_and_stateless_request(self):
         root = HERE.parents[1] / "local/goal584/cost-display/open-webui/backend/open_webui"
         if not (root / "main.py").exists():
@@ -183,6 +214,7 @@ class ServiceProofTests(unittest.TestCase):
         self.assertEqual(result["scope"]["category"], "service")
         self.assertNotIn("answer_id", result["scope"])
         self.assertEqual(result["native_semantic_body"]["tools"][0]["function"]["name"], "native_target_schema")
+        self.assertEqual(result["native_nonstream_transport"], {"gateway_stream": False, "provider_stream_present": False})
 
     def reject(self, mutate):
         values = packet()
@@ -191,6 +223,8 @@ class ServiceProofTests(unittest.TestCase):
             S.verify_context(*values)
 
     def test_reject_lost_changed_or_extra_native_context_at_real_comparison_seams(self):
+        self.reject(lambda data: data[1]["requests"][0]["body"].update(stream=True))
+        self.reject(lambda data: data[1]["requests"][0]["body"].update(stream=False))
         self.reject(lambda data: data[0]["requests"][1]["body"]["messages"][0].update(content="lost target instruction"))
         self.reject(lambda data: data[0]["requests"][1]["body_after_auth"].pop("tools"))
         self.reject(lambda data: data[1]["requests"][0]["body"].update(max_tokens=1000))

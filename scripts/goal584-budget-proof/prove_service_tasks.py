@@ -305,7 +305,13 @@ def verify_context(observed, provider_data, row, result, payer, actor, chat_id, 
     require(physical["id"] == row.get("request_id") == result.get("id")
             and physical.get("usage") == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
             "Title response/provider/native request identity or usage differs")
+    # Native OpenAIChatCompletion.completion extracts stream from the copied
+    # inference params before its non-stream acompletion dispatch (1.105.1,
+    # openai.py:673-675,734-737,912-918). This transport default is omitted on
+    # the wire; baseline/signed and before/after auth remain exactly equal.
     expected = {**body, "model": "goal584-fake-a"}
+    require(expected.pop("stream") is False and "stream" not in physical["body"],
+            "Native non-stream provider transport differs")
     require(semantic(physical.get("body")) == expected, "Actual provider context differs from actual native task input")
     require(not any(field in physical["body"] for field in ("metadata", "litellm_metadata", "owui_budget_provenance")),
             "Log-only scope or signed token reached the provider")
@@ -315,6 +321,7 @@ def verify_context(observed, provider_data, row, result, payer, actor, chat_id, 
     content = result.get("choices", [{}])[0].get("message", {}).get("content")
     require(isinstance(content, str) and json.loads(content) == {"title": "Proof"}, "Native title result is unusable")
     return {"scope": scope, "request_id": row["request_id"], "native_semantic_body": body,
+            "native_nonstream_transport": {"gateway_stream": False, "provider_stream_present": False},
             "native_semantic_sha256": hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()}
 
 
