@@ -9,7 +9,10 @@ import argparse
 import base64
 import copy
 import hashlib
+import importlib.util
 import json
+import os
+from pathlib import Path
 import re
 import struct
 import threading
@@ -27,6 +30,70 @@ REQUESTS = []
 CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False,
            "admin_mode": False, "title_mode": False}
 OPTIONAL_CONTROLS = frozenset({"native_tasks_mode", "response_status", "after_first_chunk_delay_ms"})
+
+CATALOG_REVISION = "d665dc1a6315847fcad6cc2c1264ceb47c06abce"
+CATALOG_BACKUP_SHA256 = "329113e5820834dc2a206500db9ec7861a17c74b86fe79601dec05478c06327e"
+CATALOG_BACKUP_NAME = "model_prices_and_context_window_backup.json"
+CATALOG_MAX_BYTES = 8 * 1024 * 1024
+CATALOG_VARIANTS = ("S1", "S2", "invalid", "truncated")
+
+
+class CatalogFixture:
+    """Opt-in native fetch data, independent of physical inference observations."""
+
+    def __init__(self):
+        override = os.environ.get("PROOF_CATALOG_CORPUS_PATH")
+        if override:
+            source = Path(override)
+        else:
+            # Top-level spec discovery does not execute LiteLLM's __init__/fetch.
+            spec = importlib.util.find_spec("litellm")
+            if spec is None or spec.origin is None:
+                raise ValueError("Pinned synthetic catalog corpus unavailable")
+            source = Path(spec.origin).parent / CATALOG_BACKUP_NAME
+        if source.name != CATALOG_BACKUP_NAME or source.is_symlink() or not source.is_file():
+            raise ValueError("Invalid synthetic catalog corpus")
+        with source.open("rb") as handle:
+            raw = handle.read(CATALOG_MAX_BYTES + 1)
+        if len(raw) > CATALOG_MAX_BYTES or hashlib.sha256(raw).hexdigest() != CATALOG_BACKUP_SHA256:
+            raise ValueError("Pinned synthetic catalog corpus differs")
+        corpus = json.loads(raw)
+        if not isinstance(corpus, dict) or len(corpus) < 50 or not all(isinstance(v, dict) for v in corpus.values()):
+            raise ValueError("Invalid synthetic catalog corpus")
+        self.backup_blob = self.git_blob(raw)
+        self.backup_count = len(corpus)
+        self.documents = {}
+        for variant in ("S1", "S2"):
+            content = copy.deepcopy(corpus)
+            for model in MODELS:
+                raised = variant == "S2" and model == "goal584-fake-a"
+                content[model] = {"litellm_provider": "openai", "mode": "chat",
+                    "max_input_tokens": 10, "max_output_tokens": 5, "max_tokens": 15,
+                    "input_cost_per_token": .02 if raised else .01,
+                    "output_cost_per_token": .04 if raised else .02}
+            self.documents[variant] = json.dumps(content, sort_keys=True, separators=(",", ":"),
+                                                  ensure_ascii=False, allow_nan=False).encode("utf-8")
+        self.documents.update(invalid=b"[]", truncated=b'{"goal584-fake-a":')
+        if any(len(body) > CATALOG_MAX_BYTES for body in self.documents.values()):
+            raise ValueError("Synthetic catalog exceeds bound")
+        self.reset()
+
+    @staticmethod
+    def git_blob(body):
+        return hashlib.sha1(b"blob %d\0" % len(body) + body, usedforsecurity=False).hexdigest()
+
+    def reset(self):
+        self.variant = "S1"
+        self.counts = dict.fromkeys(CATALOG_VARIANTS, 0)
+
+    def observation(self):
+        return {"synthetic": True, "variant": self.variant, "native_revision": CATALOG_REVISION,
+            "corpus_sha256": CATALOG_BACKUP_SHA256, "corpus_git_blob": self.backup_blob,
+            "corpus_entry_count": self.backup_count, "request_count": sum(self.counts.values()),
+            "requests_by_variant": dict(self.counts),
+            "documents": {name: {"bytes": len(body), "sha256": hashlib.sha256(body).hexdigest(),
+                "native_git_blob": self.git_blob(body), "etag": '"' + hashlib.sha256(body).hexdigest() + '"'}
+                for name, body in self.documents.items()}}
 
 
 def pending_tool_name(payload, messages):
@@ -200,6 +267,42 @@ class Handler(BaseHTTPRequestHandler):
         # Do not log bearer keys, prompts, or arbitrary paths.
         pass
 
+    def catalog(self, payload=None):
+        if os.environ.get("PROOF_CATALOG_ENABLED") != "true":
+            return self.send_json(404, {"error": {"message": "Unknown synthetic endpoint"}})
+        try:
+            with STATE_LOCK:
+                fixture = getattr(self.server, "proof_catalog", None)
+                if fixture is None:
+                    fixture = CatalogFixture()
+                    self.server.proof_catalog = fixture
+                if self.command == "POST":
+                    if self.path == "/__proof/catalog/reset" and payload == {}:
+                        fixture.reset()
+                    elif (self.path == "/__proof/catalog/control" and set(payload) == {"variant"}
+                          and isinstance(payload["variant"], str) and payload["variant"] in CATALOG_VARIANTS):
+                        fixture.variant = payload["variant"]
+                    else:
+                        return self.send_json(400, {"error": {"message": "Invalid synthetic catalog control"}})
+                if self.path == "/__proof/catalog":
+                    if sum(fixture.counts.values()) >= 10000:
+                        return self.send_json(503, {"error": {"message": "Synthetic catalog request bound"}})
+                    body = fixture.documents[fixture.variant]
+                    fixture.counts[fixture.variant] += 1
+                else:
+                    result = fixture.observation()
+            if self.path != "/__proof/catalog":
+                return self.send_json(200, result)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("ETag", '"' + hashlib.sha256(body).hexdigest() + '"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+        except (OSError, ValueError, ImportError):
+            self.send_json(503, {"error": {"message": "Synthetic catalog unavailable"}})
+
     def mark(self, record, *, stage, terminal=False, outcome=None, **fields):
         with STATE_LOCK:
             record["lifecycle"].update(stage=stage, **fields)
@@ -358,6 +461,8 @@ class Handler(BaseHTTPRequestHandler):
             self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
 
     def do_GET(self):
+        if self.path in ("/__proof/catalog", "/__proof/catalog/observations"):
+            return self.catalog()
         if self.path == "/healthz":
             return self.send_json(200, {"ok": True, "synthetic": True})
         if self.path == "/v1/models":
@@ -376,6 +481,8 @@ class Handler(BaseHTTPRequestHandler):
             payload = self.read_json()
         except (ValueError, UnicodeDecodeError) as error:
             return self.send_json(400, {"error": {"message": str(error)}})
+        if self.path in ("/__proof/catalog/control", "/__proof/catalog/reset"):
+            return self.catalog(payload)
         if self.path == "/__proof/reset":
             with STATE_LOCK:
                 REQUESTS.clear()

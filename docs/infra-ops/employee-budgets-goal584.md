@@ -1,6 +1,6 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Текущая запись работы, 03.11.2026. Источник требований и полномочий —
+Текущая запись работы, 04.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
@@ -10,8 +10,39 @@ SUCCESS: main/WebUI/overlap/Responses и оба calendar профиля прин
 bounded scope по actual artifacts, independent review и parent replay. Проверен
 разрешённый stand-only derivative двух функций LiteLLM. Native45 остаётся
 исходным FAIL с подтверждённым false denial. Следующий срез — версии/источники
-тарифов и native autocheck, отдельно в pricing-version worktree. Production
-не менялся. Подробности текущего среза ниже, после решения владельца.
+тарифов и native autocheck. В primary подготовлен source-кандидат штатной
+автопроверки справочника; publication proof остаётся в pricing-version worktree.
+Production не менялся. Подробности текущего среза ниже, после решения владельца.
+
+**Pricing candidate: source-проверки завершены, runtime ещё не принят.**
+Используются native source/status/schedule/reload APIs и scheduler LiteLLM;
+отдельного расписания, расчёта цен или журнала не добавлено. Dedicated pricing
+project проверит первый due poll с interval1h, переход synthetic S1→S2,
+отказ502 на invalid/truncated без изменения принятого native source/status,
+отмену своего interval и cleanup. Прошедший первый poll не доказывает второй
+цикл через час. Thin callback сохраняет whitelist защищённого descriptor
+рядом с native billed rates в той же SpendLogs row; публикация/активация
+версии этим не доказывается. Unsupported/anonymous/client-only контекст — unknown.
+Local423 harness PASS/0skip;239 component checks (232PASS/7opt-in skips).
+Independent wiring review и parent повтор:31 attestation/12profile/9startup/
+6cleanup/7handoff cases,51Bash/25embeddedPython/27inlinePython/actionlint PASS.
+Исторические C1 (скрытые OpenAPI routes) и C2 (final writer маскировал primary)
+в source исправлены; текущие coordinator/test SHA48b0f928/7a3b5c0a.
+Corrected independent C1/C2 review и parent повтор6 actual-body checks PASS.
+Evidence: `local/goal584/native-pricing-{descriptor-independent-readiness,
+catalog-independent-readiness,wiring-corrected-readiness}.*`,
+`native-pricing-catalog-native-corrected-readiness.*`, `candidate-checks.safe.json`.
+Version publication WIP не входит в этот CI-срез; его own source review ещё идёт.
+
+**Повторная upstream-сверка по напоминанию владельца о KISS.** Новые изменения
+и запуск стенда придержаны на время read-only проверки. Live GitHub readback
+подтвердил:36953 closed/unmerged, авторский эскиз shared invalidation есть;
+45974 и40940 остаются open/unmerged, scheduled positive-floor gap ими не закрыт.
+Дополнительно найден open46409: native floor/broadcast для global reset,
+не календарного job. Merged47044 относится к Rust gateway, не исправляет
+Python `_authoritative_floor_spend`. Готовое released-исправление exact кейса
+этим ограниченным поиском не установлено. Приоритет — существующий native
+reset/floor owner; новый учёт или самостоятельный reset owner не вводить.
 
 Предыдущий полностью зелёный native41
 [41663679301](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41663679301):
@@ -364,6 +395,18 @@ catalog fixture source-ready,51 focused checks PASS; настоящий native s
 fetch/version publication и финансовая/контекстная приёмка ещё предстоят.
 Подробности: existing `local/goal584/native-pricing-version-next.md`,
 `native-pricing-version-readiness.md`, `native-pricing-catalog-fixture-preparation.md`.
+После docs-only commit09eeeb86 GitHub автоматически запустил дублирующий native47
+41708950623. Actual merge6c6381ba… отличается от принятого f80c868a… только этой
+записью; runtime code идентичен. Root отменил лишний run через GitHub CLI после
+проверки live state; terminal cancelled. Оба calendar jobs успели SUCCESS;
+main cleanup receipt подтверждает containers[]/volumes[], ZIP07112b12… .
+Active CI148 SUCCESS. Последняя полная product acceptance — native46, не47.
+Evidence: `local/goal584/native47-duplicate-cancel/cancellation.safe.json`.
+Этот локальный отчёт не отправляется отдельным docs-only push, чтобы не запускать
+ещё один одинаковый native CI. Для будущего catalog gate учтено native CLI:
+начальный bundled source может иметь is_env_forced=true даже при envFalse;
+первый реальный remote scheduled fetch обязан сменить этот source, а не считаться
+проверенным по начальному bundled readback. Это source finding, не runtime PASS.
 
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),

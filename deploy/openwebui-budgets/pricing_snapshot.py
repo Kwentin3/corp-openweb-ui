@@ -2,12 +2,17 @@
 
 Source candidate for LiteLLM d665dc1a; not enabled by this module alone.
 Observed time is a capture time, never a tariff version or effective interval.
+The optional descriptor represents protected declared terms, not publication
+immutability, source checking, or native effective-interval enforcement.
 """
 
 from __future__ import annotations
 
+import copy
 from datetime import datetime, timezone
 import math
+import re
+from urllib.parse import unquote, urlsplit
 
 from litellm.integrations.custom_logger import CustomLogger
 from litellm.litellm_core_utils.core_helpers import get_litellm_metadata_from_kwargs
@@ -16,6 +21,17 @@ from litellm.litellm_core_utils.llm_cost_calc.utils import BilledTokenRates
 
 
 SNAPSHOT_KEY = "owui_billed_token_rates"
+DESCRIPTOR_KEY = "owui_pricing"
+DESCRIPTOR_SNAPSHOT_KEY = "owui_tariff_descriptor"
+DESCRIPTOR_FIELDS = frozenset({
+    "schema", "deployment_id", "currency", "source_ref", "source_url",
+    "source_checked_at_utc", "declared_effective_from_utc",
+    "declared_effective_until_utc", "activation_ref", "qualified_usage",
+})
+_REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
+_CREDENTIAL = re.compile(r"(?:sk-|gw-)[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
+_UTC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z")
+_COMPLETION_ROUTES = frozenset({"/chat/completions", "/v1/chat/completions", "/openai/v1/chat/completions"})
 RATE_FIELDS = (
     "input_cost_per_token",
     "output_cost_per_token",
@@ -27,13 +43,115 @@ RATE_FIELDS = (
 )
 
 
+def _utc(value):
+    if type(value) is not str or not _UTC.fullmatch(value):
+        raise ValueError("Invalid declaration timestamp")
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
+def _descriptor(value):
+    """A strict primitive projection; dates are declarations, not activation."""
+    if type(value) is not dict or set(value) != DESCRIPTOR_FIELDS:
+        raise ValueError("Invalid declaration schema")
+    if type(value["schema"]) is not int or value["schema"] != 1:
+        raise ValueError("Unknown declaration schema")
+    if type(value["qualified_usage"]) is not str or value["qualified_usage"] != "flat_input_output":
+        raise ValueError("Unqualified pricing categories")
+    for field in ("deployment_id", "source_ref", "activation_ref"):
+        text = value[field]
+        if type(text) is not str or not _REFERENCE.fullmatch(text) or _CREDENTIAL.search(text):
+            raise ValueError("Invalid declaration reference")
+    if type(value["currency"]) is not str or not re.fullmatch(r"[A-Z]{3}", value["currency"]):
+        raise ValueError("Invalid declared currency")
+    _utc(value["source_checked_at_utc"])
+    start = _utc(value["declared_effective_from_utc"])
+    end = value["declared_effective_until_utc"]
+    if end is not None and _utc(end) <= start:
+        raise ValueError("Invalid declared interval")
+    url = value["source_url"]
+    if url is not None:
+        if type(url) is not str or len(url) > 512 or any(c.isspace() or ord(c) < 32 for c in url):
+            raise ValueError("Invalid source URL")
+        parsed = urlsplit(url)
+        if (parsed.scheme not in ("http", "https") or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None
+                or parsed.query or parsed.fragment or _CREDENTIAL.search(unquote(url))):
+            raise ValueError("Credential-bearing or invalid source URL")
+        if parsed.port == 0:  # Also validate malformed ports without fetching.
+            raise ValueError("Invalid source port")
+    return {field: value[field] for field in DESCRIPTOR_FIELDS}
+
+
+def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route):
+    unknown = {"schema": 1, "availability": "unknown", "descriptor": None}
+    try:
+        if not proxy_auth or auth_route not in _COMPLETION_ROUTES or getattr(owner, "litellm_params", None) is not params:
+            return unknown
+        if getattr(owner, "call_type", None) not in ("completion", "acompletion"):
+            return unknown
+        request = params.get("proxy_server_request")
+        if (not isinstance(request, dict) or request.get("method") != "POST"
+                or not isinstance(request.get("body"), dict)
+                or any(field in request["body"] for field in ("user_config", "api_key", "api_base"))):
+            return unknown
+        selected = params.get("model_info")
+        # Native Router stamps the same copied dictionary into both locations.
+        # This is a structural path check, not a signature or price version.
+        if not isinstance(selected, dict) or metadata.get("model_info") is not selected:
+            return unknown
+        native_id = owner.get_router_model_id()
+        if not isinstance(native_id, str) or selected.get("id") != native_id:
+            return unknown
+
+        # Resolve expected terms only from the existing protected global owner.
+        # Lazy import preserves the native callback/config startup order.
+        from litellm.proxy import proxy_server
+        settings = proxy_server.general_settings
+        if not isinstance(settings, dict) or settings.get("allow_client_side_credentials") not in (None, False):
+            return unknown
+        router = proxy_server.llm_router
+        if router is None:
+            return unknown
+        deployment = router.get_deployment(model_id=native_id)
+        if deployment is None:
+            return unknown
+        configured = deployment.litellm_params
+        optins = configured.get("configurable_clientside_auth_params") if isinstance(configured, dict) else getattr(
+            configured, "configurable_clientside_auth_params", None)
+        if optins not in (None, []):
+            return unknown
+        protected = deployment.model_info
+        if getattr(protected, "id", None) != native_id:
+            return unknown
+        descriptor = _descriptor(getattr(protected, DESCRIPTOR_KEY, None))
+        if descriptor["deployment_id"] != native_id or _descriptor(selected.get(DESCRIPTOR_KEY)) != descriptor:
+            return unknown
+        rates = getattr(owner, "billed_token_rates", None)
+        if not isinstance(rates, BilledTokenRates):
+            return unknown
+        for field in ("input_cost_per_token", "output_cost_per_token"):
+            declared, billed = getattr(protected, field, None), getattr(rates, field)
+            if (type(declared) not in (int, float) or type(billed) not in (int, float)
+                    or not math.isfinite(declared) or not math.isfinite(billed)
+                    or declared < 0 or billed < 0 or declared != billed):
+                return unknown
+        return {"schema": 1, "availability": "available", "descriptor": descriptor}
+    except Exception:
+        # Observability must preserve native cost handling and never export a
+        # private declaration, URL or exception as diagnostic text.
+        return unknown
+
+
 class _RequestSnapshot(CustomLogger):
     """A dynamic native callback belonging to exactly one Logging object."""
 
-    def __init__(self, owner: Logging):
+    def __init__(self, owner: Logging, proxy_auth=False, auth_route=None):
         super().__init__()
         self._owner = owner
         self._snapshot = None
+        self._proxy_auth = proxy_auth
+        self._auth_route = auth_route
+        self._descriptor_snapshot = None
 
     async def async_logging_hook(self, kwargs, result, call_type):
         # Native Logging passes this object to hooks before ProxyTrackCost runs.
@@ -76,6 +194,9 @@ class _RequestSnapshot(CustomLogger):
             }
         # Copy the representation so consumers cannot mutate the frozen capture.
         spend_metadata[SNAPSHOT_KEY] = {**self._snapshot, "rates": dict(self._snapshot["rates"])}
+        if self._descriptor_snapshot is None:
+            self._descriptor_snapshot = _capture_descriptor(self._owner, params, metadata, self._proxy_auth, self._auth_route)
+        spend_metadata[DESCRIPTOR_SNAPSHOT_KEY] = copy.deepcopy(self._descriptor_snapshot)
         return kwargs, result
 
 
@@ -86,7 +207,30 @@ class PricingSnapshot(CustomLogger):
             return None
         callbacks = getattr(owner, "dynamic_async_success_callbacks", None) or ()
         if not any(isinstance(callback, _RequestSnapshot) and callback._owner is owner for callback in callbacks):
-            owner.add_dynamic_callback(_RequestSnapshot(owner))
+            proxy_auth = False
+            auth_route = None
+            try:
+                from litellm.proxy._types import UserAPIKeyAuth
+                if isinstance(user_api_key_dict, UserAPIKeyAuth):
+                    from litellm.proxy import proxy_server
+                    from litellm.proxy.auth.user_api_key_auth import is_no_auth_dev_mode
+                    from litellm.proxy.auth.auth_utils import route_in_additonal_public_routes
+                    # Native dev mode also returns UserAPIKeyAuth for an anonymous
+                    # request. Freeze mode eligibility now, before logging/config
+                    # changes. Configured custom auth runs before that fallback.
+                    # The native auth wrapper binds this from the ASGI scope.
+                    # Snapshot URL paths are Host-derived and cannot authorize.
+                    auth_route = getattr(user_api_key_dict, "request_route", None)
+                    proxy_auth = type(auth_route) is str and auth_route in _COMPLETION_ROUTES and not (
+                        route_in_additonal_public_routes(current_route=auth_route)
+                    ) and (
+                        (callable(getattr(proxy_server, "user_custom_auth", None))
+                         and getattr(user_api_key_dict, "authenticated_by_custom_auth", False) is True)
+                        or not is_no_auth_dev_mode(proxy_server.master_key, proxy_server.general_settings)
+                    )
+            except Exception:
+                proxy_auth = False
+            owner.add_dynamic_callback(_RequestSnapshot(owner, proxy_auth, auth_route))
         return None
 
 

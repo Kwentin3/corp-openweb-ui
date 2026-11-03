@@ -8,6 +8,7 @@ on:
       - compose/goal584.native-budget-proof.yml
       - compose/goal584.webui-proof.yml
       - compose/goal584.calendar-proof.yml
+      - compose/goal584.pricing-proof.yml
       - scripts/goal584-budget-proof/**
       - deploy/openwebui-budgets/**
       - deploy/litellm-patches/positive-floor-v1.105.1/**
@@ -722,6 +723,264 @@ jobs:
         with:
           name: goal584-native-budget-proof-${{ github.sha }}
           path: ${{ runner.temp }}/goal584-native-budget-proof/
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-pricing-catalog:
+    runs-on: ubuntu-24.04
+    # Declared phase bounds total 32m including cleanup/upload; leave 3m reserve.
+    timeout-minutes: 35
+    steps:
+      - name: Check out the pricing candidate
+        timeout-minutes: 2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare the dedicated pricing project
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, secrets
+          from pathlib import Path
+          nonce = secrets.token_hex(6)
+          private = Path(os.environ['RUNNER_TEMP'],'goal584-pricing-'+nonce+'-private')
+          output = Path(os.environ['RUNNER_TEMP'],'goal584-pricing-proof-'+nonce)
+          private.mkdir(mode=0o700);output.mkdir()
+          config = private/'config.yaml'
+          raw = Path('scripts/goal584-budget-proof/litellm_config.yaml').read_text(encoding='utf-8')
+          assert raw.count('\ngeneral_settings:\n') == 1
+          raw = raw.replace('\ngeneral_settings:\n','\ngeneral_settings:\n  disable_reset_budget: true\n')
+          with os.fdopen(os.open(config,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              handle.write(raw)
+          paths = {'PRICING_PROJECT':'goal584-pricing-'+nonce,'PROOF_SOURCE_COMMIT':os.environ['GITHUB_SHA'],
+                   'PROOF_ENV_FILE':str(private/'proof.env'),'PROOF_PRIVATE_DIR':str(private),
+                   'PROOF_CONFIG_FILE':str(config),'PROOF_OUTPUT_DIR':str(output)}
+          values = {**paths,'PROOF_MASTER_KEY':'sk-'+secrets.token_hex(32),
+                    'PROOF_DB_PASSWORD':secrets.token_hex(32),'OWUI_BUDGET_GATEWAY_SECRET':'gw-'+secrets.token_hex(32)}
+          with os.fdopen(os.open(paths['PROOF_ENV_FILE'],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              for key,value in values.items():
+                  handle.write(key+'='+value+'\n')
+                  if key in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET'):
+                      print('::add-mask::'+value)
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              for key,value in paths.items():handle.write(key+'='+value+'\n')
+              handle.write('PRICING_PROJECT_CLAIMED=false\n')
+          PY
+
+      - name: Build the reviewed pricing native derivative
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$RUNNER_TEMP/goal584-pricing-native-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          receipt = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
+          PY
+
+      - name: Start only the fresh pricing backend
+        timeout-minutes: 7
+        shell: bash
+        run: |
+          label="label=com.docker.compose.project=$PRICING_PROJECT"
+          existing_containers=$(docker ps -aq --filter "$label")
+          test -z "$existing_containers"
+          existing_volumes=$(docker volume ls -q --filter "$label")
+          test -z "$existing_volumes"
+          existing_networks=$(docker network ls -q --filter "$label")
+          test -z "$existing_networks"
+          printf 'PRICING_PROJECT_CLAIMED=true\n' >> "$GITHUB_ENV"
+          docker compose -p "$PRICING_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.pricing-proof.yml config --quiet
+          docker compose -p "$PRICING_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.pricing-proof.yml \
+            up -d --wait --wait-timeout 240 --scale proxy=1
+
+      - name: Attest the pricing containers and immutable source closure
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,ipaddress,json,os,re,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          import native_floor_identity as sdk
+          import prove_pricing_catalog as proof
+          project = os.environ['PRICING_PROJECT']
+          assert re.fullmatch('goal584-pricing-[0-9a-f]{12}',project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.pricing-proof.yml']
+          def read(argv):return subprocess.check_output(argv,text=True,timeout=60).strip()
+          revision = read(['git','rev-parse','HEAD'])
+          assert revision == os.environ['GITHUB_SHA'] == os.environ['PROOF_SOURCE_COMMIT']
+          build = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          artifact = sdk.verify_build(build)
+          resolved = json.loads(read(command+['config','--format','json']))
+          credentials = dict(line.split('=',1) for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines() if line)
+          assert set(resolved['services']) == {'proxy','postgres','redis','provider'}
+          assert resolved['networks']['proof']['internal'] is True
+          assert not any(service.get('ports') for service in resolved['services'].values())
+          readonly = {}
+          for item in resolved['services']['proxy']['volumes']:
+              assert item['type'] == 'bind'
+              if item['target'] == '/proof-private':
+                  assert item['source'] == str(Path(os.environ['PROOF_PRIVATE_DIR']).resolve()) and not item.get('read_only',False)
+              else:
+                  assert item['read_only'] is True and item['target'] not in readonly
+                  readonly[item['target']] = item['source']
+          assert readonly['/proof/config.yaml'] == str(Path(os.environ['PROOF_CONFIG_FILE']).resolve())
+          mounted = {target:Path(source).resolve().relative_to(Path.cwd()).as_posix()
+                     for target,source in readonly.items() if target != '/proof/config.yaml'}
+          assert mounted['/proof/prove_pricing_catalog.py'] == 'scripts/goal584-budget-proof/prove_pricing_catalog.py'
+          assert mounted['/proof/pricing_snapshot.py'] == 'deploy/openwebui-budgets/pricing_snapshot.py'
+          required = ['.github/workflows/goal584-native-budget-proof.yml','compose/goal584.native-budget-proof.yml',
+                      'compose/goal584.pricing-proof.yml','scripts/goal584-budget-proof/litellm_config.yaml',
+                      'scripts/goal584-budget-proof/mock_provider.py','scripts/goal584-budget-proof/test_mock_provider.py',
+                      'scripts/goal584-budget-proof/test_pricing_catalog.py','deploy/openwebui-budgets/tests/test_pricing_snapshot.py',
+                      'scripts/goal584-budget-proof/native-patch-requirements.txt',*build['files_sha256'],*mounted.values()]
+          hashes = {}
+          for name in dict.fromkeys(required):
+              data = Path(name).read_bytes()
+              assert data == subprocess.check_output(['git','show',revision+':'+name]), 'Pricing source differs from tested Git'
+              hashes[name] = hashlib.sha256(data).hexdigest()
+          helpers = proof.source_files()
+          assert helpers == {name:hashes[mounted['/proof/'+name]] for name in helpers}
+          assert proof.PROVIDER_SHA == hashes['scripts/goal584-budget-proof/mock_provider.py']
+          code = 'import hashlib,json,pathlib,sys;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          native_code = 'import hashlib,importlib.util,json,pathlib,sys;root=pathlib.Path(importlib.util.find_spec("litellm").origin).parent;print(json.dumps({p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          sdk_code = "import json,sys;sys.path.insert(0,'/proof');import native_floor_identity as n;print(json.dumps(n.inspect_sources()))"
+          config_hash = hashlib.sha256(Path(os.environ['PROOF_CONFIG_FILE']).read_bytes()).hexdigest()
+          ids = read(command+['ps','-q']).split();assert len(ids)==len(set(ids))==4
+          containers,actual_mounts,seen_ids = {},{},set()
+          for service in ('proxy','postgres','redis','provider'):
+              current = read(command+['ps','-q',service]).split();assert len(current)==1
+              item = json.loads(read(['docker','inspect',current[0]]))[0]
+              labels = item['Config']['Labels'];identifier = item['Id']
+              assert re.fullmatch('[0-9a-f]{64}',identifier) and labels['com.docker.compose.project']==project
+              assert identifier==current[0] and identifier in ids and identifier not in seen_ids
+              seen_ids.add(identifier)
+              assert labels['com.docker.compose.service']==service and labels['com.docker.compose.container-number']=='1'
+              assert item['State']['Health']['Status']=='healthy' and item['HostConfig']['NetworkMode']==project+'_proof'
+              assert set(item['NetworkSettings']['Networks'])=={project+'_proof'}
+              address = ipaddress.IPv4Address(item['NetworkSettings']['Networks'][project+'_proof']['IPAddress'])
+              assert address.is_private and not(address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified)
+              expected = sdk.image_ref() if service=='proxy' else proof.IMAGES[service]
+              assert item['Config']['Image']==expected and re.fullmatch('sha256:[0-9a-f]{64}',item['Image'])
+              if service=='proxy':assert item['Image']==expected and item['Config']['Cmd']==proof.COMMAND
+              containers[service] = {'id':identifier,'number':'1','image_ref':item['Config']['Image'],
+                  'image_id':item['Image'],'health':'healthy','network':project+'_proof'}
+              environment = dict(pair.split('=',1) for pair in item['Config']['Env'])
+              if service=='postgres':
+                  assert environment['POSTGRES_DB']=='goal584_pricing' and environment['POSTGRES_USER']=='goal584'
+                  assert environment['POSTGRES_PASSWORD']==credentials['PROOF_DB_PASSWORD']
+              if service=='provider':
+                  assert environment.get('PROOF_CATALOG_ENABLED')=='true' and not environment.get('PROOF_CATALOG_CORPUS_PATH')
+                  mount, = [value for value in item['Mounts'] if value['Type']=='bind']
+                  assert mount['Destination']=='/proof/mock_provider.py' and mount['RW'] is False
+                  assert mount['Source']==str(Path('scripts/goal584-budget-proof/mock_provider.py').resolve())
+                  continue
+              if service!='proxy':continue
+              assert environment['DATABASE_URL']=='postgresql://goal584:'+credentials['PROOF_DB_PASSWORD']+'@postgres:5432/goal584_pricing'
+              assert environment['PROOF_MASTER_KEY']==credentials['PROOF_MASTER_KEY']
+              assert environment['PROOF_SOURCE_COMMIT']==revision and environment['PROOF_PRICING_PROJECT']==project
+              assert environment['LITELLM_MODEL_COST_MAP_URL']==proof.CATALOG and environment['LITELLM_LOCAL_MODEL_COST_MAP'].lower()=='false'
+              binds = [value for value in item['Mounts'] if value['Type']=='bind']
+              assert len(binds)==len({value['Destination'] for value in binds})==len(readonly)+1
+              assert {value['Destination'] for value in binds}=={*readonly,'/proof-private'}
+              for target,source in {**readonly,'/proof-private':os.environ['PROOF_PRIVATE_DIR']}.items():
+                  mount = next(value for value in binds if value['Destination']==target)
+                  assert mount['Source']==str(Path(source).resolve()) and mount['RW'] is (target=='/proof-private')
+              execute = command+['exec','-T','proxy','python','-B','-c']
+              actual_mounts = json.loads(read(execute+[code,*readonly]))
+              assert actual_mounts == {target:config_hash if target=='/proof/config.yaml' else hashes[mounted[target]] for target in readonly}
+              assert json.loads(read(execute+[sdk_code]))=={'native_sha256':sdk.selected_hashes({k.removeprefix('litellm/'):v for k,v in sdk.load_manifest()['native_export_sha256'].items()}),'native_artifact':artifact}
+              assert json.loads(read(execute+[native_code,*proof.NATIVE]))==proof.NATIVE
+          assert seen_ids==set(ids)
+          provider = json.loads(read(command+['exec','-T','provider','python','-B','-c',code,'/proof/mock_provider.py']))
+          assert provider=={'/proof/mock_provider.py':proof.PROVIDER_SHA}
+          assert json.loads(read(command+['exec','-T','provider','python','-B','-c',native_code,'model_prices_and_context_window_backup.json']))=={'model_prices_and_context_window_backup.json':proof.NATIVE['model_prices_and_context_window_backup.json']}
+          attest = {'schema':1,'proof':proof.PROOF,'project':project,'source_commit':revision,'containers':containers,
+                    'proxy_command':proof.COMMAND,'config_sha256':config_hash,'files_sha256':helpers,
+                    'provider_sha256':proof.PROVIDER_SHA,'native_artifact':artifact}
+          private = Path(os.environ['PROOF_PRIVATE_DIR'],'catalog-attestation.private.json')
+          with os.fdopen(os.open(private,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              json.dump(attest,handle)
+          receipt = {**attest,'files_sha256':hashes,'mounted_sha256':actual_mounts,'provider_sha256':provider,
+                     'native_cost_map_sources':proof.NATIVE,'scope':'Dedicated synthetic reference-check profile, no inference/version activation'}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'runtime-identity.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+          PY
+
+      - name: Qualify the first native scheduled reference check
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          private,output = Path(os.environ['PROOF_PRIVATE_DIR']),Path(os.environ['PROOF_OUTPUT_DIR'])
+          command = ['docker','compose','-p',os.environ['PRICING_PROJECT'],'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.pricing-proof.yml']
+          argv = command+['exec','-T','proxy','python','-B','/proof/prove_pricing_catalog.py','--project',os.environ['PRICING_PROJECT'],
+                          '--attestation','/proof-private/catalog-attestation.private.json','--private-state','/proof-private/catalog-state.private.json',
+                          '--receipt','/proof-private/catalog.safe.json']
+          status = -1
+          try:status = subprocess.run(argv,capture_output=True,timeout=190).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          # Only the source-bound safe producer's packet is copied out. Arbitrary
+          # native stdout/stderr and raw private observations are never exported.
+          safe = 'import pathlib,sys;sys.stdout.buffer.write(pathlib.Path("/proof-private/catalog.safe.json").read_bytes())'
+          child = subprocess.run(command+['exec','-T','proxy','python','-B','-c',safe],capture_output=True,timeout=20)
+          assert child.returncode==0 and len(child.stdout)<=4*1024*1024,'Pricing safe packet unavailable'
+          receipt = json.loads(child.stdout)
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          assert not any(value and value.encode() in child.stdout for value in secrets)
+          assert not re.search(rb'(?:sk-|gw-|Bearer\s)[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',child.stdout)
+          assert receipt['schema']==1 and receipt['proof']=='goal584-native-pricing-catalog'
+          assert receipt['project']==os.environ['PRICING_PROJECT'] and receipt['source_commit']==os.environ['GITHUB_SHA']
+          (output/'catalog.safe.json').write_bytes(child.stdout)
+          (output/'helper-diagnostic.json').write_text(json.dumps({'helper_returncode':status,'passed':receipt.get('passed'),
+              'stage':receipt.get('stage'),'failure_code':receipt.get('failure_code')},indent=2),encoding='utf-8')
+          assert status==0 and receipt['passed'] is True,'Native pricing reference check failed; inspect safe packet'
+          PY
+
+      - name: Remove the pricing project and verify cleanup
+        timeout-minutes: 3
+        if: always() && env.PRICING_PROJECT_CLAIMED == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          project = os.environ['PRICING_PROJECT'];assert re.fullmatch('goal584-pricing-[0-9a-f]{12}',project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.pricing-proof.yml']
+          status = -1
+          try:status = subprocess.run(command+['down','--volumes','--remove-orphans'],capture_output=True,timeout=100).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          label = 'label=com.docker.compose.project='+project
+          remaining = {name:subprocess.check_output(argv+['--filter',label],text=True,timeout=15).split() for name,argv in (
+              ('containers',['docker','ps','-aq']),('volumes',['docker','volume','ls','-q']),('networks',['docker','network','ls','-q']))}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'cleanup.json').write_text(json.dumps({'project':project,'down_returncode':status,**remaining},indent=2),encoding='utf-8')
+          assert status==0 and not any(remaining.values()),'Pricing cleanup incomplete'
+          PY
+
+      - name: Retain only safe pricing evidence
+        timeout-minutes: 2
+        if: always() && env.PROOF_OUTPUT_DIR != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-pricing-catalog-${{ github.sha }}
+          path: ${{ env.PROOF_OUTPUT_DIR }}
           if-no-files-found: warn
           retention-days: 7
 
