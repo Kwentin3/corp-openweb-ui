@@ -17,6 +17,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import time
 from unittest.mock import patch
 from urllib.parse import urlsplit
@@ -27,6 +28,8 @@ from zoneinfo import ZoneInfo
 from prove_native_budgets import CALL_COST, NativeProof, ProofError, close_amount, require
 from prove_gateway_auth import read_private, write_private
 
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent / "deploy/litellm-patches/positive-floor-v1.105.1"))
+import native_floor_identity as native_sdk
 
 REVISION = "d665dc1a6315847fcad6cc2c1264ceb47c06abce"
 NATIVE_HASHES = {
@@ -242,8 +245,9 @@ async def qualify(args, attest, receipt, secrets):
     from litellm.constants import DEFAULT_MANAGEMENT_OBJECT_IN_MEMORY_CACHE_TTL
     require(version("litellm") == "1.105.1" and ps.prisma_client is None, "Calendar helper requires the pinned standalone process")
     package = Path(litellm.__file__).parent
-    require(all(hashlib.sha256((package / name).read_bytes()).hexdigest() == digest for name,digest in NATIVE_HASHES.items()),
+    require(all(hashlib.sha256((package / name).read_bytes()).hexdigest() == digest for name,digest in native_sdk.selected_hashes(NATIVE_HASHES).items()),
             "Calendar native owner source differs from the pinned audit")
+    receipt["native_artifact"] = native_sdk.identity()
     require(not os.environ.get("LITELLM_CONFIG_BUCKET_NAME") and not args.private_state.exists(), "Calendar requires fresh local state/config")
     config = await ps.proxy_config.get_config(config_file_path="/proof/config.yaml")
     require_isolated(args, attest, config)

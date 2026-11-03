@@ -34,3 +34,9 @@ docs/stage2/contracts/BROKER_REPORTS_GATE3_ROLE_LABELING_RESPONSE.v1.schema.json
 docs/stage2/contracts/BROKER_REPORTS_GATE3_LABELING_RESPONSE.v1.schema.json text eol=lf
 # Unified diff context lines intentionally carry leading spaces and empty-line markers.
 deploy/openwebui-patches/media-upload-v0.12.2/media.patch text eol=lf whitespace=-trailing-space,-space-before-tab
+deploy/litellm-patches/positive-floor-v1.105.1/* text eol=lf
+deploy/litellm-patches/positive-floor-v1.105.1/floor.patch whitespace=-trailing-space,-space-before-tab
+scripts/goal584-budget-proof/prove_calendar_reset.py text eol=lf
+scripts/goal584-budget-proof/prove_budget_overlap.py text eol=lf
+scripts/goal584-budget-proof/build_native_floor_image.py text eol=lf
+scripts/goal584-budget-proof/test_native_floor_patch.py text eol=lf

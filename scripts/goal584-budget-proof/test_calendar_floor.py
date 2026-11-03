@@ -273,7 +273,13 @@ class NativeOwnerTests(unittest.TestCase):
         artifact = HERE.parents[1] / "local/goal584/runtime-proof-41660087821/receipts/overlap/overlap.safe.json"
         if artifact.exists():
             receipt = json.loads(artifact.read_text())
-            self.assertEqual(receipt["topology"]["source_sha256"]["prove_budget_overlap.py"], P.HELPERS["prove_budget_overlap.py"])
+            # Historical acceptance belongs to its actual Git bytes. The new
+            # artifact attestation needs its own runtime run; do not transfer
+            # acceptance merely because the long reservation body is unchanged.
+            identity = json.loads((artifact.parents[1] / "runtime-identity.json").read_text())
+            old_bytes = subprocess.check_output(["git", "show", identity["source_commit"] + ":scripts/goal584-budget-proof/prove_budget_overlap.py"],
+                                               cwd=HERE.parents[1], env={**os.environ, "GIT_NO_LAZY_FETCH":"1"})
+            self.assertEqual(receipt["topology"]["source_sha256"]["prove_budget_overlap.py"], hashlib.sha256(old_bytes).hexdigest())
             self.assertEqual(receipt["calibration"]["native_estimates"][P.MODEL], "0.98")
 
     def test_new_coordinator_only_reuses_readonly_sql_and_no_cache_mutation_or_alternate_reset(self):
@@ -684,13 +690,16 @@ class TransportAndEvidenceTests(unittest.TestCase):
             for name in P.HELPERS:
                 source = HERE / name
                 if not source.is_file():
-                    source = HERE.parents[1] / "deploy/openwebui-budgets" / {"employee_budget_assignment.py": "assignment.py"}.get(name, name)
+                    if name in ("native_floor_identity.py", "manifest.json"):
+                        source = HERE.parents[1] / "deploy/litellm-patches/positive-floor-v1.105.1" / name
+                    else:
+                        source = HERE.parents[1] / "deploy/openwebui-budgets" / {"employee_budget_assignment.py": "assignment.py"}.get(name, name)
                 (target / name).write_bytes(source.read_bytes())
             mounted = target / "prove_calendar_floor.py"
             mounted.write_bytes(Path(P.__file__).read_bytes())
             with patch.object(P, "__file__", str(mounted)):
                 files = P.source_files()
-                self.assertEqual(len(files), 8)
+                self.assertEqual(len(files), 10)
                 producer = target / "prove_budget_overlap.py"
                 producer.write_bytes(producer.read_bytes().replace(b"max_tokens': 5", b"max_tokens': 44", 1))
                 with self.assertRaises(P.ProofError): P.source_files()

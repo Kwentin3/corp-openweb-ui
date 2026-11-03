@@ -19,6 +19,7 @@ from pathlib import Path
 import re
 import subprocess
 import stat
+import sys
 import time
 from uuid import uuid4
 from urllib.parse import urlsplit
@@ -27,11 +28,15 @@ from prove_native_budgets import NativeProof, ProofError, MODELS, CALL_COST, amo
 from prove_gateway_auth import read_private as native_read_private, write_private as native_write_private
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(ROOT / 'deploy/litellm-patches/positive-floor-v1.105.1'))
+import native_floor_identity as native_sdk
 STATE = Path('/proof-private/budget-overlap.private.json')
 IMAGE = 'ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802'
 PROMPT = 'Hi. Please read this bounded synthetic fixture sentence. ' * 8
 BODY = {'messages': [{'role': 'user', 'content': PROMPT}], 'max_tokens': 5, 'stream': False}
-SOURCE_PATHS = {'prove_budget_overlap.py': 'scripts/goal584-budget-proof/prove_budget_overlap.py',
+SOURCE_PATHS = {'native_floor_identity.py': 'deploy/litellm-patches/positive-floor-v1.105.1/native_floor_identity.py',
+    'manifest.json': 'deploy/litellm-patches/positive-floor-v1.105.1/manifest.json',
+    'prove_budget_overlap.py': 'scripts/goal584-budget-proof/prove_budget_overlap.py',
     'prove_native_budgets.py': 'scripts/goal584-budget-proof/prove_native_budgets.py',
     'prove_gateway_auth.py': 'scripts/goal584-budget-proof/prove_gateway_auth.py',
     'capture_webui_auth.py': 'scripts/goal584-budget-proof/capture_webui_auth.py',
@@ -432,7 +437,7 @@ class Coordinator:
         require(len(ids)==len(set(ids))==2 and all(re.fullmatch('[0-9a-f]{64}',v) for v in ids),'Expected exactly two distinct proxy containers')
         rows=[self.run_json(['docker','inspect','--format',template,identifier]) for identifier in ids]
         expected_command=['--config','/proof/config.yaml','--host','0.0.0.0','--port','4000','--num_workers','1','--telemetry','false']
-        require({r['id'] for r in rows}==set(ids) and {r['number'] for r in rows}=={'1','2'} and all(r['image_ref']==IMAGE and r['health']=='healthy'
+        require({r['id'] for r in rows}==set(ids) and {r['number'] for r in rows}=={'1','2'} and all(r['image_ref']==native_sdk.image_ref() and r['health']=='healthy'
                 and r['project']==self.args.project and r['service']=='proxy' and r['network_mode']==self.args.project+'_proof'
                 and r['private_mount']==str(self.args.private_root)
                 and r['command']==expected_command for r in rows)
@@ -442,11 +447,18 @@ class Coordinator:
         require(all(r['files_sha256']==expected for r in identities) and identities[0]['config_sha256']==identities[1]['config_sha256'],
                 'Proxy mounted source/config identity differs')
         require(identities[0]['database_url_sha256']==identities[1]['database_url_sha256'],'Proxy workers use different database connections')
+        native_code = "import json,sys;sys.path.insert(0,'/proof');import native_floor_identity as n;print(json.dumps(n.inspect_sources()))"
+        sdk = [self.run_json(self.command + ['exec','-T','--index',str(i),'proxy','python','-B','-c',native_code]) for i in (1,2)]
+        expected_sdk = native_sdk.selected_hashes({key.removeprefix('litellm/'):value for key,value in native_sdk.load_manifest()['native_export_sha256'].items()})
+        require(all(value == {'native_sha256':expected_sdk,'native_artifact':native_sdk.identity()} for value in sdk),
+                'Overlap workers native source/artifact identity differs')
+        if native_sdk.variant() != 'stock':
+            require(all(row['image_id'] == native_sdk.image_ref() for row in rows), 'Overlap derivative image ID differs')
         provider_source = self.run_json(self.command+['exec','-T','provider','python','-c',
             "import hashlib,json;from pathlib import Path;print(json.dumps({'mock_provider.py':hashlib.sha256(Path('/proof/mock_provider.py').read_bytes()).hexdigest()}))"])
         require(provider_source == {'mock_provider.py': hashlib.sha256((ROOT/PROVIDER_SOURCE).read_bytes()).hexdigest()},
                 'Provider mounted source identity differs')
-        return {'containers':rows,'source_sha256':expected,'provider_source_sha256':provider_source,
+        return {'containers':rows,'source_sha256':expected,'provider_source_sha256':provider_source, 'native_sdk':sdk,
                 'config_sha256':identities[0]['config_sha256']}
 
     def execute(self,receipt):

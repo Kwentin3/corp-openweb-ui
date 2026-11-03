@@ -5,7 +5,13 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний native41
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний проверенный
+native45: основной WebUI/Responses job и basic calendar PASS; positive-floor
+повторно подтвердил native false denial, workflow FAIL. После upstream research
+готовится разрешённый stand-only derivative с изменением двух функций LiteLLM;
+production не менялся. Подробности текущего среза ниже, после решения владельца.
+
+Предыдущий полностью зелёный native41
 [41663679301](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41663679301):
 оба jobs PASS, Active CI41663679293 PASS. HEAD
 `adae068e108d3260e014f4af84493c99b2999452`, tested merge
@@ -205,7 +211,100 @@ intrinsic provider ID не заявляется. Полный снимок3 rows
 `local/goal584/responses45-reviewed-byte-identities.safe.json`.
 Полный актуальный harness357 tests PASS/0skip;34 literal bindings PASS.
 219 component checks (212PASS/7opt-in skips) переиспользованы при неизменных
-product bytes. Native/production patch разрешение по-прежнему не получено.
+product bytes. При отправке R45 разрешение на native patch ещё не было получено.
+**Новое решение владельца:** «Разрешаю узкий патч и проверку только на стенде».
+Разрешены реализация/тесты stand-only prototype в двух согласованных функциях
+LiteLLM1.105.1 `proxy_server.get_current_spend` и `_authoritative_floor_spend`.
+Восстанавливаем проверку устаревшего positive DB floor, сохраняя квоты,
+резервирование/монотонность live counter и защиту manual reset marker.
+Production/deployment/финансовые схемы/данные не входят в это разрешение.
+Исходный SDK cache остаётся read-only; кандидат и tests изолируются отдельно.
+
+**Последующее уточнение владельца: KISS и upstream first.** Подготовка native
+patch остановлена для read-only проверки известных issues/PR и штатного эскиза.
+Разрешение на ограниченный стендовый prototype сохраняется; production и
+расширение изменений за две согласованные функции по-прежнему не разрешены.
+Подтверждено: [PR36953](https://github.com/BerriAI/litellm/pull/36953)
+обсуждает тот же stale worker-local floor → восстановление прежнего расхода
+после reset; автор предложил общий counter и invalidated Redis hint. PR закрыт
+без merge и касается global budget, готового key/user исправления не даёт.
+[PR45974](https://github.com/BerriAI/litellm/pull/45974), на момент проверки open,
+head `784f352eaeb2cbac0628af39ce318681ffb2be4b`, содержит reset fence перед
+записью counter и проверку fence в Redis repair Lua для global/org reset.
+Его описание прямо сохраняет scheduled reset среди unfenced путей; перенос
+целиком не устраняет доказанный календарный кейс GOAL584 и меняет больше двух
+согласованных функций. [PR41693](https://github.com/BerriAI/litellm/pull/41693)
+закрыт без merge; автор отдельно воспроизвёл тот же stale floor window на
+scheduled linked-row reset, включая baseline. Это evidence известного дефекта,
+а не поставленный фикс. Следующий шаг — сопоставить native fence/инвалидацию с
+нашим exact reproducer, прежде чем выбирать ограниченный compatibility patch;
+новый самостоятельный reset/accounting owner не создавать. Полные read-only
+сверки: `local/goal584/upstream-floor-{pr-discovery,developer-discussions}.md`.
+Merged manual-reset fixes37971/38686 уже входят в pinned v1.105.1/d665:
+remote compare подтвердил ancestry обоих merge commits. Open40940 меняет
+scheduled cache invalidation/retries, но его diff не содержит floor logic.
+Подготовка сохранила только untracked, неприменённый/непроверенный `floor.patch`
+в отдельной native-floor worktree; native build/test/CI не запускались.
+
+**Native45 завершён и проверен.**
+[41698427403](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41698427403),
+HEAD `c11df5b8732f5d6203d75ad2dcfa133a12cfb240`, tested merge
+`c08f5c3f7f0b8d005dec4f2436a5a6f5a5f6dd11`. Main job126135006833 PASS,
+Active CI41698427312 PASS; basic PASS, positive-floor FAIL, workflow FAIL.
+Responses financial profile принят независимым review и parent повтором replay:
+2 actual charged dispatch по$0.20; direct native422 дал ровно1 own-R audit
+BudgetExceededError/aresponses с cost/usage0. Все4 native budget-owner поля
+действительно присутствовали и проверены. Перед/после GUI полный3-row hash
+совпал, provider19/19 и User/key$0.40 неизменны; signed/unsigned/body/cardinality/
+old5/restoration guards завершены, UI/Details/reload/denial проверены, cleanup0/0.
+ZIP `e7a723a3d22924fec690fc45f32cc50109d381a73fd40cba851f8967f773c7f5`:
+219 files/45 manifest sources сверены с actual Git merge;10 receipt mutations
+отвергнуты. Audit привязан причинным serial bracket, не intrinsic provider ID.
+Reasoning continuity остаётся наблюдаемым gap и этим финансовым профилем не
+принята. Evidence: `local/goal584/responses45-review/independent-acceptance.md`.
+Calendar45 повторён parent: basic19sources/10mounts/10native,4 native sweeps,
+period$0.20/lifetime$0.40, next same-worker6.131s<60; ZIP25102a41… . Floor45
+полный reproducer FAIL_STALE_POSITIVE_FLOOR:238 replay checks, critical1.258901s
+<5, те же DB$0.20/Redis$0.40/cap$0.40/final422 без dispatch; ZIP9da862d4… .
+Оба cleanup0containers/0volumes/0networks. Evidence:
+`local/goal584/calendar45-parent-review.py` и два calendar packets41698427403.
+
+**Следующий разрешённый срез — two-function prototype и явный derivative.**
+Patch SHA `1d71ad80cca52b98e16f7909643f6d3f862b3f381c050ea57cfae1070065f906`;
+base proxy SHA227a704e…, patched LF SHAe354f6e9… . Изменены только
+`get_current_spend` и `_authoritative_floor_spend`; public admission signature,
+reservations/monotonic repair/financial writes/reset job остаются прежними.
+Would-raise positive floor перечитывает существующий DB owner под native reseed
+lock; later manual-reset marker сохраняется, failure/cancel не разрешает новый
+непроверенный ноль. Native TTL5/auth60 не изменены.24 exact-AST tests PASS;
+native memory cache/reseed/DB gate/manual helper исполняются с явными IO doubles,
+это не native Redis/Prisma/runtime acceptance. Нагрузка измерена:21 followers
+после удаления marker дают1 DB read;8 callers, успевших прочитать old marker до
+lock, дают8 последовательных reads. Гарантии1read/5s больше нет; штатный DB gate
+и lookup deadlines сохранены. Inflight calendar cutover, noRedis stale L1 и
+active-lock eviction pressure остаются непокрытыми; дополнительный reset fence
+потребует отдельного согласованного scope, а не скрытого расширения двух функций.
+Windows implicit Git apply первоначально дал CRLF SHAaa71f7df… вместо LF.
+Подтверждено точное LF→CRLF равенство; apply теперь явно задаёт core.autocrlf=false
+и core.eol=lf и проверяет реальные patched LF bytes. Патч/алгоритм не изменены.
+Статический manifest различает base/patch/after, builder читает исходники из
+точного pinned image и проверяет полный AST delta; MIT notice сохранён. Provider
+и WebUI используют stock images, только proxy получает явно выбранный immutable
+derivative image ID. Runtime hashes проверяются по выбранному manifest; modified
+proxy нельзя выдать за pristine d665. Independent native readiness24+14 PASS,
+builder review15 PASS; общий harness396 PASS/0skip. Actual CI-body replay28
+calendar cases и5 overlap cases PASS, parent повторил;45 Bash/20 embedded Python/
+23 literal Python-c/actionlint PASS.4 полных модуля импортированы с реальными
+shallow /proof путями. До runtime устранены два wiring blockers: indexed parents
+при /proof import и непроверенные extra/duplicate bind mounts.18 native source
+guards и financial/timing assertions не ослаблены. Product bytes прежние;
+219 component checks (212PASS/7opt-in skips) переиспользованы по exact identity.
+Следующий gate — реальный derivative стенд с прежними financial/timing/cleanup
+assertions; source readiness не является runtime acceptance.
+Данные production, реальные тарифы/лимиты, платные API и рабочие маршруты не
+входят в этот срез. Evidence: `native-floor-prototype-preparation.md`,
+`native-floor-independent-readiness.*`, `native-floor-build-integration-readiness.md`
+в existing ignored `local/goal584/`.
 
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),

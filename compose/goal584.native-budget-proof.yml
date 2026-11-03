@@ -68,7 +68,7 @@ services:
     networks: [proof]
 
   proxy:
-    image: *litellm_image
+    image: ${PROOF_LITELLM_IMAGE:-ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802}
     mem_limit: 2g
     memswap_limit: 3g
     cpus: 1.5
@@ -82,7 +82,21 @@ services:
       LITELLM_LOCAL_MODEL_COST_MAP: "True"
       STORE_PROMPTS_IN_SPEND_LOGS: "false"
       NO_PROXY: localhost,127.0.0.1,postgres,redis,provider
+      PROOF_NATIVE_VARIANT: ${PROOF_NATIVE_VARIANT:-stock}
+      PROOF_LITELLM_IMAGE: ${PROOF_LITELLM_IMAGE:-ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802}
     volumes:
+      - type: bind
+        source: ../deploy/litellm-patches/positive-floor-v1.105.1/native_floor_identity.py
+        target: /proof/native_floor_identity.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/litellm-patches/positive-floor-v1.105.1/manifest.json
+        target: /proof/manifest.json
+        read_only: true
+        bind:
+          create_host_path: false
       - type: bind
         source: ${PROOF_CONFIG_FILE:?Prepare the private stock config copy for this run}
         target: /proof/config.yaml

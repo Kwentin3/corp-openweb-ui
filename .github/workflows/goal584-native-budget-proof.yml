@@ -10,10 +10,15 @@ on:
       - compose/goal584.calendar-proof.yml
       - scripts/goal584-budget-proof/**
       - deploy/openwebui-budgets/**
+      - deploy/litellm-patches/positive-floor-v1.105.1/**
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  # Explicit stand-only candidate; provider and WebUI retain their stock images.
+  PROOF_NATIVE_VARIANT: positive-floor-v1.105.1
 
 concurrency:
   group: goal584-native-budget-proof-${{ github.event.pull_request.number || github.ref }}
@@ -22,8 +27,8 @@ concurrency:
 jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
-    # Existing phases 25m + Responses 40m + teardown 5m + upload 2m + 3m reserve.
-    timeout-minutes: 75
+    # Derivative build 10m + existing phases 25m + Responses 40m + cleanup reserve.
+    timeout-minutes: 85
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -69,6 +74,23 @@ jobs:
                       print(f'::add-mask::{value}')
           PY
 
+      - name: Build the reviewed two-function native derivative
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$RUNNER_TEMP/goal584-native-floor-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
+          PY
+
       - name: Start the pinned disposable backend
         shell: bash
         run: |
@@ -79,8 +101,12 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import hashlib, json, os, subprocess
+          import hashlib, json, os, subprocess, sys
           from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          import native_floor_identity as native_sdk
+          build = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          artifact = native_sdk.verify_build(build)
           command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'], '-f', 'compose/goal584.native-budget-proof.yml']
           containers = subprocess.check_output(command + ['ps', '-q'], text=True).split()
           assert len(containers) == 4, 'Expected only the four disposable proof services'
@@ -93,7 +119,13 @@ jobs:
                   'image_id': data['Image'],
                   'health': data['State'].get('Health', {}).get('Status'),
               })
-              assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
+              if data['Config']['Labels']['com.docker.compose.service'] == 'proxy':
+                  assert data['Config']['Image'] == data['Image'] == native_sdk.image_ref()
+              else:
+                  assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
+          native_code = "import json,sys;sys.path.insert(0,'/proof');import native_floor_identity as n;print(json.dumps(n.inspect_sources()))"
+          native_actual = json.loads(subprocess.check_output(command + ['exec','-T','proxy','python','-B','-c',native_code]))
+          assert native_actual['native_artifact'] == artifact
           files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
                    'compose/goal584.overlap-proof.yml', 'scripts/goal584-budget-proof/prove_budget_overlap.py',
                    'scripts/goal584-budget-proof/init_vector_database.sql',
@@ -102,10 +134,13 @@ jobs:
                    'deploy/openwebui-budgets/budget_errors.py',
                    'deploy/openwebui-budgets/pricing_snapshot.py',
                    'scripts/goal584-budget-proof/prove_pricing_snapshots.py',
-                   'scripts/goal584-budget-proof/prove_gateway_auth.py']
+                   'scripts/goal584-budget-proof/prove_gateway_auth.py',
+                   'scripts/goal584-budget-proof/native-patch-requirements.txt',
+                   *build['files_sha256']]
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'images': images,
+              'native_sdk': native_actual,
               'files_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
               'scope': 'Disposable native LiteLLM core with a synthetic provider; no WebUI or key-selection adapter acceptance',
           }
@@ -694,7 +729,7 @@ jobs:
     runs-on: ubuntu-24.04
     # Bound each phase and reserve time for always-cleanup after both startup
     # waits and a timed-out floor helper. Native 5s/60s clocks are unchanged.
-    timeout-minutes: 30
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -748,6 +783,23 @@ jobs:
               handle.write('CALENDAR_PROJECT_CLAIMED=false\n')
           PY
 
+      - name: Build the reviewed calendar native derivative
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$RUNNER_TEMP/goal584-native-floor-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
+          PY
+
       - name: Start only the fresh calendar backend
         timeout-minutes: 9
         shell: bash
@@ -779,8 +831,12 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import ast, hashlib, ipaddress, json, os, re, subprocess
+          import ast, hashlib, ipaddress, json, os, re, subprocess, sys
           from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          import native_floor_identity as native_sdk
+          build = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          artifact = native_sdk.verify_build(build)
           project = os.environ['CALENDAR_PROJECT']
           profile = os.environ['CALENDAR_PROFILE']
           assert profile in ('basic', 'positive-floor')
@@ -805,12 +861,15 @@ jobs:
                      '/proof/pricing_snapshot.py':'deploy/openwebui-budgets/pricing_snapshot.py',
                      '/proof/employee_budget_assignment.py':'deploy/openwebui-budgets/assignment.py',
                      '/proof/litellm_auth.py':'deploy/openwebui-budgets/litellm_auth.py',
-                     '/proof/prove_pricing_snapshots.py':'scripts/goal584-budget-proof/prove_pricing_snapshots.py'}
+                     '/proof/prove_pricing_snapshots.py':'scripts/goal584-budget-proof/prove_pricing_snapshots.py',
+                     '/proof/native_floor_identity.py':'deploy/litellm-patches/positive-floor-v1.105.1/native_floor_identity.py',
+                     '/proof/manifest.json':'deploy/litellm-patches/positive-floor-v1.105.1/manifest.json'}
           files = ['.github/workflows/goal584-native-budget-proof.yml','compose/goal584.native-budget-proof.yml',
                    'compose/goal584.calendar-proof.yml','scripts/goal584-budget-proof/litellm_config.yaml',
                    'scripts/goal584-budget-proof/init_vector_database.sql','scripts/goal584-budget-proof/mock_provider.py',
                    'scripts/goal584-budget-proof/test_calendar_floor.py','scripts/goal584-budget-proof/test_calendar_reset.py',
-                   'scripts/goal584-budget-proof/test_budget_overlap.py',*mounted.values()]
+                   'scripts/goal584-budget-proof/test_budget_overlap.py',
+                   'scripts/goal584-budget-proof/native-patch-requirements.txt',*build['files_sha256'],*mounted.values()]
           hashes = {}
           for name in dict.fromkeys(files):
               data = Path(name).read_bytes()
@@ -818,10 +877,11 @@ jobs:
               hashes[name] = hashlib.sha256(data).hexdigest()
           helpers = literal('scripts/goal584-budget-proof/prove_calendar_floor.py','HELPERS')
           helpers['prove_calendar_floor.py'] = hashes['scripts/goal584-budget-proof/prove_calendar_floor.py']
-          assert len(helpers) == 8 and all(hashes[mounted['/proof/'+name]] == digest for name,digest in helpers.items())
+          assert len(helpers) == 10 and all(hashes[mounted['/proof/'+name]] == digest for name,digest in helpers.items())
           native = literal('scripts/goal584-budget-proof/prove_calendar_reset.py','NATIVE_HASHES')
           if floor:
               native.update(literal('scripts/goal584-budget-proof/prove_calendar_floor.py','EXTRA_NATIVE'))
+          native = native_sdk.selected_hashes(native)
           assert len(native) == (18 if floor else 10)
           code = 'import hashlib,json,pathlib,sys;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
           native_code = 'import hashlib,importlib.util,json,pathlib,sys;root=pathlib.Path(importlib.util.find_spec("litellm").origin).parent;print(json.dumps({p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
@@ -837,7 +897,11 @@ jobs:
                   item = json.loads(read(['docker','inspect',identifier]))[0]
                   labels = item['Config']['Labels']
                   assert labels['com.docker.compose.project'] == project and labels['com.docker.compose.service'] == service
-                  assert item['State']['Health']['Status'] == 'healthy' and '@sha256:' in item['Config']['Image']
+                  assert item['State']['Health']['Status'] == 'healthy'
+                  if service == 'proxy':
+                      assert item['Config']['Image'] == item['Image'] == native_sdk.image_ref()
+                  else:
+                      assert '@sha256:' in item['Config']['Image']
                   assert re.fullmatch('sha256:[0-9a-f]{64}',item['Image'])
                   assert item['HostConfig']['NetworkMode'] == project+'_proof'
                   assert set(item['NetworkSettings']['Networks']) == {project+'_proof'}
@@ -852,6 +916,9 @@ jobs:
                   number = labels['com.docker.compose.container-number']
                   assert number in (('1','2') if floor else ('1',))
                   assert item['Config']['Cmd'] == ['--config','/proof/config.yaml','--host','0.0.0.0','--port','4000','--num_workers','1','--telemetry','false']
+                  binds = [mount for mount in item['Mounts'] if mount['Type'] == 'bind']
+                  assert len(binds) == len({mount['Destination'] for mount in binds}) == len(mounted) + 2
+                  assert {mount['Destination'] for mount in binds} == {*mounted, '/proof/config.yaml', '/proof-private'}
                   private_mount = next(m for m in item['Mounts'] if m['Destination'] == '/proof-private')
                   assert private_mount['Type'] == 'bind' and private_mount['RW'] is True
                   assert private_mount['Source'] == str(Path(os.environ['PROOF_PRIVATE_DIR']).resolve())
@@ -887,6 +954,7 @@ jobs:
           provider = json.loads(read(command + ['exec','-T','provider','python','-B','-c',code,'/proof/mock_provider.py']))
           assert provider['/proof/mock_provider.py'] == hashes['scripts/goal584-budget-proof/mock_provider.py']
           receipt = {'source_commit':rev, 'profile':profile, 'project':project, 'images':images, 'files_sha256':hashes,
+                     'native_artifact':artifact,
                      'mounted_sha256':mounted_workers, 'provider_sha256':provider, 'private_config_sha256':config_hash,
                      'workers':[{key:value for key,value in worker.items() if key != 'private_mount'} for worker in workers],
                      'redis_run_id':attest['redis_run_id'], 'scope':'Dedicated native calendar job only; no WebUI or production'}

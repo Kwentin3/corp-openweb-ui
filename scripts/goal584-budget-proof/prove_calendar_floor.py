@@ -39,13 +39,15 @@ PRIVATE_ROOT = Path("/proof-private")
 IMAGE = "ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802"
 COMMAND = ["--config", "/proof/config.yaml", "--host", "0.0.0.0", "--port", "4000", "--num_workers", "1", "--telemetry", "false"]
 HELPERS = {
-    "prove_calendar_reset.py": "32b85ce931220f7eb6cce4875876805a5724e7f6e0c4c8eab44b5ff4333af21e",
+    "prove_calendar_reset.py": "62589e0bf96e3df7673332e28b6a863aa1236b71cd3fee0638e42e7786ee0271",
     "prove_native_budgets.py": "e05bdcb0e14f4833960e4360387df7080adb9a17ca893f7ec65880efe2b897fa",
     "prove_gateway_auth.py": "a506e9f1283d5729d467ee959ceca735e19351e9f2f15b66972d5821c9a6133a",
-    "prove_budget_overlap.py": "d9dda6383c0703869494601da3639fc0ab7fb1f820caddbb8c968b0c4e93e2b0",
+    "prove_budget_overlap.py": "3c5b9c5b48f35c655063c66286bb0fccf5fe04c243f3f75390dd5d3323d8c522",
     "budget_errors.py": "30a86a662f0320482761a2f52310456c328e112954cf5d0557df09cb20db4abe",
     "pricing_snapshot.py": "3be902bcf3b9a80b3f7c920e58f7cd09a5524591b91e6693da7bd763f3579233",
     "employee_budget_assignment.py": "72b0026c862cc21adabd32a86e134dfc0cbe9ebf7e5b6ca02e7e088689315b70",
+    "native_floor_identity.py": "39d28b28e3d60fb6e5989cdd4b23a2a1341277bc569f2bf3ef0eb9e32deac839",
+    "manifest.json": "1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b",
 }
 EXTRA_NATIVE = {
     "proxy/auth/user_api_key_auth.py": "1d22aa5ccf241f273e69e4baa844e84257b6dd98b17ddb08e8523f862cd187f4",
@@ -120,12 +122,14 @@ def topology(args, attest, config, files, native_hashes, env=os.environ):
     for worker in workers:
         check(set(worker) == {"id", "number", "image_ref", "image_id", "health", "command", "project", "service",
                               "network_mode", "private_mount", "config_sha256", "files_sha256", "native_sha256", "ipv4"}, "worker_fields")
-        check(worker.get("image_ref") == IMAGE and worker.get("health") == "healthy" and worker.get("command") == COMMAND
+        check(worker.get("image_ref") == calendar.native_sdk.image_ref() and worker.get("health") == "healthy" and worker.get("command") == COMMAND
               and worker.get("project") == args.project and worker.get("service") == "proxy"
               and worker.get("network_mode") == args.project + "_proof"
               and worker.get("private_mount") == attest.get("private_mount") and isinstance(worker.get("private_mount"), str)
               and worker["private_mount"].startswith("/") and worker.get("config_sha256") == config_sha
               and worker.get("files_sha256") == files and worker.get("native_sha256") == native_hashes, "worker_bindings")
+        if calendar.native_sdk.variant() != "stock":
+            check(worker.get("image_id") == calendar.native_sdk.image_ref(), "derivative_image_id")
         try: address = IPv4Address(worker.get("ipv4", ""))
         except ValueError: raise FloorError("worker_ipv4") from None
         check(address.is_private and not (address.is_loopback or address.is_link_local or address.is_unspecified or address.is_multicast), "worker_ipv4")
@@ -508,7 +512,8 @@ async def qualify(args, attest, receipt, secrets):
     check(version("litellm") == "1.105.1" and ps.prisma_client is None, "native_standalone_version")
     package = Path(litellm.__file__).parent
     actual = {name: hashlib.sha256((package / name).read_bytes()).hexdigest() for name in NATIVE_HASHES}
-    check(actual == NATIVE_HASHES and len(actual) == 18, "native_18_sources")
+    check(actual == calendar.native_sdk.selected_hashes(NATIVE_HASHES) and len(actual) == 18, "native_18_sources")
+    receipt["native_artifact"] = calendar.native_sdk.identity()
     files = source_files()
     config = await ps.proxy_config.get_config(config_file_path="/proof/config.yaml")
     check(not os.environ.get("LITELLM_CONFIG_BUCKET_NAME"), "native_local_config")

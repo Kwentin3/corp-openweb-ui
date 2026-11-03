@@ -333,8 +333,10 @@ class CoordinatorTests(unittest.TestCase):
         identity={'files_sha256':{name:hashlib.sha256((p.ROOT/path).read_bytes()).hexdigest() for name,path in p.SOURCE_PATHS.items()},
                   'config_sha256':'a'*64,'database_url_sha256':'b'*64}
         provider_source={'mock_provider.py':hashlib.sha256((p.ROOT/p.PROVIDER_SOURCE).read_bytes()).hexdigest()}
+        native_identity = {'native_sha256':p.native_sdk.selected_hashes({name.removeprefix('litellm/'):value for name,value in p.native_sdk.load_manifest()['native_export_sha256'].items()}),
+                           'native_artifact':p.native_sdk.identity()}
         with patch.object(p.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'1'*64+b'\n'+b'2'*64+b'\n',b'')), \
-             patch.object(coordinator,'run_json',side_effect=[*rows,provider_source]),patch.object(coordinator,'invoke',return_value=identity):
+             patch.object(coordinator,'run_json',side_effect=[*rows,native_identity,native_identity,provider_source]),patch.object(coordinator,'invoke',return_value=identity):
             observed=coordinator.topology()
             self.assertEqual(len(observed['containers']),2)
             self.assertEqual(observed['provider_source_sha256'],provider_source)
@@ -343,8 +345,14 @@ class CoordinatorTests(unittest.TestCase):
             with patch.object(p.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'1'*64+b'\n'+b'2'*64+b'\n',b'')), \
                  patch.object(coordinator,'run_json',side_effect=changed),self.assertRaises(p.ProofError):coordinator.topology()
         with patch.object(p.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'1'*64+b'\n'+b'2'*64+b'\n',b'')), \
-             patch.object(coordinator,'run_json',side_effect=[*rows,{'mock_provider.py':'foreign'}]), \
+             patch.object(coordinator,'run_json',side_effect=[*rows,native_identity,native_identity,{'mock_provider.py':'foreign'}]), \
              patch.object(coordinator,'invoke',return_value=identity),self.assertRaisesRegex(p.ProofError,'Provider mounted source'):
+            coordinator.topology()
+        altered = copy.deepcopy(native_identity)
+        altered['native_sha256']['proxy/proxy_server.py'] = '0' * 64
+        with patch.object(p.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'1'*64+b'\n'+b'2'*64+b'\n',b'')), \
+             patch.object(coordinator,'run_json',side_effect=[*rows,native_identity,altered]), \
+             patch.object(coordinator,'invoke',return_value=identity),self.assertRaisesRegex(p.ProofError,'native source/artifact'):
             coordinator.topology()
 
     def test_custom_import_and_callback_closure_has_existing_readonly_mounts(self):

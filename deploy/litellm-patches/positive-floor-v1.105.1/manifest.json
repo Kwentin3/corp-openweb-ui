@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "variant": "positive-floor-v1.105.1",
+  "base_image": "ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802",
+  "base_revision": "d665dc1a6315847fcad6cc2c1264ceb47c06abce",
+  "target": "litellm/proxy/proxy_server.py",
+  "original_sha256": "227a704e5c9e7bdd0569f80d520aa670bde32397d0983e165089c63dcb775b4e",
+  "patched_sha256": "e354f6e96e245828e35cd3658cced6a78430571f7d7e8590b523e36c848f677e",
+  "patch_sha256": "1d71ad80cca52b98e16f7909643f6d3f862b3f381c050ea57cfae1070065f906",
+  "native_export_sha256": {
+    "litellm/proxy/proxy_server.py": "227a704e5c9e7bdd0569f80d520aa670bde32397d0983e165089c63dcb775b4e",
+    "litellm/caching/in_memory_cache.py": "50a93d8f62ca3938ccd7b24ff76eb3d4e5d98d9efa4fcda395cb1317d77fdf30",
+    "litellm/proxy/db/db_lookup_gate.py": "c3ddca1af89fab9aebf46400ca6a0b426d2bdced31f507e55c472f9f716f3fca",
+    "litellm/proxy/db/spend_counter_reseed.py": "0d76c24ff02b48c4eda9fb8462f8e0fe394dd1c6ba52075f8ed13499adb03b9f",
+    "litellm/proxy/management_endpoints/key_management_endpoints.py": "c9c644c2a93e20ef9d850454ddb4b23bf1db4823b66be415b9a13a5da045b4de"
+  },
+  "license_sha256": "b170d6bf8e8835dd357e011681db028f4d51e2fb0ea892058f56e01fb39b8273"
+}
