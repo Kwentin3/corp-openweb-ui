@@ -22,7 +22,8 @@ concurrency:
 jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # Existing phases 25m + Responses 40m + teardown 5m + upload 2m + 3m reserve.
+    timeout-minutes: 75
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -284,6 +285,7 @@ jobs:
                    'scripts/goal584-budget-proof/prove_background_browser.py',
                    'scripts/goal584-budget-proof/prove_pricing_browser.py',
                    'scripts/goal584-budget-proof/prove_rag_service.py',
+                   'scripts/goal584-budget-proof/prove_responses_chat.py',
                    'scripts/goal584-budget-proof/prove_ledger_retention.py',
                    'deploy/openwebui-budgets/service_pipe.py',
                    'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
@@ -628,7 +630,17 @@ jobs:
             --prior-pricing-receipt "$PROOF_OUTPUT_DIR/pricing/pricing-browser.json" \
             --prior-overlap-receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
 
+      - name: Qualify ordinary Responses chat and its native budget ledger after RAG
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/responses"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_responses_chat.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/responses"
+
       - name: Show bounded sanitized startup diagnostics on failure
+        timeout-minutes: 2
         if: failure()
         shell: bash
         run: |
@@ -649,6 +661,7 @@ jobs:
           PY
 
       - name: Remove the disposable backend and its data
+        timeout-minutes: 5
         if: always()
         shell: bash
         run: |
@@ -668,6 +681,7 @@ jobs:
           fi
 
       - name: Retain the synthetic qualification receipts
+        timeout-minutes: 2
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
