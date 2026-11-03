@@ -4,7 +4,9 @@ from decimal import Decimal
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 HERE = Path(__file__).resolve().parent
@@ -101,6 +103,64 @@ def packet():
 
 
 class BootstrapTests(unittest.TestCase):
+    def settlement_inputs(self):
+        browser, _, _, final = packet()
+        uid = browser["employee_id"]
+        created = {"bootstrap": copy.deepcopy(browser["native_snapshots"]["created"])}
+        pending = copy.deepcopy(final)
+        for row in pending["bootstrap"]["users"] + pending["bootstrap"]["keys"]:
+            row["spend_usd"] = "0"
+        return uid, created, pending, final
+
+    def settle(self, fixture, created, uid, timeout=1):
+        clock = [0.0]
+        def sleep(seconds):
+            clock[0] += seconds
+        with patch.object(B, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep)):
+            return B.wait_newhire_settlement(fixture, created, uid, spend=Decimal(".20"), timeout=timeout)
+
+    def test_waits_for_user_and_key_materialization_without_repeating_inference(self):
+        uid, created, pending, final = self.settlement_inputs()
+        partial = copy.deepcopy(pending)
+        partial["bootstrap"]["keys"][0]["spend_usd"] = ".20"
+        original = copy.deepcopy([pending, partial, final])
+        fixture = SimpleNamespace(snapshot=Mock(side_effect=[pending, partial, final]))
+        actual, evidence = self.settle(fixture, created, uid)
+        self.assertIs(actual, final)
+        self.assertEqual(fixture.snapshot.call_count, 3)
+        self.assertEqual(evidence["observations"], 3)
+        self.assertTrue(evidence["native_counter_and_ledger_converged"])
+        self.assertEqual([pending, partial, final], original)
+
+    def test_settlement_needs_the_actual_cost_row_and_has_a_deadline(self):
+        uid, created, pending, final = self.settlement_inputs()
+        missing = copy.deepcopy(final)
+        missing["attributed_spend_logs"] = [row for row in missing["attributed_spend_logs"] if row["user_id"] != uid]
+        fixture = SimpleNamespace(snapshot=Mock(side_effect=[missing, final]))
+        self.assertIs(self.settle(fixture, created, uid)[0], final)
+        stale = SimpleNamespace(snapshot=Mock(return_value=pending))
+        with self.assertRaisesRegex(AssertionError, "did not settle"):
+            self.settle(stale, created, uid, timeout=.5)
+        self.assertEqual(stale.snapshot.call_count, 3)
+
+    def test_settlement_rejects_conflicts_excess_spend_or_extra_rows_immediately(self):
+        uid, created, pending, final = self.settlement_inputs()
+        for mutate in (
+            lambda s: s["bootstrap"]["users"][0].update(user_id=str(uuid4())),
+            lambda s: s["bootstrap"]["users"][0].update(max_budget_usd=".7"),
+            lambda s: s["bootstrap"]["keys"][0].update(budget_reset_at="2027-01-01T00:00:00Z"),
+            lambda s: s["bootstrap"]["users"][0].update(spend_usd=".4"),
+            lambda s: s["bootstrap"]["users"][0].update(spend_usd="NaN"),
+            lambda s: s["bootstrap"]["keys"][1].update(spend_usd=".0000000001"),
+            lambda s: s["attributed_spend_logs"].extend([row for row in s["attributed_spend_logs"] if row["user_id"] == uid]),
+        ):
+            bad = copy.deepcopy(pending)
+            mutate(bad)
+            fixture = SimpleNamespace(snapshot=Mock(side_effect=[bad, final]))
+            with self.subTest(mutation=mutate), self.assertRaises(AssertionError):
+                self.settle(fixture, created, uid)
+            self.assertEqual(fixture.snapshot.call_count, 1)
+
     def test_native_shaped_phase_is_independent_nine_calls_ten_attempts(self):
         result = V.verify(*packet())
         self.assertTrue(result["passed"])

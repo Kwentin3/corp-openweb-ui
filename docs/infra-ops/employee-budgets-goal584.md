@@ -301,6 +301,21 @@ Independent run29 service review подтвердил admin footer/turn и conte
 Background source review не нашёл authority/money-owner defect для выбранного
 native primary A. Fan-out не различим в унаследованной metadata и может пройти
 guard при первом A; он остаётся runtime-unqualified, запрет fan-out не заявляется.
+Run31 [41615522053](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41615522053),
+HEAD `30c0f306263aafedc6767fa88c5e57bd2b476906`, tested merge
+`d1865d44ac344999ead65bd22f0b31261ff55205`, остановился раньше service/retention:
+после successful newhire A и hard-zero B в actual34-row ledger есть один новый
+employee event0.20, но однократный final snapshot user/key ещё0.0. Причина задержки
+в этой попытке не доказана; сходимость не наблюдалась. Browser driver теперь только
+повторно читает native snapshots до совпадения counters/ledger (не более60s ожидания),
+сохраняя каждое наблюдение. Identity/caps/period меняются — немедленный отказ;
+лишний расход/строка и ненулевой hard-zero B также отклоняются. Новых inference,
+budget writes, repair или пересчёта нет.9 targeted tests PASS. Offline replay
+неизменённого actual failing input корректно заканчивается timeout, не PASS:
+`local/goal584/bootstrap-settlement-run31.safe.json`. Нужно новое native наблюдение
+сходимости; после него остаются прежние полные финансовые/context проверки.
+Evidence `local/goal584/runtime-proof-41615522053`, cleanup0/0, ZIP SHA256
+`17aaa04cf26e9d65970237a8070ff4f39d6992b31bbe789d778444d4dab8de3d`.
 К следующему кандидату добавлена отдельная финальная retention-проверка: свежий
 native login сотрудника, один его завершённый оплаченный synthetic Hi/Proof chat,
 native DELETE и повторный GET, readonly PostgreSQL snapshots всех колонок

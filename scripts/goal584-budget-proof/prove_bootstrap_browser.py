@@ -5,6 +5,7 @@ No native budget writes outside the visible confirmed form. Existing admin proof
 receipts remain separate. All provider traffic terminates in the synthetic stub.
 """
 import argparse
+import copy
 from datetime import datetime, timezone
 from decimal import Decimal
 import ipaddress
@@ -12,6 +13,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import time
 from urllib.parse import urlsplit
 
 from playwright.sync_api import expect, sync_playwright
@@ -66,6 +68,44 @@ def verify_newhire(snapshot, user_id, *, spend):
                 and same_money(key["spend_usd"], spend if key["model"] == MODELS[0] else Decimal(0))
                 and key["budget_duration"] == "1mo" and key["budget_reset_at"] == user["budget_reset_at"],
                 "Native model cap/spend/reset differs from the confirmed initialization")
+
+
+def wait_newhire_settlement(fixture, created, user_id, *, spend, timeout=60):
+    """Read native materialized counters until they match the persisted event.
+
+    Each observation is retained by snapshot(). No inference or financial write
+    is repeated. A changed identity/cap/period or excess spend fails immediately.
+    """
+    verify_newhire(created, user_id, spend=Decimal(0))
+    expected = copy.deepcopy(created["bootstrap"])
+    for row in expected["users"] + expected["keys"]:
+        row.pop("spend_usd")
+    started = time.monotonic()
+    observations = 0
+    while True:
+        snapshot = fixture.snapshot()
+        observations += 1
+        actual = copy.deepcopy(snapshot["bootstrap"])
+        values = []
+        for row in actual["users"] + actual["keys"]:
+            value = Decimal(row.pop("spend_usd"))
+            limit = spend if row.get("model", MODELS[0]) == MODELS[0] else Decimal(0)
+            require(value.is_finite() and value >= 0
+                    and (value == 0 if limit == 0 else value <= limit + Decimal("0.000000001")),
+                    "Native new-hire spend exceeds the completed call")
+            values.append(same_money(value, limit))
+        require(actual == expected, "Native new-hire identity/cap/period changed while settling")
+        rows = [row for row in snapshot["attributed_spend_logs"] if row.get("user_id") == user_id]
+        require(len(rows) <= 1, "New-hire settlement observed an extra native cost row")
+        if rows:
+            require(rows[0].get("model_group") == MODELS[0]
+                    and same_money(rows[0]["spend_usd"], spend), "New-hire native event differs from completed call")
+        if all(values) and len(rows) == 1:
+            verify_newhire(snapshot, user_id, spend=spend)
+            return snapshot, {"observations": observations, "elapsed_seconds": time.monotonic() - started,
+                              "native_counter_and_ledger_converged": True}
+        require(time.monotonic() - started < timeout, "Native new-hire counters/ledger did not settle")
+        time.sleep(0.25)
 
 
 class BootstrapFixture(Fixture):
@@ -200,11 +240,11 @@ def main():
                         "bootstrap-employee-" + outcome, args.output)
             call["user_id"] = employee["id"]
             receipt["calls"].append(call)
-        final = fixture.snapshot()
-        verify_newhire(final, employee["id"], spend=Decimal(".20"))
+        final, settlement = wait_newhire_settlement(fixture, created, employee["id"], spend=Decimal(".20"))
         fixture.provider()
         fixture.context()
-        receipt.update(passed=True, admin_id=admin["id"], employee_id=employee["id"], model_id=model_id,
+        receipt.update(passed=True, native_settlement=settlement,
+            admin_id=admin["id"], employee_id=employee["id"], model_id=model_id,
             opened=opened, template_saved=saved, canceled=canceled, initialized=initialized,
             template_proposal=proposal, initialization_proposal=initialization,
             canceled_native_identity_absent=True, existing_employee_native_state_unchanged=True,
