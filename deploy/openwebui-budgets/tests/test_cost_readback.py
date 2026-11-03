@@ -234,6 +234,75 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(cost.CostReadError, "spend_api_unavailable"):
             await self.read(timeout_seconds=.01)
 
+    async def test_count_then_insert_race_restarts_scan_and_confirms_actual_row(self):
+        async def publication(request):
+            return web.json_response(page([row()], total=0 if len(self.requests) == 1 else 1))
+        self.handler = publication
+        with self.assertLogs(cost.log, level="INFO") as logged:
+            snapshot = await self.read(observed_request_ids={"provider-1"}, wait_seconds=.2, poll_interval=.005)
+        self.assertEqual(len(self.requests), 2)
+        self.assertEqual(snapshot.answer.spend, Decimal(".20"))
+        self.assertEqual(snapshot.answer.calls, 1)
+        self.assertTrue(snapshot.complete)
+        self.assertFalse(snapshot.pending)
+        self.assertEqual(logged.output, ["INFO:employee_budget_cost_readback:Budget cost snapshot scan restarted: page_length_changed"])
+
+    async def test_count_drift_discards_every_page_before_starting_again(self):
+        values = [row(f"p{i}") for i in range(102)]
+        async def publication(request):
+            number = int(request.query["page"])
+            total = 101 if len(self.requests) == 1 else 102
+            return web.json_response(page(values[:100] if number == 1 else values[100:], number=number, total=total))
+        self.handler = publication
+        snapshot = await self.read(observed_request_ids={"p101"}, wait_seconds=.2, poll_interval=.005)
+        self.assertEqual([request[1]["page"] for request in self.requests], ["1", "2", "1", "2"])
+        self.assertEqual(snapshot.answer.calls, 102)
+        self.assertEqual(snapshot.answer.spend, Decimal("20.40"))
+        self.assertTrue(snapshot.complete)
+
+    async def test_persistent_length_mismatch_remains_an_error_at_the_bound(self):
+        self.payload = page([row()], total=0)
+        with self.assertRaisesRegex(cost.CostReadError, "incomplete_pagination"):
+            await self.read(observed_request_ids={"provider-1"}, timeout_seconds=.5,
+                            wait_seconds=.03, poll_interval=.005)
+        self.assertGreater(len(self.requests), 1)
+        self.assertTrue(all(request[1]["page"] == "1" for request in self.requests))
+
+    async def test_wait_does_not_retry_capped_malformed_duplicate_or_foreign_data(self):
+        foreign = row()
+        foreign["user"] = OTHER_USER
+        variants = [dict(page([row()]), total_is_capped=True), page([], total=10001),
+                    dict(page([row()]), page=True), page([row(), row()]), page([foreign])]
+        for payload in variants:
+            self.requests.clear()
+            self.payload = payload
+            with self.subTest(payload=payload), self.assertRaises(cost.CostReadError):
+                await self.read(observed_request_ids={"provider-1"}, wait_seconds=.2, poll_interval=.005)
+            self.assertEqual(len(self.requests), 1)
+
+    async def test_valid_pending_scan_and_discarded_scan_are_not_merged(self):
+        async def publication(request):
+            number = len(self.requests)
+            return web.json_response(page([]) if number == 1 else page([row()], total=0 if number == 2 else 1))
+        self.handler = publication
+        snapshot = await self.read(observed_request_ids={"provider-1"}, wait_seconds=.2, poll_interval=.005)
+        self.assertEqual(len(self.requests), 3)
+        self.assertEqual(snapshot.answer.spend, Decimal(".20"))
+        self.assertEqual(snapshot.answer.calls, 1)
+        self.assertTrue(snapshot.complete)
+
+    async def test_partial_scan_cannot_become_a_snapshot_on_operation_timeout(self):
+        async def publication(request):
+            number = int(request.query["page"])
+            if number == 2:
+                await asyncio.sleep(.1)
+            return web.json_response(page([row(f"p{i}") for i in range(100)] if number == 1 else [row("p100")],
+                                          number=number, total=101))
+        self.handler = publication
+        with self.assertRaisesRegex(cost.CostReadError, "spend_api_unavailable"):
+            await self.read(observed_request_ids={"p100"}, timeout_seconds=.03,
+                            wait_seconds=.03, poll_interval=.005)
+
     async def test_total_deadline_keeps_valid_pending_snapshot(self):
         async def stalls_after_first_scan(request):
             if len(self.requests) > 1:

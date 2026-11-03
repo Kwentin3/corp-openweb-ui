@@ -18,6 +18,7 @@ route (not key_type=read_only, which selects the info_routes preset).
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -34,6 +35,7 @@ SESSION_ROUTE = "/spend/logs/session/ui"
 PAGE_SIZE = 100
 MAX_PAGES = 100
 MAX_PAGE_BYTES = 2 * 1024 * 1024
+log = logging.getLogger(__name__)
 
 
 class CostReadError(Exception):
@@ -42,6 +44,14 @@ class CostReadError(Exception):
     def __init__(self, code: str):
         self.code = code
         super().__init__(code)
+
+
+class _UnstablePagination(CostReadError):
+    """Discard the entire scan; native count and row reads are separate."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__("incomplete_pagination")
 
 
 @dataclass(frozen=True)
@@ -230,11 +240,13 @@ async def _rows(session: ClientSession, url: str, key: str, user_id: str,
         counts = (total, pages)
         if first_counts is None:
             first_counts = counts
-        _require(counts == first_counts, "incomplete_pagination")
+        if counts != first_counts:
+            raise _UnstablePagination("counts_changed")
         data = payload.get("data")
         _require(isinstance(data, list), "invalid_pagination")
         expected = min(PAGE_SIZE, max(0, total - (page - 1) * PAGE_SIZE))
-        _require(len(data) == expected, "incomplete_pagination")
+        if len(data) != expected:
+            raise _UnstablePagination("page_length_changed")
         for raw in data:
             row = _row(raw, user_id, chat_id)
             _require(row.request_id not in ids, "duplicate_request_id")
@@ -258,8 +270,10 @@ async def read_cost_snapshot(
     suffix), not a URL supplied by an employee. Total operation is bounded by
     timeout_seconds; missing IDs at the bound return pending after a valid scan.
     If no valid scan completed, failures raise a safe CostReadError. Offset
-    pagination is not a database snapshot: changed counts/duplicate IDs fail
-    closed; equal counts alone do not prove concurrent-write isolation.
+    pagination is not a database snapshot: changed counts/row lengths discard
+    the whole scan and may retry inside the requested wait bound. Capped,
+    malformed, duplicate or foreign rows fail closed. Equal counts alone do not
+    prove concurrent-write isolation.
     """
     try:
         parsed = urlsplit(base_url)
@@ -287,11 +301,22 @@ async def read_cost_snapshot(
     loop = asyncio.get_running_loop()
     wait_until = loop.time() + wait_seconds
     latest: CostSnapshot | None = None
+    restarted: set[str] = set()
     try:
         async with asyncio.timeout(timeout_seconds):
             while True:
-                rows = await _rows(session, url, read_key, user_id, root_chat_id,
-                                   timeout_seconds, max_pages)
+                try:
+                    rows = await _rows(session, url, read_key, user_id, root_chat_id,
+                                       timeout_seconds, max_pages)
+                except _UnstablePagination as error:
+                    if loop.time() >= wait_until:
+                        raise
+                    if error.reason not in restarted:
+                        # Fixed stage only: no scope IDs, counts, rows or secrets.
+                        log.info("Budget cost snapshot scan restarted: %s", error.reason)
+                        restarted.add(error.reason)
+                    await asyncio.sleep(min(poll_interval, max(0, wait_until - loop.time())))
+                    continue
                 by_id = {r.request_id: r for r in rows}
                 _require(all(by_id[rid].root_answer_id == root_answer_id
                              for rid in expected_ids & by_id.keys()), "foreign_answer")

@@ -51,6 +51,32 @@ Capture получает cross-process lock/собственный observation I
 Независимый source/integration review готовности к ограниченному native run:
 `local/goal584/background-proof-integration-review.md`;20 focused checks и
 actual AST native stream patch replay PASS. Это не runtime приёмка BG.
+Кандидат `52d57df1700af4719bb4eebd59653fdd620421f0`:
+[native run41630590813](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41630590813)
+завершился ошибкой bootstrap29 до BG; Active CI41630590821 PASS,
+cleanup0/0. Tested merge `340b0b4bad7548280559e96707ef9e495d80f75c`, ZIP
+`b7292cb5ee7d35ddc95b0ad1066bf5943b3709dbaa5e9986a872a3d48efd6c8c`.
+Newhire provider ответил200/10+5 tokens; native auth/scope/body совпали.
+Но Filter сообщил `incomplete_pagination`, UI сохранил неподтверждённую цену;
+post-call native snapshot отсутствует. Это не доказательство отсутствия
+расхода или повторной задержки materialized counters. Исходники reader/Filter
+совпадают с успешным run33; точный ответ cost API не был сохранён.
+Pinned native session API читает count и data двумя отдельными awaits.
+Offline исполнение actual endpoint AST воспроизводит count0/data1 и отказ
+exact tested reader; конкретное содержимое страницы run34 остаётся неизвестным.
+Evidence: `local/goal584/runtime-proof-41630590813/replay-session-pagination.safe.json`.
+Следующее минимальное исправление существующего reader: при изменении count
+или длины страницы отбросить весь scan и начать чтение заново только внутри
+уже заданного wait/deadline. Capped/over-limit/schema/duplicate/foreign data
+по-прежнему отклоняются; partial pages не объединяются, новых inference или
+финансовых записей нет. Непрерывно неверный ответ остаётся ошибкой; вывод нуля
+из неподтверждённого расхода не появляется.20 real-HTTP reader tests PASS.
+Независимый candidate replay actual native handler через local HTTP подтвердил
+recovery двух чтений и отказ непрерывно несовместимых страниц; source READY,
+не runtime PASS. Ровно candidate suites:186 component tests (179 PASS/7 opt-in
+skips) и157 harness PASS. Diagnostics/review:
+`local/goal584/runtime-proof-41630590813/cost-pending-diagnosis.md`.
+Pricing/calendar source-подготовка продолжается отдельно.
 
 Обычный admin login → намерение в чате → штатные Skill/Tool → редактируемый HTML
 → JSON через native confirmed prompt → Tool читает сохранённый parent user turn
