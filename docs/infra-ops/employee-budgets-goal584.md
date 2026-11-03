@@ -26,6 +26,24 @@ source-bound, не raw replay. Actual successful lease acquisition/HA не за�
 входит в эту приёмку. На run41 реально сохранены naive UTC даты; значение
 упавшей даты run40 по-прежнему неизвестно.
 
+**Следующий кандидат — ещё без runtime-приёмки.** Добавлен отдельный matrix
+профиль `positive-floor`: два штатных прокси, положительный DB floor до сброса,
+native месячный reset и два вызова в пределах исходного TTL5s. Ошибка,
+неполная граница или превышение времени остаются ошибкой CI. Базовый calendar
+профиль выполняется независимо. Проверены исходники, teardown ownership и
+бюджеты времени; фактический исход нового профиля пока неизвестен.
+Компоненты Responses (fixture/capture/покрытие стоимости signed nonce) включены
+для повторной проверки прежних маршрутов. Сам Responses GUI probe ещё проходит
+ревью в отдельной рабочей копии и не входит в этот runtime-кандидат.
+Локально:219 component checks (212 PASS/7 opt-in skips),302 harness checks PASS;
+42 Bash/18 embedded Python/3 Python-c, actionlint и33 mount bindings PASS.
+Evidence: `local/goal584/candidate-checks.safe.json`,
+`calendar-floor-wiring-independent-readiness.md`,
+`responses-call-coverage-independent-readiness.md`.
+Закрыта только завершённая RAG worktree после проверки patch equivalence;
+ветка provenance и общие source caches сохранены. Исходная рабочая копия с двумя
+пользовательскими WIP-файлами не менялась.
+
 Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
 HEAD `f84a57af7679d82828eaa507a21399d2198d3d31`, tested merge
