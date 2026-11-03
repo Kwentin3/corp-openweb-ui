@@ -5,10 +5,28 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Основной WebUI/RAG job
-native40 PASS и принят независимо; отдельный calendar job FAIL до первого
-модельного вызова. Весь native40 не green. Последний полностью успешный workflow
-до добавления calendar:
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний native41
+[41663679301](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41663679301):
+оба jobs PASS, Active CI41663679293 PASS. HEAD
+`adae068e108d3260e014f4af84493c99b2999452`, tested merge
+`3a871f85d8a982706a5b750cae4d1f5ca6e343c9`. RAG принят независимо в run40,
+calendar job-only profile — независимо в run41. Native41 повторил основной
+WebUI/RAG gate. Main ZIP `015e94a93fc5454b290e65a8454a3ec341e58765bb4faf30621f73fd41291863`:
+208 файлов/43 source hashes/6 mounts/cleanup0/0 сверены parent. Calendar ZIP
+`bd6075c4a1c111ed6745f8dafbf1b9b2415f03a2fd45eeead5694ca51e95b8e7`:
+4 файла/14 source hashes/5 mounts/10 native hashes, cleanup0/0/0. Независимое
+C1–C5 review и parent replay PASS:
+`local/goal584/calendar-proof-41663679301/independent-calendar-acceptance.md`.
+Четыре actual native sweeps: T−1/T без изменений, T+1/repeat — период0,
+next boundary1января00:00Moscow, caps/lifetime/история сохранены. Следующий
+тот же worker вызов прошёл за0.970s<60s; новый period$0.20/lifetime$0.40,
+две positive rows. Raw DB/provider/Redis/API/lease assertions частично
+source-bound, не raw replay. Actual successful lease acquisition/HA не заявлены.
+Проверка stale-positive DB floor, scheduler/inflight и multiworker reset не
+входит в эту приёмку. На run41 реально сохранены naive UTC даты; значение
+упавшей даты run40 по-прежнему неизвестно.
+
+Предыдущий полный workflow до добавления RAG/calendar:
 [41648991609](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41648991609),
 HEAD `f84a57af7679d82828eaa507a21399d2198d3d31`, tested merge
 `73c711a5571f9a478a89577d00dd7fdabcde5c52`; Active CI41648991628 PASS.

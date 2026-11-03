@@ -302,7 +302,9 @@ class CalendarHTTP:
 
 class CalendarInferenceTests(unittest.TestCase):
     def fixture(self):
-        proof = P.CalendarProof("http://127.0.0.1:4000", "synthetic-master", .01, {})
+        # This in-memory HTTP fixture tests calendar contracts, not a 10ms
+        # scheduling deadline; leave room for other source probes on Windows.
+        proof = P.CalendarProof("http://127.0.0.1:4000", "synthetic-master", .5, {})
         proof.users = ["own"]
         proof.keys["own", "goal584-a"] = {"token": "sk-private-synthetic", "alias": "calendar",
                                           "hash": "a" * 64, "cap": P.CALL_COST}

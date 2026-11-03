@@ -678,7 +678,9 @@ jobs:
 
   native-calendar-reset:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    # Bound each phase and reserve time for always-cleanup after both startup
+    # waits and a timed-out floor helper. Native 5s/60s clocks are unchanged.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -687,11 +689,13 @@ jobs:
       CALENDAR_PROFILE: ${{ matrix.profile }}
     steps:
       - name: Check out the calendar candidate
+        timeout-minutes: 2
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Prepare a separate disposable calendar project
+        timeout-minutes: 1
         shell: bash
         run: |
           python - <<'PY'
@@ -727,15 +731,23 @@ jobs:
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
               for key, value in paths.items():
                   handle.write(f'{key}={value}\n')
+              handle.write('CALENDAR_PROJECT_CLAIMED=false\n')
           PY
 
       - name: Start only the fresh calendar backend
+        timeout-minutes: 9
         shell: bash
         run: |
           label="label=com.docker.compose.project=$CALENDAR_PROJECT"
-          test -z "$(docker ps -aq --filter "$label")"
-          test -z "$(docker volume ls -q --filter "$label")"
-          test -z "$(docker network ls -q --filter "$label")"
+          calendar_containers=$(docker ps -aq --filter "$label")
+          calendar_volumes=$(docker volume ls -q --filter "$label")
+          calendar_networks=$(docker network ls -q --filter "$label")
+          test -z "$calendar_containers"
+          test -z "$calendar_volumes"
+          test -z "$calendar_networks"
+          # A failed freshness guard must never authorize deleting pre-existing
+          # resources. Claim only this empty project before any partial startup.
+          printf 'CALENDAR_PROJECT_CLAIMED=true\n' >> "$GITHUB_ENV"
           docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
             -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml config --quiet
           docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
@@ -749,6 +761,7 @@ jobs:
           fi
 
       - name: Attest calendar containers and their exact mounted sources
+        timeout-minutes: 3
         shell: bash
         run: |
           python - <<'PY'
@@ -867,6 +880,7 @@ jobs:
           PY
 
       - name: Qualify the actual native monthly reset and immediate next call
+        timeout-minutes: 5
         shell: bash
         run: |
           python - <<'PY'
@@ -929,10 +943,11 @@ jobs:
           PY
 
       - name: Remove the calendar project and verify cleanup
+        timeout-minutes: 3
         if: always()
         shell: bash
         run: |
-          if test -n "${CALENDAR_PROJECT:-}" && test -f "$PROOF_ENV_FILE"; then
+          if test "${CALENDAR_PROJECT_CLAIMED:-false}" = true && test -n "${CALENDAR_PROJECT:-}" && test -f "$PROOF_ENV_FILE"; then
             python - <<'PY'
           import json, os, re, subprocess
           from pathlib import Path
@@ -955,6 +970,7 @@ jobs:
           fi
 
       - name: Retain only safe calendar evidence
+        timeout-minutes: 2
         if: always() && env.PROOF_OUTPUT_DIR != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
