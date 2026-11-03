@@ -3,8 +3,10 @@ import ast
 import base64
 import collections.abc
 import copy
+from contextlib import redirect_stdout
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -214,6 +216,252 @@ class ConfigurationTests(unittest.TestCase):
         self.assertFalse(result['financial_rows_users_keys_deleted'])
         self.assertNotIn('/user/delete', calls)
         self.assertNotIn('/key/delete', calls)
+
+
+class DenialDiagnosticTests(unittest.TestCase):
+    """Actual Worker.denied/worker_main; only external API/file-mode boundaries doubled."""
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory(); self.addCleanup(self.directory.cleanup)
+        self.path = Path(self.directory.name) / 'responses-state.private.json'
+        self.gateway = load_owner('prove_gateway_auth')
+        # Windows cannot attest POSIX modes. Exercise the real atomic-write bytes;
+        # the native private_parent/mode guard remains an explicit runtime gate.
+        self.mode_patch = patch.object(self.gateway, 'private_parent', return_value=None)
+        self.mode_patch.start(); self.addCleanup(self.mode_patch.stop)
+        self.state_patch = patch.object(P, 'R_STATE', self.path)
+        self.state_patch.start(); self.addCleanup(self.state_patch.stop)
+        self.uid, self.chat, self.answer = (str(uuid4()) for _ in range(3))
+        self.secret = 'sk-' + 'z' * 32
+        self.rows = [{'request_id': 'resp_native_' + str(i), 'status': 'success', 'spend': .2,
+            'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15,
+            'metadata': {'private': self.secret, 'headers': {'Authorization': 'private-native-header'}}} for i in range(2)]
+        self.provider = {'synthetic': True, 'control': {'tool_round': True}, 'requests': [{'id': 'physical_1'}, {'id': 'physical_2'}]}
+        self.capture = {'schema': 1, 'requests': [{'body': {'input': 'private chat text', 'secret': self.secret}}]}
+        self.user = {'user_id': self.uid, 'user_role': 'internal_user', 'models': [P.MODEL], 'max_budget': 20,
+            'spend': .4, 'budget_duration': '1mo', 'budget_reset_at': '2026-12-01T00:00:00Z', 'teams': []}
+        self.key = {'user_id': self.uid, 'models': [P.MODEL], 'key_alias': 'private-alias', 'metadata': {'private': self.secret},
+            'token': self.secret, 'max_budget': 0, 'spend': .4, 'budget_duration': '1mo',
+            'budget_reset_at': '2026-12-01T00:00:00+00:00', 'blocked': False, 'allowed_routes': ['llm_api_routes']}
+        self.calls = []
+
+    def worker(self, *, extra_rows=(), provider_changed=False, failures=()):
+        worker = object.__new__(P.Worker)
+        worker.secrets = [self.secret]
+        worker.r = {'schema': 1, 'actor': {'id': self.uid, 'token': self.secret}, 'stage': 'ready_for_ordinary_zero_denial',
+            'success_rows': copy.deepcopy(self.rows), 'denial_provider_baseline': copy.deepcopy(self.provider),
+            'context_before': {'requests': []}, 'protected_r': P.protected_r(self.user, {**self.key, 'max_budget': 20})}
+        def read(name, value):
+            self.calls.append(name)
+            if name in failures:
+                raise OSError('private exception ' + self.secret)
+            return copy.deepcopy(value)
+        current = copy.deepcopy(self.provider)
+        if provider_changed:
+            current['requests'].append({'id': 'unexpected_physical'})
+        def captures():
+            return read('captures', (current, self.capture))
+        worker.captures = captures
+        worker.native = SimpleNamespace(logs=lambda uid: read('logs', self.rows + list(extra_rows)),
+                                        user_info=lambda uid: read('user', self.user))
+        worker.key = lambda: read('key', self.key)
+        worker.d = {'write_private': lambda path, state: read('write', self.gateway.write_private(path, state))
+                    if 'write' not in failures else read('write', None)}
+        worker.webui = SimpleNamespace(ok=lambda *a, **kw: (_ for _ in ()).throw(AssertionError('financial guard must fail first')))
+        return worker
+
+    def zero_row(self):
+        return {'request_id': 'native_zero_failure', 'status': 'failure', 'spend': 0,
+                'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0,
+                'metadata': {'private': self.secret, 'body': 'foreign private text'}}
+
+    def assert_denied_failure(self, worker, message):
+        with self.assertRaisesRegex(P.ProofError, message):
+            worker.denied(self.chat, self.answer)
+        diagnostic = worker.denial_diagnostic
+        self.assertIs(P.validate_denial_diagnostic(diagnostic), diagnostic)
+        exported = json.dumps(diagnostic)
+        for private in (self.secret, 'Authorization', 'private-native-header', 'private chat text', 'foreign private text', 'private exception'):
+            self.assertNotIn(private, exported)
+        for name in ('captures', 'logs', 'user', 'key'):
+            self.assertEqual(self.calls.count(name), 1)
+        return diagnostic
+
+    def test_native_zero_raw_row_still_fails_and_exact_raws_use_existing_private_writer(self):
+        extra = self.zero_row(); worker = self.worker(extra_rows=[extra])
+        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        self.assertTrue(diagnostic['provider_snapshot_equal'])
+        self.assertEqual((diagnostic['provider_count'], diagnostic['baseline_provider_count'], diagnostic['raw_row_count']), (2, 2, 3))
+        self.assertTrue(diagnostic['raw_snapshot_retained'])
+        self.assertEqual(diagnostic['capture_errors'], [])
+        self.assertEqual(diagnostic['rows'][-1]['status'], 'failure')
+        self.assertEqual(diagnostic['rows'][-1]['spend_usd'], '0')
+        self.assertFalse(diagnostic['rows'][-1]['is_original_success_id'])
+        self.assertFalse(diagnostic['rows'][-1]['original_full_row_unchanged'])
+        self.assertTrue(all(row['original_full_row_unchanged'] for row in diagnostic['rows'][:2]))
+        self.assertEqual(diagnostic['raw_rows_sha256'], P.digest(self.rows + [extra]))
+        saved = json.loads(self.path.read_text(encoding='utf8'))
+        self.assertEqual(saved['denial_observation'], {'provider': self.provider, 'capture': self.capture,
+            'rows': self.rows + [extra], 'user': self.user, 'key': self.key})
+        self.assertEqual(saved['denial_diagnostic'], diagnostic)
+        self.assertEqual(diagnostic['budgets']['key_cap_usd'], '0')
+        self.assertEqual(diagnostic['budgets']['user_spend_usd'], '0.4')
+        self.assertTrue(diagnostic['budgets']['protected_fields_equal_except_key_cap'])
+
+    def test_primary_provider_violation_survives_user_key_and_private_write_failures(self):
+        worker = self.worker(provider_changed=True, failures={'user', 'key', 'write'})
+        diagnostic = self.assert_denied_failure(worker, 'changed the full provider snapshot')
+        self.assertFalse(diagnostic['provider_snapshot_equal'])
+        self.assertFalse(diagnostic['raw_snapshot_retained'])
+        self.assertIsNone(diagnostic['budgets'])
+        self.assertEqual(set(diagnostic['capture_errors']), {'native_user_read_failed', 'native_key_read_failed', 'private_snapshot_write_failed'})
+
+    def test_primary_journal_violation_survives_capture_and_private_write_failures(self):
+        worker = self.worker(extra_rows=[self.zero_row()], failures={'captures', 'write'})
+        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        self.assertIsNone(diagnostic['provider_count'])
+        self.assertIsNone(diagnostic['provider_snapshot_equal'])
+        self.assertEqual(diagnostic['raw_row_count'], 3)
+        self.assertIn('provider_capture_read_failed', diagnostic['capture_errors'])
+
+    def test_actual_atomic_private_replace_failure_cannot_mask_journal_violation(self):
+        worker = self.worker(extra_rows=[self.zero_row()])
+        with patch.object(self.gateway.os, 'replace', side_effect=OSError('private replace ' + self.secret)):
+            diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        self.assertIn('private_snapshot_write_failed', diagnostic['capture_errors'])
+        self.assertFalse(diagnostic['raw_snapshot_retained'])
+        self.assertEqual(list(Path(self.directory.name).iterdir()), [])
+
+    def test_unavailable_native_journal_is_not_defaulted_to_empty_or_accepted(self):
+        worker = self.worker(failures={'logs'})
+        diagnostic = self.assert_denied_failure(worker, 'observation is unavailable')
+        self.assertIsNone(diagnostic['raw_row_count'])
+        self.assertIsNone(diagnostic['raw_rows_sha256'])
+        self.assertIsNone(diagnostic['rows'])
+        self.assertIn('native_rows_read_failed', diagnostic['capture_errors'])
+
+    def test_original_row_metadata_mutation_is_still_a_strict_raw_journal_failure(self):
+        worker = self.worker()
+        self.rows[0]['metadata']['late_change'] = 'private late value'
+        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        self.assertTrue(diagnostic['rows'][0]['is_original_success_id'])
+        self.assertFalse(diagnostic['rows'][0]['original_full_row_unchanged'])
+        self.assertTrue(diagnostic['rows'][1]['original_full_row_unchanged'])
+        self.assertNotIn('private late value', json.dumps(diagnostic))
+
+    def test_user_read_failure_with_equal_financial_snapshots_is_its_own_failure(self):
+        worker = self.worker(failures={'user'})
+        diagnostic = self.assert_denied_failure(worker, 'observation is unavailable')
+        self.assertTrue(diagnostic['provider_snapshot_equal'])
+        self.assertEqual(diagnostic['raw_row_count'], 2)
+        self.assertIn('native_user_read_failed', diagnostic['capture_errors'])
+
+    def test_oversized_raw_snapshot_retains_counts_hashes_and_remains_failure(self):
+        extra = self.zero_row(); extra['metadata']['body'] = 'private-large-' * 4000
+        worker = self.worker(extra_rows=[extra])
+        with patch.object(P, 'MAX_BYTES', 10000):
+            diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        self.assertEqual(diagnostic['raw_row_count'], 3)
+        self.assertEqual(diagnostic['raw_rows_sha256'], P.diagnostic_hash(self.rows + [extra]))
+        self.assertIn('raw_snapshot_exceeded_bound', diagnostic['capture_errors'])
+        self.assertFalse(diagnostic['raw_snapshot_retained'])
+        saved = json.loads(self.path.read_text(encoding='utf8'))
+        self.assertNotIn('denial_observation', saved)
+        self.assertLess(self.path.stat().st_size, 10000)
+
+    def test_private_bound_counts_actual_existing_writer_format_not_compact_json(self):
+        value = {'schema': 1, 'rows': [{'field': n} for n in range(50)]}
+        compact = len(P.encoded(value))
+        actual = len(json.dumps(value, allow_nan=False).encode()) + len(os.linesep.encode())
+        self.assertGreater(actual, compact)
+        with patch.object(P, 'MAX_BYTES', compact), self.assertRaises(P.ProofError):
+            P.bound_private_snapshot(value)
+        with patch.object(P, 'MAX_BYTES', actual):
+            P.bound_private_snapshot(value)
+
+    def test_foreign_owner_invalid_usage_and_nonfinite_money_never_escape_projection(self):
+        for kind in ('foreign_owner', 'usage', 'money', 'unknown_status'):
+            with self.subTest(kind=kind):
+                self.calls.clear(); extra = self.zero_row()
+                if kind == 'foreign_owner':
+                    self.user['user_id'] = self.secret
+                elif kind == 'usage':
+                    extra['prompt_tokens'] = True
+                elif kind == 'money':
+                    extra['spend'] = 'NaN'
+                else:
+                    extra['status'] = self.secret
+                worker = self.worker(extra_rows=[extra])
+                diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+                if kind == 'foreign_owner':
+                    self.assertIsNone(diagnostic['budgets']); self.assertIn('budget_projection_failed', diagnostic['capture_errors'])
+                    self.user['user_id'] = self.uid
+                elif kind in ('usage', 'money'):
+                    self.assertIsNone(diagnostic['rows']); self.assertIn('rows_projection_failed', diagnostic['capture_errors'])
+                else:
+                    self.assertEqual(diagnostic['rows'][-1]['status'], 'other')
+
+    def test_worker_failure_packet_and_host_record_keep_diagnostic_and_primary_error(self):
+        worker = self.worker(extra_rows=[self.zero_row()], failures={'write'})
+        output = io.StringIO()
+        args = SimpleNamespace(worker_action='denied', chat_id=self.chat, answer_id=self.answer)
+        with patch.object(P, 'Worker', return_value=worker), redirect_stdout(output):
+            self.assertEqual(P.worker_main(args), 1)
+        packet = P.worker_packet(SimpleNamespace(stdout=output.getvalue().encode(), stderr=b''), 'denied',
+                                 hashlib.sha256(Path(P.__file__).read_bytes()).hexdigest(), [self.secret])
+        self.assertFalse(packet['passed'])
+        self.assertEqual(packet['error_message'], 'Responses negatives changed the native raw journal')
+        self.assertEqual(packet['denial_diagnostic']['raw_row_count'], 3)
+        self.assertIn('private_snapshot_write_failed', packet['denial_diagnostic']['capture_errors'])
+        host = {'stage': 'worker_denied'}
+        P.record_failure(host, P.WorkerFailure(packet))
+        P.record_failure(host, ValueError('late rollback failure'))
+        self.assertIs(host['failure']['worker'], packet)
+        self.assertEqual(host['failure']['stage'], 'worker_denied')
+        # Execute the actual nested host phase, not a replacement coordinator.
+        tree = ast.parse(Path(P.__file__).read_bytes())
+        owner = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'host_main')
+        phase = next(n for n in owner.body if isinstance(n, ast.FunctionDef) and n.name == 'phase')
+        saved = []
+        response = SimpleNamespace(returncode=1, stdout=output.getvalue().encode(), stderr=b'')
+        receipt = {'stage': 'one_ordinary_send'}
+        namespace = {**P.__dict__, 'receipt': receipt, 'fixture': SimpleNamespace(command=['existing-compose-owner']),
+            'args': SimpleNamespace(output=Path(self.directory.name)), 'source': packet['source_sha256'],
+            'secrets': [self.secret], 'subprocess': SimpleNamespace(run=lambda *a, **kw: response),
+            'write_json': lambda path, data: saved.append((path.name, copy.deepcopy(data)))}
+        exec(compile(ast.Module(body=[phase], type_ignores=[]), '<actual-host-phase>', 'exec'), namespace)
+        with self.assertRaises(P.WorkerFailure) as raised:
+            namespace['phase']('denied', {'chat_id': self.chat, 'message_id': self.answer})
+        P.record_failure(receipt, raised.exception)
+        self.assertEqual(receipt['failure']['stage'], 'worker_denied')
+        self.assertEqual(receipt['denial_diagnostic'], packet['denial_diagnostic'])
+        self.assertEqual(saved, [('responses-denied.json', packet)])
+        restored = {**packet, 'phase': 'restore', 'passed': True, 'result': {}, 'stage': 'failure_restoration_attempted'}
+        restored.pop('denial_diagnostic')
+        response.stdout, response.returncode = json.dumps(restored).encode(), 0
+        namespace['phase']('restore')
+        self.assertEqual(receipt['stage'], 'worker_denied')
+        self.assertEqual(receipt['failure']['worker'], packet)
+
+    def test_worker_protocol_rejects_unknown_nested_fields_errors_values_and_wrong_phase(self):
+        worker = self.worker(extra_rows=[self.zero_row()])
+        diagnostic = self.assert_denied_failure(worker, 'changed the native raw journal')
+        base = {'schema': 1, 'proof': P.PROOF, 'phase': 'denied', 'passed': False, 'source_sha256': 'a' * 64,
+                'not_qualified': P.LIMITS, 'error_class': 'ProofError', 'denial_diagnostic': diagnostic}
+        mutations = []
+        for kind in ('top', 'row', 'budget', 'error', 'status', 'nan', 'bool_count', 'phase'):
+            packet = copy.deepcopy(base); d = packet['denial_diagnostic']
+            if kind == 'top': d['headers'] = {'Authorization': 'private'}
+            elif kind == 'row': d['rows'][0]['metadata'] = {'unknown': 'private'}
+            elif kind == 'budget': d['budgets']['token'] = 'unrecognized'
+            elif kind == 'error': d['capture_errors'] = ['unrecognized error text']
+            elif kind == 'status': d['rows'][0]['status'] = 'unknown'
+            elif kind == 'nan': d['rows'][0]['spend_usd'] = 'NaN'
+            elif kind == 'bool_count': d['raw_row_count'] = True
+            else: packet['phase'] = 'observe'
+            mutations.append((kind, packet))
+        for kind, packet in mutations:
+            with self.subTest(kind=kind), self.assertRaises(P.ProofError):
+                P.worker_packet(SimpleNamespace(stdout=json.dumps(packet).encode(), stderr=b''), packet['phase'], 'a' * 64)
 
 
 class ContextEvidenceTests(unittest.TestCase):

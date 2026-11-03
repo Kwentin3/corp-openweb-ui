@@ -144,6 +144,90 @@ def safe(value, secrets=()):
     return value
 
 
+DENIAL_CAPTURE_ERRORS = frozenset({'provider_capture_read_failed', 'native_rows_read_failed',
+    'native_user_read_failed', 'native_key_read_failed', 'provider_projection_failed',
+    'rows_projection_failed', 'budget_projection_failed', 'raw_snapshot_exceeded_bound',
+    'raw_snapshot_encoding_failed', 'private_snapshot_write_failed'})
+
+
+def diagnostic_hash(value):
+    """Hash the full private value even when it cannot fit the raw snapshot bound."""
+    result = hashlib.sha256()
+    for part in json.JSONEncoder(ensure_ascii=True, sort_keys=True, separators=(',', ':'), allow_nan=False).iterencode(value):
+        result.update(part.encode())
+    return result.hexdigest()
+
+
+def diagnostic_amount(value):
+    require(type(value) in (int, float, str, Decimal), 'Responses diagnostic amount shape differs')
+    number = Decimal(str(value))
+    require(number.is_finite() and len(str(number)) <= 128, 'Responses diagnostic amount is not bounded finite money')
+    return str(number)
+
+
+def bound_private_snapshot(value):
+    # Match existing write_private's JSON defaults and final text newline;
+    # compact public evidence encoding would underestimate private file bytes.
+    size = len(os.linesep.encode())
+    for part in json.JSONEncoder(allow_nan=False).iterencode(value):
+        size += len(part.encode())
+        require(size <= MAX_BYTES, 'Responses private diagnostic snapshot exceeded byte bound')
+
+
+def validate_denial_diagnostic(value):
+    """Closed public worker schema: no raw native fields/errors/credentials."""
+    names = {'schema', 'provider_snapshot_equal', 'provider_count', 'baseline_provider_count',
+             'raw_row_count', 'raw_rows_sha256', 'rows', 'budgets', 'raw_snapshot_retained', 'capture_errors'}
+    require(isinstance(value, dict) and set(value) == names and type(value['schema']) is int and value['schema'] == 1,
+            'Responses denial diagnostic schema differs')
+    require(value['provider_snapshot_equal'] is None or type(value['provider_snapshot_equal']) is bool,
+            'Responses denial provider comparison shape differs')
+    for name in ('provider_count', 'baseline_provider_count', 'raw_row_count'):
+        require(value[name] is None or type(value[name]) is int and value[name] >= 0, 'Responses denial count shape differs')
+    def hash_or_none(item):
+        return item is None or isinstance(item, str) and re.fullmatch('[0-9a-f]{64}', item) is not None
+    require(hash_or_none(value['raw_rows_sha256']) and type(value['raw_snapshot_retained']) is bool,
+            'Responses denial hash/private marker differs')
+    errors = value['capture_errors']
+    require(isinstance(errors, list) and len(errors) == len(set(errors)) and all(e in DENIAL_CAPTURE_ERRORS for e in errors),
+            'Responses denial capture error enum differs')
+    rows = value['rows']
+    require(rows is None or isinstance(rows, list) and len(rows) == value['raw_row_count'],
+            'Responses denial row projection count differs')
+    if rows is not None:
+        for row in rows:
+            require(isinstance(row, dict) and set(row) == {'request_id_sha256', 'status', 'spend_usd', 'usage',
+                    'full_row_sha256', 'is_original_success_id', 'original_full_row_unchanged'}
+                    and hash_or_none(row['request_id_sha256']) and row['request_id_sha256'] is not None
+                    and hash_or_none(row['full_row_sha256']) and row['full_row_sha256'] is not None
+                    and row['status'] in ('success', 'failure', 'other')
+                    and isinstance(row['spend_usd'], str) and diagnostic_amount(row['spend_usd']) == row['spend_usd']
+                    and type(row['is_original_success_id']) is bool and type(row['original_full_row_unchanged']) is bool,
+                    'Responses denial row projection shape differs')
+            usage = row['usage']
+            require(isinstance(usage, dict) and set(usage) == {'prompt_tokens', 'completion_tokens', 'total_tokens'}
+                    and all(type(n) is int and n >= 0 for n in usage.values()), 'Responses denial usage shape differs')
+    budgets = value['budgets']
+    if budgets is not None:
+        require(isinstance(budgets, dict) and set(budgets) == {'user_spend_usd', 'key_spend_usd', 'user_cap_usd',
+                'key_cap_usd', 'user_period', 'key_period', 'protected_fields_sha256', 'protected_fields_equal_except_key_cap'}
+                and all(isinstance(budgets[k], str) and diagnostic_amount(budgets[k]) == budgets[k]
+                        for k in ('user_spend_usd', 'key_spend_usd', 'user_cap_usd', 'key_cap_usd'))
+                and hash_or_none(budgets['protected_fields_sha256']) and budgets['protected_fields_sha256'] is not None
+                and type(budgets['protected_fields_equal_except_key_cap']) is bool,
+                'Responses denial budget projection differs')
+        from datetime import datetime
+        for name in ('user_period', 'key_period'):
+            period = budgets[name]
+            require(isinstance(period, dict) and set(period) == {'duration', 'reset_at'}
+                    and period['duration'] in ('1mo', 'other') and isinstance(period['reset_at'], str)
+                    and len(period['reset_at']) <= 40, 'Responses denial budget period differs')
+            stamp = datetime.fromisoformat(period['reset_at'])
+            require(stamp.tzinfo is not None and stamp.isoformat() == period['reset_at'], 'Responses denial reset timestamp differs')
+    safe(value)
+    return value
+
+
 def canonical(value):
     try:
         valid = isinstance(value, str) and str(UUID(value)) == value
@@ -251,7 +335,7 @@ def worker_packet(result, phase, source, secrets=()):
         raise ProofError('Responses worker whole-stdout JSON protocol failed') from None
     safe(value, secrets)
     allowed = {'schema', 'proof', 'phase', 'passed', 'source_sha256', 'not_qualified', 'result', 'stage',
-               'error_class', 'failed_stage', 'error_message'}
+               'error_class', 'failed_stage', 'error_message', 'denial_diagnostic'}
     require(isinstance(value, dict) and not (set(value) - allowed)
             and type(value.get('schema')) is int and value['schema'] == 1
             and value.get('proof') == PROOF and value.get('phase') == phase and type(value.get('passed')) is bool
@@ -260,6 +344,12 @@ def worker_packet(result, phase, source, secrets=()):
     require(isinstance(value.get('result'), dict) and isinstance(value.get('stage'), str) if value['passed']
             else isinstance(value.get('error_class'), str) or isinstance(value.get('result'), dict),
             'Responses worker terminal result/failure is missing')
+    if 'denial_diagnostic' in value:
+        require(phase == 'denied', 'Responses denial diagnostic belongs only to the denied phase')
+        try:
+            validate_denial_diagnostic(value['denial_diagnostic'])
+        except Exception:
+            raise ProofError('Responses denial diagnostic protocol failed') from None
     return value
 
 
@@ -677,16 +767,110 @@ class Worker:
         self.stage('ready_for_ordinary_zero_denial')
         return {'unsigned_raw': unsigned, 'native_zero_status': status, 'native_zero_type': 'budget_exceeded'}
 
+    def denial_snapshot(self):
+        """Observe once before assertions; technical failures never replace a known financial violation."""
+        uid = self.r['actor']['id']
+        raw = {'provider': None, 'capture': None, 'rows': None, 'user': None, 'key': None}
+        diagnostic = {'schema': 1, 'provider_snapshot_equal': None, 'provider_count': None,
+            'baseline_provider_count': None, 'raw_row_count': None, 'raw_rows_sha256': None,
+            'rows': None, 'budgets': None, 'raw_snapshot_retained': False, 'capture_errors': []}
+        self.denial_diagnostic = diagnostic
+        def failed(code):
+            if code not in diagnostic['capture_errors']:
+                diagnostic['capture_errors'].append(code)
+        try:
+            raw['provider'], raw['capture'] = self.captures()
+        except Exception:
+            failed('provider_capture_read_failed')
+        for name, call in (('rows', lambda: self.native.logs(uid)), ('user', lambda: self.native.user_info(uid)), ('key', self.key)):
+            try:
+                raw[name] = call()
+            except Exception:
+                failed('native_' + name + '_read_failed')
+        try:
+            baseline = self.r['denial_provider_baseline']
+            diagnostic['baseline_provider_count'] = len(baseline['requests'])
+            if raw['provider'] is not None:
+                require(isinstance(raw['provider']['requests'], list), 'Responses provider history shape differs')
+                diagnostic['provider_count'] = len(raw['provider']['requests'])
+                diagnostic['provider_snapshot_equal'] = raw['provider'] == baseline
+        except Exception:
+            failed('provider_projection_failed')
+        try:
+            rows = raw['rows']
+            if rows is not None:
+                require(isinstance(rows, list), 'Responses raw journal shape differs')
+                diagnostic['raw_row_count'] = len(rows)
+                diagnostic['raw_rows_sha256'] = diagnostic_hash(rows)
+                original = {row['request_id']: row for row in self.r['success_rows']}
+                diagnostic['rows'] = [{'request_id_sha256': hashlib.sha256(row['request_id'].encode()).hexdigest(),
+                    'status': row.get('status') if row.get('status') in ('success', 'failure') else 'other',
+                    'spend_usd': diagnostic_amount(row['spend']),
+                    'usage': {k: row[k] for k in ('prompt_tokens', 'completion_tokens', 'total_tokens')},
+                    'full_row_sha256': diagnostic_hash(row), 'is_original_success_id': row['request_id'] in original,
+                    'original_full_row_unchanged': row['request_id'] in original and row == original[row['request_id']]}
+                    for row in rows]
+                validate_denial_diagnostic(diagnostic)
+        except Exception:
+            diagnostic['rows'] = None
+            failed('rows_projection_failed')
+        try:
+            if raw['user'] is not None and raw['key'] is not None:
+                from datetime import datetime
+                user, key = raw['user'], raw['key']
+                require(user['user_id'] == key['user_id'] == uid, 'Responses diagnostic native budget owner differs')
+                protected = protected_r(user, key)
+                expected = copy.deepcopy(self.r['protected_r']); expected['key']['max_budget'] = key['max_budget']
+                periods = {}
+                for name, value in (('user_period', user), ('key_period', key)):
+                    stamp = datetime.fromisoformat(value['budget_reset_at'].replace('Z', '+00:00'))
+                    require(stamp.tzinfo is not None, 'Responses diagnostic native period has no timezone')
+                    periods[name] = {'duration': '1mo' if value['budget_duration'] == '1mo' else 'other', 'reset_at': stamp.isoformat()}
+                diagnostic['budgets'] = {**periods, 'user_spend_usd': diagnostic_amount(user['spend']),
+                    'key_spend_usd': diagnostic_amount(key['spend']), 'user_cap_usd': diagnostic_amount(user['max_budget']),
+                    'key_cap_usd': diagnostic_amount(key['max_budget']), 'protected_fields_sha256': diagnostic_hash(protected),
+                    'protected_fields_equal_except_key_cap': protected == expected}
+                validate_denial_diagnostic(diagnostic)
+        except Exception:
+            diagnostic['budgets'] = None
+            failed('budget_projection_failed')
+        if diagnostic['budgets'] is None and not any(e in diagnostic['capture_errors'] for e in
+                ('native_user_read_failed', 'native_key_read_failed', 'budget_projection_failed')):
+            failed('budget_projection_failed')
+        # Bound the complete existing state, not only this raw addition. Oversize
+        # retains hashes/counts but never exports or writes the oversized raw data.
+        candidate = {**self.r, 'denial_observation': raw, 'denial_diagnostic': diagnostic}
+        try:
+            bound_private_snapshot(candidate)
+        except Exception as error:
+            failed('raw_snapshot_exceeded_bound' if isinstance(error, ProofError) else 'raw_snapshot_encoding_failed')
+            candidate = {**self.r, 'denial_diagnostic': diagnostic}
+        else:
+            diagnostic['raw_snapshot_retained'] = True
+        try:
+            bound_private_snapshot(candidate)
+            self.d['write_private'](R_STATE, candidate)
+            self.r = candidate
+        except Exception:
+            diagnostic['raw_snapshot_retained'] = False
+            failed('private_snapshot_write_failed')
+        return raw
+
     def denied(self, chat_id, answer_id):
         account = self.r['actor']
+        raw = self.denial_snapshot()
+        p, c, rows = raw['provider'], raw['capture'], raw['rows']
+        if p is not None:
+            require(p == self.r['denial_provider_baseline'], 'Responses negatives changed the full provider snapshot')
+        if rows is not None:
+            require(rows == self.r['success_rows'], 'Responses negatives changed the native raw journal')
+        require(p is not None and c is not None and rows is not None and not self.denial_diagnostic['capture_errors'],
+                'Responses denial observation is unavailable or could not be retained safely')
         saved = self.webui.ok('GET', '/api/v1/chats/' + canonical(chat_id), token=account['token'])
         answer = saved['chat']['history']['messages'][canonical(answer_id)]
         require(saved['user_id'] == account['id'] and answer.get('done') is True and answer.get('content') != 'Proof',
                 'Responses ordinary zero outcome is not a terminal owned denial')
         expected_budget_message(answer.get('error'), scope='key')
-        p, c = self.captures()
-        require(p == self.r['denial_provider_baseline'] and self.native.logs(account['id']) == self.r['success_rows'],
-                'Responses negatives reached provider or added any financial row')
         require(len(c['requests']) == len(self.r['context_before']['requests']) + 5,
                 'Responses signed/raw/native denial auth cardinality differs')
         negatives = c['requests'][-3:]
@@ -789,6 +973,8 @@ def worker_main(args):
         receipt.update(error_class=type(error).__name__, failed_stage=worker.r.get('stage') if worker else 'worker_initialization')
         if isinstance(error, ProofError):
             receipt['error_message'] = str(error)
+    if args.worker_action == 'denied' and worker is not None and hasattr(worker, 'denial_diagnostic'):
+        receipt['denial_diagnostic'] = worker.denial_diagnostic
     try:
         print(json.dumps(safe(receipt, worker.secrets if worker else ()), allow_nan=False))
     except BaseException:
@@ -816,12 +1002,16 @@ def host_main(args):
     original, playwright, browser, context = None, None, None, None
     bound = False
     def phase(name, call=None, label=None):
+        if name != 'restore':
+            receipt['stage'] = 'worker_' + (label or name)
         command = fixture.command + ['exec', '-T', 'proxy', 'python', '-B', '/proof/prove_responses_chat.py', '--worker-action', name]
         if call:
             command += ['--chat-id', canonical(call['chat_id']), '--answer-id', canonical(call['message_id'])]
         result = subprocess.run(command, cwd=ROOT, capture_output=True, timeout=180)
         packet = worker_packet(result, name, source, secrets)
         write_json(args.output / ('responses-' + (label or name) + '.json'), packet)
+        if 'denial_diagnostic' in packet:
+            receipt['denial_diagnostic'] = packet['denial_diagnostic']
         if result.returncode != 0 or not packet['passed']:
             raise WorkerFailure(packet)
         return packet['result']
