@@ -31,7 +31,7 @@ USER, CHAT, ANSWER, CHILD_CHAT, CHILD_ANSWER, OLD_ANSWER, OTHER_ANSWER, CALL, OT
 
 
 def row(request_id="provider-1", *, answer=ANSWER, model="alias-a", spend="0.20",
-        chat=CHAT, child=False):
+        chat=CHAT, child=False, call_id=CALL):
     return {"request_id": request_id, "user": USER, "session_id": chat, "status": "success",
             "spend": spend, "prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15,
             "model": "physical-provider-model", "api_key": "not-returned-by-projection",
@@ -39,7 +39,7 @@ def row(request_id="provider-1", *, answer=ANSWER, model="alias-a", spend="0.20"
                 "schema": 1, "user_id": USER, "chat_id": CHILD_CHAT if child else chat,
                 "answer_id": CHILD_ANSWER if child else answer, "root_chat_id": chat,
                 "root_answer_id": answer, "model": model,
-                "call_id": CALL, "category": "personal"}}}}
+                "call_id": call_id, "category": "personal"}}}}
 
 
 def page(rows, *, number=1, total=None):
@@ -115,6 +115,95 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
         missing = await self.read(observed_request_ids={"missing"})
         self.assertEqual(missing.missing_request_ids, ("missing",))
         self.assertFalse(missing.complete)
+
+    def issued_nonce(self):
+        secret = "synthetic-only-gateway-secret-" * 2
+        token = protocol.encode_call(secret, user_id=USER, chat_id=CHAT, answer_id=ANSWER,
+            root_chat_id=CHAT, root_answer_id=ANSWER, model="alias-a")
+        return protocol.decode_call(token, secret, user_id=USER, model="alias-a")["jti"]
+
+    async def test_real_jwt_nonce_covers_responses_row_without_advertised_id_alias(self):
+        nonce = self.issued_nonce()
+        self.payload = page([row("resp_sdk_model_encoded", call_id=nonce)])
+        before = await self.read(observed_request_ids=["resp_security_opaque"])
+        self.assertFalse(before.complete)
+        self.assertEqual(before.missing_request_ids, ("resp_security_opaque",))
+        after = await self.read(observed_call_ids=[nonce])
+        self.assertTrue(after.complete)
+        self.assertFalse(after.pending)
+        self.assertEqual(after.answer.spend, Decimal("0.20"))
+        self.assertEqual(after.missing_call_ids, ())
+        self.assertEqual(after.missing_request_ids, ())
+        self.assertEqual(after.coverage, "observed_calls_only")
+        self.assertEqual(before.answer, after.answer)
+        self.assertNotIn("resp_security_opaque", repr(after))
+
+    async def test_mixed_request_and_call_coverage_requires_both_sets(self):
+        nonce = self.issued_nonce()
+        self.payload = page([row("cc-one"), row("resp_sdk_encoded", call_id=nonce)])
+        complete = await self.read(observed_request_ids=["cc-one"], observed_call_ids=[nonce])
+        self.assertTrue(complete.complete)
+        self.assertEqual(complete.coverage, "observed_requests_and_calls_only")
+        self.assertEqual(complete.answer.spend, Decimal("0.40"))
+        missing_nonce = self.issued_nonce()
+        partial = await self.read(observed_request_ids=["cc-missing"], observed_call_ids=[nonce, missing_nonce])
+        self.assertTrue(partial.pending)
+        self.assertFalse(partial.complete)
+        self.assertEqual(partial.missing_request_ids, ("cc-missing",))
+        self.assertEqual(partial.missing_call_ids, (missing_nonce,))
+
+    async def test_two_tool_nonces_wait_only_for_actual_durable_rows(self):
+        first, second = self.issued_nonce(), self.issued_nonce()
+        async def delayed(request):
+            rows = [row("encoded-first", call_id=first)]
+            if len(self.requests) > 1:
+                rows.append(row("encoded-second", call_id=second))
+            return web.json_response(page(rows))
+        self.handler = delayed
+        result = await self.read(observed_call_ids=[first, second], wait_seconds=.5, poll_interval=.01)
+        self.assertEqual(len(self.requests), 2)
+        self.assertTrue(result.complete)
+        self.assertEqual(result.answer.spend, Decimal("0.40"))
+        self.assertEqual(result.answer.calls, 2)
+        self.assertEqual(result.coverage, "observed_calls_only")
+
+    async def test_call_nonce_missing_foreign_answer_and_zero_remain_unsettled(self):
+        nonce = self.issued_nonce()
+        self.payload = page([])
+        missing = await self.read(observed_call_ids=[nonce], wait_seconds=.02, poll_interval=.01)
+        self.assertTrue(missing.pending)
+        self.assertEqual(missing.missing_call_ids, (nonce,))
+        self.assertIsNone(missing.answer.spend)
+        # Check every matching row, so a map overwrite cannot hide a foreign
+        # answer with the same native nonce and a different physical ID.
+        self.payload = page([row("wrong-root", answer=OTHER_ANSWER, call_id=nonce), row("right-root", call_id=nonce)])
+        with self.assertRaisesRegex(cost.CostReadError, "foreign_answer"):
+            await self.read(observed_call_ids=[nonce])
+        self.payload = page([row(call_id=nonce, spend="0")])
+        with self.assertRaisesRegex(cost.CostReadError, "accounting_unavailable"):
+            await self.read(observed_call_ids=[nonce])
+
+    async def test_observed_call_collection_is_canonical_and_bounded_before_http(self):
+        for value in (CALL, CALL.encode(), None, ["not-a-uuid"], [CALL.upper()], [True], [CALL] * 10001):
+            with self.subTest(kind=type(value).__name__):
+                with self.assertRaisesRegex(cost.CostReadError, "invalid_scope"):
+                    await self.read(observed_call_ids=value)
+        self.assertEqual(self.requests, [])
+
+    async def test_call_coverage_does_not_relax_row_identity_or_claim_all_attempts(self):
+        nonce = self.issued_nonce()
+        self.payload = page([row("same-id", call_id=nonce), row("same-id", call_id=nonce)])
+        with self.assertRaisesRegex(cost.CostReadError, "duplicate_request_id"):
+            await self.read(observed_call_ids=[nonce])
+        # Multiple distinct native rows can share a logical nonce (retry or
+        # fallback). This snapshot covers only supplied observed calls, with
+        # all actual rows accrued; it does not certify unknown physical work.
+        self.payload = page([row("attempt-one", call_id=nonce), row("attempt-two", call_id=nonce)])
+        snapshot = await self.read(observed_call_ids=[nonce])
+        self.assertTrue(snapshot.complete)
+        self.assertEqual(snapshot.coverage, "observed_calls_only")
+        self.assertEqual(snapshot.answer.calls, 2)
+        self.assertEqual(snapshot.answer.spend, Decimal("0.40"))
 
     async def test_condition_poll_waits_for_observed_durable_row(self):
         async def delayed(request):

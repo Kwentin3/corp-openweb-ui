@@ -22,6 +22,8 @@ from pydantic import BaseModel, Field
 
 ROOT_CAPSULE = "owui_budget_root"
 OBSERVED_IDS = "_owui_budget_observed_provider_ids"
+OBSERVED_CALL_IDS = "_owui_budget_observed_call_ids"
+UNBOUND_RESPONSE = "_owui_budget_unbound_response"
 ISSUED_SCOPE = "_owui_budget_current_scope"
 log = logging.getLogger(__name__)
 
@@ -105,7 +107,7 @@ class Filter:
 
     async def request(self, body: dict, __user__: dict = None, __metadata__: dict = None,
                       __request__=None, __model__: dict = None) -> dict:
-        from employee_budget_provenance import decode_root, encode_call, encode_root
+        from employee_budget_provenance import decode_call, decode_root, encode_call, encode_root
         from open_webui.env import VERSION
         from open_webui.models.users import Users
 
@@ -148,9 +150,10 @@ class Filter:
         carrier["owui_budget_provenance"] = encode_call(secret, user_id=user_id,
             chat_id=chat_id, answer_id=answer_id, root_chat_id=root_chat_id,
             root_answer_id=root_answer_id, model=wire_model)
+        claims = decode_call(carrier["owui_budget_provenance"], secret, user_id=user_id, model=wire_model)
         body["litellm_metadata"] = carrier
         metadata[ISSUED_SCOPE] = {"user_id": user_id, "root_chat_id": root_chat_id,
-                                  "root_answer_id": root_answer_id}
+                                  "root_answer_id": root_answer_id, "call_id": claims["jti"]}
         return body
 
     async def stream(self, event: dict, __metadata__: dict = None) -> dict:
@@ -161,7 +164,26 @@ class Filter:
         if event.get("object") == "chat.completion.chunk":
             identifier = event.get("id")
         elif str(event.get("type", "")).startswith("response."):
-            identifier = (event.get("response") or {}).get("id")
+            response = event.get("response")
+            if not isinstance(response, dict) or "id" not in response:
+                return event
+            identifier = response["id"]
+            try:
+                require(isinstance(identifier, str) and 0 < len(identifier) <= 1024
+                        and not any(char.isspace() for char in identifier), "response_id")
+                scope = metadata[ISSUED_SCOPE]
+                call_id = canonical_uuid(scope.get("call_id") if isinstance(scope, dict) else None, "call_id")
+            except ValueError:
+                metadata[UNBOUND_RESPONSE] = True
+                return event
+            # Native Responses encrypts advertised IDs after detaching logging's
+            # copy. Only this dispatch's server-issued nonce binds its ledger row.
+            observed = metadata.setdefault(OBSERVED_CALL_IDS, [])
+            if not isinstance(observed, list) or len(observed) >= 1000 and call_id not in observed:
+                metadata[UNBOUND_RESPONSE] = True
+            elif call_id not in observed:
+                observed.append(call_id)
+            return event
         if isinstance(identifier, str) and 0 < len(identifier) <= 1024 and not any(char.isspace() for char in identifier):
             observed = metadata.setdefault(OBSERVED_IDS, [])
             if identifier not in observed:
@@ -198,11 +220,12 @@ class Filter:
                     user_id=scope["user_id"], root_chat_id=scope["root_chat_id"],
                     root_answer_id=scope["root_answer_id"],
                     observed_request_ids=metadata.get(OBSERVED_IDS, []),
+                    observed_call_ids=metadata.get(OBSERVED_CALL_IDS, []),
                     wait_seconds=self.valves.read_wait_seconds)
                 if snapshot.answer.spend is not None and snapshot.chat.spend is not None:
                     current = next((message for message in body.get("messages", [])
                                     if message.get("id") == scope["root_answer_id"]), {})
-                    provisional = snapshot.pending or has_delegation(current)
+                    provisional = snapshot.pending or metadata.get(UNBOUND_RESPONSE) is True or has_delegation(current)
                     description = f"Ответ: {money_text(snapshot.answer.spend)} · Чат: {money_text(snapshot.chat.spend)}"
                     description += " · на " + snapshot.as_of.strftime("%H:%M:%S UTC")
                     if provisional:

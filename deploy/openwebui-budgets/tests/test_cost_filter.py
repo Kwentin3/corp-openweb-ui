@@ -1,12 +1,15 @@
 """Native-owner boundary unit checks; real WebUI/browser proof is still required."""
 
+import ast
 import copy
 from datetime import datetime, timezone
 from decimal import Decimal
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
+import subprocess
 from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
@@ -28,7 +31,9 @@ protocol = load("employee_budget_provenance", HERE / "provenance.py")
 if "employee_budget_webui_model_binding" not in sys.modules:
     load("employee_budget_webui_model_binding", HERE / "webui_model_binding.py")
 extension = load("cost_filter_under_test", HERE / "cost_filter.py")
-native_ids = HERE.parents[1] / "local/goal584/cost-display/open-webui/backend/open_webui/utils/model_ids.py"
+native_root = Path(os.environ.get("GOAL584_NATIVE_SOURCE_ROOT", str(
+    HERE.parents[1] / "local/goal584/cost-display/open-webui/backend/open_webui")))
+native_ids = native_root / "utils/model_ids.py"
 if not native_ids.exists():
     native_ids = Path("/app/backend/open_webui/utils/model_ids.py")
 prefix_owner = load("native_model_ids_for_cost_test", native_ids) if native_ids.exists() else None
@@ -101,6 +106,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("spend_logs_metadata", signed["litellm_metadata"])
         root = protocol.decode_root(self.metadata["chat_context"][extension.ROOT_CAPSULE], SECRET)
         self.assertEqual(root["root_answer_id"], ANSWER)
+        self.assertEqual(self.metadata[extension.ISSUED_SCOPE]["call_id"], claims["jti"])
         self.assertEqual(self.metadata["chat_context"]["messages"], [])
         self.assertNotIn(self.filter.valves.ledger_admin_key, json.dumps(signed))
         self.assertNotIn(self.filter.valves.ledger_admin_key, json.dumps(self.metadata))
@@ -176,8 +182,104 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.metadata[extension.OBSERVED_IDS], ["provider-one"])
         isolated = {extension.ISSUED_SCOPE: {}}
         await self.filter.stream({"type": "response.created", "response": {"id": "response-two"}}, __metadata__=isolated)
-        self.assertEqual(isolated[extension.OBSERVED_IDS], ["response-two"])
+        self.assertNotIn(extension.OBSERVED_IDS, isolated)
+        self.assertNotIn(extension.OBSERVED_CALL_IDS, isolated)
+        self.assertTrue(isolated[extension.UNBOUND_RESPONSE])
         self.assertEqual(self.metadata[extension.OBSERVED_IDS], ["provider-one"])
+
+    async def test_responses_uses_own_jwt_nonce_and_accumulates_tool_round_with_cc_ids(self):
+        self.connection.return_value = ("http://proxy:4000", SECRET, {"api_type": "responses"})
+        first_body = self.body()
+        first_body["max_tokens"] = 16
+        signed = await self.sign(first_body)
+        first = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], SECRET, user_id=USER, model=MODEL)["jti"]
+        event = {"type": "response.created", "response": {"id": "resp_encrypted_first", "call_id": OTHER}, "call_id": OTHER}
+        original = copy.deepcopy(event)
+        await self.filter.stream(event, __metadata__=self.metadata)
+        await self.filter.stream(event, __metadata__=self.metadata)
+        self.assertEqual(event, original)
+        self.assertEqual(self.metadata[extension.OBSERVED_CALL_IDS], [first])
+        self.assertNotIn(extension.OBSERVED_IDS, self.metadata)
+        body = self.body()
+        body["max_tokens"] = 16
+        body["messages"] += [{"role": "assistant", "tool_calls": [{"id": "call_fixture", "type": "function",
+            "function": {"name": "fixture", "arguments": "{}"}}]}, {"role": "tool", "tool_call_id": "call_fixture", "content": "synthetic result"}]
+        before = copy.deepcopy(body)
+        signed = await self.sign(body)
+        self.assertEqual({k: v for k, v in signed.items() if k != "litellm_metadata"}, before)
+        second = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], SECRET, user_id=USER, model=MODEL)["jti"]
+        self.assertNotEqual(first, second)
+        await self.filter.stream({"type": "response.completed", "response": {"id": "resp_encrypted_second"}}, __metadata__=self.metadata)
+        await self.filter.stream({"object": "chat.completion.chunk", "id": "cc-physical"}, __metadata__=self.metadata)
+        self.assertEqual(self.metadata[extension.OBSERVED_CALL_IDS], [first, second])
+        self.assertEqual(self.metadata[extension.OBSERVED_IDS], ["cc-physical"])
+        self.assertNotIn(extension.UNBOUND_RESPONSE, self.metadata)
+        snapshot = SimpleNamespace(answer=SimpleNamespace(spend=Decimal("0.40")), chat=SimpleNamespace(spend=Decimal("0.40")),
+            pending=False, as_of=datetime(2026, 11, 2, tzinfo=timezone.utc))
+        reader = AsyncMock(return_value=snapshot)
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        emitter = AsyncMock()
+        with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
+                {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+            await self.filter.outlet({"messages": []}, __user__=self.actor, __metadata__=self.metadata, __event_emitter__=emitter)
+        self.assertEqual(reader.call_args.kwargs["observed_call_ids"], [first, second])
+        self.assertEqual(reader.call_args.kwargs["observed_request_ids"], ["cc-physical"])
+        self.assertNotIn("учёт обновляется", emitter.call_args.args[0]["data"]["description"])
+
+    async def test_unbound_responses_marker_is_safe_and_cannot_make_mixed_display_complete(self):
+        await self.sign()
+        for marker in (None, "forged", "", {}, 123):
+            isolated = {extension.ISSUED_SCOPE: {"call_id": marker}}
+            event = {"type": "response.completed", "response": {"id": "resp_opaque", "call_id": ANSWER}}
+            self.assertIs(await self.filter.stream(event, __metadata__=isolated), event)
+            self.assertTrue(isolated[extension.UNBOUND_RESPONSE])
+            self.assertNotIn(extension.OBSERVED_CALL_IDS, isolated)
+            self.assertNotIn(extension.OBSERVED_IDS, isolated)
+        self.metadata[extension.OBSERVED_IDS] = ["settled-cc"]
+        self.metadata[extension.ISSUED_SCOPE].pop("call_id")
+        await self.filter.stream({"type": "response.created", "response": {"id": "resp_opaque"}}, __metadata__=self.metadata)
+        snapshot = SimpleNamespace(answer=SimpleNamespace(spend=Decimal("0.20")), chat=SimpleNamespace(spend=Decimal("0.20")),
+            pending=False, as_of=datetime(2026, 11, 2, tzinfo=timezone.utc))
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        emitter = AsyncMock()
+        with patch.object(real_reader, "read_cost_snapshot", AsyncMock(return_value=snapshot)), patch.dict(sys.modules,
+                {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+            await self.filter.outlet({"messages": []}, __user__=self.actor, __metadata__=self.metadata, __event_emitter__=emitter)
+        self.assertIn("учёт обновляется", emitter.call_args.args[0]["data"]["description"])
+
+    async def test_actual_native_detached_logging_id_differs_but_server_nonce_survives(self):
+        cache = Path(os.environ.get("GOAL584_LITELLM_SOURCE_ROOT", str(HERE.parents[1] / "local/goal584/litellm/upstream")))
+        if not (cache / ".git").exists():
+            self.skipTest("Exact cached d665 Git source missing; native-image Responses proof remains required")
+        def source(path):
+            result = subprocess.run(["git", "-c", "gc.auto=0", "show", "d665dc1a6315847fcad6cc2c1264ceb47c06abce:" + path],
+                cwd=cache, env=dict(os.environ, GIT_NO_LAZY_FETCH="1"), capture_output=True, timeout=10)
+            if result.returncode:
+                self.skipTest("Exact cached d665 method unavailable; no lazy fetch allowed")
+            return ast.parse(result.stdout)
+        # Pydantic shape adapters only; actual copy and advertised-ID rewrite
+        # method bodies are executed unchanged from the pinned cached owner.
+        class Response(extension.BaseModel):
+            id: str
+        class Event(extension.BaseModel):
+            response: Response
+        env = {"BaseModel": extension.BaseModel, "ResponsesAPIResponse": Response}
+        for path, names in (("litellm/responses/streaming_iterator.py", {"_logging_copy", "_detached_shallow_copy"}),
+                            ("litellm/proxy/hooks/responses_id_security.py", {"_rewrite_advertised_id"})):
+            nodes = [node for node in source(path).body if isinstance(node, ast.FunctionDef) and node.name in names]
+            self.assertEqual(len(nodes), len(names))
+            exec(compile(ast.Module(body=nodes, type_ignores=[]), path, "exec",
+                         flags=__import__("__future__").annotations.compiler_flag), env)
+        event = Event(response=Response(id="resp_sdk_model_encoded"))
+        logged = env["_logging_copy"](event)
+        env["_rewrite_advertised_id"](event, lambda _: "resp_security_opaque")
+        self.assertIsNot(logged.response, event.response)
+        self.assertNotEqual(logged.response.id, event.response.id)
+        signed = await self.sign()
+        nonce = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], SECRET, user_id=USER, model=MODEL)["jti"]
+        await self.filter.stream({"type": "response.completed", **event.model_dump()}, __metadata__=self.metadata)
+        self.assertEqual(self.metadata[extension.OBSERVED_CALL_IDS], [nonce])
+        self.assertNotIn(extension.OBSERVED_IDS, self.metadata)
 
     async def test_native_valves_payload_is_json_serializable_and_visibility_default_on(self):
         self.assertFalse(self.filter.toggle)
@@ -216,6 +318,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reader.call_args.kwargs["user_id"], USER)
         self.assertEqual(reader.call_args.kwargs["root_answer_id"], ANSWER)
         self.assertEqual(reader.call_args.kwargs["observed_request_ids"], ["provider-one"])
+        self.assertEqual(reader.call_args.kwargs["observed_call_ids"], [])
 
     async def test_display_scope_mismatch_does_not_query_foreign_costs(self):
         await self.sign()

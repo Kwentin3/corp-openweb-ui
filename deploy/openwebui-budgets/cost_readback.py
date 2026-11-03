@@ -26,6 +26,7 @@ from decimal import Decimal, DecimalException, Inexact, localcontext
 import json
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 from employee_budget_provenance import ProtocolError, validate_persisted_scope
@@ -84,18 +85,20 @@ class CostSnapshot:
     chat: CostTotal
     as_of: datetime
     pending: bool
-    # complete concerns ONLY the supplied observed response IDs. It never
+    # complete concerns ONLY the supplied observed request/call IDs. It never
     # certifies unknown/error/background calls or future work in this chat.
     complete: bool
     missing_request_ids: tuple[str, ...]
     pagination_complete: Literal[True] = True
-    coverage: Literal["observed_requests_only"] = "observed_requests_only"
+    coverage: Literal["observed_requests_only", "observed_calls_only", "observed_requests_and_calls_only"] = "observed_requests_only"
     currency: Literal["USD"] = "USD"
+    missing_call_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class _Row:
     request_id: str
+    call_id: str
     root_answer_id: str
     model: str
     spend: Decimal
@@ -118,6 +121,15 @@ def _text(value: object) -> str:
 
 def _integer(value: object, code: str = "invalid_usage") -> int:
     _require(type(value) is int and value >= 0, code)
+    return value
+
+
+def _call_id(value: object) -> str:
+    value = _text(value)
+    try:
+        _require(str(UUID(value)) == value, "invalid_scope")
+    except ValueError:
+        raise CostReadError("invalid_scope") from None
     return value
 
 
@@ -175,7 +187,7 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
     _require(total == prompt + completion, "invalid_usage")
     spend = _money(raw.get("spend"))
     _require(spend > 0 and total > 0, "accounting_unavailable")
-    return _Row(_text(raw.get("request_id")), scope["root_answer_id"], scope["model"],
+    return _Row(_text(raw.get("request_id")), scope["call_id"], scope["root_answer_id"], scope["model"],
                 spend, prompt, completion, total)
 
 
@@ -261,10 +273,11 @@ async def _rows(session: ClientSession, url: str, key: str, user_id: str,
 async def read_cost_snapshot(
     session: ClientSession, *, base_url: str, read_key: str, user_id: str,
     root_chat_id: str, root_answer_id: str,
-    observed_request_ids: Collection[str] = (), timeout_seconds: float = 10.0,
+    observed_request_ids: Collection[str] = (), observed_call_ids: Collection[str] = (),
+    timeout_seconds: float = 10.0,
     wait_seconds: float = 0.0, poll_interval: float = 0.2, max_pages: int = MAX_PAGES,
 ) -> CostSnapshot:
-    """Read accrued USD amounts; optionally await supplied observed IDs.
+    """Read accrued USD amounts; optionally await supplied request IDs/call nonces.
 
     base_url is the trusted native proxy management base (without /v1 inference
     suffix), not a URL supplied by an employee. Total operation is bounded by
@@ -297,6 +310,13 @@ async def read_cost_snapshot(
     _require(len(observed_request_ids) <= MAX_PAGES * PAGE_SIZE, "invalid_scope")
     expected_ids = {_text(value) for value in observed_request_ids}
     _require(len(expected_ids) <= MAX_PAGES * PAGE_SIZE, "invalid_scope")
+    _require(not isinstance(observed_call_ids, (str, bytes)) and isinstance(observed_call_ids, Collection),
+             "invalid_scope")
+    _require(len(observed_call_ids) <= MAX_PAGES * PAGE_SIZE, "invalid_scope")
+    expected_calls = {_call_id(value) for value in observed_call_ids}
+    _require(len(expected_ids) + len(expected_calls) <= MAX_PAGES * PAGE_SIZE, "invalid_scope")
+    coverage = ("observed_requests_and_calls_only" if expected_ids else "observed_calls_only"
+                ) if expected_calls else "observed_requests_only"
     url = base_url.rstrip("/") + SESSION_ROUTE
     loop = asyncio.get_running_loop()
     wait_until = loop.time() + wait_seconds
@@ -320,12 +340,16 @@ async def read_cost_snapshot(
                 by_id = {r.request_id: r for r in rows}
                 _require(all(by_id[rid].root_answer_id == root_answer_id
                              for rid in expected_ids & by_id.keys()), "foreign_answer")
+                _require(all(row.root_answer_id == root_answer_id for row in rows
+                             if row.call_id in expected_calls), "foreign_answer")
                 missing = tuple(sorted(expected_ids - by_id.keys()))
-                covered = bool(expected_ids) and not missing
+                missing_calls = tuple(sorted(expected_calls - {row.call_id for row in rows}))
+                covered = bool(expected_ids or expected_calls) and not missing and not missing_calls
                 latest = CostSnapshot(user_id, root_chat_id, root_answer_id,
                                       _total([r for r in rows if r.root_answer_id == root_answer_id]),
-                                      _total(rows), datetime.now(timezone.utc), not covered, covered, missing)
-                if not expected_ids or covered or loop.time() >= wait_until:
+                                      _total(rows), datetime.now(timezone.utc), not covered, covered, missing,
+                                      coverage=coverage, missing_call_ids=missing_calls)
+                if not (expected_ids or expected_calls) or covered or loop.time() >= wait_until:
                     return latest
                 await asyncio.sleep(min(poll_interval, max(0, wait_until - loop.time())))
     except asyncio.TimeoutError:
