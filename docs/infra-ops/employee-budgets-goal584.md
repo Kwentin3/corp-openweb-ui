@@ -219,13 +219,49 @@ runtime image2794979b…/frontend b99666c… реально построены. 
 Cleanup daemon reachable, remaining task containers/images пусты, cache removal
 не заявлен. Evidence: `local/goal584/office-build1-review/{report.md,replay.py}`.
 
-**Candidate59 подготовлен:** только два existing apt-get вызова Office Dockerfile
+**Candidate59 опубликован:** только два existing apt-get вызова Office Dockerfile
 получают native `Acquire::Retries=3`; snapshot date, base digest, packages, CLI
 version/hash, dependencies и fail-closed && chain неизменны. Официальный контракт:
 [apt.conf Retries](https://manpages.debian.org/trixie/apt/apt.conf.5.en.html).
 Independent source review READY; удаление только двух flags воспроизводит exact
 предыдущий Git source после CRLF→LF. Новая Linux build source SHA31ff5bb1…;
-повторная фактическая сборка ещё не запускалась. Финансовые Usage WIP исключаются.
+повторная фактическая сборка ещё не принята. Финансовые Usage WIP исключаются.
+Head7cc13609beda4a9d290b47394d39b243f72addfb, tested mergea2abbd1afde19934fdc3b81d533cea21188b31e1,
+remote readback совпал, tree diff пуст. [Office build2/41838148480](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41838148480)
+job126602346120 завершился SUCCESS; [Native59/41838148255](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41838148255)
+теперь SUCCESS во всех четырёх jobs. PR585 draft/open, body readback совпал.
+Office build2 ниже принят только как build/preflight; ActiveCI160 ещё не принят.
+Метаданные:
+`local/goal584/candidate59-publish.safe.json`.
+
+**Office build2 bounded PASS:** job126602346120 terminal SUCCESS; actual source/
+build/module/binary/qualification/cleanup проверены independent review и parent
+replay,11mutations rejected. Artifact13327358836/613602bytes/42members,
+SHA647b20bc4db513eb1ca8c7bda29007c6200b871b82c38819f3b17cfab5fe60fe.
+Все54public Git inputs и5149frontend sources связаны с tested a2abbd1a…;
+5670built files/234727263bytes. Actual fullruntime2c93e26c…/Officec1932ecc…,
+OfficeCLI1.0.152/binary e54d3c1d…; six baseline WebUI и five Office module hashes
+совпали byte-for-byte, extra3WebUI совпали с existing appliers. Existing saved-note
+LocalFileTransport test прошёл1case/13.378s: real CLI export/table/render/change-
+source refusal. Native File ACL/ordinary download/provider/context/ledger этим
+не приняты. Cleanup removed4actualimages, remaining containers/images пусты;
+cache removal не заявлен. Исторический Office1 FAIL сохранён; из SUCCESS2 не
+выводится, что retry реально потребовался или был причиной успеха. Evidence:
+`local/goal584/office-build2-review/{report.md,replay.py,baseline-compare.safe.json}`.
+
+**ActiveCI160:** attempt1 job126602346553 FAIL/exit143/runner shutdown во время
+Office APT download; underlying shutdown cause не установлен. Один failed-job
+rerun на том же commit принят API; actual attempt2 job126617374570 terminal
+cancelled. Check annotation прямо подтверждает `maximum execution time of 15m0s`;
+до отмены реально наблюдались504 Gateway Timeout при отдельных downloads. Не
+подменяем эти два исхода ошибкой кода или успехом Office2. Оба raw logs/job data
+сохранены: `local/goal584/active160-{first,rerun}-failure/`.
+
+**Candidate60 подготовлен:** existing Active CI job timeout15→30min, без изменения
+состава scope/tests/commands/guards. Это ограниченный ресурсный допуск полному
+набору проверок с native APT retries после доказанного15min cutoff. Actionlint
+PASS; остальные staged источники не включаются, все financial/Office topology
+WIP остаются отдельно. Новая CI execution ещё не запущена.
 
 **Used-category gap, source/library only:** true native Responses helper с cached6,
 reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot
@@ -247,6 +283,49 @@ cost/rows остаются у LiteLLM Logging/Router/SpendLogs; actual provider 
 Положительные .166/.334 cases отделены от absent/null usage observation controls;
 безопасная production accounting policy не принимается из spend0. Этот source WIP
 ещё не включён в опубликованный кандидат и не является продуктовой приёмкой.
+Finite provider source762b4f89…/newtest aad845fb… frozen: positive cached6/
+reasoning2, absent действительно без usage key, null с usageNone, negative
+usage_sentfalse. Old provider AST полностью восстанавливается удалением U ветки.
+Author57PASS/0skip и actual native DTO3HTTP bodies; independent provider+Host
+review READY/69PASS. Parent повторил6newHTTP tests и whole-module AST witness;
+никакого native proxy/ledger result пока нет. Native Responses carrier уточнён
+как litellm_metadata; success ID decoder/error fallback остаются native owners.
+Evidence: `local/goal584/pricing-usage-provider-{readiness,independent}.md`,
+`pricing-usage-native-seams.md`.
+Exact final-request local Router.aresponses rehearsal прошёл: один дополнительный
+bounded synthetic call с storeFalse и session_id+lineage, actual five-key wire,
+native cached6/reasoning2 и cost.166; encoded response ID/provider/deployment
+связаны native decoder. Clients/server закрыты; proxy auth/ledger не принимались.
+Первый более узкий Router witness сохранён отдельно. Evidence:
+`local/goal584/pricing-usage-router-final-request.safe.json`.
+Bounded native-first review не нашёл в pinned path глобальной require-complete-
+usage/conservative-settlement настройки. Responses streaming имеет native text
+estimator, но это не восстановление cache/reasoning и не наш nonstream profile.
+Supported CustomLogger.async_post_call_success_hook — существующий observer seam,
+а не готовая billing policy. Upstream45586/45707 OPEN/unmerged относятся к Chat
+Completion missing-usage marker; exact Responses replacement не установлен.
+Исследование без provider/DB/LLM calls; source pins/границы:
+`local/goal584/pricing-unknown-usage-native-options.md`. Следующий действующий
+probe сначала наблюдает actual proxy/row outcome; native calculator/ledger не
+подменяются и новый core patch не добавляется.
+Новый Usage proof/test пока **SOURCE HOLD**: помимо исправленных typed raw-usage,
+null-presence/response-identity/first-primary gaps, parent exact-native review
+нашёл неверный immutable model_count и S2→S1 restart assumption. Native API count
+включает runtime registrations; это наблюдение, а не неизменный reference count.
+Existing versions восстанавливает provider fixtureS1 после baseRestart с loadedS2.
+Готовится минимальный reuse CatalogFixture arm-source/finally-original variant,
+с неизменными source/revision/etag/schedule и4inference guards; код ещё не принят
+и не опубликован. Source/data counterexamples сохранены, ни один native proxy
+или финансовый CI для нового среза пока не запускался.
+
+Office topology source candidate отдельно: existing PricingFixture.bind сохраняет
+literal strict5/returnNone, common body извлечён один раз; host-only OfficeFixture
+использует literal strict6 и проверяет actual containers/network/security/callback.
+24focused PASS (new8+old16), parent repeat PASS; module f4a143ac…/OfficeFixture
+2c129228…/test4eb2bc67… frozen. Image/profile admission и actual6overlay/worker/
+browser ещё отсутствуют, baseline verify_profile/defaultimageIDs не ослаблены.
+Это source WIP, не native Office acceptance. Evidence:
+`local/goal584/office-fixture-readiness.md`.
 
 **Уточнение KISS/native-first,04.11:** запрошенный read-only upstream review завершён;
 новые архитектурные слои не добавляем. Для HTML уже есть merged
