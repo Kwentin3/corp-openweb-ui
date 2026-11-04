@@ -37,7 +37,7 @@ CALLBACK = Path('/proof/pricing_snapshot.py')
 PROOF = 'goal584-controlled-pricing-versions'
 # Fixed LF hashes of the reviewed candidate callback and native catalog owner.
 CALLBACK_SHA256 = '7c36fb9dd2b1f9dc0d67c551d2b25d8f1d768376234e8a12bb8a07ad100a0c31'
-CATALOG_SHA256 = '90871536a463baea9bf1e6581e9e6ab5619cfb3fea89f91e7273533040cc85e5'
+CATALOG_SHA256 = '454a8bf43041edf364a503bb3d42bca337774a89e05a13d89d5cb91d485d9dbc'
 LABELS = ('v1_S1', 'v1_S2', 'v2_S2')
 EXPECTED = (('v1', '.20', '.20'), ('v1', '.20', '.40'), ('v2', '.40', '.80'))
 USAGE = {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}
@@ -381,20 +381,24 @@ def overwrite(path,raw):
 
 
 class Host(ComposeDriver):
+    WORKER_FILE = 'prove_pricing_versions.py'
+    PROOF = PROOF
+    SOURCE_PATHS = SOURCE_PATHS
+
     def __init__(self,args):
-        super().__init__(args);self.receipt={'schema':1,'proof':PROOF,'passed':False,'stage':'bind','workers':[],'restoration':{}}
+        super().__init__(args);self.receipt={'schema':1,'proof':self.PROOF,'passed':False,'stage':'bind','workers':[],'restoration':{}}
         self.private=args.private_root;self.config=self.private/'config.yaml'
         self.owned_services=None
 
     def invoke(self,action,label=None):
-        command=self.command+['exec','-T','--index','1','proxy','python','-B','/proof/prove_pricing_versions.py','--worker-action',action,'--project',self.args.project]
+        command=self.command+['exec','-T','--index','1','proxy','python','-B','/proof/'+self.WORKER_FILE,'--worker-action',action,'--project',self.args.project]
         if label:command+=['--label',label]
         result=subprocess.run(command,cwd=ROOT,capture_output=True,timeout=90)
         require(len(result.stdout)<=catalog.MAX_BYTES,'version_worker_packet_size')
         try:value=json.loads(result.stdout)
         except (ValueError,UnicodeError):raise ProofError('version_worker_packet_json') from None
         require(isinstance(value,dict) and set(value)=={'schema','proof','passed','action','result','failure_code'}
-            and type(value['schema']) is int and value['schema']==1 and type(value['passed']) is bool and value['proof']==PROOF and value['action']==action,'version_worker_protocol')
+            and type(value['schema']) is int and value['schema']==1 and type(value['passed']) is bool and value['proof']==self.PROOF and value['action']==action,'version_worker_protocol')
         self.receipt['workers'].append(value)
         require(result.returncode==0 and value['passed'] is True,'version_worker_failed')
         return value['result']
@@ -404,7 +408,7 @@ class Host(ComposeDriver):
         revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,timeout=10).decode().strip()
         require(revision==os.environ.get('PROOF_SOURCE_COMMIT'),'version_host_tested_git')
         expected={}
-        for name,path in SOURCE_PATHS.items():
+        for name,path in self.SOURCE_PATHS.items():
             raw=(ROOT/path).read_bytes()
             require(raw==subprocess.check_output(['git','-c','gc.auto=0','show',revision+':'+path],cwd=ROOT,timeout=10,env={**os.environ,'GIT_NO_LAZY_FETCH':'1'}),'version_host_source_git_drift')
             expected[name]=sha(raw)
@@ -448,7 +452,7 @@ class Host(ComposeDriver):
             and Path(mounts['/proof-private']['Source']).resolve()==self.private.resolve()
             and mounts['/proof-private']['RW'] is True,'version_host_private_mounts')
         require(all('/proof/'+name in mounts and Path(mounts['/proof/'+name]['Source']).resolve()==(ROOT/path).resolve()
-            and mounts['/proof/'+name]['RW'] is False for name,path in SOURCE_PATHS.items()),'version_host_source_mounts')
+            and mounts['/proof/'+name]['RW'] is False for name,path in self.SOURCE_PATHS.items()),'version_host_source_mounts')
         code='import hashlib,json,pathlib,sys;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
         actual=self.run_json(self.command+['exec','-T','--index','1','proxy','python','-B','-c',code,*('/proof/'+n for n in expected)])
         require(actual=={'/proof/'+n:h for n,h in expected.items()},'version_actual_worker_source_readback')

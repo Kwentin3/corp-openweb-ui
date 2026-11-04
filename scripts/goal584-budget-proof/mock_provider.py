@@ -24,6 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MODELS = ("goal584-fake-a", "goal584-fake-b")
 EMBEDDING_MODEL = "goal584-fake-e"
 RESPONSES_MODEL = "goal584-fake-r"
+USAGE_MODELS = ("goal584-fake-usage", "goal584-fake-usage-absent", "goal584-fake-usage-null")
 RESPONSES_MAX_OUTPUT_TOKENS = 16
 STATE_LOCK = threading.Lock()
 REQUESTS = []
@@ -230,6 +231,18 @@ def responses_tool(payload, values, control):
     return names[0]
 
 
+def pricing_usage_input(payload, values):
+    """One finite nonstreaming Hi; the original wire is never rewritten."""
+    if (payload.get("stream", False) is not False or payload.get("tools", []) != []
+            or payload.get("reasoning") or payload.get("include")
+            or payload.get("max_output_tokens") != RESPONSES_MAX_OUTPUT_TOKENS
+            or len(values) != 1 or values[0].get("role") != "user"
+            or values[0].get("type", "message") != "message"
+            or set(values[0]) - {"type", "role", "content"}
+            or values[0].get("content") not in ("Hi", [{"type": "input_text", "text": "Hi"}])):
+        raise ValueError("Invalid finite pricing usage request")
+
+
 def responses_events(result):
     """Native Responses SSE event names/shapes; no Chat [DONE] sentinel."""
     initial = {**copy.deepcopy(result), "status": "in_progress", "output": [], "usage": None}
@@ -408,13 +421,21 @@ class Handler(BaseHTTPRequestHandler):
             self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
 
     def serve_responses(self, payload):
-        if payload.get("model") != RESPONSES_MODEL:
+        usage_profile = payload.get("model") in USAGE_MODELS
+        if not usage_profile and payload.get("model") != RESPONSES_MODEL:
             return self.send_json(404, {"error": {"message": "Unknown synthetic model", "code": "model_not_found"}})
         try:
             values = responses_input(payload)
+            if usage_profile:
+                pricing_usage_input(payload, values)
         except (ValueError, UnicodeError):
             return self.send_json(400, {"error": {"message": "Invalid bounded synthetic Responses request"}})
         control, record = self.begin_record(payload, responses=True)
+        if usage_profile and control.get("response_status") != 500:
+            with STATE_LOCK:
+                record["usage"] = {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15,
+                    "input_tokens_details": {"cached_tokens": 6},
+                    "output_tokens_details": {"reasoning_tokens": 2}} if payload["model"] == USAGE_MODELS[0] else None
         if self.controlled_failure(control, record):
             return
         name = responses_tool(payload, values, control)
@@ -431,13 +452,15 @@ class Handler(BaseHTTPRequestHandler):
                 "content": [{"type": "output_text", "text": "Proof", "annotations": []}]})
         result = {"id": record["id"], "object": "response", "created_at": record["created"], "status": "completed",
             "error": None, "incomplete_details": None, "instructions": payload.get("instructions"),
-            "model": RESPONSES_MODEL, "output": output, "usage": record["usage"],
+            "model": payload["model"] if usage_profile else RESPONSES_MODEL, "output": output, "usage": record["usage"],
             "max_output_tokens": RESPONSES_MAX_OUTPUT_TOKENS, "parallel_tool_calls": payload.get("parallel_tool_calls", True),
             "tool_choice": payload.get("tool_choice", "auto"), "tools": copy.deepcopy(payload.get("tools", [])),
             "reasoning": copy.deepcopy(payload.get("reasoning")), "store": False, "previous_response_id": None,
             "metadata": copy.deepcopy(payload.get("metadata", {})), "temperature": payload.get("temperature", 1.0),
             "top_p": payload.get("top_p", 1.0), "text": copy.deepcopy(payload.get("text", {"format": {"type": "text"}})),
             "truncation": payload.get("truncation", "disabled"), "user": payload.get("user")}
+        if usage_profile and payload["model"] == USAGE_MODELS[1]:
+            del result["usage"]
         try:
             if payload.get("stream"):
                 self.send_response(200)
@@ -456,7 +479,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, result, record=record)
             with STATE_LOCK:
                 record["response"] = copy.deepcopy(result)
-            self.mark(record, stage="completed", terminal=True, outcome="completed", usage_sent=True)
+            self.mark(record, stage="completed", terminal=True, outcome="completed",
+                      usage_sent=record["usage"] is not None if usage_profile else True)
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             self.mark(record, stage="client_disconnected", terminal=True, outcome="client_disconnected")
 

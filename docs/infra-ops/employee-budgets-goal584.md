@@ -257,11 +257,50 @@ cancelled. Check annotation прямо подтверждает `maximum executi
 подменяем эти два исхода ошибкой кода или успехом Office2. Оба raw logs/job data
 сохранены: `local/goal584/active160-{first,rerun}-failure/`.
 
-**Candidate60 подготовлен:** existing Active CI job timeout15→30min, без изменения
+**Candidate60 опубликован:** head96c34204986d07d941446c28010510635bb4e785,
+tested merge bf2f78a2b929928bca4bbd2eb09fea39e92da3da, tree diff пуст.
+Existing Active CI job timeout15→30min, без изменения
 состава scope/tests/commands/guards. Это ограниченный ресурсный допуск полному
 набору проверок с native APT retries после доказанного15min cutoff. Actionlint
 PASS; остальные staged источники не включаются, все financial/Office topology
-WIP остаются отдельно. Новая CI execution ещё не запущена.
+WIP остаются отдельно. Native60/41846166214 terminal SUCCESS во всех четырёх jobs;
+новая отдельная financial artifact приёмка не заявлена, accepted baseline57 сохранён.
+ActiveCI161/41846166468 terminal FAIL: Office APT downloads реально дали503/504,
+затем docker build killed/exit143 и runner shutdown. Job имел30min limit, но
+завершился через14m53s; причина shutdown не установлена, timeout30 не объявляем
+причиной. Raw log/job/annotations сохранены в `local/goal584/active161-failure/`.
+Office build3/41846166303 terminal FAIL: main InRelease после трёх native retries
+получил503 No healthy backends; apt update продолжился с warning, install получил
+missing candidates и exit100. Actual ZIP13330629266/581888bytes/31members,
+SHA3d12c72c348be0f176030fe57b689788838326d00e473c6c032010c869275226,
+independent review и parent replay подтвердили source-bound FAIL,6mutations
+rejected. Frontend/full runtime собраны, Office/CLI/preflight/final receipt не
+достигнуты; cleanup удалил2actualimages, containers/images пусты, cache не удалён.
+Все54public inputs совпали с Office2; Office2 bounded PASS остаётся историческим.
+Evidence: `local/goal584/office-build3-review/{report.md,replay.py}`.
+
+**Candidate61, source READY:** frozen U provider762b4f89… и его
+HTTP regression aad845fb… подключены к existing4service pricing owner. Новый
+finite probe1e96f3c7… переиспользует versions.Host; отдельный калькулятор/ledger
+или native core patch не добавлен. Provider→catalog454a8bf4…→versions/test fixed
+pins согласованы; новый source имеет RO mount и Git/runtime readback closure.
+После прежних flat versions выполняются ровно4native Responses dispatches:
+cache6/reasoning2 с тарифамиv1/v2 (.166/.334, cumulative .500), затем absent/null
+usage как bounded observations, не как приёмка бесплатного или безопасного учёта.
+Новый CI step30min, job95min сохраняет сумму прежних phase bounds+cleanup reserve;
+alwayscleanup и private/safe evidence boundary сохранены. Source/actionlint/Bash/
+embedded Python checks PASS, focused catalog/versions/provider53PASS/0skip.
+Matching Usage test038e5262… и proof1e96f3c7… приняты independent review:
+41focused PASS/0skip, включая27legacy versions. Отдельный independent review
+шести ROOT integration files READY/47offline PASS. Parent полный candidate run:
+497harness PASS/0skip и244component checks (237PASS/7opt-in skips); browser
+Office6 extraction на время проверки была exact index baseline, затем восстановлена
+byte-for-byte f4a143ac… . Office WIP в candidate не включён. Actionlint PASS,
+54Bash scripts/28embedded Python syntax PASS. Кандидат готов к обычной публикации
+в PR585; actual proxy/rows/counters/category-history остаются непроверенными
+до нового прогона. Приёмка whole GOAL не сужается до4cases. Evidence:
+`local/goal584/pricing-usage-{proof,integration}-independent.md`,
+`local/goal584/usage-candidate-readiness.safe.json`.
 
 **Used-category gap, source/library only:** true native Responses helper с cached6,
 reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot

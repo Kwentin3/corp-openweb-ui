@@ -829,8 +829,8 @@ jobs:
 
   native-pricing-catalog:
     runs-on: ubuntu-24.04
-    # Reference check + versions: phase bounds total 62m, plus 3m reserve.
-    timeout-minutes: 65
+    # Reference check + versions + used categories: 92m phase bounds + 3m reserve.
+    timeout-minutes: 95
     steps:
       - name: Check out the pricing candidate
         timeout-minutes: 2
@@ -942,12 +942,15 @@ jobs:
           mounted = {target:Path(source).resolve().relative_to(Path.cwd()).as_posix()
                      for target,source in readonly.items() if target != '/proof/config.yaml'}
           assert mounted['/proof/prove_pricing_catalog.py'] == 'scripts/goal584-budget-proof/prove_pricing_catalog.py'
+          assert mounted['/proof/prove_pricing_usage.py'] == 'scripts/goal584-budget-proof/prove_pricing_usage.py'
           assert mounted['/proof/pricing_snapshot.py'] == 'deploy/openwebui-budgets/pricing_snapshot.py'
           required = ['.github/workflows/goal584-native-budget-proof.yml','compose/goal584.native-budget-proof.yml',
                       'compose/goal584.pricing-proof.yml','scripts/goal584-budget-proof/litellm_config.yaml',
                       'scripts/goal584-budget-proof/mock_provider.py','scripts/goal584-budget-proof/test_mock_provider.py',
                       'scripts/goal584-budget-proof/test_pricing_catalog.py','deploy/openwebui-budgets/tests/test_pricing_snapshot.py',
                       'scripts/goal584-budget-proof/test_pricing_versions.py',
+                      'scripts/goal584-budget-proof/test_pricing_usage.py',
+                      'scripts/goal584-budget-proof/test_pricing_usage_provider.py',
                       'scripts/goal584-budget-proof/native-patch-requirements.txt',*build['files_sha256'],*mounted.values()]
           hashes = {}
           for name in dict.fromkeys(required):
@@ -1092,6 +1095,46 @@ jobs:
           assert packet['schema']==1 and packet['proof']=='goal584-controlled-pricing-versions' and packet['action'] is None
           (output/'versions.safe.json').write_bytes(raw)
           assert status==0 and packet['passed'] is True and packet['result']['passed'] is True,'Native tariff version qualification failed'
+          PY
+
+      - name: Qualify native cached and reasoning tariffs and observe missing usage
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,re,subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'])
+          candidate = Path(os.environ['RUNNER_TEMP'],os.environ['PRICING_PROJECT']+'-usage-safe')
+          candidate.mkdir(mode=0o700)
+          receipt_path = candidate/'usage.safe.json'
+          script = 'scripts/goal584-budget-proof/prove_pricing_usage.py'
+          expected = subprocess.check_output(['git','show',os.environ['GITHUB_SHA']+':'+script])
+          assert Path(script).read_bytes()==expected,'Usage host differs from tested Git'
+          interpreter = str(Path(os.environ['RUNNER_TEMP'],'goal584-native-patch-venv','bin','python'))
+          argv = [interpreter,'-B',script,'--project',os.environ['PRICING_PROJECT'],
+                  '--env-file',os.environ['PROOF_ENV_FILE'],'--private-root',os.environ['PROOF_PRIVATE_DIR'],
+                  '--compose-file','compose/goal584.native-budget-proof.yml',
+                  '--compose-file','compose/goal584.pricing-proof.yml','--receipt',str(receipt_path)]
+          status = -1
+          try:status = subprocess.run(argv,capture_output=True,timeout=1500).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          diagnostic = {'helper_returncode':status,'project':os.environ['PRICING_PROJECT'],
+                        'source_commit':os.environ['GITHUB_SHA'],'host_sha256':hashlib.sha256(expected).hexdigest(),
+                        'receipt_written':receipt_path.is_file()}
+          (output/'usage-helper-diagnostic.json').write_text(json.dumps(diagnostic,indent=2),encoding='utf-8')
+          assert receipt_path.is_file() and receipt_path.stat().st_size<=4*1024*1024,'Usage safe packet unavailable'
+          raw = receipt_path.read_bytes()
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          assert not any(value and value.encode() in raw for value in secrets)
+          assert not re.search(rb'(?:sk-|gw-|Bearer\s)[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',raw)
+          packet = json.loads(raw)
+          assert set(packet)=={'schema','proof','passed','action','result','failure_code'}
+          assert packet['schema']==1 and packet['proof']=='goal584-native-pricing-used-categories' and packet['action'] is None
+          (output/'usage.safe.json').write_bytes(raw)
+          assert status==0 and packet['passed'] is True and packet['result']['passed'] is True,'Native used-category qualification failed'
+          assert packet['result']['unknown_rows_finality'] is False and packet['result']['negative_cases_are_policy_qualification'] is False
           PY
 
       - name: Remove the pricing project and verify cleanup
