@@ -14,7 +14,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from typing import TypedDict
 import unittest
 from unittest.mock import patch
@@ -31,6 +31,11 @@ USER='af4769c2-5cbe-4d85-a519-c8b22f035ae0'
 OLD='df4769c2-5cbe-4d85-a519-c8b22f035ae0'
 PROJECT='goal584-pricing-'+'a'*12
 CONTROL={'prompt_tokens':10,'completion_tokens':5,'delay_ms':0,'tool_round':False,'admin_mode':False,'title_mode':False}
+# Real d665 native ResponsesIDSecurity/XSalsa20 outputs with synthetic key/user only.
+# Fixed representatives exercise the opaque boundary without a host crypto dependency.
+ENCRYPTED_RESPONSES=(
+    'resp_WaiKNFBxyUBrjqOY-uFpb8I1YcjwkyOyIcCA-Lki6EAfoHue_VD24PYQ5pfWUfwXXe_EkohUBzpMS3i8ZgTE9oBli69BF8Erhh-cAqRwJjurMvLRkW_bT2gbNrBSGHau415jo49A2QjtQI6NtFL4paKfFDvspppiKshe83CRI_bahTvB2e5HCH0k51WzRsl3giQ_vKZ8PId_5iYr2H8ZlDDow6lmw13vHslVx9_1KfSIgdGsMTkYzEV8K3ayFqBBn54rWBhCivSJ-S5mq0Jj7ynZe_C0y-S2GeD8iO6eypP9Y5CaS1migSyYzF0sA_idwRfQtKhmSKCPMcmwyOwIHs71JBVL-cCO7AtcJX29GzPT2GCeFSRo3gkghCfmzkAE2Kq6H3qq4kGfNPU=',
+    'resp_SeKE2fAAbSUMsN2Tmk8vew5vK7ZQroy_DgNwfDrY2cp1dEOiNvEzzucRvuiDVgfLb0TOJENUkGLiCof3y_Wm_4bTJBwMTUPOxoYIyy1T_h-72kpYMkAo_olZYKSA3-qqgu1pYYaKQHpPclLoGSzMlk3hQkZnyXdr2gfdfeeMtd9olfVvTn7X8m8pq2mZI6xmdgJ5rUnd2qgWiIAGFHLcOMGUqg6SY8cfYtuOqYxR2uIq_ifl0x6MfCZ-dNtDfzcO-5b2Sc3TxBiEMLm1k6P8d_p-l2xM8mO2UVecd8FnFw5PuPrMBduT5DGGMNSnFc17xADn-lWPbgvvsHdTB1Pv7TW3a6UefNeFNDGy-OCtxeohLMyFWG-STbOkxvJwIZdtTAhrN_UBXZtdqmg=')
 
 
 @lru_cache(None)
@@ -58,14 +63,17 @@ def state(count=2):
     for i,label in enumerate(M.LABELS[:count]):
         index=0 if i<2 else i-1;deployment=M.ALIASES[index]+'-'+('v2' if i==1 else 'v1')
         pid='resp_goal584_'+str(i+1)*32
-        response={'id':codec()._build_responses_api_response_id('openai',deployment,pid),'usage':copy.deepcopy(M.RAW_USAGE)}
+        response={'id':ENCRYPTED_RESPONSES[i] if i<2 else codec()._build_responses_api_response_id('openai',deployment,pid),
+            'usage':copy.deepcopy(M.RAW_USAGE)}
         calls.append({'label':label,'alias':M.ALIASES[index],'deployment':deployment,'provider_id':pid,'response':response,
             'cost':'.166' if i==0 else '.334','lineage':{'chat_id':USER+'-chat-'+str(i),'root_answer_id':'answer-'+str(i),'call_kind':'synthetic_pricing_usage'}})
-    return {'schema':1,'proof':M.PROOF,'project':PROJECT,'user_id':USER,'base':copy.deepcopy(BASE),
+    result={'schema':1,'proof':M.PROOF,'project':PROJECT,'user_id':USER,'base':copy.deepcopy(BASE),
         'started_at':'1970-01-01T00:00:00+00:00','calls':calls,'keys':{a:{'token':'sk-synthetic-'+str(i)*20,
         'hash':M.sha(('sk-synthetic-'+str(i)*20).encode())} for i,a in enumerate(M.ALIASES)},
         'provider_before':{'synthetic':True,'control':copy.deepcopy(CONTROL),'requests':[]},'old_users':[OLD],
         'old_history':{OLD:{'profile':{'user_id':OLD,'keys':[],'spend':.4},'rows':[{'request_id':'old','user':OLD,'spend':.4}]}},'settled_rows':[]}
+    for call,record in zip(calls,physical(result)['requests']):call['provider_record']=copy.deepcopy(record)
+    return result
 
 
 def budget(s,spend=.5):
@@ -105,9 +113,7 @@ class UsageTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
         self.saved=[]
-        module=ModuleType('litellm.responses.utils');module.ResponsesAPIRequestUtils=codec()
-        self.patches=[patch.dict(sys.modules,{'litellm.responses.utils':module}),
-            patch.object(M,'write_private',side_effect=lambda path,value:self.saved.append(copy.deepcopy(value))),
+        self.patches=[patch.object(M,'write_private',side_effect=lambda path,value:self.saved.append(copy.deepcopy(value))),
             patch.object(V.catalog,'write_private',side_effect=lambda path,value:self.saved.append(copy.deepcopy(value))),
             patch.object(M,'STATE',self.root/'state.private.json'),
             patch.object(V,'CALLBACK',REPO/'deploy/openwebui-budgets/pricing_snapshot.py')]
@@ -145,8 +151,13 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(v1['model_list'][3:],v2['model_list'][3:])
         with self.assertRaises(M.ProofError):M.configuration(BASE,'v3')
 
-    def test_positive_rows_use_actual_native_id_owner_and_preserve_old_rows(self):
-        s=state();n,queries=self.native(s);first=M.observe(n,s)
+    def test_positive_rows_accept_native_encrypted_ids_and_preserve_old_rows(self):
+        s=state()
+        for call in s['calls']:
+            decoded=codec()._decode_responses_api_response_id(call['response']['id'])
+            self.assertEqual(decoded,{'custom_llm_provider':None,'model_id':None,'response_id':call['response']['id']})
+            self.assertNotEqual(call['response']['id'],call['provider_id'])
+        n,queries=self.native(s);first=M.observe(n,s)
         self.assertEqual(first['raw_row_count'],2);self.assertEqual(len(first['positive_rows']),2)
         self.assertEqual(first['positive_rows'][0]['rates']['cache_read_input_token_cost'],.001)
         self.assertEqual(first['positive_rows'][1]['rates']['output_cost_per_reasoning_token'],.09)
@@ -159,7 +170,7 @@ class UsageTests(unittest.TestCase):
     def test_row_mutations_reject_caller_model_key_lineage_rate_and_usage(self):
         expected={'user':'Native spend API crossed user scope','key':'usage_foreign_raw_row',
             'lineage':'usage_positive_lineage','rates':'usage_protected_native_rates',
-            'missing_rate':'usage_snapshot_schema','counter':'usage_positive_counter_surplus'}
+            'missing_rate':'usage_snapshot_schema','counter':'usage_positive_counter_surplus','provider_id':'usage_old_provider_changed'}
         for mutation in ('user','key','model','deployment','provider_id','lineage','rates','usage_type','missing_rate','counter'):
             with self.subTest(mutation=mutation):
                 s=state(1);r=row(s,s['calls'][0]);values=budget(s,.166)
@@ -167,7 +178,7 @@ class UsageTests(unittest.TestCase):
                 elif mutation=='key':r['api_key']='foreign'
                 elif mutation=='model':r['model_group']='foreign'
                 elif mutation=='deployment':r['model_id']='foreign'
-                elif mutation=='provider_id':s['calls'][0]['provider_id']='foreign'
+                elif mutation=='provider_id':s['calls'][0]['provider_record']['response']['id']='resp_foreign'
                 elif mutation=='usage_type':r['prompt_tokens']=10.0
                 elif mutation=='counter':values['keys'][M.ALIASES[0]]['spend']=.3
                 else:
@@ -204,7 +215,8 @@ class UsageTests(unittest.TestCase):
                 n,q=self.native(s,provider=p)
                 with self.assertRaises(M.ProofError):M.observe(n,s)
                 self.assertFalse(q)
-        s=state(1);p=physical(s);p['requests'][0]['lifecycle'].update(terminal=False,outcome=None,usage_sent=False);n,q=self.native(s,provider=p)
+        s=state(1);p=physical(s);s['calls'][0].pop('provider_record')  # Pending observation has no retained terminal record.
+        p['requests'][0]['lifecycle'].update(terminal=False,outcome=None,usage_sent=False);n,q=self.native(s,provider=p)
         self.assertIsNone(M.observe(n,s));self.assertFalse(q)
 
     def test_unknown_rows_are_observations_with_no_final_queue_or_free_claim(self):
@@ -341,20 +353,16 @@ class UsageTests(unittest.TestCase):
             return M.failure_location(error),raw,private,call
         self.fail('The real positive_row guard accepted a diagnostic counterexample')
 
-    def test_positive_diagnostic_identifies_each_original_compound_operand(self):
-        names={'response_id','provider','decoded_deployment','provider_response_id','user','key','model_group',
+    def test_positive_diagnostic_identifies_each_opaque_identity_and_financial_operand(self):
+        names={'response_id_shape','response_id','physical_response_id','user','key','model_group',
             'model_id','model','status','cost','prompt_tokens','completion_tokens','total_tokens'}
-        identities={'row_response','client_response','decoded_provider','decoded_response','physical_response',
-            'decoded_deployment','row_deployment','expected_deployment','row_model'}
+        identities={'row_response','client_response','physical_response','retained_record_id',
+            'retained_record_response','row_deployment','expected_deployment','row_model'}
         secret='DIAGNOSTIC_PRIVATE_MUST_NOT_ESCAPE'
-        def recode(provider=None,deployment=None,response=None):
-            def mutate(private,call,raw):
-                identifier=codec()._build_responses_api_response_id(provider or 'openai',deployment or call['deployment'],response or call['provider_id'])
-                raw['request_id']=call['response']['id']=identifier
-            return mutate
-        cases={'response_id':lambda s,c,r:c['response'].update(id=secret),
-            'provider':recode(provider=secret),'decoded_deployment':recode(deployment=secret),
-            'provider_response_id':recode(response=secret),'user':lambda s,c,r:r.update(user=secret),
+        def malformed(s,c,r):r['request_id']=c['response']['id']=''
+        cases={'response_id_shape':malformed,'response_id':lambda s,c,r:c['response'].update(id='resp_'+secret),
+            'physical_response_id':lambda s,c,r:c['provider_record']['response'].update(id='resp_'+secret),
+            'user':lambda s,c,r:r.update(user=secret),
             'key':lambda s,c,r:r.update(api_key='sk-'+secret),'model_group':lambda s,c,r:r.update(model_group=secret),
             'model_id':lambda s,c,r:r.update(model_id=secret),'model':lambda s,c,r:r.update(model=secret),
             'status':lambda s,c,r:r.update(status=secret),'cost':lambda s,c,r:r.update(spend=.5),
@@ -373,6 +381,35 @@ class UsageTests(unittest.TestCase):
                     and set(value)<=set('0123456789abcdef') for value in projection['identity_sha256'].values()))
                 self.assertNotIn(secret,M.encoded(failure).decode())
 
+    def test_opaque_ids_reject_missing_malformed_mismatch_and_foreign_call_binding(self):
+        for identifier in (None,True,5,{},[],'','resp_','foreign','resp_has space','resp_has\nline','resp_\u00e9','resp_'+('a'*4092)):
+            with self.subTest(identifier_type=type(identifier).__name__):
+                def mutate(s,c,r):r['request_id']=c['response']['id']=identifier
+                failure,_,_,_=self.diagnostic_failure(mutate)
+                self.assertFalse(failure['positive_row']['checks']['response_id_shape'])
+        for field in ('row_id','client_id','provider_id','record','record_response','record_id','record_response_id'):
+            with self.subTest(field=field):
+                def mutate(s,c,r):
+                    if field=='row_id':r.pop('request_id')
+                    elif field=='client_id':c['response'].pop('id')
+                    elif field=='provider_id':c['provider_id']='resp_foreign'
+                    elif field=='record':c.pop('provider_record')
+                    elif field=='record_response':c['provider_record']['response']=None
+                    elif field=='record_id':c['provider_record']['id']='resp_foreign'
+                    else:c['provider_record']['response']['id']='resp_foreign'
+                self.diagnostic_failure(mutate)
+        s=state();rows=[row(s,c) for c in s['calls']]
+        rows[0]['request_id'],rows[1]['request_id']=rows[1]['request_id'],rows[0]['request_id']
+        n,_=self.native(s,rows=rows)
+        with self.assertRaisesRegex(M.ProofError,'usage_positive_identity_cost'):M.observe(n,s)
+        for field in ('chat_id','root_answer_id','call_kind','session_id'):
+            with self.subTest(lineage=field):
+                s=state(1);call=s['calls'][0];raw=row(s,call)
+                if field=='session_id':raw[field]='foreign'
+                else:
+                    meta=json.loads(raw['metadata']);meta['spend_logs_metadata'][field]='foreign';raw['metadata']=json.dumps(meta)
+                with self.assertRaisesRegex(M.ProofError,'usage_positive_lineage'):M.positive_row(raw,s,call)
+
     def test_positive_diagnostic_suppresses_private_fields_and_bounds_scalars_and_ids(self):
         secret='PRIVATE_MODEL_KEY_ERROR_METADATA_DO_NOT_EXPORT'
         def private_values(s,c,r):
@@ -387,8 +424,7 @@ class UsageTests(unittest.TestCase):
         for value in (None,True,False,0,1_000_000_000,1_000_000_001,float('nan'),float('inf'),10**5000,secret,{},[]):
             with self.subTest(kind=type(value).__name__):
                 changed=copy.deepcopy(raw);changed.update(spend=value,prompt_tokens=value,completion_tokens=value,total_tokens=value)
-                decoded=codec()._decode_responses_api_response_id(changed['request_id'])
-                result=M.positive_row_diagnostic(changed,private,call,decoded)
+                result=M.positive_row_diagnostic(changed,private,call)
                 text=M.encoded(result).decode();self.assertNotIn(secret,text)
                 if result['row'] is not None:
                     for scalar in (result['row']['spend'],*result['row']['usage'].values()):

@@ -350,7 +350,11 @@ remaining containers/images пусты; cache removal false. Native Files/sessio
 foreign ACL/ordinary download/provider/context/ledger ещё не приняты. Evidence:
 `local/goal584/office-build4-review/{report.md,replay.py}`.
 
-**Candidate62, source READY:** Usage proof89a6a8c7… сохраняет весь исходный
+**Candidate62 опубликован:** head3e8b3e7a35b26c7857063bbd25805c5b2c2e7c9d,
+tested merge f97890815b4074248f3580de5342c773116f4306, tree diff пуст;
+ordinary push/remote readback подтверждены. Native62/41857995823,
+ActiveCI163/41857995812 и Office5/41857995917 запущены на этом source.
+Usage proof89a6a8c7… сохраняет весь исходный
 compound guard и его evaluation order; только при этом failure добавляет14fixed
 condition booleans, existing bounded row projection и9identity hashes. Полный
 module AST восстанавливается удалением только instrumentation. Matching test
@@ -368,11 +372,82 @@ retry flags (LF SHA0fbd6f59…); других defaults/dependencies/snapshot и�
 (237PASS/7opt-in skips). Office provider/browser WIP были временно отделены
 сохранёнными diff/hash для exact tested-source проверки и восстановлены byte-for-
 byte f8829f4a…/f4a143ac… . Actionlint и scoped diff check PASS. В новый candidate
-входят только7files; Office WIP исключён. Готов к обычной публикации в PR585;
-новый runtime result не заявлен. Evidence:
+входят только7files; Office WIP исключён. PR585 draft/open;
+Текущий runtime result частичный: оба calendar profiles приняты independent review
+и parent replay/closure, pricing phase FAIL локализован ниже. Все шесть jobs
+завершены: main/basic/floor SUCCESS, pricing/Office5/ActiveCI163 FAILURE. Evidence:
 `local/goal584/pricing-usage-diagnostic-{readiness.md,parent.safe.json}`,
 `local/goal584/calendar-post-settlement-independent.md`,
 `local/goal584/active162-failure/evidence.safe.json`.
+
+**Native62 calendars bounded PASS:** actual basic ZIP13339325311/6839bytes,
+SHA8572045c5acbe48bdb0aaf9582b86dbf64654adbefd57eea061037a9712f6162;
+floor ZIP13337508664/10447bytes,
+SHA56bf0b06efc5cb9452e1c5d5c8efb1689fd7361aaef6f51c453ff258b1baae5d.
+Каждый профиль:26exactGit sources/12mounts,1/2workers,10/18native owners,
+actual derivative двух функций и конфиг проверены. Basic2calls period.20/lifetime.40.
+Floor200/422/200/200: postHTTP end.464972s, actual post counters.20/.20 на.477125s
+при pending DB0/old row1; finalHTTP end.496378s, всё строго<5s в обоих clocks.
+Final DB settlement через.547688s после finalHTTP: period.40/lifetime.60,
+all4rows=3success+bound primeaudit, caps/history/native rates/outcomes сохранены.
+20mutations rejected; оба cleanup containers/volumes/networks пусты. Native61
+остаётся INCONCLUSIVE. Evidence: `local/goal584/native62-calendar-review/`.
+
+**Native62 pricing diagnostic:** actual ZIP13339111324/16673bytes/9files,
+SHA2a2200c6e623faaf4ce349f396fe63150761aabcff8f844c0b042eaf9c1fd956.
+Первый positive_v1: native spend.166, status success, usage10/5/15 и семь rates
+с cache.001/reasoning.03 экспортированы; user/key/model/model_group/model_id и
+row/clientID equality checks true. False только три SDK-decoded provider/model/
+physical-response checks: decoder вернул None/None/original ID. Source native
+ResponsesIDSecurity по умолчанию шифрует nonstream advertised response.id и
+мутирует тот же response object; Router decoder не декодирует proxy-security
+envelope. Exact async logging order не выводится из одного security hook:
+native deferral зависит от post_call CustomGuardrail, а row/client opaque equality
+в этом run установлена непосредственно exported hashes.
+Исторический ciphertext/private key не экспортирован, actual decrypt не заявлен.
+Independent owner review67821532… и exact native AST crypto replay с synthetic
+key подтвердили ошибочную decoder premise. Финансовые ожидания/защиту IDs/ACL
+не меняем. Следующий KISS seam связывает opaque servedID с той же native row и
+existing exact lineage/deployment/key/user/единственным physical slot, не копируя
+crypto и не отключая native security. Полный4case PASS ещё отсутствует.
+Source candidate72cc0f80… убирает только3неприменимых SDK decode checks и native
+decoder import; сохраняет boundedresp_ ID/clientrow equality, явный immutable
+terminal provider record ID join и все прежние финансовые/lineage/rates/history/
+counter/order/no-retry guards. Read-only native source pins расширены до14 за
+счёт security/crypto owners; crypto/worker global key/новые core patches не нужны.
+Matching tests6d03f1e5… завершены:19focused PASS/0skip; parent full candidate
+checks —507harness PASS/0skip и244component checks (237PASS/7opt-in skips).
+Два Office WIP файла временно исключались только на время проверки staged
+кандидата, затем восстановлены до exact f8829f4a…/f4a143ac…; Office не включён
+в этот результат. Original Native62 FAIL не переоценивается задним числом.
+Exact oldguard post-lineage/rates acceptance и все4cases ещё не приняты.
+Evidence: `local/goal584/native62-pricing-review/`.
+
+**Office5/ActiveCI163 actual failure:** Office5 сохранил31files ZIP13338274881,
+SHA6fdfd3b9703c509a318dc0c5659fcd5483364502a6fbec84e450613e2ce494fe.
+Полные frontend/runtime собраны, Office APT `.deb` download получил HTTP503;
+native retries3 уже активны, CLI/preflight не достигнуты. Actual2images удалены,
+task containers/images пусты; cache не удалялся. ActiveCI163 остановлен на
+Office APT libxcb-shm0 HTTP504, не на STT: qualification/export/STT skipped.
+Artifacts0; Docker cleanup для Active163 не подтверждён. Базовая причина
+HTTP download установлена, инфраструктурный первоисточник не выдумывается.
+Evidence: `local/goal584/office-build5-review/`, `local/goal584/active163-failure/`.
+
+**Candidate63, source READY:** только Usage opaque-ID proof72cc0f80…,
+matching tests6d03f1e5… и эта запись;507harness PASS/0skip,244component checks
+(237PASS/7opt-in skips). Existing completed-reset/shared-Redis two-function
+derivative неизменён, calendar62 bounded PASS сохранён. Office/source/service
+WIP не входит в публикацию. Следующая проверка — native4case pricing/usage,
+не попытка переоценить исторический62FAIL. No production/paid calls/real limits.
+
+**Office next source seam:** тот же CI job строит existing builder и запускает
+strict6 stand; checkout GITHUB_SHA/build owner задают origin, actual Docker/native
+readback — runtime identity, existing verify_profile — module/Valves/route/Session/
+reasoning meaning. В explicit built branch нужны raw builder output + independent
+trusted revision + actual live readback; defaults6cc/df3 и все общие semantic guards
+остаются прежними. Pure checksum/self-consistent caller JSON не доказывает origin.
+Новый registry/Files store/Tool runner/ledger не создаётся; источник слитого Office
+provider и strict6 overlay пока WIP вне опубликованного кандидата.
 
 **Used-category gap, source/library only:** true native Responses helper с cached6,
 reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot
@@ -472,6 +547,12 @@ owner и тесты. Дополнительный поиск нашёл OPEN/unm
 это не runtime qualification и не готовая замена monthly primary user/key fix.
 Штатный Rich UI prompt submission повторно подтверждён official docs и merged26914;
 сохраняем существующий путь без temporary JSON storage или второго RPC owner.
+При повторном read-only refresh04.11/16:07UTC heads49212/45974/40940 и их
+OPEN/unmerged статусы не изменились. Parent заново прочитал actual diff49212:
+только `_reset_expired_window` и unit tests, primary monthly key/user не изменён.
+В текущем body45974 сохраняется предупреждение о пяти непокрытых reset paths.
+Нового решения, позволяющего удалить stand-only адаптацию, не подтверждено;
+новые production/core изменения и CI reruns в рамках этого refresh не выполнялись.
 
 **Responses upstream,04.11:** в [ответе по32473](https://github.com/open-webui/open-webui/issues/32473#issuecomment-6197578604)
 разработчик признаёт запрос stateless replay и предлагает native stateful внутри
