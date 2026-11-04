@@ -41,7 +41,7 @@ COMMAND = ["--config", "/proof/config.yaml", "--host", "0.0.0.0", "--port", "400
 HELPERS = {
     "prove_calendar_reset.py": "62589e0bf96e3df7673332e28b6a863aa1236b71cd3fee0638e42e7786ee0271",
     "prove_native_budgets.py": "e05bdcb0e14f4833960e4360387df7080adb9a17ca893f7ec65880efe2b897fa",
-    "prove_gateway_auth.py": "a506e9f1283d5729d467ee959ceca735e19351e9f2f15b66972d5821c9a6133a",
+    "prove_gateway_auth.py": "d1b7ef90fdcb3316a7a80bb4f738e172261b38d401abcd1db4bb6acd35172e8f",
     "prove_budget_overlap.py": "3c5b9c5b48f35c655063c66286bb0fccf5fe04c243f3f75390dd5d3323d8c522",
     "budget_errors.py": "30a86a662f0320482761a2f52310456c328e112954cf5d0557df09cb20db4abe",
     "pricing_snapshot.py": "7c36fb9dd2b1f9dc0d67c551d2b25d8f1d768376234e8a12bb8a07ad100a0c31",

@@ -36,7 +36,7 @@ RELOAD = '/reload/model_cost_map'
 MAX_BYTES = 4 * 1024 * 1024
 PROVIDER_SHA = 'ef5a5fb6736f49380a99d2b97557526f7bc19a3524e5d65c1755f5612d243750'
 HELPERS = {'prove_native_budgets.py': 'e05bdcb0e14f4833960e4360387df7080adb9a17ca893f7ec65880efe2b897fa',
-    'prove_gateway_auth.py': 'a506e9f1283d5729d467ee959ceca735e19351e9f2f15b66972d5821c9a6133a',
+    'prove_gateway_auth.py': 'd1b7ef90fdcb3316a7a80bb4f738e172261b38d401abcd1db4bb6acd35172e8f',
     'native_floor_identity.py': '39d28b28e3d60fb6e5989cdd4b23a2a1341277bc569f2bf3ef0eb9e32deac839',
     'manifest.json': '1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b'}
 NATIVE = {'litellm_core_utils/get_model_cost_map.py': '66fe0c8a066efebd34cca8815ac23ebf09379b76f7b32525321503ef6d7db679',

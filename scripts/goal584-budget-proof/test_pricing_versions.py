@@ -35,7 +35,7 @@ def approved_blobs(test):
     # Candidate Git-index bytes must match these frozen reviewed LF hashes.
     # CI's checked-out index is the tested commit; local WIP must be staged.
     paths={'pricing_snapshot.py':('deploy/openwebui-budgets/pricing_snapshot.py','7c36fb9dd2b1f9dc0d67c551d2b25d8f1d768376234e8a12bb8a07ad100a0c31'),
-        'prove_pricing_catalog.py':('scripts/goal584-budget-proof/prove_pricing_catalog.py','48b0f92892d1071f0dc229d1277d56b9bb3b8eb70397e3a347ad84f25cbedc6a')}
+        'prove_pricing_catalog.py':('scripts/goal584-budget-proof/prove_pricing_catalog.py','90871536a463baea9bf1e6581e9e6ab5619cfb3fea89f91e7273533040cc85e5')}
     values={}
     for name,(path,expected) in paths.items():
         try:raw=subprocess.check_output(['git','-c','gc.auto=0','show',':'+path],cwd=Path(__file__).resolve().parents[2],

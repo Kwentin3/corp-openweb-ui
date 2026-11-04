@@ -5,15 +5,65 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Native52 завершён
-SUCCESS во всех четырёх jobs. Catalog и bounded публикация двух synthetic тарифов
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
+принятый baseline — Native52, SUCCESS во всех четырёх jobs. Catalog и bounded публикация двух synthetic тарифов
 приняты independent review и parent replay; оба calendar профиля повторно
 проверены parent с сохранением прежних независимых financial/source assertions.
 Main52 source/finance/context/closure принят independent review и parent replay;
 свежий Responses Details PNG просмотрен обоими, обе таблицы видны. Проверен разрешённый stand-only derivative
-двух функций LiteLLM; исходный Native45 FAIL сохранён. Следующий срез — native500
-release/recovery и строгая проверка видимости Details после reload. Production
-не менялся. Подробности текущего среза ниже, после решения владельца.
+двух функций LiteLLM; исходный Native45 FAIL сохранён. Native53 main завершился
+FAIL в подготовке нового recovery probe, до вызова модели: operator fixture не
+имел `/user/list`. Фактический HTTP-код не экспортирован;403 воспроизведён точным
+native RouteChecks. Остальные три jobs SUCCESS. Подготовлены узкое read-разрешение
+fixture и regression. Кандидат54 согласовал direct/transitive helper SHA pins
+calendar-floor/catalog/versions и заменил исторический test snapshot точными
+Git-index bytes с прежними fixed hash guards. Windows PermissionError воспроизведён
+в os.replace временного private файла; только Windows test fixture теперь
+подменяет внешний filesystem writer. Bounded writer/save/deadline guards и Linux
+real private IO сохранены; native Recovery source8cf58835 не менялся.
+Последняя полная проверка:472harness PASS/0skip и244component checks
+(237PASS/7opt-in skips). Focused catalog/versions/calendar81PASS, recovery17PASS,
+80deadline replays ожидаемо отклонены. Independent source closure PASS; исходный
+FAIL и его trace сохранены. Runtime provider500/release/recovery и новый Details
+post-reload guard ещё требуют native приёмки. Production не менялся.
+
+**Уточнение KISS/native-first,04.11:** запрошенный read-only upstream review завершён;
+новые архитектурные слои не добавляем. Для HTML уже есть merged
+[PR26914](https://github.com/open-webui/open-webui/pull/26914), и его native own-embed
+prompt confirmation повторно подтверждён в исходниках нашей0.12.2. Сохраняем
+`HTMLResponse → input:prompt:submit → исходный JSON native user turn → Tool`.
+Полный MCP Apps [PR21639](https://github.com/open-webui/open-webui/pull/21639)
+закрыт без merge. Текущий community MCP App Bridge умеет прямые server calls,
+но добавляет собственные RPC route/token и ограничения worker/sharing; для нашей
+формы его не переносим. Подробный ограниченный обзор и source hashes:
+`local/goal584/upstream-rich-ui-gap-review.md`.
+
+**Calendar upstream,04.11:** разработчикам известен stale floor после reset.
+Свежий [PR49212](https://github.com/BerriAI/litellm/pull/49212), OPEN/unmerged,
+обновляет floor через существующий reset owner и pub/sub, но только для
+`budget_limits` окон key/team; наш primary monthly user/key путь не изменён.
+[PR45974](https://github.com/BerriAI/litellm/pull/45974), тоже OPEN/unmerged,
+в текущем описании исключает scheduled reset из защиты reset fence. В новом
+[релизе1.108.0](https://github.com/BerriAI/litellm/releases/tag/v1.108.0)
+`b48077ff…` parent повторно проверил reader local floor и calendar invalidator:
+ранний возврат cached floor и удаление только ordinary counter сохранены.
+Проверенной upstream замены разрешённым двум stand-only функциям пока нет;
+релиз целиком не квалифицировался. Используем existing ledger/reset/cache,
+не добавляем второй финансовый регистр или reset service. Upstream candidate
+заменит адаптацию после того же воспроизводителя и проверок reservations/manual
+reset. Подробности: `local/goal584/upstream-calendar-gap-review.md`.
+
+**Responses upstream,04.11:** в [ответе по32473](https://github.com/open-webui/open-webui/issues/32473#issuecomment-6197578604)
+разработчик признаёт запрос stateless replay и предлагает native stateful внутри
+одного ответа либо отдельный Pipe; issue остаётся closed/not_planned. Это не
+готовая замена текущему stateless маршруту. На точном release0.13.0/c38885a1
+independent source replay и parent повтор показали потерю reasoning и отдельный
+user image turn; native/provider runtime не запускался. Existing deployed profile
+0039f04d/d0c6eb1d уже сохраняет representative opaque reasoning и связанное Tool
+image в component witness. Не переносим stock finding на него и не добавляем
+новый patch/второй LLM owner. Отчёт: `local/goal584/upstream-responses-gap-review.md`.
+Новые native core patches не разрешены; разрешённый stand-only scope двух LiteLLM
+функций сохраняется. Полный GOAL остаётся в работе.
 
 **Pricing catalog: source и ограниченный runtime Native48 приняты.**
 Используются native source/status/schedule/reload APIs и scheduler LiteLLM;
@@ -280,8 +330,15 @@ SHAa9c6119a259bb98984d494e303e398d87ebe364f1c1b60e4cfdfded3d5a70a6c.
 04Nov09:34UTC свежий DNS совпал с documented endpoint, native known-host record
 подтверждён; key-only login со StrictHostKeyChecking=yes/UpdateHostKeys=no SUCCESS,
 remote hostname совпал с указателем. Password fallback и key/IP угадывания нет;
-endpoint/credentials не экспортированы. Read-only live route inventory выполняется,
-current deployed bindings до него не объявляются подтверждёнными. Evidence:
+endpoint/credentials не экспортированы. Read-only inventory завершён09:41–09:53UTC:
+пять сервисов healthy/restarts0; WebUI0.12.2/LiteLLM1.105.1, OfficeCLI1.0.152,
+Terminal0.14.0. Office — existing native Session Tool Server, persisted13target IDs,
+активный gpt-5.4-mini/native calling/Responses; source-default Valves не подставлялись.
+Native Audio и Stage2 имеют отдельных credential owners. На production gateway
+нет DATABASE_URL/custom_auth/callbacks и GOAL budget Functions/secret override;
+это metadata baseline, а не доказательство общего бюджетного охвата. Execution
+Office/STT/Terminal, private chats/files и платные provider APIs не запускались.
+Evidence:
 `local/goal584/current-route-{identity-preflight,ssh-identity}.safe.json`.
 Следующий native Office slice — exact prior-answer export →
 render → native download. Mic STT и Stage2audio имеют отдельных credential/

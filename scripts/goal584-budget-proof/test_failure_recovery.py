@@ -5,6 +5,7 @@ import ast
 import asyncio
 from contextlib import ExitStack, redirect_stdout
 import copy
+import enum
 from datetime import datetime, timezone
 from decimal import Decimal
 from email.message import Message
@@ -15,6 +16,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -25,6 +27,8 @@ from typing import Final, cast
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
+from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
 
 import prove_failure_recovery as M
 import prove_gateway_auth as private_owner
@@ -245,6 +249,10 @@ class CoordinatorTests(unittest.TestCase):
             if os.name=='nt':
                 stack.enter_context(patch.object(private_owner,'private_parent',lambda p:p.parent.mkdir(exist_ok=True)))
                 stack.enter_context(patch.object(private_owner.stat,'S_IMODE',return_value=0o600))
+                # Windows fixture IO avoids concurrent destination rename failures;
+                # retain the real bounded writer and all save/clock hooks above.
+                stack.enter_context(patch.object(M.overlap,'native_write_private',
+                    lambda p,value:p.write_text(json.dumps(value,allow_nan=False)+'\n',encoding='utf8')))
             real_clock=time.monotonic
             stack.enter_context(patch.object(M.time,'monotonic',lambda:real_clock()+world.offset))
             result=None;error=None
@@ -413,7 +421,9 @@ class NativeSourceTests(unittest.TestCase):
         if not CACHE.is_dir():raise unittest.SkipTest('Pinned native cache unavailable')
         cls.sources={}
         dto_sources={'proxy/management_endpoints/internal_user_endpoints.py':'0e5673e8a99d1958878f1a0887f1184e2e2919d27db01689861232011fd3a17e',
-            'proxy/management_endpoints/key_management_endpoints.py':'c9c644c2a93e20ef9d850454ddb4b23bf1db4823b66be415b9a13a5da045b4de'}
+            'proxy/management_endpoints/key_management_endpoints.py':'c9c644c2a93e20ef9d850454ddb4b23bf1db4823b66be415b9a13a5da045b4de',
+            'proxy/auth/route_checks.py':'e159ec69303ba8654062e368ee79376cc5427d9b7999d13942ab8eacae703422',
+            'proxy/_types.py':'2ef3c788ab6267bd3ba8bcaf336712cba9f67d49256bdfeb0a516c5de1525500'}
         for relative,expected in (M.NATIVE_FAILURE|dto_sources).items():
             raw=subprocess.check_output(['git','-c','gc.auto=0','show',M.overlap.native_sdk.BASE_REVISION+':litellm/'+relative],
                 cwd=CACHE,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
@@ -423,6 +433,74 @@ class NativeSourceTests(unittest.TestCase):
     def execute(self,nodes,ns):
         exec(compile(ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[])),'exact-pinned-failure-owner','exec',
             flags=__import__('__future__').annotations.compiler_flag),ns)
+
+    def test_native_route_gate_old_operator_denies_population_explicit_read_allows_and_other_denials_remain(self):
+        from fastapi import HTTPException, status
+        ns={'enum':enum,'Final':Final,'re':re,'HTTPException':HTTPException,'status':status}
+        self.execute([copy.deepcopy(node) for node in self.sources['proxy/_types.py'].body
+            if isinstance(node,ast.ClassDef) and node.name in ('KeyManagementRoutes','LiteLLMRoutes')],ns)
+        tree=self.sources['proxy/auth/route_checks.py']
+        owner=next(node for node in tree.body if isinstance(node,ast.ClassDef) and node.name=='RouteChecks')
+        names={'should_call_route','is_virtual_key_allowed_to_call_route','_route_matches_allowed_route',
+            'route_matches_wildcard_pattern','check_route_access','_route_matches_pattern','_is_wildcard_pattern',
+            '_get_request_method','is_auth_enforced_pass_through_route','_is_get_mcp_server_discovery_route'}
+        selected=ast.ClassDef(name='RouteChecks',bases=[],keywords=[],decorator_list=[],
+            body=[copy.deepcopy(node) for node in owner.body if getattr(node,'name',None) in names])
+        enforced=next(node for node in tree.body if isinstance(node,ast.AnnAssign)
+            and isinstance(node.target,ast.Name) and node.target.id=='_AUTH_ENFORCED_PASS_THROUGH_ROUTE_GROUPS')
+        self.execute([copy.deepcopy(enforced),selected],ns);gate=ns['RouteChecks']
+        # Only the stand's empty external passthrough registry is doubled. Native
+        # route groups, exact/prefix/pattern/wildcard decisions all execute above.
+        registry=ModuleType('litellm.proxy.pass_through_endpoints.pass_through_endpoints')
+        registry.InitPassThroughEndpointHelpers=SimpleNamespace(
+            is_registered_pass_through_route=lambda **kwargs:False,
+            get_registered_pass_through_route=lambda **kwargs:None)
+        class GateHTTP:
+            def __init__(self,routes):self.routes=routes;self.requests=[];self.statuses=[]
+            def open(self,request,timeout):
+                parts=urlsplit(request.full_url)
+                self.requests.append((request.get_method(),parts.path,parse_qs(parts.query)))
+                try:gate.is_virtual_key_allowed_to_call_route(route=parts.path,
+                    valid_token=SimpleNamespace(allowed_routes=self.routes,metadata={},user_role='proxy_admin'),
+                    request=SimpleNamespace(method=request.get_method()))
+                except HTTPException as error:
+                    self.statuses.append(error.status_code)
+                    raise HTTPError(request.full_url,error.status_code,'offline-native-route-denial',Message(),
+                        io.BytesIO(json.dumps({'detail':error.detail}).encode())) from None
+                self.statuses.append(200)
+                value={'users':[],'page':1,'page_size':100,'total_pages':0,'total':0}
+                stream=io.BytesIO(json.dumps(value).encode());stream.code=200;stream.headers=Message()
+                return stream
+        old=['/openapi.json','/user/new','/user/update','/user/info',
+            '/key/generate','/key/update','/key/info','/key/list','/spend/logs/v2']
+        self.assertEqual([route for route in private_owner.OPERATOR_ROUTES if route!='/user/list'],old)
+        self.assertEqual(private_owner.OPERATOR_ROUTES.count('/user/list'),1)
+        with patch.dict(sys.modules,{registry.__name__:registry}):
+            for routes,expected_status in ((old,403),(private_owner.OPERATOR_ROUTES,200)):
+                with self.subTest(operator_routes=routes):
+                    native=M.NativeProof('http://127.0.0.1:4000','synthetic-operator-placeholder',1,{})
+                    transport=GateHTTP(routes);native.opener=transport
+                    if expected_status==403:
+                        with self.assertRaises(M.ProofError):M.population(native)
+                    else:self.assertEqual(M.population(native),[])
+                    self.assertEqual(transport.statuses,[expected_status])
+                    self.assertEqual(transport.requests,[('GET','/user/list',{'page':['1'],'page_size':['100'],
+                        'sort_by':['user_id'],'sort_order':['asc']})])
+            for routes,role,route,method in (
+                (private_owner.OPERATOR_ROUTES,'proxy_admin','/v1/chat/completions','POST'),
+                (private_owner.OPERATOR_ROUTES,'proxy_admin','/user/delete','POST'),
+                (private_owner.OPERATOR_ROUTES,'proxy_admin','/key/delete','POST'),
+                (private_owner.OPERATOR_ROUTES,'proxy_admin','/user/listing','GET'),
+                (['llm_api_routes'],'internal_user','/user/list','GET'),
+                (['llm_api_routes'],'internal_user','/user/delete','POST')):
+                with self.subTest(role=role,route=route),self.assertRaises(HTTPException) as denied:
+                    gate.is_virtual_key_allowed_to_call_route(route=route,
+                        valid_token=SimpleNamespace(allowed_routes=routes,metadata={},user_role=role),
+                        request=SimpleNamespace(method=method))
+                self.assertEqual(denied.exception.status_code,403)
+            self.assertTrue(gate.is_virtual_key_allowed_to_call_route(route='/v1/chat/completions',
+                valid_token=SimpleNamespace(allowed_routes=['llm_api_routes'],metadata={},user_role='internal_user'),
+                request=SimpleNamespace(method='POST')))
 
     def test_actual_native_release_finalizes_once_and_failure_hook_passes_zero_audit_to_native_writer(self):
         tree=self.sources['proxy/spend_tracking/budget_reservation.py']

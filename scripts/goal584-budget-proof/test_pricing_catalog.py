@@ -346,7 +346,9 @@ class ProfileTests(unittest.TestCase):
             repo=Path(__file__).resolve().parents[2]
             for name in M.HELPERS:
                 path=('deploy/litellm-patches/positive-floor-v1.105.1/' if name in ('native_floor_identity.py','manifest.json') else 'scripts/goal584-budget-proof/')+name
-                (worker/name).write_bytes(subprocess.check_output(['git','-c','gc.auto=0','show','9e2d93ef:'+path],cwd=repo,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'}))
+                raw = subprocess.check_output(['git','-c','gc.auto=0','show',':'+path],cwd=repo,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), M.HELPERS[name])
+                (worker/name).write_bytes(raw)
             project='goal584-pricing-'+'a'*12
             env={'PROOF_PRICING_PROJECT':project,'PROOF_SOURCE_COMMIT':'9'*40,'HOSTNAME':'1'*12,
                 'LITELLM_MODEL_COST_MAP_URL':M.CATALOG,'LITELLM_LOCAL_MODEL_COST_MAP':'false','DATABASE_URL':'postgresql://goal584:synthetic-private@postgres:5432/goal584_pricing'}
