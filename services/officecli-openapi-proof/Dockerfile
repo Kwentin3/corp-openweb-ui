@@ -17,8 +17,8 @@ RUN sed -i \
       -e 's|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/20261007T000000Z|' \
       -e 's|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/20261007T000000Z|' \
       /etc/apt/sources.list.d/debian.sources \
-    && apt-get -o Acquire::Check-Valid-Until=false update \
-    && apt-get -o Acquire::Check-Valid-Until=false install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
+    && apt-get -o Acquire::Retries=3 -o Acquire::Check-Valid-Until=false update \
+    && apt-get -o Acquire::Retries=3 -o Acquire::Check-Valid-Until=false install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
     && curl --fail --location --silent --show-error \
       --output /usr/local/bin/officecli \
       "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${OFFICECLI_VERSION}/officecli-linux-x64" \

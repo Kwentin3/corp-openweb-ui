@@ -5,12 +5,15 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый baseline — Native52, SUCCESS во всех четырёх jobs. Catalog и bounded публикация двух synthetic тарифов
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний принятый
+стендовый baseline — Native57, SUCCESS во всех четырёх jobs; independent review
+и parent replay main/pricing/calendars PASS. Catalog и bounded публикация двух synthetic тарифов
 приняты independent review и parent replay; оба calendar профиля повторно
 проверены parent с сохранением прежних независимых financial/source assertions.
-Main52 source/finance/context/closure принят independent review и parent replay;
-свежий Responses Details PNG просмотрен обоими, обе таблицы видны. Проверен разрешённый stand-only derivative
+Main57 source/finance/context/closure принят independent review и parent replay;
+provider500 release/recovery5.838514s принят, actual audit88/0/88 совпал с native estimate
+при zero spend. Свежий Responses Details PNG просмотрен обоими, обе таблицы видны,
+новый post-reload guard исполнен. Проверен разрешённый stand-only derivative
 двух функций LiteLLM; исходный Native45 FAIL сохранён. Native53 main завершился
 FAIL в подготовке нового recovery probe, до вызова модели: operator fixture не
 имел `/user/list`. Фактический HTTP-код не экспортирован;403 воспроизведён точным
@@ -136,8 +139,12 @@ ZIP SHA861b878f72af5eed394b3b4b4c65169c21b09e9c26716828188f44498a17aa49,
 221files. Independent recovery replay PASS: holdR.98/unfinished, release live0,
 одна failure row spend0, затем recovery5.838514s<15s с finalspend.20 и restoration.
 Parent просмотрел actual Responses Details PNG: обе полные таблицы .40/2calls/
-20input/10output/30total видны; full main financial/context/source acceptance
-ещё завершается. GOAL не завершён, baseline пока не повышен по одному CI SUCCESS.
+20input/10output/30total видны. Full main financial/context/source acceptance
+теперь PASS: parent повторил recovery, financial и full-input+closure replay;
+53source bindings,77passed actual receipts,16financial+3context mutations rejected.
+Report1c9c977a… и frozen reader hashes сохранены; main cleanup containers/volumes
+пусты, networks не заявлены. Native57 принят как bounded stand baseline, не весь GOAL.
+Evidence: `local/goal584/native57-main-review/{report.md,review-freeze.safe.json}`.
 
 Для следующего Office source-среза создан отдельный task worktree
 `D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-office`, branch
@@ -170,12 +177,12 @@ optional ARG/ENV NODE_OPTIONS с прежним empty default; builder явно 
 включает его в build identity и требует6GiB availableRAM/7GiB DockerMem/20GiB disk.
 Builder3bb74ef4…/frontend e1c60de6… source-only; help и existing runtime packager
 2PASS, independent delta READY. Это пороги admission, не доказательство достаточности
-ресурсов. Готовится отдельный CI build/preflight через existing tests/Dockerfile:
+ресурсов. Отдельный CI build/preflight использует existing tests/Dockerfile:
 test extras добавляются только qualification derivative, product image сохраняется.
 Сквозной Office/browser/FileACL/ledger всё ещё не принят. Evidence:
 `local/goal584/office-builder-independent-review.md`, `office-profile-admission-options.md`.
 
-**Candidate58 source подготовлен:** в основную task copy перенесены только frozen
+**Candidate58 опубликован:** в основную task copy перенесены только frozen
 builder3bb74ef4…, frontend e1c60de6… и отдельный workflow664cc7c1…;
 provider/Office component WIP не включаются. Workflow использует55min job/45min
 build, existing tests/Dockerfile qualification derivative от actualOfficeimage,
@@ -184,8 +191,41 @@ cleanup только task names/actualiids. Product dependencies проверя�
 Исходный schema KeyError modules (image dict вместо office observation) сохранён;
 исправленный actual qualifier с builder-shaped receipt прошёл6cases external-Docker
 IO rehearsal, parent repeat PASS. Actionlint/Bashn/embeddedPython PASS, root проверил
-actual source/hash и actionlint. Реальная сборка/preflight пока не запускались.
+actual source/hash и actionlint. Сборка запущена как Office build1; preflight
+ещё не принят.
 Evidence: `local/goal584/office-workflow-readiness/{report.md,replay.py}`.
+Опубликован headbd357b5d44d67ed6529997c1ad578c9b0cad62df, remote readback совпал;
+tested merge0675d2374876fe471b1d2bdbdf7d438996af6b65, tree diff пуст.
+[Office build1/41834578758](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41834578758)
+job126590086230 завершился FAIL; [Native58/41834578781](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41834578781)
+завершился SUCCESS во всех четырёх jobs; ActiveCI159/41834578675 SUCCESS.
+Для Native58 отдельная artifact acceptance не заявлена; принятый baseline57
+сохраняется. PR585 body readback совпал.
+Committed LF workflow67299b5e…/frontend7b6a379a… отличаются от reviewed raw только
+CRLF→LF, равенство всего содержимого после единственной нормализации проверено;
+builder3bb74ef4… одинаков byte-for-byte. Метаданные и обе формы SHA:
+`local/goal584/candidate58-publish.safe.json`, `office-workflow-readiness/committed-newline.safe.json`.
+
+**Office build1 фактический FAIL:** frontend и full runtime собраны; Office
+Dockerfile apt install получил `503 first byte timeout` при загрузке libelf1t64
+из pinned Debian snapshot20261007. CLI download/version/binary/module readback и
+preflight не запускались, final build receipt отсутствует. Это наблюдаемый fetch
+отказ, а не установленный дефект OfficeCLI или доказанная причина сервера/сети.
+Artifact13328040507/598494bytes/31members, SHA43c09000985cb08361a772ffe27f4a6bb8925ace17423ff21c039b30e7a9912b;
+independent evidence replay и parent repeat PASS,6mutations rejected при сохранённом
+общем FAIL. Все54public Git inputs совпали,5670frontend files/234727263bytes;
+runtime image2794979b…/frontend b99666c… реально построены. Preflight resources
+91.8GB disk/15.76GB availableRAM/16.76GB DockerMem; OOM не наблюдался.
+Cleanup daemon reachable, remaining task containers/images пусты, cache removal
+не заявлен. Evidence: `local/goal584/office-build1-review/{report.md,replay.py}`.
+
+**Candidate59 подготовлен:** только два existing apt-get вызова Office Dockerfile
+получают native `Acquire::Retries=3`; snapshot date, base digest, packages, CLI
+version/hash, dependencies и fail-closed && chain неизменны. Официальный контракт:
+[apt.conf Retries](https://manpages.debian.org/trixie/apt/apt.conf.5.en.html).
+Independent source review READY; удаление только двух flags воспроизводит exact
+предыдущий Git source после CRLF→LF. Новая Linux build source SHA31ff5bb1…;
+повторная фактическая сборка ещё не запускалась. Финансовые Usage WIP исключаются.
 
 **Used-category gap, source/library only:** true native Responses helper с cached6,
 reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot
@@ -196,6 +236,17 @@ completionroute может остаться available с positive cached/reasoni
 Следующий финансовый срез — эти native categories через actual synthetic proxy/
 ledger и отдельный unknownusage контроль; calculator/ledger/core patch не добавляем.
 Evidence: `local/goal584/native-used-categories-next-slice.md`.
+Parent повторил exact native replay: exit0, те же суммы/категории/descriptor
+boundaries. Заблокированный IPv6 socket capability probe и Windows Proactor
+cleanup warning сохранены; это offline library witness, не proxy/DB acceptance.
+В работе следующий source-срез: existing pricing Host получил только class-owned
+WORKER_FILE/PROOF/SOURCE_PATHS с прежними defaults (12legacyHost tests PASS), чтобы
+новый finite UsageHost переиспользовал invoke/topology/restart. Нативные rates/
+cost/rows остаются у LiteLLM Logging/Router/SpendLogs; actual provider usage — вход
+для сверки, новый coordinator задаёт только4cases/config ordering/readback.
+Положительные .166/.334 cases отделены от absent/null usage observation controls;
+безопасная production accounting policy не принимается из spend0. Этот source WIP
+ещё не включён в опубликованный кандидат и не является продуктовой приёмкой.
 
 **Уточнение KISS/native-first,04.11:** запрошенный read-only upstream review завершён;
 новые архитектурные слои не добавляем. Для HTML уже есть merged
