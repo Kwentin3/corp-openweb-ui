@@ -296,11 +296,83 @@ Matching Usage test038e5262… и proof1e96f3c7… приняты independent re
 497harness PASS/0skip и244component checks (237PASS/7opt-in skips); browser
 Office6 extraction на время проверки была exact index baseline, затем восстановлена
 byte-for-byte f4a143ac… . Office WIP в candidate не включён. Actionlint PASS,
-54Bash scripts/28embedded Python syntax PASS. Кандидат готов к обычной публикации
-в PR585; actual proxy/rows/counters/category-history остаются непроверенными
-до нового прогона. Приёмка whole GOAL не сужается до4cases. Evidence:
+54Bash scripts/28embedded Python syntax PASS. Кандидат опубликован в PR585:
+head8d62c6cac67689ada74d838f88383118c543bd5a, tested merge
+21c1a51968da4ba2c9c0c657a6b644d21a0361fb, tree diff пуст, remote/body readback
+совпал; draft/open. Native61/41850720794: main и basic calendar SUCCESS,
+pricing FAIL в новой positive_v1 проверке, positive-floor INCONCLUSIVE_TIMING.
+Office4/41850720722 SUCCESS и bounded build/preflight принят independent review
+и parent replay. ActiveCI162/41850720985 terminal FAIL в STT ffmpeg APT downloads:
+actual snapshot503 No healthy backends/504, APT100→Docker1, не runner shutdown.
+Raw job/log сохранены в `local/goal584/active162-failure/`. Следующий source-slice
+добавляет только2native Acquire::Retries=3 к existing STT apt-get calls, как в
+Office owner; base/snapshot/ffmpeg/requirements/commands/&&guards неизменны.
+Удаление ровно этих2flags восстанавливает весь прежний Git Dockerfile после
+CRLF→LF; runtime успех или необходимость retry этим не заявляются.
+Actual proxy/rows/counters/category-history нового U slice пока не приняты.
+Приёмка whole GOAL не сужается до4cases. Evidence:
 `local/goal584/pricing-usage-{proof,integration}-independent.md`,
 `local/goal584/usage-candidate-readiness.safe.json`.
+
+**Native61 failures сохранены:** pricing artifact13336215945/15720bytes/9files,
+SHA6638cfe84280450d6b4fc62b235ba8a6e894f6dca3a78b399a2912109b16b89a,
+29Git source bindings/14mounts/12native pins проверены independent и parent replay.
+Прежний flat phase реально прошёл:3physical/3rows, .20/.20/.40 и оба counters.80.
+Новый U достиг первой positive row и отказал на compound identity/cost/usage guard
+в owned line207; конкретный operand не экспортирован, не объявляем причиной деньги,
+модель или native usage. Остальные3Ucases не отправлены. Config bytes и original
+fixture восстановлены, pre/post restore finance drains повторили тот же guard;
+cleanup containers/volumes/networks пусты. Новая source-доработка добавит только
+безопасные condition booleans/scalar/hash diagnostics, сохраняя сам guard.
+Evidence: `local/goal584/native61-pricing-review/{report.md,replay.py}`.
+
+Floor artifact13336200843/9680bytes/5files,
+SHA84ad4bd594fff1fe279a618633f6969a521a08f9b5dc0cc388701a8e54891dc8:
+26Git bindings и cleanup0/0/0 проверены parent. Actual post200 завершился
+за0.6964603s после priming; затем observe(post) ждал DB settlement и вышел за
+строгое5s окно. Последние .20/.20 counters прочитаны только на+5.0052s, final
+admission не вызван: полного floor PASS нет. Native batch1+randint(0,5) может
+превышать5s, поэтому intermediate DB flush не является верным pre-TTL условием.
+Следующий узкий harness slice сохраняет оба admissions и timestamp post counters
+строго<5s; final полная DB/journal/history/caps/period/lifetime сверка остаётся
+обязательной с прежним60s bounded settlement. TTL/native core/финансовые ожидания
+не меняются. Evidence: `local/goal584/native61-floor-review/`.
+
+**Office4 bounded PASS:** actual artifact13335981775/615482bytes/42members,
+SHA9ce2f7062d00d511bbcf06bcc7b3791f6dfcdffa5370bed38385ae701f606dd2.
+Existing Office2 verifier переиспользован с exact immutable new run/source/artifact
+observations;11mutations reject. Все54Git inputs byte-equal Office2,5149frontend
+sources и5670built files/234727258bytes проверены; build identity2aeb9966… .
+Actual WebUI94c6ab7a…/Officeda17abe0…;6baseline WebUI+5Office+CLI binarye54d3c1d…
+совпали, extra3WebUI связаны с existing appliers. Existing real-CLI preflight
+1PASS/11.924s; qualification parent/lock parity подтверждены.4task image removals0,
+remaining containers/images пусты; cache removal false. Native Files/session/
+foreign ACL/ordinary download/provider/context/ledger ещё не приняты. Evidence:
+`local/goal584/office-build4-review/{report.md,replay.py}`.
+
+**Candidate62, source READY:** Usage proof89a6a8c7… сохраняет весь исходный
+compound guard и его evaluation order; только при этом failure добавляет14fixed
+condition booleans, existing bounded row projection и9identity hashes. Полный
+module AST восстанавливается удалением только instrumentation. Matching test
+5b9010e0…:18PASS/0skip, прежние14test-method AST неизменны. Parent отдельно
+воспроизвёл14operand failures и отсутствие injected private strings/validator IO.
+Конкретный failed Native61 operand всё ещё неизвестен до новой actual row.
+Calendar proofd5ed1b8a…/testd094633a… приняты independent SOURCE review с10affected
+offline PASS; parent полный39PASS/0skip, включая реальный local HTTP leaf.
+Post-only admission mode сохраняет timestamp фактических Redis counters до5s,
+обе HTTP end до5s и неизменённый final60s full settlement/outcome. Вне qualify
+весь module AST прежний, как и все старые test-method AST. Native patch не менялся.
+Два existing floor files получили declared LF, STT Dockerfile только2native APT
+retry flags (LF SHA0fbd6f59…); других defaults/dependencies/snapshot изменений нет.
+Полный isolated candidate run:506harness PASS/0skip и244component checks
+(237PASS/7opt-in skips). Office provider/browser WIP были временно отделены
+сохранёнными diff/hash для exact tested-source проверки и восстановлены byte-for-
+byte f8829f4a…/f4a143ac… . Actionlint и scoped diff check PASS. В новый candidate
+входят только7files; Office WIP исключён. Готов к обычной публикации в PR585;
+новый runtime result не заявлен. Evidence:
+`local/goal584/pricing-usage-diagnostic-{readiness.md,parent.safe.json}`,
+`local/goal584/calendar-post-settlement-independent.md`,
+`local/goal584/active162-failure/evidence.safe.json`.
 
 **Used-category gap, source/library only:** true native Responses helper с cached6,
 reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot

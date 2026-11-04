@@ -201,16 +201,43 @@ def row_observation(row):
         'lineage_present':isinstance(inner,dict) and all(isinstance(inner.get(key),str) for key in ('chat_id','root_answer_id','call_kind'))}
 
 
+def positive_row_diagnostic(row,state,call,decoded):
+    # Fixed safe failure evidence only; the unchanged validator below owns acceptance.
+    payload=call['response'];identifier=lambda value:sha(encoded(value)) if type(value) is str and len(value)<=4096 else None
+    try:cost_matches=bool(close_amount(row.get('spend'),Decimal(call['cost'])))
+    except Exception:cost_matches=False
+    checks={'response_id':row.get('request_id')==payload.get('id'),'provider':decoded.get('custom_llm_provider')=='openai',
+        'decoded_deployment':decoded.get('model_id')==call['deployment'],'provider_response_id':decoded.get('response_id')==call['provider_id'],
+        'user':row.get('user')==state['user_id'],'key':row.get('api_key')==state['keys'][ALIASES[0]]['hash'],
+        'model_group':row.get('model_group')==ALIASES[0],'model_id':row.get('model_id')==call['deployment'],
+        'model':row.get('model') in (ALIASES[0],WIRES[0],'openai/'+WIRES[0]),'status':row.get('status')=='success','cost':cost_matches,
+        **{key:type(row.get(key)) is int and row[key]==value for key,value in versions.USAGE.items()}}
+    try:observation=row_observation(row)
+    except Exception:observation=None
+    return {'checks':checks,'row':observation,'identity_sha256':{
+        'row_response':identifier(row.get('request_id')),'client_response':identifier(payload.get('id')),
+        'decoded_provider':identifier(decoded.get('custom_llm_provider')),
+        'decoded_response':identifier(decoded.get('response_id')),'physical_response':identifier(call['provider_id']),
+        'decoded_deployment':identifier(decoded.get('model_id')),'row_deployment':identifier(row.get('model_id')),
+        'expected_deployment':identifier(call['deployment']),'row_model':identifier(row.get('model'))}}
+
+
 def positive_row(row,state,call):
     from litellm.responses.utils import ResponsesAPIRequestUtils
     payload=call['response'];decoded=ResponsesAPIRequestUtils._decode_responses_api_response_id(row.get('request_id',''))
-    require(row.get('request_id')==payload.get('id') and decoded['custom_llm_provider']=='openai'
-        and decoded['model_id']==call['deployment'] and decoded['response_id']==call['provider_id']
-        and row.get('user')==state['user_id'] and row.get('api_key')==state['keys'][ALIASES[0]]['hash']
-        and row.get('model_group')==ALIASES[0] and row.get('model_id')==call['deployment']
-        and row.get('model') in (ALIASES[0],WIRES[0],'openai/'+WIRES[0])
-        and row.get('status')=='success' and close_amount(row.get('spend'),Decimal(call['cost']))
-        and all(type(row.get(key)) is int and row[key]==value for key,value in versions.USAGE.items()),'usage_positive_identity_cost')
+    try:
+        require(row.get('request_id')==payload.get('id') and decoded['custom_llm_provider']=='openai'
+            and decoded['model_id']==call['deployment'] and decoded['response_id']==call['provider_id']
+            and row.get('user')==state['user_id'] and row.get('api_key')==state['keys'][ALIASES[0]]['hash']
+            and row.get('model_group')==ALIASES[0] and row.get('model_id')==call['deployment']
+            and row.get('model') in (ALIASES[0],WIRES[0],'openai/'+WIRES[0])
+            and row.get('status')=='success' and close_amount(row.get('spend'),Decimal(call['cost']))
+            and all(type(row.get(key)) is int and row[key]==value for key,value in versions.USAGE.items()),'usage_positive_identity_cost')
+    except ProofError as error:
+        if error.args==('usage_positive_identity_cost',):
+            try:error.positive_row_diagnostic=positive_row_diagnostic(row,state,call,decoded)
+            except Exception:pass  # Diagnostic failure must retain the original proof failure.
+        raise
     inner=versions.decode_metadata(row)
     require(all(inner.get(key)==value for key,value in call['lineage'].items()) and row.get('session_id')==call['lineage']['chat_id'],'usage_positive_lineage')
     snapshot=inner.get('owui_billed_token_rates')
@@ -421,7 +448,10 @@ def failure_location(error):
         name=Path(trace.tb_frame.f_code.co_filename).name
         if name in SOURCE_PATHS:result['frames'].append({'source':name,'line':trace.tb_lineno})
         trace=trace.tb_next
-    result['frames']=result['frames'][-8:];return result
+    result['frames']=result['frames'][-8:]
+    if type(error) is ProofError and error.args==('usage_positive_identity_cost',) and isinstance(getattr(error,'positive_row_diagnostic',None),dict):
+        result['positive_row']=error.positive_row_diagnostic
+    return result
 
 
 def main():

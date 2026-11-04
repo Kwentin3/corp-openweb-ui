@@ -683,6 +683,153 @@ class FinancialBoundaryTests(unittest.TestCase):
             with self.assertRaises(P.ProofError): P.provider_evidence({"requests": [changed]}, expected)
 
 
+class AdmissionSequenceTests(unittest.TestCase):
+    def replay(self, mutation=None):
+        old, expected, _, uid, key_hash, boundary = packet()
+        denial, state = denial_packet(old)
+        pending = copy.deepcopy(old)
+        for row in pending["users"] + pending["keys"]: row["spend"] = 0
+        state.update(expected=expected, snapshots={"reset": copy.deepcopy(pending)})
+        receipt, events, retained = {}, [], []
+        clock = {"mono": .3, "wall": .3, "counter_reads": 0}
+        def advance(seconds):
+            clock["mono"] += seconds; clock["wall"] += seconds
+        def stamp(): return {"epoch": 100 + clock["wall"], "monotonic": 50 + clock["mono"]}
+        def native_request(method, path, **kwargs):
+            self.assertEqual((method, path), ("POST", "/v1/chat/completions"))
+            label = "post" if not events else "final"
+            events.append((label, clock["mono"]))
+            advance(5 if mutation == "late_" + label else .4)
+            if mutation == "stale" and label == "final":
+                return 422, {"error": {"type": "budget_exceeded",
+                    "message": P.expected_budget_message.__globals__["BUDGET_MODEL_MESSAGE"]}}, {}
+            return 200, {"id": "chatcmpl-goal584-" + str(len(events) + 1).zfill(32),
+                "choices": [{"message": {"role": "assistant", "content": "Proof"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}, {"x-litellm-response-cost": ".20"}
+        async def read(*args):
+            snapshot = copy.deepcopy(pending)
+            if len(events) == 2 and clock["mono"] >= 6:
+                snapshot["journal"] = []
+                for identifier, item in expected.items():
+                    row = copy.deepcopy(old["journal"][0]); row["request_id"] = identifier
+                    row["metadata"]["spend_logs_metadata"] = {"root_answer_id": item["root"],
+                        "chat_id": item["chat"], "call_kind": "synthetic_chat"}
+                    snapshot["journal"].append(row)
+                if mutation == "missing_final_row": snapshot["journal"].pop()
+                if mutation != "missing_final_denial":
+                    for index, item in enumerate(P.denial_attempts(state).values()):
+                        failure = copy.deepcopy(denial); failure["request_id"] = "denial-" + str(index)
+                        failure["metadata"]["spend_logs_metadata"] = item["lineage"]
+                        snapshot["journal"].append(failure)
+                for row in snapshot["users"] + snapshot["keys"]: row["spend"] = .2 if mutation == "stale" else .4
+                snapshot["keys"][0]["total_spend"] = .4 if mutation == "stale" else .6
+                if mutation == "final_lifetime": snapshot["keys"][0]["total_spend"] = .5
+                if mutation == "old_history": snapshot["journal"][0]["arbitrary_historical_column"]["keep"] = False
+            if len(events) == 1:
+                if mutation == "post_row": snapshot["journal"][0]["spend"] = .3
+                if mutation == "post_cap": snapshot["keys"][0]["max_budget"] = .5
+                if mutation == "post_period": snapshot["keys"][0]["budget_reset_at"] = (boundary + timedelta(days=1)).isoformat()
+            return snapshot
+        async def counters():
+            if len(events) == 1:
+                clock["counter_reads"] += 1
+                advance(.1)
+                if mutation == "late_counter": clock.update(mono=5, wall=5)
+                if mutation == "late_counter_wall": clock["wall"] = 5
+                if mutation == "counter_clock_drift": clock["wall"] += .2
+                if clock["counter_reads"] == 1 and mutation is None: return [None, None]
+                return [.4, .4] if mutation == "stale" else [.2, .2]
+            return [.2, .2] if mutation == "final_counter" else [.4, .4]
+        async def sleep(seconds): advance(seconds)
+        def physical(proof):
+            rows = [{"id": identifier, "body": {"model": "goal584-fake-a", **{k: v for k, v in item["semantic"].items() if k != "stream"}},
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                "lifecycle": {"terminal": mutation != "post_terminal", "outcome": "completed"}} for identifier, item in expected.items()]
+            if mutation == "post_physical_count": rows.pop()
+            return {"requests": rows}
+        tree = ast.parse(Path(P.__file__).read_text(encoding="utf-8"))
+        qualify = next(n for n in tree.body if getattr(n, "name", None) == "qualify")
+        body = next(n.body for n in qualify.body if isinstance(n, ast.Try))
+        start = next(i for i, n in enumerate(body) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Constant) and n.value.value == "first_post_reset")
+        end = next(i for i, n in enumerate(body) if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "result" for t in n.targets))
+        tail = ast.AsyncFunctionDef(name="actual_sequence", args=ast.arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]),
+            body=copy.deepcopy(body[start:end+1]) + [ast.Return(ast.Name(id="result", ctx=ast.Load()))], decorator_list=[])
+        observe = next(n for n in ast.walk(qualify) if isinstance(n, ast.AsyncFunctionDef) and n.name == "observe")
+        with patch.object(P, "private_save", side_effect=lambda path, value: retained.append(copy.deepcopy(value))), patch.object(P, "stamp", stamp):
+            ns = {**vars(P), "time": SimpleNamespace(monotonic=lambda: 50 + clock["mono"]), "asyncio": SimpleNamespace(sleep=sleep),
+                "counters": counters, "read_population": read, "provider": physical, "expected": expected, "state": state, "receipt": receipt,
+                "args": SimpleNamespace(private_state=Path("unused")), "db": None, "local": SimpleNamespace(run_id="floor", request=native_request),
+                "payer": uid, "key_hash": key_hash, "initial": old, "old": old, "token": "private-key", "next_boundary": boundary,
+                "prime_start": {"epoch": 100, "monotonic": 50}}
+            execute([observe, tail], ns)
+            error = None; result = None
+            try: result = asyncio.run(ns["actual_sequence"]())
+            except P.FloorError as caught: error = caught.leaf
+        return result, error, receipt, state, events, retained
+
+    def test_actual_post_and_final_sequence_precedes_delayed_db_flush_then_settles_all_rows(self):
+        result, error, receipt, state, events, retained = self.replay()
+        self.assertIsNone(error); self.assertEqual(result, "PASS_SELECTED_PROFILE")
+        self.assertEqual([label for label, _ in events], ["post", "final"])
+        self.assertLess(events[-1][1], 5)
+        self.assertLess(receipt["critical_window"]["monotonic_elapsed_seconds"], 5)
+        self.assertLess(receipt["post_counter_observed_at"]["monotonic"] - 50, 5)
+        post = receipt["observations"]["post"]
+        self.assertEqual((post["db_settlement"], post["journal_count"], post["users"][0]["spend"], post["redis_key_user"]), ("pending", 1, 0, [.2, .2]))
+        final = receipt["observations"]["final"]
+        self.assertEqual((final["journal_count"], final["successful_physical_rows"], final["denial_audit_rows"]), (4, 3, 1))
+        self.assertEqual(final["keys"][0]["total_spend"], .6)
+        self.assertGreater(receipt["last_observation"]["at"]["monotonic"] - 50, 5)
+        self.assertTrue(retained)
+        result, error, receipt, state, events, _ = self.replay("stale")
+        self.assertIsNone(error); self.assertEqual(result, "FAIL_STALE_POSITIVE_FLOOR")
+        self.assertEqual(state["http"]["final"]["status"], 422)
+        self.assertEqual(receipt["observations"]["post"]["redis_key_user"], [.4, .4])
+        self.assertEqual((receipt["observations"]["final"]["successful_physical_rows"],
+                          receipt["observations"]["final"]["denial_audit_rows"]), (2, 2))
+
+    def test_actual_counter_capture_and_both_http_ends_require_strict_five_second_clocks(self):
+        for mutation in ("late_post", "late_counter", "late_counter_wall", "counter_clock_drift", "late_final"):
+            with self.subTest(mutation=mutation):
+                _, error, receipt, state, events, _ = self.replay(mutation)
+                self.assertEqual(error, "critical_window")
+                self.assertNotIn("final", state["snapshots"])
+                if mutation != "late_final": self.assertEqual([label for label, _ in events], ["post"])
+                if "counter" in mutation:
+                    self.assertIn("post_counter_observed_at", receipt)
+                    self.assertEqual(receipt["last_observation"]["journal_count"], 1)
+
+    def test_post_mode_still_rejects_present_row_policy_period_and_provider_mutations(self):
+        for mutation, leaf in (("post_row", "journal_scope_cost_usage"), ("post_cap", "identity_drift"),
+                               ("post_period", "native_money_period"), ("post_terminal", "provider_context_usage"),
+                               ("post_physical_count", "provider_count")):
+            with self.subTest(mutation=mutation):
+                _, error, receipt, state, events, _ = self.replay(mutation)
+                self.assertEqual(error, leaf); self.assertEqual([label for label, _ in events], ["post"])
+                self.assertEqual(receipt["last_observation"]["label"], "post")
+
+    def test_deferred_final_settlement_keeps_exact_history_lifetime_rows_audit_and_counter_guards(self):
+        for mutation, leaf in (("missing_final_row", "missing_journal_rows"), ("missing_final_denial", "missing_denial_audit_rows"),
+                               ("final_lifetime", "native_lifetime"), ("old_history", "historical_row_drift"), ("final_counter", "native_settlement")):
+            with self.subTest(mutation=mutation):
+                _, error, receipt, state, events, _ = self.replay(mutation)
+                self.assertEqual(error, leaf); self.assertEqual([label for label, _ in events], ["post", "final"])
+                self.assertNotIn("final", state["snapshots"])
+                self.assertEqual(receipt["last_observation"]["label"], "final")
+
+    def test_admission_only_mode_cannot_disable_final_settlement_or_widen_allowed_counters(self):
+        observe = next(n for n in ast.walk(ast.parse(Path(P.__file__).read_text(encoding="utf-8")))
+                       if isinstance(n, ast.AsyncFunctionDef) and n.name == "observe")
+        ns = {**vars(P), "prime_start": {"epoch": 100, "monotonic": 50}}
+        execute([observe], ns)
+        for label, settled, allowed in (("final", True, (P.COST, P.CAP)), ("post", False, (P.COST, P.CAP)),
+                                        ("post", True, (P.COST,)), ("reset", True, (P.COST, P.CAP))):
+            with self.subTest(label=label, settled=settled, allowed=allowed), self.assertRaises(P.FloorError) as caught:
+                asyncio.run(ns["observe"](label, P.COST, 2 * P.COST, None, 2,
+                    settled=settled, allowed_counters=allowed, admission_only=True))
+            self.assertEqual(caught.exception.leaf, "admission_observation_scope")
+
+
 class TransportAndEvidenceTests(unittest.TestCase):
     def test_actual_helpers_in_mounted_layout_bind_and_changed_producer_bytes_fail(self):
         with tempfile.TemporaryDirectory() as folder:

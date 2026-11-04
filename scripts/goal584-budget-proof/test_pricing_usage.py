@@ -333,8 +333,96 @@ class UsageTests(unittest.TestCase):
                     self.assertEqual(world['variant'],'S1');self.assertEqual(controls,['S2','S1']);native.assert_not_called()
 
 
+    def diagnostic_failure(self,mutate):
+        private=state(1);call=private['calls'][0];raw=row(private,call);mutate(private,call,raw)
+        try:M.positive_row(raw,private,call)
+        except M.ProofError as error:
+            self.assertEqual(error.args,('usage_positive_identity_cost',))
+            return M.failure_location(error),raw,private,call
+        self.fail('The real positive_row guard accepted a diagnostic counterexample')
+
+    def test_positive_diagnostic_identifies_each_original_compound_operand(self):
+        names={'response_id','provider','decoded_deployment','provider_response_id','user','key','model_group',
+            'model_id','model','status','cost','prompt_tokens','completion_tokens','total_tokens'}
+        identities={'row_response','client_response','decoded_provider','decoded_response','physical_response',
+            'decoded_deployment','row_deployment','expected_deployment','row_model'}
+        secret='DIAGNOSTIC_PRIVATE_MUST_NOT_ESCAPE'
+        def recode(provider=None,deployment=None,response=None):
+            def mutate(private,call,raw):
+                identifier=codec()._build_responses_api_response_id(provider or 'openai',deployment or call['deployment'],response or call['provider_id'])
+                raw['request_id']=call['response']['id']=identifier
+            return mutate
+        cases={'response_id':lambda s,c,r:c['response'].update(id=secret),
+            'provider':recode(provider=secret),'decoded_deployment':recode(deployment=secret),
+            'provider_response_id':recode(response=secret),'user':lambda s,c,r:r.update(user=secret),
+            'key':lambda s,c,r:r.update(api_key='sk-'+secret),'model_group':lambda s,c,r:r.update(model_group=secret),
+            'model_id':lambda s,c,r:r.update(model_id=secret),'model':lambda s,c,r:r.update(model=secret),
+            'status':lambda s,c,r:r.update(status=secret),'cost':lambda s,c,r:r.update(spend=.5),
+            'prompt_tokens':lambda s,c,r:r.update(prompt_tokens=10.0),
+            'completion_tokens':lambda s,c,r:r.update(completion_tokens=True),'total_tokens':lambda s,c,r:r.update(total_tokens=16)}
+        for name,mutate in cases.items():
+            with self.subTest(operand=name):
+                failure,raw,_,_=self.diagnostic_failure(mutate);projection=failure['positive_row']
+                self.assertEqual(set(projection),{'checks','row','identity_sha256'})
+                self.assertEqual(set(projection['checks']),names)
+                self.assertTrue(all(type(value) is bool for value in projection['checks'].values()))
+                self.assertEqual({key for key,value in projection['checks'].items() if not value},{name})
+                self.assertEqual(projection['row'],M.row_observation(raw))
+                self.assertEqual(set(projection['identity_sha256']),identities)
+                self.assertTrue(all(value is None or type(value) is str and len(value)==64
+                    and set(value)<=set('0123456789abcdef') for value in projection['identity_sha256'].values()))
+                self.assertNotIn(secret,M.encoded(failure).decode())
+
+    def test_positive_diagnostic_suppresses_private_fields_and_bounds_scalars_and_ids(self):
+        secret='PRIVATE_MODEL_KEY_ERROR_METADATA_DO_NOT_EXPORT'
+        def private_values(s,c,r):
+            c['response']['id']=secret*150
+            r.update(api_key='sk-'+secret,model=secret*150,model_id=secret,user=secret,status=secret,
+                metadata=json.dumps({'secret':secret,'error_information':{'error_class':secret,'error_code':secret},
+                    'spend_logs_metadata':{'chat_id':secret,'root_answer_id':secret,'call_kind':secret}}))
+        failure,raw,private,call=self.diagnostic_failure(private_values);projection=failure['positive_row']
+        encoded=M.encoded(failure).decode();self.assertNotIn(secret,encoded)
+        self.assertIsNone(projection['identity_sha256']['client_response']);self.assertIsNone(projection['identity_sha256']['row_model'])
+        self.assertEqual(projection['row']['error_class'],'other');self.assertEqual(projection['row']['error_code'],'other')
+        for value in (None,True,False,0,1_000_000_000,1_000_000_001,float('nan'),float('inf'),10**5000,secret,{},[]):
+            with self.subTest(kind=type(value).__name__):
+                changed=copy.deepcopy(raw);changed.update(spend=value,prompt_tokens=value,completion_tokens=value,total_tokens=value)
+                decoded=codec()._decode_responses_api_response_id(changed['request_id'])
+                result=M.positive_row_diagnostic(changed,private,call,decoded)
+                text=M.encoded(result).decode();self.assertNotIn(secret,text)
+                if result['row'] is not None:
+                    for scalar in (result['row']['spend'],*result['row']['usage'].values()):
+                        self.assertLessEqual(set(scalar),{'type','value'})
+                        if 'value' in scalar:self.assertTrue(type(scalar['value']) in (int,float) and abs(scalar['value'])<=1_000_000_000)
+
+    def test_positive_diagnostic_failure_cannot_mask_primary_and_only_exact_guard_attaches(self):
+        def unprojectable(s,c,r):r.update(api_key='foreign',not_json=object())
+        failure,_,_,_=self.diagnostic_failure(unprojectable)
+        self.assertIsNone(failure['positive_row']['row'])
+        def broken_context(s,c,r):c['response']['id']='foreign';s['keys']={}
+        failure,_,_,_=self.diagnostic_failure(broken_context)
+        self.assertNotIn('positive_row',failure)
+        private=state(1);call=private['calls'][0];raw=row(private,call);raw['session_id']='foreign'
+        with self.assertRaisesRegex(M.ProofError,'usage_positive_lineage') as caught:M.positive_row(raw,private,call)
+        self.assertNotIn('positive_row',M.failure_location(caught.exception))
+        self.assertNotIn('positive_row',M.positive_row(row(private,call),private,call))
+
+    def test_actual_diagnostic_primary_survives_existing_host_restore_packet_roundtrip(self):
+        first,_,_,_=self.diagnostic_failure(lambda s,c,r:r.update(model='PRIVATE_FIRST_MODEL'))
+        later,_,_,_=self.diagnostic_failure(lambda s,c,r:r.update(api_key='sk-PRIVATE_LATER_KEY'))
+        receipt,error,actions,_=UsageHostTests().replay('worker_and_reference_restore_failure',diagnostics=(first,later))
+        self.assertIsNotNone(error);self.assertFalse(receipt['passed'])
+        self.assertEqual(receipt['primary_failure'],first)
+        self.assertIn('reference_fixture_restore_failed',receipt['restoration']['failures'])
+        self.assertEqual([label for action,label in actions if action=='call'],['positive_v1','positive_v2'])
+        packet={'schema':1,'proof':M.PROOF,'passed':False,'result':receipt,'failure_code':'usage_verification_failed'}
+        encoded=M.encoded(packet).decode();self.assertEqual(json.loads(encoded)['result']['primary_failure'],first)
+        for private_value in ('PRIVATE_FIRST_MODEL','PRIVATE_LATER_KEY'):
+            self.assertNotIn(private_value,encoded)
+
+
 class UsageHostTests(unittest.TestCase):
-    def replay(self,mutation=None):
+    def replay(self,mutation=None,*,diagnostics=None):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);checkout=root/'checkout';checkout.mkdir();private=root/'private';private.mkdir()
             config=private/'config.yaml';original=yaml.safe_dump(BASE).encode();config.write_bytes(original)
@@ -387,7 +475,7 @@ class UsageHostTests(unittest.TestCase):
                     failed |= action=='call' and label=='positive_v2' and mutation in ('worker_failure','worker_and_restore_failure','worker_and_reference_restore_failure')
                     if failed:
                         line=123 if action=='call' else 211 if label=='source' else 312 if label=='original' else 411
-                        value={'failure':{'exception_class':'ProofError','frames':[{'source':'prove_pricing_usage.py','line':line}]}}
+                        value={'failure':copy.deepcopy(diagnostics[0 if action=='call' else 1]) if diagnostics else {'exception_class':'ProofError','frames':[{'source':'prove_pricing_usage.py','line':line}]}}
                     value={'schema':1,'proof':M.PROOF,'passed':not failed,'action':action,'result':value,'failure_code':'usage_verification_failed' if failed else None}
                     if mutation=='protocol':value['schema']=True
                     if mutation=='old_config' and action=='identity' and label=='v1':value['result']['identity']['config_sha256']=M.sha(original)

@@ -11,8 +11,8 @@ RUN sed -i \
       -e 's|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/20261007T000000Z|' \
       -e 's|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/20261007T000000Z|' \
       /etc/apt/sources.list.d/debian.sources \
-    && apt-get -o Acquire::Check-Valid-Until=false update \
-    && apt-get -o Acquire::Check-Valid-Until=false install --no-install-recommends -y ffmpeg \
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Retries=3 install --no-install-recommends -y ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 COPY services/stage2-stt/pyproject.toml ./pyproject.toml

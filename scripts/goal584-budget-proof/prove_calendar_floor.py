@@ -580,7 +580,9 @@ async def qualify(args, attest, receipt, secrets):
         async def counters():
             return [await redis.async_get_cache(key=k) for k in counter_keys]
 
-        async def observe(label, spend, lifetime, period, count, *, settled=False, allowed_counters=()):
+        async def observe(label, spend, lifetime, period, count, *, settled=False, allowed_counters=(), admission_only=False):
+            check(not admission_only or label == "post" and prime_start is not None
+                  and settled and allowed_counters == (COST, CAP), "admission_observation_scope")
             deadline = time.monotonic() + 60
             while True:
                 if prime_start is not None and label != "final":
@@ -598,16 +600,25 @@ async def qualify(args, attest, receipt, secrets):
                         expected, state, receipt, args.private_state)
                     raise
                 values = await counters()
+                if admission_only:
+                    counter_at = stamp()
+                    receipt["post_counter_observed_at"] = counter_at
                 physical = provider(local)
                 retain_observation(label, snapshot, values, physical, expected, state, receipt, args.private_state)
+                if admission_only:
+                    window(prime_start, counter_at)
+                    check(len(values) == 2, "counter_shape")
+                    check(all(calendar.timestamp(r.get("budget_reset_at")) == period
+                              for r in snapshot["users"] + snapshot["keys"]), "native_money_period")
                 ready = (len(audit["success_ids"]) == count
                     and (label != "final" or audit["denial_roots"] == set(denials))
                     and all(close_amount(r.get("spend"), spend) for r in snapshot["users"] + snapshot["keys"]))
                 cache_ready = not allowed_counters or any(all(v is not None and close_amount(v, a) for v in values) for a in allowed_counters)
-                if ready and cache_ready:
+                if cache_ready and (ready or admission_only):
                     check(label != "final" or time.monotonic() < deadline, "native_settlement")
-                    money(snapshot, spend, lifetime, period, count)
-                    journal(snapshot, expected, payer, key_hash, denials=denials, terminal=label == "final")
+                    if not admission_only:
+                        money(snapshot, spend, lifetime, period, count)
+                        journal(snapshot, expected, payer, key_hash, denials=denials, terminal=label == "final")
                     provider_evidence(physical, expected)
                     state["snapshots"][label] = snapshot
                     state["stage"] = label
@@ -616,6 +627,8 @@ async def qualify(args, attest, receipt, secrets):
                     private_save(args.private_state, state)
                     receipt.setdefault("observations", {})[label] = {**calendar.public_snapshot(snapshot), "redis_key_user": values,
                         "successful_physical_rows": len(audit["success_ids"]), "denial_audit_rows": len(audit["denial_roots"])}
+                    if admission_only:
+                        receipt["observations"][label].update(db_settlement="pending", counter_observed_at=counter_at)
                     return snapshot, values
                 if label == "final" and time.monotonic() >= deadline:
                     journal(snapshot, expected, payer, key_hash, denials=denials, terminal=True)
@@ -655,7 +668,9 @@ async def qualify(args, attest, receipt, secrets):
         window(prime_start, stamp())
         post = request_call(local, token, payer, "post", expected, state, receipt, args.private_state)
         check(post["status"] == 200, "post_reset_admission")
-        post_snapshot, post_counters = await observe("post", COST, 2 * COST, next_boundary, 2, settled=True, allowed_counters=(COST, CAP))
+        window(prime_start, post["end"])
+        post_snapshot, post_counters = await observe("post", COST, 2 * COST, next_boundary, 2,
+            settled=True, allowed_counters=(COST, CAP), admission_only=True)
         unchanged_identity(old, post_snapshot)
         receipt["phase"] = "remaining_headroom"
         window(prime_start, stamp())
