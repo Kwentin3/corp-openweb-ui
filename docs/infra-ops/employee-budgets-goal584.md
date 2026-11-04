@@ -94,9 +94,69 @@ source-срез сохраняет только whitelist типа исключ�
 runtime ещё не повторён. Evidence дополнительно:
 `local/goal584/native49-pricing-review/diagnostic-readiness.{md,py,safe.json}`.
 Оба calendar jobs49 SUCCESS; parent replay basic/floor PASS,276floor checks,
-next5.300s<60/critical2.707s<5; оба cleanup0/0/0. Main49 пока выполняется.
+next5.300s<60/critical2.707s<5; оба cleanup0/0/0. Main49 SUCCESS,
+independent acceptance и parent replay PASS в bounded regression scope;
+весь run49 остаётся FAIL. Main ZIP84b93929883a01fe467d70ece57c4a1e6d572f3ca67f4b7d2d7a3b9d819347f4,
+221файл/51distinct source bindings,19negative mutations отвергнуты.
+Final actual cost snapshot07→08 перепривязан по unchanged producer poll contract
+(7→8 settled rows), financial/source assertions сохранены.
 Evidence: `local/goal584/native49-pricing-review/`,
 `local/goal584/replay_native49_calendars.py`.
+
+**Native50: весь run FAIL из-за pricing; main и оба calendar SUCCESS.** Head
+`cf65dbb74d467a790fe100868bfb165dd35815ac`, tested merge
+`66fb3016a529e888335533e7ab13edd44b5491be` (diff пуст),
+[run41796542677](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41796542677),
+pricing job126461885284. Active CI151/41796542865 SUCCESS. Catalog gate PASS,
+version step FAIL; actual safe packet показал AttributeError в verified_row220:
+проверка вызвала .get у вложенного descriptor=None. Причина недоступности descriptor
+в callback ещё не установлена; гипотезы об auth/Router/Logging проверяются отдельно.
+Source50 меняет только диагностику proof, тесты и эту запись; product/native core
+остаются теми же. Original config bytes restored/failures[], pricing cleanup0/0/0.
+Main bounded regression принят independent review и parent replay: ZIP
+42ab9248fc206ba387a77de92f402b6cb0af0b9f9abf7017d0349ff6f679669e,
+221файл/51distinct source paths,6builder/6mounts,19negative mutations;
+полные finance/context inputs сохранены. Final cost snapshot08→07 обоснован
+unchanged producer settlement loop (06has7/07has8 rows), assertions неизменны.
+Main cleanup containers[]/volumes[], без claims о networks.
+Следующий local proof fix проверяет оба dict до .get и сохраняет строгий FAIL
+version_row_descriptor для unknown/None;26focused PASS/0skip. Это не исправление
+потери descriptor и не приёмка тарифного milestone. Source fix ещё не опубликован.
+Evidence: `local/goal584/native50-pricing-review/`,
+`local/goal584/pricing-catalog-proof-41796542677/receipts/versions.safe.json`.
+
+Native50 exact-source lifecycle replay не выявил неверной premise в guard:
+Router stamp/get_litellm_params/Logging update/get_deployment сохраняют identity;
+server credentials добавляются после отдельного snapshot body. Normal и server
+credentials witnesses available; foreign copy/client body credential — unknown.
+Следующий diagnostic contract: причина первого отказа → существующий callback
+`_capture_descriptor` → фиксированный `DESCRIPTOR_UNKNOWN_REASONS`/unknown.reason
+→ proof читает literal из защищённого callback и возвращает короткий safe FAIL.
+Это representation-only observability; native cost/auth/quotas/guards неизменны.
+Unknown остаётся FAIL, произвольный reason не выводится как текст ошибки.
+
+**Следующий source diagnostic candidate:** callback c98239d6, его тесты cc59a8f7,
+proof25bcca1b/test43e0c8e4, calendar helper pin17639392. Success shape и все
+guard/billed-rates AST сохранены; unknown добавляет только один из13 fixed stages.
+Proof неизвестный/None descriptor отклоняет явно; известный callback-owned reason
+переводит в safe failure code, прочие строки не выводит. Frozen source hashes
+сверены с Git index; fixtures читают candidate index вместо старого0fcc callback.
+Локально450harness PASS/0skip и242component checks(235PASS/7opt-in skips),
+34callback/27proof focused PASS. Runtime причины unknown ещё не установлен.
+Independent source readiness и parent replay PASS:8 integrated CLI/restoration
+cases,13 fixed reasons,26 source files/14 Compose binds; source mutations
+отклонены, полный callback AST после удаления reason-only изменений равен50.
+Это разрешение технической готовности к следующему isolated run, не приёмка
+публикации тарифов. Evidence:
+`local/goal584/native50-pricing-review/diagnostic-readiness.{md,py,safe.json}`.
+Historical cause-replay50 теперь использует exact-Git TemporaryDirectory mirror
+и повторён parent после изменения callback; его4 native witnesses неизменны.
+
+Временный pricing-version author worktree закрыт после сохранения10raw файлов
+в ZIP67630913393ff899559bd4eb4088875cb7beb3b40e07b3761f63d0c91904a429
+и local branch `agent/goal584-pricing-version`/4f85db6fa7998d524ee6b647f0d9937db240f22b.
+Это historical WIP, не итоговый кандидат; удаление native Git без force, readback
+worktree/ref подтверждён. Receipt: `local/goal584/pricing-author-preservation/`.
 
 После version proof остаются конкретные независимые срезы: native provider500
 до usage → release reservation → следующий affordable success без reset/TTL/restart;

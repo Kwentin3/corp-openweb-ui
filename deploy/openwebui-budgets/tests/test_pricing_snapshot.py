@@ -267,6 +267,10 @@ class PricingSnapshotTests(unittest.TestCase):
                 "qualified_usage": "flat_input_output"}
 
     @staticmethod
+    def unknown_descriptor(reason):
+        return {"schema": 1, "availability": "unknown", "descriptor": None, "reason": reason}
+
+    @staticmethod
     def http_request(path="/v1/chat/completions", host=b"proxy:4000"):
         return Request({"type": "http", "method": "POST", "scheme": "http", "path": path,
                         "root_path": "", "query_string": b"", "server": ("127.0.0.1", 4000),
@@ -535,9 +539,11 @@ class PricingSnapshotTests(unittest.TestCase):
         self.assertLess(pre, custom)
 
     def test_unsupported_native_contexts_remain_unknown_with_rates_independent(self):
-        mutations = ("no_auth", "no_router", "retired", "alias_copy", "foreign_id", "no_context", "user_config",
-                     "per_model_optin", "different_selected_descriptor", "wrong_call_type", "lookup_error")
-        for mutation in mutations:
+        mutations = {"no_auth": "eligibility", "no_router": "router", "retired": "deployment",
+                     "alias_copy": "selected_model_info", "foreign_id": "deployment", "no_context": "request_body",
+                     "user_config": "request_body", "per_model_optin": "clientside_auth",
+                     "different_selected_descriptor": "declaration", "wrong_call_type": "call_type", "lookup_error": "deployment"}
+        for mutation, reason in mutations.items():
             with self.subTest(mutation=mutation):
                 owner, router, proxy, modules, _ = self.protected_owner()
                 if mutation == "no_router": proxy.llm_router = None
@@ -556,7 +562,7 @@ class PricingSnapshotTests(unittest.TestCase):
                     def failed(**kwargs): raise RuntimeError("private synthetic error must not escape")
                     router.get_deployment = failed
                 snapshot = self.capture_protected(owner, modules, auth=mutation != "no_auth")
-                self.assertEqual(snapshot, {"schema": 1, "availability": "unknown", "descriptor": None})
+                self.assertEqual(snapshot, self.unknown_descriptor(reason))
                 self.assertEqual(self.snapshot(owner)["availability"], "available")
 
     def test_native_rates_must_match_protected_explicit_flat_fields(self):
@@ -566,7 +572,63 @@ class PricingSnapshotTests(unittest.TestCase):
             self.assertEqual(self.capture_protected(owner, modules)["availability"], "unknown")
         owner, _, _, modules, _ = self.protected_owner()
         self.price(owner, .02)
-        self.assertEqual(self.capture_protected(owner, modules)["availability"], "unknown")
+        self.assertEqual(self.capture_protected(owner, modules), self.unknown_descriptor("rate_mismatch"))
+
+    def test_unknown_reason_vocabulary_is_one_literal_closed_tuple(self):
+        node = next(node for node in ast.parse(Path(self.adapter.__file__).read_bytes()).body
+                    if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                    and target.id == "DESCRIPTOR_UNKNOWN_REASONS" for target in node.targets))
+        expected = ("eligibility", "call_type", "request_body", "selected_model_info", "model_id", "settings",
+                    "router", "deployment", "clientside_auth", "protected_id", "declaration", "billed_rates", "rate_mismatch")
+        self.assertEqual(ast.literal_eval(node.value), expected)
+        self.assertEqual(self.adapter.DESCRIPTOR_UNKNOWN_REASONS, expected)
+        self.assertEqual(len(set(expected)), len(expected))
+
+    def test_unknown_reason_identifies_model_settings_and_protected_guard(self):
+        for mutation, reason in (("missing_id", "model_id"), ("settings", "settings"),
+                                 ("protected_id", "protected_id"), ("rate", "rate_mismatch")):
+            with self.subTest(mutation=mutation):
+                owner, router, proxy, modules, _ = self.protected_owner()
+                if mutation == "missing_id": owner.litellm_params["model_info"].pop("id")
+                if mutation == "settings": proxy.general_settings["allow_client_side_credentials"] = True
+                if mutation == "protected_id": router.model_list[0]["model_info"]["id"] = "foreign-protected-id"
+                if mutation == "rate": self.price(owner, .02)
+                self.assertEqual(self.capture_protected(owner, modules), self.unknown_descriptor(reason))
+                self.assertEqual(self.snapshot(owner)["availability"], "available")
+
+    def test_unknown_reason_keeps_only_fixed_stage_when_secret_exception_occurs(self):
+        secret = "private https://user:password@example.invalid/price?token=secret sk-" + "x" * 32
+        class ExplodingDict(dict):
+            def get(self, *args, **kwargs):
+                raise RuntimeError(secret)
+        for mutation, reason in (("request_body", "request_body"), ("settings", "settings"),
+                                 ("deployment", "deployment"), ("declaration", "declaration"),
+                                 ("rate_mismatch", "rate_mismatch")):
+            with self.subTest(mutation=mutation):
+                owner, router, proxy, modules, _ = self.protected_owner()
+                if mutation == "request_body": owner.litellm_params["proxy_server_request"] = ExplodingDict()
+                if mutation == "settings": proxy.general_settings = ExplodingDict()
+                if mutation == "deployment":
+                    def failed(**kwargs): raise RuntimeError(secret)
+                    router.get_deployment = failed
+                if mutation == "declaration":
+                    owner.litellm_params["model_info"][self.adapter.DESCRIPTOR_KEY]["source_url"] = secret
+                if mutation == "rate_mismatch":
+                    # Native rates are a frozen dataclass. Its real field access
+                    # raises here; the descriptor guard must suppress all text.
+                    def failed_rate(value, name):
+                        if name == "input_cost_per_token": raise RuntimeError(secret)
+                        return object.__getattribute__(value, name)
+                    with patch.object(self.native["BilledTokenRates"], "__getattribute__", failed_rate), \
+                            patch.dict(sys.modules, modules):
+                        observed = self.adapter._capture_descriptor(owner, owner.litellm_params,
+                            self.native["get_litellm_metadata_from_kwargs"](owner.model_call_details), True, "/v1/chat/completions")
+                else:
+                    observed = self.capture_protected(owner, modules)
+                self.assertEqual(observed, self.unknown_descriptor(reason))
+                serialized = json.dumps(observed, allow_nan=False)
+                for forbidden in (secret, "password", "token=", "sk-", "RuntimeError", "example.invalid"):
+                    self.assertNotIn(forbidden, serialized)
 
     def test_descriptor_is_strict_primitive_and_never_exports_credentials(self):
         changes = [("schema", True), ("schema", 2), ("qualified_usage", "all_prices"),
@@ -583,7 +645,7 @@ class PricingSnapshotTests(unittest.TestCase):
                 descriptor = self.descriptor(); descriptor[field] = value
                 owner, _, _, modules, _ = self.protected_owner(descriptor)
                 observed = self.capture_protected(owner, modules)
-                self.assertEqual(observed, {"schema": 1, "availability": "unknown", "descriptor": None})
+                self.assertEqual(observed, self.unknown_descriptor("declaration"))
                 json.dumps(observed, allow_nan=False)
         owner, _, _, modules, _ = self.protected_owner({**self.descriptor(), "private_extra": "secret"})
         self.assertEqual(self.capture_protected(owner, modules)["availability"], "unknown")
@@ -630,14 +692,15 @@ class PricingSnapshotTests(unittest.TestCase):
             self.assertIs(self.native["get_litellm_metadata_from_kwargs"](owner.model_call_details), owner.litellm_params[bucket])
 
     def test_descriptor_unknown_never_drops_valid_rates_or_preserves_client_snapshot(self):
-        for mutation in ("missing_declaration", "no_used_rates", "auth_qualification_error"):
+        for mutation, reason in (("missing_declaration", "declaration"), ("no_used_rates", "billed_rates"),
+                                 ("auth_qualification_error", "eligibility")):
             owner, router, _, modules, _ = self.protected_owner()
             self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY] = {"private": "client-injected"}
             if mutation == "missing_declaration": router.model_list[0]["model_info"].pop(self.adapter.DESCRIPTOR_KEY)
             if mutation == "no_used_rates": owner.billed_token_rates = None
             if mutation == "auth_qualification_error": modules["litellm.proxy._types"].UserAPIKeyAuth = object()
             observed = self.capture_protected(owner, modules)
-            self.assertEqual(observed, {"schema": 1, "availability": "unknown", "descriptor": None})
+            self.assertEqual(observed, self.unknown_descriptor(reason))
             self.assertEqual(self.snapshot(owner)["availability"], "unknown" if mutation == "no_used_rates" else "available")
 
     def test_two_qualified_request_snapshots_do_not_share_descriptor_state(self):
@@ -672,7 +735,7 @@ class PricingSnapshotTests(unittest.TestCase):
                                 {"litellm_logging_obj": owner}, "acompletion"))
                     self.run_hooks(owner)
                 self.assertEqual(self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY],
-                                 {"schema": 1, "availability": "unknown", "descriptor": None})
+                                 self.unknown_descriptor("eligibility"))
                 self.assertEqual(self.snapshot(owner)["availability"], "available")
                 self.assertEqual(owner.model_call_details["response_cost"], .2)
                 for key in (self.adapter.SNAPSHOT_KEY, self.adapter.DESCRIPTOR_SNAPSHOT_KEY):
@@ -745,7 +808,7 @@ class PricingSnapshotTests(unittest.TestCase):
                     self.assertIsInstance(identity, self.Auth)
                     self.assertEqual(identity.user_role, "internal_user_view_only")
                 observed = self.capture_protected(owner, modules, auth_object=identity)
-                self.assertEqual(observed, {"schema": 1, "availability": "unknown", "descriptor": None})
+                self.assertEqual(observed, self.unknown_descriptor("eligibility"))
                 self.assertEqual(self.snapshot(owner)["availability"], "available")
                 self.assertEqual(owner.model_call_details["response_cost"], .2)
                 for key in (self.adapter.SNAPSHOT_KEY, self.adapter.DESCRIPTOR_SNAPSHOT_KEY):
@@ -806,7 +869,7 @@ class PricingSnapshotTests(unittest.TestCase):
                               wraps=self.native["route_in_additonal_public_routes"]) as check:
                 observed = self.capture_protected(owner, modules, auth_object=identity)
                 check.assert_called_once_with(current_route=actual_route)
-        self.assertEqual(observed, {"schema": 1, "availability": "unknown", "descriptor": None})
+        self.assertEqual(observed, self.unknown_descriptor("eligibility"))
         self.assertEqual(self.snapshot(owner)["availability"], "available")
         self.assertEqual(owner.model_call_details["response_cost"], .2)
         self.assertEqual(owner.litellm_params["proxy_server_request"]["url"], str(request.url))

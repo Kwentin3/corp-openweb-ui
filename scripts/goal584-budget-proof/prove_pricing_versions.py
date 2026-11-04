@@ -35,8 +35,8 @@ ATTEST = PRIVATE/'catalog-attestation.private.json'
 CONFIG = Path('/proof/config.yaml')
 CALLBACK = Path('/proof/pricing_snapshot.py')
 PROOF = 'goal584-controlled-pricing-versions'
-# Exact LF Git blobs from approved integration commit 0fccfc4f39ab06fb8e69e5d4eb27f2b4029661e1.
-CALLBACK_SHA256 = '9bff480f9939e46f84c6dc2673315e61f2404297c39d734b796774600a9881d6'
+# Fixed LF hashes of the reviewed candidate callback and native catalog owner.
+CALLBACK_SHA256 = 'c98239d626bbb85aee92a5ec354393e699469686bcc78b8e7ec2067d98335054'
 CATALOG_SHA256 = '48b0f92892d1071f0dc229d1277d56b9bb3b8eb70397e3a347ad84f25cbedc6a'
 LABELS = ('v1_S1', 'v1_S2', 'v2_S2')
 EXPECTED = (('v1', '.20', '.20'), ('v1', '.20', '.40'), ('v2', '.40', '.80'))
@@ -68,6 +68,16 @@ def rate_fields(path=None):
     fields = ast.literal_eval(node.value)
     require(isinstance(fields, tuple) and len(fields) == len(set(fields)) == 7 and all(isinstance(v,str) for v in fields), 'version_rate_schema')
     return fields
+
+
+def descriptor_unknown_reasons():
+    tree=ast.parse(CALLBACK.read_bytes())
+    node=next(n for n in tree.body if isinstance(n,ast.Assign) and any(
+        isinstance(t,ast.Name) and t.id=='DESCRIPTOR_UNKNOWN_REASONS' for t in n.targets))
+    reasons=ast.literal_eval(node.value)
+    require(isinstance(reasons,tuple) and 0<len(reasons)<=32 and len(set(reasons))==len(reasons)
+        and all(type(value) is str and re.fullmatch('[a-z_]{1,32}',value) for value in reasons),'version_descriptor_reason_schema')
+    return reasons
 
 
 def source_binding():
@@ -217,7 +227,12 @@ def verified_row(row,state,call):
     info=next(m['model_info'] for m in terms if m['model_name']=='goal584-a')
     require(all(snapshot['rates'][k]==info[k] for k in ('input_cost_per_token','output_cost_per_token')),'version_native_rate_mismatch')
     descriptor=meta['owui_tariff_descriptor']
-    require(type(descriptor.get('schema')) is int and type(descriptor.get('descriptor',{}).get('schema')) is int
+    if isinstance(descriptor,dict) and descriptor.get('availability')=='unknown' and descriptor.get('descriptor') is None:
+        reason=descriptor.get('reason')
+        if type(reason) is str and reason in descriptor_unknown_reasons():
+            raise ProofError('version_descriptor_'+reason)
+    require(isinstance(descriptor,dict) and isinstance(descriptor.get('descriptor'),dict)
+        and type(descriptor.get('schema')) is int and type(descriptor['descriptor'].get('schema')) is int
         and descriptor=={'schema':1,'availability':'available','descriptor':info['owui_pricing']},'version_row_descriptor')
     require(catalog.utc(snapshot['observed_at_utc'])>=catalog.utc(info['owui_pricing']['declared_effective_from_utc']), 'version_call_before_declared_interval')
     return {'request_id':row['request_id'],'user_id':state['user_id'],'key_hash':state['key_hash'],'model_id':row['model_id'],

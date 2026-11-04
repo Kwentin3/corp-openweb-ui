@@ -23,6 +23,11 @@ from litellm.litellm_core_utils.llm_cost_calc.utils import BilledTokenRates
 SNAPSHOT_KEY = "owui_billed_token_rates"
 DESCRIPTOR_KEY = "owui_pricing"
 DESCRIPTOR_SNAPSHOT_KEY = "owui_tariff_descriptor"
+DESCRIPTOR_UNKNOWN_REASONS = (
+    "eligibility", "call_type", "request_body", "selected_model_info", "model_id",
+    "settings", "router", "deployment", "clientside_auth", "protected_id",
+    "declaration", "billed_rates", "rate_mismatch",
+)
 DESCRIPTOR_FIELDS = frozenset({
     "schema", "deployment_id", "currency", "source_ref", "source_url",
     "source_checked_at_utc", "declared_effective_from_utc",
@@ -83,52 +88,65 @@ def _descriptor(value):
 
 
 def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route):
-    unknown = {"schema": 1, "availability": "unknown", "descriptor": None}
+    unknown = {"schema": 1, "availability": "unknown", "descriptor": None,
+               "reason": DESCRIPTOR_UNKNOWN_REASONS[0]}
     try:
         if not proxy_auth or auth_route not in _COMPLETION_ROUTES or getattr(owner, "litellm_params", None) is not params:
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[1]
         if getattr(owner, "call_type", None) not in ("completion", "acompletion"):
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[2]
         request = params.get("proxy_server_request")
         if (not isinstance(request, dict) or request.get("method") != "POST"
                 or not isinstance(request.get("body"), dict)
                 or any(field in request["body"] for field in ("user_config", "api_key", "api_base"))):
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[3]
         selected = params.get("model_info")
         # Native Router stamps the same copied dictionary into both locations.
         # This is a structural path check, not a signature or price version.
         if not isinstance(selected, dict) or metadata.get("model_info") is not selected:
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[4]
         native_id = owner.get_router_model_id()
         if not isinstance(native_id, str) or selected.get("id") != native_id:
             return unknown
 
         # Resolve expected terms only from the existing protected global owner.
         # Lazy import preserves the native callback/config startup order.
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[5]
         from litellm.proxy import proxy_server
         settings = proxy_server.general_settings
         if not isinstance(settings, dict) or settings.get("allow_client_side_credentials") not in (None, False):
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[6]
         router = proxy_server.llm_router
         if router is None:
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[7]
         deployment = router.get_deployment(model_id=native_id)
         if deployment is None:
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[8]
         configured = deployment.litellm_params
         optins = configured.get("configurable_clientside_auth_params") if isinstance(configured, dict) else getattr(
             configured, "configurable_clientside_auth_params", None)
         if optins not in (None, []):
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[9]
         protected = deployment.model_info
         if getattr(protected, "id", None) != native_id:
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[10]
         descriptor = _descriptor(getattr(protected, DESCRIPTOR_KEY, None))
         if descriptor["deployment_id"] != native_id or _descriptor(selected.get(DESCRIPTOR_KEY)) != descriptor:
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[11]
         rates = getattr(owner, "billed_token_rates", None)
         if not isinstance(rates, BilledTokenRates):
             return unknown
+        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[12]
         for field in ("input_cost_per_token", "output_cost_per_token"):
             declared, billed = getattr(protected, field, None), getattr(rates, field)
             if (type(declared) not in (int, float) or type(billed) not in (int, float)

@@ -44,7 +44,7 @@ HELPERS = {
     "prove_gateway_auth.py": "a506e9f1283d5729d467ee959ceca735e19351e9f2f15b66972d5821c9a6133a",
     "prove_budget_overlap.py": "3c5b9c5b48f35c655063c66286bb0fccf5fe04c243f3f75390dd5d3323d8c522",
     "budget_errors.py": "30a86a662f0320482761a2f52310456c328e112954cf5d0557df09cb20db4abe",
-    "pricing_snapshot.py": "9bff480f9939e46f84c6dc2673315e61f2404297c39d734b796774600a9881d6",
+    "pricing_snapshot.py": "c98239d626bbb85aee92a5ec354393e699469686bcc78b8e7ec2067d98335054",
     "employee_budget_assignment.py": "72b0026c862cc21adabd32a86e134dfc0cbe9ebf7e5b6ca02e7e088689315b70",
     "native_floor_identity.py": "39d28b28e3d60fb6e5989cdd4b23a2a1341277bc569f2bf3ef0eb9e32deac839",
     "manifest.json": "1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b",

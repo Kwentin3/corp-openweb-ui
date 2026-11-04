@@ -32,14 +32,15 @@ CALLBACK=Path(__file__).resolve().parents[2]/'deploy/openwebui-budgets/pricing_s
 
 
 def approved_blobs(test):
-    revision='0fccfc4f39ab06fb8e69e5d4eb27f2b4029661e1'
-    paths={'pricing_snapshot.py':('deploy/openwebui-budgets/pricing_snapshot.py','9bff480f9939e46f84c6dc2673315e61f2404297c39d734b796774600a9881d6'),
+    # Candidate Git-index bytes must match these frozen reviewed LF hashes.
+    # CI's checked-out index is the tested commit; local WIP must be staged.
+    paths={'pricing_snapshot.py':('deploy/openwebui-budgets/pricing_snapshot.py','c98239d626bbb85aee92a5ec354393e699469686bcc78b8e7ec2067d98335054'),
         'prove_pricing_catalog.py':('scripts/goal584-budget-proof/prove_pricing_catalog.py','48b0f92892d1071f0dc229d1277d56b9bb3b8eb70397e3a347ad84f25cbedc6a')}
     values={}
     for name,(path,expected) in paths.items():
-        try:raw=subprocess.check_output(['git','-c','gc.auto=0','show',revision+':'+path],cwd=Path(__file__).resolve().parents[2],
+        try:raw=subprocess.check_output(['git','-c','gc.auto=0','show',':'+path],cwd=Path(__file__).resolve().parents[2],
             env=os.environ|{'GIT_NO_LAZY_FETCH':'1'},stderr=subprocess.PIPE)
-        except subprocess.CalledProcessError:test.skipTest('Approved0fcc Git blobs unavailable; no fetch permitted')
+        except subprocess.CalledProcessError:test.skipTest('Candidate Git-index blobs unavailable; no fetch permitted')
         test.assertEqual(M.sha(raw),expected);test.assertNotIn(b'\r\n',raw);values[name]=raw
     return values
 
@@ -362,11 +363,11 @@ class HostTests(unittest.TestCase):
             root=Path(d);checkout=root/'checkout';checkout.mkdir();private=root/'private';private.mkdir()
             config=private/'config.yaml';original=yaml.safe_dump(BASE).encode();config.write_bytes(original)
             envfile=private/'proof.env';envfile.write_text('SYNTHETIC=1',encoding='utf8')
-            revision='0fccfc4f39ab06fb8e69e5d4eb27f2b4029661e1'
+            revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=M.ROOT).decode().strip()
             approved=load_approved_catalog(self,root)
             for name,path in M.SOURCE_PATHS.items():
-                raw=Path(M.__file__).read_bytes() if name=='prove_pricing_versions.py' else subprocess.check_output(
-                    ['git','-c','gc.auto=0','show',revision+':'+path],cwd=M.ROOT,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
+                raw=subprocess.check_output(['git','-c','gc.auto=0','show',':'+path],cwd=M.ROOT,
+                    env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
                 target=checkout/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
             # Model Docker's public resolved config using the actual base Compose
             # mounts plus the two proof workers supplied by the final overlay.
@@ -529,6 +530,30 @@ class HostTests(unittest.TestCase):
             value=json.loads(stdout.getvalue())
             self.assertEqual(set(value),{'schema','proof','passed','action','result','failure_code'})
             return code,value,target.read_bytes() if target.exists() else None,writes
+
+    def test_actual_unknown_descriptor_is_a_contract_failure_without_null_dereference(self):
+        s=state();call=s['calls'][0]
+        for value in ({'schema':1,'availability':'unknown','descriptor':None},None):
+            with self.subTest(descriptor=value):
+                native_row=row(s,call);meta=json.loads(native_row['metadata'])
+                meta['spend_logs_metadata']['owui_tariff_descriptor']=value
+                native_row['metadata']=json.dumps(meta)
+                with patch.object(M,'CALLBACK',CALLBACK),self.assertRaisesRegex(M.ProofError,'^version_row_descriptor$'):
+                    M.verified_row(native_row,s,call)
+
+    def test_unknown_descriptor_exports_only_callback_owned_fixed_reason(self):
+        s=state();call=s['calls'][0]
+        for reason,code in (('selected_model_info','version_descriptor_selected_model_info'),
+                ('sk-private-secret-000000','version_row_descriptor'),('arbitrary_private_text','version_row_descriptor')):
+            with self.subTest(reason=reason):
+                native_row=row(s,call);meta=json.loads(native_row['metadata'])
+                meta['spend_logs_metadata']['owui_tariff_descriptor']={
+                    'schema':1,'availability':'unknown','descriptor':None,'reason':reason}
+                native_row['metadata']=json.dumps(meta)
+                with patch.object(M,'CALLBACK',CALLBACK),self.assertRaises(M.ProofError) as caught:
+                    M.verified_row(native_row,s,call)
+                self.assertEqual(str(caught.exception),code)
+                self.assertNotIn('private',str(caught.exception))
 
     def test_actual_worker_cli_failure_retains_source_location_without_private_exception(self):
         for error in (KeyError('sk-private-secret-000000'),M.ProofError('Expected JSON at /private/sk-private-secret-000000')):
