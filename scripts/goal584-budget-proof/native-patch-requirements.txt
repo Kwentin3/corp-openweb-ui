@@ -1,3 +1,4 @@
-# Host-only exact-source replay dependencies; never installed into LiteLLM.
+# Host-only source replay/publication dependencies; never installed into LiteLLM.
 pydantic==2.12.3
 fastapi==0.121.0
+PyYAML==6.0.2

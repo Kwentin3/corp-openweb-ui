@@ -5,19 +5,19 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Native46 завершён
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Native48 завершён
 SUCCESS: main/WebUI/overlap/Responses и оба calendar профиля приняты в указанном
 bounded scope по actual artifacts, independent review и parent replay. Проверен
 разрешённый stand-only derivative двух функций LiteLLM. Native45 остаётся
 исходным FAIL с подтверждённым false denial. Следующий срез — версии/источники
-тарифов и native autocheck. В primary подготовлен source-кандидат штатной
-автопроверки справочника; publication proof остаётся в pricing-version worktree.
+тарифов. Штатная автопроверка справочника принята на Native48; в primary
+подготовлен следующий source-кандидат проверки публикации версий тарифов.
 Production не менялся. Подробности текущего среза ниже, после решения владельца.
 
-**Pricing candidate: source-проверки завершены, runtime ещё не принят.**
+**Pricing catalog: source и ограниченный runtime Native48 приняты.**
 Используются native source/status/schedule/reload APIs и scheduler LiteLLM;
 отдельного расписания, расчёта цен или журнала не добавлено. Dedicated pricing
-project проверит первый due poll с interval1h, переход synthetic S1→S2,
+project проверил первый due poll с interval1h, переход synthetic S1→S2,
 отказ502 на invalid/truncated без изменения принятого native source/status,
 отмену своего interval и cleanup. Прошедший первый poll не доказывает второй
 цикл через час. Thin callback сохраняет whitelist защищённого descriptor
@@ -32,12 +32,61 @@ Corrected independent C1/C2 review и parent повтор6 actual-body checks PA
 Evidence: `local/goal584/native-pricing-{descriptor-independent-readiness,
 catalog-independent-readiness,wiring-corrected-readiness}.*`,
 `native-pricing-catalog-native-corrected-readiness.*`, `candidate-checks.safe.json`.
-Version publication WIP не входит в этот CI-срез; его own source review ещё идёт.
+Version publication не входил в Native48; следующий source-срез описан ниже.
+
+**Native48 завершён, четыре jobs SUCCESS.** Head
+`0fccfc4f39ab06fb8e69e5d4eb27f2b4029661e1`, tested merge
+`6202495ae6e2cd72a4500cb2e84a0b99d9608f6a` материализован; diff между ними пуст.
+[41718501504](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41718501504):
+pricing job126204716667, main126204716149 и оба calendar jobs SUCCESS;
+Active CI149/41718501527 SUCCESS. Pricing ZIP
+`1bc4c18a47ec2a6a40677afb804defb7d3f42c53020c4b22a105e5380a206c3d`
+проверен по GitHub digest и распакован:5 safe files,23 source bindings,
+37 observations/80 API records; first new S1 fetch и persisted last_run,
+затем S2, два502, cancel и cleanup0/0/0. Independent acceptance и parent replay PASS;
+second elapsed-hour cycle и tariff publication этим не доказаны.
+Parent replay basic PASS:26sources/12mounts/10native,4sweeps/2calls,
+next5.414s<60; ZIPcc4286660ff112f9fa6707f92743b5d8e419e1e9b6e096c214b941ac67c81916.
+Parent replay positive-floor276checks PASS:26sources/10helpers/12mounts/18native,
+critical3.839s<5; ZIP58fad3f26f30bd1e41c41853be545838fbc2a5d4617ef086c1605caf8a849ad1.
+Оба calendar cleanup0/0/0. Reused accepted financial/source assertions сохранены,
+заменены только exact head/merge/run/job/ZIP bindings с recorded source hashes:
+`local/goal584/replay_native48_calendars.py`, соответствующие replay-adaptation
+и parent-replay/replay.safe.json. Main также принят в bounded regression scope:
+ZIP `317d99f89490957c1c6bb0ada63f94d0f48142729596843dcfcde63667b2107b`,
+223файла/51distinct source bindings, full-input replay admin/bootstrap/employee/
+cost/background/RAG и19отклонённых мутаций. Independent reviewer просмотрел54PNG;
+parent повторил оба replay и проверил фактический экран Responses Details.
+Main cleanup подтверждает containers[]/volumes[], без утверждения о networks.
+Evidence: `local/goal584/native48-main-review/independent-acceptance.md`.
+
+**Следующий кандидат: публикация двух synthetic tariff versions.** Существующий
+pricing job последовательно проверит v1/S1→v1/S2→v2/S2: три native списания
+0.20/0.20/0.40, итог0.80, сохранность полных старых SpendLogs rows и context.
+v1/v2 имеют разные native deployment IDs и защищённый descriptor в той же row;
+явный индивидуальный прайс не должен меняться при reload справочника.
+Конечный publisher меняет только synthetic config, перезапускает только proxy
+и восстанавливает исходные байты; это не atomic HA activation и не новый billing.
+В primary integrated source/test SHA0552f143/a4399694, workflow73890308.
+Independent readiness и parent повтор PASS:23focused/0skip, joined actual prepare/
+profile/approve/drain с внешними IO doubles,8Host mutations и13handoff cases.
+14Compose binds, существующий attestation, source/image/cleanup/privacy проверены;
+реальные native тарификация/сохранение/восстановление этого среза ещё не приняты.
+Итоговые локальные проверки:446harness PASS/0skip и239component checks
+(232PASS/7opt-in skips), actionlint и diff-check PASS.
+Evidence: `local/goal584/native-pricing-versions-integrated-readiness.{md,py,safe.json}`.
 
 **Повторная upstream-сверка по напоминанию владельца о KISS.** Новые изменения
 и запуск стенда придержаны на время read-only проверки. Live GitHub readback
-подтвердил:36953 closed/unmerged, авторский эскиз shared invalidation есть;
+04.11.2026 подтвердил:36953 closed/unmerged, авторский эскиз shared invalidation есть;
 45974 и40940 остаются open/unmerged, scheduled positive-floor gap ими не закрыт.
+В актуальном45974 head `61b61fa1a7d8cfeebd21ec871d59c648cbb6ac8b`
+авторский body прямо оставляет scheduled reset без нового reset fence;
+review также описывает восстановление старого пятисекундного floor после reset.
+Это эскиз защиты от гонки и распространения сброса между workers, а не готовая
+замена нашего stand-only патча. В36953 human author
+[подтвердил shared invalidation](https://github.com/BerriAI/litellm/pull/36953#discussion_r3796884419),
+но final patch ограничен global budget и не меняет общий local floor memo.
 Дополнительно найден open46409: native floor/broadcast для global reset,
 не календарного job. Merged47044 относится к Rust gateway, не исправляет
 Python `_authoritative_floor_spend`. Готовое released-исправление exact кейса

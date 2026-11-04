@@ -46,3 +46,5 @@ scripts/goal584-budget-proof/mock_provider.py text eol=lf
 scripts/goal584-budget-proof/test_mock_provider.py text eol=lf
 scripts/goal584-budget-proof/prove_pricing_catalog.py text eol=lf
 scripts/goal584-budget-proof/test_pricing_catalog.py text eol=lf
+scripts/goal584-budget-proof/prove_pricing_versions.py text eol=lf
+scripts/goal584-budget-proof/test_pricing_versions.py text eol=lf

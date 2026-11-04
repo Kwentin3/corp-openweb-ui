@@ -22,3 +22,15 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_pricing_versions.py
+        target: /proof/prove_pricing_versions.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_budget_overlap.py
+        target: /proof/prove_budget_overlap.py
+        read_only: true
+        bind:
+          create_host_path: false
