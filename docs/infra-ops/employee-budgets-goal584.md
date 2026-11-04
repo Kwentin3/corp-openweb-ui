@@ -93,9 +93,32 @@ operand по-прежнему неизвестен. Native metadata DTO/filter �
 Изолированный env `local/goal584/native55-main-review/native-library-venv`
 сохранён для follow-up/cleanup; два synthetic loopback запроса, серверы закрыты.
 Eight native hashes совпали после явно записанного CRLF→LF Windows wheel;
-stand source identity этим не подменяется. Следующий CI до публикации не запущен.
+stand source identity этим не подменяется. Опубликован head
+0c45d612b586595a25b1e255bbb6c51c4bb3cf1f, tested merge
+fb616e3ddf0734d9ee876cb7c6245550961de038, tree diff пуст.
+[Native56/41825740190](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41825740190)
+завершился main FAIL на `failure_audit_shape`; ActiveCI157/41825740180 SUCCESS.
+Actual bounded diagnostic впервые установил operand: prompt/total88, completion0,
+spend float0.0; оба failure status, native class и controlled provider code совпали.
+Это native proxy input estimate для фактического456-character prompt, не provider
+usage и не доказательство реального счёта. Parent повторил exact native estimator
+offline;88/0/88 воспроизведены. ZIP13319034432/SHA04d753d4fe224e9a71179d9e718fb4e62ada36296c51fe3c588fe901cacff9ce.
+Release/recovery и downstream browser guards этим FAIL не приняты.
 Evidence: `native56-diagnostic-{readiness,independent}.md`,
-`native55-main-review/native-{transport,library}-review.*` под `local/goal584/`.
+`native55-main-review/native-{transport,library}-review.*`,
+`native56-main-review/{recovery-review.safe.json,native-usage-origin.md}` под `local/goal584/`.
+
+**Candidate57 подготовлен, ещё не опубликован:** проверка usage теперь сравнивает
+row с результатом существующего pinned native `_estimate_dispatched_failure_usage`
+для строго проверенного actual physical body/model. Новый tokenizer/calculator,
+ledger и native core patch не добавлены; zero-spend/status/class/provider-code,
+hold/release/deadline/history/restoration guards сохранены. Девятый source pin —
+`proxy/utils.py` f2b56f6e…; proof0e4771ce…/test e1289221… frozen.
+22focused PASS/0skip; полная проверка477harness PASS/0skip и244component checks
+(237PASS/7opt-in skips). Independent source review READY; parent повторил оба новых
+targeted tests (2PASS/0skip). Actual worker import/DB row/release/recovery требуют
+стенда. Это исправление неверного test expectation, не новая финансовая логика.
+Evidence: `native57-native-usage-{readiness,independent}.md`, `candidate57-final-checks.log`.
 
 Для следующего Office source-среза создан отдельный task worktree
 `D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-office`, branch
@@ -147,6 +170,15 @@ prompt confirmation повторно подтверждён в исходник�
 не добавляем второй финансовый регистр или reset service. Upstream candidate
 заменит адаптацию после того же воспроизводителя и проверок reservations/manual
 reset. Подробности: `local/goal584/upstream-calendar-gap-review.md`.
+
+Повторная ограниченная проверка по напоминанию о KISS подтвердила те же heads и
+OPEN/unmerged статусы49212/45974; fresh REST diff49212 меняет только window reset
+owner и тесты. Дополнительный поиск нашёл OPEN/unmerged [46409](https://github.com/BerriAI/litellm/pull/46409)
+(global manual reset) и [47676](https://github.com/BerriAI/litellm/pull/47676)
+(single-process cold-counter double-add). Их описания относятся к другим причинам;
+это не runtime qualification и не готовая замена monthly primary user/key fix.
+Штатный Rich UI prompt submission повторно подтверждён official docs и merged26914;
+сохраняем существующий путь без temporary JSON storage или второго RPC owner.
 
 **Responses upstream,04.11:** в [ответе по32473](https://github.com/open-webui/open-webui/issues/32473#issuecomment-6197578604)
 разработчик признаёт запрос stateless replay и предлагает native stateful внутри

@@ -36,6 +36,8 @@ import prove_gateway_auth as private_owner
 ROOT=Path(__file__).resolve().parents[2]
 CACHE=Path(os.environ.get('GOAL584_LITELLM_SOURCE_ROOT',ROOT/'local/goal584/litellm/upstream'))
 SECRET='gw-synthetic-proof-secret-never-exported'
+# Observed Native56 proxy audit data; the native estimator algorithm is tested below.
+PROXY_FAILURE_USAGE={'prompt_tokens':88,'completion_tokens':0,'total_tokens':88}
 
 
 def module(name,path):
@@ -216,8 +218,7 @@ class World:
             if self.mutation=='missing_frozen_rates':meta['spend_logs_metadata'].pop('owui_billed_token_rates')
         return {'request_id':identifier,'user':uid,'api_key':self.keys[uid]['token'],'model_group':M.MODEL,
             'model_id':'goal584-deployment-a','session_id':scope['chat_id'],'status':'success' if success else 'failure',
-            'spend':.2 if success else 0,'prompt_tokens':10 if success else 0,'completion_tokens':5 if success else 0,
-            'total_tokens':15 if success else 0,'metadata':meta}
+            'spend':.2 if success else 0,**(M.USAGE if success else PROXY_FAILURE_USAGE),'metadata':meta}
 
 
 def kwargs_uid(body):
@@ -226,10 +227,17 @@ def kwargs_uid(body):
 
 
 class CoordinatorTests(unittest.TestCase):
-    def replay(self,mutation=None):
+    def replay(self,mutation=None,*,failure_usage_estimator=...):
         world=World(mutation)
+        world.estimator_calls=[]
+        def estimate(**kwargs):
+            self.assertEqual(kwargs,{'request_input':world.requests[1]['body']['messages'],'system_input':None})
+            self.assertEqual(kwargs['request_input'],M.PHYSICAL['messages'])
+            world.estimator_calls.append(copy.deepcopy(kwargs))
+            return SimpleNamespace(**PROXY_FAILURE_USAGE) if failure_usage_estimator is ... else failure_usage_estimator(**kwargs)
         with tempfile.TemporaryDirectory() as directory,ExitStack() as stack:
-            path=Path(directory)/'failure.private.json';runner=M.Recovery(world.native,world.counter,path)
+            path=Path(directory)/'failure.private.json';runner=M.Recovery(world.native,world.counter,path,
+                failure_usage_estimator=None if failure_usage_estimator is None else estimate)
             stack.enter_context(patch.dict(sys.modules,{'provenance':PROVENANCE,'employee_budget_assignment':ASSIGNMENT}))
             rates=ast.literal_eval(next(node.value for node in ast.parse((ROOT/'deploy/openwebui-budgets/pricing_snapshot.py').read_bytes()).body
                 if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='RATE_FIELDS' for target in node.targets)))
@@ -273,6 +281,8 @@ class CoordinatorTests(unittest.TestCase):
         self.assertEqual(world.users[world.failed_uid]['spend'],.2);self.assertEqual(world.keys[world.failed_uid]['total_spend'],.2)
         self.assertEqual(world.rows[world.uid][0]['metadata'],{'private_history':'keep'})
         for row in world.requests:self.assertEqual(row['body'],M.PHYSICAL)
+        self.assertTrue(world.estimator_calls)
+        self.assertEqual({key:world.rows[world.failed_uid][0][key] for key in M.USAGE},PROXY_FAILURE_USAGE)
         calls=[body for method,path,body in world.http if path=='/v1/chat/completions']
         self.assertEqual(len(calls),3)
         for body in calls:self.assertEqual({k:v for k,v in body.items() if k!='litellm_metadata'},M.SEMANTIC)
@@ -349,6 +359,27 @@ class CoordinatorTests(unittest.TestCase):
         observed=saved['attempts']['failure']['response_returned_monotonic']
         self.assertGreater(M.time.monotonic()+world.offset-observed,15)
 
+    def test_native_failure_usage_requires_valid_estimator_exact_row_and_unchanged_context_before_recovery(self):
+        cases=(('missing_owner',None,'failure_native_usage_owner'),
+            ('none',lambda **kwargs:None,'failure_native_usage_estimate'),
+            ('missing',lambda **kwargs:SimpleNamespace(prompt_tokens=88,completion_tokens=0),'failure_native_usage_estimate'),
+            ('float',lambda **kwargs:SimpleNamespace(prompt_tokens=88.0,completion_tokens=0,total_tokens=88),'failure_native_usage_estimate'),
+            ('bool',lambda **kwargs:SimpleNamespace(prompt_tokens=True,completion_tokens=0,total_tokens=1),'failure_native_usage_estimate'),
+            ('zero',lambda **kwargs:SimpleNamespace(prompt_tokens=0,completion_tokens=0,total_tokens=0),'failure_native_usage_estimate'),
+            ('completion',lambda **kwargs:SimpleNamespace(prompt_tokens=88,completion_tokens=1,total_tokens=89),'failure_native_usage_estimate'),
+            ('badtotal',lambda **kwargs:SimpleNamespace(prompt_tokens=88,completion_tokens=0,total_tokens=89),'failure_native_usage_estimate'),
+            ('foreign_positive',lambda **kwargs:SimpleNamespace(prompt_tokens=87,completion_tokens=0,total_tokens=87),'failure_audit_shape'))
+        for label,estimator,code in cases:
+            with self.subTest(case=label):
+                world,runner,result,error,saved=self.replay(failure_usage_estimator=estimator)
+                self.assertIsNone(result);self.assertIsInstance(error,M.ProofError)
+                self.assertEqual(str(error),code);self.assertEqual(len(world.requests),2)
+                self.assertNotIn('recovery',saved['attempts'])
+        world,runner,result,error,saved=self.replay('wrong_failure_body')
+        self.assertIsNone(result);self.assertEqual(str(error),'failure_provider_context')
+        self.assertEqual(len(world.requests),2);self.assertEqual(world.estimator_calls,[])
+        self.assertNotIn('recovery',saved['attempts'])
+
     def test_deadline_rejects_missing_late_ready_audit_and_delay_after_read_before_second_dispatch(self):
         for mutation in ('audit_deadline_missing','audit_deadline_ready','before_recovery_deadline','body_persist_deadline'):
             with self.subTest(mutation=mutation):
@@ -387,19 +418,19 @@ class CoordinatorTests(unittest.TestCase):
         original=World.row
         cases=(
             ('paid',{'spend':.1},{},'spend_zero',('spend',{'type':'float','value':.1})),
-            ('usage_missing',{'prompt_tokens':None},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'missing'})),
-            ('usage_float',{'prompt_tokens':0.0},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'float','value':0.0})),
-            ('usage_bool',{'prompt_tokens':False},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'bool'})),
-            ('usage_nonzero',{'prompt_tokens':1},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'int','value':1})),
-            ('completion_nonzero',{'completion_tokens':1},{},'completion_tokens_zero_int',('completion_tokens',{'type':'int','value':1})),
-            ('total_nonzero',{'total_tokens':1},{},'total_tokens_zero_int',('total_tokens',{'type':'int','value':1})),
+            ('usage_missing',{'prompt_tokens':None},{},'prompt_tokens_matches_estimate',('prompt_tokens',{'type':'missing'})),
+            ('usage_float',{'prompt_tokens':88.0},{},'prompt_tokens_matches_estimate',('prompt_tokens',{'type':'float','value':88.0})),
+            ('usage_bool',{'prompt_tokens':False},{},'prompt_tokens_matches_estimate',('prompt_tokens',{'type':'bool'})),
+            ('usage_foreign_positive',{'prompt_tokens':1},{},'prompt_tokens_matches_estimate',('prompt_tokens',{'type':'int','value':1})),
+            ('completion_nonzero',{'completion_tokens':1},{},'completion_tokens_matches_estimate',('completion_tokens',{'type':'int','value':1})),
+            ('total_foreign_positive',{'total_tokens':1},{},'total_tokens_matches_estimate',('total_tokens',{'type':'int','value':1})),
             ('class',{}, {'error_class':SECRET},'error_class_native',None),
             ('foreign_code',{}, {'error_code':SECRET},'error_code_expected','other'),
             ('http_code',{}, {'error_code':'500'},'error_code_expected','http_500'),
             ('missing_code',{}, {'error_code':None},'error_code_expected','missing'),
         )
         expected_checks={'row_status_failure','metadata_status_failure','spend_zero',
-            *(key+'_zero_int' for key in M.USAGE),'error_class_native','error_code_expected'}
+            *(key+'_matches_estimate' for key in M.USAGE),'error_class_native','error_code_expected'}
         for label,fields,info,failed,projection in cases:
             def changed(world,*args,**kwargs):
                 row=original(world,*args,**kwargs)
@@ -415,7 +446,8 @@ class CoordinatorTests(unittest.TestCase):
                 self.assertIsNone(result);self.assertIsInstance(error,M.ProofError)
                 self.assertEqual(str(error),'failure_audit_shape');self.assertEqual(len(world.requests),2)
                 diagnostic=runner.receipt['failure'];audit=diagnostic['audit']
-                self.assertEqual(set(audit),{'checks','row_status','metadata_status','spend','usage','error_code_kind'})
+                self.assertEqual(set(audit),{'checks','row_status','metadata_status','spend','usage','usage_expected','error_code_kind'})
+                self.assertEqual(audit['usage_expected'],{key:{'type':'int','value':value} for key,value in PROXY_FAILURE_USAGE.items()})
                 self.assertEqual(set(audit['checks']),expected_checks)
                 self.assertEqual({key for key,value in audit['checks'].items() if value is False},{failed})
                 self.assertTrue(all(type(value) is bool for value in audit['checks'].values()))
@@ -441,14 +473,17 @@ class CoordinatorTests(unittest.TestCase):
             # private writer; actual coordinator rejection is covered above.
             with self.subTest(kind=kind,bounded=bounded):
                 row={'spend':value,**dict.fromkeys(M.USAGE,value),'status':SECRET}
-                audit=M.audit_shape_diagnostic(row,{'status':SECRET,'error_information':[SECRET]})
-                for scalar in (audit['spend'],*audit['usage'].values()):
+                audit=M.audit_shape_diagnostic(row,{'status':SECRET,'error_information':[SECRET]},dict.fromkeys(M.USAGE,value))
+                for scalar in (audit['spend'],*audit['usage'].values(),*audit['usage_expected'].values()):
                     self.assertEqual(scalar,{'type':kind,**({'value':value} if bounded else {})})
                 self.assertEqual(audit['row_status'],'other');self.assertEqual(audit['metadata_status'],'other')
                 self.assertEqual(audit['error_code_kind'],'missing')
                 self.assertIs(audit['checks']['error_class_native'],False)
                 self.assertIs(audit['checks']['error_code_expected'],False)
                 self.assertNotIn(SECRET,json.dumps(audit,allow_nan=False))
+        missing=M.audit_shape_diagnostic({}, {},None)
+        self.assertEqual(missing['usage_expected'],{key:{'type':'missing'} for key in M.USAGE})
+        self.assertTrue(all(missing['checks'][key+'_matches_estimate'] is None for key in M.USAGE))
         try:raise M.ProofError('failure_audit_shape')
         except M.ProofError as error:diagnostic=M.failure_diagnostic(error,'failure')
         self.assertNotIn('audit',diagnostic)
@@ -505,6 +540,40 @@ class NativeSourceTests(unittest.TestCase):
     def execute(self,nodes,ns):
         exec(compile(ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[])),'exact-pinned-failure-owner','exec',
             flags=__import__('__future__').annotations.compiler_flag),ns)
+
+    def test_pinned_proxy_failure_usage_owner_counts_actual_messages_with_native_tokenizer_boundary(self):
+        calls=[];constructed=[];count=37
+        def tokens(**kwargs):calls.append(copy.deepcopy(kwargs));return count
+        def usage(**kwargs):constructed.append(kwargs);return SimpleNamespace(**kwargs)
+        ns={'Final':Final,'litellm':SimpleNamespace(token_counter=tokens),'Usage':usage}
+        self.execute([copy.deepcopy(node) for node in self.sources['proxy/utils.py'].body
+            if getattr(node,'name',None) in ('_system_prompt_text','_count_request_input_tokens','_estimate_dispatched_failure_usage')],ns)
+        model='openai/goal584-fake-a';messages=copy.deepcopy(M.PHYSICAL['messages'])
+        result=ns['_estimate_dispatched_failure_usage'](model=model,request_input=messages,system_input=None)
+        self.assertEqual(calls,[{'model':model,'messages':messages,'use_default_image_token_count':True}])
+        self.assertEqual(constructed,[{'prompt_tokens':37,'completion_tokens':0,'total_tokens':37}])
+        self.assertEqual(vars(result),constructed[0]);self.assertEqual(messages,M.PHYSICAL['messages'])
+        # Independent tokenizer results must propagate; no fixture count of 88
+        # belongs to the production estimator or the proof's expected usage.
+        calls.clear();count=91
+        result=ns['_estimate_dispatched_failure_usage'](model=model,request_input=messages,system_input='system text')
+        self.assertEqual(calls,[{'model':model,'text':'system text'},
+            {'model':model,'messages':messages,'use_default_image_token_count':True}])
+        self.assertEqual(vars(result),{'prompt_tokens':182,'completion_tokens':0,'total_tokens':182})
+        for count in (0,-1):
+            with self.subTest(tokenizer_result=count):
+                self.assertIsNone(ns['_estimate_dispatched_failure_usage'](model=model,request_input=messages,system_input=None))
+        def unavailable(**kwargs):raise RuntimeError(SECRET)
+        ns['litellm'].token_counter=unavailable
+        self.assertIsNone(ns['_estimate_dispatched_failure_usage'](model=model,request_input=messages,system_input=None))
+        # Worker binds the helper to the validated provider model inside the
+        # native image, rather than tokenizing on the host or using row usage.
+        tree=ast.parse(Path(M.__file__).read_bytes());worker=next(node for node in tree.body if getattr(node,'name',None)=='worker')
+        binding=next(node for node in ast.walk(worker) if isinstance(node,ast.Call)
+            and isinstance(node.func,ast.Name) and node.func.id=='partial')
+        self.assertEqual(binding.args[0].id,'_estimate_dispatched_failure_usage')
+        self.assertEqual(ast.dump(binding.keywords[0].value,include_attributes=False),
+            ast.dump(ast.parse("model['litellm_params']['model']",mode='eval').body,include_attributes=False))
 
     def test_native_route_gate_old_operator_denies_population_explicit_read_allows_and_other_denials_remain(self):
         from fastapi import HTTPException, status
@@ -686,13 +755,14 @@ class NativeSourceTests(unittest.TestCase):
         original=World.row
         def actual_error_row(world,*args,**kwargs):
             row=original(world,*args,**kwargs)
-            if row['status']=='failure':row['metadata']['error_information']=copy.deepcopy(info);row.update(usage)
+            if row['status']=='failure':row['metadata']['error_information']=copy.deepcopy(info)
             return row
         with patch.object(World,'row',actual_error_row):world,runner,result,error,saved=CoordinatorTests().replay()
         self.assertIsNone(error);self.assertTrue(result['passed']);self.assertEqual(len(world.requests),3)
         rows=saved['payers']['recovery']['settled_rows'].values();failure=next(row for row in rows if row['status']=='failure')
         self.assertEqual(failure['spend'],0);self.assertEqual(failure['metadata']['error_information']['error_code'],'proof_provider_500')
-        self.assertTrue(all(type(failure[k]) is int and failure[k]==0 for k in M.USAGE))
+        self.assertEqual({key:failure[key] for key in M.USAGE},PROXY_FAILURE_USAGE)
+        self.assertTrue(all(type(failure[key]) is int for key in M.USAGE))
         for change in ('code','class','spend','usage'):
             def rejected_error_row(world,*args,**kwargs):
                 row=actual_error_row(world,*args,**kwargs)

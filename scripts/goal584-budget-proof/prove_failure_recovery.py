@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 import copy
 from datetime import datetime, timezone
 from decimal import Decimal
+from functools import partial
 import hashlib
 import importlib.util
 import json
@@ -39,6 +40,7 @@ NATIVE_FAILURE = {
     'proxy/spend_tracking/spend_tracking_utils.py':'52ce53917cdb6905abfe6dd61f2ffe9640e5198c9e443629177dcc727d24bd17',
     'proxy/spend_tracking/spend_counter_batch.py':'9ce9f2719d2af7e80dec004b7199b6213a373c1f4c52d78bb2921416659252af',
     'proxy/common_request_processing.py':'4dcc3a41f8179d14ea35d25d9669b89a78063ea162767ba358817d050d2be1d0',
+    'proxy/utils.py':'f2b56f6e501ee6cfedbf4e9d79a19cee594fb797f1c3d2f2fd80a37faaf6a77f',
     'litellm_core_utils/litellm_logging.py':'58da82171935240b9280d8c208d383e147e23fb2ad4818de6994934ebf21fe79',
     'litellm_core_utils/exception_mapping_utils.py':'3b5fed3377f6d004cd860483ced684e5602e7f9ed5d5c02c617577c1bfd5b4ca',
     'exceptions.py':'d4a4b46afc48d97c2bde978b04d348b4ce2fb039af009f565178d85fba71aa64',
@@ -49,7 +51,7 @@ def digest(value):
     return overlap.digest(value)
 
 
-def audit_shape_diagnostic(row,meta):
+def audit_shape_diagnostic(row,meta,expected_usage=None):
     """Fixed scalar projection only; never return a row, text or caller identifiers."""
     def scalar(value):
         kinds={type(None):'missing',bool:'bool',int:'int',float:'float',str:'str',dict:'dict',list:'list'}
@@ -65,12 +67,14 @@ def audit_shape_diagnostic(row,meta):
     except Exception:spend_zero=None
     checks={'row_status_failure':row.get('status')=='failure',
         'metadata_status_failure':meta.get('status')=='failure','spend_zero':spend_zero,
-        **{key+'_zero_int':type(row.get(key)) is int and row[key]==0 for key in USAGE},
+        **{key+'_matches_estimate':(type(row.get(key)) is int and row[key]==expected_usage.get(key))
+            if isinstance(expected_usage,dict) else None for key in USAGE},
         'error_class_native':info.get('error_class')=='InternalServerError',
         'error_code_expected':info.get('error_code')=='proof_provider_500'}
     return {'checks':checks,'row_status':status(row.get('status')),
         'metadata_status':status(meta.get('status')),'spend':scalar(row.get('spend')),
         'usage':{key:scalar(row.get(key)) for key in USAGE},
+        'usage_expected':{key:scalar(expected_usage.get(key) if isinstance(expected_usage,dict) else None) for key in USAGE},
         'error_code_kind':'controlled_provider' if info.get('error_code')=='proof_provider_500'
             else 'http_500' if info.get('error_code')=='500' else 'missing' if info.get('error_code') is None else 'other'}
 
@@ -89,7 +93,7 @@ def failure_diagnostic(error,stage):
                 if type(error) is ProofError and str(error)=='failure_audit_shape' and trace.tb_frame.f_code.co_name=='verify':
                     row,meta=(trace.tb_frame.f_locals.get(name) for name in ('row','meta'))
                     if isinstance(row,dict) and isinstance(meta,dict):
-                        result['audit']=audit_shape_diagnostic(row,meta)
+                        result['audit']=audit_shape_diagnostic(row,meta,trace.tb_frame.f_locals.get('expected_failure_usage'))
             trace=trace.tb_next
     except Exception:pass
     return result
@@ -163,8 +167,9 @@ class NativeCounters:
 
 
 class Recovery:
-    def __init__(self,native,counters,private_state=STATE):
+    def __init__(self,native,counters,private_state=STATE,*,failure_usage_estimator=None):
         self.n=native;self.counters=counters;self.path=private_state
+        self.failure_usage_estimator=failure_usage_estimator
         self.recovery_deadline=None
         self.state={'schema':1,'proof':PROOF,'stage':'prepare','attempts':{},'payers':{},'observations':[]}
         self.receipt={'schema':1,'proof':PROOF,'passed':False,'stage':'prepare','restoration':{}}
@@ -363,10 +368,21 @@ class Recovery:
                 and row.get('session_id')==scope['chat_id'],'failure_row_identity')
             if label=='failure':
                 error=meta.get('error_information',{})
+                physical=self.state.get('physical',{}).get('failure',{})
+                require(physical.get('body')==PHYSICAL,'failure_usage_context')
+                require(callable(self.failure_usage_estimator),'failure_native_usage_owner')
+                # The proxy records an input estimate after dispatch, not provider-reported usage.
+                native_usage=self.failure_usage_estimator(request_input=copy.deepcopy(physical['body']['messages']),system_input=None)
+                expected_failure_usage={key:getattr(native_usage,key,None) for key in USAGE}
+                require(all(type(value) is int and value>=0 for value in expected_failure_usage.values())
+                    and expected_failure_usage['prompt_tokens']>0 and expected_failure_usage['completion_tokens']==0
+                    and expected_failure_usage['total_tokens']==expected_failure_usage['prompt_tokens'],'failure_native_usage_estimate')
                 # Native metadata keeps the provider code; HTTP500 is checked at dispatch.
                 require(row.get('status')==meta.get('status')=='failure' and amount(row.get('spend'))==0
-                    and all(type(row.get(k)) is int and row[k]==0 for k in USAGE)
+                    and all(type(row.get(k)) is int and row[k]==expected_failure_usage[k] for k in USAGE)
                     and error.get('error_class')=='InternalServerError' and error.get('error_code')=='proof_provider_500','failure_audit_shape')
+                self.receipt['failure_audit']={'usage_origin':'native_dispatched_failure_estimate',
+                    **audit_shape_diagnostic(row,meta,expected_failure_usage)}
             else:
                 attempt=self.state['attempts'][label];status,response,_=attempt['response']
                 require(status==200 and row.get('request_id')==response.get('id')==self.state['physical'][label]['id']
@@ -501,7 +517,10 @@ def worker():
     package=Path(importlib.util.find_spec('litellm').origin).parent
     require({name:hashlib.sha256((package/name).read_bytes()).hexdigest() for name in NATIVE_FAILURE}==NATIVE_FAILURE,
         'failure_native_source_binding')
-    native,_=overlap.proof();counters=NativeCounters(config);runner=Recovery(native,counters)
+    from litellm.proxy.utils import _estimate_dispatched_failure_usage
+    native,_=overlap.proof();counters=NativeCounters(config)
+    runner=Recovery(native,counters,failure_usage_estimator=partial(_estimate_dispatched_failure_usage,
+        model=model['litellm_params']['model']))
     runner.receipt['native_artifact']=native_artifact
     runner.receipt['native_failure_sha256']=NATIVE_FAILURE
     runner.receipt['existing_owner_identity']=binding
