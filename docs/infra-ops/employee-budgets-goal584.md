@@ -5,14 +5,15 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Native48 завершён
-SUCCESS: main/WebUI/overlap/Responses и оба calendar профиля приняты в указанном
-bounded scope по actual artifacts, independent review и parent replay. Проверен
-разрешённый stand-only derivative двух функций LiteLLM. Native45 остаётся
-исходным FAIL с подтверждённым false denial. Следующий срез — версии/источники
-тарифов. Штатная автопроверка справочника принята на Native48; в primary
-подготовлен следующий source-кандидат проверки публикации версий тарифов.
-Production не менялся. Подробности текущего среза ниже, после решения владельца.
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Native52 завершён
+SUCCESS во всех четырёх jobs. Catalog и bounded публикация двух synthetic тарифов
+приняты independent review и parent replay; оба calendar профиля повторно
+проверены parent с сохранением прежних независимых financial/source assertions.
+Main52 source/finance/context/closure принят independent review и parent replay;
+свежий Responses Details PNG просмотрен обоими, обе таблицы видны. Проверен разрешённый stand-only derivative
+двух функций LiteLLM; исходный Native45 FAIL сохранён. Следующий срез — native500
+release/recovery и строгая проверка видимости Details после reload. Production
+не менялся. Подробности текущего среза ниже, после решения владельца.
 
 **Pricing catalog: source и ограниченный runtime Native48 приняты.**
 Используются native source/status/schedule/reload APIs и scheduler LiteLLM;
@@ -176,7 +177,10 @@ floor critical1.848s<5;26exact-Git sources/12mounts на worker, native core/pat
 неизменны, cleanup0/0/0,6financial mutations на каждый профиль отклонены.
 Independent acceptance и parent повтор:
 `local/goal584/native51-calendar-review/replay.py`.
-Main51 SUCCESS; независимая проверка его artifacts пока выполняется.
+Main51 SUCCESS; source/finance/context/closure приняты independent review и parent
+повтором,19mutations отклонены. Его Responses Details PNG обрезан: полная видимость
+таблиц после reload не принята. Alternate cost Details виден полностью. Stored
+HTML не заменяет эту visual evidence; причина обрезания не установлена.
 
 **Следующий узкий callback fix:** native ProxyConfig после загрузки вызывает
 `_bind_general_settings_store(self.settings)`; actual SettingsStore реализует
@@ -194,6 +198,95 @@ Independent source readiness и parent replay PASS:2expected before failures,
 AST отличается только Mapping import/type predicate; native core не меняется.
 Replay: `local/goal584/native51-pricing-review/settings-fix-readiness.py`.
 Это source-кандидат, runtime ещё не проверен.
+
+Mapping fix опубликован functional commitf778f6fa9d1d324a16ac1001438cd378bad7a0fe.
+Следующий [Native52/run41802147335](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41802147335)
+завершён:все4jobs SUCCESS; exact tested merge8f07c402f12830dd29189e5ebd8326cb9a392dd2
+материализован, diff с head пуст. Active CI153/41802147376 SUCCESS.
+Pricing job126480255430/artifact13308750379, ZIP
+12fe288d4cfcc6888fe75357e9d6d61df6706c00745c9591ea325adc13ac95c3:
+independent acceptance и parent replay PASS.15worker packets/2publications/
+3native rows: v1/S1 .20, v1/S2 .20, v2/S2 .40; оба native counters .80.
+Сохранены прежние полные exported rows и private-row fingerprints,7billed rates,
+индивидуальный v1 после изменения reference, native IDs/usage/descriptor/lineage.
+26version и10catalog mutations отклонены.23catalog observations/52API,
+26sources/13read-only mounts; original bytes restored/failures[], fixtureS1 only,
+native map остаётсяS2, cleanup0/0/0. Это bounded flat-usage profile, не общий
+tariff registry/atomic HA activation; unexported raw context/history checks
+остаются exact-source-bound assertions, границы описаны в review.
+Evidence: `local/goal584/native52-pricing-review/independent-acceptance.md` и replay.py.
+Оба calendar artifacts52 проверены parent:26sources/12mounts на worker,
+12financial mutations отвергнуты, unchanged native two-function core/patch,
+cleanup0/0/0. Evidence: `local/goal584/native52-calendar-review/parent-acceptance.md`.
+Main52 artifact13309146260/ZIP9fb1ccaa926be21170d236db6d6934b3e821c5fed731cb2a0552bdb46ed536dc
+скачан и проверен по GitHub digest:220files. Его свежий Responses Details PNG
+просмотрен parent: answer/chat .40,2calls20/10/30, обе таблицы полностью видны.
+Source/finance/context/closure main52 приняты independent review и parent replay:
+52manifest entries/51distinct paths,6builder/6mounts,19negative mutations,
+36exact-Git callback/native SettingsStore tests PASS. Full3row journal до/после
+GUI неизменен SHA14b0a927b7e3f71441c7f7f1d54abc76c02ca0a01e7a76f8a567db0c9632981d,
+4native audit owner fields/provider19→19/counters.40; cleanup0/0. Это bounded
+regression scope, не вся reasoning continuity/current-route/HA приёмка.
+Evidence: `local/goal584/native52-main-review/independent-acceptance.md` и4replays.
+
+**Следующий source-срез после52:** post-reload Details readiness. Producer
+c4914179/test Git-LF e353022f;49focused PASS/0skip, включая5realChrome cases,
+parent повтор PASS. Старая values-loop перемещена AST-identically; остальной
+модуль/44oldtests неизменны. Проверяются exact persisted HTML/values и фактические
+table/report/iframe viewport/document geometry; native HEIGHT_SCRIPT остаётся
+единственным resize owner. Height/CSS/content/messages не записываются. Это proof
+readiness, не productUI fix; native выполнение нового guard ещё впереди.
+Evidence: `local/goal584/responses-details-readiness/report.md` и replay.py.
+
+Новый provider500 recovery proof: первоначальный independent actual execute
+выявил допустимость чужих/отсутствующих user/key DTO identities и отрицательных
+embedded key spend, а также отсчёт15s после завершения private response-write
+вместо момента HTTP-return. Initial NOTREADY и false-acceptance witnesses
+сохранены. Исправлены только2newfiles: proof8cf5883578a918dbfb424b34eacbf6f4ff29d8044549f49d5ce0b47934fbc263,
+test4087e4b808bfa41251b1340e4f88206c6aa7e5baf60ee931be9ad408c10ba5f0.
+Native key-info owner удаляет info.token и возвращает top-level key echo:
+проверка использует именно этот контракт, обязательные user IDs и embedded
+key hash, не выдумывает отсутствующее поле. Negative/surplus money fail,
+допустимый temporary read lag ожидает settlement. HTTP-return monotonic сохраняется
+до private write и определяет deadline до второго send. Independent и parent:
+16focused PASS/0skip,17/17replays соответствуют контракту; старые27mutations
+сохранены. Это SOURCE-ONLY READY, native500/release ещё не приняты. Файлы staged
+в primary; подключение к existing overlap phase готовится отдельно.
+Evidence: `local/goal584/failure-recovery-independent-review/` и
+`local/goal584/failure-recovery-preparation.md`.
+
+**Candidate53 source integration READY.** Existing overlap overlay добавляет
+единственный RO worker bind; main source manifest включает worker/test.
+Новая bounded10m фаза после scale2 выполняет worker index1 ровно один раз,
+до прежнего overlap/RAG/Responses; main timeout85 сохранён. Private origin,
+две native topology/image/config/DB/helper identities и RO mounted source SHA
+проверяют existing owners. Host принимает только bounded closed finite JSON,
+сверяет tested Git/child native identity и сохраняет safe fixed failures.
+Ни нового сервиса/прайса/ledger/core/config reset, ни provider retry нет.
+Workflowf8f38e73/overlay2c354f95; child8cf58835/test4087e4b8 и Responses
+c4914179/test Git-LF e353022f frozen. Parent повтор exact workflow block:
+28cases PASS(27negative); actionlint0/53Bash/27embeddedPython PASS.
+Root full runner471harness PASS/0skip и244component checks(237PASS/7opt-in skips).
+После проверки index/source closure следующий шаг — один isolated native run;
+actual500/audit/Redis release/допуск/новый post-reload guard пока не приняты.
+Evidence: `local/goal584/failure-recovery-wiring/{report.md,rehearsal.py,validation.safe.json}`,
+`local/goal584/candidate-checks.safe.json`.
+
+Current-route follow-up перепроверил17existing source/Compose/runbook files и
+6Office Filter component cases. Initial source-only audit не нашёл локального
+SSH pointer в отдельном worktree. Parent затем нашёл actual ignored pointer
+в original workspace через git common-dir: local/INFRA_TARGET.local.md,
+SHAa9c6119a259bb98984d494e303e398d87ebe364f1c1b60e4cfdfded3d5a70a6c.
+04Nov09:34UTC свежий DNS совпал с documented endpoint, native known-host record
+подтверждён; key-only login со StrictHostKeyChecking=yes/UpdateHostKeys=no SUCCESS,
+remote hostname совпал с указателем. Password fallback и key/IP угадывания нет;
+endpoint/credentials не экспортированы. Read-only live route inventory выполняется,
+current deployed bindings до него не объявляются подтверждёнными. Evidence:
+`local/goal584/current-route-{identity-preflight,ssh-identity}.safe.json`.
+Следующий native Office slice — exact prior-answer export →
+render → native download. Mic STT и Stage2audio имеют отдельных credential/
+provider owners; нынешний source-аудит не доказывает их бюджетный охват.
+Evidence: `local/goal584/current-route-compatibility-live-readback.{md,safe.json}`.
 
 После version proof остаются конкретные независимые срезы: native provider500
 до usage → release reservation → следующий affordable success без reset/TTL/restart;

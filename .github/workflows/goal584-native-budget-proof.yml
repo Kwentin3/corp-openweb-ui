@@ -7,6 +7,7 @@ on:
       - .github/workflows/goal584-native-budget-proof.yml
       - compose/goal584.native-budget-proof.yml
       - compose/goal584.webui-proof.yml
+      - compose/goal584.overlap-proof.yml
       - compose/goal584.calendar-proof.yml
       - compose/goal584.pricing-proof.yml
       - scripts/goal584-budget-proof/**
@@ -28,7 +29,7 @@ concurrency:
 jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
-    # Derivative build 10m + existing phases 25m + Responses 40m + cleanup reserve.
+    # Observed main runtime leaves room for the bounded provider500 phase.
     timeout-minutes: 85
     steps:
       - name: Check out the candidate
@@ -129,6 +130,8 @@ jobs:
           assert native_actual['native_artifact'] == artifact
           files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
                    'compose/goal584.overlap-proof.yml', 'scripts/goal584-budget-proof/prove_budget_overlap.py',
+                   'scripts/goal584-budget-proof/prove_failure_recovery.py',
+                   'scripts/goal584-budget-proof/test_failure_recovery.py',
                    'scripts/goal584-budget-proof/init_vector_database.sql',
                    'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
                    'deploy/openwebui-budgets/litellm_auth.py', 'deploy/openwebui-budgets/assignment.py',
@@ -641,12 +644,110 @@ jobs:
             --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/pricing"
 
-      - name: Qualify simultaneous native reservations across two isolated proxy processes
+      - name: Qualify native provider500 reservation release and immediate recovery
+        timeout-minutes: 10
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
             -f compose/goal584.webui-proof.yml -f compose/goal584.overlap-proof.yml \
             up -d --scale proxy=2 --wait --wait-timeout 180 proxy
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" - <<'PY'
+          import hashlib, json, os, subprocess, sys
+          from pathlib import Path
+          from types import SimpleNamespace
+          sys.path.insert(0, 'scripts/goal584-budget-proof')
+          import prove_budget_overlap as overlap
+          from prove_pricing_browser import private_fixture
+          from prove_pricing_snapshots import MAX_BYTES, no_credentials
+
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'failure-recovery')
+          output.mkdir()
+          receipt = {'schema': 1, 'proof': 'goal584-native-provider500-recovery', 'mode': 'host',
+                     'passed': False, 'stage': 'private_origin', 'failure_code': None}
+          secrets = []
+          try:
+              env_file = Path(os.environ['PROOF_ENV_FILE'])
+              private, _, accounts, secrets = private_fixture(env_file,
+                  Path(os.environ['PROOF_PRIVATE_DIR'], 'browser-accounts.private.json'), output)
+              secrets += [row['password'] for row in accounts]
+              args = SimpleNamespace(project='goal584-native-budget-proof', env_file=env_file,
+                  compose_file=['compose/goal584.native-budget-proof.yml', 'compose/goal584.webui-proof.yml',
+                                'compose/goal584.overlap-proof.yml'], private_root=private)
+              owner = overlap.Coordinator(args)
+              receipt['stage'] = 'source_binding'
+              revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+              assert revision == os.environ['GITHUB_SHA']
+              paths = ['scripts/goal584-budget-proof/prove_failure_recovery.py',
+                       'scripts/goal584-budget-proof/test_failure_recovery.py']
+              hashes = {}
+              for path in paths:
+                  expected = subprocess.check_output(['git', 'show', revision + ':' + path])
+                  assert Path(path).read_bytes() == expected, 'Failure source differs from tested Git'
+                  hashes[path] = hashlib.sha256(expected).hexdigest()
+              receipt.update(source_commit=revision, files_sha256=hashes)
+              receipt['stage'] = 'existing_topology'
+              receipt['topology'] = owner.topology()
+              receipt['stage'] = 'worker_mount'
+              mounted = []
+              source = str(Path(paths[0]).resolve())
+              code = "import hashlib,json;from pathlib import Path;print(json.dumps({'sha256':hashlib.sha256(Path('/proof/prove_failure_recovery.py').read_bytes()).hexdigest()}))"
+              for container in receipt['topology']['containers']:
+                  mounts = owner.run_json(['docker', 'inspect', '--format', '{{json .Mounts}}', container['id']])
+                  matches = [m for m in mounts if m['Destination'] == '/proof/prove_failure_recovery.py']
+                  assert len(matches) == 1 and matches[0]['Type'] == 'bind' and matches[0]['RW'] is False
+                  assert matches[0]['Source'] == source
+                  actual = owner.run_json(owner.command + ['exec', '-T', '--index', container['number'],
+                      'proxy', 'python', '-B', '-c', code])
+                  assert actual == {'sha256': hashes[paths[0]]}
+                  mounted.append({'container': container['id'], 'sha256': actual['sha256'], 'read_only': True})
+              receipt['mounted_worker'] = mounted
+              receipt['stage'] = 'worker'
+              receipt['command_status'] = {'returned': False}
+              result = subprocess.run(owner.command + ['exec', '-T', '--index', '1', 'proxy',
+                  'python', '-B', '/proof/prove_failure_recovery.py', '--worker-run'], capture_output=True, timeout=360)
+              receipt['command_status'] = {'returned': True, 'returncode': result.returncode, 'stdout_bytes': len(result.stdout),
+                                           'stderr_bytes': len(result.stderr)}
+              assert len(result.stdout) <= MAX_BYTES, 'Failure packet exceeded bound'
+              def closed(pairs):
+                  value = {}
+                  for key, item in pairs:
+                      assert key not in value, 'Duplicate failure packet field'
+                      value[key] = item
+                  return value
+              def nonfinite(value):
+                  raise ValueError('Nonfinite failure packet')
+              packet = json.loads(result.stdout, object_pairs_hook=closed, parse_constant=nonfinite)
+              assert isinstance(packet, dict) and set(packet) == {'schema', 'proof', 'passed', 'result', 'failure_code'}
+              assert type(packet['schema']) is int and packet['schema'] == 1
+              assert packet['proof'] == receipt['proof'] and type(packet['passed']) is bool and isinstance(packet['result'], dict)
+              assert packet['failure_code'] == (None if packet['passed'] else 'failure_recovery_verification_failed')
+              no_credentials(packet, secrets)
+              receipt['worker'] = packet
+              assert result.returncode == 0 and packet['passed'] is True and packet['result'].get('passed') is True
+              child = packet['result']
+              assert type(child.get('schema')) is int and child['schema'] == 1
+              assert child.get('proof') == receipt['proof'] and child.get('stage') == 'complete'
+              assert child['native_artifact'] == receipt['topology']['native_sdk'][0]
+              assert child['existing_owner_identity']['files_sha256'] == receipt['topology']['source_sha256']
+              assert child['existing_owner_identity']['config_sha256'] == receipt['topology']['config_sha256']
+              receipt.update(passed=True, stage='complete')
+          except Exception:
+              receipt['failure_code'] = 'failure_recovery_host_verification_failed'
+          try:
+              no_credentials(receipt, secrets)
+          except Exception:
+              receipt = {'schema': 1, 'proof': 'goal584-native-provider500-recovery', 'mode': 'host',
+                         'passed': False, 'stage': 'safe_evidence', 'failure_code': 'failure_recovery_host_verification_failed',
+                         'command_status': receipt.get('command_status', {'returned': False})}
+              no_credentials(receipt, secrets)
+          (output / 'failure-recovery.safe.json').write_text(json.dumps(receipt, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+          print(json.dumps({key: receipt[key] for key in ('passed', 'stage', 'failure_code')}))
+          assert receipt['passed'] is True, 'Native provider500 recovery failed; inspect safe receipt'
+          PY
+
+      - name: Qualify simultaneous native reservations across two isolated proxy processes
+        shell: bash
+        run: |
           python -B scripts/goal584-budget-proof/prove_budget_overlap.py \
             --project goal584-native-budget-proof --env-file "$PROOF_ENV_FILE" \
             --compose-file compose/goal584.native-budget-proof.yml \

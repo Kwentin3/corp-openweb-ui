@@ -15,6 +15,7 @@ from decimal import Decimal
 import hashlib
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -1070,6 +1071,61 @@ def worker_main(args):
     return 0 if receipt['passed'] else 1
 
 
+def verify_details_values(report):
+    for scope in ('answer', 'chat'):
+        section = report.locator('section[data-cost-scope="' + scope + '"]')
+        require(Decimal(section.locator('[data-cost-usd]').get_attribute('data-cost-usd')) == Decimal('.40'), 'Responses native detail total differs')
+        row = section.locator('tr[data-model="' + MODEL + '"]')
+        require(row.count() == 1 and [int(row.locator('td[data-field="' + k + '"]').inner_text())
+            for k in ('calls', 'prompt_tokens', 'completion_tokens', 'total_tokens')] == [2, 20, 10, 30], 'Responses native details usage differs')
+
+
+def verify_reloaded_details(page, answer_id, persisted_html, diagnostic, *, timeout_ms=10_000):
+    """Observe native iframe resizing; never write its height/content or send messages."""
+    from playwright.sync_api import expect
+    iframe = page.locator('#message-' + canonical(answer_id)).locator('iframe[srcdoc*="data-budget-cost-details"]').first
+    report = iframe.content_frame.locator('main[data-budget-cost-details="v1"]')
+    diagnostic['ready'] = False
+
+    def geometry():
+        box = iframe.bounding_box(timeout=1000)
+        content = report.evaluate('''node => ({viewport_height: innerHeight,
+            scroll_height: document.documentElement.scrollHeight,
+            report_top: node.getBoundingClientRect().top,
+            report_bottom: node.getBoundingClientRect().bottom})''', timeout=1000)
+        require(isinstance(box, dict) and set(box) == {'x', 'y', 'width', 'height'}
+                and set(content) == {'viewport_height', 'scroll_height', 'report_top', 'report_bottom'}
+                and all(type(v) in (int, float) and math.isfinite(v) for v in [*box.values(), *content.values()]),
+                'Responses Details geometry unavailable')
+        return {'iframe_box': {k: round(v, 3) for k, v in box.items()},
+                'content': {k: round(v, 3) for k, v in content.items()}}
+
+    try:
+        # Bind the newly acquired post-reload frame to the exact persisted embed.
+        expect(iframe).to_have_attribute('srcdoc', persisted_html, timeout=timeout_ms)
+        expect(report).to_be_visible(timeout=timeout_ms)
+        verify_details_values(report)
+        # Intersection includes clipping by the iframe and the outer viewport.
+        # Wait for the existing cost_action HEIGHT_SCRIPT / native iframe:height
+        # owner, rather than treating DOM values as visible rendered tables.
+        expect(report).to_be_in_viewport(ratio=1, timeout=timeout_ms)
+        expect(iframe).to_be_in_viewport(ratio=1, timeout=1000)
+        for scope in ('answer', 'chat'):
+            table = report.locator('section[data-cost-scope="' + scope + '"] table')
+            expect(table).to_be_in_viewport(ratio=1, timeout=1000)
+        observed = geometry()
+        diagnostic.update(observed)
+        require(observed['content']['viewport_height'] + 1 >= observed['content']['scroll_height'],
+                'Responses Details iframe still clips its document')
+        diagnostic['ready'] = True
+    finally:
+        if not diagnostic['ready']:
+            try:
+                diagnostic.update(geometry())
+            except Exception:
+                diagnostic['geometry_available'] = False
+
+
 def host_main(args):
     from prove_pricing_browser import PricingFixture, private_fixture, overwrite_config
     from prove_webui_browser import login, chat, write_json
@@ -1157,12 +1213,7 @@ def host_main(args):
         require(pending.value.status == 200, 'Responses native cost details Action failed')
         report = card.locator('iframe[srcdoc*="data-budget-cost-details"]').first.content_frame.locator('main[data-budget-cost-details="v1"]')
         expect(report).to_be_visible()
-        for scope in ('answer', 'chat'):
-            section = report.locator('section[data-cost-scope="' + scope + '"]')
-            require(Decimal(section.locator('[data-cost-usd]').get_attribute('data-cost-usd')) == Decimal('.40'), 'Responses native detail total differs')
-            row = section.locator('tr[data-model="' + MODEL + '"]')
-            require(row.count() == 1 and [int(row.locator('td[data-field="' + k + '"]').inner_text())
-                for k in ('calls', 'prompt_tokens', 'completion_tokens', 'total_tokens')] == [2, 20, 10, 30], 'Responses native details usage differs')
+        verify_details_values(report)
         page.reload(wait_until='domcontentloaded')
         expect(page.locator('#message-' + call['message_id'])).to_contain_text('Ответ: $0.40 · Чат: $0.40')
         persisted = page.context.request.get(args.base_url + '/api/v1/chats/' + call['chat_id'],
@@ -1173,6 +1224,8 @@ def host_main(args):
         require(embeds and all(MODEL in v and 'ledger_read_key' not in v for v in embeds), 'Responses native Action report was not persisted')
         safe(embeds, secrets)
         (args.output / 'responses-details.html').write_text(embeds[0], encoding='utf-8')
+        receipt['details_geometry'] = {}
+        verify_reloaded_details(page, call['message_id'], embeds[0], receipt['details_geometry'])
         page.screenshot(path=str(args.output / 'responses-details.png'))
         receipt['after_details'] = phase('observe', call, label='after-details')
         receipt['persisted_ui_costs'] = {'answer_usd': '.40', 'chat_usd': '.40', 'details_models': [MODEL], 'reload_visible': True}

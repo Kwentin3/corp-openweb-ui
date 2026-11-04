@@ -4,7 +4,9 @@ import base64
 import collections.abc
 import copy
 from contextlib import redirect_stdout
+from datetime import datetime, timezone
 import hashlib
+from html import escape
 import importlib.util
 import io
 import json
@@ -1004,6 +1006,107 @@ class MissingGuardTests(unittest.IsolatedAsyncioTestCase):
                     (403, payloads[0], {**row, 'route': '/foreign'})):
                 with self.assertRaises(P.ProofError):
                     P.missing_provenance_denied(status, payload, evidence)
+
+
+class DetailsReadinessBrowserTests(unittest.TestCase):
+    """Real rendering boundary, not a mocked native workflow or paid runtime."""
+    @classmethod
+    def setUpClass(cls):
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            raise unittest.SkipTest('Existing Playwright unavailable; no install')
+        try:
+            raw = subprocess.check_output(['git', '-c', 'gc.auto=0', 'show', OWUI_PIN +
+                ':src/lib/components/common/FullHeightIframe.svelte'], cwd=NATIVE.parents[1],
+                env={**os.environ, 'GIT_NO_LAZY_FETCH': '1'}, stderr=subprocess.DEVNULL).decode()
+        except (OSError, subprocess.CalledProcessError):
+            raise unittest.SkipTest('Exact native iframe owner unavailable; no fetch')
+        start = raw.index('function onMessage(e: MessageEvent) {')
+        end = raw.index('\n\t// When the iframe loads', start)
+        cls.handler = raw[start:end].replace('e: MessageEvent', 'e')
+        # Execute the actual native report renderer and its HEIGHT_SCRIPT.
+        action = REPO / 'deploy/openwebui-budgets/cost_action.py'
+        nodes = [n for n in ast.parse(action.read_bytes()).body if
+            isinstance(n, ast.FunctionDef) and n.name in {'escaped', 'section', 'render'} or
+            isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'HEIGHT_SCRIPT' for t in n.targets)]
+        cls.renderer = {'escape': escape, 'datetime': datetime, 'timezone': timezone}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(action), 'exec'), cls.renderer)
+        cls.playwright = sync_playwright().start()
+        try:
+            cls.browser = cls.playwright.chromium.launch(channel='chrome', headless=True)
+        except Exception as error:
+            cls.playwright.stop()
+            if "Chromium distribution 'chrome' is not found" in str(error):
+                raise unittest.SkipTest('Existing local Chrome unavailable; no install')
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.browser.close()
+        cls.playwright.stop()
+
+    def setUp(self):
+        self.context = self.browser.new_context(viewport={'width': 1440, 'height': 1000})
+        self.addCleanup(self.context.close)
+        self.page = self.context.new_page()
+        self.answer = str(uuid4())
+
+    def document(self, calls=2):
+        model = SimpleNamespace(model=P.MODEL, calls=calls, prompt_tokens=20, completion_tokens=10,
+            total_tokens=30, spend=P.Decimal('.40'))
+        total = SimpleNamespace(spend=P.Decimal('.40'), models=[model])
+        snapshot = SimpleNamespace(as_of=datetime(2026, 11, 4, tzinfo=timezone.utc), answer=total, chat=total)
+        return self.renderer['render'](snapshot)
+
+    def display(self, document, *, native_height=True):
+        handler = ('<script>const iframe=document.querySelector("iframe");const payload=null;'
+            + self.handler + ';window.addEventListener("message",onMessage);</script>') if native_height else ''
+        self.page.set_content('<div id="message-' + self.answer + '"><iframe sandbox="allow-scripts" '
+            'style="width:100%;border:0" srcdoc="' + escape(document, quote=True) + '"></iframe></div>' + handler)
+
+    def test_actual_native_resize_exposes_full_tables_and_same_persisted_document(self):
+        document = self.document(); self.display(document)
+        diagnostic = {}
+        P.verify_reloaded_details(self.page, self.answer, document, diagnostic, timeout_ms=2000)
+        self.assertTrue(diagnostic['ready'])
+        self.assertGreaterEqual(diagnostic['content']['viewport_height'] + 1, diagnostic['content']['scroll_height'])
+        self.assertEqual(self.page.locator('iframe').get_attribute('srcdoc'), document)
+
+    def test_persistent_clip_fails_despite_complete_DOM_values_and_retains_real_geometry(self):
+        document = self.document(); self.display(document, native_height=False)
+        iframe = self.page.locator('iframe')
+        P.verify_details_values(iframe.content_frame.locator('main'))
+        initial = iframe.bounding_box()['height']; diagnostic = {}
+        with self.assertRaises(AssertionError):
+            P.verify_reloaded_details(self.page, self.answer, document, diagnostic, timeout_ms=500)
+        self.assertFalse(diagnostic['ready'])
+        self.assertLess(diagnostic['content']['viewport_height'], diagnostic['content']['scroll_height'])
+        self.assertEqual(iframe.bounding_box()['height'], initial)
+        self.assertEqual(iframe.get_attribute('srcdoc'), document)
+
+    def test_fully_visible_but_different_persisted_report_is_rejected(self):
+        document = self.document(); self.display(document)
+        diagnostic = {}
+        with self.assertRaises(AssertionError):
+            P.verify_reloaded_details(self.page, self.answer, document + ' ', diagnostic, timeout_ms=500)
+        self.assertFalse(diagnostic['ready'])
+
+    def test_document_below_outer_viewport_cannot_pass_from_inner_DOM_alone(self):
+        document = self.document(); self.display(document)
+        self.page.locator('#message-' + self.answer).evaluate("node => node.style.marginTop='1200px'")
+        diagnostic = {}
+        with self.assertRaises(AssertionError):
+            P.verify_reloaded_details(self.page, self.answer, document, diagnostic, timeout_ms=500)
+        self.assertFalse(diagnostic['ready'])
+        self.assertGreater(diagnostic['iframe_box']['y'], 1000)
+
+    def test_actual_rendered_wrong_usage_cannot_pass_readiness(self):
+        document = self.document(calls=3); self.display(document)
+        diagnostic = {}
+        with self.assertRaises(P.ProofError):
+            P.verify_reloaded_details(self.page, self.answer, document, diagnostic, timeout_ms=2000)
+        self.assertFalse(diagnostic['ready'])
 
 
 class ProbeTests(unittest.IsolatedAsyncioTestCase):
