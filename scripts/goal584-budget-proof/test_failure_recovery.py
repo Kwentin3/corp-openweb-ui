@@ -206,7 +206,7 @@ class World:
 
     def row(self,uid,scope,identifier,success):
         meta={'spend_logs_metadata':{'owui_budget':copy.deepcopy(scope)}}
-        if not success:meta.update(status='failure',error_information={'error_class':'InternalServerError','error_code':'500'})
+        if not success:meta.update(status='failure',error_information={'error_class':'InternalServerError','error_code':'proof_provider_500'})
         else:
             fields=ast.literal_eval(next(node.value for node in ast.parse((ROOT/'deploy/openwebui-budgets/pricing_snapshot.py').read_bytes()).body
                 if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='RATE_FIELDS' for target in node.targets)))
@@ -509,10 +509,8 @@ class NativeSourceTests(unittest.TestCase):
         ns={'Final':Final,'_set_reserved_entries_actual_cost':redis_adjust}
         self.execute([n for n in tree.body if getattr(n,'name',None) in ('reconcile_budget_reservation','release_budget_reservation')],ns)
         reservation={'reserved_cost':.8,'entries':[{'counter_key':'native-key','reserved_cost':.8}], 'finalized':False}
-        import httpx
-        class ExternalOpenAIError(Exception):
-            def __init__(self,message,**kwargs):super().__init__(message)
-        ns.update(openai=SimpleNamespace(InternalServerError=ExternalOpenAIError),httpx=httpx)
+        import httpx,openai
+        ns.update(openai=openai,httpx=httpx)
         self.execute([n for n in self.sources['exceptions.py'].body if getattr(n,'name',None)=='InternalServerError'],ns)
         error=ns['InternalServerError']('Controlled synthetic provider failure','openai',M.MODEL)
         logging_owner=next(n for n in self.sources['litellm_core_utils/litellm_logging.py'].body
@@ -565,6 +563,77 @@ class NativeSourceTests(unittest.TestCase):
         self.execute([n for n in spend.body if getattr(n,'name',None)=='get_spend_logs_id'],ns)
         ns['CallTypes']=SimpleNamespace(aretrieve_batch=SimpleNamespace(value='aretrieve_batch'))
         self.assertEqual(ns['get_spend_logs_id']('acompletion',{'result':str(error)},written['kwargs']),'native-error-request')
+
+    def test_real_provider_http500_code_survives_sdk_native_mapping_and_zero_audit_json(self):
+        import httpx,openai,traceback
+        from http.server import ThreadingHTTPServer
+        provider=module('failure_real_http_provider',ROOT/'scripts/goal584-budget-proof/mock_provider.py')
+        provider.CONTROL.update(response_status=500,delay_ms=0)
+        server=ThreadingHTTPServer(('127.0.0.1',0),provider.Handler)
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start();sdk_error=None
+        try:
+            with openai.OpenAI(base_url='http://127.0.0.1:'+str(server.server_port)+'/v1',api_key='synthetic-loopback-only',
+                    max_retries=0,http_client=httpx.Client(trust_env=False,timeout=5)) as client:
+                try:client.chat.completions.create(model='goal584-fake-a',messages=[{'role':'user','content':'Hi'}],max_tokens=5)
+                except openai.InternalServerError as error:sdk_error=error
+        finally:
+            server.shutdown();server.server_close();thread.join(timeout=2)
+        self.assertFalse(thread.is_alive());self.assertIsNotNone(sdk_error)
+        self.assertEqual(sdk_error.status_code,500);self.assertEqual(sdk_error.code,'proof_provider_500')
+        self.assertEqual(len(provider.REQUESTS),1);self.assertIsNone(provider.REQUESTS[0]['usage'])
+        ns={'openai':openai,'httpx':httpx,'Final':Final,'re':re,'json':json,'traceback':traceback}
+        self.execute([node for node in self.sources['exceptions.py'].body if getattr(node,'name',None)=='InternalServerError'],ns)
+        native_error=ns['InternalServerError']
+        self.execute([node for node in self.sources['litellm_core_utils/exception_mapping_utils.py'].body
+            if getattr(node,'name',None) in ('ExceptionCheckers','get_error_message','_litellm_proxy_response','_map_openai_exception')],ns)
+        ns['litellm']=SimpleNamespace(InternalServerError=native_error,log_client_error_tracebacks=False)
+        mapped=None
+        try:ns['_map_openai_exception'](model=M.MODEL,original_exception=sdk_error,custom_llm_provider='openai',
+            error_str=str(sdk_error),exception_type=type(sdk_error).__name__,exception_provider='OpenAIException',extra_information='')
+        except native_error as error:mapped=error
+        self.assertIsNotNone(mapped);self.assertEqual(mapped.status_code,500)
+        self.assertEqual(mapped.code,'proof_provider_500');self.assertEqual(mapped.type,'internal_server_error')
+        owner=next(node for node in self.sources['litellm_core_utils/litellm_logging.py'].body
+            if isinstance(node,ast.ClassDef) and node.name=='StandardLoggingPayloadSetup')
+        methods=[]
+        for name in ('get_error_information','get_usage_as_dict'):
+            node=copy.deepcopy(next(node for node in owner.body if getattr(node,'name',None)==name))
+            node.decorator_list=[];methods.append(node)
+        ns.update(is_expected_client_error=lambda error:False,_redact_string=lambda value:value,
+            validate_rate_limit_category=lambda value:None,validate_rate_limit_type=lambda value:None,
+            BudgetExceededError=type('UnrelatedBudgetExceededError',(Exception,),{}),_get_provider_request_id=lambda error:None,
+            normalize_error=lambda *args:None,StandardLoggingPayloadErrorInformation=dict)
+        self.execute(methods,ns)
+        constants=ModuleType('litellm.constants');constants.MAXIMUM_TRACEBACK_LINES_TO_LOG=100
+        with patch.dict(sys.modules,{'litellm.constants':constants}):info=ns['get_error_information'](original_exception=mapped)
+        usage=ns['get_usage_as_dict'](response_obj={},combined_usage_object=None)
+        self.assertEqual(usage,dict.fromkeys(M.USAGE,0));self.assertTrue(all(type(v) is int for v in usage.values()))
+        self.assertEqual(info['error_class'],'InternalServerError');self.assertEqual(info['error_code'],'proof_provider_500')
+        # Cross the existing external row-IO seam with the real native error DTO;
+        # actual coordinator and canonical private JSON readback remain exercised.
+        original=World.row
+        def actual_error_row(world,*args,**kwargs):
+            row=original(world,*args,**kwargs)
+            if row['status']=='failure':row['metadata']['error_information']=copy.deepcopy(info);row.update(usage)
+            return row
+        with patch.object(World,'row',actual_error_row):world,runner,result,error,saved=CoordinatorTests().replay()
+        self.assertIsNone(error);self.assertTrue(result['passed']);self.assertEqual(len(world.requests),3)
+        rows=saved['payers']['recovery']['settled_rows'].values();failure=next(row for row in rows if row['status']=='failure')
+        self.assertEqual(failure['spend'],0);self.assertEqual(failure['metadata']['error_information']['error_code'],'proof_provider_500')
+        self.assertTrue(all(type(failure[k]) is int and failure[k]==0 for k in M.USAGE))
+        for change in ('code','class','spend','usage'):
+            def rejected_error_row(world,*args,**kwargs):
+                row=actual_error_row(world,*args,**kwargs)
+                if row['status']=='failure':
+                    if change=='code':row['metadata']['error_information']['error_code']='foreign_provider_code'
+                    elif change=='class':row['metadata']['error_information']['error_class']='BudgetExceededError'
+                    elif change=='spend':row['spend']=.1
+                    else:row['prompt_tokens']=1
+                return row
+            with self.subTest(mutation=change),patch.object(World,'row',rejected_error_row):
+                world,runner,result,error,saved=CoordinatorTests().replay()
+                self.assertIsNone(result);self.assertIsInstance(error,M.ProofError)
+                self.assertEqual(str(error),'failure_audit_shape');self.assertEqual(len(world.requests),2)
 
     def test_native_counter_key_public_owner_returns_only_key_and_user_for_this_scope(self):
         tree=self.sources['proxy/spend_tracking/spend_counter_batch.py'];ns={'Final':Final,'frozenset':frozenset}

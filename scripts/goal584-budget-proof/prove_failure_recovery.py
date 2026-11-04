@@ -333,9 +333,10 @@ class Recovery:
                 and row.get('session_id')==scope['chat_id'],'failure_row_identity')
             if label=='failure':
                 error=meta.get('error_information',{})
+                # Native metadata keeps the provider code; HTTP500 is checked at dispatch.
                 require(row.get('status')==meta.get('status')=='failure' and amount(row.get('spend'))==0
                     and all(type(row.get(k)) is int and row[k]==0 for k in USAGE)
-                    and error.get('error_class')=='InternalServerError' and error.get('error_code')=='500','failure_audit_shape')
+                    and error.get('error_class')=='InternalServerError' and error.get('error_code')=='proof_provider_500','failure_audit_shape')
             else:
                 attempt=self.state['attempts'][label];status,response,_=attempt['response']
                 require(status==200 and row.get('request_id')==response.get('id')==self.state['physical'][label]['id']

@@ -27,6 +27,59 @@ real private IO сохранены; native Recovery source8cf58835 не меня
 FAIL и его trace сохранены. Runtime provider500/release/recovery и новый Details
 post-reload guard ещё требуют native приёмки. Production не менялся.
 
+**Native54 опубликован:** head458b4f39b0235f44406be657da5bb2f453a5e8b8,
+tested mergea7404580a67916a01def250415a00ae77615f0e2, tree diff пуст;
+[run41816961618](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41816961618).
+ActiveCI155/41816961606 SUCCESS. Оба calendar jobs SUCCESS; parent проверил
+actual ZIP/source/financial guards и12мутаций, cleanup0/0/0. Pricing job SUCCESS,
+independent review и parent повтор подтвердили три списания0.20/0.20/0.40,
+оба счётчика0.80, старые rows/rates,36отклонённых мутаций и cleanup0/0/0.
+Main завершился FAIL на step37: provider500 уже достигнут, проверка failure audit
+остановилась в compound guard `failure_audit_shape` (owned source336–338).
+Actual safe receipt сохранил hold R0.98/client unfinished и успешное восстановление
+provider controls; конкретный не совпавший operand row/status/usage/error пока
+не экспортирован. Native counters0 проверены раньше guard по exact source order,
+но это source-bound witness, не полный recovery PASS. Следующий success не вызван;
+downstream overlap/RAG/Responses skipped, новый Details guard не принят.
+Main ZIP13315458214/3697739bytes/SHA7c9fb6b6bfbae874a1da57d723947bd60ac950202fc21f07a1703c000c28c8d4
+проверен по GitHub digest; cleanup containers[]/volumes[] без утверждения о networks.
+Финансовая причина из одного compound FAIL не выводится. Отдельная native-цепочка
+реальный local HTTP500→SDK→pinned exception mapper→InternalServerError→error logger
+подтвердила определённый дефект ожидания: native сохраняет `.code=proof_provider_500`
+из synthetic provider body, а проверка ожидала HTTP-строку500. Empty native failure
+usage остаётся strict int0; ослаблять usage/spend guards не требуется. Реальный54
+failed operand не экспортирован и не объявляется доказанным этим source replay.
+Evidence: `local/goal584/native54-{calendar,pricing}-review/`,
+`local/goal584/candidate54-publish.safe.json`.
+
+**Candidate55:** proof меняет только error-code literal на native provider code
+с поясняющим комментарием; все HTTP500/zero spend/int-zero usage/class/hold/release/
+deadline/history/restoration guards идентичны54. Синтетический World исправлен,
+прежний native zero-audit unit теперь использует real SDK base вместо fake;
+новый regression проходит actual local HTTP500 и pinned native error owners,
+затем existing Coordinator/JSON; неверные code/class/spend/usage отклоняются.
+18focused PASS/0skip; полная проверка473harness PASS/0skip и244component checks
+(237PASS/7opt-in skips), independent source review READY. Реальная SDK exception
+теперь нужна source-тесту, поэтому OpenAI2.7.1/httpx0.28.1 явно закреплены в existing
+host-only native-patch-requirements; это те же версии локального прогона, не override
+SDK продуктового образа. pip check PASS и15builder checks PASS после декларации.
+Новый native runtime пока не принят. Evidence:
+`local/goal584/native54-main-review/native-error-chain.*`,
+`local/goal584/native55-failure-code-{readiness,independent}.md`.
+
+Для следующего Office source-среза создан отдельный task worktree
+`D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-office`, branch
+`agent/goal584-office-native`, base458b4f39. В него скопированы два frozen
+untracked component файла; основной опубликованный кандидат не меняется.
+Текущая независимая задача — тонко дополнить существующий synthetic provider
+реальным export→native FileID→render→PNG continuation. Новый backend/Files/LLM
+owner и core patch не добавляются. Worktree сохраняется до проверки и интеграции
+этого среза; затем task-only worktree/branch закрываются с сохранением результата.
+Office provider подготовлен source-only:56focused PASS/0skip; actual source/tool
+schema/FileID/typed PNG continuation использует существующие component owners.
+Независимое source ревью READY (56PASS/0skip); реальный OfficeCLI/browser/ledger/ACL ещё не принят,
+saved-chat image URL path требует runtime witness. Этот WIP не входит в Candidate55.
+
 **Уточнение KISS/native-first,04.11:** запрошенный read-only upstream review завершён;
 новые архитектурные слои не добавляем. Для HTML уже есть merged
 [PR26914](https://github.com/open-webui/open-webui/pull/26914), и его native own-embed
