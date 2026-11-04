@@ -63,13 +63,46 @@ deadline/history/restoration guards идентичны54. Синтетическ
 теперь нужна source-тесту, поэтому OpenAI2.7.1/httpx0.28.1 явно закреплены в existing
 host-only native-patch-requirements; это те же версии локального прогона, не override
 SDK продуктового образа. pip check PASS и15builder checks PASS после декларации.
-Новый native runtime пока не принят. Evidence:
+Опубликован head01354f3b0693a7f0cfc63576ab51f0035072cc36, tested merge
+b0acd7a4c0fcaca8479af1674024defa42c8406d, tree diff пуст.
+[Native55/41820357448](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41820357448)
+ActiveCI156/41820357412 SUCCESS. Native55 main завершился FAIL на том же compound
+`failure_audit_shape` (owned337), точный operand снова не экспортирован. Actual hold
+0.98/client unfinished, source/mount/native bindings и cleanup containers[]/volumes[]
+подтверждены; downstream overlap/RAG/Responses skipped. Pricing и оба calendar jobs
+SUCCESS; independent pricing/parent replay и parent calendar replay PASS,36+12мутаций
+отклонены, cleanup0/0/0. Main ZIP13318100489/SHA44d08dfd799b6a0a6ba07670c6d8b6611c92c613a3a5bd6bc73c4a918b3f3d28
+содержит205safe files; raw audit row не восстановлен из этого артефакта.
+Новый native runtime не принят. Evidence:
 `local/goal584/native54-main-review/native-error-chain.*`,
 `local/goal584/native55-failure-code-{readiness,independent}.md`.
 
+**Следующий диагностический срез:** существующий failure_diagnostic получает
+fixed bool/type/bounded scalar projection только из собственного verify frame
+при точном failure_audit_shape. Raw row/metadata/messages/keys/scope не экспортируются.
+Все Recovery методы и guards идентичны55;20focused PASS/0skip,11реальных
+Coordinator guard cases и15malformed/bounded scalar cases проверены. Full475harness
+PASS/0skip,244component checks (237PASS/7opt-in skips); independent diagnostic
+review READY,2focused PASS и сохранение primary при отказе diagnostic/private writer.
+SDK-chain репетиция покрывает одну ветку. Exact actual wrappers подтвердили две
+native формы: HTTPX→500, SDK→proof_provider_500; исходный default выбирает SDK.
+Actual library LiteLLM1.105.1/OpenAI2.54.0 локально подтвердила vendor code/int-zero
+usage/float-zero cost на Engine/callback границе. Это не proxy/DB row; actual55
+operand по-прежнему неизвестен. Native metadata DTO/filter сохраняет status,
+но raw Engine callback metadata нельзя выдавать за stamped proxy-вход.
+Изолированный env `local/goal584/native55-main-review/native-library-venv`
+сохранён для follow-up/cleanup; два synthetic loopback запроса, серверы закрыты.
+Eight native hashes совпали после явно записанного CRLF→LF Windows wheel;
+stand source identity этим не подменяется. Следующий CI до публикации не запущен.
+Evidence: `native56-diagnostic-{readiness,independent}.md`,
+`native55-main-review/native-{transport,library}-review.*` под `local/goal584/`.
+
 Для следующего Office source-среза создан отдельный task worktree
 `D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-office`, branch
-`agent/goal584-office-native`, base458b4f39. В него скопированы два frozen
+`agent/goal584-office-native`, создан от458b4f39 и fast-forward до01354f3b.
+Все четыре frozen Office source/test bytes после смены базы повторно совпали;
+затронутые existing Office/Responses owners между базами не менялись.
+В него скопированы два frozen
 untracked component файла; основной опубликованный кандидат не меняется.
 Текущая независимая задача — тонко дополнить существующий synthetic provider
 реальным export→native FileID→render→PNG continuation. Новый backend/Files/LLM
@@ -79,6 +112,15 @@ Office provider подготовлен source-only:56focused PASS/0skip; actual 
 schema/FileID/typed PNG continuation использует существующие component owners.
 Независимое source ревью READY (56PASS/0skip); реальный OfficeCLI/browser/ledger/ACL ещё не принят,
 saved-chat image URL path требует runtime witness. Этот WIP не входит в Candidate55.
+Следующий runtime использует existing build owners frontend.Dockerfile →
+make_runtime_context → runtime.Dockerfile и Office service Dockerfile; prepare_stage
+с копированием deployment data не используется. Official Node22-alpine3.20 builder
+разрешён read-only через Registry и закреплён OCI index2289fb1f… (linux/amd64,
+Node22.16.0); build пока не выполнялся. Native schema discovery/Session/Chat/Files
+остаются owners; synthetic provider — representation adapter, coordinator задаёт
+только порядок вызовов. Source/binary/frontend/build provenance заменит literal
+production image equality только для проверенного rebuilt candidate. Existing
+five-service admission не ослабляется: Office требует отдельной strict6 binding.
 
 **Уточнение KISS/native-first,04.11:** запрошенный read-only upstream review завершён;
 новые архитектурные слои не добавляем. Для HTML уже есть merged

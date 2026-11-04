@@ -49,6 +49,32 @@ def digest(value):
     return overlap.digest(value)
 
 
+def audit_shape_diagnostic(row,meta):
+    """Fixed scalar projection only; never return a row, text or caller identifiers."""
+    def scalar(value):
+        kinds={type(None):'missing',bool:'bool',int:'int',float:'float',str:'str',dict:'dict',list:'list'}
+        result={'type':kinds.get(type(value),'other')}
+        if type(value) in (int,float) and abs(value)<=1_000_000_000 and math.isfinite(value):
+            result['value']=value
+        return result
+    def status(value):
+        return value if value in ('success','failure') else 'missing' if value is None else 'other'
+    info=meta.get('error_information')
+    info=info if isinstance(info,dict) else {}
+    try:spend_zero=amount(row.get('spend'))==0
+    except Exception:spend_zero=None
+    checks={'row_status_failure':row.get('status')=='failure',
+        'metadata_status_failure':meta.get('status')=='failure','spend_zero':spend_zero,
+        **{key+'_zero_int':type(row.get(key)) is int and row[key]==0 for key in USAGE},
+        'error_class_native':info.get('error_class')=='InternalServerError',
+        'error_code_expected':info.get('error_code')=='proof_provider_500'}
+    return {'checks':checks,'row_status':status(row.get('status')),
+        'metadata_status':status(meta.get('status')),'spend':scalar(row.get('spend')),
+        'usage':{key:scalar(row.get(key)) for key in USAGE},
+        'error_code_kind':'controlled_provider' if info.get('error_code')=='proof_provider_500'
+            else 'http_500' if info.get('error_code')=='500' else 'missing' if info.get('error_code') is None else 'other'}
+
+
 def failure_diagnostic(error,stage):
     """Fixed representation plus an owned-source coordinate; never error text."""
     known=(ProofError,AttributeError,TypeError,KeyError,ValueError,OSError,TimeoutError,
@@ -60,6 +86,10 @@ def failure_diagnostic(error,stage):
         while trace is not None:
             if owned.name=='prove_failure_recovery.py' and Path(trace.tb_frame.f_code.co_filename).resolve()==owned:
                 result.update(source_basename='prove_failure_recovery.py',source_line=trace.tb_lineno)
+                if type(error) is ProofError and str(error)=='failure_audit_shape' and trace.tb_frame.f_code.co_name=='verify':
+                    row,meta=(trace.tb_frame.f_locals.get(name) for name in ('row','meta'))
+                    if isinstance(row,dict) and isinstance(meta,dict):
+                        result['audit']=audit_shape_diagnostic(row,meta)
             trace=trace.tb_next
     except Exception:pass
     return result

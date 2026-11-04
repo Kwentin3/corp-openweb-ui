@@ -363,7 +363,8 @@ class CoordinatorTests(unittest.TestCase):
     def test_safe_primary_coordinate_points_to_actual_failed_guard_and_private_writer_cannot_replace_it(self):
         world,runner,result,error,saved=self.replay('paid_failure')
         diagnostic=runner.receipt['failure']
-        self.assertEqual(set(diagnostic),{'stage','exception_class','source_basename','source_line'})
+        self.assertEqual(set(diagnostic),{'stage','exception_class','source_basename','source_line','audit'})
+        self.assertIs(diagnostic['audit']['checks']['spend_zero'],False)
         self.assertEqual(diagnostic['stage'],'failure');self.assertEqual(diagnostic['exception_class'],'ProofError')
         self.assertEqual(diagnostic['source_basename'],'prove_failure_recovery.py')
         guard=next(node for node in ast.walk(ast.parse(Path(M.__file__).read_bytes())) if isinstance(node,ast.Call)
@@ -380,6 +381,77 @@ class CoordinatorTests(unittest.TestCase):
         with patch.object(World,'row',paid):world,runner,result,error,saved=self.replay('failure_private_write')
         self.assertEqual(str(error),'failure_audit_shape');self.assertTrue(runner.receipt['primary_failure_write_failed'])
         self.assertEqual(runner.receipt['failure']['exception_class'],'ProofError')
+        self.assertEqual(runner.receipt['failure']['audit'],diagnostic['audit'])
+
+    def test_actual_compound_guard_diagnostic_distinguishes_types_values_and_never_exports_private_fields(self):
+        original=World.row
+        cases=(
+            ('paid',{'spend':.1},{},'spend_zero',('spend',{'type':'float','value':.1})),
+            ('usage_missing',{'prompt_tokens':None},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'missing'})),
+            ('usage_float',{'prompt_tokens':0.0},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'float','value':0.0})),
+            ('usage_bool',{'prompt_tokens':False},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'bool'})),
+            ('usage_nonzero',{'prompt_tokens':1},{},'prompt_tokens_zero_int',('prompt_tokens',{'type':'int','value':1})),
+            ('completion_nonzero',{'completion_tokens':1},{},'completion_tokens_zero_int',('completion_tokens',{'type':'int','value':1})),
+            ('total_nonzero',{'total_tokens':1},{},'total_tokens_zero_int',('total_tokens',{'type':'int','value':1})),
+            ('class',{}, {'error_class':SECRET},'error_class_native',None),
+            ('foreign_code',{}, {'error_code':SECRET},'error_code_expected','other'),
+            ('http_code',{}, {'error_code':'500'},'error_code_expected','http_500'),
+            ('missing_code',{}, {'error_code':None},'error_code_expected','missing'),
+        )
+        expected_checks={'row_status_failure','metadata_status_failure','spend_zero',
+            *(key+'_zero_int' for key in M.USAGE),'error_class_native','error_code_expected'}
+        for label,fields,info,failed,projection in cases:
+            def changed(world,*args,**kwargs):
+                row=original(world,*args,**kwargs)
+                if row['status']=='failure':
+                    row.update(fields);row['metadata']['error_information'].update(info,error_message=SECRET)
+                    row['metadata']['raw_private']={'sourceText':SECRET,'key':SECRET,'payer':SECRET,'scope':SECRET}
+                    if label in ('usage_missing','missing_code'):
+                        (row if label=='usage_missing' else row['metadata']['error_information']).pop(
+                            'prompt_tokens' if label=='usage_missing' else 'error_code')
+                return row
+            with self.subTest(case=label),patch.object(World,'row',changed):
+                world,runner,result,error,saved=self.replay()
+                self.assertIsNone(result);self.assertIsInstance(error,M.ProofError)
+                self.assertEqual(str(error),'failure_audit_shape');self.assertEqual(len(world.requests),2)
+                diagnostic=runner.receipt['failure'];audit=diagnostic['audit']
+                self.assertEqual(set(audit),{'checks','row_status','metadata_status','spend','usage','error_code_kind'})
+                self.assertEqual(set(audit['checks']),expected_checks)
+                self.assertEqual({key for key,value in audit['checks'].items() if value is False},{failed})
+                self.assertTrue(all(type(value) is bool for value in audit['checks'].values()))
+                self.assertEqual(audit['row_status'],'failure');self.assertEqual(audit['metadata_status'],'failure')
+                self.assertEqual(set(audit['usage']),set(M.USAGE))
+                if isinstance(projection,tuple):
+                    key,value=projection;self.assertEqual(audit['spend'] if key=='spend' else audit['usage'][key],value)
+                self.assertEqual(audit['error_code_kind'],projection if isinstance(projection,str) else 'controlled_provider')
+                serialized=json.dumps(runner.receipt,allow_nan=False)
+                self.assertNotIn(SECRET,serialized)
+                for private in ('raw_private','sourceText','error_message','owui_budget','api_key','session_id'):
+                    self.assertNotIn(private,json.dumps(diagnostic))
+                self.assertEqual(saved['primary_failure']['message'],'failure_audit_shape')
+
+    def test_diagnostic_projection_bounds_malformed_scalars_and_requires_owned_guard_frame(self):
+        cases=((None,'missing',False),(False,'bool',False),('private '+SECRET,'str',False),
+            ({'sourceText':SECRET},'dict',False),([SECRET],'list',False),(Decimal(0),'other',False),
+            (0,'int',True),(1_000_000_000,'int',True),(-1_000_000_000,'int',True),(.5,'float',True),
+            (1_000_000_001,'int',False),(10**10000,'int',False),(float('nan'),'float',False),
+            (float('inf'),'float',False),(-float('inf'),'float',False))
+        for value,kind,bounded in cases:
+            # Direct malformed-data seam avoids feeding invalid JSON to the real
+            # private writer; actual coordinator rejection is covered above.
+            with self.subTest(kind=kind,bounded=bounded):
+                row={'spend':value,**dict.fromkeys(M.USAGE,value),'status':SECRET}
+                audit=M.audit_shape_diagnostic(row,{'status':SECRET,'error_information':[SECRET]})
+                for scalar in (audit['spend'],*audit['usage'].values()):
+                    self.assertEqual(scalar,{'type':kind,**({'value':value} if bounded else {})})
+                self.assertEqual(audit['row_status'],'other');self.assertEqual(audit['metadata_status'],'other')
+                self.assertEqual(audit['error_code_kind'],'missing')
+                self.assertIs(audit['checks']['error_class_native'],False)
+                self.assertIs(audit['checks']['error_code_expected'],False)
+                self.assertNotIn(SECRET,json.dumps(audit,allow_nan=False))
+        try:raise M.ProofError('failure_audit_shape')
+        except M.ProofError as error:diagnostic=M.failure_diagnostic(error,'failure')
+        self.assertNotIn('audit',diagnostic)
 
     def test_restore_only_error_keeps_actual_safe_class_coordinate_and_raw_text_private(self):
         world,runner,result,error,saved=self.replay('restore_only_failure')
