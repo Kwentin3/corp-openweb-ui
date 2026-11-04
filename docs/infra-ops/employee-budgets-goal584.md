@@ -108,7 +108,7 @@ Evidence: `native56-diagnostic-{readiness,independent}.md`,
 `native55-main-review/native-{transport,library}-review.*`,
 `native56-main-review/{recovery-review.safe.json,native-usage-origin.md}` под `local/goal584/`.
 
-**Candidate57 подготовлен, ещё не опубликован:** проверка usage теперь сравнивает
+**Candidate57:** проверка usage теперь сравнивает
 row с результатом существующего pinned native `_estimate_dispatched_failure_usage`
 для строго проверенного actual physical body/model. Новый tokenizer/calculator,
 ledger и native core patch не добавлены; zero-spend/status/class/provider-code,
@@ -119,6 +119,25 @@ hold/release/deadline/history/restoration guards сохранены. Девят�
 targeted tests (2PASS/0skip). Actual worker import/DB row/release/recovery требуют
 стенда. Это исправление неверного test expectation, не новая финансовая логика.
 Evidence: `native57-native-usage-{readiness,independent}.md`, `candidate57-final-checks.log`.
+Опубликован headfe7f98a2cefb57d620496b052ed45aa63574f92e, remote readback совпал;
+tested mergee0bb2fc79093e3ec2e9c30d791a0e62e75bdbf52, tree diff пуст.
+[Native57/41831974915](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41831974915)
+выполняется; ActiveCI158/41831974864 SUCCESS. PR585 draft/open, body readback совпал.
+Actual runtime ещё не принят; Office WIP исключён. Метаданные:
+`local/goal584/candidate57-publish.safe.json`.
+Pricing и оба calendar jobs57 завершились SUCCESS; independent review и parent
+повтор прежних financial/source guards PASS,36pricing+12calendar mutations
+отклонены. Три actual ZIP/GitHub digest/source/mount/build/cleanup binding совпали;
+cleanup0/0/0. Positive-floor critical interval2.606836s<5s, period.40/lifetime.60,
+3success+1zero-denial rows; pricing.20/.20/.40, user/key.80. Main57 пока выполняется.
+Evidence: `local/goal584/native57-{pricing,calendar}-review/{report.md,replay.py}`.
+Все четыре jobs57 теперь terminal SUCCESS; main126581159979 artifact13323507576,
+ZIP SHA861b878f72af5eed394b3b4b4c65169c21b09e9c26716828188f44498a17aa49,
+221files. Independent recovery replay PASS: holdR.98/unfinished, release live0,
+одна failure row spend0, затем recovery5.838514s<15s с finalspend.20 и restoration.
+Parent просмотрел actual Responses Details PNG: обе полные таблицы .40/2calls/
+20input/10output/30total видны; full main financial/context/source acceptance
+ещё завершается. GOAL не завершён, baseline пока не повышен по одному CI SUCCESS.
 
 Для следующего Office source-среза создан отдельный task worktree
 `D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-office`, branch
@@ -144,6 +163,39 @@ Node22.16.0); build пока не выполнялся. Native schema discovery/
 только порядок вызовов. Source/binary/frontend/build provenance заменит literal
 production image equality только для проверенного rebuilt candidate. Existing
 five-service admission не ослабляется: Office требует отдельной strict6 binding.
+Office builder source review READY, actual build ещё не выполнен. Retained прежний
+frontend receipt32a4bf7a… показал NODE_OPTIONS max-old-space-size5120 и sampled
+NodeRSS4,632,199,168bytes. В Office worktree existing frontend.Dockerfile получил
+optional ARG/ENV NODE_OPTIONS с прежним empty default; builder явно передаёт5120,
+включает его в build identity и требует6GiB availableRAM/7GiB DockerMem/20GiB disk.
+Builder3bb74ef4…/frontend e1c60de6… source-only; help и existing runtime packager
+2PASS, independent delta READY. Это пороги admission, не доказательство достаточности
+ресурсов. Готовится отдельный CI build/preflight через existing tests/Dockerfile:
+test extras добавляются только qualification derivative, product image сохраняется.
+Сквозной Office/browser/FileACL/ledger всё ещё не принят. Evidence:
+`local/goal584/office-builder-independent-review.md`, `office-profile-admission-options.md`.
+
+**Candidate58 source подготовлен:** в основную task copy перенесены только frozen
+builder3bb74ef4…, frontend e1c60de6… и отдельный workflow664cc7c1…;
+provider/Office component WIP не включаются. Workflow использует55min job/45min
+build, existing tests/Dockerfile qualification derivative от actualOfficeimage,
+неизменённый real CLI saved-note export/table/render preflight offline и always
+cleanup только task names/actualiids. Product dependencies проверяются readback.
+Исходный schema KeyError modules (image dict вместо office observation) сохранён;
+исправленный actual qualifier с builder-shaped receipt прошёл6cases external-Docker
+IO rehearsal, parent repeat PASS. Actionlint/Bashn/embeddedPython PASS, root проверил
+actual source/hash и actionlint. Реальная сборка/preflight пока не запускались.
+Evidence: `local/goal584/office-workflow-readiness/{report.md,replay.py}`.
+
+**Used-category gap, source/library only:** true native Responses helper с cached6,
+reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot
+сохраняется. Текущий descriptor проверяет только flat input/output, не actualusage:
+completionroute может остаться available с positive cached/reasoning, а Responses
+остаётся unknown по route/calltype eligibility. Absent/nullusage native helper
+возвращает0.0; это не доказанный proxy/DB bug и не подтверждённо бесплатный запрос.
+Следующий финансовый срез — эти native categories через actual synthetic proxy/
+ledger и отдельный unknownusage контроль; calculator/ledger/core patch не добавляем.
+Evidence: `local/goal584/native-used-categories-next-slice.md`.
 
 **Уточнение KISS/native-first,04.11:** запрошенный read-only upstream review завершён;
 новые архитектурные слои не добавляем. Для HTML уже есть merged

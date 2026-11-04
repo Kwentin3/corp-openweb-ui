@@ -1,0 +1,130 @@
+name: GOAL584 Office build proof
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/goal584-office-proof.yml
+      - scripts/goal584-budget-proof/build_office_profile.py
+      - deploy/openwebui-upgrade-0122/**
+      - deploy/openwebui-patches/media-upload-v0.12.2/**
+      - deploy/openwebui-patches/tool-context-v0.12.2/**
+      - deploy/openwebui-patches/provider-context-v0.12.2/**
+      - services/officecli-openapi-proof/**
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  office-build-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    defaults:
+      run:
+        shell: bash
+    env:
+      OWNED: goal584-office-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 1
+        with:
+          persist-credentials: false
+      - name: Prepare fresh task output
+        timeout-minutes: 1
+        run: |
+          BUILD_ROOT="$RUNNER_TEMP/$OWNED-build"; OUTPUT="$RUNNER_TEMP/$OWNED-output"
+          printf '%s\n' "BUILD_ROOT=$BUILD_ROOT" "OUTPUT=$OUTPUT" "DOCKER_CONFIG=$BUILD_ROOT/docker-config" >> "$GITHUB_ENV"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test ! -e "$BUILD_ROOT" && test ! -e "$OUTPUT"
+          mkdir -m 700 "$OUTPUT"
+          echo 'TASK_PREPARED=true' >> "$GITHUB_ENV"
+      - name: Build existing frontend, runtime and Office owners
+        timeout-minutes: 45
+        run: |
+          python3 -B scripts/goal584-budget-proof/build_office_profile.py \
+            --work-root "$BUILD_ROOT" --receipt "$BUILD_ROOT/office-build.safe.json" 2>&1 | tee "$OUTPUT/build-driver.log"
+      - name: Qualify the real CLI with the existing local-file preflight
+        timeout-minutes: 3
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,re,subprocess
+          from pathlib import Path
+          root=Path(os.environ['BUILD_ROOT']);out=Path(os.environ['OUTPUT'])
+          receipt=json.loads((root/'office-build.safe.json').read_text());office=receipt['images']['office'];observation=receipt['office']
+          assert receipt['source_commit']==os.environ['GITHUB_SHA'] and receipt['native_office_accepted'] is False
+          assert re.fullmatch('sha256:[0-9a-f]{64}',office['id']) and re.fullmatch('[0-9a-f]{64}',receipt['build_identity'])
+          assert re.fullmatch('goal584-office-office:[0-9a-f]{12}-[0-9a-f]{12}',office['tag'])
+          inspect=lambda:subprocess.check_output(['docker','image','inspect',office['tag'],'--format','{{.Id}}'],text=True).strip()
+          assert inspect()==office['id']
+          source=root/'source';dockerfile=source/'services/officecli-openapi-proof/tests/Dockerfile'
+          test=source/'services/officecli-openapi-proof/tests/verify_capability_discovery.py'
+          evidence={'schema':1,'office_image_id':office['id'],'dockerfile_sha256':hashlib.sha256(dockerfile.read_bytes()).hexdigest(),'test_sha256':hashlib.sha256(test.read_bytes()).hexdigest(),'stage':'qualification_build','preflight_passed':False,'native_office_accepted':False}
+          save=lambda:(out/'qualification.safe.json').write_text(json.dumps(evidence,indent=2)+'\n')
+          save()
+          tag='goal584-office-qualification:'+receipt['build_identity'];iid=out/'qualification.iid'
+          with (out/'qualification-build.log').open('wb') as log:
+              subprocess.run(['docker','build','--platform=linux/amd64','--iidfile',str(iid),'-f',str(dockerfile),'--build-arg','OFFICECLI_IMAGE='+office['tag'],'-t',tag,str(source)],stdout=log,stderr=subprocess.STDOUT,check=True)
+          assert inspect()==office['id'];image=iid.read_text().strip();assert re.fullmatch('sha256:[0-9a-f]{64}',image)
+          evidence.update(qualification_image_id=image,stage='qualification_readback');save()
+          readback="import hashlib,importlib.metadata,json,pathlib; r=pathlib.Path('/app/officecli_openapi_proof'); lock=pathlib.Path('/app/requirements.lock'); versions={n:importlib.metadata.version(n) for n in ('openpyxl','pytest','aiohttp')}; print(json.dumps({'modules':{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(observation['modules']))+"},'binary_sha256':hashlib.sha256(pathlib.Path('/usr/local/bin/officecli').read_bytes()).hexdigest(),'lock_sha256':hashlib.sha256(lock.read_bytes()).hexdigest(),'production_lock_matches':all(importlib.metadata.version(n)==v for n,v in (line.split('==') for line in lock.read_text().splitlines() if line and not line.startswith('#'))),'test_dependencies':versions}))"
+          common=['docker','run','--rm','--init','--network=none','--read-only','--memory=1g','--pids-limit=256','--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--label','goal584.owner='+os.environ['OWNED']]
+          actual=json.loads(subprocess.check_output(common+['--name',os.environ['OWNED']+'-readback','--entrypoint','python',image,'-B','-c',readback],text=True))
+          evidence.update(readback=actual);save()
+          assert actual['modules']==observation['modules'] and actual['binary_sha256']==observation['binary_sha256'] and actual['production_lock_matches']
+          assert actual['lock_sha256']==hashlib.sha256((source/'services/officecli-openapi-proof/requirements.lock').read_bytes()).hexdigest()
+          evidence.update(stage='preflight');save()
+          target='DiscoveryQualification.test_saved_note_uses_the_same_real_cli_import_and_refuses_a_changed_source'
+          with (out/'preflight.log').open('wb') as log:
+              result=subprocess.run(common+['--name',os.environ['OWNED']+'-preflight','--mount','type=bind,source='+str(test)+',target=/tests/verify_capability_discovery.py,readonly','--entrypoint','python',image,'-B','/tests/verify_capability_discovery.py',target],stdout=log,stderr=subprocess.STDOUT)
+          evidence.update(stage='complete',preflight_passed=result.returncode==0,returncode=result.returncode,test=target);save()
+          assert result.returncode==0,'Existing real-CLI preflight failed'
+          PY
+      - name: Remove only task containers and actual image IDs
+        if: always() && env.TASK_PREPARED == 'true'
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          root=Path(os.environ['BUILD_ROOT']);out=Path(os.environ['OUTPUT']);out.mkdir(exist_ok=True)
+          run=lambda args:subprocess.run(['docker',*args],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+          containers=[os.environ['OWNED']+'-readback',os.environ['OWNED']+'-preflight'];images=[];invalid=[];frontend=None;inventory_failed=False
+          for path in [out/'qualification.iid',root/'webui.iid',root/'office.iid',root/'frontend.iid']:
+              if path.exists():
+                  value=path.read_text().strip()
+                  if re.fullmatch('sha256:[0-9a-f]{64}',value):
+                      images.append(value)
+                      if path.name=='frontend.iid':frontend=value
+                  else:invalid.append(path.name)
+          if frontend:
+              found=run(['ps','-aq','--no-trunc','--filter','ancestor='+frontend]);inventory_failed=found.returncode!=0
+              for value in found.stdout.splitlines():
+                  if re.fullmatch('[0-9a-f]{64}',value) and run(['inspect','--format','{{.Image}}',value]).stdout.strip()==frontend:containers.append(value)
+                  else:inventory_failed=True
+          removed_containers={value:run(['rm','-f',value]).returncode for value in containers}
+          removed_images={value:run(['image','rm','-f',value]).returncode for value in dict.fromkeys(images)}
+          remaining_containers=[value for value in containers if run(['container','inspect',value]).returncode==0]
+          remaining_images=[value for value in images if run(['image','inspect',value]).returncode==0]
+          reachable=run(['info','--format','{{.ServerVersion}}']).returncode==0
+          safe={'schema':1,'docker_reachable':reachable,'container_remove_returncodes':removed_containers,'image_remove_returncodes':removed_images,'remaining_containers':remaining_containers,'remaining_images':remaining_images,'invalid_iid_files':invalid,'container_inventory_failed':inventory_failed,'build_cache_removed':False,'native_office_accepted':False}
+          (out/'cleanup.safe.json').write_text(json.dumps(safe,indent=2)+'\n')
+          assert reachable and not remaining_containers and not remaining_images and not invalid and not inventory_failed,'Task cleanup incomplete'
+          PY
+      - name: Retain bounded build provenance and preflight diagnostics
+        if: always() && env.TASK_PREPARED == 'true'
+        timeout-minutes: 2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-office-build-${{ github.sha }}
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            ${{ env.OUTPUT }}/*.log
+            ${{ env.OUTPUT }}/*.safe.json
+            ${{ env.BUILD_ROOT }}/office-build.safe.json
+            ${{ env.BUILD_ROOT }}/build-inputs.json
+            ${{ env.BUILD_ROOT }}/git-inputs.json
+            ${{ env.BUILD_ROOT }}/frontend-sources.json
+            ${{ env.BUILD_ROOT }}/resources.json
+            ${{ env.BUILD_ROOT }}/commands.json
+            ${{ env.BUILD_ROOT }}/frontend/frontend-files.json
+            ${{ env.BUILD_ROOT }}/runtime-context/frontend-receipt.json
+            ${{ env.BUILD_ROOT }}/logs/*.log
