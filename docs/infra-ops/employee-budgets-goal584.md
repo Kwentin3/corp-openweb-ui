@@ -76,6 +76,38 @@ profile/approve/drain с внешними IO doubles,8Host mutations и13handoff
 (232PASS/7opt-in skips), actionlint и diff-check PASS.
 Evidence: `local/goal584/native-pricing-versions-integrated-readiness.{md,py,safe.json}`.
 
+**Native49: новый version milestone FAIL, причина пока не установлена.**
+Head `e716be6011e0d6e1f88096bcc270191b636f46bc`, tested merge
+`5a9cdb08f7acce453340d3c18822bbd75dee523d` (diff пуст),
+[run41794979455](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41794979455).
+Pricing job126456836858: catalog gate SUCCESS, version step FAIL на call_v1_S1
+с `version_worker_failed`/вложенным `version_external_failure`; v1 publication,
+identity и S1 reload прошли, но ни одного financial success packet нет, v2 не достигнут.
+Зафиксированы original config bytes equal/restoration failures[] и cleanup0/0/0.
+ZIP pricing `de1f30b6a6d407f2de8fa6ced88e891781f8cf9da9b536349607945e2c719514`
+проверен по actual GitHub digest. Общий safe code скрывает несколько разных причин;
+HTTP/provider/native billing причиной не объявляются. Следующий узкий diagnostic
+source-срез сохраняет только whitelist типа исключения и source basename/line
+в failed worker packet: без exception text, locals, полных путей и новых API-вызовов.
+25focused и448harness PASS/0skip; independent safe-FAIL review и parent повтор
+4cases PASS. Source75bb6a43/test891ef79c; product/native core не меняется,
+runtime ещё не повторён. Evidence дополнительно:
+`local/goal584/native49-pricing-review/diagnostic-readiness.{md,py,safe.json}`.
+Оба calendar jobs49 SUCCESS; parent replay basic/floor PASS,276floor checks,
+next5.300s<60/critical2.707s<5; оба cleanup0/0/0. Main49 пока выполняется.
+Evidence: `local/goal584/native49-pricing-review/`,
+`local/goal584/replay_native49_calendars.py`.
+
+После version proof остаются конкретные независимые срезы: native provider500
+до usage → release reservation → следующий affordable success без reset/TTL/restart;
+затем ordinary-user OfficeCLI export уже готового ответа → native render/download
+со сравнением полного контекста и ledger. Это предложения, не runtime acceptance.
+STT имеет отдельные microphone и Stage2 audio credential/billing paths, которые
+одним budget Filter автоматически не покрываются; historical deployment evidence
+не объявляется текущей конфигурацией. Read-only источники и representative inputs:
+`local/goal584/next-accounting-slice.md`,
+`local/goal584/current-route-compatibility-next-slice.md`.
+
 **Повторная upstream-сверка по напоминанию владельца о KISS.** Новые изменения
 и запуск стенда придержаны на время read-only проверки. Live GitHub readback
 04.11.2026 подтвердил:36953 closed/unmerged, авторский эскиз shared invalidation есть;

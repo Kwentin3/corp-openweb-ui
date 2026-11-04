@@ -530,6 +530,32 @@ class HostTests(unittest.TestCase):
             self.assertEqual(set(value),{'schema','proof','passed','action','result','failure_code'})
             return code,value,target.read_bytes() if target.exists() else None,writes
 
+    def test_actual_worker_cli_failure_retains_source_location_without_private_exception(self):
+        for error in (KeyError('sk-private-secret-000000'),M.ProofError('Expected JSON at /private/sk-private-secret-000000')):
+            stdout,stderr=io.StringIO(),io.StringIO()
+            with self.subTest(kind=type(error).__name__),patch.object(sys,'argv',
+                    ['probe','--worker-action','call','--project',PROJECT]), \
+                    patch.object(M,'worker',side_effect=error),redirect_stdout(stdout),redirect_stderr(stderr):
+                code=M.main()
+                value=json.loads(stdout.getvalue())
+                self.assertEqual(code,1);self.assertFalse(value['passed'])
+                self.assertEqual(value['failure_code'],'version_external_failure')
+                self.assertEqual(set(value),{'schema','proof','passed','action','result','failure_code'})
+                self.assertEqual(value['result']['stage'],'call')
+                location=value['result']['failure_location']
+                self.assertEqual(location['exception_type'],type(error).__name__)
+                self.assertTrue(location['frames'])
+                self.assertTrue(all(set(f)=={'source','line'} and f['source'] in M.SOURCE_PATHS
+                    and type(f['line']) is int and f['line']>0 for f in location['frames']))
+                self.assertEqual(stderr.getvalue(),'')
+                for private in ('sk-private','Expected JSON','/private/','Traceback'):
+                    self.assertNotIn(private,stdout.getvalue())
+
+    def test_failure_location_does_not_export_arbitrary_exception_type_or_file_path(self):
+        external=type('sk-private-secret-000000',(Exception,),{})
+        self.assertEqual(M.failure_location(external('/private/sk-private-secret-000000')),
+            {'exception_type':'ExternalError','frames':[]})
+
     def test_actual_main_final_writer_failure_preserves_primary_and_closed_safe_packet(self):
         for error in (OSError('private filesystem sk-private-secret-000000'),M.ProofError('private filesystem sk-private-secret-000000')):
             with self.subTest(writer=type(error).__name__):

@@ -493,6 +493,23 @@ class Host(ComposeDriver):
         return self.receipt
 
 
+def failure_location(error):
+    """Source coordinates only: never export exception text, locals or paths."""
+    kinds={'ProofError','ValueError','KeyError','TypeError','AttributeError',
+        'TimeoutError','OSError','IndexError','AssertionError'}
+    name=type(error).__name__
+    result={'exception_type':name if name in kinds else 'ExternalError','frames':[]}
+    frame=error.__traceback__
+    for _ in range(32):
+        if frame is None:break
+        source=Path(frame.tb_frame.f_code.co_filename).name
+        if source in SOURCE_PATHS:
+            result['frames'].append({'source':source,'line':frame.tb_lineno})
+        frame=frame.tb_next
+    result['frames']=result['frames'][-8:]
+    return result
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--worker-action',choices=('prepare','approve','identity','reload','call','drain','restore_catalog'))
@@ -514,6 +531,7 @@ def main():
     except Exception as e:
         packet['failure_code']=str(e) if isinstance(e,ProofError) and re.fullmatch('[a-z_]{1,80}',str(e)) else 'version_external_failure'
         if host:packet['result']=host.receipt
+        elif args.worker_action:packet['result']={'stage':args.worker_action,'failure_location':failure_location(e)}
     try:
         raw=encoded(packet)
         require(not re.search(rb'(?:sk-|gw-|Bearer\s)[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',raw),'version_public_credentials')
