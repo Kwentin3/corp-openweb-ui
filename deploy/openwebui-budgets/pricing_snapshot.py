@@ -9,6 +9,7 @@ immutability, source checking, or native effective-interval enforcement.
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 from datetime import datetime, timezone
 import math
 import re
@@ -118,7 +119,7 @@ def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route):
         unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[5]
         from litellm.proxy import proxy_server
         settings = proxy_server.general_settings
-        if not isinstance(settings, dict) or settings.get("allow_client_side_credentials") not in (None, False):
+        if not isinstance(settings, Mapping) or settings.get("allow_client_side_credentials") not in (None, False):
             return unknown
         unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[6]
         router = proxy_server.llm_router

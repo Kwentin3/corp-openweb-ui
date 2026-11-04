@@ -342,6 +342,54 @@ class PricingSnapshotTests(unittest.TestCase):
             self.run_hooks(owner)
         return self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY]
 
+    def native_settings(self, configured, database):
+        # Load the complete pinned settings owner and its two native dependencies;
+        # avoid importing/initializing the LiteLLM SDK during this boundary test.
+        package = "litellm.proxy.config_resolvers."
+        with patch.dict(sys.modules):
+            for leaf in ("_descriptors", "settings_rules", "settings_store"):
+                module = ModuleType(package + leaf)
+                sys.modules[module.__name__] = module
+                exec(compile(source("proxy/config_resolvers/" + leaf + ".py"),
+                             "pinned-native-" + leaf, "exec"), module.__dict__)
+            store = module.SettingsStore("general_settings")
+            store.load_yaml(configured)
+            store.apply_db_row("general_settings", database)
+            namespace = {"SettingsStore": module.SettingsStore}
+            execute(selected("proxy/proxy_server.py", {"_bind_general_settings_store"}), namespace)
+            namespace["_bind_general_settings_store"](store)
+            self.assertIs(namespace["general_settings"], store)
+            self.assertIsInstance(store, Mapping)
+            self.assertNotIsInstance(store, dict)
+            return store
+
+    def test_actual_native_settings_store_preserves_config_ownership_and_auth_guard(self):
+        key = "allow_client_side_credentials"
+        for configured, database, available in (
+            ({}, {}, True), ({}, {key: True}, False),
+            ({key: False}, {key: True}, True), ({key: True}, {key: False}, False),
+        ):
+            with self.subTest(configured=configured, database=database):
+                owner, router, proxy, modules, before = self.protected_owner()
+                settings = self.native_settings(configured, database)
+                original = dict(settings)
+                proxy.general_settings = settings
+                result = self.capture_protected(owner, modules)
+                expected = ({"schema": 1, "availability": "available", "descriptor": self.descriptor()}
+                            if available else {"schema": 1, "availability": "unknown", "descriptor": None,
+                                               "reason": "settings"})
+                self.assertEqual(result, expected)
+                self.assertEqual(dict(settings), original)
+                self.assertEqual(self.bucket(owner)[self.adapter.SNAPSHOT_KEY]["rates"]["input_cost_per_token"], .01)
+
+    def test_settings_objects_outside_native_mapping_contract_still_fail_closed(self):
+        for settings in (None, [], SimpleNamespace(allow_client_side_credentials=False)):
+            with self.subTest(settings=settings):
+                owner, router, proxy, modules, before = self.protected_owner()
+                proxy.general_settings = settings
+                self.assertEqual(self.capture_protected(owner, modules),
+                                 {"schema": 1, "availability": "unknown", "descriptor": None, "reason": "settings"})
+
     def test_native_fields_are_exact_and_frozen(self):
         self.assertEqual(tuple(field.name for field in fields(self.native["BilledTokenRates"])), self.adapter.RATE_FIELDS)
         rates = self.price(self.owner(), 0.000001)

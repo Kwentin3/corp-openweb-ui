@@ -158,6 +158,43 @@ Historical cause-replay50 теперь использует exact-Git TemporaryD
 Это historical WIP, не итоговый кандидат; удаление native Git без force, readback
 worktree/ref подтверждён. Receipt: `local/goal584/pricing-author-preservation/`.
 
+**Native51: причина descriptor unknown сужена до штатного settings owner.**
+Head9899de01d6d0893e6076c86b1954e4a711c7c3e8, exact tested merge
+b6d6007b39b23127be35e6e0253dc93bfaef8384 (diff пуст),
+[run41800293996](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41800293996).
+Active CI152 SUCCESS. Pricing job126474119751 FAIL: catalog PASS37observations/
+80API/26sources/13read-only mounts; versions FAIL на call_v1_S1 с точным
+`version_descriptor_settings`, без прежнего null dereference. Actual artifact
+13307463293 ZIP38f27a52d30db29237b631ae96a882a8e927a35b007ae7f13f7803489a2b0308
+проверен по GitHub digest;10catalog и10version mutations отклонены.
+Original config bytes restored/failures[], cleanup0/0/0. Полные financial packets
+версий и второй тариф этим ещё не приняты. Evidence/replay:
+`local/goal584/native51-pricing-review/`.
+
+Оба calendar jobs51 SUCCESS. Independent acceptance: basic next8.830s<60,
+floor critical1.848s<5;26exact-Git sources/12mounts на worker, native core/patch
+неизменны, cleanup0/0/0,6financial mutations на каждый профиль отклонены.
+Independent acceptance и parent повтор:
+`local/goal584/native51-calendar-review/replay.py`.
+Main51 SUCCESS; независимая проверка его artifacts пока выполняется.
+
+**Следующий узкий callback fix:** native ProxyConfig после загрузки вызывает
+`_bind_general_settings_store(self.settings)`; actual SettingsStore реализует
+MutableMapping, не dict. Это существующий native owner, не новый state store.
+Регрессия исполняет полные pinned settings_store/settings_rules/_descriptors и
+exact native bind: старый callback отвергает два допустимых mapping-контекста
+(36tests,2fails). Изменение только import Mapping и isinstance(settings,Mapping)
+устраняет эти отказы:36focused PASS. YAML/DB precedence остаётся у native owner,
+allow_client_side_credentials=true и не-mapping объекты по-прежнему unknown;
+остальные guards и billed rates сохранены. Callback SHA7c36fb9d/testb81cd7e4;
+три существующих source pins обновлены. Полный local runner450harness PASS/0skip,
+244component checks(237PASS/7opt-in skips), новые future failure probes исключены.
+Independent source readiness и parent replay PASS:2expected before failures,
+36after PASS/0skip,4actual native owner→callback→consumer cases. Полный callback
+AST отличается только Mapping import/type predicate; native core не меняется.
+Replay: `local/goal584/native51-pricing-review/settings-fix-readiness.py`.
+Это source-кандидат, runtime ещё не проверен.
+
 После version proof остаются конкретные независимые срезы: native provider500
 до usage → release reservation → следующий affordable success без reset/TTL/restart;
 затем ordinary-user OfficeCLI export уже готового ответа → native render/download
