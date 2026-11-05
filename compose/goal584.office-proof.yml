@@ -4,6 +4,7 @@
 services:
   proxy:
     environment:
+      PYTHONPATH: /proof
       CUSTOM_TIKTOKEN_CACHE_DIR: /proof-tokenizers
     volumes:
       - type: bind

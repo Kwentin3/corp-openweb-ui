@@ -131,7 +131,27 @@ source guard и UI changes делегированы независимыми о�
 единственный trigger include=[reasoning.encrypted_content], но actual second Send/
 reload и finite second-turn provider branch ещё предстоит реализовать/принять.
 
-**Candidate72 source, ещё не опубликован/не принят runtime:** thin native
+**Candidate72: Office startup FAILED; unknown-policy gate не исполнился:**
+head1e8f3e2976a3d186f79b88ec913a2d6c664abce5,
+merge394ac035066225b314661dcfe74ab617137cfd0b, tree diff пуст; PR585 draft,
+body повторно прочитан без расхождений. [Office72/42076207916](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42076207916),
+[Native72/42076207877](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42076207877),
+[Active CI/42076207885](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42076207885)
+terminal: Native все4jobs SUCCESS, Active CI SUCCESS; Office FAILED до bootstrap,
+inference и нового policy gate. Main artifact review исполняется. Calendar
+basic/positive-floor jobs SUCCESS; independent
+artifact/cleanup review завершён и повторён root:20negative checks,26sources
+точно71,12mounts; floor final.499844s<5, basic8.717289s<60, оба cleanup0/0/0.
+Artifacts13438676666/13438976243, SHAaec213a5…/3fa961f0…;
+reader7938cccf…/result172afcd1… (`local/goal584/native72-calendar-review/`).
+Остальные jobs и новый unknown-policy gate ещё требуют отдельной приёмки.
+Pricing72 также принят independent review и root repeat:63negative checks,
+29sources точно71,14mounts/15native pins, flat.80/Responses.500,
+history/caps/restoration/cleanup0/0/0. Artifact13439830472/20159bytes,
+SHAbe5b6345…; reader93846dac… (`local/goal584/native72-pricing-review/`).
+Absent/null native0 здесь остаётся наблюдением без policy/finality; новый
+unknown-policy проверяется отдельно в Office72.
+Thin native
 UnknownUsageGuard114lines (e8f71d14…): personal typed nonstream Responses,
 original usageNone → existing full native assignment reader/read_service
 (историческое имя; personal/service scope проверяется отдельно) → ровно один
@@ -207,6 +227,49 @@ Host8case replay и10Bash/7Python syntax/factory/cleanup PASS. Frozen source rev
 не нашёл оставшихся blockers. Ранние failed runs сохранены как failed.
 Следующий обязательный шаг — actual isolated CI и independent artifact/cleanup acceptance. Production
 по-прежнему не меняется; source/fixture tests не объявляются runtime приёмкой.
+
+**Candidate73 готовится: узкое исправление cold import и диагностика.** Office72
+proxy exited3; artifact13439487048/615953bytes/SHA15478619… сохранён, cleanup
+проверен root:0containers/0volumes/0networks,5images/2helpers удалены, build cache
+сохранён. Proxy traceback отсутствует среди44files, поэтому точная CI причина
+не доказана. Независимый cold-mount/native-loader replay воспроизвёл missing
+unknown_usage_guard: get_instance_fn загружает первый config-relative файл, но
+не добавляет /proof в sys.path. Прежняя factory-репетиция заранее устанавливала
+test aliases и скрывала этот разрыв. Единственный env delta PYTHONPATH=/proof
+позволяет загрузить все3настоящих callbacks, private/network0; root повторил.
+Image/derivative/old overlays не объявляли PYTHONPATH, иной owner не заменяется.
+Нового core patch/product logic/API worker нет. Добавляется failure-only
+bounded redacted diagnostic перед прежним always-cleanup;6actual snippet cases
+PASS и11Bash/8Python/factory/cache/cleanup PASS. Независимый review нового wiring
+завершён без blockers: старые workflow steps/cleanup/upload не менялись.
+Runtime исправление пока не принято. Evidence:
+`local/goal584/office72-startup-diagnostic/`, `office73-diagnostic-replay.safe.json`.
+
+**Следующий GUI-срез готовится отдельно, без изменения tested72:** worktree
+`../corp-openweb-ui-goal584-unknown-ui`, branch `agent/goal584-unknown-ui`, base1e8f3e29.
+Разрешённая узкая адаптация existing Filter: сохранить nonstream request fact и
+ожидать собственный logical nonce только после native ACL/owner/saved-done/error
+проверки successful outlet. Source35lines/2files frozen;20focused checks PASS
+и root repeat20PASS/2.650s, independent source review20PASS/0skips, blockers нет. Применимые
+native nonstream handler/outlet AST точно совпали с accepted Office middleware
+d0c6eb1d…; весь stock module89c8b15a… не выдаётся за тот же deployed artifact.
+Подпись не объявляется physical dispatch; нового
+poller/store/history/core patch нет. Источник native middleware проверяется
+по затронутому шву относительно accepted Office overlay. Browser Send/сохранённый
+status и native block/ledger остаются обязательной отдельной приёмкой. Source
+не интегрируется/не публикуется до проверки и завершения текущего CI. Worktree
+сохранить до интеграции; безопасная уборка остаётся обязательной после неё.
+
+**KISS/native streaming gap, не новый допуск:** upstream PR43047 уже присутствует
+в pinned d665 и сохраняет предоставленный Usage, но не маркирует действительно
+отсутствующий. include_usage запрашивает telemetry, не доказывает её происхождение.
+Latest main UnreportedUsage не устраняет последующую оценку Usage. Нативные
+stream hooks видят нормализованные данные; source finding не является runtime
+доказательством. Простое nonstream переключение не сохраняет native Tool loop и
+не принято как замена workflow. Дополнительный core patch не согласован и не
+сделан. Evidence: `local/goal584/upstream-missing-usage-research.md`,
+`next-usage-native-hook.md`; следующий шаг — конкретное нативное решение gap,
+не объявлять streams покрытыми текущим API gate.
 
 **Candidate64, source:** descriptor теперь квалифицирует фактически использованные
 native billing categories, включая Responses/cache/reasoning; он не утверждает,

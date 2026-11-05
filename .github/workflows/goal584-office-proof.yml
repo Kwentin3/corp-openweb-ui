@@ -362,6 +362,43 @@ jobs:
           assert packet.get('unknown_cost_finality') is False and packet.get('explicit_zero_runtime_qualified') is False
           assert packet.get('browser_or_chat_ancestry_qualified') is False
           PY
+      - name: Retain bounded sanitized stand diagnostics before cleanup
+        if: failure() && env.PROOF_ENV_FILE != ''
+        timeout-minutes: 2
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import json,os,re,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import private_credentials
+          out=Path(os.environ['OUTPUT']);env_file=Path(os.environ['PROOF_ENV_FILE'])
+          packet={'schema':1,'collected':False,'native_office_accepted':False}
+          try:
+              values=[line.partition('=')[2] for line in env_file.read_text().splitlines() if '=' in line]
+              private=Path(os.environ['PROOF_PRIVATE_DIR'])
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  path=private/name
+                  if path.exists(): values.extend(private_credentials(read_private(path)))
+              command=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',str(env_file),
+                  '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml','-f','compose/goal584.office-proof.yml']
+              result=subprocess.run(command+['logs','--no-color','--tail','80','proxy','webui'],
+                  capture_output=True,text=True,timeout=30)
+              text=result.stdout+result.stderr
+              packet.update(returncode=result.returncode,oversized=len(text.encode())>128*1024)
+              if not packet['oversized']:
+                  for value in sorted(set(values),key=len,reverse=True):
+                      if value: text=text.replace(value,'[redacted]')
+                  text=re.sub(r'sk-[A-Za-z0-9_-]+','[key-redacted]',text)
+                  text=re.sub(r'postgresql://[^\s]+','[database-url-redacted]',text)
+                  text=re.sub(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[session-redacted]',text)
+                  (out/'stand-diagnostics.log').write_text(text,encoding='utf8')
+                  packet['collected']=result.returncode==0
+          except Exception as error:
+              packet['error_class']=type(error).__name__
+          (out/'stand-diagnostics.safe.json').write_text(json.dumps(packet,indent=2)+'\n',encoding='utf8')
+          print(json.dumps(packet))
+          PY
       - name: Remove only task containers and actual image IDs
         if: always() && env.TASK_PREPARED == 'true'
         timeout-minutes: 2
