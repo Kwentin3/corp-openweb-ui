@@ -293,11 +293,25 @@ def run(phase, d):
 def main():
     parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--phase', choices=('baseline', 'verify', 'diagnostic'), required=True)
     args = parser.parse_args()
-    try: result = run(args.phase, dependencies())
+    d = None
+    try:
+        d = dependencies()
+        result = run(args.phase, d)
     except Exception as error:
         code = str(error) if isinstance(error, ProofError) else ''
         result = {'schema': 1, 'phase': args.phase, 'passed': False, 'native_office_accepted': False,
                   'failure_code': code if re.fullmatch(r'office_[a-z_]+', code) else 'office_readback_failed'}
+        if code == 'office_service_dispatch_binding' and hasattr(error, 'office_service_binding') and d is not None:
+            try:
+                binding = error.office_service_binding
+                require(len(json.dumps(binding, allow_nan=False).encode()) <= 4096, 'office_binding_diagnostic_bound')
+                secrets = [value for path in (COMMON, OFFICE, d['OPERATOR_STATE'])
+                           for value in d['private_credentials'](d['read_private'](path))]
+                d['no_credentials'](binding, secrets)
+            except Exception: result['binding_diagnostic_collected'] = False
+            else:
+                result['binding_diagnostic_collected'] = True
+                result['binding_diagnostic'] = binding
     print(json.dumps(result, allow_nan=False)); return 0 if result['passed'] else 1
 
 

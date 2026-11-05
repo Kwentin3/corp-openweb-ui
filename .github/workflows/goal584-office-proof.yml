@@ -192,6 +192,28 @@ jobs:
               assert result.returncode==0 and packet.get('passed') is True,'Office native readback failed'
               assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
               return packet
+          def artifacts():
+              sys.path.insert(0,'services/officecli-openapi-proof')
+              from prove_office_compatibility import _nodes,verify_artifacts
+              call=next(item for item in primary[0]['response']['output'] if item['type']=='function_call')
+              exported=json.loads(next(item['output'] for item in primary[1]['body']['input']
+                  if item.get('type')=='function_call_output' and item['call_id']==call['call_id']))
+              images=[item['image_url'] for item in _nodes(primary[2]['body']['input']) if item.get('type')=='input_image']
+              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
+              png=base64.b64decode(images[0].partition(',')[2],validate=True)
+              document=Path(raw['paths']['browser']).read_bytes()
+              screenshot=Path(raw['paths']['screenshot']).read_bytes()
+              assert all(0<len(data)<=8*1024*1024 for data in (document,png,screenshot))
+              assert hashlib.sha256(document).hexdigest()==observed['docx_sha256']==exported['result_sha256']
+              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256']
+              # These are bounded files from this fresh synthetic SOURCE turn.
+              # Preserve the actual evidence even if a content assertion fails.
+              (fixture.output/'office.docx').write_bytes(document)
+              (fixture.output/'office-render.png').write_bytes(png)
+              (fixture.output/'office-browser.png').write_bytes(screenshot)
+              return verify_artifacts(source_message_id=observed['source_message_id'],exported=exported,
+                  native_file_id=observed['file_id'],browser_file_id=observed['file_id'],
+                  native_path=raw['paths']['native'],browser_path=raw['paths']['browser'],png=png)
           try:
               ready=fixture.prepare(base,build,os.environ['GITHUB_SHA'])
               assert ready['status']=='prepared' and ready['native_office_accepted'] is False and ready['inference_issued'] is False
@@ -218,20 +240,7 @@ jobs:
               stage='wire_diagnostic';readback('diagnostic');wire_diagnostic_collected=True
               stage='native_finance';financial=readback('verify')
               stage='artifact'
-              sys.path.insert(0,'services/officecli-openapi-proof')
-              from prove_office_compatibility import _nodes,verify_artifacts
-              call=next(item for item in primary[0]['response']['output'] if item['type']=='function_call')
-              exported=json.loads(next(item['output'] for item in primary[1]['body']['input']
-                  if item.get('type')=='function_call_output' and item['call_id']==call['call_id']))
-              images=[item['image_url'] for item in _nodes(primary[2]['body']['input']) if item.get('type')=='input_image']
-              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
-              png=base64.b64decode(images[0].partition(',')[2],validate=True)
-              checked=verify_artifacts(source_message_id=observed['source_message_id'],exported=exported,
-                  native_file_id=observed['file_id'],browser_file_id=observed['file_id'],
-                  native_path=raw['paths']['native'],browser_path=raw['paths']['browser'],png=png)
-              (fixture.output/'office.docx').write_bytes(Path(raw['paths']['browser']).read_bytes())
-              (fixture.output/'office-render.png').write_bytes(png)
-              (fixture.output/'office-browser.png').write_bytes(Path(raw['paths']['screenshot']).read_bytes())
+              checked=artifacts()
               public('office-native',{'schema':1,'passed':True,'stage':'bounded_native_office',
                   'native_office_accepted':False,'browser_observed':True,'artifact':checked,'financial':financial,
                   'limits':['independent artifact review pending','no production or full GOAL acceptance',
@@ -250,6 +259,14 @@ jobs:
                   try: readback('diagnostic');wire_diagnostic_collected=True
                   except Exception: pass
               failure['wire_diagnostic_collected']=wire_diagnostic_collected
+              if stage!='artifact':
+                  try: public('office-artifact',{'passed':True,'native_office_accepted':False,**artifacts()})
+                  except Exception as artifact_error:
+                      failure['artifact_diagnostic_collected']=False
+                      failure['artifact_error_class']=type(artifact_error).__name__
+                      if isinstance(artifact_error,ProofError) and str(artifact_error).startswith('office_') and str(artifact_error).isascii() and str(artifact_error).isidentifier():
+                          failure['artifact_failure_code']=str(artifact_error)
+                  else: failure['artifact_diagnostic_collected']=True
               public('office-native',failure)
               raise SystemExit(1)
           PY

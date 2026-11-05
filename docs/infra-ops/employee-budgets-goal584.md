@@ -6,24 +6,21 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native66/20efeb1d. Все четыре Native jobs и Active CI
+принятый bounded baseline — Native67/4d7868f5. Все четыре Native jobs и Active CI
 SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
 policy, полная reasoning continuity и Office/STT/Terminal ещё не приняты.
 
-Office66 дошёл до настоящего браузерного Send: ответ завершён, DOCX создан и
-скачан, три follow-ups сохранены, доступ второго сотрудника к файлу —404/404.
-Финальная сверка отказала по `office_system_context` до ledger validators:
-проверка требовала top-level `instructions`. Точный штатный WebUI source
-показывает first system→developer перед Responses conversion; это объясняет
-допустимую другую форму, но actual wire в artifact66 не сохранён, поэтому
-присутствие полной инструкции пока неизвестно. Cleanup66: containers/volumes/
-networks0/0/0, пять принадлежащих прогону images удалены. Следующий кандидат
-исправляет только проверку/диагностику: полный текст из pinned AutoAttach owner
-обязателен в приоритетном канале, missing/truncated/user/tool quotes отклоняются.
-До CI повторяется полный native reasoning handler→Responses request на
-репрезентативном Office входе; core/рабочий маршрут не меняются.
+Office67 выполнил ordinary browser Send, native DOCX/download и три follow-ups.
+Actual safe wire теперь подтверждает полный pinned Office instruction во всех
+трёх developer/input_text запросах; auth before/after и provider context совпали,
+SOURCE/prior user/current request и14schemas сохранены. Личная финансовая сверка
+3calls/.60 прошла, затем `office_service_dispatch_binding` остановил отдельную
+служебную сверку. Точный не совпавший operand ещё не экспортирован: raw ledger
+остался приватным. Служебные status/usage/spend/rates/.20 пока не приняты.
+Следующий срез добавляет только safe operands этого отказа и сохраняет независимо
+проверенные Office файлы при financial failure; условия сверки не ослабляются.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
 новых native core patches нет. Office/provider/service и readback worker
@@ -372,6 +369,80 @@ context не обрезается и не объявляется полным. J
 Exact staged LF delivery hashes и CRLF equivalence сохранены отдельно в
 `local/goal584/candidate67-{index,checks}.safe.json`. Эти результаты разрешают
 следующий изолированный CI gate, но не заменяют actual Office artifact приёмку.
+Candidate67 опубликован: head4d7868f576a9a9541416882b2c6615ca3dc3c7bb,
+tested mergea9c00f70dd753a316a64df1c0677917744563ad6, tree diff пуст.
+Remote head и PR585 draft/open/body прочитаны обратно. На11:59UTC
+[Office67/42023191897](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42023191897)
+собирает actual images;
+[Native67/42023191851](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42023191851)
+выполняет main/pricing/calendars;
+[ActiveCI/42023191857](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42023191857)
+выполняется. Runtime67 пока не принят. Metadata —
+`local/goal584/candidate67-publish.safe.json`. До terminal не перепубликовывать
+ветку с cancel-in-progress workflows. Исходные два commercial WIP сохранены.
+
+**Office67 terminal FAIL:** run42023191897/job127230823199,
+artifact13412873312/786537bytes/SHA52f0a322…; full logfe5e0f6b….
+Actual diagnostic637550bytes содержит4auth+4provider observations. Во всех трёх
+personal calls полная инструкция SHA6f8393f4… находится в developer/input_text;
+before/after/provider exact join, SOURCE/prior user/current USER_REQUEST и14tools
+подтверждены exact-Git reader. Прежний `office_system_context` gap снят для67.
+Native personal finance3/.60 завершена до service guard. В service до отказа
+проверены ownership/caps/история, ровно одна новая row, native scope validator и
+SDK decoder; compound binding operand пока неизвестен. Nonstream raw-ID версия —
+только гипотеза: отдельный actual SDK mock-transport/Logging replay сохранил
+wrapped served/callback/standard-log ID, generic raw-ID premise не подтвердился.
+Не ослаблять native row binding без actual operand. Root повторил pricing67
+63negative/.80/.500 и calendars67 20negative/cleanup0/0/0; floor.544553s<5,
+basic5.30312s в отдельном basic60s bound. Main67 job SUCCESS, artifact review идёт.
+
+**Candidate68 WIP:** точный прежний service binding predicate сохранён внутри
+try/except. Только на этом ProofError добавляются whitelist scope/verified scope,
+native decoded/request ID, row model identity и expected actor/payer/chat/IDs;
+raw row/API key/arbitrary metadata не прикрепляются. CLI экспортирует snapshot
+только для fixed failure code после4KiB bound и existing secret check с actual
+common/office/operator credentials. Исходный FAIL сохраняется при unsafe output.
+Существующий artifact validator вынесен в один workflow helper; при более раннем
+financial отказе он также вызывается best effort. Actual DOCX/renderPNG/browserPNG
+этого fresh synthetic SOURCE сохраняются как evidence до content assertions,
+после8MiB/file bound и привязки DOCX SHA к browser receipt+tool result, screenshot
+SHA к browser receipt. Это позволяет изучить именно failed content без
+поддельной копии; false validator/financial status остаётся false. Оригинальная
+ошибка и cleanup сохраняются. Root focused264pytest PASS (208pure+56readback),
+затем9CLI pipeline cases PASS, включая новый native decoder→actual R.run/poll→
+safe failure binding export (не только исключение, созданное в CLI double).
+8Bash/5Python/5wiring checks PASS. Independent full-AST source review PASS:
+прежний service predicate и все последующие guards сохранены; прочие workflow
+steps/cleanup/upload unchanged. Actual extracted artifact helper прошёл6cases:
+valid3exports; hash drift/size отказ до export; semantic wrong source/invalid PNG
+сохраняются только как FAIL evidence. Root повторил этот reader и8failure-handler
+cases. Новая request репетиция заново исполнила3mock rounds/14schemas/7negatives,
+native counts751/1245/1467, estimates27.99/32.93/35.15<1000,callback2available/
+4unknown,0external calls; parent frozen replay PASS. Разница1–2tokens с67
+доказана volatile IDs/DOCX hash/required-array order без изменения actual68 bodies.
+Это component/rehearsal evidence, не actual Office acceptance. Дополнительный
+native SDK replay использует полные actual67 before_auth wire bodies из actual
+ZIP52f0a322… без нормализации. С реальными Tool results и PNG1600×1119/33038bytes
+input counts751/1644/29451, estimates27.99/36.92/314.99<1000;14schemas и полная
+developer инструкция сохранены,0external attempts. Последний native count выше
+synthetic model_info.max_input_tokens10000, но native estimator вернул конечный
+резерв: это отдельная наблюдаемая граница, не доказательство input-limit enforcement
+или точного provider token usage. Нового counter/core patch нет.
+Parent повторил actual-input native preflight PASS с теми же751/1644/29451 и
+27.99/36.92/314.99,0network attempts. Source readiness68 подтверждена; следующий
+шаг — изолированный same-job run и actual safe service binding operands.
+
+**Native67 bounded acceptance:** actual main artifact13413391856/3891576bytes/
+SHAcc2656b3…;95immutable review inputs/76Git snapshots,78PASS receipts,
+26negative checks. Все53declared inputs exact66; transitive pure32aec466… связан
+с обоими recovery workers/overlap и reviewed instruction-only AST delta.
+Recovery6.960743s<15, final cost08 settles8/8. Independent main review и parent
+frozen reader PASS; parent просмотрел actual Responses Details — обе полные
+таблицы.40/2calls/20input/10output/30total. Main cleanup containers/volumes пусты,
+networks не экспортированы. Pricing/calendars67 reader repeat уже PASS выше.
+Office67 parent reader повторён; actual PNG7c16680a…/33038bytes/1600×1119
+просмотрен: весь источник/таблица/суммы/подпись видимы. Raw DOCX/browserPNG не
+экспортированы и не реконструируются. Service binding/.20 по-прежнему не приняты.
 
 **Native54 опубликован:** head458b4f39b0235f44406be657da5bb2f453a5e8b8,
 tested mergea7404580a67916a01def250415a00ae77615f0e2, tree diff пуст;

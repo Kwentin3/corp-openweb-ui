@@ -140,7 +140,8 @@ def test_native_reasoning_callable_rejects_every_unrecorded_input(component, mon
 
 @pytest.mark.parametrize('change,expected', [('primary_rows', None), ('primary_counter', None),
     ('service_rows', None), ('service_counter', None), ('source', 'office_native_context_source'),
-    ('extra_rows', 'office_row_count'), ('counter_over', 'office_native_spend_delta'), ('malformed_packet', 'office_readback_failed')])
+    ('extra_rows', 'office_row_count'), ('counter_over', 'office_native_spend_delta'),
+    ('service_binding', 'office_service_dispatch_binding'), ('malformed_packet', 'office_readback_failed')])
 def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privately(component, monkeypatch, tmp_path, capsys, change, expected):
     data = scenario(component, monkeypatch)
     office = data['office']; office.update(stage='setup_complete', office_service_setup={'stage': 'readback_ready'})
@@ -158,6 +159,7 @@ def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privat
     elif change == 'source': data['packet']['source_body_sha256'] = '0' * 64
     elif change == 'extra_rows': partial['primary']['rows'].append({'request_id': 'unplanned-zero', 'spend': 0})
     elif change == 'counter_over': partial['primary']['user']['spend'] = .80
+    elif change == 'service_binding': partial['service']['rows'][-1]['request_id'] = data['provider']['requests'][-1]['id']
     else: data['packet'].pop('reasoning_cases')
     snapshots = []
     def inventory(native, prepared):
@@ -171,6 +173,7 @@ def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privat
     native = N.NativeProof('http://127.0.0.1:4000', 'private-test-operator', 2, {})
     d = dict(data['d'], OPERATOR_STATE='operator', read_private=read, write_private=write,
         native_client=lambda state: native, provider=lambda: copy.deepcopy(data['provider']), no_credentials=T.snapshots.no_credentials,
+        private_credentials=T.snapshots.private_credentials,
         WebUI=lambda: SimpleNamespace(ok=lambda *args, **kwargs: copy.deepcopy(data['saved'])),
         capture=SimpleNamespace(capture_lock=nullcontext, _read_locked=lambda: copy.deepcopy(data['capture'])))
     monkeypatch.setattr(R, 'inventory', inventory); monkeypatch.setattr(R, 'dependencies', lambda: d)
@@ -186,6 +189,10 @@ def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privat
         assert private['last_observation']['provider'] == data['provider']
         assert private['last_observation']['capture'] == data['capture']
         assert private['last_observation']['after'] == partial
+        if change == 'service_binding':
+            assert public['binding_diagnostic_collected'] is True
+            assert public['binding_diagnostic']['request_id'] == partial['service']['rows'][-1]['request_id']
+            assert public['binding_diagnostic']['scope'] == public['binding_diagnostic']['verified_scope']
 
 
 @pytest.mark.parametrize('message', ['sk-private-native-error-value', 'office_private sk-secret', 'office_unsafe-raw-detail'])
@@ -196,6 +203,27 @@ def test_cli_never_exports_unclassified_proof_error_prose(monkeypatch, capsys, m
     assert R.main() == 1
     result = json.loads(capsys.readouterr().out)
     assert result['failure_code'] == 'office_readback_failed' and message not in json.dumps(result)
+
+
+@pytest.mark.parametrize('unsafe', [None, 'credential', 'opaque_secret', 'oversize'])
+def test_cli_exports_only_bounded_secret_checked_service_binding_failure(monkeypatch, capsys, unsafe):
+    binding = {'decoded': {'model_id': None, 'response_id': 'resp_observed'}, 'scope': {'category': 'service'}}
+    if unsafe == 'credential': binding['decoded']['response_id'] = 'sk-' + 'x' * 32
+    elif unsafe == 'opaque_secret': binding['decoded']['response_id'] = 'opaque-private-password'
+    elif unsafe == 'oversize': binding['decoded']['response_id'] = 'x' * 4097
+    error = N.ProofError('office_service_dispatch_binding'); error.office_service_binding = binding
+    d = dict(OPERATOR_STATE='operator', read_private=lambda path: {'password': 'opaque-private-password'},
+        private_credentials=T.snapshots.private_credentials, no_credentials=T.snapshots.no_credentials)
+    monkeypatch.setattr(R, 'dependencies', lambda: d)
+    def fail(*args): raise error
+    monkeypatch.setattr(R, 'run', fail)
+    monkeypatch.setattr('sys.argv', ['prove_office_readback.py', '--phase', 'verify'])
+    assert R.main() == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result['failure_code'] == 'office_service_dispatch_binding' and result['passed'] is False
+    assert result['binding_diagnostic_collected'] is (unsafe is None)
+    assert result.get('binding_diagnostic') == (binding if unsafe is None else None)
+    assert 'opaque-private-password' not in json.dumps(result) and 'sk-' + 'x' * 32 not in json.dumps(result)
 
 
 def diagnostic(data, *, secrets=()):
@@ -281,9 +309,10 @@ def test_diagnostic_cli_reuses_actual_collector_context_io_without_inventory_or_
     assert 'opaque-private' not in json.dumps(result)
 
 
+@pytest.mark.parametrize('artifact_available', [False, True])
 @pytest.mark.parametrize('diagnostic_available', [False, True])
 @pytest.mark.parametrize('already_collected', [False, True])
-def test_workflow_diagnostic_runs_before_verify_and_failure_collection_preserves_original_error(diagnostic_available, already_collected):
+def test_workflow_diagnostic_runs_before_verify_and_failure_collection_preserves_original_error(diagnostic_available, already_collected, artifact_available):
     workflow = yaml.safe_load((T.ROOT / '.github/workflows/goal584-office-proof.yml').read_bytes())
     step = next(s for s in workflow['jobs']['office-build-proof']['steps']
                 if s.get('name', '').startswith('Prepare Office and verify'))
@@ -299,7 +328,10 @@ def test_workflow_diagnostic_runs_before_verify_and_failure_collection_preserves
         calls.append(phase)
         if not diagnostic_available: raise N.ProofError('office_diagnostic_bound')
         return {'passed': True}
-    namespace = dict(ProofError=N.ProofError, stage='native_finance', readback=readback,
+    def artifacts():
+        if not artifact_available: raise N.ProofError('office_artifact_unavailable')
+        return {'docx_sha256': 'a' * 64, 'png_sha256': 'b' * 64}
+    namespace = dict(ProofError=N.ProofError, stage='native_finance', readback=readback, artifacts=artifacts,
         wire_diagnostic_collected=already_collected,
         fixture=SimpleNamespace(secrets=[]), no_credentials=T.snapshots.no_credentials,
         public=lambda name, value: collected.update({name: value}))
@@ -310,6 +342,8 @@ def test_workflow_diagnostic_runs_before_verify_and_failure_collection_preserves
     result = collected['office-native']
     assert result['passed'] is False and result['failure'] == 'office_system_context'
     assert result['stage'] == 'native_finance' and result['wire_diagnostic_collected'] is (already_collected or diagnostic_available)
+    assert result['artifact_diagnostic_collected'] is artifact_available
+    assert ('office-artifact' in collected) is artifact_available
 
 
 class HttpResult:

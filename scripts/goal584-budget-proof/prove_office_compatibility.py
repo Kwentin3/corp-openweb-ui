@@ -498,11 +498,23 @@ def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, pr
     spend = metadata["spend_logs_metadata"]
     scope = validate_scope(spend["owui_budget"])
     decoded = decode_response_id(row["request_id"])
-    require(scope == verified_scope and scope["user_id"] == payer and scope["actor_id"] == actor
-            and scope["chat_id"] == chat_id and scope["model"] == "gpt-6-luna"
-            and scope["task"] == "follow_up_generation" and scope["category"] == "service"
-            and decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
-            and decoded["response_id"] == provider_id, "office_service_dispatch_binding")
+    try:
+        require(scope == verified_scope and scope["user_id"] == payer and scope["actor_id"] == actor
+                and scope["chat_id"] == chat_id and scope["model"] == "gpt-6-luna"
+                and scope["task"] == "follow_up_generation" and scope["category"] == "service"
+                and decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
+                and decoded["response_id"] == provider_id, "office_service_dispatch_binding")
+    except ProofError as error:
+        # Retain only this failed comparison's operands. Never attach the raw
+        # financial row, API key, arbitrary metadata or model content.
+        error.office_service_binding = {
+            "scope": copy.deepcopy(scope), "verified_scope": copy.deepcopy(verified_scope),
+            "request_id": row["request_id"],
+            "decoded": {k: decoded.get(k) for k in ("custom_llm_provider", "model_id", "response_id")},
+            "row": {k: row.get(k) for k in ("user", "model", "model_id", "model_group", "session_id", "status")},
+            "expected": {"actor": actor, "payer": payer, "chat_id": chat_id,
+                         "deployment_id": deployment_id, "provider_id": provider_id}}
+        raise
     require(row.get("user") == payer and row.get("api_key") == key_hash
             and row.get("model_group") == "gpt-6-luna" and row.get("model_id") == deployment_id
             and row.get("model") in ("gpt-6-luna", wire_model, "openai/" + wire_model)

@@ -640,6 +640,26 @@ def test_office_service_actual_sdk_scope_and_snapshot_owners_verify_one_separate
         'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
 
 
+def test_failed_service_binding_retains_actual_sdk_operands_without_raw_row_or_credentials(component, monkeypatch):
+    before, after, kwargs = service_financial_fixture(component, monkeypatch)
+    row = after['rows'][-1]
+    # Exercise the actual native decoder on an unwrapped observed ID. This is
+    # diagnostic coverage, not a claim that C67's unexported row had this form.
+    row['request_id'] = kwargs['provider_id']
+    row['private_arbitrary_metadata'] = {'token': 'private-financial-inventory'}
+    original = copy.deepcopy(after)
+    with pytest.raises(P.ProofError, match='office_service_dispatch_binding') as failed:
+        P.verify_service_finance(before, after, **kwargs)
+    binding = failed.value.office_service_binding
+    assert binding['scope'] == binding['verified_scope'] == kwargs['verified_scope']
+    assert binding['decoded'] == kwargs['decode_response_id'](row['request_id'])
+    assert binding['request_id'] == kwargs['provider_id']
+    assert binding['expected']['deployment_id'] == kwargs['deployment_id']
+    assert set(binding['row']) == {'user', 'model', 'model_id', 'model_group', 'session_id', 'status'}
+    assert 'api_key' not in json.dumps(binding) and kwargs['key_hash'] not in json.dumps(binding)
+    assert 'private-financial-inventory' not in json.dumps(binding) and after == original
+
+
 @pytest.mark.parametrize('mutation', ['same_payer', 'cap', 'counter', 'missing', 'duplicate', 'extra_zero', 'retained_row',
     'nonce', 'actor', 'task', 'scope_answer', 'key', 'model', 'session', 'usage', 'spend', 'rate', 'partial_rate',
     'source', 'unknown_tariff', 'deployment', 'provider_id'])
