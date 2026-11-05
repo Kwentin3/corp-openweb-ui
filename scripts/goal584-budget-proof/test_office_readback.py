@@ -193,6 +193,8 @@ def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privat
             assert public['binding_diagnostic_collected'] is True
             assert public['binding_diagnostic']['request_id'] == partial['service']['rows'][-1]['request_id']
             assert public['binding_diagnostic']['scope'] == public['binding_diagnostic']['verified_scope']
+            assert set(public['binding_atoms']) == R.proof.SERVICE_BINDING_ATOMS
+            assert public['binding_atoms']['scope_equal'] and not public['binding_atoms']['decoded_model']
 
 
 @pytest.mark.parametrize('message', ['sk-private-native-error-value', 'office_private sk-secret', 'office_unsafe-raw-detail'])
@@ -212,6 +214,8 @@ def test_cli_exports_only_bounded_secret_checked_service_binding_failure(monkeyp
     elif unsafe == 'opaque_secret': binding['decoded']['response_id'] = 'opaque-private-password'
     elif unsafe == 'oversize': binding['decoded']['response_id'] = 'x' * 4097
     error = N.ProofError('office_service_dispatch_binding'); error.office_service_binding = binding
+    atoms = dict.fromkeys(R.proof.SERVICE_BINDING_ATOMS, True); atoms['decoded_model'] = False
+    error.office_service_binding_atoms = atoms
     d = dict(OPERATOR_STATE='operator', read_private=lambda path: {'password': 'opaque-private-password'},
         private_credentials=T.snapshots.private_credentials, no_credentials=T.snapshots.no_credentials)
     monkeypatch.setattr(R, 'dependencies', lambda: d)
@@ -222,8 +226,31 @@ def test_cli_exports_only_bounded_secret_checked_service_binding_failure(monkeyp
     result = json.loads(capsys.readouterr().out)
     assert result['failure_code'] == 'office_service_dispatch_binding' and result['passed'] is False
     assert result['binding_diagnostic_collected'] is (unsafe is None)
+    assert result['binding_atoms'] == atoms
+    if unsafe:
+        assert result['binding_diagnostic_suppression_stage'] == ('size' if unsafe == 'oversize' else 'credential_check')
     assert result.get('binding_diagnostic') == (binding if unsafe is None else None)
     assert 'opaque-private-password' not in json.dumps(result) and 'sk-' + 'x' * 32 not in json.dumps(result)
+
+
+@pytest.mark.parametrize('invalid_atoms', [False, True])
+def test_cli_binding_atoms_survive_private_read_failure_and_reject_nonboolean_payload(monkeypatch, capsys, invalid_atoms):
+    error = N.ProofError('office_service_dispatch_binding'); error.office_service_binding = {'decoded': {'model_id': None}}
+    atoms = dict.fromkeys(R.proof.SERVICE_BINDING_ATOMS, False)
+    if invalid_atoms: atoms['decoded_model'] = 'sk-' + 'x' * 32
+    error.office_service_binding_atoms = atoms
+    def unreadable(path): raise OSError('private filesystem detail must remain private')
+    d = dict(OPERATOR_STATE='operator', read_private=unreadable,
+        private_credentials=T.snapshots.private_credentials, no_credentials=T.snapshots.no_credentials)
+    monkeypatch.setattr(R, 'dependencies', lambda: d)
+    def fail(*args): raise error
+    monkeypatch.setattr(R, 'run', fail)
+    monkeypatch.setattr('sys.argv', ['prove_office_readback.py', '--phase', 'verify'])
+    assert R.main() == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result['binding_diagnostic_collected'] is False and result['binding_diagnostic_suppression_stage'] == 'private_read'
+    assert result.get('binding_atoms') == (None if invalid_atoms else atoms)
+    assert 'private filesystem detail' not in json.dumps(result) and 'sk-' + 'x' * 32 not in json.dumps(result)
 
 
 def diagnostic(data, *, secrets=()):

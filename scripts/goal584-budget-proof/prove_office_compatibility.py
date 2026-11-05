@@ -33,7 +33,7 @@ SOURCE = "# GOAL584 Office compatibility\nBEGIN-G584-OFFICE\n" + (
 SOURCE_SHA256 = "18ba1fbae3d19d00cb717ce3203b6045ab54456ebec2da3fdb33ef7edae0bd0a"
 TABLE = (("\u0423\u0441\u043b\u0443\u0433\u0430", "\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e", "\u0426\u0435\u043d\u0430", "\u0421\u0443\u043c\u043c\u0430"),
          ("Alpha", "2", "1500", "3000"), ("Beta", "3", "2000", "6000"))
-PARAGRAPHS = ("GOAL584 Office compatibility", "BEGIN-G584-OFFICE", SOURCE.splitlines()[2],
+PARAGRAPHS = ("GOAL584 Office compatibility", "BEGIN-G584-OFFICE " + SOURCE.splitlines()[2],
               *(v for row in TABLE for v in row), "\u0410\u0432\u0430\u043d\u0441: 50%.",
               "\u041f\u043e\u0434\u043f\u0438\u0441\u044c: ____________________", "END-G584-OFFICE")
 TARGETS = "gpt-5.4-mini,models/gemini-3.5-flash,models/gemini-3.6-flash,gpt-5.6-luna,models/gemini-3.1-flash-lite,models/gemini-3.5-flash-lite,gpt-6-luna,gpt-6-sol,claude-haiku-5-5,claude-sonnet-5,gpt-6.1-sol,deepseek-flash,gpt-6.1-terra"
@@ -58,6 +58,9 @@ OFFICE_MODULES = {
     "officecli.py": "d946ce1ef90df5d56d3e5b922fe418d0d597be22b96ff81835c158a55b12f6dd"}
 USAGE = {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15,
          "input_tokens_details": {"cached_tokens": 0}, "output_tokens_details": {"reasoning_tokens": 0}}
+SERVICE_BINDING_ATOMS = frozenset({"scope_equal", "payer", "actor", "chat", "model", "task", "category",
+    "decoded_provider", "decoded_model", "decoded_response", "decoded_model_present", "decoded_provider_present",
+    "row_id_is_raw_provider", "row_model_matches_deployment", "scope_call_equal"})
 
 
 def digest(value):
@@ -505,6 +508,19 @@ def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, pr
                 and decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
                 and decoded["response_id"] == provider_id, "office_service_dispatch_binding")
     except ProofError as error:
+        # Fixed names and booleans reveal the failed assertion even when raw
+        # operand redaction or private-state readback cannot safely complete.
+        error.office_service_binding_atoms = {
+            "scope_equal": scope == verified_scope, "payer": scope["user_id"] == payer,
+            "actor": scope["actor_id"] == actor, "chat": scope["chat_id"] == chat_id,
+            "model": scope["model"] == "gpt-6-luna", "task": scope["task"] == "follow_up_generation",
+            "category": scope["category"] == "service", "decoded_provider": decoded["custom_llm_provider"] == "openai",
+            "decoded_model": decoded["model_id"] == deployment_id, "decoded_response": decoded["response_id"] == provider_id,
+            "decoded_model_present": decoded["model_id"] is not None,
+            "decoded_provider_present": decoded["custom_llm_provider"] is not None,
+            "row_id_is_raw_provider": row["request_id"] == provider_id,
+            "row_model_matches_deployment": row.get("model_id") == deployment_id,
+            "scope_call_equal": scope["call_id"] == verified_scope.get("call_id")}
         # Retain only this failed comparison's operands. Never attach the raw
         # financial row, API key, arbitrary metadata or model content.
         error.office_service_binding = {

@@ -121,12 +121,12 @@ def document(path, paragraphs=P.PARAGRAPHS, table=P.TABLE):
     def paragraph(parent, text):
         p = ET.SubElement(parent, WORD + "p")
         ET.SubElement(ET.SubElement(p, WORD + "r"), WORD + "t").text = text
-    for text in paragraphs[:3]: paragraph(body, text)
+    for text in paragraphs[:2]: paragraph(body, text)
     tbl = ET.SubElement(body, WORD + "tbl")
     for row in table:
         tr = ET.SubElement(tbl, WORD + "tr")
         for text in row: paragraph(ET.SubElement(tr, WORD + "tc"), text)
-    for text in paragraphs[15:]: paragraph(body, text)
+    for text in paragraphs[14:]: paragraph(body, text)
     with ZipFile(path, "w") as out: out.writestr("word/document.xml", ET.tostring(root))
 
 
@@ -651,6 +651,10 @@ def test_failed_service_binding_retains_actual_sdk_operands_without_raw_row_or_c
     with pytest.raises(P.ProofError, match='office_service_dispatch_binding') as failed:
         P.verify_service_finance(before, after, **kwargs)
     binding = failed.value.office_service_binding
+    atoms = failed.value.office_service_binding_atoms
+    assert set(atoms) == P.SERVICE_BINDING_ATOMS and all(type(v) is bool for v in atoms.values())
+    assert atoms['scope_equal'] and atoms['row_id_is_raw_provider'] and atoms['row_model_matches_deployment']
+    assert not atoms['decoded_provider'] and not atoms['decoded_model'] and atoms['decoded_response']
     assert binding['scope'] == binding['verified_scope'] == kwargs['verified_scope']
     assert binding['decoded'] == kwargs['decode_response_id'](row['request_id'])
     assert binding['request_id'] == kwargs['provider_id']

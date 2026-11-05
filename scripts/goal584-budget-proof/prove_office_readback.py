@@ -302,13 +302,24 @@ def main():
         result = {'schema': 1, 'phase': args.phase, 'passed': False, 'native_office_accepted': False,
                   'failure_code': code if re.fullmatch(r'office_[a-z_]+', code) else 'office_readback_failed'}
         if code == 'office_service_dispatch_binding' and hasattr(error, 'office_service_binding') and d is not None:
+            atoms = getattr(error, 'office_service_binding_atoms', None)
+            if isinstance(atoms, dict) and set(atoms) == proof.SERVICE_BINDING_ATOMS and all(type(v) is bool for v in atoms.values()):
+                result['binding_atoms'] = atoms
+            stage = 'serialization'
             try:
                 binding = error.office_service_binding
-                require(len(json.dumps(binding, allow_nan=False).encode()) <= 4096, 'office_binding_diagnostic_bound')
+                size = len(json.dumps(binding, allow_nan=False).encode())
+                result['binding_diagnostic_bytes'] = size
+                stage = 'size'
+                require(size <= 4096, 'office_binding_diagnostic_bound')
+                stage = 'private_read'
                 secrets = [value for path in (COMMON, OFFICE, d['OPERATOR_STATE'])
                            for value in d['private_credentials'](d['read_private'](path))]
+                stage = 'credential_check'
                 d['no_credentials'](binding, secrets)
-            except Exception: result['binding_diagnostic_collected'] = False
+            except Exception:
+                result['binding_diagnostic_collected'] = False
+                result['binding_diagnostic_suppression_stage'] = stage
             else:
                 result['binding_diagnostic_collected'] = True
                 result['binding_diagnostic'] = binding

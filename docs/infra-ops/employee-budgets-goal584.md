@@ -6,7 +6,7 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native67/4d7868f5. Все четыре Native jobs и Active CI
+принятый bounded baseline — Native68/31e4912c. Все четыре Native jobs и Active CI
 SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
@@ -19,8 +19,12 @@ SOURCE/prior user/current request и14schemas сохранены. Личная �
 3calls/.60 прошла, затем `office_service_dispatch_binding` остановил отдельную
 служебную сверку. Точный не совпавший operand ещё не экспортирован: raw ledger
 остался приватным. Служебные status/usage/spend/rates/.20 пока не приняты.
-Следующий срез добавляет только safe operands этого отказа и сохраняет независимо
-проверенные Office файлы при financial failure; условия сверки не ослабляются.
+Office68 сохранил actual DOCX и оба PNG; raw binding diagnostic подавлен, поэтому
+конкретный не совпавший operand пока неизвестен. Обнаружена проверочная ошибка
+paragraph fixture: native Markdown импорт объединил BEGIN и следующую soft line
+в один абзац. Следующий срез сверяет точные17native paragraphs и выводит fixed
+boolean binding comparisons независимо от подавления строк; financial guard
+не ослабляется.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
 новых native core patches нет. Office/provider/service и readback worker
@@ -431,6 +435,63 @@ synthetic model_info.max_input_tokens10000, но native estimator вернул �
 Parent повторил actual-input native preflight PASS с теми же751/1644/29451 и
 27.99/36.92/314.99,0network attempts. Source readiness68 подтверждена; следующий
 шаг — изолированный same-job run и actual safe service binding operands.
+Candidate68 опубликован: head31e4912ca50a93ecb85b43f942481e361d7b3619,
+tested merge9e35446001cd88239d3c9b74478b65a005a15442, tree diff пуст;
+remote head и PR585 draft/open/body прочитаны обратно. На12:38UTC
+[Office68/42028680923](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42028680923)
+собирает images;
+[Native68/42028681033](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42028681033)
+выполняет main/pricing/calendars;
+[ActiveCI/42028680950](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42028680950)
+выполняется. Actual68 пока не принят. Metadata:
+`local/goal584/candidate68-publish.safe.json`; exact staged hashes/checks —
+`candidate68-{index,checks}.safe.json`. До terminal не перепубликовывать ветку.
+
+**Office68 terminal:** artifact13415252868/905165bytes/56members/
+SHAe2fe189e…; native_finance FAIL `office_service_dispatch_binding`,
+binding_diagnostic_collected=False. Размер/private-read/credential suppressor
+не экспортирован, причина подавления неизвестна. Raw-ID hypothesis не подтверждена.
+Actual DOCX6167bytes/SHA08bc8916… и renderPNG33038bytes/SHA7c16680a…,
+browserPNG93416bytes/SHAd773f1d1… опубликованы как lineage-bound evidence.
+Native body_paragraphs вернул17абзацев: BEGIN+первый текст в одном, таблица и
+все суммы/условия/подпись/END сохранены. Прежняя expected fixture требовала18;
+это выявленный неверный premise теста, не доказанный дефект Office writer.
+Cleanup actual0/0/0, два helper containers и пять images удалены.
+Root pricing68 reader PASS63negative/.80/.500/cleanup0/0/0 и calendars68 reader
+PASS20negative/26exactinputs; floor.504614s<5, basic5.38547s<60. Main68 SUCCESS,
+independent actual review выполнен, parent repeat ещё впереди.
+
+**Candidate69 WIP:** SOURCE/документный writer не меняются. Expected paragraphs
+приведены к exact actual native XML17; table/числа/порядок/полнота остаются strict.
+Убрана только искусственная граница между двумя Markdown soft lines. Component
+writer double повторяет эту native segmentation. Parent native text owner уже
+принял actual68DOCX с новой fixture, включая exact paragraph tuple.
+Service predicate неизменен; exception содержит fixed15boolean comparisons и
+отдельно прежний безопасный raw operand packet. CLI экспортирует только точный
+набор фиксированных имён/настоящие bool — без data-controlled строк. Они не
+зависят от raw packet credential/private-file failure. Для прежнего packet
+добавлены byte count и fixed suppression stage, никаких exception details.
+Root267pytest PASS (208pure+59readback); native decoder/whole run/poll/CLI cases
+проверяют сохранение atom flags при credential/size/private-I/O отказах и отказ
+публиковать не-bool secret payload. Source review/final-input rehearsal идут;
+actual service binding всё ещё не принят. Independent source review PASS: полный
+AST исходных financial guards сохранён, raw credentials checks не ослаблены;
+actual68DOCX old18FAIL/new17EXACT-PASS связан с actual ZIP/tool/browser hashes,
+без выдуманной второй native/browser копии. Parent review reader повторён.
+Новая generation69:3mock rounds/14schemas/7negatives, native751/1250/1471,
+27.99/32.98/35.19,callback2available+4unknown. Separate actual68 full-wire native
+preflight751/1630/29427, estimates27.99/36.78/314.75<1000 с realPNG33038bytes;
+declared max_input10000 gap сохраняется. Оба frozen parent replay PASS,
+0external attempts/calls. Workflow прежнийC68,8Bash/5Python/5wiring checks PASS.
+
+**Native68 parent acceptance:** actual main artifact13414859870/3898563bytes/
+223members/SHAfc457e50…;285immutable review inputs,53exactC67declared sources,
+actual bothworkers/overlap purece2cd78c… join и reviewed diagnostic-only AST.
+Все78core receipts сохранены, один дополнительный bootstrap06poll —79actualPASS.
+16finance+3context+5ACL+2title negatives PASS; recovery9.784949s<15,
+R.40/denial и неизменный3rowjournal. Independent review и parent4reader repeat
+PASS; containers/volumes0/0, networks не экспортированы. Pricing/calendars68
+independent и parent replay PASS выше. Это bounded baseline, не весь GOAL.
 
 **Native67 bounded acceptance:** actual main artifact13413391856/3891576bytes/
 SHAcc2656b3…;95immutable review inputs/76Git snapshots,78PASS receipts,
