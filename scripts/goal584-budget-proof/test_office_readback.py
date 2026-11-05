@@ -91,6 +91,14 @@ def scenario(component, monkeypatch):
 
 def test_actual_native_context_domain_finance_and_sdk_owners_join_complete_live_packet(component, monkeypatch):
     data = scenario(component, monkeypatch)
+    observed, wire_owner, finance_owner = {}, R.wire_calls, R.proof.verify_service_finance
+    def calls(*args):
+        result = wire_owner(*args); observed['dispatch'] = result[1]; return result
+    def finance(*args, **kwargs):
+        assert kwargs['dispatch'] is observed['dispatch']
+        return finance_owner(*args, **kwargs)
+    monkeypatch.setattr(R, 'wire_calls', calls)
+    monkeypatch.setattr(R.proof, 'verify_service_finance', finance)
     result = R.verify(**data)
     assert result == {'primary': {'physical_calls': 3, 'new_raw_rows': 3, 'native_spend_delta_usd': '.60'},
         'service': {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'},
@@ -159,7 +167,9 @@ def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privat
     elif change == 'source': data['packet']['source_body_sha256'] = '0' * 64
     elif change == 'extra_rows': partial['primary']['rows'].append({'request_id': 'unplanned-zero', 'spend': 0})
     elif change == 'counter_over': partial['primary']['user']['spend'] = .80
-    elif change == 'service_binding': partial['service']['rows'][-1]['request_id'] = data['provider']['requests'][-1]['id']
+    elif change == 'service_binding':
+        partial['service']['rows'][-1]['request_id'] = data['provider']['requests'][-1]['id']
+        partial['service']['rows'][-1]['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
     else: data['packet'].pop('reasoning_cases')
     snapshots = []
     def inventory(native, prepared):
@@ -192,9 +202,10 @@ def test_cli_retries_only_under_settlement_and_retains_immediate_failures_privat
         if change == 'service_binding':
             assert public['binding_diagnostic_collected'] is True
             assert public['binding_diagnostic']['request_id'] == partial['service']['rows'][-1]['request_id']
-            assert public['binding_diagnostic']['scope'] == public['binding_diagnostic']['verified_scope']
+            assert public['binding_diagnostic']['scope'] != public['binding_diagnostic']['verified_scope']
             assert set(public['binding_atoms']) == R.proof.SERVICE_BINDING_ATOMS
-            assert public['binding_atoms']['scope_equal'] and not public['binding_atoms']['decoded_model']
+            assert not public['binding_atoms']['scope_equal'] and not public['binding_atoms']['decoded_model']
+            assert public['binding_atoms']['native_id_binding'] and public['binding_atoms']['opaque_log_id']
 
 
 @pytest.mark.parametrize('message', ['sk-private-native-error-value', 'office_private sk-secret', 'office_unsafe-raw-detail'])

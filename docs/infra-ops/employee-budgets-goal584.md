@@ -6,7 +6,7 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native68/31e4912c. Все четыре Native jobs и Active CI
+принятый bounded baseline — Native69/1d5a3a99. Все четыре Native jobs и Active CI
 SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
@@ -20,11 +20,14 @@ SOURCE/prior user/current request и14schemas сохранены. Личная �
 служебную сверку. Точный не совпавший operand ещё не экспортирован: raw ledger
 остался приватным. Служебные status/usage/spend/rates/.20 пока не приняты.
 Office68 сохранил actual DOCX и оба PNG; raw binding diagnostic подавлен, поэтому
-конкретный не совпавший operand пока неизвестен. Обнаружена проверочная ошибка
+поле raw ID остаётся скрытым. Office69 fixed atoms уже показали: scope/owner/
+chat/model/task/nonce совпали, ошибочно ожидались только decoded Responses IDs.
+Обнаружена проверочная ошибка
 paragraph fixture: native Markdown импорт объединил BEGIN и следующую soft line
 в один абзац. Следующий срез сверяет точные17native paragraphs и выводит fixed
-boolean binding comparisons независимо от подавления строк; financial guard
-не ослабляется.
+boolean binding comparisons независимо от подавления строк. Следующий срез
+связывает финансовую row с actual dispatch по существующему подписанному nonce;
+native request_id не переопределяется как provider Response ID.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
 новых native core patches нет. Office/provider/service и readback worker
@@ -492,6 +495,57 @@ actual bothworkers/overlap purece2cd78c… join и reviewed diagnostic-only AST.
 R.40/denial и неизменный3rowjournal. Independent review и parent4reader repeat
 PASS; containers/volumes0/0, networks не экспортированы. Pricing/calendars68
 independent и parent replay PASS выше. Это bounded baseline, не весь GOAL.
+Candidate69 опубликован: head1d5a3a99998957f8492aec8726b00e7e895390b1,
+tested merge29148809ba34350756021f289890f73deedd8e41, tree diff пуст;
+remote head и PR585 draft/open/body прочитаны обратно. На13:03UTC
+[Office69/42032210464](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42032210464)
+собирает images;
+[Native69/42032210465](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42032210465)
+выполняет main/pricing/calendars;
+[ActiveCI/42032210471](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42032210471)
+выполняется. Runtime69 ещё не принят. Metadata:
+`local/goal584/candidate69-publish.safe.json`; exact staged sources/checks —
+`candidate69-{index,checks}.safe.json`. До terminal не перепубликовывать ветку.
+
+**Office69 terminal:** artifact13417701292/905470bytes/57members/SHAc0c6344e…,
+native_finance FAIL `office_service_dispatch_binding`. Actual fixed atoms:
+scope_equal/payer/actor/chat/model/task/category/scope_call_equal=True,
+row_model_matches_deployment=True; decoded_provider/model/response=False,
+decoded_provider/model_present=False, row_id_is_raw_provider=False.
+Raw packet2083bytes подавлен credential_check — скрытый ID не раскрывается и
+не объявляется raw provider ID. Artifact validation PASS: actualDOCX17/table3×4/
+PNG совпали с native owners. Cleanup0/0/0 и все5images/2helpers удалены.
+
+**Native69 acceptance:** actual main13417775982/3878614bytes/221members/
+SHA808a1d2b…;53exactC68inputs, actual worker/overlap pure01a15cb2… и precise
+Office-only AST delta подтверждены.77actual semantic receipts PASS: лишние
+cost08/bootstrap06poll snapshots отсутствуют, latest cost07 ужеsettles8/8.
+Ни78/79receipt count, ни отсутствующие snapshots не выдумываются.26negative
+financial/context/source checks сохранены, recovery1.603955s<15. Independent
+и parent4reader replay PASS; containers/volumes0/0, networks не экспортированы.
+Pricing69 parent reader PASS63negative/.80/.500/restoration/cleanup0/0/0;
+calendars69 parent reader PASS20negative/26sources/floor.590311s<5/basic3.04026s<60.
+
+**Candidate70 source:** exact d665 native get_spend_logs_id выбирает response.id,
+затем standard logging ID/литеральный native call ID без обязательного Responses
+encoding. Четыре actual-native-function cases PASS. Прежний service verifier
+перепутал opaque primary key журнала и provider Response ID; actual69 подтвердил
+совпадение canonical signed Scope.call_id, model deployment и всех ownership
+полей. Новый verifier принимает existing actual service call record из wire_calls
+напрямую: native auth payer/key/provenance/route, scope и provider.id==response.id
+сверяются с ожидаемыми. Row scope должен точно совпасть, включая nonce. Для
+распознанного encoded ID все provider/model/response поля по-прежнему strict;
+native SDK both-None opaque classification связывается по nonce, без нового parser.
+Row key/model/session/status/Usage/.20/rates/descriptor/counters/history и
+exactly-one-row остаются прежними. Никакого нового ID/DTO/register/state/core.
+Root281pytest PASS (222pure+59readback); новые opaque-positive, foreign encoded
+и9auth/dispatch/provider negative cases, все22прежних service-finance cases.
+Actual R owner object-identity test доказывает передачу настоящего joined record,
+не сконструированного DTO. Independent full-AST review/54focused cases PASS;
+parent source replay PASS. Parent generation70 3rounds/14schemas/7negatives,
+native751/1245/1467,27.99/32.93/35.15; actual69 full-wire751/1647/29451,
+27.99/36.95/314.99<1000;0external attempts/calls. Declared input10000 gap не снят.
+Actual service .20 и полный Office gate ещё предстоит принять на стенде.
 
 **Native67 bounded acceptance:** actual main artifact13413391856/3891576bytes/
 SHAcc2656b3…;95immutable review inputs/76Git snapshots,78PASS receipts,

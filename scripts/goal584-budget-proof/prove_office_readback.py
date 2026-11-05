@@ -214,7 +214,7 @@ def verify(before, after, provider, capture, saved, browser, packet, office, d):
     require(isinstance(followups, list) and followups and all(isinstance(v, str) and v for v in followups)
             and final.get('followUps') == followups, 'office_saved_followups')
     task = proof.verify_service_finance(before['finance']['service'], after['service'], actor=actor, payer=payer,
-        key_hash=before['finance']['service']['key']['token'], chat_id=chat, provider_id=p['id'], verified_scope=service['verified_cost_scope'],
+        key_hash=before['finance']['service']['key']['token'], chat_id=chat, provider_id=p['id'], verified_scope=service['verified_cost_scope'], dispatch=service,
         wire_model='goal584-fake-office-service', deployment_id='goal584-office-service', descriptor=before['descriptor'],
         validate_scope=d['validate_persisted_service_scope'], validate_rates=d['validate_snapshot'],
         decode_response_id=d['ResponsesAPIRequestUtils']._decode_responses_api_response_id)

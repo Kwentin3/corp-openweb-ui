@@ -60,7 +60,7 @@ USAGE = {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15,
          "input_tokens_details": {"cached_tokens": 0}, "output_tokens_details": {"reasoning_tokens": 0}}
 SERVICE_BINDING_ATOMS = frozenset({"scope_equal", "payer", "actor", "chat", "model", "task", "category",
     "decoded_provider", "decoded_model", "decoded_response", "decoded_model_present", "decoded_provider_present",
-    "row_id_is_raw_provider", "row_model_matches_deployment", "scope_call_equal"})
+    "row_id_is_raw_provider", "row_model_matches_deployment", "scope_call_equal", "native_id_binding", "opaque_log_id"})
 
 
 def digest(value):
@@ -474,16 +474,26 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
     return {"physical_calls": 3, "new_raw_rows": 3, "native_spend_delta_usd": ".60"}
 
 
-def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, provider_id, verified_scope,
+def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, provider_id, verified_scope, dispatch,
                            wire_model, deployment_id, descriptor, validate_scope, validate_rates, decode_response_id):
     """One native follow-up Responses row; fixed fixture totals, no price math.
 
-    The collector supplies all raw pages and the actual auth/provider join.
+    The collector supplies all raw pages and its existing actual auth/provider
+    call record, never a reconstructed dispatch DTO. The signed call nonce joins
+    the native row to that physical call; native log IDs can be opaque.
     Descriptor expectations come from the source-bound prepared native config.
     This separate service payer must not be included among unchanged old payers.
     """
     require(actor != payer and before["user"].get("user_id") == before["key"].get("user_id") == payer
             and before["key"].get("models") == ["gpt-6-luna"], "office_service_owner")
+    require(isinstance(dispatch, dict) and dispatch.get("verified_cost_scope") == verified_scope
+            and dispatch.get("auth_user_id") == payer and dispatch.get("auth_key_hash") == key_hash
+            and dispatch.get("attestation_present_before") is True and dispatch.get("provenance_removed_after") is True
+            and not dispatch.get("auth_failure") and dispatch.get("route") in ("/responses", "/v1/responses", "/openai/v1/responses")
+            and isinstance(dispatch.get("provider"), dict) and isinstance(dispatch["provider"].get("response"), dict)
+            and dispatch.get("provider", {}).get("id") == provider_id
+            and dispatch.get("provider", {}).get("response", {}).get("id") == provider_id,
+            "office_service_dispatch_observation")
     require(protected_r(before["user"], before["key"]) == protected_r(after["user"], after["key"]),
             "office_service_caps_changed")
     def keyed(rows):
@@ -501,12 +511,14 @@ def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, pr
     spend = metadata["spend_logs_metadata"]
     scope = validate_scope(spend["owui_budget"])
     decoded = decode_response_id(row["request_id"])
+    opaque = decoded["custom_llm_provider"] is None and decoded["model_id"] is None
+    native_id_binding = opaque or (decoded["custom_llm_provider"] == "openai"
+        and decoded["model_id"] == deployment_id and decoded["response_id"] == provider_id)
     try:
         require(scope == verified_scope and scope["user_id"] == payer and scope["actor_id"] == actor
                 and scope["chat_id"] == chat_id and scope["model"] == "gpt-6-luna"
                 and scope["task"] == "follow_up_generation" and scope["category"] == "service"
-                and decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
-                and decoded["response_id"] == provider_id, "office_service_dispatch_binding")
+                and native_id_binding, "office_service_dispatch_binding")
     except ProofError as error:
         # Fixed names and booleans reveal the failed assertion even when raw
         # operand redaction or private-state readback cannot safely complete.
@@ -520,7 +532,8 @@ def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, pr
             "decoded_provider_present": decoded["custom_llm_provider"] is not None,
             "row_id_is_raw_provider": row["request_id"] == provider_id,
             "row_model_matches_deployment": row.get("model_id") == deployment_id,
-            "scope_call_equal": scope["call_id"] == verified_scope.get("call_id")}
+            "scope_call_equal": scope["call_id"] == verified_scope.get("call_id"),
+            "native_id_binding": native_id_binding, "opaque_log_id": opaque}
         # Retain only this failed comparison's operands. Never attach the raw
         # financial row, API key, arbitrary metadata or model content.
         error.office_service_binding = {

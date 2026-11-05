@@ -628,6 +628,9 @@ def service_financial_fixture(component, monkeypatch):
     after['user']['spend'] = after['key']['spend'] = .20
     kwargs = dict(actor=actor, payer=payer, key_hash=key_hash, chat_id=primary['chat_id'], provider_id=provider_id,
         verified_scope=scope, wire_model='goal584-fake-office-service', deployment_id='goal584-office-service',
+        dispatch={'verified_cost_scope': copy.deepcopy(scope), 'auth_user_id': payer, 'auth_key_hash': key_hash,
+            'attestation_present_before': True, 'provenance_removed_after': True, 'route': '/responses',
+            'provider': {'id': provider_id, 'response': {'id': provider_id}}},
         descriptor=descriptor, validate_scope=provenance.validate_persisted_service_scope,
         validate_rates=snapshots.validate_snapshot, decode_response_id=primary['decode_response_id'])
     return before, after, kwargs
@@ -640,12 +643,54 @@ def test_office_service_actual_sdk_scope_and_snapshot_owners_verify_one_separate
         'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
 
 
+@pytest.mark.parametrize('raw_provider_id', [False, True])
+def test_native_opaque_service_log_id_joins_by_signed_nonce_and_observed_dispatch(component, monkeypatch, raw_provider_id):
+    before, after, kwargs = service_financial_fixture(component, monkeypatch)
+    row = after['rows'][-1]
+    row['request_id'] = kwargs['provider_id'] if raw_provider_id else 'native-opaque-' + uuid4().hex
+    decoded = kwargs['decode_response_id'](row['request_id'])
+    assert decoded['custom_llm_provider'] is None and decoded['model_id'] is None
+    assert P.verify_service_finance(before, after, **kwargs) == {
+        'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
+
+
+@pytest.mark.parametrize('field,value', [('custom_llm_provider', 'anthropic'), ('model_id', 'other-deployment'),
+    ('response_id', 'resp_unobserved')])
+def test_native_encoded_service_id_still_rejects_foreign_provider_deployment_or_response(component, monkeypatch, field, value):
+    before, after, kwargs = service_financial_fixture(component, monkeypatch)
+    values = dict(custom_llm_provider='openai', model_id=kwargs['deployment_id'], response_id=kwargs['provider_id'])
+    values[field] = value
+    after['rows'][-1]['request_id'] = 'resp_' + base64.b64encode(('litellm:' + ';'.join(
+        k + ':' + v for k, v in values.items())).encode()).decode()
+    with pytest.raises(P.ProofError, match='office_service_dispatch_binding'):
+        P.verify_service_finance(before, after, **kwargs)
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'scope', 'payer', 'key', 'attestation', 'consumed', 'route', 'provider', 'response'])
+def test_service_log_requires_same_authenticated_provider_dispatch(component, monkeypatch, mutation):
+    before, after, kwargs = service_financial_fixture(component, monkeypatch)
+    after['rows'][-1]['request_id'] = 'native-opaque-' + uuid4().hex
+    dispatch = kwargs['dispatch']
+    if mutation == 'missing': kwargs['dispatch'] = None
+    elif mutation == 'scope': dispatch['verified_cost_scope']['call_id'] = str(uuid4())
+    elif mutation == 'payer': dispatch['auth_user_id'] = kwargs['actor']
+    elif mutation == 'key': dispatch['auth_key_hash'] = 'f' * 64
+    elif mutation == 'attestation': dispatch['attestation_present_before'] = False
+    elif mutation == 'consumed': dispatch['provenance_removed_after'] = False
+    elif mutation == 'route': dispatch['route'] = '/chat/completions'
+    elif mutation == 'provider': dispatch['provider']['id'] = 'resp_unobserved'
+    else: dispatch['provider']['response']['id'] = 'resp_unobserved'
+    with pytest.raises(P.ProofError, match='office_service_dispatch_observation'):
+        P.verify_service_finance(before, after, **kwargs)
+
+
 def test_failed_service_binding_retains_actual_sdk_operands_without_raw_row_or_credentials(component, monkeypatch):
     before, after, kwargs = service_financial_fixture(component, monkeypatch)
     row = after['rows'][-1]
     # Exercise the actual native decoder on an unwrapped observed ID. This is
     # diagnostic coverage, not a claim that C67's unexported row had this form.
     row['request_id'] = kwargs['provider_id']
+    row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
     row['private_arbitrary_metadata'] = {'token': 'private-financial-inventory'}
     original = copy.deepcopy(after)
     with pytest.raises(P.ProofError, match='office_service_dispatch_binding') as failed:
@@ -653,9 +698,10 @@ def test_failed_service_binding_retains_actual_sdk_operands_without_raw_row_or_c
     binding = failed.value.office_service_binding
     atoms = failed.value.office_service_binding_atoms
     assert set(atoms) == P.SERVICE_BINDING_ATOMS and all(type(v) is bool for v in atoms.values())
-    assert atoms['scope_equal'] and atoms['row_id_is_raw_provider'] and atoms['row_model_matches_deployment']
+    assert not atoms['scope_equal'] and atoms['row_id_is_raw_provider'] and atoms['row_model_matches_deployment']
     assert not atoms['decoded_provider'] and not atoms['decoded_model'] and atoms['decoded_response']
-    assert binding['scope'] == binding['verified_scope'] == kwargs['verified_scope']
+    assert atoms['opaque_log_id'] and atoms['native_id_binding']
+    assert binding['scope'] != binding['verified_scope'] == kwargs['verified_scope']
     assert binding['decoded'] == kwargs['decode_response_id'](row['request_id'])
     assert binding['request_id'] == kwargs['provider_id']
     assert binding['expected']['deployment_id'] == kwargs['deployment_id']
