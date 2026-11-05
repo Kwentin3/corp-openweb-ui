@@ -40,6 +40,7 @@ SOURCE_PATHS = {'native_floor_identity.py': 'deploy/litellm-patches/positive-flo
     'prove_native_budgets.py': 'scripts/goal584-budget-proof/prove_native_budgets.py',
     'prove_gateway_auth.py': 'scripts/goal584-budget-proof/prove_gateway_auth.py',
     'capture_webui_auth.py': 'scripts/goal584-budget-proof/capture_webui_auth.py',
+    'prove_office_compatibility.py': 'scripts/goal584-budget-proof/prove_office_compatibility.py',
     'prove_service_tasks.py': 'scripts/goal584-budget-proof/prove_service_tasks.py',
     'provenance.py': 'deploy/openwebui-budgets/provenance.py',
     'litellm_auth.py': 'deploy/openwebui-budgets/litellm_auth.py',

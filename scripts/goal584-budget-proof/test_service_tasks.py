@@ -597,5 +597,200 @@ class ServiceProofTests(unittest.TestCase):
         self.assertTrue(observed["provider_ids_unchanged"])
 
 
+class ServiceInstallTargetTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from test_provision_webui import OfficeSetupTests
+        cls.fixture = OfficeSetupTests
+        OfficeSetupTests.setUpClass.__func__(cls)
+
+    def setUp(self):
+        import provision_webui as P
+        from io import BytesIO
+        from urllib.parse import urlsplit
+        self.fixture.setUp(self)
+        result, safe = self.fixture.setup_phase(self)
+        self.assertEqual(result, 0, safe)
+        self.P, self.install_state = P, P.read_private(self.office_path)
+        self.original_install_state = copy.deepcopy(self.install_state)
+        self.original_rows = copy.deepcopy(self.rows)
+        self.original_personal_budget = copy.deepcopy((self.budget_user, self.budget_rows))
+        self.payer = "44444444-4444-4444-8444-444444444444"
+        self.service_requests, self.service_posts = [], []
+        self.service_user, self.service_keys = None, []
+        self.drift_after_user_create = None
+        self.native_mutation = None
+        self.enterContext(patch.object(S, "uuid4", return_value=self.payer))
+        self.enterContext(patch.object(S, "OPERATOR_STATE", P.OPERATOR_STATE))
+        self.enterContext(patch.object(S, "SOURCE", BUDGETS / "service_pipe.py"))
+        transport = S.WebUI().opener
+        original_open = transport.open
+        owner = self
+        class Response(BytesIO):
+            headers = {}
+            code = 200
+            def __init__(self, value): super().__init__(json.dumps(value).encode())
+        def service_open(request, timeout):
+            method, path = request.get_method(), urlsplit(request.full_url).path
+            body = json.loads(request.data) if request.data else None
+            self.service_requests.append((method, path, copy.deepcopy(body), request.get_header("Authorization")))
+            if method != "POST": return original_open(request, timeout)
+            self.assertEqual(request.get_header("Authorization"), "Bearer synthetic-admin-token")
+            self.assertEqual(P.read_private(self.office_path)["service_fixture"]["stage"], "installing")
+            if path == "/api/v1/functions/create":
+                self.assertEqual(body["id"], S.FUNCTION_ID)
+                value = copy.deepcopy(body) | {"type": "pipe", "user_id": self.state["admin"]["id"], "is_active": False, "is_global": False}
+                self.functions[S.FUNCTION_ID] = value
+                self.valves[S.FUNCTION_ID] = {"target_model_id": ""}
+            elif path == "/api/v1/models/create":
+                self.assertEqual(body["id"], S.FUNCTION_ID)
+                value = copy.deepcopy(body) | {"user_id": self.state["admin"]["id"], "write_access": True}
+                value["meta"].update(description=None)
+                value["access_grants"] = [dict(g, id=str(uuid4()), resource_type="model", resource_id=S.FUNCTION_ID, created_at=1234)
+                    for g in body["access_grants"]]
+                self.rows[S.FUNCTION_ID] = value
+            elif path == "/api/v1/functions/id/" + S.FUNCTION_ID + "/valves/update":
+                self.valves[S.FUNCTION_ID] = copy.deepcopy(body); value = body
+            elif path == "/api/v1/functions/id/" + S.FUNCTION_ID + "/toggle":
+                self.functions[S.FUNCTION_ID]["is_active"] = not self.functions[S.FUNCTION_ID]["is_active"]
+                value = self.functions[S.FUNCTION_ID]
+            elif path == "/api/v1/functions/id/employee_budget_cost/valves/update":
+                self.valves["employee_budget_cost"] = copy.deepcopy(body); value = body
+            else: raise AssertionError("Unexpected installer native POST")
+            if self.native_mutation: self.native_mutation(path, body)
+            return Response(copy.deepcopy(value))
+        self.enterContext(patch.object(transport, "open", side_effect=service_open))
+        def catalog(payload):
+            if S.FUNCTION_ID in self.rows and self.functions[S.FUNCTION_ID]["is_active"]:
+                payload["data"].append({"id": S.FUNCTION_ID, "owned_by": "openai", "pipe": {"type": "pipe"}})
+            if getattr(self, "target_catalog_mutation", None): self.target_catalog_mutation(payload)
+        self.catalog_change = catalog
+        async def native_budget_request(client, method, route, *, params=None, body=None):
+            self.assertEqual((params or body).get("user_id"), self.payer)
+            if method == "POST": self.service_posts.append((route, copy.deepcopy(body)))
+            if route == "/user/info":
+                if self.service_user is None: raise self.budget_module.BudgetAdminError("native_http_404")
+                return {"user_info": self.service_user, "teams": []}
+            if route == "/key/list": return {"keys": self.service_keys, "current_page": 1,
+                "total_count": len(self.service_keys), "total_pages": int(bool(self.service_keys))}
+            if route == "/user/new":
+                self.service_user = dict(body, team_id=None, budget_reset_at="2099-01-01T00:00:00Z")
+                if self.drift_after_user_create: self.drift_after_user_create()
+                return {"user_id": "misleading POST"}
+            if route == "/key/generate":
+                row = copy.deepcopy(body); key = row.pop("key")
+                row.update(token=hashlib.sha256(key.encode()).hexdigest(), expires=None, budget_reset_at="2099-01-01T00:00:00Z")
+                self.service_keys.append(row); return {"token": "misleading POST"}
+            raise AssertionError("Unexpected service native budget route")
+        self.enterContext(patch.object(S.BudgetAdminClient, "_request", native_budget_request))
+        self.webui = S.WebUI()
+
+    def install(self, **kwargs):
+        return S.install(self.webui, self.install_state, self.office_path, **kwargs)
+
+    def assert_unchanged_context(self):
+        self.assertEqual((self.budget_user, self.budget_rows), self.original_personal_budget)
+        self.assertEqual(self.tasks, self.inputs["service_baseline"]["task_config"])
+        self.assertEqual(self.tasks["TASK_MODEL_PARAMS"]["custom_params"]["reasoning"]["effort"], "none")
+        self.assertFalse(any("tasks" in path or "completions" in path or "responses" in path
+            for method, path, *_ in self.service_requests))
+
+    def test_default_installer_keeps_existing_target_twenty_cap_and_pipe_model_contract(self):
+        self.install_state = copy.deepcopy(self.state)  # Original ordinary A/B fixture, not Office handoff.
+        self.assertEqual(self.install(), self.payer)
+        self.assertEqual([path for path, _ in self.service_posts], ["/user/new", "/key/generate"])
+        self.assertEqual(self.service_posts[0][1]["models"], [S.MODELS[0]])
+        self.assertEqual(self.service_posts[0][1]["max_budget"], 20)
+        self.assertEqual(self.service_posts[1][1]["models"], [S.MODELS[0]])
+        self.assertEqual(self.service_posts[1][1]["max_budget"], 20)
+        self.assertEqual(self.valves[S.FUNCTION_ID], {"target_model_id": S.MODELS[0]})
+        self.assertNotIn("target_model_id", self.install_state["service_fixture"])
+        self.assertEqual(self.rows[S.FUNCTION_ID]["params"], {})
+        self.assertIsNone(self.rows[S.FUNCTION_ID]["base_model_id"])
+        self.assert_unchanged_context()
+
+    def test_explicit_office_target_and_cap_reuse_actual_initialize_and_install_readbacks(self):
+        self.assertEqual(self.install(target_model="gpt-6-luna", cap=Decimal(1000)), self.payer)
+        saved = self.P.read_private(self.office_path)
+        self.assertEqual(saved["service_fixture"]["stage"], "setup_complete")
+        self.assertEqual(saved["service_fixture"]["target_model_id"], "gpt-6-luna")
+        self.assertEqual(saved["service_fixture"]["protected_model_profiles"],
+            {m: self.original_rows[m] for m in ("gpt-6-luna", "gpt-5.4-mini")})
+        self.assertEqual([body["models"] for _, body in self.service_posts], [["gpt-6-luna"]] * 2)
+        self.assertTrue(all(body["max_budget"] == 1000 for _, body in self.service_posts))
+        self.assertEqual(self.valves[S.FUNCTION_ID], {"target_model_id": "gpt-6-luna"})
+        self.assertEqual(self.valves["employee_budget_cost"], {"ledger_base_url": "http://proxy:4000", "service_payer_id": self.payer})
+        self.assertEqual(self.rows[S.FUNCTION_ID]["params"], {})
+        self.assertIsNone(self.rows[S.FUNCTION_ID]["base_model_id"])
+        self.assertEqual(self.rows["gpt-6-luna"]["params"], {})
+        self.assertTrue(all(self.rows[m] == value for m, value in self.original_rows.items()))
+        self.assert_unchanged_context()
+
+    def test_invalid_target_inputs_stop_before_any_installer_http_or_private_write(self):
+        original = self.office_path.read_bytes()
+        for target in (None, "", " target", "target\n", S.FUNCTION_ID, "sk-" + "x" * 32):
+            with self.subTest(target=target), self.assertRaises(S.ProofError): self.install(target_model=target, cap=Decimal(1000))
+            self.assertEqual(self.office_path.read_bytes(), original)
+        self.assertFalse(self.service_requests)
+        self.assertFalse(self.service_posts)
+
+    def test_cap_validation_stays_with_existing_native_client_without_native_posts(self):
+        for cap in (Decimal(-1), Decimal("NaN"), Decimal("0.12345678901234567890123456789")):
+            self.install_state = copy.deepcopy(self.original_install_state)
+            with self.subTest(cap=cap), self.assertRaises(self.budget_module.BudgetAdminError):
+                self.install(target_model="gpt-6-luna", cap=cap)
+            self.assertFalse(self.service_posts)
+        self.assertNotIn(S.FUNCTION_ID, self.functions)
+
+    def test_stale_prepared_target_or_primary_profile_rejects_before_service_user_creation(self):
+        for model in ("gpt-6-luna", "gpt-5.4-mini"):
+            self.rows = copy.deepcopy(self.original_rows)
+            self.rows[model]["params"]["system"] = "foreign prepared body"
+            with self.subTest(model=model), self.assertRaisesRegex(S.ProofError, "Prepared Office"):
+                self.install(target_model="gpt-6-luna", cap=Decimal(1000))
+        self.assertFalse(self.service_posts)
+        self.assertNotIn("service_fixture", self.install_state)
+
+    def test_pipe_or_foreign_or_duplicate_actor_target_rejects_before_mutation(self):
+        for mutation in (lambda r: r.update(pipe={"type": "pipe"}), lambda r: r.update(owned_by="ollama")):
+            def altered(payload):
+                for row in payload["data"]:
+                    if row["id"] == "gpt-6-luna": mutation(row)
+            self.target_catalog_mutation = altered
+            with self.assertRaisesRegex(S.ProofError, "actor-readable direct"):
+                self.install(target_model="gpt-6-luna", cap=Decimal(1000))
+        self.target_catalog_mutation = lambda p: p["data"].extend(copy.deepcopy([r for r in p["data"] if r["id"] == "gpt-6-luna"]))
+        with self.assertRaisesRegex(S.ProofError, "actor-readable direct"):
+            self.install(target_model="gpt-6-luna", cap=Decimal(1000))
+        self.assertFalse(self.service_posts)
+
+    def test_target_drift_after_user_post_stops_before_key_post_or_payer_binding(self):
+        self.drift_after_user_create = lambda: self.rows["gpt-6-luna"]["params"].update(system="changed while initializing")
+        with self.assertRaisesRegex(S.ProofError, "changed during installation"):
+            self.install(target_model="gpt-6-luna", cap=Decimal(1000))
+        self.assertEqual([path for path, _ in self.service_posts], ["/user/new"])
+        self.assertFalse(self.service_keys)
+        self.assertNotIn("service_payer_id", self.valves["employee_budget_cost"])
+        self.assertEqual(self.P.read_private(self.office_path)["service_fixture"]["stage"], "installing")
+
+    def test_actual_workspace_creation_cannot_modify_protected_office_primary(self):
+        def change(path, body):
+            if path == "/api/v1/models/create": self.rows["gpt-5.4-mini"]["params"]["max_tokens"] = 9
+        self.native_mutation = change
+        with self.assertRaisesRegex(S.ProofError, "changed ordinary models"):
+            self.install(target_model="gpt-6-luna", cap=Decimal(1000))
+        self.assertNotIn("service_payer_id", self.valves["employee_budget_cost"])
+        self.assertEqual(self.install_state["service_fixture"]["stage"], "installing")
+
+    def test_changed_persisted_pipe_source_fails_existing_native_source_guard(self):
+        def change(path, body):
+            if path == "/api/v1/functions/create": self.functions[S.FUNCTION_ID]["content"] += "\n# foreign persisted source"
+        self.native_mutation = change
+        with self.assertRaisesRegex(S.ProofError, "native source/owner/activation"):
+            self.install(target_model="gpt-6-luna", cap=Decimal(1000))
+        self.assertEqual(self.install_state["service_fixture"]["stage"], "installing")
+        self.assert_unchanged_context()
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3,7 +3,7 @@ title: Employee budget service tasks
 author: Corporate Open WebUI
 version: 0.1.0
 required_open_webui_version: 0.12.2
-description: Guarded direct titles and bounded single-model native background title/tag/follow-up tasks.
+description: Guarded direct titles and native background tasks with separate source/target authorization.
 
 Install as native Function employee_budget_service only after isolated proof.
 Native LiteLLM owns service payer keys/caps/spend; this Pipe only validates the
@@ -140,6 +140,7 @@ class _Binding:
     model: dict
     secret: str = field(repr=False)
     wire_model: str
+    source_model: dict | None = None
 
 
 class Pipe:
@@ -158,13 +159,16 @@ class Pipe:
         require(not self.valves.target_model_id or self.valves.target_model_id == target, "stale_configuration")
         model = copy.deepcopy(request.app.state.MODELS.get(target))
         require(isinstance(model, dict) and model.get("id") == target, "model_unavailable")
+        source = None
         if request.scope.get("path") in MAIN_PATHS:
-            source = request.state.metadata.get("model")
-            require(source == model and source.get("id") == target and not model.get("pipe"),
-                    "unsupported_background_source")
+            require(not model.get("pipe"), "unsupported_background_source")
+            source = copy.deepcopy(request.state.metadata.get("model"))
+            require(isinstance(source, dict) and isinstance(source.get("id"), str) and bool(source["id"])
+                    and request.app.state.MODELS.get(source["id"]) == source, "unsupported_background_source")
+            await check_model_access(user, source)
         await check_model_access(user, model)
         secret, wire = await native_connection({"model": target}, model, request, url, require=require)
-        return _Binding(settings, model, secret, wire)
+        return _Binding(settings, model, secret, wire, source)
 
     async def pipe(self, body: dict, __user__: dict = None, __metadata__: dict = None,
                    __request__=None, __task__=None, __task_body__=None):
@@ -193,7 +197,10 @@ class Pipe:
         require(native_context(request, actor, task, task_body, metadata) == (user_id, chat_id)
                 and body == prepared and metadata == native_metadata
                 and self.valves.target_model_id == cached_target
-                and request.app.state.MODELS.get(binding.configuration[0]) == binding.model, "stale_context")
+                and request.app.state.MODELS.get(binding.configuration[0]) == binding.model
+                and (binding.source_model is None or (
+                    request.state.metadata.get("model") == binding.source_model
+                    and request.app.state.MODELS.get(binding.source_model["id"]) == binding.source_model)), "stale_context")
         target, _, payer = binding.configuration
         prepared["model"] = target
         # Native functions.py extracted this exact metadata before calling Pipe.

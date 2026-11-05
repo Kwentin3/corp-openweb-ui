@@ -197,11 +197,14 @@ class PricingFixture(Fixture):
         return data
 
     def bind(self, base_url):
+        self._bind_services(base_url, {'proxy', 'postgres', 'provider', 'redis', 'webui'})
+
+    def _bind_services(self, base_url, expected_services):
         # Compose config can contain secrets: capture only in memory, never export.
         result = subprocess.run(self.command + ['config', '--format', 'json'], cwd=ROOT, capture_output=True, timeout=30)
         require(result.returncode == 0 and len(result.stdout) <= MAX_BYTES, "Pricing Compose owner unavailable")
         config = json.loads(result.stdout)
-        require(set(config['services']) == {'proxy', 'postgres', 'provider', 'redis', 'webui'}
+        require(set(config['services']) == expected_services
                 and config['networks']['proof']['internal'] is True
                 and all(not s.get('ports') for s in config['services'].values()), "Pricing requires the isolated native fixture topology")
         mounts = {v['target']: v for v in config['services']['proxy']['volumes'] if v['type'] == 'bind'}
@@ -218,6 +221,7 @@ class PricingFixture(Fixture):
                                    cwd=ROOT, capture_output=True, timeout=15)
         require(inspected.returncode == 0 and urlsplit(base_url).hostname in
                 {v['IPAddress'] for v in json.loads(inspected.stdout).values()}, "Pricing target is outside this Compose owner")
+        return config
 
     def config_observation(self, new=False):
         data = self.command_json(['exec', '-T', 'proxy', 'python', '-B', '-c', CONFIG_OBSERVATION,

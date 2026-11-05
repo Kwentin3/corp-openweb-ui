@@ -139,6 +139,130 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(category, "personal")
         return PROTOCOL.validate_persisted_scope
 
+    def office_request(self, index=0, service=False, route="/v1/responses"):
+        request = self.responses_request(index, route)
+        request.data["model"] = request.scope["model"] = "gpt-6-luna" if service else "gpt-5.4-mini"
+        request.data.pop("reasoning")
+        request.data.pop("include")
+        if service:
+            request.scope = {k: request.scope[k] for k in ("schema", "user_id", "chat_id", "call_id", "model")}
+            request.scope.update(category="service", actor_id=str(uuid4()), task="follow_up_generation")
+            request.data["reasoning"] = {"effort": "none"}
+            request.data.pop("tools")
+            request.data.pop("tool_choice")
+        return request
+
+    def office_validator(self, category):
+        return {"personal": PROTOCOL.validate_persisted_scope,
+                "service": PROTOCOL.validate_persisted_service_scope}[category]
+
+    async def test_office_three_primary_continuations_and_service_preserve_full_safe_context(self):
+        first = self.office_request()
+        file_id = str(uuid4())
+        requests = [first]
+        for index, output in enumerate((json.dumps({"result_file_id": file_id}), [
+                {"type": "input_text", "text": "render_office_file: Image file read successfully."},
+                {"type": "input_image", "image_url": "data:image/png;base64,c3ludGhldGlj"}]), 1):
+            request = self.office_request(index)
+            request.data = copy.deepcopy(requests[-1].data)
+            request.data["input"].extend([
+                {"type": "function_call", "call_id": "office_" + str(index),
+                 "name": ("export_answer_to_word", "render_office_file")[index - 1],
+                 "arguments": json.dumps({"file_id": file_id})},
+                {"type": "function_call_output", "call_id": "office_" + str(index), "output": output}])
+            requests.append(request)
+        requests.append(self.office_request(3, service=True))
+        before = [copy.deepcopy(r.data) for r in requests]
+        with patch.object(C, "product_auth", return_value=self.responses_auth()), patch.object(
+                C, "scope_validator", side_effect=self.office_validator) as validator:
+            for request in requests:
+                returned = await C.gateway_auth(request, "sk-private-native-key")
+                self.assertEqual(returned.user_id, request.scope["user_id"])
+        rows = self.read()["requests"]
+        self.assertEqual([call.args[0] for call in validator.call_args_list], ["personal"] * 3 + ["service"])
+        for original, request, row in zip(before, requests, rows):
+            expected = {k: v for k, v in original.items() if k != "litellm_metadata"}
+            self.assertEqual(row["body"], expected)
+            self.assertEqual(row["body_after_auth"], expected)
+            self.assertEqual(row["verified_cost_scope"], request.scope)
+            self.assertEqual(row["native_auth_user_id"], request.scope["user_id"])
+            self.assertEqual(row["native_auth_key_hash"], "a" * 64)
+            self.assertTrue(row["attestation_present_before"] and row["provenance_removed_after"])
+            self.assertNotIn("user_id", row)
+            self.assertNotIn("task", row)
+        self.assertNotEqual(rows[-1]["native_auth_user_id"], rows[-1]["verified_cost_scope"]["actor_id"])
+        self.assertNotIn("answer_id", rows[-1]["verified_cost_scope"])
+        self.assertEqual(rows[2]["body"]["input"][-1]["output"][1]["image_url"], "data:image/png;base64,c3ludGhldGlj")
+        self.assertNotIn("sk-private-native-key", json.dumps(rows))
+        self.assertNotIn("owui_budget_provenance", json.dumps(rows))
+
+    async def test_office_incomplete_successful_auth_cannot_be_a_complete_capture(self):
+        for service in (False, True):
+            for mode in ("unsigned", "unconsumed", "missing_scope", "missing_native_identity", "no_auth"):
+                with self.subTest(service=service, mode=mode):
+                    C.save({"schema": 1, "requests": []})
+                    request = self.office_request(service=service)
+                    if mode == "unsigned":
+                        request.data["litellm_metadata"].pop("owui_budget_provenance")
+                    async def auth(actual, key):
+                        result = await self.responses_auth(consume=mode != "unconsumed")(actual, key)
+                        if mode == "missing_scope":
+                            actual.data["litellm_metadata"].pop("spend_logs_metadata")
+                        if mode == "missing_native_identity":
+                            result.api_key = "sk-private-raw-key"
+                        return None if mode == "no_auth" else result
+                    with patch.object(C, "product_auth", return_value=auth), patch.object(
+                            C, "scope_validator", side_effect=self.office_validator):
+                        with self.assertRaises(RuntimeError):
+                            await C.gateway_auth(request, "native-secret")
+                    self.assertNotIn("verified_cost_scope", self.read()["requests"][0])
+
+    async def test_office_service_scope_is_validated_by_real_owner_and_bound_to_native_payer(self):
+        for mode in ("employee_as_payer", "employee_equals_payer", "invented_answer", "invalid_task", "wrong_model"):
+            with self.subTest(mode=mode):
+                C.save({"schema": 1, "requests": []})
+                request = self.office_request(service=True)
+                async def auth(actual, key):
+                    result = await self.responses_auth()(actual, key)
+                    scope = actual.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"]
+                    if mode == "employee_as_payer": result.user_id = scope["actor_id"]
+                    elif mode == "employee_equals_payer": scope["actor_id"] = scope["user_id"]
+                    elif mode == "invented_answer": scope["answer_id"] = str(uuid4())
+                    elif mode == "invalid_task": scope["task"] = "primary_chat"
+                    else: scope["model"] = "goal584-r"
+                    return result
+                with patch.object(C, "product_auth", return_value=auth), patch.object(
+                        C, "scope_validator", side_effect=self.office_validator):
+                    with self.assertRaises((RuntimeError, PROTOCOL.ProtocolError)):
+                        await C.gateway_auth(request, "native-secret")
+                self.assertNotIn("verified_cost_scope", self.read()["requests"][0])
+
+    async def test_office_malformed_after_context_fails_success_but_preserves_original_auth_rejection(self):
+        for service in (False, True):
+            for rejected in (False, True):
+                for mode in ("unknown_context", "unsafe_context", "malformed_scope"):
+                    with self.subTest(service=service, rejected=rejected, mode=mode):
+                        C.save({"schema": 1, "requests": []})
+                        request, original = self.office_request(service=service), ValueError("private-product-rejection")
+                        async def auth(actual, key):
+                            result = await self.responses_auth()(actual, key)
+                            if mode == "unknown_context": actual.data["future_context"] = "private-future-value"
+                            elif mode == "unsafe_context": actual.data["instructions"] = "sk-" + "x" * 32
+                            else: actual.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"] = {
+                                "category": "service" if service else "personal"}
+                            if rejected: raise original
+                            return result
+                        with patch.object(C, "product_auth", return_value=auth), patch.object(
+                                C, "scope_validator", side_effect=self.office_validator):
+                            with self.assertRaises((RuntimeError, PROTOCOL.ProtocolError, ValueError)) as caught:
+                                await C.gateway_auth(request, "native-secret")
+                        if rejected: self.assertIs(caught.exception, original)
+                        row = self.read()["requests"][0]
+                        self.assertNotIn("verified_cost_scope", row)
+                        self.assertNotIn("private-product-rejection", json.dumps(row))
+                        self.assertNotIn("private-future-value", json.dumps(row))
+                        self.assertNotIn("sk-" + "x" * 32, json.dumps(row))
+
     async def test_responses_aliases_capture_every_supported_context_field_and_only_native_authority(self):
         for index, route in enumerate(("/responses", "/v1/responses", "/openai/v1/responses")):
             request = self.responses_request(index, route)
@@ -294,7 +418,8 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("private-original-product-error", json.dumps(row))
 
     async def test_auth_failure_identity_survives_observer_read_and_finish_failures_for_cc_e_r(self):
-        for factory in (self.request, self.embedding_request, self.responses_request):
+        for factory in (self.request, self.embedding_request, self.responses_request, self.office_request,
+                        lambda index: self.office_request(index, service=True)):
             for boundary in ("read_after", "finish"):
                 with self.subTest(family=factory.__name__, boundary=boundary):
                     request, original = factory(0), ValueError("original product auth error")
@@ -318,7 +443,8 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn("verified_cost_scope", row)
 
     async def test_successful_auth_still_surfaces_observer_read_and_finish_failures_for_cc_e_r(self):
-        for factory in (self.request, self.embedding_request, self.responses_request):
+        for factory in (self.request, self.embedding_request, self.responses_request, self.office_request,
+                        lambda index: self.office_request(index, service=True)):
             for boundary in ("read_after", "finish"):
                 with self.subTest(family=factory.__name__, boundary=boundary):
                     request = factory(0)
@@ -337,7 +463,7 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
                             actual.data.pop("litellm_metadata")
                         return SimpleNamespace(user_id=str(uuid4()), api_key="a" * 64, team_id=None)
                     with patch.object(C, "product_auth", return_value=auth), patch.object(C, "_finish", side_effect=observer_error), patch.object(
-                            C, "scope_validator", side_effect=self.responses_validator), patch(
+                            C, "scope_validator", side_effect=self.office_validator), patch(
                             "litellm.proxy.common_utils.http_parsing_utils._read_request_body", read_body):
                         with self.assertRaises(RuntimeError) as caught:
                             await C.gateway_auth(request, "native-secret")
@@ -362,7 +488,10 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_responses_wrong_route_or_model_delegates_once_without_capture(self):
         for route, model in (("/v1/responses/child", "goal584-r"), ("/v1/responses", "goal584-a"),
-                             ("/v1/chat/completions", "goal584-r"), ("/v1/responses", "goal584-fake-r")):
+                             ("/v1/chat/completions", "goal584-r"), ("/v1/responses", "goal584-fake-r"),
+                             ("/v1/responses", "goal584-fake-office"), ("/v1/responses", "goal584-fake-office-service"),
+                             ("/v1/responses", "gpt-5.4-mini-other"), ("/v1/responses", "gpt-6-luna-other"),
+                             ("/v1/chat/completions", "gpt-5.4-mini"), ("/v1/responses/child", "gpt-6-luna")):
             request = self.responses_request(route=route)
             request.data["model"] = model
             before, returned, calls = copy.deepcopy(request.data), object(), []

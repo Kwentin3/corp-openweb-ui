@@ -30,6 +30,7 @@ from prove_native_budgets import (
 OPERATOR_ROUTES = [
     "/openapi.json", "/user/new", "/user/update", "/user/info", "/user/list",
     "/key/generate", "/key/update", "/key/block", "/key/info", "/key/list", "/spend/logs/v2",
+    "/model/info",
 ]
 
 
@@ -56,6 +57,10 @@ def management_schema(proof: NativeProof) -> None:
     }.items():
         node = spec["paths"][endpoint]["post"]["requestBody"]["content"]["application/json"]["schema"]
         require(required_fields <= fields(node), "Native operator/assignment schema missing at " + endpoint)
+    route = spec["paths"].get("/model/info", {})
+    require(isinstance(route.get("get"), dict)
+            and not ({"post", "put", "patch", "delete"} & route.keys()),
+            "Native model-info route must remain read-only")
     proof.check("served_native_operator_and_assignment_schema")
 
 

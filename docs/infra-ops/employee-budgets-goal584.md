@@ -5,30 +5,25 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний принятый
-стендовый baseline — Native57, SUCCESS во всех четырёх jobs; independent review
-и parent replay main/pricing/calendars PASS. Catalog и bounded публикация двух synthetic тарифов
-приняты independent review и parent replay; оба calendar профиля повторно
-проверены parent с сохранением прежних независимых financial/source assertions.
-Main57 source/finance/context/closure принят independent review и parent replay;
-provider500 release/recovery5.838514s принят, actual audit88/0/88 совпал с native estimate
-при zero spend. Свежий Responses Details PNG просмотрен обоими, обе таблицы видны,
-новый post-reload guard исполнен. Проверен разрешённый stand-only derivative
-двух функций LiteLLM; исходный Native45 FAIL сохранён. Native53 main завершился
-FAIL в подготовке нового recovery probe, до вызова модели: operator fixture не
-имел `/user/list`. Фактический HTTP-код не экспортирован;403 воспроизведён точным
-native RouteChecks. Остальные три jobs SUCCESS. Подготовлены узкое read-разрешение
-fixture и regression. Кандидат54 согласовал direct/transitive helper SHA pins
-calendar-floor/catalog/versions и заменил исторический test snapshot точными
-Git-index bytes с прежними fixed hash guards. Windows PermissionError воспроизведён
-в os.replace временного private файла; только Windows test fixture теперь
-подменяет внешний filesystem writer. Bounded writer/save/deadline guards и Linux
-real private IO сохранены; native Recovery source8cf58835 не менялся.
-Последняя полная проверка:472harness PASS/0skip и244component checks
-(237PASS/7opt-in skips). Focused catalog/versions/calendar81PASS, recovery17PASS,
-80deadline replays ожидаемо отклонены. Independent source closure PASS; исходный
-FAIL и его trace сохранены. Runtime provider500/release/recovery и новый Details
-post-reload guard ещё требуют native приёмки. Production не менялся.
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний bounded
+стендовый baseline — Native64/50002032: все4jobs SUCCESS, independent review и
+parent replay main/pricing/calendars PASS. Сохранены исходные UI/finance/context/
+service/RAG/retention/Responses assertions; квалифицированы реальные used cache/
+reasoning tariff descriptors. Recovery после provider500 —4.363613s; календарный
+floor finalHTTP.464084s<5. Ни missing/null usage policy, ни полная reasoning
+continuity, ни текущие Office/STT/Terminal этим не приняты. После APT504 в
+Office7/Active165 узкий mirror-first canary18054f1c успешно собрал Office/STT;
+он локально интегрирован, временный canary worktree убран. Candidate65 source:
+574harness PASS/0skip и264component checks (257PASS/7opt-in skips); отдельные
+Office pytest assertions170PASS. Actual Office readiness ещё требует нового CI.
+
+Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
+новых native core patches нет. Office/provider/service и новый readback worker
+сохраняются отдельным WIP вне опубликованного64. Следующий шаг: source review
+и same-job Office preparation/Send, затем безопасная
+unknown-usage policy. Production, реальные деньги и рабочие маршруты не менялись.
+Ниже — текущие evidence/границы и история прежних кандидатов; старые FAIL не
+переименовываются в PASS после исправления следующей версии.
 
 **Candidate64, source:** descriptor теперь квалифицирует фактически использованные
 native billing categories, включая Responses/cache/reasoning; он не утверждает,
@@ -75,6 +70,169 @@ alternative-URI owner; update читает оба индекса, install мож
 [worker fallback](https://sources.debian.org/src/apt/3.0.3/apt-pkg/acquire-worker.cc/),
 [apt-secure](https://manpages.debian.org/trixie/apt/apt-secure.8.en.html).
 Новых native core patches нет; Office/provider/service WIP в64 не входит.
+
+Candidate64 опубликован: head500020321bde0fc1c283780788c6b5c2c69e6bee,
+tested merge13bb2aaddcd540f798f691c03862b0a3c5232995, tree diff пуст;
+remote head и PR585 draft/open/body отдельно прочитаны обратно.
+[Native64/41980169641](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41980169641),
+[ActiveCI165/41980169642](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41980169642),
+[Office7/41980169813](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41980169813)
+подтверждены in_progress. Runtime нового кандидата пока не принят. Метаданные:
+`local/goal584/candidate64-publish.safe.json`; до terminal не перепубликовывать
+ветку с cancel-in-progress workflows.
+
+**Native64 bounded pricing/calendars приняты:** independent review и parent repeat
+обоих frozen readers PASS. Pricing artifact13393911677/SHAfe39e402…/20220bytes:
+flat.20/.20/.40→.80; Responses.166/.334→.500, оба actual descriptors available с
+точной text_cache_reasoning v1/v2 declaration, все15native pins, history/policy/
+caps/restoration и cleanup0/0/0.63мутации отклонены. Missing/null остаются только
+наблюдениями HTTP200/zero rows, без policy/finality/free claim.
+Calendar basic/floor actual ZIP a6eea941…/04a89e08…:26sources/12mounts,20мутаций,
+cleanup0/0/0. Floor post/counters/final до.464084s<5; final period.40/lifetime.60,
+settlement2.447795s<60. Calendar custom_auth=None: новый gateway DB-only path
+этими jobs не принимается. Main также terminal SUCCESS и принят independent
+review+parent replay:77actual receipts/53sources,16financial+3context mutations,
+прежние UI/finance/full-input/service/RAG/retention/Responses guards сохранены.
+Новый DB-only source связан с mounted readbacks и реальными ordinary routes,
+без утверждения о per-call trace или actual /key/block. Recovery reserve.98→
+release0→success.20 за4.363613s; native failure estimate88/0/88, spend0.
+Parent отдельно просмотрел actual Details PNG (обе полные таблицы .40/2calls/
+20input/10output/30total) и friendly zero-budget denial. Main cleanup containers/
+volumes пусты; networks не заявлены. Native64 теперь bounded baseline вместо57.
+Evidence: `local/goal584/native64-{pricing,calendar}-review/`.
+Main evidence: `local/goal584/native64-main-review/`; все4Native jobs SUCCESS.
+Office7 и Active165 terminal FAILURE: оба dated Snapshot frontend реально
+возвращают504; alternate URI механизм исполнен, но доступность не восстановлена.
+Office failure fonts-dejavu-core2.37-8/libfribidi0 1.0.16-1, APT100 на534.4s;
+Active failure libcurl4t64 8.14.1-2+deb13u5, APT100 на684.1s. Office frontend/runtime
+собраны; CLI/preflight не достигнуты. Actual Office inventory: remaining images/
+containers пусты, build_cache_removed=false. Active Docker cleanup не подтверждён.
+HTTP504 не доказывает инфраструктурную первопричину; автоматического rerun нет.
+PR585 body обновлён и отдельно прочитан обратно без повторного CI.
+Для native APT canary создан clean task worktree
+`D:/Users/Roman/Desktop/Проекты/corp-openweb-ui-goal584-apt-canary`, branch
+`agent/goal584-apt-canary`, base50002032. Исследованный APT3.0.3 путь: обычный
+official mirror pinned−1 не выбирает mirror-only версии, но может предоставить
+тот же archive для snapshot-selected version при совпадении SHA256/metadata.
+Clean lists/strict update/Default-Release='' и source-bound Valid-Until exception
+реализованы в двух Dockerfiles (18insertions/4deletions); ordinary stanzas имеют
+Valid-Until=yes, general и package-specific native policy печатаются в build log.
+Base/date/packages/retries/Officeversion+SHA/signature policy сохранены. Авторский
+GNU bash -n и actual sed/printf representative rehearsal PASS; root прочитал весь
+diff/checkscope. Canary commit d0d3a98929ad9599144da5d6c6f59e367953df3f,
+remote readback совпал. [ActiveCI canary41983406835](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41983406835)
+подтверждён LIVE, job127098480653; existing workflow_dispatch с export_officecli_image=false,
+CI source не менялся. Первый canary terminal FAILURE: runner shutdown signal,
+exit143, без APT failure в retained log722d78b8…; build/archives не приняты.
+Actual apt-cache policy успел подтвердить snapshot500/mirror−1 и прежние
+requested package candidates; это не install success. Первый результат сохранён
+в `local/goal584/apt-canary/attempt1.safe.json`. После подтверждения terminal
+сделан один native failed-job rerun БЕЗ source change: тот же run41983406835,
+attempt2/job127105149717 подтверждён in_progress. Не переопределять shutdown
+как доказанный APT timeout/ошибку pinning или полный инфраструктурный диагноз.
+Attempt2 затем terminal CANCELLED, exact native check-run annotation:
+job exceeded maximum execution time30m. Retained rawlog107a240e…/2109464bytes
+неполон (заканчивается Office step13), несмотря на более поздние SUCCESS metadata;
+вердикт NOT_ACCEPTED_NATIVE_TIMEOUT_AND_LOG_GAP, parent repeat PASS для сохранения
+этого ограничения. Mirror archives2 реально установлены, но CLI/STT raw proof
+в том логе отсутствует. Evidence: `local/goal584/apt-canary/attempt2/`.
+
+**Mirror-first canary bounded PASS:** commit18054f1c29aa9d6a36ee2ba862258fa427166382,
+[run41991942471](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41991942471),
+job127125984817 terminal SUCCESS. Изменён ровно redirect target однойprintfline
+на Dockerfile: ordinary mirror metadata теперь в00mirror-archives.sources,
+native pin−1/dated selection500/версии/base/signatures сохранены. Полный rawlog
+436403bytes/SHA218186a6… проверен independent review и parent repeat24checks.
+Actual ordinary archives177Office/205STT; Office316pytest+CLIchecksumOK+
+6installedtestsOK, STT187pytest+полный installed offline media sentinel.
+Artifacts0/exportfalse; Docker inventory cleanup не экспортирован и не заявлен.
+Это принятие конкретного transport/build canary, не native Office Send/Files/
+ledger/TaskModel и не весь GOAL. На момент canary Primary PR source оставался50002032;
+интеграция и уборка выполнены следующим шагом ниже.
+Evidence: `local/goal584/apt-canary/mirror-first/`.
+Canary затем перенесён fast-forward в основную task branch: local HEAD18054f1c,
+remote PR585 по-прежнему50002032. До/после проверены ровно два Dockerfile;
+шесть staged management/model-info изменений сохранены byte-exact. Clean canary
+worktree удалён через native Git; commit и branch сохранены до публикации кандидата.
+Evidence: `local/goal584/apt-canary/{primary-integration,worktree-cleanup}.safe.json`.
+Source: [APT3.0.3 policy](https://sources.debian.org/src/apt/3.0.3/apt-pkg/policy.cc/),
+[version merging](https://sources.debian.org/src/apt/3.0.3/apt-pkg/pkgcachegen.cc/),
+[native pinning](https://manpages.debian.org/trixie/apt/apt_preferences.5.en.html).
+Evidence и нужный commit сохранены после native git cleanup. Это один
+транспортный срез текущего GOAL, не новый GOAL.
+
+**Текущий Office preparation source, без runtime acceptance.** Existing provisioning
+worker получил отдельные фазы Office setup/service setup/readback: native APIs,
+свежий actor, отдельный private handoff, полный task baseline и существующий
+ServicePipe installer. Primary и service caps1000 — явные синтетические стендовые
+значения; прежние сотрудники/счета/контексты сохраняются. Target gpt-6-luna params{}
+и фактический nested TASK_MODEL_PARAMS.custom_params.reasoning.effort='none'
+проверяются отдельно от primary reasoning. CompactionFalse проверяется через
+эффективный native chat config; stateful ResponsesFalse задаётся в Office overlay.
+Worker SHA b68569a5e7f06a348de2b26eae3821cd4e3155b7f494f5071e1d5273326b1020,
+tests8ab948de…; installer568cb22d…/tests40685ed6…. Parent повторил эти suites
+вместе с pure Office assertions:193PASS/0skip,30.72s. Первые два parent запуска
+прерваны на collection из-за неверно выбранного venv (fastapi/jwt отсутствовали);
+проверка повторена в существующем provenance-venv, без изменения dependencies.
+
+Локальная репетиция трёх полных Office Responses bodies использует фактические
+14tools, converter и callback; provider/CLI/browser/ledger этим не принимаются.
+После подготовки проверенного public tokenizer asset native estimates24.42/
+29.96/32.72 проходят синтетический cap1000; token counts394/948/1224. Установлен
+native gap: удаление всех top-level tools/instructions не меняет эти оценки.
+Ограниченный upstream research не нашёл готового exact fix: Python и Rust ветки
+считают только input. Новый tokenizer/calculator и третий core patch не добавлены.
+Evidence: `local/goal584/office-request-rehearsal/{report.md,upstream-counting.md}`.
+
+Existing Office workflow дополнен подготовкой строгого six-service стенда и вызовом
+host OfficeFixture.prepare; профиль и trusted source проверяются до inference.
+Native Compose down --volumes предшествует удалению image IDs; при ошибке teardown
+images сохраняются, отдельно читаются task-scoped containers/volumes/networks.
+Локально проверены8bash/5Python blocks, actual config factory/hook и три исхода
+cleanup через Docker IO double:0actual Docker/external calls. Independent review
+нашёл сброс прежней inventory error при успешном frontend inventory; исправлен
+OR-накопитель, отдельный negative теперь требует отказа и сохранения images.
+Повтор и independent review исправленного workflow df01844d… PASS. Docker CLI локально
+отсутствует. Этот workflow WIP ещё не опубликован/не запущен; native Office accepted
+остаётсяFalse. Evidence: `local/goal584/office-preparation-wiring/rehearsal.safe.json`.
+Host prepare bb0cab9d…/tests7517731c… выполняет оба real worker entrypoints и
+trusted Git service-source lookup; wire observer37cfca2a…/tests4bf9536c… добавляет
+точные Office aliases и existing personal/service validators. Service payer не
+подменяется actor. Live wire assertions21e9dba0…/testsad257f2d… отделены от прежнего
+component pre/post-budget proof; полный исходный контракт сохранён. Parent
+повтор host/capture/pure suites:217PASS/0skip,38.86s. Эти tests не являются actual
+Docker/browser/Office acceptance и не восстанавливают before_budget из wire.
+Перед CI подготовительные proxy exec-команды согласованы с host UID:GID:
+bootstrap/common setup и обе Office фазы используют native --user. Это сохраняет
+доступ host к его0700private/0600handoff без ослабления permissions; native proxy
+процесс не меняется. Updated host9357ac70…/tests6f9a455c…:26PASS, independent UID
+source review PASS; actual Docker execution остаётся gate. Workflowf5f02cae…,
+повтор8bash/5Python/4offline checks PASS. Service stub4ef419e2…/tests5b5ab84e…
+реализует exact native nonstream Responses follow-up, включая полный default
+prompt/history и reasoning none; выдуманных tools/store/output-cap не требует.
+Parent повтор Office+old Responses/provider:45PASS,15.49s. Gateway/socket leaves
+в source replay doubled; actual natural service task ещё не принят.
+Первый общий source прогон65 сохранён как FAIL: отсутствовал явный локальный
+batch_utils source input, а overlap closure выявил реальную ошибку packaging.
+Проверенный batch_utils44df8a0e… передан через существующий env owner без fetch.
+Общий readonly mount pure Office validator перенесён в WebUI overlay и включён
+в source manifest; protected_r точно перенесён из R coordinator в существующий
+stdlib NativeProof helper, оба пути используют тот же function object. Это убрало
+зависимость pure Office от host/browser R coordinator без нового модуля/калькулятора.
+Прежний closure test сохранён. NativeProofb31b1340…/overlapd44cdeaf…/pure12882acd…;
+provider LF6a235e6e… и catalog02ea002a… зафиксированы согласованно с версиями.
+Parent полный повтор:574harness PASS/0skip,264component checks (257PASS/7skips),
+ещё170Office pytest PASS. Index/working bytes сопоставляются с явным CRLF→LF;
+в CI поступают Git-index LF bytes, не Windows raw receipt hashes.
+Evidence: `local/goal584/candidate65-first-checks.safe.json`,
+`local/goal584/office-preparation-wiring/{index-freeze,rehearsal}.safe.json`.
+Candidate65 — preparation stage, не весь Office/GOAL. После публикации требуется
+same-job build/preparation/readback и cleanup; ordinary Send/Files/ledger/task gate
+остаётся следующим обязательным этапом.
+Следующий обязательный шаг — завершить service provider/Office capture wiring,
+проверить host preparation, затем один ordinary Send с actual export/render,
+download/foreign ACL, natural service task и финансовым readback. Unknown usage,
+полная reasoning continuity и actual STT/Terminal остаются открытыми частями GOAL.
 
 **Native54 опубликован:** head458b4f39b0235f44406be657da5bb2f453a5e8b8,
 tested mergea7404580a67916a01def250415a00ae77615f0e2, tree diff пуст;
@@ -565,6 +723,50 @@ functions/tests сохранены, historicalOffice4 receipt join прошёл.
 не заявляется: actual source-bound host ещё должен собрать running images,
 отсутствие shadow mounts и реальный complete frontend verifier result.
 Evidence: `local/goal584/office-profile-admission-independent.md`.
+Office TaskModel opt-in ddf761e0…/test8e1f4086… **ОТОЗВАН до исправления входной
+предпосылки**, несмотря на122PASS: actual readback probe current-route-phase2.py
+читает task.model.params.custom_params.reasoning.effort, а не custom_params.reasoning_effort.
+Actual gpt6 model имеет оба поля NULL; task config имеет plainreasoning_effort=NULL
+и nested reasoning.effort=none. Новый source согласуется с этим native input;
+coherent старый неправильный top-level custom override должен быть отклонён.
+Исходные77default tests/остальные source/build/Session guards не отменяются.
+Исторический source ddf761e0…/test8e1f4086… имел
+122focused PASS/0skip у автора и parent repeat. Default directgpt6 branch и77
+прежних tests сохранены; новая ветка требует независимые полные baseline/current
+native task config, target Model+actor catalog, Function/content/Valves/Workspace
+readbacks и trusted same-job service_pipe source. Меняются только оба selectors
+на employee_budget_service; full target/task params/system/flags/prompts остаются
+равны baseline, target не Pipe/arena, Workspace params={} и base_model_id=None.
+Общие source/Session/Valves/reasoning/build guards сохраняются. JSON не доказывает
+origin/freshness; actual host GET/wiring, actor ACL и реальный Office Send/finance
+ещё впереди. Source WIP не опубликован в64; новых product/runtime owners нет.
+Worker readback source19c4f9dd…/testab26a905… добавляет69lines в existing
+provision_webui: office-service-baseline/current собирают реальные native GET
+через прежний WebUI client/session, полные данные пишутся только в private0600
+state; safe stdout содержит readback-only status/hashes, без system/source/token.
+Current проверяет тот же pure service contract, baseline не перезаписывается;
+сбои GET/import/source/private replace сохраняют прежние bytes/credentials.
+Author135combined PASS, final worker13PASS; parent прочитал полный diff и реальные
+WebUI request/atomic writer tests, повторил final13PASS/0skip (4.50s); hashes совпали.
+Office-only overlay теперь монтирует pure module read-only с create_host_path=false;
+YAML/source path и существующие sibling mounts проверены, overlay SHAfc9f6b13….
+Реальная Compose normalization/mount и Office preparation/host/Send не приняты;
+readback phase не объявляется подготовкой или приёмкой Office.
+Новый Office setup candidatefe2ae5ba…/test40c9276d… (142PASS) также возвращён
+на source correction: target gpt6 params должен оставаться {}, не получать
+выдуманный model-level customreasoning_effort=none. Office setup не пишет task
+config и не объявляет baselineготовым; отдельный host/task preparation ещё нужен.
+Native ServicePipe0842 logic сохраняет params и не меняется из-за fixture ошибки.
+Прежний95line equality witness с synthetic top-level override остаётся примером
+той формы, но не доказательством актуальной deployed nested task configuration.
+Исправленный pureb9d0729e…/test5c3c5190… и worker3f63880b…/test16f47768…
+приняты parent source read/repeat153PASS/0skip. Wrong coherent top-level form
+отклоняется; factual nested task form и targetparams={} проходят. Реальные task
+configuration/Servicecaller/provider/OfficeSend ещё не приняты.
+Office config factory99973881…/test5eafb3db… parent20PASS: добавляет ровно два
+local synthetic aliases с исходными A/B bytes/nonmodel fields и protected
+10-field declared tariff descriptors; quote timestamps проверены actual owner.
+Source-only; factory и readonly mounts ещё должен вызвать same-job host.
 Host collector source80e99956…/testf92e68e9… готов и parent read/repeat принят:
 29focused PASS/0skip (Office+unchanged pricing browser). Actual Docker IO остаётся
 external boundary double; emitted Python и existing complete frontend verifier

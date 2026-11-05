@@ -25,7 +25,7 @@ import time
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
-from prove_native_budgets import ProofError, close_amount, expected_budget_message, require
+from prove_native_budgets import ProofError, close_amount, expected_budget_message, protected_r, require
 
 ROOT = Path(__file__).resolve().parent.parent.parent  # Saturates safely at /proof.
 PRIVATE = Path('/proof-private')
@@ -370,17 +370,6 @@ def record_failure(receipt, error):
         receipt['failure']['worker'] = error.packet
     elif isinstance(error, ProofError):
         receipt['failure']['error_message'] = str(error)
-
-
-def protected_r(user, key):
-    user_names = ('user_id', 'user_role', 'models', 'max_budget', 'budget_duration', 'budget_reset_at', 'teams')
-    key_names = ('token', 'user_id', 'models', 'key_alias', 'metadata', 'max_budget', 'budget_duration',
-                 'budget_reset_at', 'blocked', 'team_id', 'budget_id', 'allowed_routes', 'expires')
-    require(all(k in user for k in user_names if k != 'teams')
-            and all(k in key for k in ('user_id', 'models', 'key_alias', 'max_budget', 'budget_duration', 'budget_reset_at')),
-            'Responses protected native budget fields are missing')
-    return {'user': {k: copy.deepcopy(user.get(k)) for k in user_names},
-            'key': {k: copy.deepcopy(key.get(k)) for k in key_names}}
 
 
 def advertised_ids(answer, actor, chat_id, answer_id):

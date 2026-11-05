@@ -168,10 +168,11 @@ async def budgets(state, payer=None):
     return personal, service
 
 
-def register_pipe_model(webui, state):
+def register_pipe_model(webui, state, *, target_model=MODELS[0]):
     """A native Function also needs a registered, actor-readable Workspace Model."""
     admin, actor = state["admin"], state["users"][0]
-    before = {model: model_body(webui.model(admin["token"], model)) for model in MODELS}
+    protected = tuple(dict.fromkeys((*MODELS, target_model, *(("gpt-5.4-mini",) if "office_setup" in state else ()))))
+    before = {model: model_body(webui.model(admin["token"], model)) for model in protected}
     requested = {"id": FUNCTION_ID, "base_model_id": None, "name": "GOAL584 service title",
         "params": {}, "meta": {"capabilities": {"builtin_tools": False}, "filterIds": [], "toolIds": [], "skillIds": []},
         "is_active": True, "access_grants": [{"principal_type": "user", "principal_id": actor["id"], "permission": "read"}]}
@@ -187,29 +188,54 @@ def register_pipe_model(webui, state):
     actual = webui.model(admin["token"], FUNCTION_ID)
     require(actual.get("user_id") == admin["id"] and not model_grant_changes(expected, model_body(actual)),
             "Native service Workspace Model readback differs")
-    require({model: model_body(webui.model(admin["token"], model)) for model in MODELS} == before,
+    require({model: model_body(webui.model(admin["token"], model)) for model in protected} == before,
             "Service Workspace Model registration changed ordinary models")
     state["service_fixture"]["workspace_model"] = model_body(actual)
     state["service_fixture"]["ordinary_model_profiles_unchanged"] = True
 
 
-def install(webui, state, path):
+def install(webui, state, path, *, target_model=MODELS[0], cap=Decimal(20)):
+    """Reuse native installation; explicit stand target/cap do not prepare tasks."""
     require("service_fixture" not in state, "Service proof requires fresh isolated service state")
+    require(isinstance(target_model, str) and 0 < len(target_model) <= 256 and target_model == target_model.strip()
+            and all(ord(char) >= 32 for char in target_model) and target_model != FUNCTION_ID, "Invalid native service target")
+    no_secrets(target_model)
     admin, payer = state["admin"], str(uuid4())
     require(payer not in {account["id"] for account in [*state["users"], admin]}, "Service payer collided with actor identity")
+    explicit = target_model != MODELS[0] or cap != Decimal(20)
+    protected = (target_model, "gpt-5.4-mini") if "office_setup" in state else (target_model,)
+    before = {model: webui.model(admin["token"], model) for model in dict.fromkeys(protected)} if explicit else {}
+    if explicit:
+        webui.session(state["users"][0], "user")
+        status, listed = response(webui, "GET", "/api/models?refresh=true", state["users"][0]["token"])
+        rows = listed.get("data") if isinstance(listed, dict) else None
+        selected = [row for row in rows if isinstance(row, dict) and row.get("id") == target_model] if isinstance(rows, list) else []
+        require(status == 200 and len(selected) == 1 and selected[0].get("owned_by") == "openai"
+                and not selected[0].get("pipe") and not selected[0].get("arena") and before[target_model]["is_active"] is True,
+                "Native service target is not an actor-readable direct OpenAI model")
+        if "office_setup" in state:
+            prepared = state["office_setup"].get("models", {})
+            require(all(model in prepared and prepared[model] == profile for model, profile in before.items()),
+                    "Prepared Office native model profile changed before service installation")
+    def unchanged():
+        require(not explicit or {model: webui.model(admin["token"], model) for model in before} == before,
+                "Selected native service/Office model changed during installation")
     source = SOURCE.read_text(encoding="utf-8")
     require(0 < len(source.encode()) <= 128 * 1024, "Service Pipe source exceeded bound")
     common_path = "/api/v1/functions/id/" + FILTER_ID + "/valves"
     common = webui.ok("GET", common_path, token=admin["token"])
     require(common.get("service_payer_id") in (None, ""), "Existing service configuration must not be overwritten")
     state["service_fixture"] = {"stage": "installing", "payer_id": payer, "pipe_sha256": source_hash(source)}
+    if explicit:
+        state["service_fixture"].update(target_model_id=target_model, protected_model_profiles=before)
     write_private(path, state)
     async def initialize():
         async def authorize():
             webui.session(admin, "admin")
+            unchanged()
         async with ClientSession(trust_env=False) as session:
             client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)["operator_token"])
-            return await client.initialize_employee(payer, ((MODELS[0], Decimal(20)),), Decimal(20),
+            return await client.initialize_employee(payer, ((target_model, cap),), cap,
                 os.environ.get("OWUI_BUDGET_GATEWAY_SECRET", ""), before_write=authorize)
     created = asyncio.run(initialize())
     state["service_fixture"]["key_hash"] = created.models[0].key_hash
@@ -217,9 +243,10 @@ def install(webui, state, path):
     function_path = "/api/v1/functions/id/" + FUNCTION_ID
     webui.ok("POST", "/api/v1/functions/create", token=admin["token"], body={
         "id": FUNCTION_ID, "name": "GOAL584 service title", "content": source, "meta": {}})
-    webui.ok("POST", function_path + "/valves/update", token=admin["token"], body={"target_model_id": MODELS[0]})
+    webui.ok("POST", function_path + "/valves/update", token=admin["token"], body={"target_model_id": target_model})
     webui.ok("POST", function_path + "/toggle", token=admin["token"])
-    register_pipe_model(webui, state)
+    register_pipe_model(webui, state, target_model=target_model)
+    unchanged()
     expected = {**copy.deepcopy(common), "service_payer_id": payer}
     webui.session(admin, "admin")
     require(webui.ok("GET", common_path, token=admin["token"]) == common, "Common Function configuration changed during setup")
@@ -230,12 +257,13 @@ def install(webui, state, path):
             and actual.get("type") == "pipe" and actual.get("is_active") is True
             and actual.get("is_global") is False and source_hash(actual.get("content", "")) == source_hash(source),
             "Installed service Function differs from its native source/owner/activation")
-    require(webui.ok("GET", function_path + "/valves", token=admin["token"]) == {"target_model_id": MODELS[0]},
+    require(webui.ok("GET", function_path + "/valves", token=admin["token"]) == {"target_model_id": target_model},
             "Service Pipe target Valves differ")
     status, catalog = response(webui, "GET", "/api/models?refresh=true", state["users"][0]["token"])
     require(status == 200 and isinstance(catalog, dict) and isinstance(catalog.get("data"), list)
-            and {MODELS[0], FUNCTION_ID} <= {model.get("id") for model in catalog["data"]},
+            and {target_model, FUNCTION_ID} <= {model.get("id") for model in catalog["data"]},
             "Native actor catalog did not expose the configured task Pipe and target")
+    unchanged()
     state["service_fixture"]["stage"] = "setup_complete"
     write_private(path, state)
     return payer

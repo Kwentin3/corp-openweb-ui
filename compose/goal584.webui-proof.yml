@@ -8,6 +8,12 @@ services:
       OWUI_BUDGET_REQUIRE_PROVENANCE: "true"
     volumes:
       - type: bind
+        source: ../scripts/goal584-budget-proof/prove_office_compatibility.py
+        target: /proof/prove_office_compatibility.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../scripts/goal584-budget-proof/provision_webui.py
         target: /proof/provision_webui.py
         read_only: true

@@ -32,6 +32,9 @@ RESPONSES_FIELDS = (
 )
 # These belong to native logging/provenance, not the provider model context.
 RESPONSES_LOG_FIELDS = frozenset({"litellm_metadata", "litellm_session_id", "litellm_trace_id"})
+# Exact aliases in office_fixture.prepare_office_config; this disposable observer
+# is mounted only on the synthetic stand, never as product authentication.
+OFFICE_MODELS = frozenset({"gpt-5.4-mini", "gpt-6-luna"})
 CREDENTIAL = re.compile(r"(?:sk-|gw-)[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 
 
@@ -182,7 +185,8 @@ async def gateway_auth(request, api_key):
     route = get_request_route(request)
     record = None
     embedding = embedding_route(route) and body.get("model") == "goal584-e"
-    responses = responses_route(route) and body.get("model") == "goal584-r"
+    office = responses_route(route) and body.get("model") in OFFICE_MODELS
+    responses = responses_route(route) and (body.get("model") == "goal584-r" or office)
     fields = EMBEDDING_FIELDS if embedding else FIELDS
     if embedding or responses or route in ("/chat/completions", "/v1/chat/completions") and body.get("model") in ("goal584-a", "goal584-b"):
         record = {
@@ -280,6 +284,9 @@ async def gateway_auth(request, api_key):
                         record["verified_cost_scope"] = scope
                 elif not embedding and not responses and scopes and record["attestation_present_before"] and record["provenance_removed_after"]:
                     record["verified_cost_scope"] = scope_validator(scopes[0].get("category"))(scopes[0])
+                if office and not auth_failed and "verified_cost_scope" not in record:
+                    _finish(record)
+                    raise RuntimeError("Incomplete disposable Office scope observation")
                 _finish(record)
         except BaseException:
             # Observation must never replace an existing product rejection.

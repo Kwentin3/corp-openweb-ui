@@ -24,6 +24,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 MODELS = ("goal584-fake-a", "goal584-fake-b")
 EMBEDDING_MODEL = "goal584-fake-e"
 RESPONSES_MODEL = "goal584-fake-r"
+OFFICE_MODEL = "goal584-fake-office"
+OFFICE_SERVICE_MODEL = "goal584-fake-office-service"
 USAGE_MODELS = ("goal584-fake-usage", "goal584-fake-usage-absent", "goal584-fake-usage-null")
 RESPONSES_MAX_OUTPUT_TOKENS = 16
 STATE_LOCK = threading.Lock()
@@ -231,6 +233,112 @@ def responses_tool(payload, values, control):
     return names[0]
 
 
+def office_service_responses_input(payload):
+    """Finite native default follow-up task, with its complete pinned instructions.
+
+    This validates fixture input, not task authentication; ServicePipe owns that.
+    Native task generation has no tools, explicit output cap or store field.
+    """
+    values = responses_input(payload)
+    if (set(payload) != {"model", "input", "stream", "reasoning"} or payload["stream"] is not False
+            or payload["reasoning"] != {"effort": "none"} or len(values) != 1
+            or set(values[0]) != {"type", "role", "content"} or values[0]["type"] != "message"
+            or values[0]["role"] != "user" or not isinstance(values[0]["content"], list)
+            or len(values[0]["content"]) != 1 or set(values[0]["content"][0]) != {"type", "text"}
+            or values[0]["content"][0]["type"] != "input_text"):
+        raise ValueError("Invalid finite Office service task")
+    prompt = values[0]["content"][0]["text"]
+    prefix, marker, history = prompt.partition("<chat_history>\n")
+    # DEFAULT_FOLLOW_UP_GENERATION_PROMPT_TEMPLATE at WebUI 6a18585f; no
+    # shortened paraphrase can silently replace task instructions in this stand.
+    if (not marker or hashlib.sha256((prefix + marker).encode()).hexdigest()
+            != "afa89f53427f1a50004c47e96f5f5c1f6e72f3b8187a4b617a05860105d83499"
+            or not history.endswith("\n</chat_history>") or not history.startswith("USER: ")
+            or "\nASSISTANT: " not in history):
+        raise ValueError("Invalid finite Office follow-up context")
+    return values
+
+
+def office_responses_input(payload):
+    """Finite Office representation adapter; the original R profile stays strict."""
+    tools = payload.get("tools")
+    values = payload.get("input")
+    if (not isinstance(tools, list) or not 2 <= len(tools) <= 64
+            or not all(isinstance(tool, dict) and tool.get("type") == "function"
+                and isinstance(tool.get("name"), str) and isinstance(tool.get("parameters"), dict) for tool in tools)
+            or len({tool["name"] for tool in tools}) != len(tools)
+            or not isinstance(values, list) or not all(isinstance(item, dict) for item in values)
+            or type(payload.get("max_output_tokens")) is not int or payload["max_output_tokens"] != 1024
+            or payload.get("tool_choice", "auto") != "auto"
+            or payload.get("parallel_tool_calls", False) is not False
+            or len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) > 1_048_576):
+        raise ValueError("Invalid finite Office Responses profile")
+    # Validate every original tool above and every typed result below, then use
+    # the existing envelope/text/reasoning validator on a bounded representation.
+    # Nothing from this validation copy replaces the captured original payload.
+    checked = copy.deepcopy(payload)
+    checked["max_output_tokens"] = RESPONSES_MAX_OUTPUT_TOKENS
+    checked["tools"] = []
+    for item in checked["input"]:
+        if item.get("type") == "function_call_output" and isinstance(item.get("output"), list):
+            parts = item["output"]
+            if not (len(parts) == 2 and all(isinstance(part, dict) for part in parts) and parts[0].get("type") == "input_text"
+                    and isinstance(parts[0].get("text"), str)
+                    and set(parts[1]) == {"type", "image_url"} and parts[1]["type"] == "input_image"
+                    and isinstance(parts[1]["image_url"], str)):
+                raise ValueError("Invalid finite Office typed output")
+            item["output"] = "Office typed result validated separately"
+    responses_input(checked)
+    return values
+
+
+def office_responses_step(payload, values):
+    """Synthetic export -> render -> final choice, using only current Tool outputs."""
+    names = []
+    for suffix in ("export_answer_to_word", "render_office_file"):
+        found = [tool["name"] for tool in payload["tools"] if tool["name"].endswith(suffix)]
+        if len(found) != 1:
+            raise ValueError("Office Tool discovery is ambiguous")
+        names.append(found[0])
+    last_user = next((i for i in range(len(values) - 1, -1, -1) if values[i].get("role") == "user"), None)
+    if last_user is None:
+        raise ValueError("Office user turn is missing")
+    tail = [item for item in values[last_user + 1:] if item.get("type") != "reasoning"]
+    if len(tail) not in (0, 2, 4):
+        raise ValueError("Incomplete finite Office Tool continuation")
+    export_args = {"output_name": "goal584-office.docx", "source_message": "previous_assistant", "commands": []}
+    if not tail:
+        return names[0], export_args, None
+    for index in range(0, len(tail), 2):
+        call, result = tail[index:index + 2]
+        if (call.get("type") != "function_call" or call.get("name") != names[index // 2]
+                or result.get("type") != "function_call_output" or result.get("call_id") != call.get("call_id")
+                or index and call["call_id"] == tail[0]["call_id"]):
+            raise ValueError("Unpaired finite Office Tool result")
+    if json.loads(tail[0]["arguments"]) != export_args or not isinstance(tail[1]["output"], str):
+        raise ValueError("Invalid finite Office export continuation")
+    exported = json.loads(tail[1]["output"])
+    file_id = exported.get("result_file_id") if isinstance(exported, dict) else None
+    if (not isinstance(file_id, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,128}", file_id)
+            or not isinstance(exported.get("result_file"), dict) or exported["result_file"].get("id") != file_id
+            or exported.get("download_url") != "/api/v1/files/" + file_id + "/content"
+            or exported.get("source_text_preserved") is not True):
+        raise ValueError("Native Office export result is missing")
+    render_args = {"file_id": file_id, "format": "docx", "grid": 2}
+    if len(tail) == 2:
+        return names[1], render_args, None
+    parts = tail[3]["output"]
+    if (json.loads(tail[2]["arguments"]) != render_args or not isinstance(parts, list) or len(parts) != 2
+            or parts[0] != {"type": "input_text", "text": names[1] + ": Image file read successfully."}
+            or parts[1].get("type") != "input_image" or not isinstance(parts[1].get("image_url"), str)
+            or not parts[1]["image_url"].startswith("data:image/png;base64,")):
+        raise ValueError("Native Office render continuation is missing")
+    png = base64.b64decode(parts[1]["image_url"].split(",", 1)[1], validate=True)
+    if len(png) < 24 or not png.startswith(b"\x89PNG\r\n\x1a\n") or png[12:16] != b"IHDR":
+        raise ValueError("Native Office PNG is missing")
+    return None, None, file_id
+
+
 def pricing_usage_input(payload, values):
     """One finite nonstreaming Hi; the original wire is never rewritten."""
     if (payload.get("stream", False) is not False or payload.get("tools", []) != []
@@ -422,10 +530,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def serve_responses(self, payload):
         usage_profile = payload.get("model") in USAGE_MODELS
-        if not usage_profile and payload.get("model") != RESPONSES_MODEL:
+        office = payload.get("model") == OFFICE_MODEL
+        office_service = payload.get("model") == OFFICE_SERVICE_MODEL
+        if not office_service and not office and not usage_profile and payload.get("model") != RESPONSES_MODEL:
             return self.send_json(404, {"error": {"message": "Unknown synthetic model", "code": "model_not_found"}})
         try:
-            values = responses_input(payload)
+            values = office_service_responses_input(payload) if office_service else office_responses_input(payload) if office else responses_input(payload)
+            selection = office_responses_step(payload, values) if office else None
             if usage_profile:
                 pricing_usage_input(payload, values)
         except (ValueError, UnicodeError):
@@ -438,24 +549,26 @@ class Handler(BaseHTTPRequestHandler):
                     "output_tokens_details": {"reasoning_tokens": 2}} if payload["model"] == USAGE_MODELS[0] else None
         if self.controlled_failure(control, record):
             return
-        name = responses_tool(payload, values, control)
+        name = selection[0] if office else responses_tool(payload, values, control)
         output = []
-        if payload.get("reasoning") or "reasoning.encrypted_content" in payload.get("include", []):
+        if not office_service and (payload.get("reasoning") or "reasoning.encrypted_content" in payload.get("include", [])):
             output.append({"id": "rs_" + uuid.uuid4().hex, "type": "reasoning", "status": "completed",
                 "summary": [{"type": "summary_text", "text": "Synthetic fixture reasoning summary"}],
                 "encrypted_content": "synthetic-opaque-reasoning-not-provider-cryptography"})
         if name:
             output.append({"id": "fc_" + uuid.uuid4().hex, "type": "function_call", "status": "completed",
-                "call_id": "call-goal584-" + uuid.uuid4().hex, "name": name, "arguments": "{}"})
+                "call_id": "call-goal584-" + uuid.uuid4().hex, "name": name,
+                "arguments": json.dumps(selection[1], separators=(",", ":")) if office else "{}"})
         else:
             output.append({"id": "msg_" + uuid.uuid4().hex, "type": "message", "status": "completed", "role": "assistant",
-                "content": [{"type": "output_text", "text": "Proof", "annotations": []}]})
+                "content": [{"type": "output_text", "text": json.dumps({"follow_ups": ["Prepare a PDF copy of the document.",
+                    "Create an Excel version of the table.", "Draft a short email to accompany the file."]}) if office_service else "[Download](/api/v1/files/" + selection[2] + "/content)" if office else "Proof", "annotations": []}]})
         result = {"id": record["id"], "object": "response", "created_at": record["created"], "status": "completed",
             "error": None, "incomplete_details": None, "instructions": payload.get("instructions"),
-            "model": payload["model"] if usage_profile else RESPONSES_MODEL, "output": output, "usage": record["usage"],
-            "max_output_tokens": RESPONSES_MAX_OUTPUT_TOKENS, "parallel_tool_calls": payload.get("parallel_tool_calls", True),
+            "model": OFFICE_SERVICE_MODEL if office_service else OFFICE_MODEL if office else payload["model"] if usage_profile else RESPONSES_MODEL, "output": output, "usage": record["usage"],
+            "max_output_tokens": None if office_service else 1024 if office else RESPONSES_MAX_OUTPUT_TOKENS, "parallel_tool_calls": payload.get("parallel_tool_calls", True),
             "tool_choice": payload.get("tool_choice", "auto"), "tools": copy.deepcopy(payload.get("tools", [])),
-            "reasoning": copy.deepcopy(payload.get("reasoning")), "store": False, "previous_response_id": None,
+            "reasoning": None if office_service else copy.deepcopy(payload.get("reasoning")), "store": False, "previous_response_id": None,
             "metadata": copy.deepcopy(payload.get("metadata", {})), "temperature": payload.get("temperature", 1.0),
             "top_p": payload.get("top_p", 1.0), "text": copy.deepcopy(payload.get("text", {"format": {"type": "text"}})),
             "truncation": payload.get("truncation", "disabled"), "user": payload.get("user")}

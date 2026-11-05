@@ -117,7 +117,7 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
         inputs.update(overrides)
         return await self.pipe.pipe(**inputs)
 
-    def background(self, task="title_generation", path="/api/chat/completions"):
+    def background(self, task="title_generation", path="/api/chat/completions", source=None):
         """Execute the pinned native task payload constructor, not a hand-made marker."""
         native = native_ids.parent.parent
         tasks_path, constants_path = native / "routers/tasks.py", native / "constants.py"
@@ -132,12 +132,13 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
         native_tasks = next(node for node in ast.parse(constants_path.read_text(encoding="utf-8")).body
                             if isinstance(node, ast.ClassDef) and node.name == "TASKS")
         self.request.scope = {"method": "POST", "path": path}
+        source = copy.deepcopy(self.model if source is None else source)
         inherited = {"user_id": USER, "chat_id": CHAT, "internal": False, "direct": False,
-                     "automation_id": None, "model": copy.deepcopy(self.model),
+                     "automation_id": None, "model": source,
                      "chat_context": {"messages": [], "params": {}},
                      "native_extra": {"preserve": ["parent", "context"]}}
         self.request.state.metadata = inherited
-        self.task_body = {"model": TARGET, "chat_id": CHAT,
+        self.task_body = {"model": source["id"], "chat_id": CHAT,
                           "messages": [{"role": "user", "content": "Hi"},
                                        {"id": ANSWER, "role": "assistant", "content": "Proof"}]}
         if task == "follow_up_generation":
@@ -406,6 +407,98 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
                     self.assertNotIn("task", inherited)
                     self.assertEqual(self.request.state.metadata, inherited)
                     self.assertEqual({**self.body, "metadata": self.metadata}, original)
+
+    async def test_distinct_native_source_and_service_target_preserve_full_followup_and_payer(self):
+        source = {"id": "gpt-5.4-mini", "owned_by": "openai", "name": "Office primary"}
+        target, wire = "gpt-6-luna", "service-gpt-6-luna"
+        self.model["id"] = self.own_config["target_model_id"] = self.pipe.valves.target_model_id = target
+        self.record.id, self.record.base_model_id = target, "gateway." + wire
+        self.request.app.state.MODELS = {target: self.model, source["id"]: copy.deepcopy(source)}
+        self.request.app.state.OPENAI_MODELS = {"gateway." + wire: {"urlIdx": 2}}
+        self.background("follow_up_generation", source=source)
+        self.body["reasoning_effort"] = "none"
+        prepared = copy.deepcopy({**self.body, "metadata": self.metadata})
+        inherited = copy.deepcopy(self.request.state.metadata)
+        result = await self.invoke(__task__="follow_up_generation")
+        self.assertIs(result, self.response);self.dispatch.assert_awaited_once()
+        delegated = self.dispatch.await_args.args[1]
+        token = delegated["litellm_metadata"]["owui_budget_provenance"]
+        expected = copy.deepcopy(prepared);expected["model"] = target
+        expected["litellm_metadata"] = {"owui_budget_provenance": token}
+        self.assertEqual(delegated, expected)
+        self.assertEqual({**self.body, "metadata": self.metadata}, prepared)
+        self.assertEqual(self.request.state.metadata, inherited)
+        claims = protocol.decode_service_call(token, SECRET, user_id=USER, model=wire, task="follow_up_generation")
+        self.assertEqual((claims["sub"], claims["payer_id"], claims["chat_id"]), (USER, PAYER, CHAT))
+        self.assertEqual([call.args[1] for call in self.access.await_args_list], [source, self.model, source, self.model])
+        self.assertTrue(all(call.args[0] is self.user for call in self.access.await_args_list))
+        self.assertIs(self.dispatch.await_args.kwargs["user"], self.user)
+        self.assertNotIn("answer_id", claims);self.assertNotIn("root_answer_id", claims)
+
+    async def test_distinct_background_source_must_be_native_cached_current_and_authorized(self):
+        source = {"id": "office-primary", "owned_by": "openai", "name": "Office primary"}
+        for kind in ("missing_cache", "stale_cache", "foreign_owner", "source_pipe", "source_arena", "source_acl"):
+            self.access.reset_mock();self.access.side_effect = None
+            self.request.app.state.MODELS = {TARGET: self.model, source["id"]: copy.deepcopy(source)}
+            self.background("follow_up_generation", source=source)
+            if kind == "missing_cache":self.request.app.state.MODELS.pop(source["id"])
+            elif kind == "stale_cache":self.request.app.state.MODELS[source["id"]]["name"] = "new owner"
+            elif kind == "foreign_owner":self.request.state.metadata["model"]["owned_by"] = "ollama"
+            elif kind == "source_pipe":self.request.state.metadata["model"]["pipe"] = {"type": "pipe"}
+            elif kind == "source_arena":self.request.state.metadata["model"]["arena"] = True
+            else:
+                async def denied(user, model):
+                    if model["id"] == source["id"]:raise PermissionError(PRIVATE)
+                self.access.side_effect = denied
+            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError) as caught:
+                await self.invoke(__task__="follow_up_generation")
+            self.assertNotIn(PRIVATE, str(caught.exception))
+        self.connection.assert_not_awaited();self.dispatch.assert_not_awaited()
+
+    async def test_background_target_pipe_is_denied_with_valid_distinct_source_and_connection(self):
+        source = {"id": "office-primary", "owned_by": "openai", "name": "Office primary"}
+        self.model["pipe"] = {"type": "pipe"}
+        self.request.app.state.MODELS[source["id"]] = copy.deepcopy(source)
+        self.background("follow_up_generation", source=source)
+        self.assertEqual(self.model["owned_by"], "openai")
+        self.assertEqual(self.record.base_model_id, "gateway." + WIRE)
+        self.assertIn(self.record.base_model_id, self.request.app.state.OPENAI_MODELS)
+        with self.assertRaises(extension.ServiceTaskError) as caught:
+            await self.invoke(__task__="follow_up_generation")
+        self.assertEqual(caught.exception.code, "unsupported_background_source")
+        self.connection.assert_not_awaited();self.dispatch.assert_not_awaited()
+
+    async def test_distinct_source_binding_and_final_actor_await_recheck_both_models(self):
+        source = {"id": "office-primary", "owned_by": "openai", "name": "Office primary"}
+        original_model = copy.deepcopy(self.model)
+        for kind in ("between_bindings", "source_cache", "inherited_source", "source_and_inherited", "target_cache"):
+            self.model = copy.deepcopy(original_model)
+            self.request.app.state.MODELS = {TARGET: self.model, source["id"]: copy.deepcopy(source)}
+            self.background("follow_up_generation", source=source)
+            self.connection.reset_mock();self.connection.side_effect = None
+            self.users.get_user_by_id.reset_mock();self.chats.get_accessible_chat_by_id.reset_mock()
+            if kind == "between_bindings":
+                async def changed_connection(_):
+                    if self.connection.await_count == 1:
+                        self.request.app.state.MODELS[source["id"]]["name"] = "changed between bindings"
+                        self.request.state.metadata["model"]["name"] = "changed between bindings"
+                    return URL + "/v1", SECRET, {"prefix_id": "gateway"}
+                self.connection.side_effect = changed_connection
+            async def changed(user_id):
+                # The user reread after the third (final) owned-Chat await is after both bindings.
+                if user_id == USER and self.chats.get_accessible_chat_by_id.await_count == 3:
+                    if kind in ("source_cache", "source_and_inherited"):
+                        self.request.app.state.MODELS[source["id"]]["name"] = "changed after last binding"
+                    if kind in ("inherited_source", "source_and_inherited"):
+                        self.request.state.metadata["model"]["name"] = "changed after last binding"
+                    if kind == "target_cache":self.model["name"] = "changed after last binding"
+                return {USER: self.user, OTHER: self.other_user}.get(user_id)
+            self.users.get_user_by_id.side_effect = changed
+            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError) as caught:
+                await self.invoke(__task__="follow_up_generation")
+            self.assertEqual(caught.exception.code, "stale_configuration" if kind == "between_bindings" else "stale_context")
+            self.assertEqual(self.chats.get_accessible_chat_by_id.await_count, 2 if kind == "between_bindings" else 3)
+        self.dispatch.assert_not_awaited()
 
     async def test_background_caller_markers_inherited_task_and_conflicting_metadata_never_dispatch(self):
         for kind in ("ordinary_no_task", "inherited_task", "inherited_task_body", "extra_task_metadata",

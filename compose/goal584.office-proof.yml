@@ -1,0 +1,51 @@
+# Topology-only overlay: combine after native-budget-proof and webui-proof.
+# Both required IDs must come from this job's actual builder IID/readback.
+# This file alone does not grant image/profile or native Office acceptance.
+services:
+  proxy:
+    volumes:
+      - type: bind
+        source: ../deploy/openwebui-functions/officecli_auto_attach_filter.py
+        target: /proof/officecli_auto_attach_filter.py
+        read_only: true
+        bind:
+          create_host_path: false
+
+  webui:
+    image: ${PROOF_OFFICE_WEBUI_IMAGE:?actual built immutable ID}
+    pull_policy: never
+    environment:
+      ENABLE_RESPONSES_API_STATEFUL: "false"
+      ENABLE_CONTEXT_COMPACTION: "false"
+      NO_PROXY: localhost,127.0.0.1,webui,proxy,provider,postgres,redis,office
+
+  office:
+    image: ${PROOF_OFFICE_IMAGE:?actual built immutable ID}
+    pull_policy: never
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=128m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    environment:
+      OPENWEBUI_BASE_URL: http://webui:8080
+      OFFICECLI_PROOF_TIMEOUT_SECONDS: "120"
+      NO_PROXY: localhost,127.0.0.1,webui,office
+    expose: ["8080"]
+    mem_limit: 1g
+    memswap_limit: 2g
+    cpus: 0.5
+    pids_limit: 256
+    labels:
+      traefik.enable: "false"
+    depends_on:
+      webui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3)).get('status') == 'ok'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks: [proof]

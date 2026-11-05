@@ -34,9 +34,9 @@ STATUS = '/schedule/model_cost_map_reload/status'
 SCHEDULE = '/schedule/model_cost_map_reload'
 RELOAD = '/reload/model_cost_map'
 MAX_BYTES = 4 * 1024 * 1024
-PROVIDER_SHA = '762b4f89acce9c06105206514ebfcec39aa58c33058efd40fb952bc861edcc88'
-HELPERS = {'prove_native_budgets.py': 'e05bdcb0e14f4833960e4360387df7080adb9a17ca893f7ec65880efe2b897fa',
-    'prove_gateway_auth.py': 'f66b35996e41a2784b34e6ec33bde4a3b9338c1d48cc502cf30ea2f9a79ecd90',
+PROVIDER_SHA = '6a235e6e81c064ea711afc5331cffece458d6a9c6d25f1ffb34b0869bd0b28da'
+HELPERS = {'prove_native_budgets.py': 'b31b13400683770aa5366d92e76e5dac8596a6a7f47ad104c001ed5f1689e331',
+    'prove_gateway_auth.py': 'aec065251e8c5164ff4d10f33e4b27a76f7647a2f0e026aea0d0908a6e8f7f09',
     'native_floor_identity.py': '39d28b28e3d60fb6e5989cdd4b23a2a1341277bc569f2bf3ef0eb9e32deac839',
     'manifest.json': '1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b'}
 NATIVE = {'litellm_core_utils/get_model_cost_map.py': '66fe0c8a066efebd34cca8815ac23ebf09379b76f7b32525321503ef6d7db679',
