@@ -92,6 +92,8 @@ jobs:
             -r scripts/goal584-budget-proof/native-patch-requirements.txt \
             -r scripts/goal584-budget-proof/browser-requirements.txt
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -m pip check
+          command -v google-chrome
+          google-chrome --version
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B scripts/goal584-budget-proof/build_native_floor_image.py \
             --context "$BUILD_ROOT/native-floor" --receipt "$OUTPUT/native-build.safe.json"
       - name: Prepare fresh private Office stand configuration
@@ -101,7 +103,7 @@ jobs:
           import json,os,re,secrets,sys
           from pathlib import Path
           sys.path.insert(0,'scripts/goal584-budget-proof')
-          from office_fixture import prepare_office_config
+          from office_fixture import prepare_office_config,prepare_native_tokenizers
           private=Path(os.environ['RUNNER_TEMP'],os.environ['OWNED']+'-private');private.mkdir(mode=0o700)
           env_file=private/'compose.env';config=private/'config.yaml'
           raw=prepare_office_config(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
@@ -110,10 +112,12 @@ jobs:
               with os.fdopen(fd,'wb') as handle:handle.write(data)
               assert path.read_bytes()==data
           write(config,raw)
+          cache=private/'native-tokenizers';assets=prepare_native_tokenizers(cache)
+          (Path(os.environ['OUTPUT'])/'tokenizers.safe.json').write_text(json.dumps(assets,indent=2)+'\n')
           build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
           native=json.loads((Path(os.environ['OUTPUT'])/'native-build.safe.json').read_text())
           assert build['source_commit']==os.environ['GITHUB_SHA'] and build['native_office_accepted'] is False
-          values={'PROOF_PRIVATE_DIR':str(private),'PROOF_CONFIG_FILE':str(config),
+          values={'PROOF_PRIVATE_DIR':str(private),'PROOF_CONFIG_FILE':str(config),'PROOF_OFFICE_TOKENIZER_CACHE':str(cache),
             'PROOF_NATIVE_VARIANT':'positive-floor-v1.105.1','PROOF_LITELLM_IMAGE':native['image_ref'],
             'PROOF_OFFICE_WEBUI_IMAGE':build['images']['webui']['id'],'PROOF_OFFICE_IMAGE':build['images']['office']['id']}
           assert all(re.fullmatch('sha256:[0-9a-f]{64}',values[key]) for key in
@@ -149,14 +153,18 @@ jobs:
           PY
           "${compose[@]}" restart proxy
           "${compose[@]}" up -d --wait --wait-timeout 240
-      - name: Prepare and read back the native Office and service profiles
-        timeout-minutes: 6
+      - name: Prepare Office and verify one ordinary Send and native accounting
+        timeout-minutes: 8
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
-          import json,os,subprocess,sys
+          import base64,hashlib,json,os,subprocess,sys
           from pathlib import Path
           sys.path.insert(0,'scripts/goal584-budget-proof')
           from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_native_budgets import ProofError
+          from prove_pricing_browser import no_credentials
+          from prove_pricing_snapshots import private_credentials
           private=Path(os.environ['PROOF_PRIVATE_DIR']);env_file=Path(os.environ['PROOF_ENV_FILE'])
           secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
               if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
@@ -171,9 +179,72 @@ jobs:
               assert receipt.get('passed') is True
               (fixture.output/(label+'-setup.safe.json')).write_text(json.dumps(receipt,indent=2)+'\n')
           build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
-          ready=fixture.prepare(base,build,os.environ['GITHUB_SHA'])
-          assert ready['status']=='prepared' and ready['native_office_accepted'] is False and ready['inference_issued'] is False
-          (fixture.output/'office-preparation.safe.json').write_text(json.dumps(ready,indent=2)+'\n')
+          stage='preparation'
+          def public(name,value):
+              no_credentials(value,fixture.secrets)
+              (fixture.output/(name+'.safe.json')).write_text(json.dumps(value,indent=2)+'\n')
+          def readback(phase):
+              # Collector uses proxy root: native capture and its lock are root0600.
+              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
+                  '/proof/prove_office_readback.py','--phase',phase],capture_output=True,timeout=100)
+              assert len(result.stdout)<=2*1024*1024,'Office safe readback exceeded bound'
+              packet=json.loads(result.stdout);public('office-'+phase,packet)
+              assert result.returncode==0 and packet.get('passed') is True,'Office native readback failed'
+              assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
+              return packet
+          try:
+              ready=fixture.prepare(base,build,os.environ['GITHUB_SHA'])
+              assert ready['status']=='prepared' and ready['native_office_accepted'] is False and ready['inference_issued'] is False
+              public('office-preparation',ready)
+              for name in ('webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+              stage='baseline';baseline=readback('baseline')
+              stage='ordinary_send'
+              from playwright.sync_api import sync_playwright
+              from prove_office_browser import run
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,raw=run(browser,fixture,base,build,os.environ['GITHUB_SHA'])
+                  finally: browser.close()
+              public('office-browser',observed)
+              stage='native_context'
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_provider')
+              primary=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-office']
+              assert len(primary)==3,'Office primary dispatch count differs'
+              reasoning=[[item for item in row['response']['output'] if item['type']=='reasoning'] for row in primary]
+              packet=fixture.native_context(base,build,os.environ['GITHUB_SHA'],reasoning)
+              write_private(private/'office-native-context.private.json',packet)
+              stage='native_finance';financial=readback('verify')
+              stage='artifact'
+              sys.path.insert(0,'services/officecli-openapi-proof')
+              from prove_office_compatibility import _nodes,verify_artifacts
+              call=next(item for item in primary[0]['response']['output'] if item['type']=='function_call')
+              exported=json.loads(next(item['output'] for item in primary[1]['body']['input']
+                  if item.get('type')=='function_call_output' and item['call_id']==call['call_id']))
+              images=[item['image_url'] for item in _nodes(primary[2]['body']['input']) if item.get('type')=='input_image']
+              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
+              png=base64.b64decode(images[0].partition(',')[2],validate=True)
+              checked=verify_artifacts(source_message_id=observed['source_message_id'],exported=exported,
+                  native_file_id=observed['file_id'],browser_file_id=observed['file_id'],
+                  native_path=raw['paths']['native'],browser_path=raw['paths']['browser'],png=png)
+              (fixture.output/'office.docx').write_bytes(Path(raw['paths']['browser']).read_bytes())
+              (fixture.output/'office-render.png').write_bytes(png)
+              (fixture.output/'office-browser.png').write_bytes(Path(raw['paths']['screenshot']).read_bytes())
+              public('office-native',{'schema':1,'passed':True,'stage':'bounded_native_office',
+                  'native_office_accepted':False,'browser_observed':True,'artifact':checked,'financial':financial,
+                  'limits':['independent artifact review pending','no production or full GOAL acceptance',
+                      'no complete saved reasoning continuity or live Filter pre/post claim']})
+          except Exception as error:
+              # Never print Playwright request diagnostics or raw private payloads.
+              failure={'schema':1,'passed':False,'stage':stage,
+                  'native_office_accepted':False,'error_class':type(error).__name__}
+              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
+                  try: no_credentials({'message':str(error)},fixture.secrets)
+                  except (AssertionError,ProofError): pass
+                  else: failure['failure']=str(error)
+              public('office-native',failure)
+              raise SystemExit(1)
           PY
       - name: Remove only task containers and actual image IDs
         if: always() && env.TASK_PREPARED == 'true'
@@ -230,6 +301,8 @@ jobs:
           path: |
             ${{ env.OUTPUT }}/*.log
             ${{ env.OUTPUT }}/*.safe.json
+            ${{ env.OUTPUT }}/office*.png
+            ${{ env.OUTPUT }}/office.docx
             ${{ env.BUILD_ROOT }}/office-build.safe.json
             ${{ env.BUILD_ROOT }}/build-inputs.json
             ${{ env.BUILD_ROOT }}/git-inputs.json

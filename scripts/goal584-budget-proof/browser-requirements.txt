@@ -5,3 +5,5 @@ greenlet==3.5.6
 typing_extensions==4.16.0
 # Host-side bounded YAML config validation in the Responses proof.
 PyYAML==6.0.2
+# Host-only validation uses the existing Office PNG owner, matching its lock.
+pillow==11.3.0

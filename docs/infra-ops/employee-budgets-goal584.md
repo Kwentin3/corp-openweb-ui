@@ -6,16 +6,18 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний bounded
-стендовый baseline — Native64/50002032: все4jobs SUCCESS, independent review и
+стендовый baseline — Native65/2ceb2dfd: все4jobs SUCCESS, independent review и
 parent replay main/pricing/calendars PASS. Сохранены исходные UI/finance/context/
 service/RAG/retention/Responses assertions; квалифицированы реальные used cache/
-reasoning tariff descriptors. Recovery после provider500 —4.363613s; календарный
-floor finalHTTP.464084s<5. Ни missing/null usage policy, ни полная reasoning
+reasoning tariff descriptors. Recovery после provider500 —5.53s; календарный
+floor finalHTTP.70353s<5. Ни missing/null usage policy, ни полная reasoning
 continuity, ни текущие Office/STT/Terminal этим не приняты. После APT504 в
 Office7/Active165 узкий mirror-first canary18054f1c успешно собрал Office/STT;
 он локально интегрирован, временный canary worktree убран. Candidate65 source:
 574harness PASS/0skip и264component checks (257PASS/7opt-in skips); отдельные
-Office pytest assertions170PASS. Actual Office readiness ещё требует нового CI.
+Office pytest assertions170PASS. Candidate65 опубликован2ceb2dfd/tested merge2a57c2e0,
+tree diff пуст; все4Native jobs и Active CI SUCCESS. Office65 FAIL в topology
+readback до Office worker; следующий кандидат готовится, readiness не принят.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
 новых native core patches нет. Office/provider/service и новый readback worker
@@ -229,6 +231,74 @@ Evidence: `local/goal584/candidate65-first-checks.safe.json`,
 Candidate65 — preparation stage, не весь Office/GOAL. После публикации требуется
 same-job build/preparation/readback и cleanup; ordinary Send/Files/ledger/task gate
 остаётся следующим обязательным этапом.
+Опубликован head2ceb2dfd485cecde2fcee2430790dcae8f83359b, tested merge
+2a57c2e0dfcfd11f68c97c3b42b2818465a03a68; root fetch+tree diff PASS, PR585 draft/open,
+body readback exact. [Native65/42006837510](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42006837510)
+все4jobs SUCCESS; [ActiveCI/42006837509](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42006837509)
+SUCCESS. Calendar actual artifacts17297bf5…/ee64e17d… приняты independent review,
+root repeat проверяет те же source/finance guards. Floor finalHTTP.70353s<5,
+basic1.66235s<60;20financial mutations rejected, cleanup0/0/0. Main/pricing65
+ещё требуют отдельного artifact acceptance; общий зелёный run не подменяет её.
+
+[Office65/42006837622](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42006837622)
+terminal FAIL: prepare→running_readback→bind→docker inspect --format full template;
+guard returncode==0 && stdout≤2MiB. stdout/stderr/container ID не сохранены owner65,
+поэтому точный operand неизвестен. Build, actual CLI preflight и common native
+setup под host UID прошли; Office worker не достигнут. Actual cleanup down0,
+Docker reachable, containers/volumes/networks пусты, пять task images удалены.
+ZIP13406071229/SHA350f1307… и54Git build inputs проверены. Evidence:
+`local/goal584/office65-review/`, `candidate65-publish.safe.json`.
+Docker official source подтверждает raw-template missingkey=error и omission
+Init/Tmpfs; это гипотеза конкретного отказа65, не доказанный operand. Будущий
+readback использует штатный inspect JSON с projection безопасных полей в памяти,
+без экспорта Config.Env; permissions и strict-six guards сохраняются. Новый
+source ещё не опубликован, runtime исправление не принято.
+Main65 и pricing65 теперь приняты independent review +root repeat frozen readers;
+root отдельно просмотрел actual Responses Details PNG (обе полные таблицы .40/
+2calls/20input/10output/30total) и friendly zero-budget denial. Main artifact13405707783/
+SHA4481ab0b…/3864080bytes/222files:54immutable inputs,78actual PASS receipts,
+16financial+3context+5service-binding+2direct-title negatives; recovery.98→0→.20,
+следующий success5.53s<15. Pricing artifact13405776277/SHA4b07c94f…:29sources,
+14readonly mounts,15native Usage pins,63negative mutations; flat.80 и Responses.500,
+history/caps/rates/restoration и cleanup0/0/0 сохранены. Main cleanup containers/
+volumes пусты; networks не заявлены. Missing/null usage всё ещё только observations,
+не безопасная законченная policy. Evidence: `local/goal584/native65-{main,pricing}-review/`.
+
+**Candidate66 source, ещё без runtime acceptance.** Host caller делает один ordinary
+Send поверх native ChatForm seed (prior user +полный assistant SOURCE), ждёт native
+done/cost/followUps/task completion, скачивает через настоящий Files anchor и
+сравнивает с отдельным owner GET; второй обычный пользователь получает404. Proxy
+collector читает все bounded user/key/log pages через прежние API, сохраняет raw
+приватно и проверяет3personal/.60 +1service/.20 без нового price calculator.
+Host связывает schema/reasoning conversion с фактическими built WebUI modules до
+и после вызова; пустой reasoning не превращается в искусственный assistant input.
+В literal rehearsal найден и исправлен этот ложный premise старого validator;
+продолжение теперь строго reasoning+call/result, все старые негативные guards
+сохранены. Collector использует proxy root для root0600 CAPTURE/lock; setup остаётся
+под host UID. Safe CLI теперь возвращает actual JSON после in-place no_credentials,
+не null; polling повторяет только явно незавершённые settlement codes, immutable
+ошибки возвращаются сразу с safe code и retained private observation.
+
+Для internal-only сети подготовлены два public tokenizer assets по фиксированным
+native SHA и URL cache keys; штатный CUSTOM_TIKTOKEN_CACHE_DIR readonly mount не
+добавляет tokenizer/calculator. Host-only Pillow11.3.0 совпадает с Office lock и
+используется существующим artifact validator. Native images/core не менялись.
+Локальные host/browser/collector82PASS; current pure192PASS, старые185 сохранены.
+Actual pinned ChatForm/current-message/sanitizeHistory и полный no-reasoning
+native-протокол проверены в source/component пределах. Последняя literal репетиция:
+14schema, input items3/5/7; nativecounts428/925/1145, reserves24.76/29.73/31.93<1000;
+callback2available+4unknown,0external attempts/calls. Native tools/instructions
+count gap сохраняется. PNG здесь component IO double; real CLI/image reservation
+и браузерный результат будут приняты только по actual same-job run.
+Evidence: `local/goal584/office66-request-rehearsal/`,
+`local/goal584/office-preparation-wiring/rehearsal.safe.json`.
+Финальный parent source repeat66:594harness PASS/0skip,264component checks
+(257PASS/7opt-in skips), отдельно200pure/provider pytest PASS и36collector checks
+(в составе82host/browser/collector pytest PASS). Root повторил frozen current-input
+rehearsal с теми же428/925/1145 и24.76/29.73/31.93,0external attempts. Independent
+pipeline review и8bash/5Python/5offline wiring checks PASS; native Office flagsFalse.
+Публикация кандидата запускает actual same-job gate; source readiness не заменяет
+результат браузера, реальные DOCX/PNG, financial readback и cleanup.
 Следующий обязательный шаг — завершить service provider/Office capture wiring,
 проверить host preparation, затем один ordinary Send с actual export/render,
 download/foreign ACL, natural service task и финансовым readback. Unknown usage,

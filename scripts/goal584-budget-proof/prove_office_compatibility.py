@@ -335,7 +335,8 @@ def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model,
             following = calls[index + 1]["wire_before_auth"]["input"]
             pair = [v for v in following if v.get("call_id") == tool_calls[0]["call_id"]]
             reasoning = [v for v in output if v.get("type") == "reasoning"]
-            expected_reasoning = native_responses_payload({"messages": [{"role": "assistant", "output": reasoning}]})["input"]
+            expected_reasoning = (native_responses_payload({"messages": [{"role": "assistant", "output": reasoning}]})["input"]
+                                  if reasoning else [])
             continuation = following[len(wire["input"]):]
             require(continuation[:len(expected_reasoning)] == expected_reasoning,
                     "office_continuation_reasoning")
@@ -352,6 +353,7 @@ def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model,
                         and result[0] == {"type": "input_text", "text": "render_office_file: Image file read successfully."}
                         and result[1] == {"type": "input_image", "image_url": "data:image/png;base64," + base64.b64encode(png).decode("ascii")},
                         "office_render_image_context")
+            require(continuation == expected_reasoning + pair, "office_continuation_items")
         else:
             require(not tool_calls and any(v.get("type") == "message" and any(
                 n.get("type") == "output_text" and exported["result_file_id"] in n.get("text", "")
@@ -436,6 +438,58 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
         require(close_amount(Decimal(str(after[owner]["spend"])) - Decimal(str(before[owner]["spend"])),
                              Decimal(".60")), "office_native_spend_delta")
     return {"physical_calls": 3, "new_raw_rows": 3, "native_spend_delta_usd": ".60"}
+
+
+def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, provider_id, verified_scope,
+                           wire_model, deployment_id, descriptor, validate_scope, validate_rates, decode_response_id):
+    """One native follow-up Responses row; fixed fixture totals, no price math.
+
+    The collector supplies all raw pages and the actual auth/provider join.
+    Descriptor expectations come from the source-bound prepared native config.
+    This separate service payer must not be included among unchanged old payers.
+    """
+    require(actor != payer and before["user"].get("user_id") == before["key"].get("user_id") == payer
+            and before["key"].get("models") == ["gpt-6-luna"], "office_service_owner")
+    require(protected_r(before["user"], before["key"]) == protected_r(after["user"], after["key"]),
+            "office_service_caps_changed")
+    def keyed(rows):
+        require(isinstance(rows, list) and all(isinstance(v, dict) and isinstance(v.get("request_id"), str)
+                and v["request_id"] for v in rows), "office_service_raw_rows")
+        result = {v["request_id"]: v for v in rows}
+        require(len(result) == len(rows), "office_service_duplicate_row")
+        return result
+    old, new = keyed(before["rows"]), keyed(after["rows"])
+    require(all(new.get(k) == v for k, v in old.items()), "office_service_old_row_changed")
+    added = [v for k, v in new.items() if k not in old]
+    require(len(added) == 1, "office_service_row_count")
+    row = added[0]
+    metadata = json.loads(row["metadata"]) if isinstance(row.get("metadata"), str) else row["metadata"]
+    spend = metadata["spend_logs_metadata"]
+    scope = validate_scope(spend["owui_budget"])
+    decoded = decode_response_id(row["request_id"])
+    require(scope == verified_scope and scope["user_id"] == payer and scope["actor_id"] == actor
+            and scope["chat_id"] == chat_id and scope["model"] == "gpt-6-luna"
+            and scope["task"] == "follow_up_generation" and scope["category"] == "service"
+            and decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
+            and decoded["response_id"] == provider_id, "office_service_dispatch_binding")
+    require(row.get("user") == payer and row.get("api_key") == key_hash
+            and row.get("model_group") == "gpt-6-luna" and row.get("model_id") == deployment_id
+            and row.get("model") in ("gpt-6-luna", wire_model, "openai/" + wire_model)
+            and row.get("session_id") == "owui-service:" + chat_id and row.get("status") == "success"
+            and all(type(row.get(k)) is int for k in ("prompt_tokens", "completion_tokens", "total_tokens"))
+            and [row.get(k) for k in ("prompt_tokens", "completion_tokens", "total_tokens")] == [10, 5, 15]
+            and close_amount(row.get("spend"), Decimal(".20")), "office_service_row_identity_usage_cost")
+    rates = validate_rates(spend["owui_billed_token_rates"])
+    require(rates["rates"]["input_cost_per_token"] is not None and rates["rates"]["output_cost_per_token"] is not None
+            and Decimal(str(rates["rates"]["input_cost_per_token"])) == Decimal(".01")
+            and Decimal(str(rates["rates"]["output_cost_per_token"])) == Decimal(".02"), "office_service_rates")
+    require(descriptor.get("deployment_id") == deployment_id
+            and spend.get("owui_tariff_descriptor") == {"schema": 1, "availability": "available", "descriptor": descriptor},
+            "office_service_tariff_source")
+    for owner in ("user", "key"):
+        require(close_amount(Decimal(str(after[owner]["spend"])) - Decimal(str(before[owner]["spend"])), Decimal(".20")),
+                "office_service_native_spend_delta")
+    return {"physical_calls": 1, "new_raw_rows": 1, "native_spend_delta_usd": ".20"}
 
 
 def safe_component_result(check):

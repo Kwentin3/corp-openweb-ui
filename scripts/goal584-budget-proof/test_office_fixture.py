@@ -17,6 +17,7 @@ from unittest.mock import patch
 from urllib.parse import unquote, urlsplit
 
 import yaml
+import pytest
 import office_fixture as office
 import build_office_profile as builder
 from prove_pricing_browser import PricingFixture, ROOT
@@ -25,6 +26,84 @@ from prove_native_budgets import ProofError
 SERVICES = ('proxy', 'postgres', 'provider', 'redis', 'webui', 'office')
 SECRET = 'synthetic-private-config-must-not-be-exported'
 BASE = 'http://172.29.0.6:8080'
+
+
+class OfficeTokenizerCacheTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Retained public bytes, independently checked against the native
+        # tiktoken openai_public.py URLs/hashes; never synthesize an encoding.
+        cache = ROOT / 'local/goal584/office-request-rehearsal/tokenizer-cache'
+        native = ROOT / 'local/goal584/native55-main-review/native-library-venv/Lib/site-packages/tiktoken_ext/openai_public.py'
+        rows = (
+            ('cl100k_base', '9b5ad71b2ce5302211f9c61530b329a4922fc6a4', '223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7'),
+            ('o200k_base', 'fb374d419588a4632f3f557e76b4b70aebbca790', '446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d'))
+        if not native.is_file() or not all((cache / key).is_file() for _, key, _ in rows):
+            raise unittest.SkipTest('Retained public tokenizer assets/native source unavailable; no network fallback')
+        source = native.read_text(encoding='utf8'); tree = ast.parse(source); cls.assets = {}
+        for name, key, expected in rows:
+            function = ast.get_source_segment(source, next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == name))
+            url = 'https://openaipublic.blob.core.windows.net/encodings/' + name + '.tiktoken'
+            assert url in function and expected in function and hashlib.sha1(url.encode()).hexdigest() == key
+            raw = (cache / key).read_bytes(); assert hashlib.sha256(raw).hexdigest() == expected
+            cls.assets[url] = {'key': key, 'sha256': expected, 'raw': raw}
+
+    def network_leaf(self, mutation=None):
+        calls = []
+        class Response(io.BytesIO):
+            def read(response, size=-1):
+                self.assertEqual(size, 5 * 1024 * 1024 + 1)
+                return super().read(size)
+        def open_asset(url, *, timeout):
+            self.assertEqual(timeout, 30); self.assertIn(url, self.assets); calls.append(url)
+            raw = self.assets[url]['raw']
+            return Response(mutation(url, raw) if mutation else raw)
+        def factory(handler):
+            self.assertIsInstance(handler, office.ProxyHandler); self.assertEqual(handler.proxies, {})
+            return SimpleNamespace(open=open_asset)
+        return factory, calls
+
+    def test_real_public_assets_are_written_with_native_url_cache_keys_and_read_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'cache'; factory, calls = self.network_leaf(); stdout = io.StringIO()
+            with patch.object(office, 'build_opener', side_effect=factory), contextlib.redirect_stdout(stdout):
+                result = office.prepare_native_tokenizers(target)
+            self.assertEqual(calls, list(self.assets)); self.assertEqual(stdout.getvalue(), '')
+            self.assertEqual(result, {'schema': 1, 'model_calls': 0, 'assets': [
+                {'url': url, 'sha256': asset['sha256'], 'bytes': len(asset['raw'])} for url, asset in self.assets.items()]})
+            self.assertEqual({p.name for p in target.iterdir()}, {a['key'] for a in self.assets.values()})
+            for asset in self.assets.values():
+                path = target / asset['key']; self.assertEqual(path.read_bytes(), asset['raw'])
+                if os.name != 'nt': self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            if os.name != 'nt': self.assertEqual(target.stat().st_mode & 0o777, 0o700)
+
+    def test_empty_oversize_and_wrong_hash_never_accept_offending_asset_or_retry_partial_cache(self):
+        urls = list(self.assets)
+        for failed_url, corrupt in ((urls[0], lambda raw: b''),
+                (urls[0], lambda raw: b'x' * (5 * 1024 * 1024 + 1)),
+                (urls[0], lambda raw: b'bad' + raw[3:]), (urls[1], lambda raw: raw[:-1])):
+            with self.subTest(asset=failed_url), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory) / 'cache'
+                factory, calls = self.network_leaf(lambda url, raw: corrupt(raw) if url == failed_url else raw)
+                with patch.object(office, 'build_opener', side_effect=factory):
+                    with self.assertRaisesRegex(AssertionError, 'native tokenizer asset hash differs'):
+                        office.prepare_native_tokenizers(target)
+                    self.assertFalse((target / self.assets[failed_url]['key']).exists())
+                    accepted = [] if failed_url == urls[0] else [self.assets[urls[0]]['key']]
+                    self.assertEqual(sorted(p.name for p in target.iterdir()), accepted)
+                    before = {p.name: p.read_bytes() for p in target.iterdir()}; previous = list(calls)
+                    with self.assertRaisesRegex(AssertionError, 'cache must be fresh'):
+                        office.prepare_native_tokenizers(target)
+                    self.assertEqual(calls, previous); self.assertEqual({p.name: p.read_bytes() for p in target.iterdir()}, before)
+
+    def test_existing_and_relative_cache_fail_before_any_public_network_leaf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            existing = Path(directory); sentinel = existing / 'prior-native-cache'; sentinel.write_bytes(b'preserve')
+            with patch.object(office, 'build_opener', side_effect=AssertionError('Network leaf must not be reached')):
+                for target in (existing, Path('relative-native-cache')):
+                    with self.subTest(target=target), self.assertRaisesRegex(AssertionError, 'cache must be fresh'):
+                        office.prepare_native_tokenizers(target)
+            self.assertEqual(sentinel.read_bytes(), b'preserve')
 
 
 class OfficeConfigTests(unittest.TestCase):
@@ -159,6 +238,18 @@ class OfficeConfigTests(unittest.TestCase):
             self.assertNotIn('api_key:', str(caught.exception))
 
 
+def native_inspect(row):
+    """Docker's native JSON shape, including omitempty optional fields."""
+    host = {'ReadonlyRootfs': row['readonly'], 'Privileged': row['privileged'], 'NetworkMode': row['networkmode']}
+    for key, source in (('Init', 'init'), ('Tmpfs', 'tmpfs'), ('CapDrop', 'capdrop'), ('SecurityOpt', 'security')):
+        if row[source] is not None: host[key] = row[source]
+    state = {'Running': row['running']}
+    if row['health'] is not None: state['Health'] = {'Status': row['health']}
+    return {'Id': row['id'], 'Config': {'Labels': row['labels'], 'Env': ['PRIVATE=' + SECRET]},
+        'State': state, 'HostConfig': host, 'NetworkSettings': {'Networks': row['networks'], 'Ports': row['ports']},
+        'Mounts': row['mounts']}
+
+
 class DockerWorld:
     def __init__(self, fixture, six=True):
         self.fixture = fixture; self.calls = []
@@ -199,7 +290,8 @@ class DockerWorld:
             elif tail == ['ps', '--all', '--quiet']: return SimpleNamespace(returncode=0, stdout='\n'.join(self.selected_ids).encode())
             else: raise AssertionError('Unexpected Compose IO')
         elif command[:3] == ['docker', 'inspect', '--format']:
-            if command[3] == '{{json .NetworkSettings.Networks}}': value = self.rows[self.ids['webui']]['networks']
+            if command[3] == '{{json .}}': value = native_inspect(self.rows[command[-1]])
+            elif command[3] == '{{json .NetworkSettings.Networks}}': value = self.rows[self.ids['webui']]['networks']
             elif command[3] == '{{json .Config.Env}}':
                 assert command[-1] == self.ids['office']; value = self.environment
             else:
@@ -232,6 +324,33 @@ class OfficeTopologyTests(unittest.TestCase):
         self.assertEqual(len([c for c in world.calls if c[:3] == ['docker', 'inspect', '--format']]), 8)
         with self.assertRaisesRegex(AssertionError, 'isolated native fixture topology'): self.exercise(cls=PricingFixture)
         with self.assertRaisesRegex(AssertionError, 'isolated native fixture topology'): self.exercise(six=False)
+
+    def test_native_json_omits_optional_other_service_fields_without_exporting_env(self):
+        def absent(world):
+            for name, identifier in world.ids.items():
+                if name != 'office': world.rows[identifier].update(init=None, tmpfs=None, health=None)
+        fixture, world, _ = self.exercise(absent)
+        commands = [c for c in world.calls if c[:3] == ['docker', 'inspect', '--format'] and c[3] == '{{json .}}']
+        self.assertEqual(len(commands), 6)
+        row = office.topology_row(native_inspect(world.rows[world.ids['postgres']]))
+        self.assertIsNone(row['init']); self.assertIsNone(row['tmpfs']); self.assertIsNone(row['health'])
+        self.assertNotIn(SECRET, json.dumps(row)); self.assertNotIn('Env', json.dumps(row))
+        self.assertFalse(fixture.output.exists())
+        with self.assertRaises(AssertionError):
+            self.exercise(lambda w: w.rows[w.ids['office']].update(init=None))
+
+    def test_native_projection_keeps_required_fields_and_safe_command_failure_counts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); fixture = office.OfficeFixture(root/'env', root/'output', root/'config', root/'private', [SECRET])
+            world = DockerWorld(fixture)
+            raw = native_inspect(world.rows[world.ids['office']]); del raw['HostConfig']['ReadonlyRootfs']
+            with patch.object(office.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout=json.dumps(raw).encode())):
+                with self.assertRaisesRegex(AssertionError, 'native projection differs'):
+                    fixture._docker_json(['inspect', '--format', '{{json .}}', world.ids['office']], project=office.topology_row)
+            with patch.object(office.subprocess, 'run', return_value=SimpleNamespace(returncode=1, stdout=b'', stderr=SECRET.encode())):
+                with self.assertRaisesRegex(AssertionError, 'inspect; exit=1; stdout_bytes=0') as failed:
+                    fixture._docker_json(['inspect', '--format', '{{json .}}', world.ids['office']], project=office.topology_row)
+                self.assertNotIn(SECRET, str(failed.exception))
 
     def test_common_proxy_mounts_still_reject_before_runtime_topology(self):
         for mutate in (lambda w: w.config['services']['proxy']['volumes'].pop(),
@@ -464,6 +583,174 @@ class OfficeReadbackTests(unittest.TestCase):
             with self.subTest(fail=fail):
                 result, error, world = self.exercise(fail=fail)
                 self.assertIsNone(result); self.assertIsNotNone(error)
+
+
+def native_context_owners():
+    import test_office_compatibility as owner
+    source = os.environ.get('GOAL584_NATIVE_SOURCE_ROOT')
+    if source: owner.NATIVE = Path(source)
+    native = owner.native.__wrapped__()
+    # Extend the existing scratch extractor's return only; its real appliers and
+    # deployed SHA assertions still bind the exact router bytes we import below.
+    tree = ast.parse(Path(owner.__file__).read_bytes())
+    extractor = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'deployed_context_owner')
+    result = next(n for n in ast.walk(extractor) if isinstance(n, ast.Return))
+    result.value = ast.Tuple(elts=[result.value,
+        ast.parse("(mirror / 'routers/openai.py').read_bytes()", mode='eval').body], ctx=ast.Load())
+    namespace = vars(owner).copy()
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[extractor], type_ignores=[])), 'existing-native-source-extractor', 'exec'), namespace)
+    _, router = namespace['deployed_context_owner']()
+    sources = {'utils/tools.py': (owner.NATIVE / 'utils/tools.py').read_bytes().replace(b'\r\n', b'\n'), 'routers/openai.py': router}
+    assert {n: hashlib.sha256(v).hexdigest() for n, v in sources.items()} == {
+        n: owner.P.WEBUI_MODULES[n] for n in sources}
+    return owner, native, sources
+
+
+class NativeContextWorld(ReadbackWorld):
+    """Execute emitted Python; Docker paths/imports/argv are explicit IO doubles.
+
+    Imported schema/converter functions are the existing fixture's actual pinned
+    native owners. This does not claim whole-module or installed-image imports.
+    """
+    def __init__(self, fixture, root, owners, openapi):
+        super().__init__(fixture, root)
+        _, self.native, sources = owners
+        for name, raw in sources.items(): self.path('webui', '/app/backend/open_webui/' + name).write_bytes(raw)
+        self.receipt['webui']['modules'].update({n: hashlib.sha256(v).hexdigest() for n, v in sources.items()})
+        self.handoff = {'schema': 1, 'private_sentinel': SECRET, 'office_service_setup': {'stage': 'readback_ready'},
+            'office_setup': {'openapi': copy.deepcopy(openapi)}}
+        fixture.private.mkdir(); self.state = fixture.private / 'office-state.private.json'; self.save()
+        self.native_commands, self.failure = [], None
+        self.before_exec = self.during_convert = self.packet_mutation = None
+
+    def save(self):
+        self.state.write_text(json.dumps(self.handoff)); self.state.chmod(0o600)
+
+    def run(self, command, **kwargs):
+        if command[:2] != ['docker', 'exec'] or len(command) != 8: return super().run(command, **kwargs)
+        self.calls.append(command); self.native_commands.append(command)
+        assert command[2] == self.ids['webui'] and command[3:6] == ['python', '-B', '-c']
+        assert kwargs['capture_output'] is True and kwargs['timeout'] == 30
+        if self.before_exec: self.before_exec(self)
+        tools, router, _ = self.native
+        modules = {name: ModuleType(name) for name in ('open_webui', 'open_webui.utils', 'open_webui.routers',
+            'open_webui.utils.tools', 'open_webui.routers.openai')}
+        for name in ('convert_openapi_to_tool_payload', 'clean_openai_tool_schema'):
+            setattr(modules['open_webui.utils.tools'], name, tools[name])
+        modules['open_webui.routers.openai'].convert_to_responses_payload = router['convert_to_responses_payload']
+        if self.during_convert:
+            def clean(spec):
+                value = tools['clean_openai_tool_schema'](spec); self.during_convert(self); return value
+            modules['open_webui.utils.tools'].clean_openai_tool_schema = clean
+        mapped = ModuleType('pathlib'); mapped.__dict__.update(vars(__import__('pathlib')))
+        mapped.Path = lambda value: self.path('webui', value)
+        output = io.StringIO()
+        try:
+            with patch.dict(sys.modules, modules | {'pathlib': mapped}), \
+                    patch.object(sys, 'argv', ['-c', command[-1]]), contextlib.redirect_stdout(output):
+                exec(compile(command[-2], 'actual-native-context-container-python', 'exec'), {})
+        except Exception as error:
+            self.failure = type(error).__name__
+            return SimpleNamespace(returncode=1, stdout=b'', stderr=SECRET.encode())
+        packet = json.loads(output.getvalue())
+        if self.packet_mutation: self.packet_mutation(packet)
+        return SimpleNamespace(returncode=0, stdout=json.dumps(packet).encode())
+
+
+def native_context_world(tmp_path, monkeypatch, native_context_owners):
+    owner, native, _ = native_context_owners
+    component = owner.component.__wrapped__(monkeypatch, tmp_path, native)
+    schema = component.client.get('/openapi.json').json()  # Actual Office app, no authored schema DTO.
+    fixture = office.OfficeFixture(tmp_path / 'env', tmp_path / 'output', tmp_path / 'config', tmp_path / 'private', [SECRET])
+    world = NativeContextWorld(fixture, tmp_path / 'images', native_context_owners, schema)
+    monkeypatch.setattr(office.subprocess, 'run', world.run)
+    return world
+
+
+def assert_native_context_executes_actual_native_schema_converter_and_deduplicates(native_context_world):
+    world = native_context_world
+    reason = [{'id': 'rs-native-fixture', 'type': 'reasoning', 'summary': [{'type': 'summary_text', 'text': 'Summary'}],
+        'encrypted_content': 'synthetic-opaque-reasoning'}]
+    cases = [[], reason, copy.deepcopy(reason)]; original = copy.deepcopy(cases); private = world.state.read_bytes()
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        packet = world.fixture.native_context(BASE, world.receipt, world.revision, cases)
+    assert output.getvalue() == '' and cases == original and world.state.read_bytes() == private
+    tools, router, _ = world.native; schema = world.handoff['office_setup']['openapi']
+    assert packet['native_specs'] == [tools['clean_openai_tool_schema'](s) for s in tools['convert_openapi_to_tool_payload'](schema)]
+    assert len(packet['native_specs']) == 14
+    assert packet['reasoning_cases'] == [{'input_reasoning': case, 'native_input': router['convert_to_responses_payload'](
+        {'messages': [{'role': 'assistant', 'output': case}]})['input']} for case in ([], reason)]
+    assert packet['source_body_sha256'] == office.digest(schema)
+    assert len(world.native_commands) == 1 and len(world.native_commands[0][-1].encode('ascii')) <= 96 * 1024
+    assert world.cli_calls and any('exec(compile' in code for _, code in world.execs)
+    assert SECRET not in json.dumps(packet) and not world.fixture.output.exists()
+
+
+def assert_native_context_refuses_module_file_mutation_before_or_during_actual_producer(native_context_world, moment):
+    world = native_context_world
+    def change(w): w.path('webui', '/app/backend/open_webui/utils/tools.py').write_bytes(b'foreign producer')
+    setattr(world, 'before_exec' if moment == 'before' else 'during_convert', change)
+    with pytest.raises(AssertionError, match='Office Docker topology unavailable .*exec; exit=1; stdout_bytes=0'):
+        world.fixture.native_context(BASE, world.receipt, world.revision, [[]])
+    assert world.failure == 'AssertionError' and len(world.native_commands) == 1
+
+
+def assert_native_context_private_source_reasoning_and_argument_guards(native_context_world, kind):
+    world = native_context_world; cases = [[]]
+    if kind == 'missing': world.state.unlink()
+    elif kind == 'unprepared': world.handoff['office_service_setup']['stage'] = 'partial'; world.save()
+    elif kind == 'bad_cases': cases = [[{'type': 'message', 'content': SECRET}]]
+    elif kind == 'large_argument': world.handoff['office_setup']['openapi']['x-large'] = 'x' * (96 * 1024); world.save()
+    else:
+        operation = world.handoff['office_setup']['openapi']['paths']['/v1/officecli/documents/export-answer']['post']
+        operation['description'] = SECRET; world.save()
+    with pytest.raises((AssertionError, ProofError)) as failed:
+        world.fixture.native_context(BASE, world.receipt, world.revision, cases)
+    assert SECRET not in str(failed.value) and not world.fixture.output.exists()
+    assert len(world.native_commands) == (1 if kind == 'source_secret' else 0)
+
+
+def assert_native_context_rejects_mutated_producer_packet_and_private_output(native_context_world, mutate):
+    world = native_context_world; world.packet_mutation = mutate
+    with pytest.raises((AssertionError, ProofError)) as failed:
+        world.fixture.native_context(BASE, world.receipt, world.revision, [[]])
+    assert SECRET not in str(failed.value) and not world.fixture.output.exists()
+    assert len(world.native_commands) == 1
+
+
+class OfficeNativeContextTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls): cls.owners = native_context_owners()
+
+    @contextlib.contextmanager
+    def world(self):
+        with tempfile.TemporaryDirectory() as directory, pytest.MonkeyPatch.context() as monkeypatch:
+            yield native_context_world(Path(directory), monkeypatch, self.owners)
+
+    def test_actual_emitted_python_native_schemas_and_deduplicated_reasoning(self):
+        with self.world() as world:
+            assert_native_context_executes_actual_native_schema_converter_and_deduplicates(world)
+
+    def test_source_module_mutation_before_and_during_producer_is_refused(self):
+        for moment in ('before', 'during'):
+            with self.subTest(moment=moment), self.world() as world:
+                assert_native_context_refuses_module_file_mutation_before_or_during_actual_producer(world, moment)
+
+    def test_private_handoff_reasoning_and_argv_bounds_precede_native_exec(self):
+        for kind in ('missing', 'unprepared', 'bad_cases', 'large_argument', 'source_secret'):
+            with self.subTest(kind=kind), self.world() as world:
+                assert_native_context_private_source_reasoning_and_argument_guards(world, kind)
+
+    def test_native_producer_packet_shape_origin_bindings_and_secret_are_failclosed(self):
+        cases = (lambda p: p.update(schema=True), lambda p: p.update(module_sha256={}),
+            lambda p: p.update(source_body_sha256='0' * 64), lambda p: p.update(native_specs={}),
+            lambda p: p.update(reasoning_cases=[]), lambda p: p['reasoning_cases'][0].update(native_input={}),
+            lambda p: p['reasoning_cases'][0].update(input_reasoning=[{'type': 'reasoning', 'id': 'foreign'}]),
+            lambda p: p.update(private=SECRET))
+        for index, mutate in enumerate(cases):
+            with self.subTest(case=index), self.world() as world:
+                assert_native_context_rejects_mutated_producer_packet_and_private_output(world, mutate)
 
 
 class PrepareWorld(DockerWorld):

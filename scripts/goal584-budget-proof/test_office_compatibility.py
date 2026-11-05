@@ -191,7 +191,7 @@ def export(component, auth="Bearer caller"):
         headers={"Authorization": auth, "X-OpenWebUI-Chat-Id": "chat", "X-OpenWebUI-Message-Id": "current"})
 
 
-def full_capture(component):
+def full_capture(component, *, provider=None):
     exported = export(component).json()
     identifier = exported["result_file_id"]
     rendered = component.client.post("/v1/officecli/render", headers={"Authorization": "Bearer caller"},
@@ -212,6 +212,9 @@ def full_capture(component):
             "tools": [{"type": "function", "function": copy.deepcopy(s)} for s in component.specs],
             "reasoning": {"effort": "low"}, "include": ["reasoning.encrypted_content"], "store": False, "stream": True,
             "parallel_tool_calls": False, "max_completion_tokens": 1024}
+    if provider is not None:
+        owner["wire_model"] = provider.OFFICE_MODEL
+        body.pop("reasoning"); body.pop("include")
     calls = []; recorded_outputs = []
     prefix = copy.deepcopy(body["messages"])
     for index in range(3):
@@ -231,6 +234,19 @@ def full_capture(component):
                       {"type": "function_call", "call_id": call_id, "name": name, "arguments": json.dumps(args), "status": "completed"}]
         else: output = [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "[Download]( /api/v1/files/" + identifier + "/content)"}]}]
         response = {"id": response_id, "model": owner["wire_model"], "status": "completed", "usage": P.USAGE, "output": output}
+        if provider is not None:
+            # Run the actual finite provider with only its HTTP transport leaf
+            # replaced. No socket/network and no authored provider result.
+            handler = object.__new__(provider.Handler); statuses = []
+            handler.send_response = statuses.append
+            handler.send_header = lambda *args: None; handler.end_headers = lambda: None
+            handler.wfile = BytesIO()
+            handler.serve_responses({**copy.deepcopy(wire), "model": owner["wire_model"]})
+            record = provider.REQUESTS[-1]
+            assert statuses == [200] and len(provider.REQUESTS) == index + 1
+            assert record["lifecycle"]["terminal"] and record["lifecycle"]["outcome"] == "completed"
+            response = copy.deepcopy(record["response"]); output = response["output"]; response_id = response["id"]
+            if index < 2: call_id = next(v["call_id"] for v in output if v["type"] == "function_call")
         calls.append({"before_budget": before, "after_budget": after, "wire_before_auth": wire, "wire_after_auth": copy.deepcopy(wire),
             "auth_user_id": actor, "auth_key_hash": owner["key_hash"], "attestation_present_before": True,
             "provenance_removed_after": True, "verified_cost_scope": scope, "route": "/responses",
@@ -310,6 +326,56 @@ def wire_capture(component):
         for body in (call["wire_before_auth"], call["wire_after_auth"], call["provider"]["body"]):
             body.pop("reasoning", None); body.pop("include", None)
     return calls, owner
+
+
+def current_mock_wire_capture(component):
+    path = ROOT / "scripts/goal584-budget-proof/mock_provider.py"
+    spec = importlib.util.spec_from_file_location("office_literal_no_reasoning_provider", path)
+    provider = importlib.util.module_from_spec(spec); spec.loader.exec_module(provider)
+    _, calls, owner = full_capture(component, provider=provider)
+    for call in calls: del call["before_budget"], call["after_budget"]
+    return calls, owner
+
+
+def test_current_mock_without_reasoning_keeps_only_actual_native_tool_pairs(component):
+    calls, owner = current_mock_wire_capture(component)
+    original = copy.deepcopy(calls)
+    # This native conversion is real, but is not an observation of any returned
+    # provider reasoning. It must not invent an empty assistant continuation.
+    synthetic = component.router["convert_to_responses_payload"]({"messages": [{"role": "assistant", "output": []}]})["input"]
+    assert synthetic and any(v.get("role") == "assistant" for v in synthetic)
+    for index, call in enumerate(calls):
+        assert "reasoning" not in call["wire_before_auth"] and "include" not in call["wire_before_auth"]
+        assert not any(v.get("type") == "reasoning" for v in call["provider"]["response"]["output"])
+        if index < 2:
+            tail = calls[index + 1]["wire_before_auth"]["input"][len(call["wire_before_auth"]["input"]):]
+            assert [v["type"] for v in tail] == ["function_call", "function_call_output"]
+    invocations = []
+    def native(body):
+        invocations.append(body)
+        return component.router["convert_to_responses_payload"](body)
+    assert P.verify_wire_calls(calls, **(owner | {"native_responses_payload": native}))
+    assert invocations == [] and calls == original
+
+
+@pytest.mark.parametrize("reasoning", [False, True])
+@pytest.mark.parametrize("extra", [
+    {"type": "message", "role": "assistant", "content": []},
+    {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "foreign"}]},
+    {"type": "unknown", "sentinel": "unobserved"}])
+def test_coherent_extra_continuation_items_fail_even_when_tool_pair_and_native_reasoning_survive(component, reasoning, extra):
+    calls, owner = wire_capture(component) if reasoning else current_mock_wire_capture(component)
+    returned = [v for v in calls[0]["provider"]["response"]["output"] if v["type"] == "reasoning"]
+    prefix = owner["native_responses_payload"]({"messages": [{"role": "assistant", "output": returned}]})["input"] if returned else []
+    position = len(calls[0]["wire_before_auth"]["input"]) + len(prefix)
+    # Both auth sides/provider agree, and the third request retains the entire
+    # second request. Exact new continuation, not a checksum/history mismatch,
+    # must reject this otherwise coherent unobserved item.
+    for call in calls[1:]:
+        for body in (call["wire_before_auth"], call["wire_after_auth"], call["provider"]["body"]):
+            body["input"].insert(position, copy.deepcopy(extra))
+    with pytest.raises(P.ProofError, match="office_continuation_items"):
+        P.verify_wire_calls(calls, **owner)
 
 
 def test_live_wire_packet_requires_no_invented_filter_bodies_and_preserves_native_reasoning(component):
@@ -481,6 +547,75 @@ def test_financial_contract_mutations_fail(component, monkeypatch, mutation):
     elif mutation == "spend": row["spend"] = 0
     else: row["request_id"] = "resp_" + base64.b64encode(b"litellm:custom_llm_provider:openai;model_id:office-deployment;response_id:unobserved-provider").decode()
     with pytest.raises(P.ProofError): P.verify_finance(before, after, **kwargs)
+
+
+def service_financial_fixture(component, monkeypatch):
+    before, primary_after, primary = financial_fixture(component, monkeypatch)
+    actor, payer, key_hash = primary['actor'], str(uuid4()), 'b' * 64
+    for owner in ('user', 'key'):
+        before[owner].update(user_id=payer, models=['gpt-6-luna'])
+    after = copy.deepcopy(before)
+    row = copy.deepcopy(primary_after['rows'][-1])
+    provider_id = 'resp_office_service_fixture'
+    row.update(request_id='resp_' + base64.b64encode(('litellm:custom_llm_provider:openai;model_id:goal584-office-service;response_id:'
+        + provider_id).encode()).decode(), user=payer, api_key=key_hash, model='openai/goal584-fake-office-service',
+        model_group='gpt-6-luna', model_id='goal584-office-service', session_id='owui-service:' + primary['chat_id'])
+    scope = {'schema': 1, 'category': 'service', 'user_id': payer, 'actor_id': actor,
+        'chat_id': primary['chat_id'], 'call_id': str(uuid4()), 'model': 'gpt-6-luna', 'task': 'follow_up_generation'}
+    descriptor = {'schema': 1, 'deployment_id': 'goal584-office-service', 'currency': 'USD',
+        'source_ref': 'goal584-office-synthetic-v1', 'source_url': 'https://pricing.example.invalid/goal584/office',
+        'source_checked_at_utc': '2026-11-05T00:00:00Z', 'declared_effective_from_utc': '2026-11-05T00:00:00Z',
+        'declared_effective_until_utc': None, 'activation_ref': 'goal584-office-stand-v1', 'qualified_usage': 'flat_input_output'}
+    spend = row['metadata']['spend_logs_metadata']; spend['owui_budget'] = copy.deepcopy(scope)
+    snapshot = spend['owui_billed_token_rates']; snapshot['availability'] = 'partial'
+    snapshot['rates'] = dict.fromkeys(snapshot['rates'])
+    snapshot['rates'].update(input_cost_per_token=.01, output_cost_per_token=.02)
+    spend['owui_tariff_descriptor'] = {'schema': 1, 'availability': 'available', 'descriptor': copy.deepcopy(descriptor)}
+    after['rows'].append(row)
+    after['user']['spend'] = after['key']['spend'] = .20
+    kwargs = dict(actor=actor, payer=payer, key_hash=key_hash, chat_id=primary['chat_id'], provider_id=provider_id,
+        verified_scope=scope, wire_model='goal584-fake-office-service', deployment_id='goal584-office-service',
+        descriptor=descriptor, validate_scope=provenance.validate_persisted_service_scope,
+        validate_rates=snapshots.validate_snapshot, decode_response_id=primary['decode_response_id'])
+    return before, after, kwargs
+
+
+def test_office_service_actual_sdk_scope_and_snapshot_owners_verify_one_separate_payer(component, monkeypatch):
+    before, after, kwargs = service_financial_fixture(component, monkeypatch)
+    assert kwargs['actor'] != kwargs['payer']
+    assert P.verify_service_finance(before, after, **kwargs) == {
+        'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
+
+
+@pytest.mark.parametrize('mutation', ['same_payer', 'cap', 'counter', 'missing', 'duplicate', 'extra_zero', 'retained_row',
+    'nonce', 'actor', 'task', 'scope_answer', 'key', 'model', 'session', 'usage', 'spend', 'rate', 'partial_rate',
+    'source', 'unknown_tariff', 'deployment', 'provider_id'])
+def test_office_service_finance_rejects_accounting_scope_source_and_history_drift(component, monkeypatch, mutation):
+    before, after, kwargs = service_financial_fixture(component, monkeypatch)
+    row = after['rows'][-1]; spend = row['metadata']['spend_logs_metadata']
+    if mutation == 'same_payer': kwargs['actor'] = kwargs['payer']
+    elif mutation == 'cap': after['key']['max_budget'] = 11
+    elif mutation == 'counter': after['user']['spend'] = .60
+    elif mutation == 'missing': after['rows'].pop()
+    elif mutation == 'duplicate': after['rows'].append(copy.deepcopy(row))
+    elif mutation == 'extra_zero': after['rows'].append({'request_id': 'new-zero-row', 'spend': 0})
+    elif mutation == 'retained_row': after['rows'][0]['spend'] = 1
+    elif mutation == 'nonce': spend['owui_budget']['call_id'] = str(uuid4())
+    elif mutation == 'actor': spend['owui_budget']['actor_id'] = kwargs['payer']
+    elif mutation == 'task': spend['owui_budget']['task'] = 'title_generation'
+    elif mutation == 'scope_answer': spend['owui_budget']['answer_id'] = str(uuid4())
+    elif mutation == 'key': row['api_key'] = 'a' * 64
+    elif mutation == 'model': row['model_group'] = P.MODEL
+    elif mutation == 'session': row['session_id'] = kwargs['chat_id']
+    elif mutation == 'usage': row['prompt_tokens'] = True
+    elif mutation == 'spend': row['spend'] = .60
+    elif mutation == 'rate': spend['owui_billed_token_rates']['rates']['input_cost_per_token'] = .03
+    elif mutation == 'partial_rate': spend['owui_billed_token_rates']['rates']['input_cost_per_token'] = None
+    elif mutation == 'source': spend['owui_tariff_descriptor']['descriptor']['source_ref'] = 'foreign-source'
+    elif mutation == 'unknown_tariff': spend['owui_tariff_descriptor']['availability'] = 'unknown'
+    elif mutation == 'deployment': row['model_id'] = 'foreign-deployment'
+    else: kwargs['provider_id'] = 'unobserved-provider'
+    with pytest.raises((P.ProofError, ValueError)): P.verify_service_finance(before, after, **kwargs)
 
 
 def test_safe_component_packet_never_exports_private_exception_or_claims_acceptance():
