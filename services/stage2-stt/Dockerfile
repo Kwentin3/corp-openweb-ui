@@ -13,7 +13,7 @@ RUN sed -i \
       -e '/^Signed-By:/a Check-Valid-Until: no' \
       /etc/apt/sources.list.d/debian.sources \
     && printf '%s\n' '' 'Types: deb' 'URIs: https://deb.debian.org/debian' 'Suites: trixie trixie-updates' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' \
-      '' 'Types: deb' 'URIs: https://deb.debian.org/debian-security' 'Suites: trixie-security' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' >> /etc/apt/sources.list.d/debian.sources \
+      '' 'Types: deb' 'URIs: https://deb.debian.org/debian-security' 'Suites: trixie-security' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' > /etc/apt/sources.list.d/00mirror-archives.sources \
     && printf '%s\n' 'Package: *' 'Pin: origin "deb.debian.org"' 'Pin-Priority: -1' > /etc/apt/preferences.d/99snapshot-archive-only.pref \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get -o APT::Default-Release= -o Acquire::Retries=3 --error-on=any update \
