@@ -19,6 +19,12 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ../scripts/goal584-budget-proof/prove_native_key_block.py
+        target: /proof/prove_native_key_block.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../deploy/openwebui-functions/officecli_auto_attach_filter.py
         target: /proof/officecli_auto_attach_filter.py
         read_only: true

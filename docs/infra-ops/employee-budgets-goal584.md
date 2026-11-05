@@ -6,36 +6,80 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native69/1d5a3a99. Все четыре Native jobs и Active CI
+принятый bounded baseline — Native70/47b2734f и Office70. Все четыре Native jobs, Office и Active CI
 SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
-policy, полная reasoning continuity и Office/STT/Terminal ещё не приняты.
+policy, полная reasoning continuity и STT/Terminal ещё не приняты.
 
-Office67 выполнил ordinary browser Send, native DOCX/download и три follow-ups.
-Actual safe wire теперь подтверждает полный pinned Office instruction во всех
-трёх developer/input_text запросах; auth before/after и provider context совпали,
-SOURCE/prior user/current request и14schemas сохранены. Личная финансовая сверка
-3calls/.60 прошла, затем `office_service_dispatch_binding` остановил отдельную
-служебную сверку. Точный не совпавший operand ещё не экспортирован: raw ledger
-остался приватным. Служебные status/usage/spend/rates/.20 пока не приняты.
-Office68 сохранил actual DOCX и оба PNG; raw binding diagnostic подавлен, поэтому
-поле raw ID остаётся скрытым. Office69 fixed atoms уже показали: scope/owner/
-chat/model/task/nonce совпали, ошибочно ожидались только decoded Responses IDs.
-Обнаружена проверочная ошибка
-paragraph fixture: native Markdown импорт объединил BEGIN и следующую soft line
-в один абзац. Следующий срез сверяет точные17native paragraphs и выводит fixed
-boolean binding comparisons независимо от подавления строк. Следующий срез
-связывает финансовую row с actual dispatch по существующему подписанному nonce;
-native request_id не переопределяется как provider Response ID.
+Office70 принят independent artifact review и parent repeat: actual browser Send,
+native DOCX/download, три follow-ups, foreign file metadata/content404/404.
+Все четыре auth/provider dispatch связаны по полному body с единственным model
+mapping; полный pinned developer instruction, SOURCE/prior/current user,
+14schemas, обе Tool continuation и actual PNG/FileID сохранены. Финансовый worker
+подтвердил личные3calls/3rows/.60 и служебный1call/1row/.20. Row связывается с
+actual dispatch по полному signed scope, включая nonce; native opaque log ID
+не переопределяется как provider Response ID. Raw ledger/scopes остаются private:
+это source-bound worker evidence, не independent replay сырых финансовых rows.
+Все17native paragraphs, таблица3×4 и обе PNG проверены; основной агент просмотрел
+render и browser. Cleanup0containers/0volumes/0networks,5images/2helpers удалены;
+build cache сохранён. Reasoning output в этих calls отсутствовал: полная saved
+reasoning continuity этим прогоном не принимается.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
 новых native core patches нет. Office/provider/service и readback worker
-опубликованы в draft PR585, приёмка этого пути ещё не завершена. Следующий шаг:
-same-job Office full-context/accounting acceptance, затем безопасная
-unknown-usage policy. Production, реальные деньги и рабочие маршруты не менялись.
+опубликованы в draft PR585; bounded Office gate принят. Следующий срез проверяет
+существующий public native key/block на свежем синтетическом сотруднике: signed
+gateway call/.20 → operator block/readback → отказ без нового provider dispatch,
+при сохранении caps/spend/history. Это prerequisite unknown-usage policy,
+не реализация самой policy или гарантия оплаты первого неизвестного счёта.
+Production, реальные деньги и рабочие маршруты не менялись.
 Ниже — текущие evidence/границы и история прежних кандидатов; старые FAIL не
 переименовываются в PASS после исправления следующей версии.
+
+**Candidate70 bounded acceptance, parent observation14:02:36UTC:**
+[Office70/42038215431](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42038215431),
+[Native70/42038215458](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42038215458)
+и [Active CI/42038215434](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42038215434)
+terminal SUCCESS. Head47b2734f3de9a3c10b6fb7a2d748212eccd3caae,
+tested merge8ab80dbaf945f0d1f075b73861b4a9610aaac7a5, tree diff пуст.
+Office artifact13420910534/905800bytes/56members,
+SHA256122662ccf8e8efb72c077f0fcc9ada679832baa30522d767b29934f0213753e8;
+reader01e21bdd…/resultb63e9a06… повторены root. Actual DOCXb6c8c014…,
+render7c16680a…/33038bytes/1600×1119, browser0a6cdff0… проверены.
+Main artifact13420268055/SHAa7cb7cff…:77semantic receipts,26negatives,
+53inputs exact69, recovery.98→0→.20 за5.858001054s<15. Pricing artifact13419437115/
+SHA1e1cd371…:63negatives,flat.80/Responses.500,history/caps/restoration иcleanup0/0/0.
+Basic/floor artifacts13419806740/13420350929, SHA198f5a47…/b4973977…:
+20negatives,26inputs, floor final.746091s<5/basic6.309401s<60,cleanup0/0/0.
+Все четыре frozen readers повторены root. Main networks не экспортированы;
+calendar custom_auth=None не принимается как новый gateway DB-only trace.
+Evidence: `local/goal584/office70-review/`, `native70-main-review/`,
+`native70-pricing-review/`, `native70-calendar-review/`.
+
+**Candidate71 source — native block primitive:** добавлен только finite proof
+worker/test, его readonly mount и отдельный шаг в существующем Office stand после
+Office gate. Fresh UUID/native assignment/cap2; /model/info обязан подтвердить
+fake endpoint/model/deployment/rates перед каждым write и inference. Existing
+BudgetAdminClient делает initialize/read/block; signed gateway positive.20,
+native row/nonce/Usage и actual provider body/response сверяются. Block требует
+public operator acknowledgement и GETblocked=True, неизменные caps/spend/history;
+следующий signed call обязан получить exact native401/auth_error/blocked message
+без нового provider dispatch/charge. Reset/delete/unblock/direct-key inference
+не используются. Raw rows/keys/scopes остаются private0600. Host сверяет11actual
+mounted source hashes и не экспортирует passed=True при source/exit mismatch.
+Native cache warming, non-admin RBAC и unknown-usage policy не заявляются.
+
+Первый local общий прогон:264component checks (257PASS/7opt-in skips) и614harness
+PASS. После него independent review нашёл P1 в новом proof: поздний source read
+или credential check мог оставить passed=True. Исправлен proof, не продукт:
+candidate публикуется только после обоих guards, catches принудительно false.
+Root повторил25focused checks (22worker/3existing block-client), включая real
+late source-read/known-secret failures с exit1/private-state preservation.
+Workflow syntax/factory/cleanup rehearsal9Bash/6Python PASS, external/Docker0.
+Финальный широкий прогон после этой узкой proof-only поправки не заявляется;
+actual native block/admission, Linux permissions и новые runtime hashes ещё
+должны пройти CI и независимую приёмку. Все изменения остаются stand-only.
 
 **Candidate64, source:** descriptor теперь квалифицирует фактически использованные
 native billing categories, включая Responses/cache/reasoning; он не утверждает,
@@ -546,6 +590,17 @@ parent source replay PASS. Parent generation70 3rounds/14schemas/7negatives,
 native751/1245/1467,27.99/32.93/35.15; actual69 full-wire751/1647/29451,
 27.99/36.95/314.99<1000;0external attempts/calls. Declared input10000 gap не снят.
 Actual service .20 и полный Office gate ещё предстоит принять на стенде.
+Candidate70 опубликован: head47b2734f3de9a3c10b6fb7a2d748212eccd3caae,
+tested merge8ab80dbaf945f0d1f075b73861b4a9610aaac7a5, tree diff пуст;
+PR585 draft/open/body и remote head прочитаны обратно. На13:44UTC
+[Office70/42038215431](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42038215431)
+собирает images;
+[Native70/42038215458](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42038215458)
+выполняет main/pricing/calendars;
+[ActiveCI/42038215434](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42038215434)
+выполняется. Metadata — `local/goal584/candidate70-publish.safe.json`;
+staged source/checks — `candidate70-{index,checks}.safe.json`.
+До terminal не перепубликовывать ветку. Production не менялся.
 
 **Native67 bounded acceptance:** actual main artifact13413391856/3891576bytes/
 SHAcc2656b3…;95immutable review inputs/76Git snapshots,78PASS receipts,
