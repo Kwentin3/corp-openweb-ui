@@ -5,24 +5,30 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний bounded
-стендовый baseline — Native65/2ceb2dfd: все4jobs SUCCESS, independent review и
-parent replay main/pricing/calendars PASS. Сохранены исходные UI/finance/context/
-service/RAG/retention/Responses assertions; квалифицированы реальные used cache/
-reasoning tariff descriptors. Recovery после provider500 —5.53s; календарный
-floor finalHTTP.70353s<5. Ни missing/null usage policy, ни полная reasoning
-continuity, ни текущие Office/STT/Terminal этим не приняты. После APT504 в
-Office7/Active165 узкий mirror-first canary18054f1c успешно собрал Office/STT;
-он локально интегрирован, временный canary worktree убран. Candidate65 source:
-574harness PASS/0skip и264component checks (257PASS/7opt-in skips); отдельные
-Office pytest assertions170PASS. Candidate65 опубликован2ceb2dfd/tested merge2a57c2e0,
-tree diff пуст; все4Native jobs и Active CI SUCCESS. Office65 FAIL в topology
-readback до Office worker; следующий кандидат готовится, readiness не принят.
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
+принятый bounded baseline — Native66/20efeb1d. Все четыре Native jobs и Active CI
+SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
+Сохраняются исходные
+UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
+policy, полная reasoning continuity и Office/STT/Terminal ещё не приняты.
+
+Office66 дошёл до настоящего браузерного Send: ответ завершён, DOCX создан и
+скачан, три follow-ups сохранены, доступ второго сотрудника к файлу —404/404.
+Финальная сверка отказала по `office_system_context` до ledger validators:
+проверка требовала top-level `instructions`. Точный штатный WebUI source
+показывает first system→developer перед Responses conversion; это объясняет
+допустимую другую форму, но actual wire в artifact66 не сохранён, поэтому
+присутствие полной инструкции пока неизвестно. Cleanup66: containers/volumes/
+networks0/0/0, пять принадлежащих прогону images удалены. Следующий кандидат
+исправляет только проверку/диагностику: полный текст из pinned AutoAttach owner
+обязателен в приоритетном канале, missing/truncated/user/tool quotes отклоняются.
+До CI повторяется полный native reasoning handler→Responses request на
+репрезентативном Office входе; core/рабочий маршрут не меняются.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
-новых native core patches нет. Office/provider/service и новый readback worker
-сохраняются отдельным WIP вне опубликованного64. Следующий шаг: source review
-и same-job Office preparation/Send, затем безопасная
+новых native core patches нет. Office/provider/service и readback worker
+опубликованы в draft PR585, приёмка этого пути ещё не завершена. Следующий шаг:
+same-job Office full-context/accounting acceptance, затем безопасная
 unknown-usage policy. Production, реальные деньги и рабочие маршруты не менялись.
 Ниже — текущие evidence/границы и история прежних кандидатов; старые FAIL не
 переименовываются в PASS после исправления следующей версии.
@@ -285,10 +291,12 @@ native SHA и URL cache keys; штатный CUSTOM_TIKTOKEN_CACHE_DIR readonly 
 используется существующим artifact validator. Native images/core не менялись.
 Локальные host/browser/collector82PASS; current pure192PASS, старые185 сохранены.
 Actual pinned ChatForm/current-message/sanitizeHistory и полный no-reasoning
-native-протокол проверены в source/component пределах. Последняя literal репетиция:
+native-протокол проверены в source/component пределах. Историческая literal репетиция:
 14schema, input items3/5/7; nativecounts428/925/1145, reserves24.76/29.73/31.93<1000;
 callback2available+4unknown,0external attempts/calls. Native tools/instructions
-count gap сохраняется. PNG здесь component IO double; real CLI/image reservation
+count gap сохраняется для этого converter-only входа. Позже установлено, что
+репетиция66 пропустила native reasoning handler до converter; её token counts
+не являются окончательными counts фактического gpt5 маршрута. PNG здесь component IO double; real CLI/image reservation
 и браузерный результат будут приняты только по actual same-job run.
 Evidence: `local/goal584/office66-request-rehearsal/`,
 `local/goal584/office-preparation-wiring/rehearsal.safe.json`.
@@ -299,10 +307,71 @@ rehearsal с теми же428/925/1145 и24.76/29.73/31.93,0external attempts. I
 pipeline review и8bash/5Python/5offline wiring checks PASS; native Office flagsFalse.
 Публикация кандидата запускает actual same-job gate; source readiness не заменяет
 результат браузера, реальные DOCX/PNG, financial readback и cleanup.
-Следующий обязательный шаг — завершить service provider/Office capture wiring,
-проверить host preparation, затем один ordinary Send с actual export/render,
-download/foreign ACL, natural service task и финансовым readback. Unknown usage,
+Candidate66 опубликован: head20efeb1db7af620b1ced6ec8c39abc0289b3fa93,
+tested mergec915cbb987c446e43cbb34b600c37b0ec40ad11c, tree diff пуст. PR585
+draft/open/body прочитаны обратно. [Office66/42018321752](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42018321752)
+завершился FAIL после preparation/Send, до финансовой приёмки;
+[Native66/42018321785](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42018321785)
+все четыре jobs SUCCESS;
+[ActiveCI/42018321745](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42018321745)
+SUCCESS. Calendar actual ZIPdc0027d2…/cfa7158b…: все26source inputs exact65,
+20negatives, cleanup0/0/0; floor final.502649s<5. Independent bounded acceptance
+PASS; root повторил frozen reader. Pricing actual ZIP27a3ee2c…/19914bytes:
+29source inputs exact65,63negatives, flat.80/Responses.500, cleanup0/0/0;
+independent acceptance и parent repeat PASS. Missing/null usage — только unknown
+наблюдения, не готовая policy. Main ZIPca7e6999…/3889159bytes:78actual PASS
+receipts,60immutable review inputs/43source snapshots;16finance+3context+
+5service binding+2direct-title negatives. Recovery.98→0→.20 за1.893528s<15;
+final cost08 связывает8/8settlements. Independent main review и parent reader
+repeat PASS; actual Responses Details PNG просмотрен — обе полные таблицы.40,
+2calls/20input/10output/30total и native Tool/Proof. Main cleanup containers и
+volumes пусты; networks не экспортированы и не объявляются проверенными.
+Office ZIPa7d74b79…/622432bytes и полный log140b68bf… независимо прочитаны,
+parent frozen reader повторён. Browser Send/DOCX/download/3followups/foreign404
+успешны; actual wire не экспортирован, код `office_system_context` до finance.
+Reconstructed native source совпал с actual built module SHA и подтвердил
+system→developer перед Responses converter. Cleanup0/0/0 и пять images удалены.
+Actual Office полный результат ещё не принят.
+Текущая metadata: `local/goal584/candidate66-publish.safe.json`.
+Следующий обязательный шаг — полная native request репетиция67, bounded safe wire
+diagnostics и повтор ordinary Send с export/render/download/foreign ACL, natural
+service task и финансовым readback. Unknown usage,
 полная reasoning continuity и actual STT/Terminal остаются открытыми частями GOAL.
+
+**Candidate67 source, до runtime gate.** Исправлен только неверный premise
+Office-проверки: полный текст инструкции берётся из существующего AutoAttach
+source0916704e… и обязателен в top-level instructions либо настоящем priority
+message input_text. Чужая роль, tool quote, один marker, обрезка и изменённый текст
+отклоняются. Collector читает тот же readonly source, что использовал native
+setup; generic component sentinel не становится live ожиданием. Прежние guards и
+тесты сохранены по полному AST-сравнению, independent source review PASS.
+
+Новая репетиция включает native is_openai_new_model→reasoning handler→Responses
+converter на окончательном Office входе. Реальный AutoAttach/14schemas,
+ChatForm seed, native result processor и три actual finite-provider handler
+rounds исполнены без HTTP transport/network. Во всех трёх запросах полная
+инструкция находится в developer/input_text; input items4/6/8,
+native input counts751/1246/1469, estimates27.99/32.94/35.17<1000.
+Удаление developer-инструкции уменьшает native estimate; top-level tools всё ещё
+не учитываются штатным counter. Семь coherent instruction negatives отклонены;
+callback2available+4unknown,0external attempts/calls. Root повторил frozen
+rehearsal PASS; старые66/legacy evidence не перезаписаны.
+
+Для actual artifact добавлен readonly diagnostic collector: полные безопасные
+before/after auth и provider projections, priority channels и provider outputs.
+Снимок обязателен до financial verify и best effort при раннем отказе; уже
+сохранённый успешный снимок не перезаписывается повторной неудачей. Existing
+observer/secret checks и общий1MiB bound применяются до вывода; oversized/unsafe
+context не обрезается и не объявляется полным. JWT/keys/private inventories не
+экспортируются. Cleanup не менялся. Focused48readback PASS; pure207PASS, включая
+15новых instruction cases. Evidence: `local/goal584/office67-request-rehearsal/`,
+`office67-guard-review.md`; native Office acceptance пока False.
+Окончательный parent source check67:594harness PASS/0skip,264component checks
+(257PASS/7opt-in skips),207pure и48readback pytest PASS. Workflow rehearsal:
+8Bash/5Python blocks, пять actual wiring/cleanup checks,0Docker/external calls.
+Exact staged LF delivery hashes и CRLF equivalence сохранены отдельно в
+`local/goal584/candidate67-{index,checks}.safe.json`. Эти результаты разрешают
+следующий изолированный CI gate, но не заменяют actual Office artifact приёмку.
 
 **Native54 опубликован:** head458b4f39b0235f44406be657da5bb2f453a5e8b8,
 tested mergea7404580a67916a01def250415a00ae77615f0e2, tree diff пуст;

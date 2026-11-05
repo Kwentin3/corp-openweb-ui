@@ -22,13 +22,14 @@ PRIVATE = Path('/proof-private')
 COMMON, OFFICE = PRIVATE / 'webui-state.private.json', PRIVATE / 'office-state.private.json'
 STATE, BROWSER = PRIVATE / 'office-readback.private.json', PRIVATE / 'office-browser.private.json'
 CONTEXT = PRIVATE / 'office-native-context.private.json'
+OFFICE_FILTER = Path('/proof/officecli_auto_attach_filter.py')
 MAX_BYTES = 16 * 1024 * 1024
 
 
 def dependencies():
     from provision_webui import WebUI, native_client, read_private, write_private, OPERATOR_STATE
     from prove_service_tasks import provider
-    from prove_pricing_snapshots import validate_snapshot, no_credentials
+    from prove_pricing_snapshots import validate_snapshot, no_credentials, private_credentials
     from provenance import validate_persisted_scope, validate_persisted_service_scope
     from litellm.responses.utils import ResponsesAPIRequestUtils
     import capture_webui_auth as capture
@@ -128,6 +129,49 @@ def wire_calls(before, provider, capture, office):
     return calls, service[0]
 
 
+def wire_diagnostic(before, provider, capture, *, expected_instruction, secrets, no_credentials):
+    """Complete bounded synthetic projections, never an admission/finance result.
+
+    Reuse the actual observer's projection without repairing instruction channels
+    or joining away differing requests. Auth credentials/inventories stay private.
+    """
+    observed = {}
+    for name, current in (('provider', provider), ('capture', capture)):
+        old, rows = before[name]['requests'], current['requests']
+        require(rows[:len(old)] == old, 'office_diagnostic_prior_context')
+        observed[name] = rows[len(old):]
+        require(len(observed[name]) <= 8, 'office_diagnostic_count')
+    def wire(body, allowed):
+        require(body.get('model') in allowed, 'office_diagnostic_synthetic_model')
+        return proof.responses_projection(body)
+    def channels(body):
+        return {'instructions': {'present': 'instructions' in body, 'value': body.get('instructions')},
+            'input_messages': [copy.deepcopy(v) for v in body.get('input', [])
+                if isinstance(v, dict) and v.get('type', 'message') == 'message']}
+    auth, physical = [], []
+    for row in observed['capture']:
+        first = wire(row['body'], (proof.MODEL, 'gpt-6-luna'))
+        after = wire(row['body_after_auth'], (proof.MODEL, 'gpt-6-luna'))
+        auth.append({'route': row['route'], 'before_auth': first, 'after_auth': after,
+            'instruction_channels': {'before_auth': channels(first), 'after_auth': channels(after)},
+            'attestation_present_before': row.get('attestation_present_before'),
+            'provenance_removed_after': row.get('provenance_removed_after')})
+    for row in observed['provider']:
+        body = wire(row['body'], ('goal584-fake-office', 'goal584-fake-office-service'))
+        response = row.get('response') or {}
+        physical.append({'route': row['route'], 'request': body, 'instruction_channels': channels(body),
+            'response': {k: copy.deepcopy(response[k]) for k in ('id', 'model', 'status', 'instructions', 'output', 'usage') if k in response},
+            'lifecycle': {k: row.get('lifecycle', {}).get(k) for k in ('terminal', 'outcome')}})
+    packet = {'schema': 1, 'phase': 'diagnostic', 'status': 'collected_synthetic_wire_diagnostic',
+        'passed': True, 'native_office_accepted': False, 'validation_passed': False,
+        'source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'expected_instruction': expected_instruction, 'auth_observations': auth, 'provider_observations': physical,
+        'limits': ['source-bound observation only; no Filter pre/post or financial acceptance']}
+    require(len(json.dumps(packet, allow_nan=False).encode()) <= 1024 * 1024, 'office_diagnostic_bound')
+    no_credentials(packet, secrets)
+    return packet
+
+
 def verify(before, after, provider, capture, saved, browser, packet, office, d):
     calls, service = wire_calls(before, provider, capture, office)
     actor, payer = office['users'][0]['id'], office['service_fixture']['payer_id']
@@ -150,7 +194,8 @@ def verify(before, after, provider, capture, saved, browser, packet, office, d):
     key = before['finance']['primary']['key']['token']
     scopes = proof.verify_wire_calls(calls, actor=actor, key_hash=key, chat_id=chat, answer_id=answer,
         wire_model='goal584-fake-office', native_specs=packet['native_specs'], exported=exported, png=png,
-        native_responses_payload=native_converter(packet, office))
+        native_responses_payload=native_converter(packet, office),
+        expected_instruction=proof.office_instruction(OFFICE_FILTER.read_bytes()))
     main = proof.verify_finance(before['finance']['primary'], after['primary'], calls_by_provider=scopes,
         actor=actor, key_hash=key, chat_id=chat, answer_id=answer, wire_model='goal584-fake-office',
         deployment_id='goal584-office-primary', validate_scope=d['validate_persisted_scope'],
@@ -186,6 +231,13 @@ def run(phase, d):
     def contexts():
         with d['capture'].capture_lock(): captured = d['capture']._read_locked()
         return d['provider'](), captured
+    if phase == 'diagnostic':
+        state = d['read_private'](STATE)
+        provider, captured = contexts()
+        secrets = [value for owner in (common, office, operator) for value in d['private_credentials'](owner)]
+        return wire_diagnostic(state, provider, captured,
+            expected_instruction=proof.office_instruction(OFFICE_FILTER.read_bytes()),
+            secrets=secrets, no_credentials=d['no_credentials'])
     if phase == 'baseline':
         require(not STATE.exists(), 'office_readback_baseline_exists')
         finance = inventory(native, office); provider, captured = contexts()
@@ -239,7 +291,7 @@ def run(phase, d):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--phase', choices=('baseline', 'verify'), required=True)
+    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--phase', choices=('baseline', 'verify', 'diagnostic'), required=True)
     args = parser.parse_args()
     try: result = run(args.phase, dependencies())
     except Exception as error:

@@ -1,4 +1,5 @@
 """Offline readback tests: existing native/domain owners, HTTP receipts doubled."""
+import ast
 import copy
 from contextlib import nullcontext
 import json
@@ -7,6 +8,7 @@ from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
+import yaml
 import prove_office_readback as R
 import prove_native_budgets as N
 import test_office_compatibility as T
@@ -14,8 +16,12 @@ from test_office_compatibility import component, native
 
 
 def scenario(component, monkeypatch):
+    monkeypatch.setattr(R, 'OFFICE_FILTER', T.ROOT / 'deploy/openwebui-functions/officecli_auto_attach_filter.py')
+    instruction = R.proof.office_instruction(R.OFFICE_FILTER.read_bytes())
     calls, owner = T.wire_capture(component)
     for call in calls:
+        for body in (call['wire_before_auth'], call['wire_after_auth'], call['provider']['body']):
+            body['instructions'] = instruction
         call['provider']['body']['model'] = call['provider']['response']['model'] = 'goal584-fake-office'
     before, primary_after, kwargs = T.financial_fixture(component, monkeypatch)
     service_before, service_after, service_kwargs = T.service_financial_fixture(component, monkeypatch)
@@ -190,6 +196,120 @@ def test_cli_never_exports_unclassified_proof_error_prose(monkeypatch, capsys, m
     assert R.main() == 1
     result = json.loads(capsys.readouterr().out)
     assert result['failure_code'] == 'office_readback_failed' and message not in json.dumps(result)
+
+
+def diagnostic(data, *, secrets=()):
+    return R.wire_diagnostic(data['before'], data['provider'], data['capture'],
+        expected_instruction=R.proof.office_instruction(R.OFFICE_FILTER.read_bytes()),
+        secrets=secrets, no_credentials=T.snapshots.no_credentials)
+
+
+def test_diagnostic_retains_complete_actual_native_priority_channels_without_auth_secrets_or_mutation(component, monkeypatch):
+    data = scenario(component, monkeypatch)
+    instruction = R.proof.office_instruction(R.OFFICE_FILTER.read_bytes())
+    developer, = component.router['convert_to_responses_payload']({'messages': [
+        {'role': 'developer', 'content': instruction}]})['input']
+    for call in data['capture']['requests'][:3]:
+        for body in (call['body'], call['body_after_auth']):
+            body.pop('instructions'); body['input'].insert(0, copy.deepcopy(developer))
+        call.update(native_auth_key_hash='private-native-key-hash', debug_inventory={'password': 'private-raw-owner'})
+    for row in data['provider']['requests'][:3]:
+        row['body'].pop('instructions'); row['body']['input'].insert(0, copy.deepcopy(developer))
+        row['private_headers'] = {'Authorization': 'Bearer sk-' + 'x' * 32}
+    original = copy.deepcopy(data)
+    result = diagnostic(data, secrets=('private-native-key-hash', 'private-raw-owner'))
+    assert result['passed'] is True and result['validation_passed'] is False and result['native_office_accepted'] is False
+    assert result['expected_instruction'] == instruction
+    assert len(result['auth_observations']) == len(result['provider_observations']) == 4
+    for actual, raw in zip(result['auth_observations'], data['capture']['requests']):
+        assert actual['before_auth'] == R.proof.responses_projection(raw['body'])
+        assert actual['after_auth'] == R.proof.responses_projection(raw['body_after_auth'])
+    first = result['auth_observations'][0]['instruction_channels']['before_auth']
+    assert first['instructions'] == {'present': False, 'value': None}
+    assert first['input_messages'][0] == developer
+    for actual, raw in zip(result['provider_observations'], data['provider']['requests']):
+        assert actual['request'] == R.proof.responses_projection(raw['body'])
+        assert actual['response']['output'] == raw['response']['output']
+    public = json.dumps(result)
+    assert all(s not in public for s in ('private-native-key-hash', 'private-raw-owner', 'Authorization', 'sk-' + 'x' * 32))
+    assert data == original
+
+
+@pytest.mark.parametrize('change,code', [('credential', None), ('opaque_password', None),
+    ('foreign', 'office_diagnostic_synthetic_model'), ('count', 'office_diagnostic_count'),
+    ('prior', 'office_diagnostic_prior_context'), ('aggregate', 'office_diagnostic_bound')])
+def test_diagnostic_refuses_unsafe_or_incomplete_aggregate_without_truncating(component, monkeypatch, change, code):
+    data = scenario(component, monkeypatch)
+    if change == 'credential': data['capture']['requests'][0]['body_after_auth']['instructions'] = 'sk-' + 'x' * 32
+    elif change == 'opaque_password': data['provider']['requests'][0]['body']['instructions'] = 'not-a-shaped-private-password'
+    elif change == 'foreign': data['provider']['requests'][0]['body']['model'] = 'foreign-model'
+    elif change == 'count': data['provider']['requests'] *= 3
+    elif change == 'prior': data['before']['capture']['requests'] = [{'prior': 'must remain'}]
+    else:
+        # Each request remains below the existing observer's individual bound;
+        # repeated complete projections must still obey the aggregate cap.
+        for row in data['provider']['requests']: row['body']['instructions'] = 'x' * (300 * 1024)
+    original = copy.deepcopy(data)
+    with pytest.raises((N.ProofError, RuntimeError)) as failure:
+        diagnostic(data, secrets=('not-a-shaped-private-password',))
+    if code: assert str(failure.value) == code
+    assert 'sk-' + 'x' * 32 not in str(failure.value) and 'not-a-shaped-private-password' not in str(failure.value)
+    assert data == original
+
+
+def test_diagnostic_cli_reuses_actual_collector_context_io_without_inventory_or_private_writes(component, monkeypatch, capsys):
+    data = scenario(component, monkeypatch)
+    office = data['office']; office.update(stage='setup_complete', office_service_setup={'stage': 'readback_ready'})
+    office['users'][0].update(token='opaque-private-user-token', password='opaque-private-password')
+    common = {'schema': 1, 'started_at_utc': '2026-11-05T10:01:00+00:00'}
+    operator = {'started_at': '2026-11-05T10:00:00+00:00', 'operator_token': 'opaque-private-operator-token'}
+    inputs = {R.COMMON: common, R.OFFICE: office, R.STATE: data['before'], 'operator': operator}
+    before = copy.deepcopy(inputs); reads = []
+    def read(path): reads.append(path); return copy.deepcopy(inputs[path])
+    def unexpected(*args, **kwargs): raise AssertionError('No diagnostic inventory or mutation allowed')
+    d = dict(OPERATOR_STATE='operator', read_private=read, write_private=unexpected,
+        native_client=lambda state: SimpleNamespace(), provider=lambda: copy.deepcopy(data['provider']),
+        no_credentials=T.snapshots.no_credentials, private_credentials=T.snapshots.private_credentials,
+        capture=SimpleNamespace(capture_lock=nullcontext, _read_locked=lambda: copy.deepcopy(data['capture'])))
+    monkeypatch.setattr(R, 'inventory', unexpected); monkeypatch.setattr(R, 'dependencies', lambda: d)
+    monkeypatch.setattr('sys.argv', ['prove_office_readback.py', '--phase', 'diagnostic'])
+    assert R.main() == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result['phase'] == 'diagnostic' and result['passed'] is True and result['validation_passed'] is False
+    assert inputs == before and reads == [R.COMMON, R.OFFICE, 'operator', R.STATE]
+    assert len(result['auth_observations']) == len(result['provider_observations']) == 4
+    assert 'opaque-private' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('diagnostic_available', [False, True])
+@pytest.mark.parametrize('already_collected', [False, True])
+def test_workflow_diagnostic_runs_before_verify_and_failure_collection_preserves_original_error(diagnostic_available, already_collected):
+    workflow = yaml.safe_load((T.ROOT / '.github/workflows/goal584-office-proof.yml').read_bytes())
+    step = next(s for s in workflow['jobs']['office-build-proof']['steps']
+                if s.get('name', '').startswith('Prepare Office and verify'))
+    code = step['run'].split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    assert code.index("readback('diagnostic')") < code.index("financial=readback('verify')")
+    tree = ast.parse(code); failure = next(n for n in tree.body if isinstance(n, ast.Try))
+    # Inject only the failed external qualification operation; execute the real
+    # workflow except body, including its best-effort diagnostic coordinator.
+    failure.body = [ast.parse("raise ProofError('office_system_context')").body[0]]
+    prior = {'complete_actual_wire': 'preserve'}
+    collected, calls = ({'office-diagnostic': copy.deepcopy(prior)} if already_collected else {}), []
+    def readback(phase):
+        calls.append(phase)
+        if not diagnostic_available: raise N.ProofError('office_diagnostic_bound')
+        return {'passed': True}
+    namespace = dict(ProofError=N.ProofError, stage='native_finance', readback=readback,
+        wire_diagnostic_collected=already_collected,
+        fixture=SimpleNamespace(secrets=[]), no_credentials=T.snapshots.no_credentials,
+        public=lambda name, value: collected.update({name: value}))
+    with pytest.raises(SystemExit) as stopped:
+        exec(compile(ast.Module(body=[failure], type_ignores=[]), 'actual-workflow-failure-handler', 'exec'), namespace)
+    assert stopped.value.code == 1 and calls == ([] if already_collected else ['diagnostic'])
+    if already_collected: assert collected['office-diagnostic'] == prior
+    result = collected['office-native']
+    assert result['passed'] is False and result['failure'] == 'office_system_context'
+    assert result['stage'] == 'native_finance' and result['wire_diagnostic_collected'] is (already_collected or diagnostic_available)
 
 
 class HttpResult:

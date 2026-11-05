@@ -7,6 +7,7 @@ native Office acceptance. Do not install this module in production.
 """
 from __future__ import annotations
 
+import ast
 import copy
 from decimal import Decimal
 from hashlib import sha256
@@ -246,8 +247,38 @@ def _nodes(value):
             yield from _nodes(item)
 
 
+def office_instruction(source):
+    """Read the complete instruction from the already pinned Auto Attach owner."""
+    require(isinstance(source, bytes), "office_instruction_source")
+    source = source.replace(b"\r\n", b"\n")
+    require(sha256(source).hexdigest() ==
+            "0916704e50c29fd41c949a87b4dae9ecf4d3a90e72b213355e725f680acdcdd7",
+            "office_instruction_source")
+    names = {"OFFICECLI_INSTRUCTION_MARKER", "OFFICECLI_INSTRUCTION"}
+    nodes = [n for n in ast.parse(source).body if isinstance(n, ast.Assign)
+             and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and n.targets[0].id in names]
+    require(len(nodes) == 2, "office_instruction_source")
+    namespace = {"__builtins__": {}}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "pinned-office-instruction", "exec"), namespace)
+    return namespace["OFFICECLI_INSTRUCTION"]
+
+
+def verify_instruction(wire, expected_instruction):
+    # Native reasoning-model preprocessing moves the first system message to
+    # developer before Responses conversion. Inspect only priority channels;
+    # an instruction quoted in a user message or tool result cannot satisfy it.
+    require(isinstance(expected_instruction, str) and bool(expected_instruction), "office_system_context")
+    texts = [wire["instructions"]] if isinstance(wire.get("instructions"), str) else []
+    for item in wire.get("input", []):
+        if item.get("type") == "message" and item.get("role") in ("developer", "system"):
+            texts.extend(block["text"] for block in item.get("content", [])
+                         if isinstance(block, dict) and block.get("type") == "input_text"
+                         and isinstance(block.get("text"), str))
+    require(any(expected_instruction in text for text in texts), "office_system_context")
+
+
 def verify_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
-                 exported, png, native_responses_payload):
+                 exported, png, native_responses_payload, expected_instruction):
     """Component cost Filter pre/post bodies and exact native serialization.
 
     These component-only inputs must be collected at the actual Filter.request
@@ -265,11 +296,11 @@ def verify_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, nati
         require(before == after and before.get("model") == MODEL, "office_budget_context")
     return verify_wire_calls(calls, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=answer_id,
         wire_model=wire_model, native_specs=native_specs, exported=exported, png=png,
-        native_responses_payload=native_responses_payload)
+        native_responses_payload=native_responses_payload, expected_instruction=expected_instruction)
 
 
 def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
-                      exported, png, native_responses_payload):
+                      exported, png, native_responses_payload, expected_instruction):
     """Live auth/provider evidence: exactly export, render, final physical calls.
 
     Supply complete safe pre/post-auth wire projections, actual served/native
@@ -306,7 +337,7 @@ def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model,
                     for v in wire.get("input", []))
                 and any(v.get("role") == "user" and any(n.get("text") == USER_REQUEST for n in _nodes(v))
                         for v in wire.get("input", [])), "office_source_context")
-        require(isinstance(wire.get("instructions"), str) and bool(wire["instructions"]), "office_system_context")
+        verify_instruction(wire, expected_instruction)
         p = call["provider"]
         require({"id", "route", "body", "usage", "response", "lifecycle"} <= set(p)
                 and isinstance(p["id"], str) and bool(p["id"]) and isinstance(p["response"], dict)

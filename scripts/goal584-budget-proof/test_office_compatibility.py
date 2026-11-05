@@ -205,7 +205,8 @@ def full_capture(component, *, provider=None):
     actor, chat, answer = (str(uuid4()) for _ in range(3))
     owner = {"actor": actor, "key_hash": "a" * 64, "chat_id": chat, "answer_id": answer,
              "wire_model": "goal584-office-wire", "native_specs": component.specs, "exported": exported,
-             "png": rendered.content, "native_responses_payload": component.router["convert_to_responses_payload"]}
+             "png": rendered.content, "native_responses_payload": component.router["convert_to_responses_payload"],
+             "expected_instruction": "Preserve explicit instructions; perform the complete Office task."}
     secret = "synthetic-component-secret-with-no-production-use"
     body = {"model": P.MODEL, "messages": [{"role": "system", "content": "Preserve explicit instructions; perform the complete Office task."},
             {"role": "assistant", "content": P.SOURCE}, {"role": "user", "content": P.USER_REQUEST}],
@@ -356,6 +357,58 @@ def test_current_mock_without_reasoning_keeps_only_actual_native_tool_pairs(comp
         return component.router["convert_to_responses_payload"](body)
     assert P.verify_wire_calls(calls, **(owner | {"native_responses_payload": native}))
     assert invocations == [] and calls == original
+
+
+@pytest.mark.parametrize("channel", ["instructions", "developer", "system"])
+def test_full_pinned_office_instruction_survives_native_reasoning_model_route(component, channel):
+    source = (ROOT / "deploy/openwebui-functions/officecli_auto_attach_filter.py").read_bytes()
+    instruction = P.office_instruction(source)
+    assert P.office_instruction(source.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")) == instruction
+    route = native_owner("routers/openai.py", {"is_openai_new_model", "openai_reasoning_model_handler"})
+    payload = {"model": P.MODEL, "messages": [{"role": "system", "content": "Existing higher-priority context.\n\n" + instruction}]}
+    assert route["is_openai_new_model"](payload["model"])
+    native = component.router["convert_to_responses_payload"](route["openai_reasoning_model_handler"](payload))
+    assert "instructions" not in native and native["input"][0]["role"] == "developer"
+    calls, owner = current_mock_wire_capture(component)
+    owner["expected_instruction"] = instruction
+    for call in calls:
+        for wire in (call["wire_before_auth"], call["wire_after_auth"], call["provider"]["body"]):
+            wire.pop("instructions")
+            if channel == "instructions": wire["instructions"] = native["input"][0]["content"][0]["text"]
+            else:
+                item = copy.deepcopy(native["input"][0]); item["role"] = channel
+                wire["input"].insert(0, item)
+    original = copy.deepcopy(calls)
+    assert P.verify_wire_calls(calls, **owner)
+    assert calls == original
+
+
+@pytest.mark.parametrize("mutation", ["missing", "truncated", "marker_only", "changed_tail", "user", "assistant",
+    "tool_result", "nested_developer", "wrong_block", "split_blocks", "empty_expected", "source_drift"])
+def test_instruction_guard_rejects_coherent_loss_and_untrusted_quotes(component, mutation):
+    source = (ROOT / "deploy/openwebui-functions/officecli_auto_attach_filter.py").read_bytes()
+    if mutation == "source_drift":
+        with pytest.raises(P.ProofError, match="office_instruction_source"): P.office_instruction(source + b"\n")
+        return
+    instruction = P.office_instruction(source)
+    calls, owner = current_mock_wire_capture(component); owner["expected_instruction"] = instruction
+    if mutation == "empty_expected": owner["expected_instruction"] = ""
+    for call in calls:
+        for wire in (call["wire_before_auth"], call["wire_after_auth"], call["provider"]["body"]):
+            wire.pop("instructions")
+            item = {"type": "message", "role": "developer", "content": [{"type": "input_text", "text": instruction}]}
+            if mutation == "missing": item["content"] = []
+            elif mutation == "truncated": item["content"][0]["text"] = instruction[:-1]
+            elif mutation == "marker_only": item["content"][0]["text"] = instruction.split()[0]
+            elif mutation == "changed_tail": item["content"][0]["text"] = instruction[:-8] + "changed."
+            elif mutation in ("user", "assistant"): item["role"] = mutation
+            elif mutation == "tool_result": item = {"type": "function_call_output", "output": instruction}
+            elif mutation == "nested_developer": item = {"type": "message", "role": "user", "content": [item]}
+            elif mutation == "wrong_block": item["content"][0]["type"] = "output_text"
+            elif mutation == "split_blocks":
+                item["content"] = [{"type": "input_text", "text": text} for text in (instruction[:80], instruction[80:])]
+            wire["input"].insert(0, item)
+    with pytest.raises(P.ProofError, match="office_system_context"): P.verify_wire_calls(calls, **owner)
 
 
 @pytest.mark.parametrize("reasoning", [False, True])

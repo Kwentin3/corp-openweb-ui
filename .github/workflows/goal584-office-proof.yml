@@ -179,7 +179,7 @@ jobs:
               assert receipt.get('passed') is True
               (fixture.output/(label+'-setup.safe.json')).write_text(json.dumps(receipt,indent=2)+'\n')
           build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
-          stage='preparation'
+          stage='preparation';wire_diagnostic_collected=False
           def public(name,value):
               no_credentials(value,fixture.secrets)
               (fixture.output/(name+'.safe.json')).write_text(json.dumps(value,indent=2)+'\n')
@@ -215,6 +215,7 @@ jobs:
               reasoning=[[item for item in row['response']['output'] if item['type']=='reasoning'] for row in primary]
               packet=fixture.native_context(base,build,os.environ['GITHUB_SHA'],reasoning)
               write_private(private/'office-native-context.private.json',packet)
+              stage='wire_diagnostic';readback('diagnostic');wire_diagnostic_collected=True
               stage='native_finance';financial=readback('verify')
               stage='artifact'
               sys.path.insert(0,'services/officecli-openapi-proof')
@@ -243,6 +244,12 @@ jobs:
                   try: no_credentials({'message':str(error)},fixture.secrets)
                   except (AssertionError,ProofError): pass
                   else: failure['failure']=str(error)
+              # Observe unchanged synthetic wires before teardown; diagnostic
+              # failure must never replace the original qualification failure.
+              if not wire_diagnostic_collected:
+                  try: readback('diagnostic');wire_diagnostic_collected=True
+                  except Exception: pass
+              failure['wire_diagnostic_collected']=wire_diagnostic_collected
               public('office-native',failure)
               raise SystemExit(1)
           PY
