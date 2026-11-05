@@ -42,6 +42,15 @@ KNOWN_COST = Decimal(".166")
 digest = lambda value: sha256(encoded(value)).hexdigest()
 
 
+def known_proxy_usage(value):
+    # Native typed serialization adds nullable defaults. Provider wire Usage
+    # remains exact in physical(); this check only validates its proxy projection.
+    return isinstance(value, dict) and all(type(value.get(k)) is int and value[k] == RAW_USAGE[k]
+        for k in ("input_tokens", "output_tokens", "total_tokens")) and all(isinstance(value.get(k), dict)
+        and type(value[k].get(field)) is int and value[k][field] == RAW_USAGE[k][field]
+        for k, field in (("input_tokens_details", "cached_tokens"), ("output_tokens_details", "reasoning_tokens")))
+
+
 def routing(native):
     data = native.ok("GET", "/model/info").get("data")
     require(isinstance(data, list), "unknown_model_info")
@@ -223,7 +232,7 @@ async def execute(receipt):
                 require(provider() == current_provider, "unknown_denial_dispatched")
             else:
                 require(status == 200 and not response.get("error") and (response.get("usage") is None if unknown
-                        else response.get("usage") == RAW_USAGE), "unknown_response_usage")
+                        else known_proxy_usage(response.get("usage"))), "unknown_response_usage")
                 observed = provider();call["provider_observation"] = observed;save("provider_observed")
                 def provider_ready():
                     current = provider();record = physical(current_provider, current, alias)

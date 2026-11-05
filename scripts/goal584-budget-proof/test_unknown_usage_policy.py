@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import stat
 import sys
+from types import SimpleNamespace
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -48,6 +49,7 @@ class Wire:
                 'cache_read_input_token_cost':.001,'output_cost_per_reasoning_token':.03}} for a,w in zip(P.ALIASES,P.WIRES)]
         self.ignore_block=False;self.false_action=False;self.wrong_nonce=False;self.change_old=False
         self.extra_dispatch=False;self.unknown_positive=False;self.optout=False;self.foreign_viewer=False;self.viewer_codes=[]
+        self.proxy_usage_transform=None
 
     def handle(self,method,url,headers,body=None,params=None):
         parsed=urlsplit(url);path=parsed.path;query=params or {k:v[0] for k,v in parse_qs(parsed.query).items()}
@@ -118,6 +120,7 @@ class Wire:
         # and the actual physical prefix bind the primitive's proof.
         response=copy.deepcopy(output);response['id']='resp_security_'+uuid4().hex
         if index:response['usage']=None
+        elif self.proxy_usage_transform is not None:response['usage']=self.proxy_usage_transform(response['usage'])
         return 200,response
 
     def open(self,request,timeout):
@@ -182,6 +185,37 @@ class UnknownUsageTests(unittest.TestCase):
         self.assertEqual(writes.count('/v1/responses'),7)
         self.assertFalse(any(p in ('/key/block','/key/unblock','/key/update','/__proof/reset','/__proof/control') for p in writes))
 
+    def test_proxy_nullable_usage_defaults_preserve_exact_provider_and_finance_guards(self):
+        def native_defaults(usage):
+            usage['input_tokens_details'].update({k:None for k in (
+                'audio_tokens','cached_tokens_details','image_tokens','text_tokens','video_tokens')})
+            usage['output_tokens_details'].update(audio_tokens=None,text_tokens=None)
+            usage['cost']=None
+            return usage
+        self.wire.proxy_usage_transform=native_defaults
+        result=self.run_proof()
+        self.assertTrue(result['passed']);self.assertEqual(result['known_positive_total'],'.332')
+        self.assertEqual(len(self.wire.attempts),7);self.assertEqual(len(self.wire.physical),5)
+        positives=[r for r in self.wire.physical if r['body']['model']==P.WIRES[0]]
+        self.assertEqual(len(positives),2)
+        self.assertTrue(all(r['response']['usage']==P.RAW_USAGE and r['usage']==P.RAW_USAGE for r in positives))
+
+    def test_proxy_usage_projection_rejects_changed_counts_types_and_missing_details(self):
+        self.assertTrue(P.known_proxy_usage(copy.deepcopy(P.RAW_USAGE)))
+        for key,field in (("input_tokens",None),("output_tokens",None),("total_tokens",None),
+                          ("input_tokens_details","cached_tokens"),("output_tokens_details","reasoning_tokens")):
+            for wrong in (None,True,0,99,'10',float(P.RAW_USAGE[key] if field is None else P.RAW_USAGE[key][field])):
+                value=copy.deepcopy(P.RAW_USAGE)
+                if field is None:value[key]=wrong
+                else:value[key][field]=wrong
+                self.assertFalse(P.known_proxy_usage(value),(key,field,wrong))
+        for value in (None,{},[],{'input_tokens':10}):self.assertFalse(P.known_proxy_usage(value))
+
+    def test_wrong_proxy_usage_stops_before_further_calls(self):
+        self.wire.proxy_usage_transform=lambda usage:usage|{'input_tokens':11}
+        with self.assertRaisesRegex(P.ProofError,'unknown_response_usage'):self.run_proof()
+        self.assertEqual(len(self.wire.attempts),1);self.assertEqual(len(self.wire.physical),1)
+
     def test_external_route_stops_before_any_native_mutation(self):
         self.wire.models[1]['litellm_params']['api_base']='https://paid.invalid/v1'
         with self.assertRaisesRegex(P.ProofError,'unknown_non_synthetic'):self.run_proof()
@@ -210,8 +244,18 @@ class UnknownUsageTests(unittest.TestCase):
 
     def test_existing_row_with_unsettled_counters_times_out_without_redispatch(self):
         observations=self.lag_positive_counters(converge=False)
-        with self.assertRaisesRegex(P.ProofError,'Native persistence polling deadline expired|Timed out waiting for native unknown Usage row'):
+        # Keep the real polling/request-deadline owners; schedule their clock
+        # deterministically instead of racing a 20ms Windows wall-clock budget.
+        clock=[0.0]
+        def sleep(seconds):clock[0]+=seconds
+        original=P.fixture.native_client
+        def client():
+            native=original();native.timeout=.25;return native
+        with patch.object(P.fixture,'native_client',side_effect=client), \
+                patch.object(native_owner,'time',SimpleNamespace(monotonic=lambda:clock[0],sleep=sleep)), \
+                self.assertRaisesRegex(P.ProofError,'Native persistence polling deadline expired|Timed out waiting for native unknown Usage row'):
             self.run_proof()
+        self.assertEqual(clock[0],.25)
         self.assertGreaterEqual(len(observations),2);self.assertEqual(len(self.wire.rows),1)
         self.assertEqual(len(self.wire.attempts),1);self.assertEqual(len(self.wire.physical),1)
         self.assertEqual(P.fixture.read_private(self.state)['stage'],'provider_observed')

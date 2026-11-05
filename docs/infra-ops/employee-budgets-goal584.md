@@ -138,7 +138,7 @@ body повторно прочитан без расхождений. [Office72/
 [Native72/42076207877](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42076207877),
 [Active CI/42076207885](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42076207885)
 terminal: Native все4jobs SUCCESS, Active CI SUCCESS; Office FAILED до bootstrap,
-inference и нового policy gate. Main artifact review исполняется. Calendar
+inference и нового policy gate. Main artifact review и root repeat завершены. Calendar
 basic/positive-floor jobs SUCCESS; independent
 artifact/cleanup review завершён и повторён root:20negative checks,26sources
 точно71,12mounts; floor final.499844s<5, basic8.717289s<60, оба cleanup0/0/0.
@@ -151,6 +151,12 @@ history/caps/restoration/cleanup0/0/0. Artifact13439830472/20159bytes,
 SHAbe5b6345…; reader93846dac… (`local/goal584/native72-pricing-review/`).
 Absent/null native0 здесь остаётся наблюдением без policy/finality; новый
 unknown-policy проверяется отдельно в Office72.
+Main72 independent review и root repeat PASS:77semantic/26negative,
+285исходных71 inputs проверены,300expanded inputs frozen;53loaded=51exact71 и
+2точных marker-only AST reversals, дополнительно8marker cases. Recovery2.829s<15,
+settlement8/8,containers/volumes0/0. Artifact13439872157/3861613bytes,
+SHAf766d4b0…; reader58182a0e… (`local/goal584/native72-main-review/`). Main stock
+0.12.2 не активирует unknown guard и не заменяет Office acceptance.
 Thin native
 UnknownUsageGuard114lines (e8f71d14…): personal typed nonstream Responses,
 original usageNone → existing full native assignment reader/read_service
@@ -228,7 +234,7 @@ Host8case replay и10Bash/7Python syntax/factory/cleanup PASS. Frozen source rev
 Следующий обязательный шаг — actual isolated CI и independent artifact/cleanup acceptance. Production
 по-прежнему не меняется; source/fixture tests не объявляются runtime приёмкой.
 
-**Candidate73 готовится: узкое исправление cold import и диагностика.** Office72
+**Candidate73: узкое исправление cold import и диагностика.** Office72
 proxy exited3; artifact13439487048/615953bytes/SHA15478619… сохранён, cleanup
 проверен root:0containers/0volumes/0networks,5images/2helpers удалены, build cache
 сохранён. Proxy traceback отсутствует среди44files, поэтому точная CI причина
@@ -242,8 +248,53 @@ Image/derivative/old overlays не объявляли PYTHONPATH, иной owner
 bounded redacted diagnostic перед прежним always-cleanup;6actual snippet cases
 PASS и11Bash/8Python/factory/cache/cleanup PASS. Независимый review нового wiring
 завершён без blockers: старые workflow steps/cleanup/upload не менялись.
-Runtime исправление пока не принято. Evidence:
+Runtime запуск прошёл в73 до Office/key-block gates; полная unknown-policy пока не принята. Evidence:
 `local/goal584/office72-startup-diagnostic/`, `office73-diagnostic-replay.safe.json`.
+
+**Publication73:** head a7bafd43a31343f8cee653617fff6f683e9b9614,
+merge577ad3d210244f6a0dffce95be2e505ac3e4377d, tree diff пуст; PR585 body readback
+точный, draft/open/unmerged. [Office73/42080077695](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42080077695),
+[Native73/42080077659](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42080077659),
+[Active CI73/42080077723](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42080077723)
+terminal: Native все4jobs/Active CI SUCCESS, Office FAILED на новом unknown gate.
+Job steps startup/Office/key-block SUCCESS; independent Office artifact review
+ещё исполняется. Receipt U:passedFalse/stage=response_received/failure=unknown_response_usage.
+Artifact13441016326/911540bytes/61members, SHA7fb20fd9… сохранён; cleanup0/0/0,
+5images/2helpers removed. Наблюдения сохранены в office73-review/.
+Публикация содержит только3вышеуказанных files; GUI-кандидат не включён.
+
+**Native73 регрессионная приёмка:** pricing63negative checks,29sources точно72,
+14mounts/15pins,.80/.500/history/caps/restoration/cleanup0/0/0; independent review
+и root repeat PASS. Calendars independent review/root repeat:19текущих meaningful
+negatives (6basic+13floor) плюс1отдельный conditional control на реальном72,
+26sources точно72/12mounts, floor final.824869s<5, cleanup0/0/0. Изначальный
+negative old whole-hash обнаружил ошибочную предпосылку verifier: в73 pending
+cardinality1→3, когда весь hash вправе меняться. Финансовая функция не менялась;
+equal-cardinality branch проверена positive+mutated-negative на принятом72.
+Не заявляется20current negatives или независимое сохранение grown prefix:
+его raw per-row сравнения остаются source-bound actual worker. Initial failure
+сохранён (`local/goal584/native73-calendar-review/conditional-verifier.diff`).
+Main73 independent artifact review исполняется отдельно.
+
+**Candidate74 готовится, proof-only:** actual mock-provider → pinned native
+Responses converter → FastAPI encoder воспроизводит nullable detail defaults и
+usage.cost:null. Те же10/5/15,cached6,reasoning2 не равны исходному JSON целиком.
+Это установленный local predicate defect; фактический failed CI response остаётся
+private/не экспортирован, поэтому атрибуция CI — inference. Worker теперь
+сверяет5значимых целых счётчиков в proxy projection; исходный provider RAW_USAGE,
+absent/null различие, rates,.166settlement/ledger/history/block/readback остаются
+прежними. Новых imports/mounts/product/core/tariff изменений нет.20focused tests
+PASS/3.57s, включая native-defaults representation и rejection неверных
+counts/types. Независимый source review PASS; whole-worker AST closure подтверждает
+изменение только helper/positive predicate и сохранение13attestation expressions.
+Coupled actual-provider→native-converter→FastAPI encoder→current helper PASS,
+повторён root, network0; исходный RAW не менялся, absent/null остались None.
+Первый independent run19PASS/1FAIL выявил прежний20ms wall-clock flake в test-only
+never-converge case. Native poll/request-deadline не менялись: контролируемые
+clock/sleep leaf и timeout.25 в тесте проверяют2observations/точныйdeadline/no
+redispatch; case повторён independent PASS, финальные20PASS root. Failure сохранён.
+Host8source/mount/worker/secret/exit/native-pin cases PASS; новых dependencies нет.
+GUI6WIP files не включаются в этот narrow proof correction.
 
 **Следующий GUI-срез готовится отдельно, без изменения tested72:** worktree
 `../corp-openweb-ui-goal584-unknown-ui`, branch `agent/goal584-unknown-ui`, base1e8f3e29.
@@ -259,6 +310,27 @@ poller/store/history/core patch нет. Источник native middleware пр�
 status и native block/ledger остаются обязательной отдельной приёмкой. Source
 не интегрируется/не публикуется до проверки и завершения текущего CI. Worktree
 сохранить до интеграции; безопасная уборка остаётся обязательной после неё.
+В том же изолированном worktree подготовлена отдельная one-shot setup fixture
+(ещё2новых файла): фактический native WebUI UID → existing AdminClient3budgets,
+append3aliases в existing Responses connection, ACL/Filter/старые actors/config
+сохраняются.9source tests PASS и root repeat9PASS/0.627s; отдельное independent
+review/setup wiring/native Linux/обычный браузер ещё обязательны. Настройки
+нового актёра не изменялись, source не исполнялся на стенде; журнал не является
+новым владельцем денег. Fixture independent review9PASS/0skips, blockers нет;
+source/DTO/permission seams проверены, actual setup/normalization/ACL ещё нет.
+Дополнительно host browser worker/test подготовлены в том же worktree:
+visible personal Settings controls,6fresh Sends, native saved ancestry/status/tasks,
+private packet и foreign404;8offline tests/actual frontend Node expression replay
+PASS от автора, root/independent review и actualGUI ещё обязательны. Fresh chat_id
+берётся из native ACK, исходный submitted JSON не дополняется/не подменяется.
+Все6GUI WIP files сохранить до проверки/интеграции; в74они не публикуются.
+
+Полная unknown-policy приёмка также должна сверить admin Rich UI: текущий
+admin_policy.public_view берёт spend/remaining только из native counters,
+а admin_ui подписывает их «Расход»/«Остаток» и не проецирует blocked flag.
+После unknown native0 нельзя выдавать за полный известный расход/доступность.
+Это установленный source gap для следующего admin read-only projection среза,
+не повод менять native counters/финансовые таблицы или заводить второй ledger.
 
 **KISS/native streaming gap, не новый допуск:** upstream PR43047 уже присутствует
 в pinned d665 и сохраняет предоставленный Usage, но не маркирует действительно
