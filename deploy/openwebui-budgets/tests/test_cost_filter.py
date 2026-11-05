@@ -50,6 +50,16 @@ def module(**values):
     return result
 
 
+def native_functions(path, names, namespace):
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+    nodes = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+             and node.name in names]
+    if {node.name for node in nodes} != set(names):
+        raise AssertionError("Required native outlet boundary missing")
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec",
+                 flags=__import__("__future__").annotations.compiler_flag), namespace)
+
+
 class CostFilterTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         if prefix_owner is None:
@@ -333,6 +343,202 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
                 __metadata__=self.metadata, __event_emitter__=emitter), body)
         reader.assert_not_called()
         self.assertNotIn("$", emitter.call_args.args[0]["data"]["description"])
+
+    async def nonstream_scope(self):
+        body = self.body()
+        body["stream"] = False
+        signed = await self.sign(body)
+        nonce = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"],
+            SECRET, user_id=USER, model=MODEL)["jti"]
+        self.assertNotIn(extension.OBSERVED_CALL_IDS, self.metadata)
+        return nonce, {"model": MODEL, "id": ANSWER, "chat_id": CHAT,
+                       "messages": [{"id": ANSWER, "role": "assistant", "content": "Proof"}]}
+
+    async def native_nonstream(self, response, emitter):
+        # Execute the exact native success/error handler AND its real outlet
+        # projection. Only persistence, filter discovery/dispatch and events are
+        # leaves; the handler must save done before the Filter re-reads it.
+        if not (native_root / "utils/middleware.py").exists():
+            self.skipTest("Exact native middleware missing; actual-image proof remains required")
+        self.request.app.state.MODELS = {MODEL: self.model}
+        self.user.model_dump = lambda: self.actor.copy()
+        async def persist(chat, answer, values):
+            self.messages[(chat, answer)].update(copy.deepcopy(values))
+        self.chats.upsert_message_to_chat_by_id_and_message_id = AsyncMock(side_effect=persist)
+        self.chats.get_messages_map_by_chat_id = AsyncMock(side_effect=lambda chat:
+            {answer: copy.deepcopy(value) for (owner, answer), value in self.messages.items() if owner == chat})
+        self.chats.get_chat_title_by_id = AsyncMock(return_value="Fixture")
+        async def dispatch(**kwargs):
+            projected = kwargs["form_data"]
+            self.assertNotIn("done", projected["messages"][-1])
+            self.assertNotIn("error", projected["messages"][-1])
+            return await self.filter.outlet(projected, __user__=self.actor, __metadata__=self.metadata,
+                __request__=self.request, __event_emitter__=emitter), {}
+        native = {"copy": copy, "Chats": self.chats, "log": extension.log,
+            "JSONResponse": type("UnusedJSONResponse", (), {}), "JSONCodec": json,
+            "UserModel": SimpleNamespace, "ENABLE_FUNCTIONS": True,
+            "get_filter_functions": AsyncMock(return_value=[object()]),
+            "get_sorted_filters": lambda *args: [], "process_filter_functions": AsyncMock(side_effect=dispatch),
+            "process_pipeline_outlet_filter": AsyncMock(side_effect=lambda request, body, user, models: body),
+            "normalize_usage": lambda value: {}, "output_id": lambda prefix: "native-output",
+            "publish_chat_finished_event": AsyncMock(), "publish_chat_failed_event": AsyncMock(),
+            "background_tasks_handler": AsyncMock(), "ENABLE_API_OUTLET_FILTERS": True}
+        chat_ids = load("native_chat_ids_for_cost_test", native_root / "utils/chat_id.py")
+        native["is_saved_chat_id"] = chat_ids.is_saved_chat_id
+        native_functions(native_root / "utils/misc.py", {"get_message_list", "get_output_text", "get_reasoning_details"}, native)
+        native_functions(native_root / "utils/middleware.py", {
+            "get_response_data", "build_response_object", "merge_events_into_response",
+            "outlet_filter_handler", "non_streaming_chat_response_handler"}, native)
+        ctx = {"request": self.request, "user": self.user, "model": self.model, "metadata": self.metadata,
+               "events": [], "event_emitter": emitter, "event_caller": None}
+        result = await native["non_streaming_chat_response_handler"](response, ctx)
+        native["publish_chat_failed_event"].assert_not_awaited()
+        return result, native
+
+    async def test_native_nonstream_saved_success_waits_for_its_nonce_and_preserves_answer(self):
+        nonce, _ = await self.nonstream_scope()
+        self.messages[(CHAT, ANSWER)]["done"] = False
+        self.filter.valves.ledger_read_key = "synthetic-viewer-key"
+        self.filter.valves.read_wait_seconds = 0.5
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        settled = real_reader._Row("native-spend-row", nonce, ANSWER, MODEL, Decimal("0.20"), 2, 1, 3)
+        rows = AsyncMock(side_effect=[[], [settled]])
+        reader = AsyncMock(wraps=real_reader.read_cost_snapshot)
+        emitter = AsyncMock()
+        response = {"choices": [{"message": {"role": "assistant", "content": "Proof"}, "finish_reason": "stop"}]}
+        original, metadata = copy.deepcopy(response), copy.deepcopy(self.metadata)
+        with patch.object(real_reader, "_rows", rows), patch.object(real_reader, "read_cost_snapshot", reader), \
+                patch.dict(sys.modules, {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+            result, native = await self.native_nonstream(response, emitter)
+        self.assertEqual(result, original)
+        self.assertEqual(self.metadata, metadata)
+        self.assertTrue(self.messages[(CHAT, ANSWER)]["done"])
+        self.assertEqual(self.messages[(CHAT, ANSWER)]["model"], MODEL)
+        self.assertEqual(rows.await_count, 2)
+        self.assertEqual(reader.call_args.kwargs["observed_call_ids"], [nonce])
+        self.assertEqual(reader.call_args.kwargs["observed_request_ids"], [])
+        self.assertEqual(reader.call_args.kwargs["wait_seconds"], 0.5)
+        descriptions = [call.args[0]["data"]["description"] for call in emitter.call_args_list
+                        if call.args[0]["type"] == "status"]
+        self.assertEqual(len(descriptions), 1)
+        self.assertIn("Ответ: $0.20 · Чат: $0.20", descriptions[0])
+        self.assertNotIn("учёт обновляется", descriptions[0])
+        native["publish_chat_failed_event"].assert_not_awaited()
+        self.chats.get_accessible_chat_by_id.assert_awaited_with(CHAT, self.user, permission="write")
+
+    async def test_native_nonstream_provider_error_finishes_without_success_outlet(self):
+        await self.nonstream_scope()
+        self.messages[(CHAT, ANSWER)]["done"] = False
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        reader = AsyncMock()
+        emitter = AsyncMock()
+        with patch.object(real_reader, "read_cost_snapshot", reader):
+            result, native = await self.native_nonstream({"error": {"detail": "Fixture error"}}, emitter)
+        self.assertEqual(result, {"error": {"detail": "Fixture error"}})
+        self.assertTrue(self.messages[(CHAT, ANSWER)]["done"])
+        self.assertEqual(self.messages[(CHAT, ANSWER)]["error"], {"content": "Fixture error"})
+        native["process_filter_functions"].assert_not_awaited()
+        reader.assert_not_awaited()
+        self.assertNotIn(extension.OBSERVED_CALL_IDS, self.metadata)
+
+    async def test_native_nonstream_delayed_unknown_row_emits_warning_after_wait(self):
+        await self.nonstream_scope()
+        self.messages[(CHAT, ANSWER)]["done"] = False
+        self.filter.valves.ledger_read_key = "synthetic-viewer-key"
+        self.filter.valves.read_wait_seconds = 0.5
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        rows = AsyncMock(side_effect=[[], real_reader.CostReadError("usage_unavailable")])
+        emitter = AsyncMock()
+        response = {"choices": [{"message": {"role": "assistant", "content": "Proof"}}]}
+        original, metadata = copy.deepcopy(response), copy.deepcopy(self.metadata)
+        with patch.object(real_reader, "_rows", rows), patch.dict(sys.modules,
+                {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+            result, _ = await self.native_nonstream(response, emitter)
+        self.assertEqual(result, original)
+        self.assertEqual(self.metadata, metadata)
+        self.assertTrue(self.messages[(CHAT, ANSWER)]["done"])
+        self.assertEqual(rows.await_count, 2)
+        statuses = [call.args[0] for call in emitter.call_args_list if call.args[0]["type"] == "status"]
+        self.assertEqual(statuses, [{"type": "status", "data": {"action": "employee_budget_cost",
+            "description": "Расход неизвестен. Обратитесь к администратору.", "done": True}}])
+
+    async def test_nonstream_unverified_native_completion_never_adds_nonce_or_reads_cost(self):
+        await self.nonstream_scope()
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        baseline = copy.deepcopy(self.metadata)
+        saved = {"id": ANSWER, "role": "assistant", "model": MODEL, "done": True}
+        for case in ("not_done", "missing_done", "nonboolean_done", "error", "empty_error", "foreign_owner", "foreign_chat_owner", "wrong_role", "wrong_model",
+                     "wrong_answer", "denied_acl", "lookup_failed", "inactive_user", "wrong_native_user",
+                     "metadata_user", "scope_user", "scope_chat", "scope_answer", "scope_model",
+                     "body_model", "body_answer", "body_chat", "bad_nonce", "no_request"):
+            with self.subTest(case=case):
+                self.metadata = copy.deepcopy(baseline)
+                self.messages[(CHAT, ANSWER)] = copy.deepcopy(saved)
+                body = {"model": MODEL, "id": ANSWER, "chat_id": CHAT,
+                        "messages": [{"id": ANSWER, "role": "assistant", "content": "Proof", "done": True}]}
+                self.user.id, self.user.role = USER, "user"
+                self.chats.get_accessible_chat_by_id.return_value = SimpleNamespace(user_id=USER)
+                self.chats.get_accessible_chat_by_id.side_effect = None
+                request = self.request
+                if case == "not_done": self.messages[(CHAT, ANSWER)]["done"] = False
+                elif case == "missing_done": self.messages[(CHAT, ANSWER)].pop("done")
+                elif case == "nonboolean_done": self.messages[(CHAT, ANSWER)]["done"] = 1
+                elif case in ("error", "empty_error"): self.messages[(CHAT, ANSWER)]["error"] = {"content": "failed"} if case == "error" else {}
+                elif case == "foreign_owner": self.messages[(CHAT, ANSWER)]["user_id"] = OTHER
+                elif case == "foreign_chat_owner": self.chats.get_accessible_chat_by_id.return_value = SimpleNamespace(user_id=OTHER)
+                elif case == "wrong_role": self.messages[(CHAT, ANSWER)]["role"] = "user"
+                elif case == "wrong_model": self.messages[(CHAT, ANSWER)]["model"] = "foreign-model"
+                elif case == "wrong_answer": self.messages[(CHAT, ANSWER)]["id"] = NEXT_ANSWER
+                elif case == "denied_acl": self.chats.get_accessible_chat_by_id.return_value = None
+                elif case == "lookup_failed": self.chats.get_accessible_chat_by_id.side_effect = RuntimeError("private DB details")
+                elif case == "inactive_user": self.user.role = "pending"
+                elif case == "wrong_native_user": self.user.id = OTHER
+                elif case == "metadata_user": self.metadata["user_id"] = OTHER
+                elif case.startswith("scope_"):
+                    key = {"scope_user": "user_id", "scope_chat": "root_chat_id", "scope_answer": "root_answer_id", "scope_model": "model"}[case]
+                    self.metadata[extension.ISSUED_SCOPE][key] = OTHER
+                elif case.startswith("body_"): body[{"body_model": "model", "body_answer": "id", "body_chat": "chat_id"}[case]] = OTHER
+                elif case == "bad_nonce": self.metadata[extension.ISSUED_SCOPE]["call_id"] = "not-a-canonical-nonce"
+                elif case == "no_request": request = None
+                before, metadata = copy.deepcopy(body), copy.deepcopy(self.metadata)
+                emitter, reader = AsyncMock(), AsyncMock()
+                with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
+                        {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+                    result = await self.filter.outlet(body, __user__=self.actor, __metadata__=self.metadata,
+                        __request__=request, __event_emitter__=emitter)
+                self.assertIs(result, body)
+                self.assertEqual(body, before)
+                self.assertEqual(self.metadata, metadata)
+                reader.assert_not_awaited()
+                description = emitter.call_args.args[0]["data"]["description"]
+                self.assertNotIn("$", description)
+                self.assertNotIn("private", description)
+
+    async def test_nonstream_unknown_cost_warning_and_off_remain_optional(self):
+        nonce, body = await self.nonstream_scope()
+        self.messages[(CHAT, ANSWER)]["done"] = True
+        metadata, before = copy.deepcopy(self.metadata), copy.deepcopy(body)
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        reader = AsyncMock(side_effect=real_reader.CostReadError("usage_unavailable"))
+        emitter = AsyncMock()
+        with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
+                {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+            result = await self.filter.outlet(body, __user__=self.actor, __metadata__=self.metadata,
+                __request__=self.request, __event_emitter__=emitter)
+        self.assertIs(result, body)
+        self.assertEqual(reader.call_args.kwargs["observed_call_ids"], [nonce])
+        self.assertEqual(emitter.call_args.args[0]["data"]["description"], "Расход неизвестен. Обратитесь к администратору.")
+        self.actor["valves"] = self.filter.UserValves(enabled=False)
+        self.chats.get_accessible_chat_by_id.reset_mock()
+        reader.reset_mock(); emitter.reset_mock()
+        with patch.object(real_reader, "read_cost_snapshot", reader):
+            self.assertIs(await self.filter.outlet(body, __user__=self.actor, __metadata__=self.metadata,
+                __request__=self.request, __event_emitter__=emitter), body)
+        reader.assert_not_awaited()
+        emitter.assert_not_awaited()
+        self.chats.get_accessible_chat_by_id.assert_not_awaited()
+        self.assertEqual(body, before)
+        self.assertEqual(self.metadata, metadata)
 
     async def test_unknown_usage_and_accounting_failure_emit_no_amount_or_history_change(self):
         await self.sign()

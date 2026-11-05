@@ -73,6 +73,24 @@ async def native_answer(chat_id, answer_id, user, *, permission="write"):
     return message
 
 
+async def completed_nonstream_call(body, metadata, scope, request):
+    from open_webui.models.users import Users
+
+    user_id = canonical_uuid(scope.get("user_id"), "user_id")
+    chat_id = canonical_uuid(scope.get("root_chat_id"), "chat_id")
+    answer_id = canonical_uuid(scope.get("root_answer_id"), "answer_id")
+    require(request is not None and metadata.get("user_id") == user_id
+            and body.get("chat_id") == chat_id and body.get("id") == answer_id
+            and isinstance(scope.get("model"), str) and bool(scope["model"])
+            and body.get("model") == scope["model"], "completed_answer_scope")
+    user = await Users.get_user_by_id(user_id)
+    require(user is not None and user.id == user_id and user.role in ("user", "admin"), "active_user")
+    message = await native_answer(chat_id, answer_id, user)
+    require(message.get("id") == answer_id and message.get("model") == scope["model"]
+            and message.get("done") is True and message.get("error") is None, "completed_answer")
+    return canonical_uuid(scope.get("call_id"), "call_id")
+
+
 async def native_connection(body, model, request, ledger_base_url):
     """Check existing owner output; leave transport/model selection to the router."""
     from employee_budget_webui_model_binding import native_connection as bind
@@ -153,7 +171,8 @@ class Filter:
         claims = decode_call(carrier["owui_budget_provenance"], secret, user_id=user_id, model=wire_model)
         body["litellm_metadata"] = carrier
         metadata[ISSUED_SCOPE] = {"user_id": user_id, "root_chat_id": root_chat_id,
-                                  "root_answer_id": root_answer_id, "call_id": claims["jti"]}
+                                  "root_answer_id": root_answer_id, "call_id": claims["jti"],
+                                  "model": body["model"], "nonstream": body.get("stream") is False}
         return body
 
     async def stream(self, event: dict, __metadata__: dict = None) -> dict:
@@ -214,13 +233,25 @@ class Filter:
                 }})
                 return body
             try:
+                observed_call_ids = metadata.get(OBSERVED_CALL_IDS, [])
+                if scope.get("nonstream") is True:
+                    try:
+                        call_id = await completed_nonstream_call(body, metadata, scope, __request__)
+                        require(isinstance(observed_call_ids, list), "observed_calls")
+                        # A native saved terminal outlet confirms this logical call,
+                        # not a physical provider dispatch or a settled expense.
+                        observed_call_ids = [*observed_call_ids, call_id]
+                    except Exception:
+                        # Optional display must not fail the completed answer when
+                        # its current native access/terminal state cannot be read.
+                        raise CostReadError("completed_answer_unverified") from None
                 snapshot = await read_cost_snapshot(await get_session(),
                     base_url=self.valves.ledger_base_url,
                     read_key=self.valves.ledger_read_key,
                     user_id=scope["user_id"], root_chat_id=scope["root_chat_id"],
                     root_answer_id=scope["root_answer_id"],
                     observed_request_ids=metadata.get(OBSERVED_IDS, []),
-                    observed_call_ids=metadata.get(OBSERVED_CALL_IDS, []),
+                    observed_call_ids=observed_call_ids,
                     wait_seconds=self.valves.read_wait_seconds)
                 if snapshot.answer.spend is not None and snapshot.chat.spend is not None:
                     current = next((message for message in body.get("messages", [])
