@@ -16,9 +16,16 @@ WORKDIR /app
 RUN sed -i \
       -e 's|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/20261007T000000Z https://snapshot-cloudflare.debian.org/archive/debian-security/20261007T000000Z|' \
       -e 's|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/20261007T000000Z https://snapshot-cloudflare.debian.org/archive/debian/20261007T000000Z|' \
+      -e '/^Signed-By:/a Check-Valid-Until: no' \
       /etc/apt/sources.list.d/debian.sources \
-    && apt-get -o Acquire::Retries=3 -o Acquire::Check-Valid-Until=false update \
-    && apt-get -o Acquire::Retries=3 -o Acquire::Check-Valid-Until=false install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
+    && printf '%s\n' '' 'Types: deb' 'URIs: https://deb.debian.org/debian' 'Suites: trixie trixie-updates' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' \
+      '' 'Types: deb' 'URIs: https://deb.debian.org/debian-security' 'Suites: trixie-security' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' >> /etc/apt/sources.list.d/debian.sources \
+    && printf '%s\n' 'Package: *' 'Pin: origin "deb.debian.org"' 'Pin-Priority: -1' > /etc/apt/preferences.d/99snapshot-archive-only.pref \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get -o APT::Default-Release= -o Acquire::Retries=3 --error-on=any update \
+    && apt-cache -o APT::Default-Release= policy \
+    && apt-cache -o APT::Default-Release= policy ca-certificates curl libicu76 chromium fonts-dejavu-core \
+    && apt-get -o APT::Default-Release= -o Acquire::Retries=3 install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
     && curl --fail --location --silent --show-error \
       --output /usr/local/bin/officecli \
       "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${OFFICECLI_VERSION}/officecli-linux-x64" \
