@@ -1,6 +1,7 @@
 """Contract tests with a real local HTTP boundary; no LiteLLM/provider calls."""
 
 import asyncio
+import copy
 from decimal import Decimal
 import importlib.util
 import json
@@ -275,6 +276,75 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(mutation=mutations.index(mutate)):
                 with self.assertRaisesRegex(cost.CostReadError, "accounting_unavailable"):
                     await self.read(observed_request_ids={"provider-1"})
+
+    async def test_native_unavailable_usage_never_confirms_zero_or_estimated_positive(self):
+        for action in ("block", "block_failed"):
+            for spend, status in (("0", "success"), ("0.20", "success"), ("0.20", "failure")):
+                candidate = row(spend=spend)
+                candidate["status"] = status
+                candidate["metadata"]["guardrail_information"] = [{
+                    "guardrail_name": "owui_budget_usage", "guardrail_action": action,
+                    "violation_categories": ["usage_unavailable"]}]
+                self.payload = page([candidate])
+                before = copy.deepcopy(self.payload)
+                with self.subTest(action=action, spend=spend, status=status):
+                    with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
+                        await self.read(observed_request_ids={"provider-1"})
+                    self.assertEqual(self.payload, before)
+
+    async def test_mixed_known_and_unknown_rows_do_not_return_partial_verified_totals(self):
+        unknown = row("unknown", answer=OLD_ANSWER, spend="0.40")
+        unknown["metadata"]["guardrail_information"] = [{
+            "guardrail_name": "owui_budget_usage", "guardrail_action": "block",
+            "violation_categories": ["usage_unavailable"]}]
+        for rows in ([row(), unknown], [unknown, row()]):
+            self.payload = page(rows)
+            with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
+                await self.read(observed_request_ids={"provider-1"})
+
+    async def test_unknown_telemetry_does_not_hide_foreign_owner_or_signed_scope(self):
+        for mutate in (lambda r: r.update(user=OTHER_USER), lambda r: r.update(session_id=OTHER_CHAT),
+                       lambda r: r["metadata"]["spend_logs_metadata"]["owui_budget"].update(user_id=OTHER_USER),
+                       lambda r: r["metadata"]["spend_logs_metadata"]["owui_budget"].update(root_chat_id=OTHER_CHAT)):
+            candidate = row()
+            candidate["metadata"]["guardrail_information"] = [{
+                "guardrail_name": "owui_budget_usage", "guardrail_action": "block_failed",
+                "violation_categories": ["usage_unavailable"]}]
+            mutate(candidate)
+            self.payload = page([candidate])
+            with self.assertRaisesRegex(cost.CostReadError, "^foreign_scope$"):
+                await self.read()
+
+    async def test_other_native_guardrail_category_is_not_this_usage_marker(self):
+        candidate = row()
+        candidate["metadata"]["guardrail_information"] = [{
+            "guardrail_name": "other_native_guardrail", "guardrail_action": "block",
+            "violation_categories": ["usage_unavailable"]}, {
+            "guardrail_name": None, "guardrail_status": "success"}, {
+            "guardrail_name": "owui_budget_usage", "guardrail_action": "allow", "violation_categories": []}]
+        self.payload = page([candidate])
+        snapshot = await self.read(observed_request_ids={"provider-1"})
+        self.assertTrue(snapshot.complete)
+        self.assertEqual(snapshot.answer.spend, Decimal("0.20"))
+        candidate["spend"] = "0"
+        with self.assertRaisesRegex(cost.CostReadError, "^accounting_unavailable$"):
+            await self.read()
+
+    async def test_malformed_own_native_usage_telemetry_fails_closed(self):
+        native = {"guardrail_name": "owui_budget_usage", "guardrail_action": "block",
+                  "violation_categories": ["usage_unavailable"]}
+        variants = [native, [None],
+                    [dict(native, violation_categories=None)], [dict(native, violation_categories="usage_unavailable")],
+                    [dict(native, violation_categories=[True])], [dict(native, guardrail_action=None)],
+                    [dict(native, guardrail_action="unexpected")], [dict(native, guardrail_action="allow")],
+                    [dict(native, violation_categories=[])]]
+        for telemetry in variants:
+            candidate = row()
+            candidate["metadata"]["guardrail_information"] = telemetry
+            self.payload = page([candidate])
+            with self.subTest(telemetry=telemetry):
+                with self.assertRaisesRegex(cost.CostReadError, "^accounting_unavailable$"):
+                    await self.read()
 
     async def test_required_id_on_wrong_answer_is_not_settled(self):
         self.payload = page([row(answer=OTHER_ANSWER)])

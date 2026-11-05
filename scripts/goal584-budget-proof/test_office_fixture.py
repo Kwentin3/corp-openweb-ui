@@ -156,6 +156,26 @@ class OfficeConfigTests(unittest.TestCase):
         self.assertEqual(yaml.safe_load(prepared)['unknown_before_general'], {'keep': True})
         self.assertEqual(len(yaml.safe_load(prepared)['model_list']), 4)
 
+    def test_guard_profile_composes_existing_usage_and_office_owners_only(self):
+        from prove_pricing_usage import configuration
+        original = self.original()
+        base = yaml.safe_load(original)
+        prepared = yaml.safe_load(office.prepare_usage_guard_config(original))
+        prior = yaml.safe_load(office.prepare_office_config(original))
+        usage = configuration(base, 'v1')
+        self.assertEqual(prepared['model_list'], prior['model_list'] + usage['model_list'][2:])
+        self.assertEqual(prepared['litellm_settings'], dict(base['litellm_settings'],
+            callbacks=base['litellm_settings']['callbacks'] + ['usage_guard_fixture.handler']))
+        self.assertEqual({k: v for k, v in prepared.items() if k not in ('model_list', 'litellm_settings')},
+                         {k: v for k, v in base.items() if k not in ('model_list', 'litellm_settings')})
+        for deployment in prepared['model_list']:
+            self.assertEqual(deployment['litellm_params']['api_base'], 'http://provider:8000/v1')
+
+    def test_guard_profile_cannot_reregister_a_caller_supplied_callback(self):
+        original = self.original().replace(b'budget_errors.handler', b'usage_guard_fixture.handler')
+        with self.assertRaisesRegex(AssertionError, 'callback registration differs'):
+            office.prepare_usage_guard_config(original)
+
     def test_actual_descriptor_owner_validates_exact_synthetic_terms_and_rejects_yaml_timestamp_coercion(self):
         # Execute the existing owner's exact primitive validator, without its
         # unrelated native-runtime imports or a copied declaration schema.

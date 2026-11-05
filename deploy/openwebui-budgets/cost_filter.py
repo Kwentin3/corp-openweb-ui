@@ -232,6 +232,8 @@ class Filter:
                         description += " · начислено на сейчас, учёт обновляется"
             except CostReadError as error:
                 log.warning("Budget cost readback unavailable: %s", error.code)
+                if error.code in ("usage_unavailable", "accounting_unavailable"):
+                    description = "Расход неизвестен. Обратитесь к администратору."
         await __event_emitter__({"type": "status", "data": {
             "action": "employee_budget_cost", "description": description, "done": True,
         }})

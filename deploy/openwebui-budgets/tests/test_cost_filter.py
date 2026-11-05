@@ -334,6 +334,41 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         reader.assert_not_called()
         self.assertNotIn("$", emitter.call_args.args[0]["data"]["description"])
 
+    async def test_unknown_usage_and_accounting_failure_emit_no_amount_or_history_change(self):
+        await self.sign()
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        body = {"messages": [{"id": ANSWER, "role": "assistant", "content": "Proof",
+                              "output": [{"type": "function_call_output", "output": "unchanged tool result"}]}]}
+        original, metadata = copy.deepcopy(body), copy.deepcopy(self.metadata)
+        for code in ("usage_unavailable", "accounting_unavailable", "spend_api_unavailable"):
+            reader = AsyncMock(side_effect=real_reader.CostReadError(code))
+            emitter = AsyncMock()
+            with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
+                    {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+                result = await self.filter.outlet(body, __user__=self.actor,
+                    __metadata__=self.metadata, __event_emitter__=emitter)
+            self.assertIs(result, body)
+            self.assertEqual(body, original)
+            self.assertEqual(self.metadata, metadata)
+            event = emitter.call_args.args[0]
+            expected = ("Стоимость ещё не подтверждена журналом учёта. Учёт и лимиты действуют."
+                        if code == "spend_api_unavailable" else "Расход неизвестен. Обратитесь к администратору.")
+            self.assertEqual(event, {"type": "status", "data": {
+                "action": "employee_budget_cost", "description": expected, "done": True}})
+            self.assertNotIn("$", event["data"]["description"])
+            self.assertNotIn("блок", event["data"]["description"].lower())
+        self.actor["valves"] = self.filter.UserValves(enabled=False)
+        emitter = AsyncMock()
+        reader = AsyncMock(side_effect=real_reader.CostReadError("usage_unavailable"))
+        with patch.object(real_reader, "read_cost_snapshot", reader):
+            self.assertIs(await self.filter.outlet(body, __user__=self.actor,
+                __metadata__=self.metadata, __event_emitter__=emitter), body)
+        reader.assert_not_called()
+        emitter.assert_not_called()
+        self.assertFalse(self.actor["valves"].enabled)
+        self.assertEqual(body, original)
+        self.assertEqual(self.metadata, metadata)
+
 
 if __name__ == "__main__":
     unittest.main()

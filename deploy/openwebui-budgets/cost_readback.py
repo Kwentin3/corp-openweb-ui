@@ -157,12 +157,44 @@ def _sum_spend(rows: list[_Row]) -> Decimal:
         raise CostReadError("invalid_spend") from None
 
 
+def _usage_available(metadata: dict) -> None:
+    information = metadata.get("guardrail_information")
+    if information is None:
+        return
+    _require(isinstance(information, list), "accounting_unavailable")
+    for guardrail in information:
+        _require(isinstance(guardrail, dict), "accounting_unavailable")
+        if guardrail.get("guardrail_name") != "owui_budget_usage":
+            continue
+        categories = guardrail.get("violation_categories")
+        action = guardrail.get("guardrail_action")
+        _require(isinstance(categories, list)
+                 and all(isinstance(value, str) and bool(value) for value in categories)
+                 and action in ("allow", "block", "block_failed"), "accounting_unavailable")
+        if "usage_unavailable" in categories:
+            _require(action in ("block", "block_failed"), "accounting_unavailable")
+            raise CostReadError("usage_unavailable")
+        _require(action == "allow", "accounting_unavailable")
+
+
 def _row(raw: object, user_id: str, chat_id: str) -> _Row:
     _require(isinstance(raw, dict), "invalid_row")
     _require(raw.get("user") == user_id and raw.get("session_id") == chat_id,
              "foreign_scope")
     metadata = raw.get("metadata")
     _require(isinstance(metadata, dict), "invalid_attribution")
+    spend_metadata = metadata.get("spend_logs_metadata")
+    _require(isinstance(spend_metadata, dict), "invalid_attribution")
+    try:
+        scope = validate_persisted_scope(spend_metadata.get("owui_budget"))
+    except ProtocolError:
+        raise CostReadError("invalid_attribution") from None
+    _require(scope.get("user_id") == user_id and scope.get("root_chat_id") == chat_id,
+             "foreign_scope")
+    # This native guardrail's typed telemetry is meaningful only after the
+    # existing row owner and signed scope checks. An estimated positive spend
+    # cannot make its unavailable Usage a confirmed amount.
+    _usage_available(metadata)
     # Native writer defaults missing cost/usage to zero (utils797..800), and
     # absent metadata.status to success1720..1731. Failure cost-debug data is
     # not guaranteed in this endpoint's whitelisted metadata. Until a native
@@ -173,14 +205,6 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
              and metadata.get("response_cost_failure_debug_info") is None
              and metadata.get("response_cost_failure_debug_information") is None,
              "accounting_unavailable")
-    spend_metadata = metadata.get("spend_logs_metadata")
-    _require(isinstance(spend_metadata, dict), "invalid_attribution")
-    try:
-        scope = validate_persisted_scope(spend_metadata.get("owui_budget"))
-    except ProtocolError:
-        raise CostReadError("invalid_attribution") from None
-    _require(scope.get("user_id") == user_id and scope.get("root_chat_id") == chat_id,
-             "foreign_scope")
     prompt = _integer(raw.get("prompt_tokens"))
     completion = _integer(raw.get("completion_tokens"))
     total = _integer(raw.get("total_tokens"))

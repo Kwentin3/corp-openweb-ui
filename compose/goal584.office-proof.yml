@@ -25,6 +25,36 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ../scripts/goal584-budget-proof/usage_guard_fixture.py
+        target: /proof/usage_guard_fixture.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/unknown_usage_guard.py
+        target: /proof/unknown_usage_guard.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_unknown_usage_policy.py
+        target: /proof/prove_unknown_usage_policy.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/cost_readback.py
+        target: /proof/employee_budget_cost_readback.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /proof/employee_budget_provenance.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../deploy/openwebui-functions/officecli_auto_attach_filter.py
         target: /proof/officecli_auto_attach_filter.py
         read_only: true

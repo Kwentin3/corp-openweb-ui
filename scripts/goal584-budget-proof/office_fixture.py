@@ -126,6 +126,27 @@ def prepare_office_config(original):
         raise AssertionError('Office YAML is malformed or ambiguous') from None
 
 
+def prepare_usage_guard_config(original):
+    """Compose the existing Office and Usage fixtures before their first boot."""
+    import yaml
+    from prove_pricing_usage import configuration
+    office = yaml.safe_load(prepare_office_config(original))
+    base = yaml.safe_load(original)
+    usage = configuration(base, 'v1')
+    require(usage['model_list'][:2] == base['model_list']
+            and all(usage[k] == v for k, v in base.items() if k != 'model_list'),
+            'Usage fixture changed the original native configuration')
+    office['model_list'].extend(usage['model_list'][2:])
+    callbacks = office['litellm_settings']['callbacks']
+    require(callbacks == base['litellm_settings']['callbacks']
+            and 'usage_guard_fixture.handler' not in callbacks,
+            'Usage guard callback registration differs')
+    callbacks.append('usage_guard_fixture.handler')
+    raw = yaml.safe_dump(office, sort_keys=False).encode('utf-8')
+    require(len(raw) <= CONFIG_LIMIT, 'Usage guard YAML input exceeded bound')
+    return raw
+
+
 def topology_row(raw):
     """Project native inspect JSON in memory; never export Config.Env."""
     config, state, host, network = (raw[k] for k in ('Config', 'State', 'HostConfig', 'NetworkSettings'))

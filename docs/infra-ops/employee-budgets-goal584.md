@@ -6,13 +6,23 @@
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native70/47b2734f и Office70. Все четыре Native jobs, Office и Active CI
+принятый bounded baseline — Native71/0fed2c6f и Office71. Все четыре Native jobs, Office и Active CI
 SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
 policy, полная reasoning continuity и STT/Terminal ещё не приняты.
 
-Office70 принят independent artifact review и parent repeat: actual browser Send,
+**Решение заказчика05.11, unknown expense:** если провайдер не вернул данные о
+расходе, блокировать этому сотруднику только эту модель и показывать «расход
+неизвестен». Заказчику объяснено, что первый запрос уже мог быть оплачен и его
+точную сумму восстановить нельзя. Не исключать модель глобально, не выдумывать
+денежное списание и не объявлять unknown бесплатным/окончательно оплаченным.
+Это требование к реализации, пока не runtime acceptance. Native key/block —
+владелец запрета; исходные budgets/SpendLogs сохраняются. Ошибка/неопределённость
+block и уже принятые calls требуют явного failure/неподтверждённого статуса;
+успешную остановку новых calls без committed block не заявлять.
+
+Office71 принят independent artifact review и parent repeat: actual browser Send,
 native DOCX/download, три follow-ups, foreign file metadata/content404/404.
 Все четыре auth/provider dispatch связаны по полному body с единственным model
 mapping; полный pinned developer instruction, SOURCE/prior/current user,
@@ -28,11 +38,13 @@ reasoning continuity этим прогоном не принимается.
 
 Разрешённый stand-only derivative LiteLLM по-прежнему меняет только две функции;
 новых native core patches нет. Office/provider/service и readback worker
-опубликованы в draft PR585; bounded Office gate принят. Следующий срез проверяет
-существующий public native key/block на свежем синтетическом сотруднике: signed
-gateway call/.20 → operator block/readback → отказ без нового provider dispatch,
-при сохранении caps/spend/history. Это prerequisite unknown-usage policy,
-не реализация самой policy или гарантия оплаты первого неизвестного счёта.
+опубликованы в draft PR585; bounded Office gate и existing public native key/block
+приняты на свежем синтетическом сотруднике: signed gateway call/.20 → operator
+block/readback → native401 без нового provider dispatch/charge, caps/spend/history
+сохранены. Все11mounted owner hashes совпали с tested Git. Cache warming и
+non-admin block RBAC этим срезом не принимались. Следующий срез реализует принятое
+правило unknown expense через native serial CustomGuardrail и существующие
+readback/Filter owners; нового ledger/денежного settlement/core patch не будет.
 Production, реальные деньги и рабочие маршруты не менялись.
 Ниже — текущие evidence/границы и история прежних кандидатов; старые FAIL не
 переименовываются в PASS после исправления следующей версии.
@@ -80,6 +92,121 @@ Workflow syntax/factory/cleanup rehearsal9Bash/6Python PASS, external/Docker0.
 Финальный широкий прогон после этой узкой proof-only поправки не заявляется;
 actual native block/admission, Linux permissions и новые runtime hashes ещё
 должны пройти CI и независимую приёмку. Все изменения остаются stand-only.
+Candidate71 опубликован: head0fed2c6fdc1122d9a38641c43a134e657ef83f7a,
+tested merge91e1269d614968a74f2388d9f62fecbdbbe28047, tree diff пуст; remote
+head/PR585 draft/open/body прочитаны обратно. [Office71/42049877677](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42049877677),
+[Native71/42049878076](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42049878076)
+и [Active CI/42049877806](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42049877806)
+terminal SUCCESS, parent observation15:17:10UTC. Independent readers и parent
+repeat всех четырёх profiles PASS. Office artifact13427676971/907091bytes/
+57members/SHAcea32b906f9fe4a370b7e300f6f3f9cd532caa9355600d8e753e624da182256e,
+reader986d8012…/resulte8f83b18…; actual block positive/final rows hashes совпали,
+worker3116a6ce…/11owners, positive.20/denied401/providerdispatches1. Основной
+агент просмотрел actual browserPNG; render побайтно совпал с принятым70.
+Office cleanup0/0/0,5images/2helpers удалены. Main artifact13427922468/
+3839666bytes/221members/SHA1c6d7b9c…:77core/26negatives, latest07settles8/8,
+recovery7.280355289s<15;285immutable review inputs и53sources exact70.
+Pricing artifact13425853149/20089bytes/SHA66083f73…:63negatives/.80/.500,
+history/restoration/cleanup0/0/0. Calendars artifacts13427135218/13426252534,
+SHA5d6eeda6…/fb961a13…:20negatives/26sources, floor final.554161s<5,
+cleanup0/0/0. Main networks/images не экспортированы; calendar custom_auth=None
+не принимается как новый gateway trace. Missing/null остаются наблюдениями,
+принятая новая политика ещё не исполняется. Evidence:
+`candidate71-{index,checks,publish}.safe.json`, `office71-review/`,
+`native71-{main,pricing,calendar}-review/`.
+
+Следующий bounded source/runtime срез: personal typed nonstream Responses;
+native CustomGuardrail post_call/default_on/serial с original usageNone,
+существующий operator/AdminClient block +fresh GET; native guardrail telemetry
+owui_budget_usage/category usage_unavailable; existing session readback и Filter
+показывают unknown без суммы. Positive/explicit-zero response/context остаётся
+прежним; native zero-cost UI qualification пока отдельно не заявляется. Реальные
+key/team metadata обязаны не включать allow_client_pricing_override: это native
+per-key/team setting, не general_settings. Existing native request sanitizer
+тогда удаляет клиентские поддельные guardrail records. Native admin opt-out owner
+не переопределять; managed profile обязан отдельно квалифицировать его отсутствие.
+Callback registration/credential handoff/UI/actual stand интегрирует root;
+source guard и UI changes делегированы независимыми ограниченными частями.
+Полная saved reasoning continuity подготовлена offline на full Office input:
+единственный trigger include=[reasoning.encrypted_content], но actual second Send/
+reload и finite second-turn provider branch ещё предстоит реализовать/принять.
+
+**Candidate72 source, ещё не опубликован/не принят runtime:** thin native
+UnknownUsageGuard114lines (e8f71d14…): personal typed nonstream Responses,
+original usageNone → existing full native assignment reader/read_service
+(историческое имя; personal/service scope проверяется отдельно) → ровно один
+public key/block → fresh GETblockedTrue. Single-model read_employee здесь не
+используется: он отвергает остальные managed assignments сотрудника. Response/
+reasoning/tools/image не меняются; explicit-zero/positive не блокируются.
+Native standard guardrail category/action сохраняются при prompt redaction;
+ошибка block/readback даёт safe503/block_failed, без ложной quarantine/finality.
+Настоящие key/team pricing opt-in и native admin opt-out не подменяются.
+
+Existing cost reader проверяет owner/signed scope, затем own native unknown
+marker; ни native zero, ни положительная оценка не становятся подтверждённой
+суммой. Смешанный журнал не выдаёт частичный verified total. Filter показывает
+«Расход неизвестен. Обратитесь к администратору.», без суммы/утверждения об успехе
+block; transport pending и выключение показа сохраняют прежнее поведение.
+Native unrelated guardrails с допустимым name=None не отклоняются. Root89focused
+UI/Action/Office-fixture checks PASS; сначала исправлено ожидание типа ошибки
+в новом duplicate-callback test (88PASS/1FAIL; существующий AssertionError owner
+верно запрещал повторную регистрацию). Source guard24pinned-native checks и
+worker17checks (после counter-poll поправки ниже) повторены root, PASS.
+Поздние source/secret failures не
+публикуют success. Native owner17Git blobs/helper witness и native stream
+passthrough/metrics witness PASS; нет дополнительных core patches/stream override.
+
+Composition использует тот же existing private operator, lazy getter не читает
+секрет до bootstrap (cold real-SDK factory PASS, network/private reads0).
+Existing Office config +existing Usage v1 configuration объединены на host;
+контейнеров по-прежнему6, добавлены только3synthetic Responses aliases. Readonly
+imports/mounts и новый host step проверяют13worker source/2mounted source hashes
+и7native SDK files до actual scenario. Host8case replay/syntax10Bash/7Python/
+factory/cache/cleanup PASS, external/Docker0. Command service временно задерживал
+выдачу результатов; повторные pytest не запускались поверх неучтённых процессов.
+
+Подготовленный actual worker проверяет2fresh native UUID×3model keys,
+7attempts/5provider dispatches/3targeted blocks, известные.166+.166=.332,
+absent/null usage и restricted viewer→usage_unavailable, сохранение caps/old
+rows и доступность модели другому сотруднику. Native zero unknown не называется
+бесплатным/оплаченным. Это API primitive; browser/chat ancestry, explicit-zero UI,
+CC/stream missing-usage enforcement и полная продуктовая policy ещё не приняты.
+Independent review закрыл найденную root гонку проверочного worker: durable row
+мог появиться раньше USER/KEY counters. Existing bounded read poll теперь ждёт
+пользовательский и все3key counters с ожидаемой delta, сохраняя caps/peer flags/
+old rows guards. Model inference и mutation не повторяются. Два различающих
+lag/never-converge cases прошли independent repeat; source f18f05f6…/test f6dbada6….
+Первый общий локальный прогон остановлен без итогового PASS. Повтор с traceback
+установил длительное ожидание Windows multiprocessing Process.start в прежнем
+eight-process capture test; тест затем завершился PASS. Это диагностическое
+наблюдение, не установленная причина первой остановки. Тесты не исключались;
+полный повтор ещё должен завершиться.
+Диагностический повтор:270component checks (7skips) PASS; harness636 с одной
+ошибкой импорта нового guard test: namespace `litellm` обнаружен, но SDK
+`litellm.integrations` в PYTHONPATH отсутствовал. Ошибка сохранена, не названа
+PASS; повтор всего набора использует явно выбранный pinned native SDK.
+Никаких skip/подмены SDK ради зелёного результата не добавлено.
+Этот mixed-SDK повтор дал659harness checks,2errors в прежних OpenAI JSON parser
+checks: native env OpenAI2.54.0 требует cache_write_tokens, прежний browser
+harness использует установленный OpenAI2.7.1. Новые24guard checks исполнились PASS.
+Bootstrap guard test теперь определяет наличие установленного SDK по distribution
+metadata, а не namespace find_spec; пропускается только отсутствие SDK. Wrong
+version/broken import/native source mismatch остаются fatal. Финальный общий
+прогон сохраняет прежнего OpenAI parser owner (2.7.1), отдельный native guard
+прогон с actual LiteLLM1.105.1 повторён:24PASS/8.18s. Это разделение двух реальных
+зависимостей, не подмена классов или отключение parser checks.
+Независимый native trace подтвердил отсутствие root guardrails list в текущей
+композиции; frozen exactly-one own telemetry predicate сохранён. Дополнительный
+SDK deployment hook возможен при иной конфигурации и не объявляется проверенным
+этим профилем (`local/goal584/candidate72-native-trace-review.md`).
+**Финальный local72:**270component checks PASS (7opt-in skips),636harness PASS
+(1SDK-absence skip только нового guard module), отдельные24actual pinned-native
+guard checks PASS/0skips. Оба прежних JSON parser tests исполнились PASS; actual
+OpenAI parser owner2.7.1 проверен отдельно. Full final log169.141s; native24/8.18s.
+Host8case replay и10Bash/7Python syntax/factory/cleanup PASS. Frozen source review
+не нашёл оставшихся blockers. Ранние failed runs сохранены как failed.
+Следующий обязательный шаг — actual isolated CI и independent artifact/cleanup acceptance. Production
+по-прежнему не меняется; source/fixture tests не объявляются runtime приёмкой.
 
 **Candidate64, source:** descriptor теперь квалифицирует фактически использованные
 native billing categories, включая Responses/cache/reasoning; он не утверждает,

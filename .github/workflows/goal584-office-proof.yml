@@ -103,10 +103,10 @@ jobs:
           import json,os,re,secrets,sys
           from pathlib import Path
           sys.path.insert(0,'scripts/goal584-budget-proof')
-          from office_fixture import prepare_office_config,prepare_native_tokenizers
+          from office_fixture import prepare_usage_guard_config,prepare_native_tokenizers
           private=Path(os.environ['RUNNER_TEMP'],os.environ['OWNED']+'-private');private.mkdir(mode=0o700)
           env_file=private/'compose.env';config=private/'config.yaml'
-          raw=prepare_office_config(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
+          raw=prepare_usage_guard_config(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
           def write(path,data):
               fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
               with os.fdopen(fd,'wb') as handle:handle.write(data)
@@ -304,6 +304,63 @@ jobs:
           (out/'native-key-block.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
           assert result.returncode==0 and packet.get('passed') is True,'Native key block/admission proof failed'
           assert packet.get('unknown_usage_policy_qualified') is False
+          PY
+      - name: Verify targeted unavailable Usage and native cost projection
+        timeout-minutes: 5
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          assert json.loads((out/'native-key-block.safe.json').read_text()).get('passed') is True
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          for name in ('gateway-state.private.json','webui-state.private.json'):
+              secrets.extend(private_credentials(read_private(private/name)))
+          compose=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',os.environ['PROOF_ENV_FILE'],
+              '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml','-f','compose/goal584.office-proof.yml']
+          native_pins={
+              'integrations/custom_guardrail.py':'6ada6442281669b3623a1eca1f1bcb609e458e90e3d54a5273c18527f5cc0d70',
+              'types/llms/openai.py':'99ce22ba2bb83dc37d9afb423ef2a6cf919a9cafca834eaad833c4a795088fdd',
+              'proxy/_types.py':'2ef3c788ab6267bd3ba8bcaf336712cba9f67d49256bdfeb0a516c5de1525500',
+              'types/utils.py':'99105ecf13a3676832c10b352b62c69d03fa608cdfafdafa14bad279738eeaf3',
+              'proxy/spend_tracking/spend_tracking_utils.py':'52ce53917cdb6905abfe6dd61f2ffe9640e5198c9e443629177dcc727d24bd17',
+              'proxy/litellm_pre_call_utils.py':'8cb60a5bb2e3d521dce4ded40020b02106d821837b0928a8e36c6dbede4b82c8',
+              'proxy/utils.py':'f2b56f6e501ee6cfedbf4e9d79a19cee594fb797f1c3d2f2fd80a37faaf6a77f'}
+          code="import hashlib,importlib.metadata,json,pathlib,litellm; r=pathlib.Path(litellm.__file__).parent; print(json.dumps({'version':importlib.metadata.version('litellm'),'files_sha256':{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(native_pins))+"}}))"
+          actual=subprocess.run(compose+['exec','-T','proxy','python','-B','-c',code],capture_output=True,timeout=30)
+          assert actual.returncode==0 and 0<len(actual.stdout)<=32*1024,'Unknown Usage native source readback failed'
+          sdk=json.loads(actual.stdout);no_credentials(sdk,secrets)
+          assert sdk=={'version':'1.105.1','files_sha256':native_pins},'Unknown Usage native SDK source differs'
+          (out/'usage-native-runtime.safe.json').write_text(json.dumps(sdk,indent=2)+'\n')
+          result=subprocess.run(compose+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy',
+              'python','-B','/proof/prove_unknown_usage_policy.py'],capture_output=True,timeout=240)
+          assert 0<len(result.stdout)<=64*1024,'Unknown Usage receipt exceeded bound or is absent'
+          packet=json.loads(result.stdout);no_credentials(packet,secrets)
+          assert packet.get('schema')==1 and packet.get('proof')=='goal584-unknown-usage-policy'
+          source=Path('scripts/goal584-budget-proof');budgets=Path('deploy/openwebui-budgets')
+          owners={name:source/name for name in ('prove_unknown_usage_policy.py','provision_webui.py',
+              'prove_gateway_auth.py','prove_native_budgets.py','prove_pricing_snapshots.py','prove_service_tasks.py')}
+          owners.update({name:budgets/path for name,path in {
+              'employee_budget_admin_client.py':'admin_client.py','employee_budget_admin_contract.py':'admin_contract.py',
+              'employee_budget_assignment.py':'assignment.py','provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py',
+              'employee_budget_cost_readback.py':'cost_readback.py','employee_budget_provenance.py':'provenance.py'}.items()})
+          expected={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in owners.items()}
+          mounted={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in {
+              'usage_guard_fixture.py':source/'usage_guard_fixture.py','unknown_usage_guard.py':budgets/'unknown_usage_guard.py'}.items()}
+          assert packet.get('worker_sha256')==expected['prove_unknown_usage_policy.py'],'Unknown Usage worker source differs'
+          assert packet.get('passed') is not True or (packet.get('source_sha256')==expected
+              and packet.get('mounted_source_sha256')==mounted),'Unknown Usage runtime owners differ'
+          assert result.returncode==0 or packet.get('passed') is False,'Unknown Usage exit and receipt disagree'
+          (out/'unknown-usage-policy.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          assert result.returncode==0 and packet.get('passed') is True,'Unknown Usage native proof failed'
+          assert packet.get('inference_attempts')==7 and packet.get('provider_dispatches')==5
+          assert packet.get('blocked_assignments')==3 and packet.get('known_positive_total')=='.332'
+          assert packet.get('unknown_cost_finality') is False and packet.get('explicit_zero_runtime_qualified') is False
+          assert packet.get('browser_or_chat_ancestry_qualified') is False
           PY
       - name: Remove only task containers and actual image IDs
         if: always() && env.TASK_PREPARED == 'true'
