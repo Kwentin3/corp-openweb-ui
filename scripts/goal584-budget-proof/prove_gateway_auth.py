@@ -29,7 +29,7 @@ from prove_native_budgets import (
 
 OPERATOR_ROUTES = [
     "/openapi.json", "/user/new", "/user/update", "/user/info", "/user/list",
-    "/key/generate", "/key/update", "/key/info", "/key/list", "/spend/logs/v2",
+    "/key/generate", "/key/update", "/key/block", "/key/info", "/key/list", "/spend/logs/v2",
 ]
 
 
@@ -52,6 +52,7 @@ def management_schema(proof: NativeProof) -> None:
     for endpoint, required_fields in {
         "/user/new": {"user_role", "auto_create_key", "user_id"},
         "/key/generate": {"allowed_routes", "metadata", "key_alias", "user_id", "models"},
+        "/key/block": {"key"},
     }.items():
         node = spec["paths"][endpoint]["post"]["requestBody"]["content"]["application/json"]["schema"]
         require(required_fields <= fields(node), "Native operator/assignment schema missing at " + endpoint)

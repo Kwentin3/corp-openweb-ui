@@ -57,7 +57,7 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
         self.rows = [row(model) for model in MODELS]
         self.requests, self.handler, self.unexpected_hits = [], None, 0
         app = web.Application()
-        for path in ("/user/info", "/key/list", "/user/update", "/key/update", "/user/new", "/key/generate"):
+        for path in ("/user/info", "/key/list", "/user/update", "/key/update", "/key/block", "/user/new", "/key/generate"):
             app.router.add_route("*", path, self.serve)
         app.router.add_route("*", "/unexpected", self.unexpected)
         self.runner = web.AppRunner(app)
@@ -101,6 +101,51 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
 
     async def read(self):
         return await self.admin.read_employee(USER, MODELS)
+
+    async def test_block_model_key_sends_only_key_hash_with_operator_bearer(self):
+        before = copy.deepcopy((self.user, self.rows))
+        key_hash = self.rows[0]["token"]
+        async def native_block(request):
+            self.assertEqual(request.path, "/key/block")
+            body = await request.json()
+            self.assertEqual(body, {"key": key_hash})
+            self.rows[0]["blocked"] = True
+            return web.json_response(self.rows[0])
+        self.handler = native_block
+        self.assertIsNone(await self.admin.block_model_key(key_hash))
+        self.assertEqual(self.requests, [("POST", "/key/block", {}, {"key": key_hash})])
+        self.assertTrue(self.rows[0]["blocked"])
+        after = copy.deepcopy((self.user, self.rows))
+        after[1][0]["blocked"] = before[1][0]["blocked"]
+        self.assertEqual(after, before)
+
+    async def test_block_model_key_rejects_invalid_identifiers_before_http(self):
+        for value in (None, True, "sk-raw-secret", "", "a" * 63, "A" * 64, "g" * 64):
+            with self.subTest(value=value), self.assertRaises(contract.BudgetAdminError):
+                await self.admin.block_model_key(value)
+        self.assertEqual(self.requests, [])
+
+    async def test_block_model_key_requires_native_matching_commit_and_never_retries(self):
+        key_hash = self.rows[0]["token"]
+        for record in ({"updated": True}, {"token": key_hash, "blocked": False},
+                       {"token": "a" * 64, "blocked": True}, {"token": key_hash, "blocked": 1}):
+            async def incomplete(request):
+                return web.json_response(record)
+            self.handler = incomplete
+            self.requests.clear()
+            with self.subTest(record=record), self.assertRaises(contract.BudgetAdminError) as caught:
+                await self.admin.block_model_key(key_hash)
+            self.assertEqual(caught.exception.code, "block_unconfirmed")
+            self.assertEqual(len(self.requests), 1)
+        async def unavailable(request):
+            return web.json_response({"detail": PRIVATE}, status=503)
+        self.handler = unavailable
+        self.requests.clear()
+        with self.assertRaises(contract.BudgetAdminError) as caught:
+            await self.admin.block_model_key(key_hash)
+        self.assertEqual(caught.exception.code, "native_http_503")
+        self.assertNotIn(PRIVATE, str(caught.exception))
+        self.assertEqual(len(self.requests), 1)
 
     async def inspect(self):
         return await self.admin.inspect_employee(USER, MODELS)

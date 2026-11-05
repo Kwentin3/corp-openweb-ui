@@ -1,6 +1,6 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Текущая запись работы, 04.11.2026. Источник требований и полномочий —
+Текущая запись работы, 05.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
@@ -29,6 +29,52 @@ real private IO сохранены; native Recovery source8cf58835 не меня
 80deadline replays ожидаемо отклонены. Independent source closure PASS; исходный
 FAIL и его trace сохранены. Runtime provider500/release/recovery и новый Details
 post-reload guard ещё требуют native приёмки. Production не менялся.
+
+**Candidate64, source:** descriptor теперь квалифицирует фактически использованные
+native billing categories, включая Responses/cache/reasoning; он не утверждает,
+что usage получен от провайдера, а не оценён LiteLLM. Native helpers читают исходный
+Usage до model_dump и реальные guardrail fees из logging metadata. Первоначальный
+callback2a1052a9 отозван: он терял private cache counters и не видел штатный fee.
+Исправленный64f67133/testd47fe5e0 принят independent review,46focused PASS;
+шесть различающих cases падали на старом и проходят на новом. U proof требует
+точную agreed v1/v2 declaration и сохраняет её в row receipt; guardrail_cost.py
+добавлен к прежним14 exact native source pins. Исторический Native63 сохраняет
+свой unknown/eligibility descriptor и прежнюю bounded финансовую приёмку.
+
+Inference auth использует штатный writer-fresh get_key_object(check_db_only=True),
+затем прежний native validator/common checks/reservation owner. Management остаётся
+на IdentityStore. Existing client получил bounded POST /key/block с strict hash/
+token/blocked=True acknowledgement, без retry/unblock/денежных полей; fixture
+operator допускает только этот дополнительный management route.37auth/38client/
+22provision focused PASS и независимый native AST/DTO replay подтверждают source
+контракт. Private operator injection, raw missing-usage guardrail, его failure
+policy и реальное post-block admission ещё не реализованы/не приняты; первый
+неизвестный счёт и уже принятые calls этим не урегулируются.
+
+Первый общий прогон64:260component checks (253PASS/7opt-in skips), harness497
+с одним FAIL и одним class-setup ERROR;12snapshot tests не запустились. Причины:
+rates-only import fixture не знала новых native helpers; исторический route test
+не учитывал согласованный /key/block. Исправлены только fixture/ожидание, новые
+descriptor stubs обязаны остаться неиспользованными; настоящие billing helpers
+проверяются native46. Route regression сохраняет старые запреты и проверяет отказ
+employee и допуск proxy-admin для /key/block. Focused34PASS; окончательный полный
+повтор:509harness PASS/0skip и260component checks (253PASS/7opt-in skips), включая
+joint actual callback/native normalizer/row projection/U validator. Первый FAIL
+сохранён отдельно в candidate64-first-checks.safe.json; итог — candidate64-checks.safe.json.
+Четыре временно изолированных Office WIP файла восстановлены и совпали с прежними
+SHA256; их bytes и untracked Office probes исключены из проверенного Git index.
+
+Office/STT Dockerfiles получили второй URI того же signed Debian snapshot
+20261007T000000Z через штатный Deb822 URIs. Удаление только двух вторичных URI
+возвращает точный HEAD каждого Dockerfile; base digest/packages/date/retries/
+signature/hash policy не менялись. Independent review подтвердил native APT
+alternative-URI owner; update читает оба индекса, install может перейти к другой
+копии той же версии. Доступность из CI и устранение503 ещё не доказаны. Первичные
+источники: [APT sources](https://manpages.debian.org/trixie/apt/sources.list.5.en.html),
+[APT3.0.3 archive acquisition](https://sources.debian.org/src/apt/3.0.3/apt-pkg/acquire-item.cc/),
+[worker fallback](https://sources.debian.org/src/apt/3.0.3/apt-pkg/acquire-worker.cc/),
+[apt-secure](https://manpages.debian.org/trixie/apt/apt-secure.8.en.html).
+Новых native core patches нет; Office/provider/service WIP в64 не входит.
 
 **Native54 опубликован:** head458b4f39b0235f44406be657da5bb2f453a5e8b8,
 tested mergea7404580a67916a01def250415a00ae77615f0e2, tree diff пуст;
@@ -439,6 +485,71 @@ matching tests6d03f1e5… и эта запись;507harness PASS/0skip,244compon
 derivative неизменён, calendar62 bounded PASS сохранён. Office/source/service
 WIP не входит в публикацию. Следующая проверка — native4case pricing/usage,
 не попытка переоценить исторический62FAIL. No production/paid calls/real limits.
+Опубликован ordinary push: head9b748b8dbf0b88750e15a57ddf3a1926bc2354df,
+remote readback совпал; tested merge1650687449766ee5e599292594ddcee146add60a,
+tree diff пуст. [Native63/41864815946](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41864815946),
+[ActiveCI164/41864815455](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41864815455),
+[Office6/41864815492](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/41864815492)
+на публикации queued, затем получили runners; попытки не перезапускаем.
+PR585 draft/open, body readback равен отправленному. Metadata:
+`local/goal584/candidate63-publish.safe.json`. Actual4case usage пока не принят.
+Последнее чтение: все4Native jobs SUCCESS, Office6 и Active164 FAILURE, все6
+terminal. Pricing artifact13341293300/19375bytes/GitHub SHA026d9823…
+и Office artifact13341993026/599096bytes/SHA170de39b… проверены independent
+review; pricing дополнительно принят parent replay ниже.
+**Native63 pricing bounded PASS:** independent revieweb0cfffe… и parent repeat
+legacy+Usage replay PASS;29Git sources/14ROmounts/14native owners/exact5hostpins,
+same4services/actual derivative/config и cleanup0/0/0 проверены. Старые36financial
+mutations сохранены и21newUsage mutations rejected (57total). Flat0.20/0.20/0.40,
+bothcounters0.80; новый4call Responses experiment выполнен безretry.
+Actual4Urows: positive0.166/0.334, keyperiod/lifetime+user0.5, оба absent/null
+native success0.0/int-zero usage/ratesunknown. Config bytes/reference fixture
+restored=true, cleanup0/0/0. В обоих positive cached6/reasoning2/int10/5/15,
+старые7rates/full-row hashes/history/policy/caps сохранены. Descriptor всё ещё
+unknown/eligibility: это не квалифицированный Responses tariff descriptor.
+Exact raw private rows/provider body/lineage не экспортируются заново: source-bound
+validator и safe fingerprints/scalars задают границу independent replay.
+Evidence: `local/goal584/native63-pricing-review/{report.md,replay.py,legacy-replay.py}`.
+unknown_rows_finality=false/negative_cases_are_policy_qualification=false
+сохранены: это обнаруженный gap безопасной политики, не бесплатное потребление.
+Office6 actual ZIP170de39b…/31files связан с54Git inputs; старый Office5 verifier
+и6mutations сохранены. First index503 warning8.338s, fatal6deb503/55.49s→APT100/
+Docker1, CLI/preflight не достигнуты. Frontend/runtime собраны; actual2images
+удалены, task container/image inventory пусты, cache_removed=false. Build owners
+и54inputs противOffice5 неизменны. Existing repo artifact inventory130entries
+не содержит officecli-runtime-*; Actions caches total_count0. Qualified runtime
+для reuse не найден, новых cache/transport механизмов пока нет. Evidence:
+`local/goal584/office-build6-review/`. Active164 forensic и parent repeat PASS
+для сохранения FAIL: raw3157713bytes/SHA8a9d433c…; Office APT `.deb`503 для
+libxaw7/xdg-utils/security chromium, fatal527.1s→APT100/Docker1/step13FAIL.
+Qualification/export/STT skipped, artifacts0; Docker cleanup не экспортирован
+и не подтверждён. Evidence: `local/goal584/active164-failure/`.
+
+**Следующий фактический минимум:** квалифицировать descriptor для реально
+использованных Responses cache/reasoning категорий и безопасную policy отсутствия
+usage, затем закончить same-job Office wiring через существующие build/Fixture/
+native Session/Files/task owners. Найдены native `/key/block` (real management
+auth, blocked+settingsstamp/audit/cache eviction) и `get_key_object(check_db_only=True)`
+→ existing validator (writer-fresh combined_view, без cache writeback). Это
+минимальные владельцы возможной quarantine/admission policy; она ещё не реализована.
+Обычный affected-key auth не даёт management-права; fakeadminDTO/direct key-table
+write/подмена low-level block_token вместо полного API не допускаются.
+Ни post-success exception, ни best-effort cache invalidation сами по себе не
+являются доказательством удержанного неизвестного расхода/немедленного запрета.
+Даже writer-fresh read не отменяет уже принятые/до-commit calls и не восстанавливает
+сумму первого неизвестного обращения. Existing cost_readback уже даёт
+accounting_unavailable для zero spend/total, а не free; новой UI/runtime приёмки
+этого в4case pricing нет. Exact7new native owners сверены сd665; один installed-only
+base_repository helper явно не объявляется exactGit. Evidence:
+`local/goal584/pricing-unknown-usage-native-options.md` (append71b86b21…).
+Принято для следующего source slice: inference identity принадлежит native
+writer combined_view → `get_key_object(check_db_only=True)` → существующий
+validate_resolved_virtual_key → прежний outer common/reservation gate. Заменяем
+только cache-first identity read для inference; native management paths сохраняют
+IdentityStore. Это per-request DB-read/fail-closed dependency, а не новый store,
+auth DTO, reservation owner или уже реализованный unknown-cost settlement.
+Для повторяющегося snapshotHTTP503 готового qualified image/cache нет; native
+alternate transport пока не квалифицирован и не включён. Полный GOAL активен.
 
 **Office next source seam:** тот же CI job строит existing builder и запускает
 strict6 stand; checkout GITHUB_SHA/build owner задают origin, actual Docker/native
@@ -448,6 +559,48 @@ trusted revision + actual live readback; defaults6cc/df3 и все общие se
 остаются прежними. Pure checksum/self-consistent caller JSON не доказывает origin.
 Новый registry/Files store/Tool runner/ledger не создаётся; источник слитого Office
 provider и strict6 overlay пока WIP вне опубликованного кандидата.
+Optional built-profile branch34e1df8e…/test46147caa… принят independent SOURCE
+review780c4007…:77focused PASS/0skip, старые constants/semantic guards/other
+functions/tests сохранены, historicalOffice4 receipt join прошёл. Live admission
+не заявляется: actual source-bound host ещё должен собрать running images,
+отсутствие shadow mounts и реальный complete frontend verifier result.
+Evidence: `local/goal584/office-profile-admission-independent.md`.
+Host collector source80e99956…/testf92e68e9… готов и parent read/repeat принят:
+29focused PASS/0skip (Office+unchanged pricing browser). Actual Docker IO остаётся
+external boundary double; emitted Python и existing complete frontend verifier
+исполнены на реальных representative files. running_readback повторяет strict6,
+проверяет actual Config.Image/Image/platform и отсутствие shadow mounts до exec,
+читает modules/build/binary/frontend и связывает результат через existing
+built_images. Verifier hash читается из trusted Git revision, проверяется перед
+исполнением; CLI hash проверяется перед --version. Первый parent command имел
+неверное имя test_pricing_fixture.py и не запустил тесты; corrected exact command
+test_office_fixture.py+test_pricing_browser.py дал29PASS. Реального Docker/stand
+на локальном Windows нет; actual persisted profile/browser/ACL/finance остаются
+следующим integration slice. Evidence: `local/goal584/office-fixture-readiness.md`.
+
+**Office service source READY, не опубликован:** existing Pipe0842c51f… отдельно
+авторизует свежий native background source и configuredtarget; deep-copied source
+входит в прежнюю fresh binding equality и последний context/cache guard.
+Native task context/reasoning/signature/nonemployee payer/единственный dispatch
+сохранены; нового Pipe, Valve, source registry или core patch нет. Target non-Pipe
+guard восстановлен после parent finding: intermediate da10 candidate регрессию
+пропускал и отозван. Current test2d425bbf…:25PASS/0skip, parent repeat25PASS;
+coherent target-Pipe/valid connection, source ACL/cache/последний await drift
+отклоняются, valid gpt5.4→gpt6 follow-up сохраняет весь prepared context.
+Actual Office TaskModel selector/target+reasoning readback, browser follow-ups,
+native service payer delta и primary3+service reconciliation ещё не приняты.
+Evidence: `local/goal584/office-service-task-seam.md`.
+Exact native task→Functions→0842Pipe→nested chat→accepted0039 router/converter/
+headers replay PASS; parent повтор95-line offline witness PASS без network.
+Full prepared/task/nested payload и final wire равны baseline directgpt6 после
+исключения только selector/signature; target system/params/reasoning и полные
+metadata/USER/TASK/chat headers сохранены. Existing register_pipe_model обязан
+сохранить params={} и base_model_id=None: nonempty Pipe params действительно
+переопределяют defaults (counterexample.81/Pipe system). Новый fix не нужен при
+этом существующем контракте. Native wire reasoning_effort остаётся top-level,
+store в representative отсутствует в обеих ветках; это не provider acceptance
+или доказательство wire store=false. Fingerprints prepared6b0642f1…/wireb99e5885…
+совпали с independent replay; actual provider/service finance остаются впереди.
 
 **Used-category gap, source/library only:** true native Responses helper с cached6,
 reasoning2 даёт .166, после syntheticrate change .334; прежний7-rate snapshot
@@ -551,6 +704,8 @@ owner и тесты. Дополнительный поиск нашёл OPEN/unm
 OPEN/unmerged статусы не изменились. Parent заново прочитал actual diff49212:
 только `_reset_expired_window` и unit tests, primary monthly key/user не изменён.
 В текущем body45974 сохраняется предупреждение о пяти непокрытых reset paths.
+Разработчик mateo-berri [прямо оставил scheduled reset для следующего раунда](https://github.com/BerriAI/litellm/pull/45974#discussion_r4465125614);
+это подтверждает признание gap человеком, но не его устранение.
 Нового решения, позволяющего удалить stand-only адаптацию, не подтверждено;
 новые production/core изменения и CI reruns в рамках этого refresh не выполнялись.
 

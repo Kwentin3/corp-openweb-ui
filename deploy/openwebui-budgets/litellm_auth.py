@@ -205,6 +205,7 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     from litellm.proxy import proxy_server
     from litellm.proxy._types import LiteLLMRoutes
     from litellm.proxy.auth.auth_utils import get_model_from_request, get_request_route
+    from litellm.proxy.auth.auth_checks import get_key_object
     from litellm.proxy.auth.resolvers.store import IdentityStore
     from litellm.proxy.auth.route_checks import RouteChecks
     from litellm.proxy.auth.user_api_key_auth import validate_resolved_virtual_key
@@ -307,13 +308,24 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     )
     _safe_set_request_parsed_body(request=request, parsed_body=request_data)
 
-    identity = IdentityStore.key_from_principal(
-        await IdentityStore(
-            proxy_server.prisma_client, proxy_server.user_api_key_cache,
+    if RouteChecks.is_llm_api_route(route):
+        # Native writer-fresh identity observes committed key blocks/settings;
+        # peer cache invalidation is best-effort. Validation/reservation remain
+        # in their existing native owners below and in the outer auth wrapper.
+        identity = await get_key_object(
+            hashed_token=key_hash, prisma_client=proxy_server.prisma_client,
+            user_api_key_cache=proxy_server.user_api_key_cache,
             parent_otel_span=getattr(request.state, "parent_otel_span", None),
-            proxy_logging_obj=proxy_server.proxy_logging_obj,
-        ).resolve(hashed_token=key_hash)
-    )
+            proxy_logging_obj=proxy_server.proxy_logging_obj, check_db_only=True,
+        )
+    else:
+        identity = IdentityStore.key_from_principal(
+            await IdentityStore(
+                proxy_server.prisma_client, proxy_server.user_api_key_cache,
+                parent_otel_span=getattr(request.state, "parent_otel_span", None),
+                proxy_logging_obj=proxy_server.proxy_logging_obj,
+            ).resolve(hashed_token=key_hash)
+        )
     if shared_gateway:
         _require(_assignment_matches(identity, user_id, model), 403,
                  "Resolved native identity does not match its user/model assignment")

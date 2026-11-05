@@ -43,13 +43,25 @@ NATIVE=versions.catalog.NATIVE|{
     'proxy/spend_tracking/spend_tracking_utils.py':'52ce53917cdb6905abfe6dd61f2ffe9640e5198c9e443629177dcc727d24bd17',
     'proxy/litellm_pre_call_utils.py':'8cb60a5bb2e3d521dce4ded40020b02106d821837b0928a8e36c6dbede4b82c8',
     'proxy/hooks/responses_id_security.py':'7a248a55712f7ff17b1375e18784ec5e411d09bc8a63aea3083798c3cfe4a4b8',
-    'proxy/common_utils/encrypt_decrypt_utils.py':'454c5aace6c7c0d929db5309c3a6cdd949f212863f1a37f0b08ede749f217ebe'}
+    'proxy/common_utils/encrypt_decrypt_utils.py':'454c5aace6c7c0d929db5309c3a6cdd949f212863f1a37f0b08ede749f217ebe',
+    'litellm_core_utils/llm_cost_calc/guardrail_cost.py':'0073388494a89d636ea7f5bd3ee5d14d89c018403faad39814a0327ae9405246'}
 sha=versions.sha
 encoded=versions.encoded
 
 
 def save(state):
     encoded(state);write_private(STATE,state)
+
+
+def declaration(alias,version):
+    # Finite agreed fixture terms, not a price lookup or usage classifier.
+    require(alias in ALIASES and version in ('v1','v2'),'usage_declaration_profile')
+    return {'schema':1,'deployment_id':alias+'-'+version,'currency':'USD',
+        'source_ref':'fixture:usage-agreed-'+alias+'-'+version,
+        'source_url':'https://example.invalid/goal584/usage/agreed/'+alias+'/'+version,
+        'source_checked_at_utc':'2026-11-04T00:00:00Z','declared_effective_from_utc':'2026-11-04T00:00:00Z',
+        'declared_effective_until_utc':None,'activation_ref':'fixture:usage-activation-'+alias+'-'+version,
+        'qualified_usage':'text_cache_reasoning'}
 
 
 def configuration(base,version):
@@ -63,7 +75,8 @@ def configuration(base,version):
             'model_info':{'id':identifier,'mode':'responses','max_input_tokens':10,'max_output_tokens':16,'max_tokens':26,
                 'input_cost_per_token':.01,'output_cost_per_token':.02,
                 'cache_read_input_token_cost':.001 if version=='v1' or index else .009,
-                'output_cost_per_reasoning_token':.03 if version=='v1' or index else .09}})
+                'output_cost_per_reasoning_token':.03 if version=='v1' or index else .09,
+                'owui_pricing':declaration(alias,version if index==0 else 'v1')}})
     return result
 
 
@@ -262,7 +275,15 @@ def positive_row(row,state,call):
         'output_cost_per_reasoning_token':.03 if call['label']=='positive_v1' else .09}
     require(all(type(value) in (int,float) and math.isfinite(value) and value>=0 for value in rates.values())
         and all(rates[key]==value for key,value in expected.items()),'usage_protected_native_rates')
-    return row_observation(row)|{'rates':copy.deepcopy(rates),'deployment_id':call['deployment'],
+    descriptor=inner.get('owui_tariff_descriptor')
+    expected_descriptor=declaration(ALIASES[0],'v1' if call['label']=='positive_v1' else 'v2')
+    require(type(descriptor) is dict and set(descriptor)=={'schema','availability','descriptor'}
+        and type(descriptor.get('schema')) is int and descriptor['schema']==1 and descriptor.get('availability')=='available'
+        and type(descriptor.get('descriptor')) is dict and encoded(descriptor['descriptor'])==encoded(expected_descriptor),
+        'usage_positive_descriptor')
+    require(versions.catalog.utc(snapshot['observed_at_utc'])>=versions.catalog.utc(expected_descriptor['declared_effective_from_utc']),
+        'usage_before_declared_interval')
+    return row_observation(row)|{'rates':copy.deepcopy(rates),'deployment_id':call['deployment'],'descriptor':copy.deepcopy(descriptor),
         'native_response_id_sha256':sha(encoded(payload['id'])),'provider_response_id_sha256':sha(encoded(call['provider_id']))}
 
 

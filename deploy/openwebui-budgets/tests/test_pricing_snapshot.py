@@ -19,10 +19,11 @@ import re
 import sys
 import subprocess
 from types import MappingProxyType, ModuleType, SimpleNamespace
-from typing import Any, Final, TypedDict
+from typing import Any, Final, TypedDict, cast
 import unittest
 from unittest.mock import patch
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, PrivateAttr, TypeAdapter, ValidationError, field_validator, model_validator
+from openai.types.completion_usage import CompletionUsage, CompletionTokensDetails, PromptTokensDetails
 from starlette.requests import Request
 
 
@@ -112,12 +113,49 @@ class PricingSnapshotTests(unittest.TestCase):
                           redact_message_input_output_from_custom_logger=lambda **kwargs: kwargs["result"],
                           verbose_logger=logging.getLogger(__name__), traceback=__import__("traceback"))
         execute([driver], cls.native)
+        # Actual native representations and protected global-router lookup.
+        cls.native.update(BaseModel=BaseModel, ConfigDict=ConfigDict, model_validator=model_validator,
+                          Any=Any, ClassVar=__import__("typing").ClassVar,
+                          Literal=__import__("typing").Literal,
+                          datetime=__import__("datetime"), uuid=__import__("uuid"),
+                          ModelAccessWindow=Any, LiteLLM_Params=Any)
+        # Execute native DTOs and its actual Responses-to-billing normalizer.
+        # OpenAI/Pydantic bases are installed dependencies, not domain doubles.
+        cls.native.update(PrivateAttr=PrivateAttr, field_validator=field_validator,
+                          CompletionUsage=CompletionUsage, CompletionTokensDetails=CompletionTokensDetails,
+                          PromptTokensDetails=PromptTokensDetails)
+        execute(selected("types/llms/base.py", {"BaseLiteLLMOpenAIResponseObject", "CachedTokensDetails"}), cls.native)
+        execute(selected("types/utils.py", {"SafeAttributeModel", "CacheCreationTokenDetails", "ServerToolUse",
+                "CompletionTokensDetailsWrapper", "PromptTokensDetailsWrapper", "Usage",
+                "text_tokens_without_nested_reasoning"}), cls.native)
+        execute(selected("types/llms/openai.py", {"InputTokensDetails", "OutputTokensDetails", "ResponseAPIUsage"}), cls.native)
+        for name in ("Usage", "PromptTokensDetailsWrapper", "CompletionTokensDetailsWrapper",
+                     "InputTokensDetails", "OutputTokensDetails", "ResponseAPIUsage"):
+            cls.native[name].model_rebuild(_types_namespace=cls.native)
+        logging_utils = selected("responses/utils.py", {"ResponseAPILoggingUtils"})[0]
+        execute(selected("responses/utils.py", {"_output_token_detail"}) + [
+            ast.ClassDef(name="ResponseAPILoggingUtils", bases=[], keywords=[], decorator_list=[], body=[
+                node for node in logging_utils.body if getattr(node, "name", None) in
+                {"_transform_response_api_usage_to_chat_usage", "_is_response_api_usage"}])], cls.native)
+        cls.native.update(cast=cast, math=__import__("math"), TypeAdapter=TypeAdapter, ValidationError=ValidationError)
+        execute(selected("litellm_core_utils/llm_cost_calc/utils.py", {
+            "PromptTokensDetailsResult", "CompletionTokensDetailsResult", "_get_token_detail_value", "_coerce_token_count",
+            "parse_prompt_tokens_details", "parse_completion_tokens_details", "_cache_token_counts", "_reasoning_token_count"}), cls.native)
+        guardrail_tree = tree("litellm_core_utils/llm_cost_calc/guardrail_cost.py")
+        execute(selected("litellm_core_utils/llm_cost_calc/guardrail_cost.py", {"GuardrailCostEntry"}) + [
+            node for node in guardrail_tree.body if isinstance(node, ast.AnnAssign)
+            and getattr(node.target, "id", None) == "_GUARDRAIL_COST_ENTRY_ADAPTER"] + selected(
+                "litellm_core_utils/llm_cost_calc/guardrail_cost.py", {
+                    "_billable_entry_cost", "_validated_entry_cost", "guardrail_information_cost", "cost_breakdown_with_guardrail"}), cls.native)
         modules = {}
         for name, values in {
             "litellm.integrations.custom_logger": {"CustomLogger": cls.base},
             "litellm.litellm_core_utils.core_helpers": {"get_litellm_metadata_from_kwargs": cls.native["get_litellm_metadata_from_kwargs"]},
             "litellm.litellm_core_utils.litellm_logging": {"Logging": cls.native["Logging"]},
-            "litellm.litellm_core_utils.llm_cost_calc.utils": {"BilledTokenRates": cls.native["BilledTokenRates"]},
+            "litellm.litellm_core_utils.llm_cost_calc.utils": {key: cls.native[key] for key in
+                ("BilledTokenRates", "_cache_token_counts", "_reasoning_token_count")},
+            "litellm.litellm_core_utils.llm_cost_calc.guardrail_cost": {"guardrail_information_cost": cls.native["guardrail_information_cost"]},
+            "litellm.types.utils": {"Usage": cls.native["Usage"]},
         }.items():
             module = ModuleType(name)
             module.__dict__.update(values)
@@ -130,12 +168,6 @@ class PricingSnapshotTests(unittest.TestCase):
         shadow.GuardrailRequestSnapshot = object  # Unused guardrails_applied=False branch.
         cls.native_import_modules = {**modules, "litellm.integrations.shadow_eval_logger": shadow}
 
-        # Actual native representations and protected global-router lookup.
-        cls.native.update(BaseModel=BaseModel, ConfigDict=ConfigDict, model_validator=model_validator,
-                          Any=Any, ClassVar=__import__("typing").ClassVar,
-                          Literal=__import__("typing").Literal,
-                          datetime=__import__("datetime"), uuid=__import__("uuid"),
-                          ModelAccessWindow=Any, LiteLLM_Params=Any)
         execute(selected("types/utils.py", {"CustomPricingLiteLLMParams", "MirroredPricingParams"}), cls.native)
         execute(selected("types/router.py", {"_as_utc", "ModelInfo"}), cls.native)
         cls.native["ModelInfo"].model_rebuild(_types_namespace=cls.native)
@@ -249,8 +281,18 @@ class PricingSnapshotTests(unittest.TestCase):
                                  cost_for_built_in_tools_cost_usd_dollar=0., billed_token_rates=rates)
         return rates
 
-    def run_hooks(self, owner):
-        return asyncio.run(self.native["run_hooks"](owner, owner.dynamic_async_success_callbacks, object()))
+    def billing_result(self):
+        return SimpleNamespace(usage=self.native["Usage"](prompt_tokens=10, completion_tokens=5, total_tokens=15))
+
+    def responses_usage(self, value=None):
+        raw = {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15,
+               "input_tokens_details": {"cached_tokens": 6},
+               "output_tokens_details": {"reasoning_tokens": 2}} if value is None else value
+        return self.native["ResponseAPILoggingUtils"]._transform_response_api_usage_to_chat_usage(raw)
+
+    def run_hooks(self, owner, result=None):
+        return asyncio.run(self.native["run_hooks"](owner, owner.dynamic_async_success_callbacks,
+                                                   self.billing_result() if result is None else result))
 
     def bucket(self, owner):
         return self.native["get_litellm_metadata_from_kwargs"](owner.model_call_details)["spend_logs_metadata"]
@@ -282,24 +324,30 @@ class PricingSnapshotTests(unittest.TestCase):
                                               "normalize_request_route": self.native["normalize_request_route"]})
         return identity
 
-    def protected_owner(self, descriptor=None, http_request=None):
+    def protected_owner(self, descriptor=None, http_request=None, deployment=None, call_type="acompletion"):
+        http_request = http_request or self.http_request("/v1/responses" if call_type in ("responses", "aresponses") else "/v1/chat/completions")
         declaration = self.descriptor() if descriptor is None else descriptor
-        deployment = {"model_name": "goal584-a", "litellm_params": {"model": "openai/goal584-fake-a"},
+        deployment = copy.deepcopy(deployment) if deployment is not None else {"model_name": "goal584-a", "litellm_params": {"model": "openai/goal584-fake-a"},
                       "model_info": {"id": "goal584-price-a-v1", "input_cost_per_token": .01,
                                      "output_cost_per_token": .02, self.adapter.DESCRIPTOR_KEY: declaration}}
         router = self.native["Router"]()
         router.model_list = [copy.deepcopy(deployment)]
-        router.model_id_to_deployment_index_map = {"goal584-price-a-v1": 0}
+        router.model_id_to_deployment_index_map = {deployment["model_info"]["id"]: 0}
         router.default_litellm_params = {}
         router.cache = None
         router._get_timeout = lambda **kwargs: 30  # Unrelated timeout lookup only.
         router.get_model_group_info = lambda **kwargs: SimpleNamespace(configurable_clientside_auth_params=None)
         context = self.owner().model_call_details
-        request = json.loads(json.dumps({"model": "goal584-a", "messages": context["messages"], "tools": context["tools"],
+        request = json.loads(json.dumps({"model": deployment["model_name"], "messages": context["messages"], "tools": context["tools"],
                    "metadata": {"spend_logs_metadata": {}, "model_info": {"id": "forged", self.adapter.DESCRIPTOR_KEY: {"forged": True}}},
                    "model_info": {"id": "forged", self.adapter.DESCRIPTOR_KEY: {"forged": True}}}))
         before = copy.deepcopy(request)
-        self.native["is_request_body_safe"](request, {}, router, "goal584-a")
+        if call_type in ("responses", "aresponses"):
+            request.pop("messages")
+            request.pop("tools")
+            request.update(input="Hi", max_output_tokens=16, store=False, stream=False)
+            before = copy.deepcopy(request)
+        self.native["is_request_body_safe"](request, {}, router, deployment["model_name"])
         self.native["_strip_client_pricing_overrides"](request)
         execute([self.request_context_assignment], {
             "data": request, "request": http_request or self.http_request(),
@@ -307,9 +355,11 @@ class PricingSnapshotTests(unittest.TestCase):
         })
         with patch.dict(sys.modules, self.native_import_modules):
             self.native["refresh_proxy_server_request_body_snapshot"](request)
-        router._update_kwargs_with_deployment(router.model_list[0], request, function_name="acompletion")
+        router._update_kwargs_with_deployment(router.model_list[0], request, function_name=call_type)
         params = self.native["get_litellm_params"](**request)
         owner = self.owner()
+        owner.call_type = call_type
+        owner._test_http_request = http_request
         owner.litellm_params = params
         owner.model_call_details["litellm_params"] = params
         self.price(owner, .01)
@@ -335,11 +385,12 @@ class PricingSnapshotTests(unittest.TestCase):
                    "litellm.proxy.auth.route_checks": checks_module}
         return owner, router, proxy.proxy_server, modules, before
 
-    def capture_protected(self, owner, modules, auth=True, auth_object=None):
+    def capture_protected(self, owner, modules, auth=True, auth_object=None, result=None):
         with patch.dict(sys.modules, modules):
-            asyncio.run(self.adapter.handler.async_pre_call_hook(auth_object or (self.bind_auth_route(self.Auth()) if auth else None), None,
-                        {"litellm_logging_obj": owner}, "acompletion"))
-            self.run_hooks(owner)
+            request = owner._test_http_request
+            asyncio.run(self.adapter.handler.async_pre_call_hook(auth_object or (self.bind_auth_route(self.Auth(), request) if auth else None), None,
+                        {"litellm_logging_obj": owner}, owner.call_type))
+            self.run_hooks(owner, result)
         return self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY]
 
     def native_settings(self, configured, database):
@@ -362,6 +413,235 @@ class PricingSnapshotTests(unittest.TestCase):
             self.assertIsInstance(store, Mapping)
             self.assertNotIsInstance(store, dict)
             return store
+
+    def responses_owner(self, version=1, qualifier="text_cache_reasoning", route="/v1/responses", call_type="aresponses"):
+        declaration = self.descriptor()
+        declaration.update(deployment_id="goal584-usage-v" + str(version), qualified_usage=qualifier)
+        cache, reasoning = (.001, .03) if version == 1 else (.009, .09)
+        info = {"id": declaration["deployment_id"], "input_cost_per_token": .01,
+                "output_cost_per_token": .02, "cache_read_input_token_cost": cache,
+                "output_cost_per_reasoning_token": reasoning, self.adapter.DESCRIPTOR_KEY: declaration}
+        deployment = {"model_name": "goal584-usage", "litellm_params": {"model": "openai/goal584-fake-usage", "mode": "responses"},
+                      "model_info": info}
+        values = self.protected_owner(deployment=deployment, call_type=call_type, http_request=self.http_request(route))
+        owner = values[0]
+        # Native63 cost-owner observations; _custom_pricing_rates is the flat
+        # override path and intentionally cannot represent a reasoning tariff.
+        rates = self.native["BilledTokenRates"](
+            input_cost_per_token=.01, output_cost_per_token=.02,
+            cache_read_input_token_cost=cache, cache_read_input_audio_token_cost=cache,
+            cache_creation_input_token_cost=.01, cache_creation_input_token_cost_above_1hr=.01,
+            output_cost_per_reasoning_token=reasoning)
+        owner.set_cost_breakdown(input_cost=.04, output_cost=.06,
+                                total_cost=.166 if version == 1 else .334,
+                                cost_for_built_in_tools_cost_usd_dollar=0., billed_token_rates=rates,
+                                cache_read_cost=.006 if version == 1 else .054,
+                                reasoning_cost=.06 if version == 1 else .18)
+        return values
+
+    def test_responses_native_usage_four_protected_terms_v1_v2_and_routes(self):
+        for version in (1, 2):
+            for route in ("/responses", "/v1/responses", "/openai/v1/responses"):
+                for call_type in ("responses", "aresponses"):
+                    with self.subTest(version=version, route=route, call_type=call_type):
+                        owner, router, proxy, modules, _ = self.responses_owner(version, route=route, call_type=call_type)
+                        usage = self.responses_usage()
+                        self.assertIs(self.responses_usage(usage), usage)
+                        self.assertEqual(usage.prompt_tokens_details.cached_tokens, 6)
+                        self.assertEqual(usage.completion_tokens_details.reasoning_tokens, 2)
+                        before = copy.deepcopy(owner.model_call_details)
+                        costs = copy.deepcopy(owner.cost_breakdown)
+                        result = SimpleNamespace(usage=usage)
+                        observed = self.capture_protected(owner, modules, result=result)
+                        self.assertEqual(observed, {"schema": 1, "availability": "available", "descriptor":
+                                         router.model_list[0]["model_info"][self.adapter.DESCRIPTOR_KEY]})
+                        # No cost, input, result or native row-owner mutation.
+                        self.assertEqual(owner.cost_breakdown, costs)
+                        self.assertEqual(owner.model_call_details["messages"], before["messages"])
+                        self.assertIs(result.usage, usage)
+                        row_metadata = self.native["_get_spend_logs_metadata"](self.native["get_litellm_metadata_from_kwargs"](owner.model_call_details))
+                        self.assertEqual(row_metadata["spend_logs_metadata"][self.adapter.DESCRIPTOR_SNAPSHOT_KEY], observed)
+
+    def test_flat_rejects_used_cache_reasoning_but_zero_unused_details_are_flat(self):
+        for details in ({"prompt_tokens_details": {"cached_tokens": 6}},
+                        {"completion_tokens_details": {"reasoning_tokens": 2}}):
+            owner, _, _, modules, _ = self.protected_owner()
+            result = {"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, **details}}
+            self.assertEqual(self.capture_protected(owner, modules, result=result), self.unknown_descriptor("usage_categories"))
+        owner, _, _, modules, _ = self.protected_owner()
+        result = {"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15,
+                            "prompt_tokens_details": {"cached_tokens": 0, "audio_tokens": 0},
+                            "completion_tokens_details": {"reasoning_tokens": 0}}}
+        self.assertEqual(self.capture_protected(owner, modules, result=result)["availability"], "available")
+
+    def test_missing_zero_malformed_native_billing_usage_remains_unconfirmed(self):
+        invalid = [None, {}, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                   {"prompt_tokens": 10, "completion_tokens": 5},
+                   {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 14}]
+        base = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        for value in (True, 10., -1, "10", float("nan")):
+            invalid.append({**base, "prompt_tokens": value})
+        for value in (True, 6., -1, 11, "6"):
+            invalid.append({**base, "prompt_tokens_details": {"cached_tokens": value}})
+        invalid += [{**base, "prompt_tokens_details": []}, {**base, "completion_tokens_details": "SECRET"}]
+        for usage in invalid:
+            with self.subTest(usage=usage):
+                owner, _, _, modules, _ = self.responses_owner()
+                self.assertEqual(self.capture_protected(owner, modules, result={"usage": usage}),
+                                 self.unknown_descriptor("usage_unconfirmed"))
+        # Actual native normalization of absent usage is zero, not raw provenance.
+        native_zero = self.native["ResponseAPILoggingUtils"]._transform_response_api_usage_to_chat_usage(None)
+        owner, _, _, modules, _ = self.responses_owner()
+        self.assertEqual(self.capture_protected(owner, modules, result=SimpleNamespace(usage=native_zero)),
+                         self.unknown_descriptor("usage_unconfirmed"))
+
+    def test_nontext_categories_and_extra_billing_never_inherit_qualified_terms(self):
+        base = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        cases = [{**base, "prompt_tokens_details": {field: 1}} for field in
+                 ("audio_tokens", "image_tokens", "video_tokens", "cache_write_tokens", "web_search_requests", "tool_use_tokens")]
+        cases += [{**base, "completion_tokens_details": {"audio_tokens": 1}},
+                  {**base, "server_tool_use": {"web_search_requests": 1}}, {**base, "cost": .5}]
+        for usage in cases:
+            owner, _, _, modules, _ = self.responses_owner()
+            self.assertEqual(self.capture_protected(owner, modules, result={"usage": usage}), self.unknown_descriptor("usage_categories"))
+        for field, value in (("tool_usage_cost", .1), ("guardrail_cost", .1), ("cache_creation_cost", .1),
+                             ("additional_costs", {"SECRET": .1}), ("margin_percent", .1), ("discount_amount", .1)):
+            owner, _, _, modules, _ = self.responses_owner()
+            owner.cost_breakdown[field] = value
+            before = copy.deepcopy(owner.cost_breakdown)
+            self.assertEqual(self.capture_protected(owner, modules, result=SimpleNamespace(usage=self.responses_usage())),
+                             self.unknown_descriptor("extra_billing"))
+            self.assertEqual(owner.cost_breakdown, before)
+
+    def test_used_rates_must_be_explicit_protected_and_match_native_billing(self):
+        for field in ("cache_read_input_token_cost", "output_cost_per_reasoning_token"):
+            for value in (None, .8, True):
+                owner, router, _, modules, _ = self.responses_owner()
+                router.model_list[0]["model_info"][field] = value
+                self.assertEqual(self.capture_protected(owner, modules, result=SimpleNamespace(usage=self.responses_usage())),
+                                 self.unknown_descriptor("rate_mismatch"))
+        owner, router, _, modules, _ = self.responses_owner()
+        for field in ("cache_read_input_token_cost", "output_cost_per_reasoning_token"):
+            router.model_list[0]["model_info"].pop(field)
+        owner.cost_breakdown.pop("cache_read_cost")
+        owner.cost_breakdown.pop("reasoning_cost")
+        self.assertEqual(self.capture_protected(owner, modules)["availability"], "available")
+
+    def test_inconsistent_category_costs_and_late_usage_do_not_relabel_a_capture(self):
+        for field in ("cache_read_cost", "reasoning_cost"):
+            owner, _, _, modules, _ = self.protected_owner()
+            owner.cost_breakdown[field] = .1
+            self.assertEqual(self.capture_protected(owner, modules), self.unknown_descriptor("usage_unconfirmed"))
+        owner, _, _, modules, _ = self.responses_owner()
+        original = self.capture_protected(owner, modules, result=SimpleNamespace(usage=self.responses_usage()))
+        with patch.dict(sys.modules, modules):
+            self.run_hooks(owner, {"usage": None})
+        self.assertEqual(self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY], original)
+        owner, _, _, modules, _ = self.responses_owner()
+        original = self.capture_protected(owner, modules, result={"usage": None})
+        with patch.dict(sys.modules, modules):
+            self.run_hooks(owner, SimpleNamespace(usage=self.responses_usage()))
+        self.assertEqual(self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY], original)
+
+    def test_native_normalization_precedes_hook_and_streaming_uses_completed_billing_usage(self):
+        helper = next(node for node in self.logging_source.body if getattr(node, "name", None) == "_success_handler_helper_fn")
+        body = next(node for node in self.logging_source.body if getattr(node, "name", None) == "_async_success_handler_body")
+        normalization = next(node.lineno for node in ast.walk(helper) if isinstance(node, ast.Call)
+                             and isinstance(node.func, ast.Attribute) and node.func.attr == "_transform_usage_objects")
+        self.assertGreater(normalization, helper.lineno)
+        called = [(node.lineno, node.func.attr) for node in ast.walk(body) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
+        self.assertLess(min(line for line, name in called if name == "_success_handler_helper_fn"),
+                        min(line for line, name in called if name == "async_logging_hook"))
+        for complete_usage, availability in ((self.billing_result(), "available"), ({"usage": None}, "unknown")):
+            owner, _, _, modules, _ = self.protected_owner()
+            owner.stream = True
+            with patch.dict(sys.modules, modules):
+                asyncio.run(self.adapter.handler.async_pre_call_hook(self.bind_auth_route(self.Auth()), None,
+                            {"litellm_logging_obj": owner}, "acompletion"))
+                self.run_hooks(owner)
+                self.assertNotIn(self.adapter.DESCRIPTOR_SNAPSHOT_KEY, self.bucket(owner))
+                owner.model_call_details["async_complete_streaming_response"] = complete_usage
+                self.run_hooks(owner, {"usage": None})
+            self.assertEqual(self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY]["availability"], availability)
+
+    def test_responses_qualifier_preserves_auth_router_and_route_family_boundaries(self):
+        for mutation, reason in (("anonymous", "eligibility"), ("clientside", "settings"),
+                                 ("foreign_selected", "selected_model_info"), ("chat_type", "call_type")):
+            owner, _, proxy, modules, _ = self.responses_owner()
+            if mutation == "clientside":
+                proxy.general_settings["allow_client_side_credentials"] = True
+            if mutation == "foreign_selected":
+                metadata = self.native["get_litellm_metadata_from_kwargs"](owner.model_call_details)
+                metadata["model_info"] = copy.deepcopy(metadata["model_info"])
+            if mutation == "chat_type":
+                owner.call_type = "acompletion"
+            before = copy.deepcopy(owner.model_call_details)
+            observed = self.capture_protected(owner, modules, auth=mutation != "anonymous",
+                                              result=SimpleNamespace(usage=self.responses_usage()))
+            self.assertEqual(observed, self.unknown_descriptor(reason))
+            self.assertEqual(self.snapshot(owner)["availability"], "available")
+            for key in (self.adapter.SNAPSHOT_KEY, self.adapter.DESCRIPTOR_SNAPSHOT_KEY):
+                del self.bucket(owner)[key]
+            self.assertEqual(owner.model_call_details, before)
+
+    def test_original_native_private_cache_counts_are_not_erased_by_serialization(self):
+        for field, index in (("_cache_read_input_tokens", 0), ("_cache_creation_input_tokens", 2)):
+            for qualifier in ("flat_input_output", "text_cache_reasoning"):
+                with self.subTest(field=field, qualifier=qualifier):
+                    usage = self.native["Usage"](prompt_tokens=10, completion_tokens=5, total_tokens=15, **{field: 2})
+                    self.assertNotIn(field, usage.model_dump())
+                    self.assertEqual(self.native["_cache_token_counts"](usage)[index], 2)
+                    declaration = self.descriptor()
+                    declaration["qualified_usage"] = qualifier
+                    owner, router, _, modules, _ = self.protected_owner(descriptor=declaration)
+                    before_usage = usage.model_dump()
+                    before_counts = self.native["_cache_token_counts"](usage)
+                    before_cost = copy.deepcopy(owner.cost_breakdown)
+                    observed = self.capture_protected(owner, modules, result=SimpleNamespace(usage=usage))
+                    # Cache creation is unsupported even when its billed rate/cost
+                    # happens to be zero; read needs an explicit protected rate.
+                    reason = "rate_mismatch" if field == "_cache_read_input_tokens" and qualifier == "text_cache_reasoning" else "usage_categories"
+                    self.assertEqual(observed, self.unknown_descriptor(reason))
+                    self.assertEqual(usage.model_dump(), before_usage)
+                    self.assertEqual(self.native["_cache_token_counts"](usage), before_counts)
+                    self.assertEqual(owner.cost_breakdown, before_cost)
+        declaration = self.descriptor()
+        declaration["qualified_usage"] = "text_cache_reasoning"
+        for protected_rate, available in ((.01, True), (.02, False)):
+            owner, router, _, modules, _ = self.protected_owner(descriptor=declaration)
+            router.model_list[0]["model_info"]["cache_read_input_token_cost"] = protected_rate
+            usage = self.native["Usage"](prompt_tokens=10, completion_tokens=5, total_tokens=15,
+                                         _cache_read_input_tokens=2)
+            observed = self.capture_protected(owner, modules, result=SimpleNamespace(usage=usage))
+            self.assertEqual(observed["availability"], "available" if available else "unknown")
+            if not available:
+                self.assertEqual(observed["reason"], "rate_mismatch")
+
+    def test_actual_native_guardrail_metadata_fee_enriches_row_copy_not_owner(self):
+        for fee, in_spend, expected in ((.1, True, "unknown"), (.1, False, "available"), (0., True, "available")):
+            with self.subTest(fee=fee, in_spend=in_spend):
+                owner, _, _, modules, _ = self.protected_owner()
+                metadata = self.native["get_litellm_metadata_from_kwargs"](owner.model_call_details)
+                entries = [{"guardrail_name": "fixed-reviewed-fee", "guardrail_cost": fee,
+                            "guardrail_cost_in_spend": in_spend}]
+                metadata["standard_logging_guardrail_information"] = entries
+                before = copy.deepcopy(owner.cost_breakdown)
+                native_fee = self.native["guardrail_information_cost"](entries)
+                self.assertEqual(native_fee, fee if in_spend else 0.)
+                row_breakdown = self.native["cost_breakdown_with_guardrail"](owner.cost_breakdown, native_fee)
+                if native_fee > 0:
+                    self.assertIsNot(row_breakdown, owner.cost_breakdown)
+                    self.assertEqual(row_breakdown["guardrail_cost"], .1)
+                    self.assertNotIn("guardrail_cost", owner.cost_breakdown)
+                observed = self.capture_protected(owner, modules)
+                self.assertEqual(observed["availability"], expected)
+                if expected == "unknown":
+                    self.assertEqual(observed["reason"], "extra_billing")
+                self.assertEqual(owner.cost_breakdown, before)
+                self.assertIs(metadata["standard_logging_guardrail_information"], entries)
+        body = selected("litellm_core_utils/litellm_logging.py", {"get_standard_logging_object_payload"})[0]
+        calls = {node.func.id for node in ast.walk(body) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertTrue({"guardrail_information_cost", "cost_breakdown_with_guardrail"} <= calls)
 
     def test_actual_native_settings_store_preserves_config_ownership_and_auth_guard(self):
         key = "allow_client_side_credentials"
@@ -499,7 +779,7 @@ class PricingSnapshotTests(unittest.TestCase):
         self.run_hooks(owner)
         self.assertNotIn(self.adapter.SNAPSHOT_KEY, self.bucket(owner))
         self.price(owner, .001)
-        owner.model_call_details["async_complete_streaming_response"] = object()
+        owner.model_call_details["async_complete_streaming_response"] = self.billing_result()
         self.run_hooks(owner)
         self.assertEqual(self.snapshot(owner)["availability"], "available")
 
@@ -627,7 +907,8 @@ class PricingSnapshotTests(unittest.TestCase):
                     if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
                     and target.id == "DESCRIPTOR_UNKNOWN_REASONS" for target in node.targets))
         expected = ("eligibility", "call_type", "request_body", "selected_model_info", "model_id", "settings",
-                    "router", "deployment", "clientside_auth", "protected_id", "declaration", "billed_rates", "rate_mismatch")
+                    "router", "deployment", "clientside_auth", "protected_id", "declaration", "billed_rates", "rate_mismatch",
+                    "usage_unconfirmed", "usage_categories", "extra_billing")
         self.assertEqual(ast.literal_eval(node.value), expected)
         self.assertEqual(self.adapter.DESCRIPTOR_UNKNOWN_REASONS, expected)
         self.assertEqual(len(set(expected)), len(expected))
@@ -724,7 +1005,7 @@ class PricingSnapshotTests(unittest.TestCase):
                         {"litellm_logging_obj": owner}, "acompletion"))
             self.run_hooks(owner)
             self.assertNotIn(self.adapter.DESCRIPTOR_SNAPSHOT_KEY, self.bucket(owner))
-            owner.model_call_details["async_complete_streaming_response"] = object()
+            owner.model_call_details["async_complete_streaming_response"] = self.billing_result()
             self.run_hooks(owner)
             self.assertEqual(self.bucket(owner)[self.adapter.DESCRIPTOR_SNAPSHOT_KEY]["availability"], "available")
 

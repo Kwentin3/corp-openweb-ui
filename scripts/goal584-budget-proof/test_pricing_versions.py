@@ -34,8 +34,8 @@ CALLBACK=Path(__file__).resolve().parents[2]/'deploy/openwebui-budgets/pricing_s
 def approved_blobs(test):
     # Candidate Git-index bytes must match these frozen reviewed LF hashes.
     # CI's checked-out index is the tested commit; local WIP must be staged.
-    paths={'pricing_snapshot.py':('deploy/openwebui-budgets/pricing_snapshot.py','7c36fb9dd2b1f9dc0d67c551d2b25d8f1d768376234e8a12bb8a07ad100a0c31'),
-        'prove_pricing_catalog.py':('scripts/goal584-budget-proof/prove_pricing_catalog.py','454a8bf43041edf364a503bb3d42bca337774a89e05a13d89d5cb91d485d9dbc')}
+    paths={'pricing_snapshot.py':('deploy/openwebui-budgets/pricing_snapshot.py','64f67133962c780cbf6ae743863a7250fa6a427217c6f4981eaf860a799bad81'),
+        'prove_pricing_catalog.py':('scripts/goal584-budget-proof/prove_pricing_catalog.py','1fc705d7348374428fe40690ae5973f05fec8bb206d9622a07a520ab671ad519')}
     values={}
     for name,(path,expected) in paths.items():
         try:raw=subprocess.check_output(['git','-c','gc.auto=0','show',':'+path],cwd=Path(__file__).resolve().parents[2],

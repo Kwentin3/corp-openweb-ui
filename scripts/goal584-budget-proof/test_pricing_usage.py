@@ -91,7 +91,7 @@ def row(s,c):
         .03 if c['label']=='positive_v1' else .09)))
     inner=c['lineage']|{'owui_billed_token_rates':{'schema':1,'availability':'available',
         'observed_at_utc':'2026-11-04T12:00:00Z','rates':rates},'owui_tariff_descriptor':{
-        'schema':1,'availability':'unknown','descriptor':None,'reason':'eligibility'}}
+        'schema':1,'availability':'available','descriptor':M.declaration(M.ALIASES[0],'v1' if c['label']=='positive_v1' else 'v2')}}
     return {'request_id':c['response']['id'],'user':USER,'api_key':s['keys'][M.ALIASES[0]]['hash'],
         'model':'openai/'+M.WIRES[0],'model_group':M.ALIASES[0],'model_id':c['deployment'],'session_id':c['lineage']['chat_id'],
         'status':'success','spend':float(c['cost']),**V.USAGE,'metadata':json.dumps({'spend_logs_metadata':inner})}
@@ -147,7 +147,12 @@ class UsageTests(unittest.TestCase):
         self.assertEqual([v['model_name'] for v in v1['model_list'][2:]],list(M.ALIASES))
         left,right=v1['model_list'][2],v2['model_list'][2]
         self.assertEqual(left['litellm_params'],{'model':'openai/'+M.WIRES[0],'api_base':'http://provider:8000/v1','api_key':'synthetic-provider-only-not-a-credential'})
-        self.assertEqual(left['model_info']|{'id':right['model_info']['id'],'cache_read_input_token_cost':.009,'output_cost_per_reasoning_token':.09},right['model_info'])
+        self.assertEqual(left['model_info']|{'id':right['model_info']['id'],'cache_read_input_token_cost':.009,
+            'output_cost_per_reasoning_token':.09,'owui_pricing':M.declaration(M.ALIASES[0],'v2')},right['model_info'])
+        for model in v1['model_list'][2:]:
+            descriptor=model['model_info']['owui_pricing']
+            self.assertEqual(descriptor,M.declaration(model['model_name'],'v1'))
+            self.assertEqual(descriptor['qualified_usage'],'text_cache_reasoning')
         self.assertEqual(v1['model_list'][3:],v2['model_list'][3:])
         with self.assertRaises(M.ProofError):M.configuration(BASE,'v3')
 
@@ -161,6 +166,8 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(first['raw_row_count'],2);self.assertEqual(len(first['positive_rows']),2)
         self.assertEqual(first['positive_rows'][0]['rates']['cache_read_input_token_cost'],.001)
         self.assertEqual(first['positive_rows'][1]['rates']['output_cost_per_reasoning_token'],.09)
+        self.assertEqual([item['descriptor'] for item in first['positive_rows']],
+            [{'schema':1,'availability':'available','descriptor':M.declaration(M.ALIASES[0],v)} for v in ('v1','v2')])
         self.assertEqual(first['old_history_sha256'],M.sha(M.encoded(s['old_history'])))
         self.assertTrue(all(m=='GET' for m,_,_ in queries));self.assertTrue(self.saved)
         changed=[row(s,c) for c in s['calls']];changed[0]['metadata']+=' '
@@ -189,6 +196,84 @@ class UsageTests(unittest.TestCase):
                     r['metadata']=json.dumps(meta)
                 n,_=self.native(s,rows=[r],values=values)
                 with self.assertRaisesRegex(M.ProofError,expected.get(mutation,'usage_positive_identity_cost')):M.observe(n,s)
+
+    def test_positive_descriptor_requires_exact_protected_declaration_and_available_owner_result(self):
+        fields={'schema':True,'deployment_id':'foreign-v1','currency':'EUR','source_ref':'fixture:foreign',
+            'source_url':'https://example.invalid/foreign','source_checked_at_utc':'2026-11-03T00:00:00Z',
+            'declared_effective_from_utc':'2026-11-03T00:00:00Z','declared_effective_until_utc':'2026-12-01T00:00:00Z',
+            'activation_ref':'fixture:foreign-activation','qualified_usage':'flat_input_output'}
+        for version in ('v1','v2'):
+            for field,value in fields.items():
+                with self.subTest(version=version,field=field):
+                    private=state();call=private['calls'][0 if version=='v1' else 1];raw=row(private,call)
+                    meta=json.loads(raw['metadata']);meta['spend_logs_metadata']['owui_tariff_descriptor']['descriptor'][field]=value
+                    raw['metadata']=json.dumps(meta)
+                    with self.assertRaisesRegex(M.ProofError,'usage_positive_descriptor'):M.positive_row(raw,private,call)
+            private=state();call=private['calls'][0 if version=='v1' else 1];raw=row(private,call)
+            meta=json.loads(raw['metadata'])
+            meta['spend_logs_metadata']['owui_tariff_descriptor']['descriptor']=M.declaration(M.ALIASES[0],'v2' if version=='v1' else 'v1')
+            raw['metadata']=json.dumps(meta)
+            with self.assertRaisesRegex(M.ProofError,'usage_positive_descriptor'):M.positive_row(raw,private,call)
+            for field in ('input_cost_per_token','output_cost_per_token','cache_read_input_token_cost','output_cost_per_reasoning_token'):
+                with self.subTest(version=version,rate=field):
+                    raw=row(private,call);meta=json.loads(raw['metadata'])
+                    meta['spend_logs_metadata']['owui_billed_token_rates']['rates'][field]+=1
+                    raw['metadata']=json.dumps(meta)
+                    with self.assertRaisesRegex(M.ProofError,'usage_protected_native_rates'):M.positive_row(raw,private,call)
+        for bad in (None,{}, {'schema':True,'availability':'available','descriptor':M.declaration(M.ALIASES[0],'v1')},
+                    {'schema':1,'availability':'unknown','descriptor':None,'reason':'usage'},
+                    {'schema':1,'availability':'available','descriptor':None}):
+            with self.subTest(bad=bad):
+                private=state(1);call=private['calls'][0];raw=row(private,call)
+                meta=json.loads(raw['metadata']);meta['spend_logs_metadata']['owui_tariff_descriptor']=bad;raw['metadata']=json.dumps(meta)
+                with self.assertRaisesRegex(M.ProofError,'usage_positive_descriptor'):M.positive_row(raw,private,call)
+        private=state(1);call=private['calls'][0];raw=row(private,call)
+        meta=json.loads(raw['metadata']);meta['spend_logs_metadata']['owui_billed_token_rates']['observed_at_utc']='2026-11-03T23:59:59Z'
+        raw['metadata']=json.dumps(meta)
+        with self.assertRaisesRegex(M.ProofError,'usage_before_declared_interval'):M.positive_row(raw,private,call)
+
+    def test_actual_callback_native_normalized_usage_descriptor_flows_to_usage_validator(self):
+        import importlib.util
+        path=REPO/'deploy/openwebui-budgets/tests/test_pricing_snapshot.py'
+        spec=importlib.util.spec_from_file_location('usage_native_snapshot_fixture',path)
+        module=importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules,{spec.name:module}):
+            spec.loader.exec_module(module);cls=module.PricingSnapshotTests;cls.setUpClass()
+            try:
+                fixture=cls()
+                for version,mutation in (('v1',None),('v2',None),('v1','zero'),('v1','flat'),('v1','rates')):
+                    with self.subTest(version=version,mutation=mutation):
+                        private=state();call=private['calls'][0 if version=='v1' else 1]
+                        deployment=copy.deepcopy(M.configuration(BASE,version)['model_list'][2]);info=deployment['model_info']
+                        if mutation=='flat':info['owui_pricing']['qualified_usage']='flat_input_output'
+                        owner,_,_,modules,_=fixture.protected_owner(deployment=deployment,call_type='aresponses',
+                            http_request=fixture.http_request('/v1/responses'))
+                        # Existing seven-rate fixture is actual63 native observation, not new fallback pricing.
+                        billed=json.loads(row(private,call)['metadata'])['spend_logs_metadata']['owui_billed_token_rates']['rates']
+                        if mutation=='rates':billed['cache_read_input_token_cost']=.5
+                        rates=fixture.native['BilledTokenRates'](**billed)
+                        owner.set_cost_breakdown(input_cost=.04,output_cost=.06,total_cost=float(call['cost']),
+                            cost_for_built_in_tools_cost_usd_dollar=0.,billed_token_rates=rates,
+                            cache_read_cost=.006 if version=='v1' else .054,reasoning_cost=.06 if version=='v1' else .18)
+                        usage=fixture.responses_usage(copy.deepcopy(M.RAW_USAGE))
+                        if mutation=='zero':usage=fixture.native['ResponseAPILoggingUtils']._transform_response_api_usage_to_chat_usage(None)
+                        descriptor=fixture.capture_protected(owner,modules,result=SimpleNamespace(usage=usage))
+                        metadata=fixture.native['_get_spend_logs_metadata'](fixture.native['get_litellm_metadata_from_kwargs'](owner.model_call_details))
+                        self.assertEqual(metadata['spend_logs_metadata'][fixture.adapter.DESCRIPTOR_SNAPSHOT_KEY],descriptor)
+                        raw=row(private,call);meta=json.loads(raw['metadata'])
+                        meta['spend_logs_metadata'].update({key:copy.deepcopy(fixture.bucket(owner)[key])
+                            for key in (fixture.adapter.SNAPSHOT_KEY,fixture.adapter.DESCRIPTOR_SNAPSHOT_KEY)})
+                        raw['metadata']=json.dumps(meta)
+                        if mutation:
+                            expected={'zero':'usage_unconfirmed','flat':'usage_categories','rates':'rate_mismatch'}[mutation]
+                            self.assertEqual(descriptor,fixture.unknown_descriptor(expected))
+                            self.assertEqual(M.row_observation(raw)['descriptor_reason'],expected)
+                            with self.assertRaises(M.ProofError):M.positive_row(raw,private,call)
+                        else:
+                            result=M.positive_row(raw,private,call)
+                            self.assertEqual(result['descriptor'],{'schema':1,'availability':'available',
+                                'descriptor':M.declaration(M.ALIASES[0],version)})
+            finally:cls.tearDownClass()
 
     def test_old_native_profile_and_raw_history_are_independently_immutable(self):
         for changed in ('profile','row'):

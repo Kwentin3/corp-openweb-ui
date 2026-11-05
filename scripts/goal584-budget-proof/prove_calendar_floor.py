@@ -41,10 +41,10 @@ COMMAND = ["--config", "/proof/config.yaml", "--host", "0.0.0.0", "--port", "400
 HELPERS = {
     "prove_calendar_reset.py": "62589e0bf96e3df7673332e28b6a863aa1236b71cd3fee0638e42e7786ee0271",
     "prove_native_budgets.py": "e05bdcb0e14f4833960e4360387df7080adb9a17ca893f7ec65880efe2b897fa",
-    "prove_gateway_auth.py": "d1b7ef90fdcb3316a7a80bb4f738e172261b38d401abcd1db4bb6acd35172e8f",
+    "prove_gateway_auth.py": "f66b35996e41a2784b34e6ec33bde4a3b9338c1d48cc502cf30ea2f9a79ecd90",
     "prove_budget_overlap.py": "3c5b9c5b48f35c655063c66286bb0fccf5fe04c243f3f75390dd5d3323d8c522",
     "budget_errors.py": "30a86a662f0320482761a2f52310456c328e112954cf5d0557df09cb20db4abe",
-    "pricing_snapshot.py": "7c36fb9dd2b1f9dc0d67c551d2b25d8f1d768376234e8a12bb8a07ad100a0c31",
+    "pricing_snapshot.py": "64f67133962c780cbf6ae743863a7250fa6a427217c6f4981eaf860a799bad81",
     "employee_budget_assignment.py": "72b0026c862cc21adabd32a86e134dfc0cbe9ebf7e5b6ca02e7e088689315b70",
     "native_floor_identity.py": "39d28b28e3d60fb6e5989cdd4b23a2a1341277bc569f2bf3ef0eb9e32deac839",
     "manifest.json": "1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b",

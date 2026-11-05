@@ -585,7 +585,8 @@ class ServiceGatewayTests(unittest.TestCase):
 
     def run_gateway(self, *, token=None, task="title_generation", actor=USER, body_model=MODEL,
                     native_model=MODEL, api_key=SECRET, resolved_user=None, validated_user=None,
-                    required=False, assignment_user=OTHER):
+                    required=False, assignment_user=OTHER, llm_route=True,
+                    fresh_blocked=False, fresh_db_failure=False):
         assignment = load("gateway_assignment_under_test", HERE.parents[1] / "assignment.py")
         events = []
         row = SimpleNamespace(user_id=assignment_user, team_id=None, models=[MODEL],
@@ -593,6 +594,9 @@ class ServiceGatewayTests(unittest.TestCase):
                               metadata=assignment.assignment_metadata(MODEL), token="synthetic-key-hash")
         identity = copy.deepcopy(row)
         identity.user_id = assignment_user if resolved_user is None else resolved_user
+        identity.blocked = fresh_blocked
+        cached_identity = copy.deepcopy(identity)
+        cached_identity.blocked = False
         async def find_many(**kwargs):
             events.append(("assignment", kwargs))
             return [row]
@@ -604,7 +608,12 @@ class ServiceGatewayTests(unittest.TestCase):
                 return principal
             async def resolve(self, **kwargs):
                 events.append(("resolve", kwargs))
-                return identity
+                return cached_identity
+        async def get_key_object(**kwargs):
+            events.append(("fresh", kwargs))
+            if fresh_db_failure:
+                raise HTTPException(503, "Synthetic native writer unavailable")
+            return identity
         async def validate(**kwargs):
             events.append(("validate", kwargs))
             return SimpleNamespace(user_id=assignment_user if validated_user is None else validated_user,
@@ -631,8 +640,8 @@ class ServiceGatewayTests(unittest.TestCase):
         namespace = {**vars(auth), "version": lambda name: auth.REQUIRED_VERSION,
                      "litellm": SimpleNamespace(block_requests_for_models_without_pricing=True),
                      "proxy_server": proxy, "LiteLLMRoutes": SimpleNamespace(master_key_only_routes=SimpleNamespace(value=[])),
-                     "get_request_route": lambda req: "/v1/chat/completions",
-                     "RouteChecks": SimpleNamespace(is_llm_api_route=lambda route: True),
+                     "get_request_route": lambda req: "/v1/chat/completions" if llm_route else "/key/info",
+                     "RouteChecks": SimpleNamespace(is_llm_api_route=lambda route: llm_route),
                      "PrismaDBExceptionHandler": SimpleNamespace(should_allow_request_on_db_unavailable=lambda: False),
                      "get_model_from_request": lambda *args, **kwargs: native_model,
                      "_read_request_body": read, "_safe_set_request_parsed_body": lambda **kwargs: events.append(("cache", kwargs)),
@@ -641,7 +650,8 @@ class ServiceGatewayTests(unittest.TestCase):
                      "get_instance_fn": symbol, "get_chain_id_from_headers": lambda headers: None,
                      "metadata_variable_name_for_route": lambda route: "metadata",
                      "_get_anthropic_session_id_from_metadata": lambda metadata: None,
-                     "IdentityStore": Store, "validate_resolved_virtual_key": validate,
+                     "IdentityStore": Store, "get_key_object": get_key_object,
+                     "validate_resolved_virtual_key": validate,
                      "hash_token": lambda secret: "native-hash"}
         exec(compile(ast.Module(body=[gateway], type_ignores=[]), "actual_gateway_auth", "exec",
                      flags=__import__("__future__").annotations.compiler_flag), namespace)
@@ -665,7 +675,8 @@ class ServiceGatewayTests(unittest.TestCase):
         lookup = next(value for name, value in events if name == "assignment")
         self.assertEqual(lookup["where"]["user_id"], OTHER)
         self.assertEqual(events[0], ("decoder", "provenance.decode_service_call"))
-        self.assertEqual(sum(name == "resolve" for name, value in events), 1)
+        self.assertEqual(sum(name == "resolve" for name, value in events), 0)
+        self.assertEqual(sum(name == "fresh" for name, value in events), 1)
         self.assertEqual(sum(name == "validate" for name, value in events), 1)
         self.assertEqual(data["metadata"]["spend_logs_metadata"]["owui_budget"]["actor_id"], USER)
         self.assertEqual(data["messages"], [{"role": "user", "content": "actual task context"}])
@@ -685,7 +696,7 @@ class ServiceGatewayTests(unittest.TestCase):
             with self.subTest(kwargs=list(kwargs)):
                 self.assertIsInstance(result, HTTPException)
                 self.assertEqual(result.status_code, 403)
-                self.assertFalse(any(name in ("assignment", "resolve", "validate") for name, value in events))
+                self.assertFalse(any(name in ("assignment", "resolve", "fresh", "validate") for name, value in events))
 
     def test_three_native_tasks_use_the_same_payer_and_unsigned_known_tasks_stay_denied(self):
         for task in ("title_generation", "tags_generation", "follow_up_generation"):
@@ -703,7 +714,7 @@ class ServiceGatewayTests(unittest.TestCase):
             with self.subTest(task=task, signed=False):
                 self.assertIsInstance(result, HTTPException)
                 self.assertEqual(result.status_code, 403)
-                self.assertFalse(any(name in ("assignment", "resolve", "validate") for name, value in events))
+                self.assertFalse(any(name in ("assignment", "resolve", "fresh", "validate") for name, value in events))
 
     def test_resolved_and_validated_identity_must_belong_to_payer(self):
         token = protocol.encode_service_call(SECRET, user_id=USER, payer_id=OTHER, chat_id=CHAT,
@@ -733,6 +744,42 @@ class ServiceGatewayTests(unittest.TestCase):
         self.assertEqual(data["litellm_session_id"], ROOT_CHAT)
         self.assertEqual(data["litellm_trace_id"], ROOT_ANSWER)
         self.assertEqual(sum(name == "validate" for name, value in events), 1)
+
+    def test_inference_forwards_writer_fresh_blocked_identity_to_native_validator(self):
+        # This exercises the adapter's read choice and exact validation input.
+        # The native validator remains the blocked-key/reservation owner.
+        result, events, _ = self.run_gateway(token=call(), task="", assignment_user=USER,
+                                           required=True, fresh_blocked=True)
+        self.assertNotIsInstance(result, HTTPException)  # External validator is an I/O double here.
+        self.assertFalse(any(name == "resolve" for name, _ in events))
+        fresh = [value for name, value in events if name == "fresh"]
+        self.assertEqual(len(fresh), 1)
+        self.assertIs(fresh[0]["check_db_only"], True)
+        self.assertEqual(fresh[0]["hashed_token"], "synthetic-key-hash")
+        validated = [value for name, value in events if name == "validate"]
+        self.assertEqual(len(validated), 1)
+        self.assertIs(validated[0]["valid_token"].blocked, True)
+        self.assertEqual(validated[0]["valid_token"].user_id, USER)
+        self.assertLess(next(i for i, (name, _) in enumerate(events) if name == "fresh"),
+                        next(i for i, (name, _) in enumerate(events) if name == "validate"))
+
+    def test_inference_writer_failure_never_falls_back_to_cached_identity(self):
+        result, events, _ = self.run_gateway(token=call(), task="", assignment_user=USER,
+                                           required=True, fresh_db_failure=True)
+        self.assertIsInstance(result, HTTPException)
+        self.assertEqual(result.status_code, 503)
+        self.assertEqual(sum(name == "fresh" for name, _ in events), 1)
+        self.assertFalse(any(name in ("resolve", "validate") for name, _ in events))
+
+    def test_native_management_path_keeps_existing_identity_store(self):
+        result, events, _ = self.run_gateway(task=None, api_key="sk-synthetic-operator",
+                                           llm_route=False)
+        self.assertNotIsInstance(result, HTTPException)
+        self.assertEqual(sum(name == "resolve" for name, _ in events), 1)
+        self.assertFalse(any(name == "fresh" for name, _ in events))
+        validated = [value for name, value in events if name == "validate"]
+        self.assertEqual(len(validated), 1)
+        self.assertEqual(validated[0]["route"], "/key/info")
 
 
 if __name__ == "__main__":

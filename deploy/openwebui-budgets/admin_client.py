@@ -407,3 +407,16 @@ class BudgetAdminClient:
 
     async def set_model_cap(self, key_hash: str, cap: Decimal) -> None:
         await self._request("POST", "/key/update", body={"key": _key_hash(key_hash), "max_budget": _wire_cap(cap)})
+
+    async def block_model_key(self, key_hash: str) -> None:
+        """Use native management authority; caller owns assignment/policy checks.
+
+        Acknowledges the native block commit, not peer cache propagation,
+        cancellation of admitted calls or settlement of unknown usage. Never
+        retries/unblocks or edits monetary state. Writer-fresh admission is a
+        separate native read/validation contract.
+        """
+        key_hash = _key_hash(key_hash)
+        record = await self._request("POST", "/key/block", body={"key": key_hash})
+        _require(record.get("token") == key_hash and record.get("blocked") is True,
+                 "block_unconfirmed")

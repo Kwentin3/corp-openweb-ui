@@ -4,6 +4,8 @@ Source candidate for LiteLLM d665dc1a; not enabled by this module alone.
 Observed time is a capture time, never a tariff version or effective interval.
 The optional descriptor represents protected declared terms, not publication
 immutability, source checking, or native effective-interval enforcement.
+Qualification concerns categories used by native billing, not whether the
+provider reported usage or native code estimated it.
 """
 
 from __future__ import annotations
@@ -18,7 +20,9 @@ from urllib.parse import unquote, urlsplit
 from litellm.integrations.custom_logger import CustomLogger
 from litellm.litellm_core_utils.core_helpers import get_litellm_metadata_from_kwargs
 from litellm.litellm_core_utils.litellm_logging import Logging
-from litellm.litellm_core_utils.llm_cost_calc.utils import BilledTokenRates
+from litellm.litellm_core_utils.llm_cost_calc.utils import BilledTokenRates, _cache_token_counts, _reasoning_token_count
+from litellm.litellm_core_utils.llm_cost_calc.guardrail_cost import guardrail_information_cost
+from litellm.types.utils import Usage
 
 
 SNAPSHOT_KEY = "owui_billed_token_rates"
@@ -27,7 +31,8 @@ DESCRIPTOR_SNAPSHOT_KEY = "owui_tariff_descriptor"
 DESCRIPTOR_UNKNOWN_REASONS = (
     "eligibility", "call_type", "request_body", "selected_model_info", "model_id",
     "settings", "router", "deployment", "clientside_auth", "protected_id",
-    "declaration", "billed_rates", "rate_mismatch",
+    "declaration", "billed_rates", "rate_mismatch", "usage_unconfirmed",
+    "usage_categories", "extra_billing",
 )
 DESCRIPTOR_FIELDS = frozenset({
     "schema", "deployment_id", "currency", "source_ref", "source_url",
@@ -38,6 +43,7 @@ _REFERENCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
 _CREDENTIAL = re.compile(r"(?:sk-|gw-)[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 _UTC = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z\Z")
 _COMPLETION_ROUTES = frozenset({"/chat/completions", "/v1/chat/completions", "/openai/v1/chat/completions"})
+_RESPONSES_ROUTES = frozenset({"/responses", "/v1/responses", "/openai/v1/responses"})
 RATE_FIELDS = (
     "input_cost_per_token",
     "output_cost_per_token",
@@ -61,7 +67,7 @@ def _descriptor(value):
         raise ValueError("Invalid declaration schema")
     if type(value["schema"]) is not int or value["schema"] != 1:
         raise ValueError("Unknown declaration schema")
-    if type(value["qualified_usage"]) is not str or value["qualified_usage"] != "flat_input_output":
+    if type(value["qualified_usage"]) is not str or value["qualified_usage"] not in ("flat_input_output", "text_cache_reasoning"):
         raise ValueError("Unqualified pricing categories")
     for field in ("deployment_id", "source_ref", "activation_ref"):
         text = value[field]
@@ -88,14 +94,77 @@ def _descriptor(value):
     return {field: value[field] for field in DESCRIPTOR_FIELDS}
 
 
-def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route):
+def _billing_categories(result):
+    """Project canonical native billing Usage; never infer or price tokens.
+
+    Native Logging normalizes Responses usage before this hook and assembles
+    streaming usage before its complete signal. Zero cannot establish a used
+    category, including when native normalization replaced absent usage by zero.
+    """
+    usage = result.get("usage") if isinstance(result, Mapping) else getattr(result, "usage", None)
+    # Native billing can consume private Usage counters absent from model_dump.
+    # Resolve them on the original owner before taking a primitive projection.
+    native_usage = usage if isinstance(usage, Usage) else None
+    cache_counts = _cache_token_counts(native_usage) if native_usage is not None else None
+    reasoning = _reasoning_token_count(native_usage) if native_usage is not None else None
+    if callable(getattr(usage, "model_dump", None)):
+        usage = usage.model_dump()
+    if not isinstance(usage, Mapping):
+        return None, "usage_unconfirmed"
+    counts = [usage.get(field) for field in ("prompt_tokens", "completion_tokens", "total_tokens")]
+    if (any(type(value) is not int or value < 0 for value in counts)
+            or counts[2] == 0 or counts[0] + counts[1] != counts[2]):
+        return None, "usage_unconfirmed"
+    used = {"cached_tokens": 0, "reasoning_tokens": 0}
+    for field, supported, limit in (
+        ("prompt_tokens_details", ("text_tokens", "cached_tokens"), counts[0]),
+        ("completion_tokens_details", ("text_tokens", "reasoning_tokens"), counts[1]),
+    ):
+        details = usage.get(field)
+        if details is None:
+            continue
+        if callable(getattr(details, "model_dump", None)):
+            details = details.model_dump()
+        if not isinstance(details, Mapping):
+            return None, "usage_unconfirmed"
+        for key, value in details.items():
+            if value is None:
+                continue
+            if type(value) is not int or value < 0 or value > limit:
+                return None, "usage_unconfirmed"
+            if key not in supported and value != 0:
+                return None, "usage_categories"
+            if key in used:
+                used[key] = value
+    core = {"prompt_tokens", "completion_tokens", "total_tokens", "prompt_tokens_details", "completion_tokens_details"}
+    if any(value is not None and not (type(value) in (int, float) and value == 0)
+           for key, value in usage.items() if key not in core):
+        return None, "usage_categories"
+    if native_usage is None:
+        # A native assembled response can carry the canonical usage mapping.
+        # Its public fields were checked above; native Usage owns their parsing.
+        native_usage = Usage(**usage)
+        cache_counts = _cache_token_counts(native_usage)
+        reasoning = _reasoning_token_count(native_usage)
+    cache_read, cached_audio, cache_creation, creation_details = cache_counts
+    if (any(type(value) is not int or value < 0 for value in (cache_read, cached_audio, cache_creation, reasoning))
+            or cache_read > counts[0] or cached_audio > cache_read or reasoning > counts[1]):
+        return None, "usage_unconfirmed"
+    if cached_audio or cache_creation or creation_details is not None:
+        return None, "usage_categories"
+    used.update(cached_tokens=cache_read, reasoning_tokens=reasoning)
+    return used, None
+
+
+def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=None):
     unknown = {"schema": 1, "availability": "unknown", "descriptor": None,
                "reason": DESCRIPTOR_UNKNOWN_REASONS[0]}
     try:
-        if not proxy_auth or auth_route not in _COMPLETION_ROUTES or getattr(owner, "litellm_params", None) is not params:
+        if not proxy_auth or auth_route not in _COMPLETION_ROUTES | _RESPONSES_ROUTES or getattr(owner, "litellm_params", None) is not params:
             return unknown
         unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[1]
-        if getattr(owner, "call_type", None) not in ("completion", "acompletion"):
+        call_types = ("completion", "acompletion") if auth_route in _COMPLETION_ROUTES else ("responses", "aresponses")
+        if getattr(owner, "call_type", None) not in call_types:
             return unknown
         unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[2]
         request = params.get("proxy_server_request")
@@ -154,6 +223,40 @@ def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route):
                     or not math.isfinite(declared) or not math.isfinite(billed)
                     or declared < 0 or billed < 0 or declared != billed):
                 return unknown
+        unknown["reason"] = "usage_unconfirmed"
+        used, reason = _billing_categories(result)
+        if reason is not None:
+            unknown["reason"] = reason
+            return unknown
+        unknown["reason"] = "usage_categories"
+        if descriptor["qualified_usage"] == "flat_input_output" and any(used.values()):
+            return unknown
+        unknown["reason"] = "extra_billing"
+        if guardrail_information_cost(metadata.get("standard_logging_guardrail_information")) > 0:
+            return unknown
+        breakdown = getattr(owner, "cost_breakdown", None)
+        if not isinstance(breakdown, Mapping):
+            return unknown
+        for field in ("tool_usage_cost", "guardrail_cost", "cache_creation_cost", "additional_costs",
+                      "discount_percent", "discount_amount", "margin_percent", "margin_fixed_amount", "margin_total_amount"):
+            value = breakdown.get(field)
+            if value is not None and not (type(value) in (int, float) and value == 0) and value != {}:
+                return unknown
+        unknown["reason"] = "usage_unconfirmed"
+        for field, category in (("cache_read_cost", "cached_tokens"), ("reasoning_cost", "reasoning_tokens")):
+            value = breakdown.get(field)
+            if value is not None and (type(value) not in (int, float) or not math.isfinite(value)
+                                      or value < 0 or (value > 0 and used[category] == 0)):
+                return unknown
+        unknown["reason"] = "rate_mismatch"
+        for category, field in (("cached_tokens", "cache_read_input_token_cost"),
+                                ("reasoning_tokens", "output_cost_per_reasoning_token")):
+            if used[category] > 0:
+                declared, billed = getattr(protected, field, None), getattr(rates, field)
+                if (type(declared) not in (int, float) or type(billed) not in (int, float)
+                        or not math.isfinite(declared) or not math.isfinite(billed)
+                        or declared < 0 or billed < 0 or declared != billed):
+                    return unknown
         return {"schema": 1, "availability": "available", "descriptor": descriptor}
     except Exception:
         # Observability must preserve native cost handling and never export a
@@ -214,7 +317,8 @@ class _RequestSnapshot(CustomLogger):
         # Copy the representation so consumers cannot mutate the frozen capture.
         spend_metadata[SNAPSHOT_KEY] = {**self._snapshot, "rates": dict(self._snapshot["rates"])}
         if self._descriptor_snapshot is None:
-            self._descriptor_snapshot = _capture_descriptor(self._owner, params, metadata, self._proxy_auth, self._auth_route)
+            billing_result = kwargs["async_complete_streaming_response"] if getattr(self._owner, "stream", False) is True else result
+            self._descriptor_snapshot = _capture_descriptor(self._owner, params, metadata, self._proxy_auth, self._auth_route, billing_result)
         spend_metadata[DESCRIPTOR_SNAPSHOT_KEY] = copy.deepcopy(self._descriptor_snapshot)
         return kwargs, result
 
@@ -240,7 +344,7 @@ class PricingSnapshot(CustomLogger):
                     # The native auth wrapper binds this from the ASGI scope.
                     # Snapshot URL paths are Host-derived and cannot authorize.
                     auth_route = getattr(user_api_key_dict, "request_route", None)
-                    proxy_auth = type(auth_route) is str and auth_route in _COMPLETION_ROUTES and not (
+                    proxy_auth = type(auth_route) is str and auth_route in _COMPLETION_ROUTES | _RESPONSES_ROUTES and not (
                         route_in_additonal_public_routes(current_route=auth_route)
                     ) and (
                         (callable(getattr(proxy_server, "user_custom_auth", None))

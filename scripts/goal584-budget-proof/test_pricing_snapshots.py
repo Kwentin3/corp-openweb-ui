@@ -66,12 +66,20 @@ class PricingProofTests(unittest.TestCase):
         cls.row_expression = compile(ast.fix_missing_locations(ast.Expression(ast.Dict(
             keys=[ast.Constant("spend"), ast.Constant("metadata")],
             values=[expressions["spend"], expressions["metadata"]]))), "native_row_expressions", "eval")
+        # These tests qualify rate copying without native proxy auth. The
+        # descriptor helpers must remain unused; their behavior is exercised
+        # against real native owners in test_pricing_snapshot.py.
+        unused_descriptor_helper = Mock(side_effect=AssertionError("Unqualified descriptor inspected billing usage"))
+        cls.addClassCleanup(unused_descriptor_helper.assert_not_called)
         modules = {}
         for name, values in {
             "litellm.integrations.custom_logger": {"CustomLogger": base},
             "litellm.litellm_core_utils.core_helpers": {"get_litellm_metadata_from_kwargs": cls.ns["get_litellm_metadata_from_kwargs"]},
             "litellm.litellm_core_utils.litellm_logging": {"Logging": cls.ns["Logging"]},
-            "litellm.litellm_core_utils.llm_cost_calc.utils": {"BilledTokenRates": cls.ns["BilledTokenRates"]},
+            "litellm.litellm_core_utils.llm_cost_calc.utils": {"BilledTokenRates": cls.ns["BilledTokenRates"],
+                "_cache_token_counts": unused_descriptor_helper, "_reasoning_token_count": unused_descriptor_helper},
+            "litellm.litellm_core_utils.llm_cost_calc.guardrail_cost": {"guardrail_information_cost": unused_descriptor_helper},
+            "litellm.types.utils": {"Usage": type("UnusedUsage", (), {})},
         }.items():
             module = ModuleType(name); module.__dict__.update(values); modules[name] = module
         spec = importlib.util.spec_from_file_location("pricing_snapshot", ADAPTER)

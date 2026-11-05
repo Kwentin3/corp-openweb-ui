@@ -614,8 +614,9 @@ class NativeSourceTests(unittest.TestCase):
                 return stream
         old=['/openapi.json','/user/new','/user/update','/user/info',
             '/key/generate','/key/update','/key/info','/key/list','/spend/logs/v2']
-        self.assertEqual([route for route in private_owner.OPERATOR_ROUTES if route!='/user/list'],old)
+        self.assertEqual([route for route in private_owner.OPERATOR_ROUTES if route not in ('/user/list','/key/block')],old)
         self.assertEqual(private_owner.OPERATOR_ROUTES.count('/user/list'),1)
+        self.assertEqual(private_owner.OPERATOR_ROUTES.count('/key/block'),1)
         with patch.dict(sys.modules,{registry.__name__:registry}):
             for routes,expected_status in ((old,403),(private_owner.OPERATOR_ROUTES,200)):
                 with self.subTest(operator_routes=routes):
@@ -633,6 +634,7 @@ class NativeSourceTests(unittest.TestCase):
                 (private_owner.OPERATOR_ROUTES,'proxy_admin','/key/delete','POST'),
                 (private_owner.OPERATOR_ROUTES,'proxy_admin','/user/listing','GET'),
                 (['llm_api_routes'],'internal_user','/user/list','GET'),
+                (['llm_api_routes'],'internal_user','/key/block','POST'),
                 (['llm_api_routes'],'internal_user','/user/delete','POST')):
                 with self.subTest(role=role,route=route),self.assertRaises(HTTPException) as denied:
                     gate.is_virtual_key_allowed_to_call_route(route=route,
@@ -641,6 +643,9 @@ class NativeSourceTests(unittest.TestCase):
                 self.assertEqual(denied.exception.status_code,403)
             self.assertTrue(gate.is_virtual_key_allowed_to_call_route(route='/v1/chat/completions',
                 valid_token=SimpleNamespace(allowed_routes=['llm_api_routes'],metadata={},user_role='internal_user'),
+                request=SimpleNamespace(method='POST')))
+            self.assertTrue(gate.is_virtual_key_allowed_to_call_route(route='/key/block',
+                valid_token=SimpleNamespace(allowed_routes=private_owner.OPERATOR_ROUTES,metadata={},user_role='proxy_admin'),
                 request=SimpleNamespace(method='POST')))
 
     def test_actual_native_release_finalizes_once_and_failure_hook_passes_zero_audit_to_native_writer(self):
