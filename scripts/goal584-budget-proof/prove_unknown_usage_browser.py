@@ -1,4 +1,4 @@
-"""Six ordinary nonstream Sends on the existing prepared Office stand.
+"""Six ordinary Sends through the native whole-provider-response profile.
 
 Host/browser observation only. Native models/settings/chat persistence and the
 separate collector own authorization, accounting, provider dispatch and policy.
@@ -100,28 +100,28 @@ def configure_settings(page, base_url, token, packet):
         panel = page.locator('#tab-' + tab)
         expect(panel).to_be_visible()
         return panel
-    def update(action, path):
+    def update(action, path, expected=False):
         with page.expect_response(lambda r: same_origin(r.url, base_url, SETTINGS + '/update')
                 and r.request.method == 'POST', timeout=30_000) as pending:
             action()
         response = pending.value
         acknowledged = response_json(response, base_url, SETTINGS + '/update')
         submitted = response.request.post_data_json
-        require(isinstance(submitted, dict) and setting(submitted, path) is False,
+        require(isinstance(submitted, dict) and setting(submitted, path) is expected,
                 'Unknown GUI visible settings control submitted a different preference')
         effective = read(page.context, base_url, token, SETTINGS)
-        require(setting(acknowledged, path) is False and setting(effective, path) is False,
+        require(setting(acknowledged, path) is expected and setting(effective, path) is expected,
                 'Unknown GUI settings acknowledgement did not change its effective preference')
         packet['settings_updates'].append({'submitted': submitted, 'acknowledged': acknowledged, 'effective': effective})
     panel = open_settings('general')
     panel.get_by_role('button', name='Show', exact=True).click()
     stream = panel.get_by_text('Stream Chat Response', exact=True).locator('..').get_by_role('button')
     for _ in range(2):
-        if stream.inner_text().strip() == 'Off': break
-        require(stream.inner_text().strip() in ('Default', 'On'), 'Unknown GUI streaming preference control differs')
+        if stream.inner_text().strip() == 'On': break
+        require(stream.inner_text().strip() in ('Default', 'Off'), 'Unknown GUI streaming preference control differs')
         stream.click()
-    expect(stream).to_have_text('Off')
-    update(lambda: panel.get_by_role('button', name='Save', exact=True).click(), 'params.stream_response')
+    expect(stream).to_have_text('On')
+    update(lambda: panel.get_by_role('button', name='Save', exact=True).click(), 'params.stream_response', True)
     # Native General Save shows a toast and keeps Settings open.
     page.locator('#settings-tabs-container [role="tab"][aria-controls="tab-interface"]').click()
     panel = page.locator('#tab-interface')
@@ -136,8 +136,8 @@ def configure_settings(page, base_url, token, packet):
         expect(control).to_have_attribute('aria-checked', 'false')
     page.locator('#settings-tabs-container').get_by_role('button', name='Back', exact=True).click()
     after = read(page.context, base_url, token, SETTINGS)
-    require(all(setting(after, key) is False for key in
-                ('params.stream_response', 'title.auto', 'autoTags', 'autoFollowUps')),
+    require(setting(after, 'params.stream_response') is True and all(setting(after, key) is False for key in
+                ('title.auto', 'autoTags', 'autoFollowUps')),
             'Unknown GUI effective personal preferences differ')
     settings_preserved(before, after)
     packet['settings_after'] = after
@@ -145,7 +145,7 @@ def configure_settings(page, base_url, token, packet):
 
 
 def submission(sent, model):
-    require(isinstance(sent, dict) and sent.get('model') == model and sent.get('stream') is False,
+    require(isinstance(sent, dict) and sent.get('model') == model and sent.get('stream') is True,
             'Unknown GUI submitted model/stream differs')
     user = sent.get('user_message')
     require(isinstance(user, dict) and user.get('role') == 'user' and user.get('parentId') is None

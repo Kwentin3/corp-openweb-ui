@@ -68,7 +68,7 @@ def packet_calls(packet, actor, foreign_actor):
                 and sent.get('chat_id',chat)==chat
                 and call.get('task_ids') == [] and call.get('model') == sent.get('model') == alias
                 and sent.get('message_ids')==[{'model_id':alias,'message_id':answer,'modelIdx':0}]
-                and sent.get('stream') is False and sent.get('parent_id') is None
+                and sent.get('stream') is True and sent.get('parent_id') is None
                 and user.get('role') == 'user' and user.get('parentId') is None and user.get('content') == 'Hi'
                 and sent.get('background_tasks') == {'title_generation': False, 'tags_generation': False, 'follow_up_generation': False}
                 and not any(sent.get(k) for k in ('messages', 'tool_ids', 'skill_ids', 'files', 'tool_servers', 'regeneration_prompt')),
@@ -125,7 +125,7 @@ def provider_suffix(before, after):
     for record, index in zip(rows[len(old):], (0, 1, 2, 0)):
         expected = {'model': P.WIRES[index], 'input': [{'type': 'message', 'role': 'user',
                     'content': [{'type': 'input_text', 'text': 'Hi'}]}],
-                    'max_output_tokens': 16, 'store': False, 'stream': False}
+                    'max_output_tokens': 16, 'store': False}
         life, response = record.get('lifecycle', {}), record.get('response', {})
         require(record.get('route') == '/v1/responses' and record.get('body') == expected
                 and record.get('id_kind') == 'provider_response' and isinstance(record.get('id'), str)
@@ -232,7 +232,7 @@ async def execute(phase):
     if phase == 'setup': return await setup_unknown_usage_gui(webui, common, office, STATE)
     state = P.fixture.read_private(STATE); require(state.get('stage') == 'setup_complete', 'unknown_gui_setup')
     actor = state['users'][0]; webui.session(actor, 'user')
-    native = P.fixture.native_client(); route = P.routing(native)
+    native = P.fixture.native_client(); route = P.routing(native, buffered=True)
     operator = P.fixture.read_private(P.fixture.OPERATOR_STATE); viewer = common['cost_reader']
     reader_readback(native, common)
     async with P.ClientSession(trust_env=False) as session:

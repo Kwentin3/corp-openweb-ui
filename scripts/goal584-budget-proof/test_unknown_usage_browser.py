@@ -260,12 +260,12 @@ class UnknownBrowserTests(unittest.TestCase):
                 self.assertIn('contradicts', packet['failure']['message'])
 
     def test_failed_stream_submission_retains_full_actual_attempt_and_ack(self):
-        safe, packet, failure, world = self.exercise(lambda w: setattr(w, 'submit_mutation', lambda sent: sent.update(stream=True)))
+        safe, packet, failure, world = self.exercise(lambda w: setattr(w, 'submit_mutation', lambda sent: sent.update(stream=False)))
         self.assertIsNone(safe); self.assertIsNotNone(failure)
         self.assertEqual(len(packet['calls']), 1)
         call = packet['calls'][0]
         self.assertEqual(call['submitted'], world.sent)
-        self.assertIs(call['submitted']['stream'], True)
+        self.assertIs(call['submitted']['stream'], False)
         self.assertEqual(call['http_status'], 200)
         self.assertEqual(call['acknowledgement'], world.last.value)
 
@@ -286,7 +286,7 @@ class UnknownBrowserTests(unittest.TestCase):
                     self.assertEqual(json.loads(packet['calls'][0]['response_body']), world.last.value)
 
     def test_stream_context_background_and_selection_mutations_stop_before_native_polling(self):
-        mutations = [lambda s: s.update(stream=True), lambda s: s.update(model='foreign'),
+        mutations = [lambda s: s.update(stream=False), lambda s: s.update(model='foreign'),
             lambda s: s['background_tasks'].update(tags_generation=True), lambda s: s['background_tasks'].pop('title_generation'),
             lambda s: s.update(messages=[{'role': 'system', 'content': 'invented'}]),
             lambda s: s['user_message'].update(parentId=OTHER), lambda s: s['user_message'].update(content='different'),
@@ -339,7 +339,8 @@ class UnknownBrowserTests(unittest.TestCase):
                     self.assertEqual(packet['foreign_chat_detail'], 'Invalid token')
 
     def test_foreign_chat_contract_matches_pinned_native_router_and_not_found_constant(self):
-        repo = HERE.parents[1] / 'local/goal584/cost-display/open-webui'
+        repo = Path(os.environ.get('GOAL584_FRONTEND_SOURCE_ROOT',
+                    str(HERE.parents[1] / 'local/goal584/cost-display/open-webui/src'))).parent
         if not (repo / '.git').exists(): self.skipTest('Exact native source cache unavailable')
         revision = '6a18585ff4c2e5f6805f682222cfbc46dc669ef8'
         expected = {'backend/open_webui/routers/chats.py': '510269b6f69c8f634d2d93a6dc0605453fd5ececebf55c3ef3575532b3bc5eb3',
@@ -392,7 +393,7 @@ class UnknownBrowserTests(unittest.TestCase):
         toggle = re.search(r'params.stream_response =\s*(.*?);', advanced, re.S)[1]
         background = chat.split('background_tasks: {', 1)[1].split('\n\t\t\t\t}', 1)[0]
         title = interface.split('const toggleTitleAutoGenerate = async () => {', 1)[1].split('\n\t};', 1)[0]
-        script = '''const $settings={params:{stream_response:false},title:{auto:false},autoTags:false,autoFollowUps:false};
+        script = '''const $settings={params:{stream_response:true},title:{auto:false},autoTags:false,autoFollowUps:false};
 const model={info:{params:{}}}, params={stream_response:null};
 const $temporaryChatEnabled=false,_chatId=null,embedded=false,userMessage={parentId:null};
 const _history={},responseMessageId='native-answer',createMessagesList=()=>[];
@@ -404,7 +405,7 @@ let submitted;const saveSettings=v=>submitted=v,currentSettings={title:{other:'p
         for key, value in [('STREAM', stream), ('BACKGROUND', background), ('TOGGLE', toggle), ('TITLE', title)]: script = script.replace(key, value)
         result = subprocess.run(['node', '-e', script], capture_output=True, timeout=10, check=True)
         replay = json.loads(result.stdout)
-        self.assertEqual(replay['body'], {'stream': False, 'background_tasks': {'title_generation': False, 'tags_generation': False, 'follow_up_generation': False}})
+        self.assertEqual(replay['body'], {'stream': True, 'background_tasks': {'title_generation': False, 'tags_generation': False, 'follow_up_generation': False}})
         self.assertEqual(replay['cycle'], [True, False, None])
         self.assertEqual(replay['submitted'], {'title': {'other': 'preserved', 'auto': False}})
         self.assertIn('stream_response: params.stream_response !== null ? params.stream_response : undefined', general)

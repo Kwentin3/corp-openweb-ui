@@ -87,7 +87,7 @@ def known_proxy_usage(value):
         for k, field in (("input_tokens_details", "cached_tokens"), ("output_tokens_details", "reasoning_tokens")))
 
 
-def routing(native):
+def routing(native, *, buffered=False):
     data = native.ok("GET", "/model/info").get("data")
     require(isinstance(data, list), "unknown_model_info")
     selected = []
@@ -101,8 +101,11 @@ def routing(native):
                 and info.get("id") == alias + "-v1" and info.get("mode") == "responses"
                 and all(type(info.get(k)) in (int, float) and info[k] == v for k, v in rates.items()),
                 "unknown_non_synthetic_route_or_rates")
+        if buffered:
+            require(info.get("supports_native_streaming") is False, "unknown_unbuffered_deployment")
         selected.append({"alias": alias, "wire": params["model"], "base": params["api_base"],
-                         "id": info["id"], "rates": rates})
+                         "id": info["id"], "rates": rates,
+                         **({"supports_native_streaming": False} if buffered else {})})
     return digest(selected)
 
 
