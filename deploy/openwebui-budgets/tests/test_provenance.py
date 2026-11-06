@@ -191,6 +191,11 @@ class BoundaryTests(unittest.TestCase):
         validation = next(node for node in calls if node.func.id == "validate_resolved_virtual_key")
         self.assertLess(prepare.lineno, setter.lineno)
         self.assertLess(setter.lineno, validation.lineno)
+        admission = next(node for node in calls if node.func.id == "_require_declared_buffered_profile")
+        self.assertLess(validation.lineno, admission.lineno)
+        self.assertEqual([ast.unparse(arg) for arg in admission.args],
+                         ["request", "request_data", "auth", "proxy_server.llm_router", "route"])
+        self.assertLess(admission.lineno, next(node.lineno for node in gateway.body if isinstance(node, ast.Return)))
         self.assertEqual({item.arg: item.value.id for item in setter.keywords},
                          {"request": "request", "parsed_body": "request_data"})
         imports = [node for node in gateway.body if isinstance(node, ast.ImportFrom)]
@@ -780,6 +785,126 @@ class ServiceGatewayTests(unittest.TestCase):
         validated = [value for name, value in events if name == "validate"]
         self.assertEqual(len(validated), 1)
         self.assertEqual(validated[0]["route"], "/key/info")
+
+
+class DeclaredBufferedProfileTests(unittest.TestCase):
+    """Real native Router descriptors; profile shape only, not native auth acceptance.
+
+    Full proxy imports require the existing image's dependencies. These tests
+    never replace validate_resolved_virtual_key with a successful fake.
+    """
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import litellm
+            from litellm import Router
+            from litellm.proxy._types import UserAPIKeyAuth
+            from importlib.metadata import version
+        except ImportError as exc:
+            raise unittest.SkipTest("Pinned native SDK unavailable; actual-image auth preflight remains required") from exc
+        if version("litellm") != auth.REQUIRED_VERSION:
+            raise unittest.SkipTest("Exact native SDK 1.105.1 is required")
+        cls.Router = Router
+        cls.Auth = UserAPIKeyAuth
+        cls.litellm = litellm
+
+    def setUp(self):
+        costs = patch.dict(self.litellm.model_cost, copy.deepcopy(self.litellm.model_cost), clear=True)
+        costs.start(); self.addCleanup(costs.stop)
+        assignment = load("buffered_native_assignment", HERE.parents[1] / "assignment.py")
+        self.assignment = assignment
+        self.identity = self.Auth(user_id=USER, team_id=None, models=[MODEL],
+            key_alias=assignment.assignment_alias(USER, MODEL), metadata=assignment.assignment_metadata(MODEL))
+        self.symbols = patch.object(auth, "_assignment_matches", assignment.assignment_matches)
+        self.symbols.start(); self.addCleanup(self.symbols.stop)
+
+    def router(self, flags=(False,), *, modes=None, aliases=None):
+        rows = []
+        for index, flag in enumerate(flags):
+            info = {"id": "buffered-test-" + str(index), "mode": (modes or ["responses"] * len(flags))[index]}
+            if flag is not None:
+                info["supports_native_streaming"] = flag
+            rows.append({"model_name": MODEL, "litellm_params": {"model": "openai/gpt-4o-mini",
+                        "api_key": "synthetic-local-not-a-provider-call"}, "model_info": info})
+        router = self.Router(model_list=rows, model_group_alias=aliases or {})
+        self.addCleanup(router.discard)
+        return router
+
+    def admit(self, router, data=None, *, path="/v1/responses", method="POST", identity=None):
+        req = Request({"type": "http", "method": method, "path": path, "headers": [], "query_string": b""})
+        body = {"model": MODEL, "input": [{"role": "user", "content": "unchanged actual context"}]} if data is None else data
+        original = copy.deepcopy(body)
+        try:
+            return auth._require_declared_buffered_profile(req, body, identity or self.identity, router, path)
+        finally:
+            self.assertEqual(body, original)
+
+    def test_all_native_deployments_false_accept_exact_responses_shapes(self):
+        router = self.router((False, False))
+        for route in ("/responses", "/v1/responses", "/openai/v1/responses"):
+            for stream in (None, False, True):
+                with self.subTest(route=route, stream=stream):
+                    data = {"model": MODEL, "input": "same user context"}
+                    if stream is not None:
+                        data["stream"] = stream
+                    self.assertIsNone(self.admit(router, data, path=route))
+
+    def test_declared_profile_rejects_wrong_route_method_model_and_stream_type(self):
+        router = self.router()
+        cases = [("/v1/chat/completions", "POST", {"model": MODEL}),
+                 ("/v1/responses", "GET", {"model": MODEL}),
+                 ("/v1/responses/compact", "POST", {"model": MODEL}),
+                 ("/v1/responses", "POST", {"model": "foreign"})]
+        cases += [("/v1/responses", "POST", {"model": MODEL, "stream": value})
+                  for value in ("true", "false", 0, 1, None, [], {})]
+        for path, method, data in cases:
+            with self.subTest(path=path, method=method, data=data), self.assertRaises(HTTPException) as caught:
+                self.admit(router, data, path=path, method=method)
+            self.assertEqual(caught.exception.status_code, 403)
+
+    def test_mixed_or_nonresponses_native_descriptors_reject(self):
+        for flags, modes in (((False, True), None), ((False, None), None), ((False,), ["chat"]),
+                             ((False, False), ["responses", "chat"])):
+            with self.subTest(flags=flags, modes=modes), self.assertRaises(HTTPException) as caught:
+                self.admit(self.router(flags, modes=modes))
+            self.assertEqual(caught.exception.status_code, 503)
+
+    def test_all_false_native_router_alias_is_accepted(self):
+        self.identity.models = ["buffered-alias"]
+        self.identity.key_alias = self.assignment.assignment_alias(USER, "buffered-alias")
+        self.identity.metadata = self.assignment.assignment_metadata("buffered-alias")
+        router = self.router((False, False), aliases={"buffered-alias": MODEL})
+        self.assertIsNone(self.admit(router, {"model": "buffered-alias", "stream": True}))
+
+    def test_router_alias_expansion_includes_every_matching_deployment(self):
+        self.identity.models = ["buffered-alias"]
+        self.identity.key_alias = self.assignment.assignment_alias(USER, "buffered-alias")
+        self.identity.metadata = self.assignment.assignment_metadata("buffered-alias")
+        router = self.router((False, True), aliases={"buffered-alias": MODEL})
+        with self.assertRaises(HTTPException) as caught:
+            self.admit(router, {"model": "buffered-alias", "stream": True})
+        self.assertEqual(caught.exception.status_code, 503)
+
+    def test_known_client_router_paths_cannot_select_a_different_profile(self):
+        router = self.router()
+        for field in ("user_config", "router_settings_override", "specific_deployment", "fallbacks",
+                      "context_window_fallbacks", "content_policy_fallbacks"):
+            with self.subTest(field=field), self.assertRaises(HTTPException) as caught:
+                self.admit(router, {"model": MODEL, "stream": True, field: {}})
+            self.assertEqual(caught.exception.status_code, 403)
+
+    def test_undeclared_legacy_and_noncanonical_identity_are_unchanged(self):
+        for flags in ((True,), (None,), (True, None)):
+            router = self.router(flags)
+            self.assertIsNone(self.admit(router, {"model": MODEL, "stream": "legacy-shape"}, path="/chat/completions"))
+        self.assertIsNone(self.admit(None, {"model": MODEL, "stream": True}))
+        router = self.router()
+        foreign = copy.deepcopy(self.identity); foreign.key_alias = "operator-native-key"
+        self.assertIsNone(self.admit(router, {"model": MODEL, "stream": "legacy-shape"},
+                                     path="/key/info", identity=foreign))
+        # Caller model_info is not an authoritative profile declaration.
+        self.assertIsNone(self.admit(self.router((True,)), {"model": MODEL, "stream": "legacy-shape",
+            "model_info": {"supports_native_streaming": False, "mode": "responses"}}, path="/chat/completions"))
 
 
 if __name__ == "__main__":
