@@ -12,6 +12,7 @@ import copy
 import importlib.util
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import time
@@ -801,8 +802,12 @@ class DeclaredBufferedProfileTests(unittest.TestCase):
             from litellm.proxy._types import UserAPIKeyAuth
             from importlib.metadata import version
         except ImportError as exc:
+            if os.environ.get("GOAL584_REQUIRE_BUFFERED_NATIVE_COMPONENT") == "1":
+                raise RuntimeError("Mandatory native buffered auth component is unavailable") from exc
             raise unittest.SkipTest("Pinned native SDK unavailable; actual-image auth preflight remains required") from exc
         if version("litellm") != auth.REQUIRED_VERSION:
+            if os.environ.get("GOAL584_REQUIRE_BUFFERED_NATIVE_COMPONENT") == "1":
+                raise RuntimeError("Mandatory native buffered auth component requires exact SDK 1.105.1")
             raise unittest.SkipTest("Exact native SDK 1.105.1 is required")
         cls.Router = Router
         cls.Auth = UserAPIKeyAuth

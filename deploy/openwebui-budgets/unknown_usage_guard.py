@@ -6,6 +6,7 @@ The native budget gateway must own authenticated scope; a DTO alone is not proof
 """
 from collections.abc import Callable
 from importlib.metadata import version
+import asyncio
 import re
 
 from aiohttp import ClientSession, ClientTimeout
@@ -69,6 +70,65 @@ class UnknownUsageGuard(CustomGuardrail):
         if not isinstance(response, ResponsesAPIResponse) or data.get("stream", False) is not False:
             self._record(data, "allow", not_run=True)
             return response
+        return await self._apply_policy(data, user_api_key_dict, response)
+
+    async def async_post_call_streaming_iterator_hook(self, user_api_key_dict, response, request_data):
+        from litellm.responses.streaming_iterator import BaseResponsesAPIStreamingIterator
+        from litellm.types.router import Deployment
+
+        source = response
+        if not isinstance(source, BaseResponsesAPIStreamingIterator):
+            from litellm.proxy.utils import _UpstreamStreamBoundary
+            source = response._source if type(response) is _UpstreamStreamBoundary else None
+        deployment = request_data.get("deployment") if isinstance(request_data, dict) else None
+        if (isinstance(deployment, Deployment) and request_data.get("stream") is True
+                and getattr(deployment.model_info, "supports_native_streaming", None) is False
+                and getattr(deployment.model_info, "mode", None) == "responses"
+                and deployment.litellm_params.model.startswith("openai/")
+                and deployment.litellm_params.custom_llm_provider in (None, "openai")
+                and isinstance(source, BaseResponsesAPIStreamingIterator)):
+            # Core selected the full-HTTP profile. Native disconnect settlement
+            # must wait for its full log rather than finalize an input estimate.
+            source.has_buffered_provider_output = True
+
+            async def drain_and_check():
+                # Retain references only; the native Router owns completion and
+                # its underlying adapter owns event generation and logging.
+                buffered = [item async for item in response]
+                full = getattr(getattr(source, "completed_response", None), "response", None)
+                try:
+                    if not isinstance(full, ResponsesAPIResponse):
+                        self._record(request_data, "block_failed")
+                        raise HTTPException(status_code=503, detail=FAILURE)
+                    await self._apply_policy(request_data, user_api_key_dict, full)
+                except HTTPException as error:
+                    from litellm.proxy.guardrails.guardrail_hooks.unified_guardrail.unified_guardrail import resolve_endpoint_translation
+                    resolved = resolve_endpoint_translation(user_api_key_dict, buffered[0] if buffered else None)
+                    if resolved is None or resolved[0] != "aresponses":
+                        raise
+                    # Native error projection keeps the already-completed
+                    # provider log and its block_failed marker as one event.
+                    errors = resolved[1].build_stream_error_items(error, responses_so_far=buffered)
+                    if errors is None:
+                        raise
+                    return errors
+                return buffered
+
+            policy = asyncio.create_task(drain_and_check())
+            try:
+                buffered = await asyncio.shield(policy)
+            except asyncio.CancelledError:
+                await policy
+                raise
+            for item in buffered:
+                yield item
+            return
+        if isinstance(request_data, dict):
+            self._record(request_data, "allow", not_run=True)
+        async for event in response:
+            yield event
+
+    async def _apply_policy(self, data, user_api_key_dict, response):
         if response.usage is not None:  # Explicit zero is known Usage, not absence.
             self._record(data, "allow")
             return response

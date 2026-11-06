@@ -97,10 +97,10 @@ jobs:
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B scripts/goal584-budget-proof/build_native_floor_image.py \
             --context "$BUILD_ROOT/native-floor" --receipt "$OUTPUT/native-build.safe.json"
       - name: Prepare fresh private Office stand configuration
-        timeout-minutes: 1
+        timeout-minutes: 4
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
-          import json,os,re,secrets,sys
+          import hashlib,json,os,re,secrets,subprocess,sys
           from pathlib import Path
           sys.path.insert(0,'scripts/goal584-budget-proof')
           from office_fixture import prepare_usage_guard_config,prepare_native_tokenizers
@@ -128,6 +128,34 @@ jobs:
           write(env_file,''.join(key+'='+value+'\n' for key,value in values.items()).encode())
           with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as handle:
               handle.write('PROOF_ENV_FILE='+str(env_file)+'\nPROOF_PRIVATE_DIR='+str(private)+'\nPROOF_CONFIG_FILE='+str(config)+'\n')
+          # Use the existing built SDK image before starting any stand service.
+          # The mandatory flag turns a missing full native component into failure.
+          source=Path(os.environ['GITHUB_WORKSPACE']);out=Path(os.environ['OUTPUT'])
+          paths=('deploy/openwebui-budgets/unknown_usage_guard.py','deploy/openwebui-budgets/litellm_auth.py',
+              'scripts/goal584-budget-proof/test_unknown_usage_guard.py','deploy/openwebui-budgets/tests/test_provenance.py')
+          packet={'schema':1,'passed':False,'source_commit':os.environ['GITHUB_SHA'],'native_image_id':native['image_ref'],
+              'scope':'Native callback/cleanup/SLP and descriptor components; policy auth fixture, HTTP/DB leaves; genuine admission remains runtime proof',
+              'source_sha256':{p:hashlib.sha256((source/p).read_bytes()).hexdigest() for p in paths},'tests':{}}
+          save=lambda:(out/'buffered-native-component.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          save()
+          common=['docker','run','--rm','--init','--network','none','--read-only','--memory','1g','--pids-limit','256',
+              '--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--name',os.environ['OWNED']+'-preflight',
+              '--label','goal584.owner='+os.environ['OWNED'],'--mount','type=bind,source='+str(source)+',target=/repo,readonly',
+              '--mount','type=bind,source='+str(cache)+',target=/proof-tokenizers,readonly',
+              '-e','CUSTOM_TIKTOKEN_CACHE_DIR=/proof-tokenizers','-e','TIKTOKEN_CACHE_DIR=/proof-tokenizers',
+              '-e','LITELLM_LOCAL_MODEL_COST_MAP=True','-e','LITELLM_TELEMETRY=False','-e','DO_NOT_TRACK=1',
+              '-e','DOTENV_DISABLED=1','-e','GOAL584_REQUIRE_BUFFERED_NATIVE_COMPONENT=1']
+          for label,work,args in (
+              ('guard','/repo',['discover','-s','scripts/goal584-budget-proof','-p','test_unknown_usage_guard.py','-v']),
+              ('auth','/repo/deploy/openwebui-budgets/tests',['test_provenance.DeclaredBufferedProfileTests',
+                  'test_provenance.BoundaryTests.test_gateway_wires_native_route_slot_and_canonical_cache_setter',
+                  'test_provenance.ServiceGatewayTests','-v'])):
+              with (out/('buffered-native-'+label+'.log')).open('wb') as log:
+                  result=subprocess.run(common+['-w',work,'--entrypoint','python',native['image_ref'],'-B','-m','unittest',*args],
+                      stdout=log,stderr=subprocess.STDOUT,timeout=75)
+              packet['tests'][label]={'returncode':result.returncode};save()
+              assert result.returncode==0,'Mandatory native buffered component failed: '+label
+          packet['passed']=True;save()
           PY
       - name: Start the isolated backend and enable the existing authentication hook
         timeout-minutes: 7
