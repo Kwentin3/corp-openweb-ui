@@ -8,6 +8,11 @@ docker run --rm --network none --read-only --memory 1g --pids-limit 128 \
   -v /absolute/stage2_audio_context_filter.py:/candidate.py:ro \
   <verified-installed-webui-image-id> /verify.py --filter /candidate.py
 
+For the budget composition, additionally mount deploy/openwebui-budgets at
+/budget-sources:ro and pass --budgets /budget-sources. This uses the real budget
+request hook and native Users/ChatMessage/connection configuration; no inference
+or financial receipt is produced. Without --budgets, no budget check is claimed.
+
 Real native SQLite, File/Chat/ChatMessage, Storage, branch selection and output
 conversion are used. Pure load/flatten functions are AST-extracted unchanged
 from the installed middleware to avoid its application startup imports. The
@@ -55,7 +60,7 @@ def installed_functions(path: Path, namespace: dict) -> dict[str, str]:
             for node in nodes}
 
 
-async def verify(candidate: Path, root: Path) -> dict:
+async def verify(candidate: Path, root: Path, budgets: Path | None = None) -> dict:
     assert not any(name.startswith("open_webui") for name in sys.modules)
     os.environ.update({
         "DATA_DIR": str(root / "data"), "DATABASE_URL": f"sqlite:///{root / 'context.sqlite3'}",
@@ -158,6 +163,9 @@ async def verify(candidate: Path, root: Path) -> dict:
         return result
 
     passed = []
+    prepared_budget_cases = []
+    budget_checks = []
+    budget_sources = {}
     try:
         primary = await cached_file(owner, "primary.mp3", display)
         sibling = await cached_file(owner, "sibling.mp3", sibling_display)
@@ -173,6 +181,7 @@ async def verify(candidate: Path, root: Path) -> dict:
         assert initial["messages"][-1]["content"].count(display) == 1
         assert module.DEFAULT_INITIAL_RESPONSE_INSTRUCTION in initial["messages"][-1]["content"]
         assert "RAW_TEXT_IS_NOT_THE_DIARIZED_SOURCE" not in initial["messages"][-1]["content"]
+        prepared_budget_cases.append(("cached_initial", copy.deepcopy(initial), copy.deepcopy(initial_meta), display, True))
         answer = message("assistant", "Short synthetic summary.", first["id"], model="model-a", output=[{
             "type": "message", "id": "native-output", "role": "assistant", "status": "completed",
             "content": [{"type": "output_text", "text": "Short synthetic summary.", "annotations": []}],
@@ -204,6 +213,7 @@ async def verify(candidate: Path, root: Path) -> dict:
             assert sibling_display not in json.dumps(body, ensure_ascii=False)
             assert body["files"] == meta["files"] == []
             assert "_stage2_audio_display" not in meta
+            prepared_budget_cases.append(("cached_reload_" + selected_model, copy.deepcopy(body), copy.deepcopy(meta), display, False))
         assert await Chats.get_messages_map_by_chat_id(chat_id) == saved_before
         passed.append("native reload/flatten and model rename keep one source, clean assistant history, exclude sibling aggregate and preserve stored display")
 
@@ -216,6 +226,7 @@ async def verify(candidate: Path, root: Path) -> dict:
         assert compacted["messages"][0] == {"role": "system", "content": "NATIVE_COMPACTED_SUMMARY"}
         assert compacted["messages"][1]["content"].count(display) == 1
         assert "Short synthetic summary." not in json.dumps(compacted)
+        prepared_budget_cases.append(("compacted_reload", copy.deepcopy(compacted), metadata(chat_id, followup["id"]), display, False))
         passed.append("already compacted outgoing history stays compacted while its selected native File source is restored once")
 
         denied_chat = await new_chat()
@@ -303,6 +314,7 @@ async def verify(candidate: Path, root: Path) -> dict:
             assert marker["state"] == "transcribed-v1"
             assert marker["transcript"] == fresh_text and marker["display_transcript"] == fresh_display
             assert fresh_body["messages"][-1]["content"].count(fresh_display) == 1
+            prepared_budget_cases.append(("fresh_initial", copy.deepcopy(fresh_body), copy.deepcopy(fresh_meta), fresh_display, True))
             fresh_answer = message("assistant", "Fresh synthetic summary.", fresh_user["id"], model="model-a", output=[{
                 "type": "message", "id": "fresh-native-output", "role": "assistant", "status": "completed",
                 "content": [{"type": "output_text", "text": "Fresh synthetic summary."}],
@@ -324,10 +336,106 @@ async def verify(candidate: Path, root: Path) -> dict:
             assert all(fresh_display not in m.get("content", "") for m in follow_body["messages"] if m["role"] == "assistant")
             assert await fingerprints([fresh]) == after_transcription
             assert fresh_http_calls == 1
+            prepared_budget_cases.append(("fresh_cached_reload", copy.deepcopy(follow_body), metadata(fresh_chat, fresh_followup["id"]), fresh_display, False))
         passed.append("fresh File uses real multipart adapter once, persists all mixed/unknown speaker segments and timestamps in native cache/output, and reuses that cache after reload/model switch")
+
+        # Consume snapshots of the actual prepared boundary, not a second history
+        # builder. Add signing fixtures only after every inherited DB assertion.
+        if budgets is not None:
+            from open_webui.models.users import User, Users
+            from open_webui.models.models import Model, Models
+            from open_webui.models.config import Config
+            from open_webui.routers.openai import get_openai_connection
+            from starlette.applications import Starlette
+            from starlette.requests import Request
+
+            for native_model in (User, Model):
+                native_model.__table__.create(bind=engine, checkfirst=True)
+            actor = await Users.insert_new_user(owner, "Offline audio owner", "audio-owner@example.invalid", role="user")
+            assert actor is not None and (await Users.get_user_by_id(owner)).id == owner
+            loaded = {}
+            for name, filename in (("employee_budget_provenance", "provenance.py"),
+                                   ("employee_budget_webui_model_binding", "webui_model_binding.py"),
+                                   ("native_audio_budget_filter", "cost_filter.py")):
+                path = (budgets / filename).resolve(strict=True)
+                spec = importlib.util.spec_from_file_location(name, path)
+                assert spec and spec.loader and name not in sys.modules
+                loaded[name] = importlib.util.module_from_spec(spec)
+                sys.modules[name] = loaded[name]
+                spec.loader.exec_module(loaded[name])
+                budget_sources[filename] = hashlib.sha256(path.read_bytes()).hexdigest()
+            budget = loaded["native_audio_budget_filter"]
+            protocol = loaded["employee_budget_provenance"]
+            signer = budget.Filter()
+            signer.valves.ledger_base_url = "http://offline-budget.invalid"
+            secret = "offline-budget-signing-only-" * 3
+            connection = {"auth_type": "bearer", "api_type": "responses"}
+            # Native persistent config is disabled above. These are its normal
+            # in-memory defaults, never inherited production configuration/IO.
+            assert not Config.PERSISTENT_ENABLED
+            await Config.upsert({"openai.enable": True,
+                "openai.api_base_urls": [signer.valves.ledger_base_url + "/v1"],
+                "openai.api_keys": [secret], "openai.api_configs": {"0": connection}})
+            app = Starlette()
+            app.state.OPENAI_MODELS = {body["model"]: {"urlIdx": 0} for _, body, _, _, _ in prepared_budget_cases}
+            request = Request({"type": "http", "method": "POST", "path": "/api/chat/completions",
+                               "headers": [], "app": app})
+            nonces = set()
+            for label, prepared, meta, full_source, initial_instruction in prepared_budget_cases:
+                assert await Models.get_model_by_id(prepared["model"]) is None
+                assert await get_openai_connection(0) == (signer.valves.ledger_base_url + "/v1", secret, connection)
+                user_text = next(m["content"] for m in reversed(prepared["messages"]) if m["role"] == "user")
+                assert user_text.count(full_source) == 1
+                assert (module.DEFAULT_INITIAL_RESPONSE_INSTRUCTION in user_text) is initial_instruction
+                answer = message("assistant", "", meta["user_message_id"], model=prepared["model"], done=False, user_id=owner)
+                await persist(meta["chat_id"], answer)
+                meta.update(user_id=owner, message_id=answer["id"], internal=False,
+                            chat_context={"messages": copy.deepcopy(prepared["messages"]), "params": {}})
+                before = copy.deepcopy(prepared)
+                assert "litellm_metadata" not in before
+                signed = await signer.request(prepared, __user__=user, __metadata__=meta, __request__=request,
+                                              __model__={"id": prepared["model"], "owned_by": "openai"})
+                assert signed is prepared
+                assert {k: v for k, v in signed.items() if k != "litellm_metadata"} == before
+                assert set(signed["litellm_metadata"]) == {"owui_budget_provenance"}
+                claims = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], secret,
+                                               user_id=owner, model=prepared["model"])
+                assert (claims["chat_id"], claims["answer_id"], claims["root_chat_id"], claims["root_answer_id"]) == (
+                    meta["chat_id"], answer["id"], meta["chat_id"], answer["id"])
+                assert claims["jti"] not in nonces
+                nonces.add(claims["jti"])
+                assert meta["chat_context"]["messages"] == before["messages"]
+                root_scope = protocol.decode_root(meta["chat_context"][budget.ROOT_CAPSULE], secret)
+                assert root_scope["root_answer_id"] == answer["id"]
+                assert meta[budget.ISSUED_SCOPE]["call_id"] == claims["jti"]
+                digest = hashlib.sha256(json.dumps(before, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+                budget_checks.append({"case": label, "whole_body_sha256": digest, "source_occurrences": 1,
+                                      "signed_scope_verified": True, "whole_body_preserved": True})
+                if label == "cached_initial":
+                    # Real native saved-message ownership must fail before signing.
+                    foreign_actor = await Users.insert_new_user(str(uuid.uuid4()), "Offline foreign owner",
+                                                                "audio-foreign@example.invalid", role="user")
+                    assert foreign_actor is not None
+                    foreign_answer = message("assistant", "", meta["user_message_id"], model=prepared["model"],
+                                             done=False, user_id=foreign_actor.id)
+                    await persist(meta["chat_id"], foreign_answer)
+                    assert (await Chats.get_message_by_id_and_message_id(meta["chat_id"], foreign_answer["id"]))["user_id"] == foreign_actor.id
+                    denied_meta = {**meta, "message_id": foreign_answer["id"]}
+                    denied = copy.deepcopy(before)
+                    try:
+                        await signer.request(denied, __user__=user, __metadata__=denied_meta, __request__=request,
+                                             __model__={"id": denied["model"], "owned_by": "openai"})
+                    except ValueError as error:
+                        assert str(error) == "Budget context could not be verified (answer_owner)."
+                    else:
+                        raise AssertionError("Foreign saved answer was signed")
+                    assert denied == before
+            assert len(budget_checks) == len(nonces) == 6
+            passed.append("actual budget request hook signs six native prepared audio contexts unchanged; native foreign answer owner rejected")
         return {"passed": passed, "filter_sha256": hashlib.sha256(candidate.read_bytes()).hexdigest(),
                 "installed_native_function_sha256": native_hashes, "cached_forbidden_sidecar_calls": sidecar_calls,
                 "fresh_transcription_http_fixture_calls": fresh_http_calls,
+                "budget_composition": budget_checks, "budget_source_sha256": budget_sources,
                 "scope": "real native SQLite/File/Chat/ChatMessage/Storage, real multipart STT client and cache persistence with HTTP-only MockTransport; exact AST-extracted installed load/flatten and actual misc conversion; synthetic text/post-compaction fixture; no providers/browser/compactor acceptance"}
     finally:
         await async_engine.dispose()
@@ -337,7 +445,9 @@ async def verify(candidate: Path, root: Path) -> dict:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--filter", type=Path, required=True)
+    parser.add_argument("--budgets", type=Path, help="Actual budget source directory; omitted means no budget composition")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="native-audio-context-offline-") as directory:
-        receipt = asyncio.run(verify(args.filter.resolve(strict=True), Path(directory)))
+        receipt = asyncio.run(verify(args.filter.resolve(strict=True), Path(directory),
+                                     args.budgets.resolve(strict=True) if args.budgets else None))
     print(json.dumps(receipt, ensure_ascii=False))
