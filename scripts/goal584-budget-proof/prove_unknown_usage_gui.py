@@ -30,6 +30,7 @@ PROOF = 'goal584-unknown-usage-gui'
 UNKNOWN = 'Расход неизвестен. Обратитесь к администратору.'
 KNOWN = 'Ответ: $0.166 · Чат: $0.166'
 BLOCKED = 'Authentication Error, Key is blocked.'
+CHAT_NOT_FOUND = "We could not find what you're looking for :/"
 ORDER = (0, 1, 1, 2, 2, 0)
 DENIED = (2, 4)
 # Actual imports, not host browser modules; host adds these readonly mounts.
@@ -54,7 +55,7 @@ def window(native, start):
     native.started_at = value
 
 
-def packet_calls(packet, actor):
+def packet_calls(packet, actor, foreign_actor):
     require(packet.get('schema') == 1 and packet.get('actor_id') == actor and 'failure' not in packet
             and len(packet.get('calls', [])) == 6, 'unknown_gui_packet')
     result = []; seen = set()
@@ -104,7 +105,13 @@ def packet_calls(packet, actor):
                     re.fullmatch(re.escape(KNOWN) + r' · на \d{2}:\d{2}:\d{2} UTC', text), 'unknown_gui_cost_status')
             require(text in visible and (not ORDER[index] or '$' not in visible), 'unknown_gui_visible_unknown_amount')
         result.append({'index': index, 'alias': alias, 'chat': chat, 'answer': answer, 'denied': index in DENIED})
-    require(packet.get('foreign_chat_status') == 404 and packet.get('office_settings_before') == packet.get('office_settings_after'),
+    foreign = packet.get('foreign_auth', {}); session = foreign.get('session', {})
+    require(foreign.get('http_status') == 200 and packet.get('foreign_auth_confirmed') is True
+            and canonical(session.get('id')) == canonical(foreign_actor) != actor
+            and session.get('role') == 'user', 'unknown_gui_foreign_session')
+    require(packet.get('foreign_chat_status') == 401 and packet.get('foreign_chat_detail') == CHAT_NOT_FOUND
+            and packet.get('foreign_chat_not_found') is True
+            and packet.get('office_settings_before') == packet.get('office_settings_after'),
             'unknown_gui_foreign_or_office_settings')
     return result
 
@@ -245,7 +252,7 @@ async def execute(phase):
             return {'status':'baseline_ready','inference_issued':False}
         baseline = state.get('unknown_gui_baseline', {}); window(native, baseline.get('start_utc'))
         require(route == baseline.get('route'), 'unknown_gui_route_changed')
-        packet = P.fixture.read_private(PACKET); calls = packet_calls(packet, actor['id'])
+        packet = P.fixture.read_private(PACKET); calls = packet_calls(packet, actor['id'], common['users'][0]['id'])
         # Persist exact raw evidence before any verification can fail.
         state['unknown_gui_verification'] = {'packet': packet, 'stage':'reading_native'}; P.fixture.write_private(STATE,state)
         def observe_ready():
@@ -282,6 +289,7 @@ async def execute(phase):
               'unknown_chats':2,'saved_key_denials':2,'known_positive_total':'.332','blocked_assignments':2,
               'native_401_inferred':False,'unknown_cost_finality':False,'whole_goal_accepted':False,
               'unbound_denial_audit_chat_association_independently_proven':False,
+              'foreign_chat_status':401,'foreign_chat_not_found':True,'foreign_auth_confirmed':True,
               'production_accepted':False,'inference_issued':False,**sources()}
     P.no_credentials(result,[*P.private_credentials(common),*P.private_credentials(office),*P.private_credentials(state),*P.private_credentials(operator)])
     return result
