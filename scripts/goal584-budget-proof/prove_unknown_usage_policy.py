@@ -37,7 +37,7 @@ STATE = Path("/proof-private/unknown-usage-policy.private.json")
 RECEIPT = Path("/proof-private/unknown-usage-policy.safe.json")
 WEBUI_STATE = Path("/proof-private/webui-state.private.json")
 MOUNTED_SOURCES = {n: Path("/proof") / n for n in ("usage_guard_fixture.py", "unknown_usage_guard.py")}
-BLOCK_MESSAGE = "Authentication Error, Key is blocked. Update via `/key/unblock` if you're an admin."
+BLOCK_MESSAGE = "Authentication Error, Доступ заблокирован. Обратитесь к администратору."
 KNOWN_COST = Decimal(".166")
 digest = lambda value: sha256(encoded(value)).hexdigest()
 

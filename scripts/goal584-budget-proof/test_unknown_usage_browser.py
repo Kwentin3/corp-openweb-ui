@@ -170,7 +170,7 @@ class World:
         self.sent = copy.deepcopy(sent)
         q = copy.deepcopy(sent['user_message']); q['childrenIds'] = [answer]
         a = {'id': answer, 'parentId': user, 'role': 'assistant', 'model': model, 'user_id': ACTOR, 'done': True, 'content': ''}
-        if outcome == 'denied': a['error'] = {'content': {'message': B.BLOCKED + ' Update via `/key/unblock` if an admin.'}}
+        if outcome == 'denied': a['error'] = {'content': {'message': B.BLOCKED}}
         else:
             a['output'] = [{'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': 'Proof', 'annotations': []}]}]
             a['statusHistory'] = [{'action': 'employee_budget_cost', 'done': True, 'description': B.UNKNOWN if outcome == 'unknown' else B.KNOWN + ' · на 13:00:00 UTC'}]

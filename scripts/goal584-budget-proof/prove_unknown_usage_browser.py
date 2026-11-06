@@ -26,7 +26,7 @@ UNKNOWN_GUI_STATE = 'unknown-usage-gui-state.private.json'
 SETTINGS = '/api/v1/users/user/settings'
 UNKNOWN = 'Расход неизвестен. Обратитесь к администратору.'
 KNOWN = 'Ответ: $0.166 · Чат: $0.166'
-BLOCKED = 'Authentication Error, Key is blocked.'
+BLOCKED = 'Authentication Error, Доступ заблокирован. Обратитесь к администратору.'
 CHAT_NOT_FOUND = "We could not find what you're looking for :/"
 PROVISIONAL_COST_TEXT = ('учёт обновляется', 'учет обновляется', 'начислено на сейчас',
                          'стоимость ещё не подтверждена', 'стоимость еще не подтверждена',

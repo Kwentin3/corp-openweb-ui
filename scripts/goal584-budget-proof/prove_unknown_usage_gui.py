@@ -29,7 +29,7 @@ OFFICE = PRIVATE / 'office-state.private.json'
 PROOF = 'goal584-unknown-usage-gui'
 UNKNOWN = 'Расход неизвестен. Обратитесь к администратору.'
 KNOWN = 'Ответ: $0.166 · Чат: $0.166'
-BLOCKED = 'Authentication Error, Key is blocked.'
+BLOCKED = 'Authentication Error, Доступ заблокирован. Обратитесь к администратору.'
 CHAT_NOT_FOUND = "We could not find what you're looking for :/"
 ORDER = (0, 1, 1, 2, 2, 0)
 DENIED = (2, 4)
@@ -87,8 +87,9 @@ def packet_calls(packet, actor, foreign_actor):
         visible = call.get('visible_text')
         require(isinstance(visible,str) and bool(visible), 'unknown_gui_visible_text')
         if index in DENIED:
-            require(bool(a.get('error')) and BLOCKED in json.dumps(a['error'])
+            require(bool(a.get('error')) and BLOCKED in json.dumps(a['error'], ensure_ascii=False)
                     and BLOCKED in (call.get('visible_error') or '') and BLOCKED in visible and not a.get('output')
+                    and '/key/unblock' not in visible
                     and a.get('content') != 'Proof' and not statuses and call.get('visible_status') is None,
                     'unknown_gui_saved_denial')
         else:

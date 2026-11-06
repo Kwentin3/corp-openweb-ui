@@ -150,6 +150,15 @@ class CollectorTests(unittest.TestCase):
             self.run_phase('verify')
         self.assertEqual(len(self.wire.physical),before)
 
+    def test_blocked_feedback_does_not_expose_administrative_api_paths(self):
+        packet=self.build_packet();denied=packet['calls'][2]
+        suffix=' Update via /key/unblock.'
+        denied['visible_text']+=suffix;denied['visible_error']+=suffix
+        denied['stored']['chat']['history']['messages'][denied['submitted']['id']]['error']['content']+=suffix
+        C.P.fixture.write_private(C.PACKET,packet)
+        with self.assertRaisesRegex(C.P.ProofError,'unknown_gui_saved_denial'):
+            self.run_phase('verify')
+
     def test_exact_buffered_provider_transport_and_native_ui_stream_are_required(self):
         packet=self.build_packet()
         for stream in (False, True):
