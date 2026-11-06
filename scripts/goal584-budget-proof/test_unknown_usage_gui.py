@@ -71,6 +71,8 @@ class CollectorTests(unittest.TestCase):
         def native():
             value=original();value.timeout=.35;return value
         self.enterContext(patch.object(C.P.fixture,'native_client',side_effect=native))
+        for model in self.wire.models:
+            model['model_info']['supports_native_streaming'] = False
         self.run_phase('baseline')
         self.initial_requests=len(self.wire.requests)
 
@@ -104,13 +106,16 @@ class CollectorTests(unittest.TestCase):
                 self.wire.handle('POST','http://proxy:4000/v1/responses',{'Authorization':'Bearer '+self.wire.gateway,
                     C.P.USER_ID_HEADER:self.wire.actor_id,C.P.TASK_HEADER:''},native_request)
                 record=self.wire.physical[-1]
+                # This collector fixture observes the already-buffered HTTP leaf;
+                # native adapter/authorization origin is qualified separately.
+                record['body'].pop('stream')
                 record['body']['input']=[{'type':'message','role':'user','content':[{'type':'input_text','text':'Hi'}]}]
                 row=self.wire.rows[-1]
                 if slot:
                     row.update(prompt_tokens=0,completion_tokens=0,total_tokens=0)
                 ownkey=self.wire.keys[row['api_key']];ownkey['total_spend']=ownkey['spend']
             u={'id':user,'parentId':None,'role':'user','content':'Hi','childrenIds':[answer]}
-            packet['calls'].append({'model':alias,'chat_id':chat,'submitted':{'model':alias,'stream':False,'id':answer,
+            packet['calls'].append({'model':alias,'chat_id':chat,'submitted':{'model':alias,'stream':True,'id':answer,
                 'parent_id':None,'user_message':u,'message_ids':[{'model_id':alias,'message_id':answer,'modelIdx':0}],
                 'background_tasks':{'title_generation':False,'tags_generation':False,'follow_up_generation':False}},
                 'acknowledgement':{'chat_id':chat},'http_status':200,'task_ids':[],
@@ -132,6 +137,31 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(len(self.wire.physical),5)
         self.assertTrue(all(method=='GET' for method,_,_ in self.wire.requests[before:]))
         self.assertEqual(self.network_attempts,[])
+
+    def test_buffered_profile_requires_native_false_flag_on_every_model(self):
+        self.build_packet();before=len(self.wire.physical)
+        for value in (None, True, 'false', 0):
+            with self.subTest(value=value):
+                self.wire.models[1]['model_info']['supports_native_streaming']=value
+                with self.assertRaisesRegex(C.P.ProofError,'unknown_unbuffered_deployment'):
+                    self.run_phase('verify')
+        del self.wire.models[1]['model_info']['supports_native_streaming']
+        with self.assertRaisesRegex(C.P.ProofError,'unknown_unbuffered_deployment'):
+            self.run_phase('verify')
+        self.assertEqual(len(self.wire.physical),before)
+
+    def test_exact_buffered_provider_transport_and_native_ui_stream_are_required(self):
+        packet=self.build_packet()
+        for stream in (False, True):
+            with self.subTest(provider_stream=stream):
+                self.wire.physical[-1]['body']['stream']=stream
+                with self.assertRaisesRegex(C.P.ProofError,'unknown_gui_provider_context'):
+                    self.run_phase('verify')
+        self.wire.physical[-1]['body'].pop('stream')
+        packet['calls'][0]['submitted']['stream']=False
+        C.P.fixture.write_private(C.PACKET,packet)
+        with self.assertRaisesRegex(C.P.ProofError,'unknown_gui_submitted_context'):
+            self.run_phase('verify')
 
     def test_foreign_native_scope_and_extra_dispatch_reject(self):
         self.build_packet();row=self.wire.rows[1];scope=row['metadata']['spend_logs_metadata']['owui_budget']
