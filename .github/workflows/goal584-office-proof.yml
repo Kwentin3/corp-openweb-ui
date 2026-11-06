@@ -270,6 +270,114 @@ jobs:
               public('office-native',failure)
               raise SystemExit(1)
           PY
+      - name: Verify saved reasoning after reload and one ordinary continuation Send
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,signal,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_native_budgets import ProofError
+          from prove_pricing_browser import no_credentials
+          from prove_pricing_snapshots import private_credentials
+          from prove_office_browser import run_saved_continuation
+          from prove_office_compatibility import digest
+          from playwright.sync_api import sync_playwright
+          signal.alarm(420)
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          env_file=Path(os.environ['PROOF_ENV_FILE']);revision=os.environ['GITHUB_SHA']
+          secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(env_file,out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          stage='prior_acceptance';diagnostic_collected=False;baseline_ready=False
+          def public(name,value):
+              no_credentials(value,fixture.secrets)
+              (out/(name+'.safe.json')).write_text(json.dumps(value,indent=2)+'\n')
+          def readback(phase):
+              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
+                  '/proof/prove_office_readback.py','--phase',phase],capture_output=True,timeout=100)
+              assert len(result.stdout)<=2*1024*1024,'Office continuation safe readback exceeded bound'
+              packet=json.loads(result.stdout)
+              if packet.get('passed') is True:
+                  assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
+                  assert result.returncode==0,'Office continuation exit disagrees with successful packet'
+              public('office-'+phase,packet)
+              assert result.returncode==0 and packet.get('passed') is True,'Office continuation readback failed'
+              return packet
+          try:
+              assert json.loads((out/'office-native.safe.json').read_text()).get('passed') is True
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+              # Native proxy cold imports and exact mounted proof owners precede any new Send.
+              stage='source_binding'
+              names=('prove_office_readback.py','prove_office_compatibility.py','prove_native_budgets.py')
+              code='import hashlib,json,pathlib;import prove_office_readback as r;r.dependencies();print(json.dumps({n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(names)+'}))'
+              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_continuation_sources')
+              assert sources=={n:hashlib.sha256((Path('scripts/goal584-budget-proof')/n).read_bytes()).hexdigest() for n in names}
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+              stage='continuation_baseline';readback('continuation-baseline');baseline_ready=True
+              # Root0600 financial/capture state remains owned by the native collector.
+              # Capture only this read-only UI projection, then write it privately as the host UID.
+              stage='continuation_input'
+              code='import json;from pathlib import Path;from prove_gateway_auth import read_private;s=read_private(Path("/proof-private/office-readback.private.json"));print(json.dumps({"schema":s["schema"],"stage":s["stage"],"browser":{k:s["browser"][k] for k in ("chat_id","answer_id","file_id")},"continuation_baseline":{k:s["continuation_baseline"][k] for k in ("stage","saved_chat")}}))'
+              state=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_continuation_input')
+              write_private(private/'office-continuation-input.private.json',state)
+              prior=state['continuation_baseline']['saved_chat']
+              saved=prior['chat']['history']['messages'][state['browser']['answer_id']]['output']
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_continuation_provider')
+              first=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-office']
+              assert len(first)==3,'Office continuation prior dispatch count differs'
+              reasoning=[[item for item in row['response']['output'] if item['type']=='reasoning'] for row in first]
+              # Existing native owners observe actual saved8 and provider final2 before the next request.
+              # Their original argument bound is checked before crossing the Send boundary.
+              stage='continuation_context'
+              packets={'schema':1,
+                  'saved':fixture.native_context(base,build,revision,reasoning,saved_output=saved),
+                  'final':fixture.native_context(base,build,revision,reasoning,saved_output=first[-1]['response']['output'])}
+              write_private(private/'office-continuation-native-context.private.json',packets)
+              public('office-continuation-context',{'schema':1,'packets':{name:{
+                  'sha256':digest(packet),'module_sha256':packet['module_sha256'],
+                  'source_body_sha256':packet['source_body_sha256'],
+                  'saved_output_sha256':digest(packet['saved_output_case']['input_saved_output']),
+                  'native_input_sha256':digest(packet['saved_output_case']['native_input']),
+                  'saved_output_items':len(packet['saved_output_case']['input_saved_output']),
+                  'native_input_items':len(packet['saved_output_case']['native_input'])}
+                  for name,packet in packets.items() if name!='schema'}})
+              stage='continuation_send'
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,_=run_saved_continuation(browser,fixture,base,build,revision)
+                  finally: browser.close()
+              public('office-continuation-browser',observed)
+              stage='continuation_diagnostic';readback('continuation-diagnostic');diagnostic_collected=True
+              stage='continuation_finance';financial=readback('continuation-verify')
+              public('office-continuation',{'schema':1,'passed':True,'stage':'bounded_saved_continuation',
+                  'native_office_accepted':False,'sources':sources,'browser':observed,'financial':financial,
+                  'limits':['independent artifact review pending','no production or full GOAL acceptance',
+                      'native DB/financial observations remain source-bound; no live Filter pre/post claim']})
+          except Exception as error:
+              failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,
+                  'error_class':type(error).__name__}
+              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
+                  try: no_credentials({'message':str(error)},fixture.secrets)
+                  except (AssertionError,ProofError): pass
+                  else: failure['failure']=str(error)
+              if baseline_ready and not diagnostic_collected:
+                  try: readback('continuation-diagnostic');diagnostic_collected=True
+                  except Exception: pass
+              failure['wire_diagnostic_collected']=diagnostic_collected
+              public('office-continuation',failure)
+              raise SystemExit(1)
+          finally:
+              signal.alarm(0)
+          PY
       - name: Verify native key block and signed gateway denial
         timeout-minutes: 3
         run: |

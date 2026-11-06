@@ -6,10 +6,16 @@ observations are doubled. No replacement Tool/model loop exists in this test.
 """
 import contextlib
 import copy
+import ast
+import base64
+import hashlib
 import io
 import json
 import os
 from pathlib import Path
+import re
+import shutil
+import subprocess
 import sys
 import tempfile
 from types import SimpleNamespace
@@ -300,6 +306,325 @@ class OfficeBrowserTests(unittest.TestCase):
         safe, _, error, browser, _ = self.exercise(lambda b, w: setattr(b, 'login_role', 'admin'))
         self.assertIsNone(safe); self.assertIsNotNone(error); self.assertEqual(browser.sends, 0)
         self.assertEqual(len(browser.contexts), 1)
+
+
+NEXT_USER, NEXT_ANSWER, SOURCE_ID = [f'{i:08x}-1111-4111-8111-111111111111' for i in (8, 9, 10)]
+NEXT_COST = 'Ответ: $0.20 · Чат: $0.80'
+
+
+def saved_continuation_fixture():
+    """Native GET IO sample; not a model-history builder or DB-origin proof."""
+    form = B.seed_form(SOURCE_ID); messages = form['chat']['history']['messages']
+    messages[SOURCE_ID]['childrenIds'] = [USER]
+    messages[USER] = {'id': USER, 'parentId': SOURCE_ID, 'childrenIds': [ANSWER], 'role': 'user', 'content': B.USER_REQUEST}
+    output = []
+    for index, name in enumerate(('export_answer_to_word', 'render_office_file')):
+        output.extend([{'type': 'reasoning', 'id': 'rs-' + str(index), 'summary': [], 'encrypted_content': 'opaque-' + str(index)},
+            {'type': 'function_call', 'call_id': 'call-' + str(index), 'name': name, 'arguments': '{}'},
+            {'type': 'function_call_output', 'call_id': 'call-' + str(index), 'output': [
+                {'type': 'input_text', 'text': 'Exact native Tool result ' + str(index)}]}])
+    output.extend([{'type': 'reasoning', 'id': 'rs-2', 'summary': [], 'encrypted_content': 'opaque-2'},
+        {'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text',
+            'text': '[Download](/api/v1/files/' + FILE + '/content)'}]}])
+    messages[ANSWER] = {'id': ANSWER, 'parentId': USER, 'childrenIds': [], 'role': 'assistant', 'model': B.MODEL,
+        'done': True, 'content': '[Download](/api/v1/files/' + FILE + '/content)', 'output': output,
+        'files': [{'type': 'file', 'id': FILE, 'url': FILE, 'name': B.OUTPUT_NAME, 'content_type': B.DOCX}],
+        'statusHistory': [{'action': 'employee_budget_cost', 'done': True, 'description': B.COST + ' · на 13:00:00 UTC'}],
+        'followUps': ['Keep the same attachment.']}
+    form['chat']['history']['currentId'] = ANSWER
+    before = {'id': CHAT, 'user_id': ACTOR, 'chat': form['chat']}
+    after = copy.deepcopy(before); history = after['chat']['history']; old = history['messages']
+    old[ANSWER]['childrenIds'] = [NEXT_USER]
+    old[NEXT_USER] = {'id': NEXT_USER, 'parentId': ANSWER, 'childrenIds': [NEXT_ANSWER], 'role': 'user', 'content': B.CONTINUATION_REQUEST}
+    old[NEXT_ANSWER] = {'id': NEXT_ANSWER, 'parentId': NEXT_USER, 'childrenIds': [], 'role': 'assistant', 'model': B.MODEL,
+        'done': True, 'output': [{'type': 'reasoning', 'id': 'rs-next', 'summary': [], 'encrypted_content': 'opaque-next'},
+            {'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text',
+                'text': '[Download](/api/v1/files/' + FILE + '/content)'}]}],
+        'statusHistory': [{'action': 'employee_budget_cost', 'done': True, 'description': NEXT_COST + ' · на 13:00:01 UTC'}],
+        'followUps': ['Use the same native file.']}
+    history['currentId'] = NEXT_ANSWER
+    return before, after
+
+
+class ContinuationRequest:
+    method = 'POST'
+    def __init__(self, world): self.world = world
+    @property
+    def post_data(self): return self.world.raw_submit
+    @property
+    def post_data_json(self):
+        if self.world.invalid_submit_json: raise ValueError('Synthetic malformed request JSON')
+        return copy.deepcopy(self.world.sent)
+
+
+class ContinuationResponse(Response):
+    def __init__(self, world):
+        super().__init__(world.ack, status=world.ack_status, body=world.raw_ack,
+            url=BASE + '/api/chat/completions', request=ContinuationRequest(world)); self.world = world
+    def json(self):
+        if self.world.invalid_ack_json: raise ValueError('Synthetic malformed acknowledgement JSON')
+        return super().json()
+
+
+class ContinuationLocator(Locator):
+    def locator(self, selector): return ContinuationLocator(self.page, selector)
+    def click(self):
+        if self.selector != '#send-message-button': return super().click()
+        w = self.page.world; assert self.page.fields['#chat-input'] == B.CONTINUATION_REQUEST
+        w.sends += 1
+        w.sent = {'model': B.MODEL, 'chat_id': CHAT, 'id': NEXT_ANSWER, 'parent_id': ANSWER, 'stream': True,
+            'message_ids': [{'model_id': B.MODEL, 'message_id': NEXT_ANSWER, 'modelIdx': 0}],
+            'user_message': copy.deepcopy(w.after['chat']['history']['messages'][NEXT_USER]),
+            'background_tasks': {'follow_up_generation': True}}
+        if w.submit_mutation: w.submit_mutation(w.sent)
+        if not w.raw_submit_override: w.raw_submit = json.dumps(w.sent, ensure_ascii=False)
+        self.page.pending.value = ContinuationResponse(w)
+
+
+class ContinuationExpect(Expect):
+    def to_be_visible(self, **kwargs):
+        w = self.locator.page.world
+        if self.locator.selector.startswith('a[href='):
+            assert w.link_visible and self.locator.selector == 'a[href="/api/v1/files/' + FILE + '/content"]'
+    def to_have_attribute(self, name, value):
+        super().to_have_attribute(name, value)
+        assert self.locator.page.world.selected_model == B.MODEL
+    def to_contain_text(self, value, **kwargs):
+        assert value == NEXT_COST and kwargs == {'timeout': 25_000}
+        assert value in self.locator.page.world.after['chat']['history']['messages'][NEXT_ANSWER]['statusHistory'][0]['description']
+
+
+class ContinuationPage(Page):
+    def locator(self, selector): return ContinuationLocator(self, selector)
+    def goto(self, url, **kwargs):
+        super().goto(url, **kwargs); self.world.navigations.append(url)
+    def reload(self, **kwargs):
+        assert kwargs == {'wait_until': 'domcontentloaded'}
+        self.world.reloads += 1; self.world.after_reload = True
+    def screenshot(self, path, **kwargs):
+        assert self.world.after_reload and self.world.file_reads == 1
+        super().screenshot(path, **kwargs)
+
+
+class ContinuationContext(Context):
+    def new_page(self): return ContinuationPage(self)
+    def post(self, *args, **kwargs): raise AssertionError('Continuation must not seed or author native history')
+    def get(self, url, *, headers, timeout):
+        w = self.world; assert headers == {'Authorization': 'Bearer actor-token'} and timeout == 10_000
+        w.gets.append(url)
+        if url == BASE + '/api/v1/chats/' + CHAT:
+            if not w.sends:
+                value = copy.deepcopy(w.before)
+                if w.reload_before_mutation: w.reload_before_mutation(value)
+            else:
+                w.polls += 1; value = copy.deepcopy(w.after)
+                if w.polls == 1 and w.initial_pending and not w.after_reload: value = copy.deepcopy(w.before)
+                if w.saved_mutation: w.saved_mutation(value)
+                if w.after_reload and w.reload_after_mutation: w.reload_after_mutation(value)
+            return Response(value, status=w.chat_status)
+        if url == BASE + '/api/tasks/chat/' + CHAT:
+            return Response({'task_ids': ['native-still-running'] if w.active_tasks else []}, status=w.tasks_status)
+        if url == BASE + '/api/v1/files/' + FILE:
+            w.file_reads += 1; value = {'id': FILE, 'user_id': ACTOR, 'meta': {'name': B.OUTPUT_NAME}}
+            if w.file_mutation: w.file_mutation(value)
+            return Response(value, status=w.file_status)
+        raise AssertionError('Unexpected continuation transport')
+
+
+class ContinuationBrowser(Browser):
+    def __init__(self, fixture):
+        super().__init__(fixture); self.before, self.after = saved_continuation_fixture()
+        self.reload_before_mutation = self.reload_after_mutation = None
+        self.polls = self.reloads = self.file_reads = 0; self.navigations = []; self.gets = []
+        self.after_reload = False; self.initial_pending = True; self.selected_model = B.MODEL; self.link_visible = True
+        self.chat_status = self.tasks_status = self.file_status = 200
+        self.invalid_submit_json = self.invalid_ack_json = self.raw_submit_override = False
+        self.raw_submit = None; self.ack = {'chat_id': CHAT}; self.raw_ack = b'{"chat_id":"' + CHAT.encode() + b'"}'
+    def new_context(self, **kwargs):
+        assert kwargs == {'locale': 'en-US', 'viewport': {'width': 1440, 'height': 1000}}
+        context = ContinuationContext(self, self.actor); self.contexts.append(context); return context
+
+
+class OfficeSavedContinuationTests(unittest.TestCase):
+    def exercise(self, mutate=None, clock=None):
+        with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+            root = Path(directory); private = root / 'private'; private.mkdir(mode=0o700); output = root / 'output'; output.mkdir()
+            fixture = B.OfficeFixture(root / 'env', output, root / 'config', private, [SECRET, 'actor-token'])
+            world = ReadbackWorld(fixture, root / 'images'); browser = ContinuationBrowser(fixture)
+            state = {'schema': 1, 'stage': 'verified_readback', 'browser': {'chat_id': CHAT, 'answer_id': ANSWER, 'file_id': FILE},
+                'continuation_baseline': {'stage': 'baseline', 'saved_chat': copy.deepcopy(browser.before)}}
+            office = {'schema': 1, 'users': [browser.actor]}
+            if mutate: mutate(browser, world, state, office)
+            for name, value in (('office-state.private.json', office), ('office-continuation-input.private.json', state)):
+                path = private / name; path.write_text(json.dumps(value), encoding='utf8'); path.chmod(0o600)
+            private_before = {p.name:p.read_bytes() for p in private.iterdir()}
+            original_contexts = set(browser.contexts)
+            stack.enter_context(patch.object(B, 'expect', ContinuationExpect)); stack.enter_context(patch.object(login_owner, 'expect', ContinuationExpect))
+            stack.enter_context(patch.object(fixture_owner.subprocess, 'run', side_effect=world.run))
+            if clock: stack.enter_context(patch.object(B.time, 'monotonic', side_effect=clock))
+            if os.name == 'nt':
+                stack.enter_context(patch.object(private_owner, 'private_parent')); stack.enter_context(patch.object(B, 'private_parent'))
+            safe = packet = error = None; stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                try: safe, packet = B.run_saved_continuation(browser, fixture, BASE, world.receipt, world.revision)
+                except Exception as caught: error = caught
+            target = private / 'office-continuation-browser.private.json'
+            retained = json.loads(target.read_bytes()) if target.exists() else None
+            self.assertEqual(stdout.getvalue(), '')
+            self.assertTrue(all(c.closed for c in browser.contexts if c not in original_contexts))
+            self.assertTrue(all(not c.closed for c in original_contexts))
+            for name, raw in private_before.items(): self.assertEqual((private / name).read_bytes(), raw)
+            self.assertLessEqual(browser.sends, 1)
+            return safe, packet, error, browser, world, retained
+
+    def test_fresh_login_reload_one_send_terminal_tasks_followups_file_and_reload_again(self):
+        safe, packet, error, browser, world, retained = self.exercise()
+        self.assertIsNone(error); self.assertEqual(packet, retained)
+        self.assertEqual((browser.sends, browser.reloads, browser.file_reads), (1, 1, 1))
+        self.assertEqual(browser.navigations, [BASE + '/auth', BASE + '/c/' + CHAT])
+        self.assertGreaterEqual(browser.polls, 3); self.assertEqual(len(world.execs), 3)
+        self.assertEqual(safe['ordinary_sends'], 1); self.assertEqual(safe['reloads'], 2); self.assertTrue(safe['tasks_empty'])
+        self.assertFalse(safe['native_accounting_accepted']); self.assertEqual(safe['file_id'], FILE)
+        self.assertEqual(retained['raw_submission'], browser.raw_submit)
+        self.assertEqual(base64.b64decode(retained['raw_acknowledgement_base64']), browser.raw_ack)
+        self.assertEqual(retained['reloaded_before'], browser.before)
+        self.assertEqual(retained['reloaded_after'], browser.after)
+        self.assertEqual(retained['submission']['user_message']['parentId'], ANSWER)
+        for value in (SECRET, 'actor-token', B.SOURCE, B.CONTINUATION_REQUEST, 'opaque-0'): self.assertNotIn(value, json.dumps(safe))
+
+    def test_observed_whole_old_history_reasoning_tool_source_file_and_identity_mutations_reject(self):
+        before, after = saved_continuation_fixture(); original = copy.deepcopy(before)
+        self.assertIsNotNone(B.observed_continuation(before, after, ACTOR, ANSWER, NEXT_USER, NEXT_ANSWER, FILE))
+        changes = (lambda v: v.update(user_id=OTHER),
+            lambda v: v['chat']['history']['messages'][ANSWER]['output'].pop(0),
+            lambda v: v['chat']['history']['messages'][ANSWER]['output'][0].update(encrypted_content='truncated'),
+            lambda v: v['chat']['history']['messages'][ANSWER]['output'][2].update(output='changed Tool result'),
+            lambda v: v['chat']['history']['messages'][SOURCE_ID].update(content='lost table'),
+            lambda v: v['chat']['history']['messages'][ANSWER]['files'][0].update(id=OTHER),
+            lambda v: v['chat']['history']['messages'][NEXT_USER].update(parentId=SOURCE_ID),
+            lambda v: v['chat']['history']['messages'][NEXT_ANSWER].update(parentId=ANSWER),
+            lambda v: v['chat']['history']['messages'][NEXT_ANSWER].update(model='foreign-model'),
+            lambda v: v['chat']['history']['messages'][NEXT_ANSWER]['output'].pop(0),
+            lambda v: v['chat']['history']['messages'][NEXT_ANSWER]['output'][1]['content'][0].update(text='different file'),
+            lambda v: v['chat']['history']['messages'].pop(SOURCE_ID))
+        for index, change in enumerate(changes):
+            bad = copy.deepcopy(after); change(bad)
+            with self.subTest(case=index), self.assertRaises(AssertionError):
+                B.observed_continuation(before, bad, ACTOR, ANSWER, NEXT_USER, NEXT_ANSWER, FILE)
+        self.assertEqual(before, original)
+
+    def test_unprepared_or_wrong_baseline_and_changed_reload_precede_send(self):
+        changes = (lambda b,w,s,o:s.update(stage='pending'),
+            lambda b,w,s,o:s['continuation_baseline'].update(stage='not_baseline'),
+            lambda b,w,s,o:s['continuation_baseline']['saved_chat'].update(user_id=OTHER),
+            lambda b,w,s,o:s['continuation_baseline']['saved_chat']['chat']['history']['messages'][ANSWER]['output'].pop(0),
+            lambda b,w,s,o:setattr(b,'reload_before_mutation',lambda v:v['chat']['history']['messages'][SOURCE_ID].update(content='changed source')),
+            lambda b,w,s,o:setattr(b,'selected_model','foreign-model'))
+        for index, change in enumerate(changes):
+            with self.subTest(case=index):
+                safe, _, error, browser, _, _ = self.exercise(change)
+                self.assertIsNone(safe); self.assertIsNotNone(error); self.assertEqual(browser.sends, 0)
+
+    def test_post_send_saved_history_reload_and_existing_file_owner_do_not_drift(self):
+        changes = (lambda b,w,s,o:setattr(b,'saved_mutation',lambda v:v['chat']['history']['messages'][ANSWER]['output'][0].update(encrypted_content='lost opaque')),
+            lambda b,w,s,o:setattr(b,'saved_mutation',lambda v:v.update(user_id=OTHER)),
+            lambda b,w,s,o:setattr(b,'reload_after_mutation',lambda v:v['chat']['history']['messages'][SOURCE_ID].update(content='lost source')),
+            lambda b,w,s,o:setattr(b,'file_mutation',lambda v:v.update(user_id=OTHER)),
+            lambda b,w,s,o:setattr(b,'file_mutation',lambda v:v.update(id=OTHER)),
+            lambda b,w,s,o:setattr(b,'link_visible',False))
+        for index, change in enumerate(changes):
+            with self.subTest(case=index):
+                safe, _, error, browser, _, retained = self.exercise(change)
+                self.assertIsNone(safe); self.assertIsNotNone(error); self.assertEqual(browser.sends, 1)
+                self.assertIn('failure', retained); self.assertIn('submission', retained)
+
+    def test_pending_answer_cost_followup_or_native_tasks_is_not_terminal(self):
+        def saved(change):
+            return lambda b,w,s,o: (setattr(b,'initial_pending',False), change(b.after['chat']['history']['messages'][NEXT_ANSWER]))
+        changes = (saved(lambda a:a.update(done=False)), saved(lambda a:a.update(followUps=[])),
+            saved(lambda a:a['statusHistory'][0].update(description='Ответ: $0.20 · Чат: $0.60 · wrong')),
+            lambda b,w,s,o:setattr(b,'active_tasks',True), lambda b,w,s,o:setattr(b,'tasks_status',503))
+        for index, change in enumerate(changes):
+            with self.subTest(case=index):
+                safe, _, error, browser, _, retained = self.exercise(change, clock=iter([0, 1, 181, 182]).__next__)
+                self.assertIsNone(safe); self.assertIsNotNone(error); self.assertEqual(browser.sends, 1)
+                self.assertEqual(browser.reloads, 0); self.assertIn('failure', retained)
+
+    def test_request_ack_failure_and_bounds_retain_irreversible_send_privately(self):
+        def raw(value):return lambda b,w,s,o:(setattr(b,'raw_submit_override',True),setattr(b,'raw_submit',value))
+        changes = (('request_json',lambda b,w,s,o:setattr(b,'invalid_submit_json',True)),
+            ('ack_json',lambda b,w,s,o:setattr(b,'invalid_ack_json',True)),
+            ('http',lambda b,w,s,o:setattr(b,'ack_status',503)),
+            ('raw_none',raw(None)),('raw_empty',raw('')),('raw_oversize',raw('x'*(B.MAX_BYTES+1))),
+            ('ack_nonbytes',lambda b,w,s,o:setattr(b,'raw_ack','not-bytes')),
+            ('ack_empty',lambda b,w,s,o:setattr(b,'raw_ack',b'')),
+            ('ack_oversize',lambda b,w,s,o:setattr(b,'raw_ack',b'x'*(B.MAX_BYTES+1))),
+            ('ack_shape',lambda b,w,s,o:setattr(b,'ack',[])),
+            ('request_shape',lambda b,w,s,o:setattr(b,'submit_mutation',lambda ignored:setattr(b,'sent',[]))))
+        for name, change in changes:
+            with self.subTest(case=name):
+                safe, _, error, browser, _, retained = self.exercise(change)
+                self.assertIsNone(safe); self.assertIsNotNone(error); self.assertEqual(browser.sends, 1)
+                self.assertEqual(retained['http_status'], browser.ack_status); self.assertIn('failure', retained)
+                if name.startswith('raw_'):self.assertIsNone(retained['raw_submission'])
+                else:self.assertEqual(retained['raw_submission'], browser.raw_submit)
+                if name=='request_json':self.assertNotIn('submission',retained)
+                if isinstance(browser.raw_ack,bytes) and 0<len(browser.raw_ack)<=B.MAX_BYTES:
+                    self.assertEqual(base64.b64decode(retained['raw_acknowledgement_base64']),browser.raw_ack)
+                if name in ('ack_json','ack_shape','http'):
+                    self.assertEqual(retained['submission'],browser.sent)
+                if name=='ack_oversize':
+                    self.assertEqual(retained['raw_acknowledgement_bytes'],B.MAX_BYTES+1)
+                    self.assertNotIn('raw_acknowledgement_base64',retained)
+
+    def test_login_failure_closes_new_context_and_existing_context_is_preserved(self):
+        safe,_,error,browser,_,retained=self.exercise(lambda b,w,s,o:setattr(b,'login_role','admin'))
+        self.assertIsNone(safe);self.assertIsNotNone(error);self.assertEqual(browser.sends,0)
+        self.assertEqual(len(browser.contexts),1);self.assertTrue(browser.contexts[0].closed)
+        self.assertIn('failure',retained)
+        def existing(b,w,s,o):b.contexts.append(ContinuationContext(b,b.other))
+        safe,_,error,browser,_,_=self.exercise(existing)
+        self.assertIsNone(error);self.assertIsNotNone(safe);self.assertEqual(browser.sends,1)
+        self.assertFalse(browser.contexts[0].closed);self.assertTrue(browser.contexts[1].closed)
+
+    def test_source_bound_top_parent_message_ids_stream_and_submitted_user_do_not_disagree(self):
+        mutations=(lambda s:s.update(parent_id=SOURCE_ID),
+            lambda s:s['user_message'].update(parentId=SOURCE_ID),
+            lambda s:s.update(message_ids=[]),lambda s:s['message_ids'][0].update(message_id=ANSWER),
+            lambda s:s['message_ids'][0].update(model_id='foreign-model'),lambda s:s.update(stream=False),
+            lambda s:s.update(model='foreign-model'),lambda s:s.update(chat_id=OTHER),
+            lambda s:s['user_message'].update(content='summarized continuation'),
+            lambda s:s['background_tasks'].update(follow_up_generation=False))
+        for index,mutate in enumerate(mutations):
+            with self.subTest(case=index):
+                safe,_,error,browser,_,retained=self.exercise(lambda b,w,s,o:setattr(b,'submit_mutation',mutate))
+                self.assertIsNone(safe);self.assertIsNotNone(error);self.assertEqual(browser.sends,1)
+                self.assertEqual(retained['submission'],browser.sent);self.assertIn('failure',retained)
+
+    def test_original_run_and_first_flow_tests_remain_exact_and_native_parent_fields_are_source_backed(self):
+        baseline='e8942c09e889773bbf636c4c2fa898be038e9efd'
+        old=subprocess.check_output(['git','-c','gc.auto=0','show',baseline+':scripts/goal584-budget-proof/prove_office_browser.py'],cwd=HERE.parents[1])
+        select=lambda raw,name:next(n for n in ast.parse(raw).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))and n.name==name)
+        self.assertEqual(ast.dump(select(old,'run'),include_attributes=False),ast.dump(select(Path(B.__file__).read_bytes(),'run'),include_attributes=False))
+        prior_tests=subprocess.check_output(['git','-c','gc.auto=0','show',baseline+':scripts/goal584-budget-proof/test_office_browser.py'],cwd=HERE.parents[1])
+        self.assertEqual(ast.dump(select(prior_tests,'OfficeBrowserTests'),include_attributes=False),
+            ast.dump(select(Path(__file__).read_bytes(),'OfficeBrowserTests'),include_attributes=False))
+        native=Path(os.environ.get('GOAL584_FRONTEND_SOURCE_ROOT',str(HERE.parents[1]/'local/goal584/cost-display/open-webui/src')))
+        if not native.exists():self.skipTest('Exact native frontend cache unavailable')
+        if not shutil.which('node'):self.skipTest('Node unavailable for actual frontend expression replay')
+        upstream=__import__('build_office_profile').UPSTREAM
+        actual=subprocess.check_output(['git','-c','gc.auto=0','show',upstream+':src/lib/components/chat/Chat.svelte'],
+            cwd=native.parent,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'},timeout=10)
+        self.assertEqual((native/'lib/components/chat/Chat.svelte').read_bytes().replace(b'\r\n',b'\n'),actual)
+        chat=actual.decode('utf8')
+        parent=re.search(r'let userMessage = \{\s*id: userMessageId,\s*parentId: (.*?),\n',chat)[1]
+        submitted_parent=re.search(r'parent_id: (.*?),\n',chat)[1]
+        mapping=re.search(r'\.\.\.\(messageIdsList \? \{ message_ids: messageIdsList \} : \{\}\)',chat)[0]
+        script="const history={currentId:'FIRST'};const userMessage={id:'USER',parentId:PARENT,role:'user',content:'exact second question'};const responseMessageId='ANSWER';const messageIdsList=[{model_id:'MODEL',message_id:responseMessageId,modelIdx:0}];console.log(JSON.stringify({id:responseMessageId,parent_id:SUBMITTED,user_message:userMessage,MAPPING}));"
+        for key,value in (('PARENT',parent),('SUBMITTED',submitted_parent),('MAPPING',mapping)):script=script.replace(key,value)
+        replay=json.loads(subprocess.check_output(['node','-e',script],timeout=10))
+        self.assertEqual(replay['parent_id'],replay['user_message']['parentId']);self.assertEqual(replay['parent_id'],'FIRST')
+        self.assertEqual(replay['message_ids'],[{'model_id':'MODEL','message_id':'ANSWER','modelIdx':0}])
 
 
 if __name__ == '__main__': unittest.main()

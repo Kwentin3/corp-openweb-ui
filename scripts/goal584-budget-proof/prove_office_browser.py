@@ -6,6 +6,8 @@ or Tool loop, provisioning, accounting calculation, or Office acceptance here.
 """
 from __future__ import annotations
 
+import base64
+import copy
 import hashlib
 import re
 import time
@@ -14,9 +16,10 @@ from uuid import uuid4
 
 from playwright.sync_api import expect
 
+import prove_office_compatibility as compatibility
 from office_fixture import OfficeFixture
 from prove_gateway_auth import private_parent, write_private
-from prove_office_compatibility import MODEL, OUTPUT_NAME, SOURCE, SOURCE_SHA256, USER_REQUEST, digest
+from prove_office_compatibility import CONTINUATION_REQUEST, MODEL, OUTPUT_NAME, SOURCE, SOURCE_SHA256, USER_REQUEST, digest
 from prove_pricing_browser import MAX_BYTES, no_credentials
 from prove_webui_browser import login, require, text_content
 
@@ -181,3 +184,121 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
     finally:
         for context in reversed(browser.contexts):
             if context not in existing_contexts: context.close()
+
+
+def observed_continuation(before, after, actor, first_answer, user_id, answer_id, file_id):
+    """Use the same native-history acceptance owner as the proxy collector."""
+    try:
+        return compatibility.verify_continuation_history(before, after, actor, first_answer, user_id, answer_id, file_id)
+    except compatibility.ProofError as error:
+        raise AssertionError(str(error)) from None
+
+
+def run_saved_continuation(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revision):
+    """Reload an accepted first turn, then issue exactly one ordinary UI Send."""
+    running = fixture.running_readback(base_url, build_receipt, expected_revision)
+    _, office = fixture._office_private('office-state.private.json')
+    _, state = fixture._office_private('office-continuation-input.private.json')
+    baseline = state.get('continuation_baseline', {})
+    require(state.get('stage') == 'verified_readback' and baseline.get('stage') == 'baseline'
+            and isinstance(baseline.get('saved_chat'), dict), 'Office continuation baseline is not prepared')
+    first, actor = state['browser'], office['users'][0]
+    chat, previous, file_id = (native_id(first[k]) for k in ('chat_id', 'answer_id', 'file_id'))
+    before = baseline['saved_chat']; old_output = before['chat']['history']['messages'][previous].get('output', [])
+    require(before.get('id') == chat and before.get('user_id') == actor['id']
+            and len([v for v in old_output if v.get('type') == 'reasoning' and v.get('encrypted_content')]) == 3,
+            'Office continuation baseline lacks saved first-turn reasoning')
+    target = fixture.private / 'office-continuation-browser.private.json'
+    require(not target.exists() and not target.is_symlink(), 'Office continuation browser evidence already exists')
+    packet = {'schema': 1, 'actor_id': actor['id'], 'chat_id': chat, 'first_answer_id': previous,
+              'file_id': file_id, 'baseline_chat': before, 'running': running}
+    contexts = set(browser.contexts)
+    try:
+        context, page, token = login(browser, base_url, actor)
+        headers = {'Authorization': 'Bearer ' + token}
+        def read_chat():
+            response = context.request.get(base_url + '/api/v1/chats/' + chat, headers=headers, timeout=10_000)
+            require(response.status == 200, 'Office continuation native chat read failed')
+            value = response.json()
+            require(isinstance(value, dict), 'Office continuation native chat schema differs')
+            return value
+        page.goto(base_url + '/c/' + chat, wait_until='domcontentloaded')
+        expect(page.locator('#chat-input')).to_be_visible()
+        selector = page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first
+        expect(selector).to_have_attribute('aria-label', 'Selected model: ' + MODEL)
+        packet['reloaded_before'] = read_chat()
+        reloaded = packet['reloaded_before']
+        require(reloaded.get('id') == chat and reloaded.get('user_id') == actor['id']
+                and reloaded['chat']['history'] == before['chat']['history']
+                and reloaded['chat']['models'] == before['chat']['models'],
+                'Office continuation reload changed the saved baseline')
+        page.locator('#chat-input').fill(CONTINUATION_REQUEST)
+        with page.expect_response(lambda r: urlsplit(r.url).path == '/api/chat/completions'
+                and r.request.method == 'POST', timeout=45_000) as pending:
+            page.locator('#send-message-button').click()
+        response = pending.value
+        packet['http_status'] = response.status
+        raw_submission = response.request.post_data
+        raw_bytes = raw_submission.encode('utf8') if isinstance(raw_submission, str) else b''
+        packet['raw_submission'] = raw_submission if 0 < len(raw_bytes) <= MAX_BYTES else None
+        packet['raw_submission_bytes'] = len(raw_bytes)
+        packet['raw_submission_sha256'] = hashlib.sha256(raw_bytes).hexdigest()
+        write_private(target, packet)
+        raw_ack = response.body()
+        packet['raw_acknowledgement_bytes'] = len(raw_ack) if isinstance(raw_ack, bytes) else None
+        packet['raw_acknowledgement_sha256'] = hashlib.sha256(raw_ack).hexdigest() if isinstance(raw_ack, bytes) else None
+        if isinstance(raw_ack, bytes) and 0 < len(raw_ack) <= MAX_BYTES:
+            packet['raw_acknowledgement_base64'] = base64.b64encode(raw_ack).decode('ascii')
+        write_private(target, packet)
+        require(packet['raw_submission'] is not None, 'Office continuation raw submission exceeded bound')
+        require(isinstance(raw_ack, bytes) and 0 < len(raw_ack) <= MAX_BYTES,
+                'Office continuation raw acknowledgement exceeded bound')
+        sent = response.request.post_data_json
+        packet['submission'] = copy.deepcopy(sent)
+        write_private(target, packet)
+        packet['acknowledgement'] = response.json()
+        try:
+            user_id, answer_id = compatibility.verify_continuation_submission(
+                sent, packet['acknowledgement'], http_status=response.status, chat_id=chat,
+                first_answer_id=previous, prior_message_ids=before['chat']['history']['messages'])
+        except compatibility.ProofError as error:
+            raise AssertionError(str(error)) from None
+        deadline = time.monotonic() + 180
+        while True:
+            stored = read_chat(); packet['stored_chat'] = stored
+            answer = observed_continuation(before, stored, actor['id'], previous, user_id, answer_id, file_id)
+            tasks = context.request.get(base_url + '/api/tasks/chat/' + chat, headers=headers, timeout=10_000)
+            require(tasks.status == 200 and isinstance(tasks.json().get('task_ids'), list), 'Office continuation task readback failed')
+            packet['task_ids'] = tasks.json()['task_ids']
+            if answer is not None and not packet['task_ids']: break
+            require(time.monotonic() < deadline, 'Office continuation answer/cost/follow-ups did not complete')
+            page.wait_for_timeout(250)
+        page.reload(wait_until='domcontentloaded')
+        expect(page.locator('#message-' + answer_id)).to_contain_text('Ответ: $0.20 · Чат: $0.80', timeout=25_000)
+        packet['reloaded_after'] = read_chat()
+        reloaded = packet['reloaded_after']
+        require(reloaded.get('id') == chat and reloaded.get('user_id') == actor['id']
+                and reloaded['chat']['history'] == stored['chat']['history']
+                and reloaded['chat']['models'] == stored['chat']['models'],
+                'Office continuation final reload changed saved history')
+        link = '/api/v1/files/' + file_id + '/content'
+        expect(page.locator('#message-' + answer_id).locator('a[href="' + link + '"]')).to_be_visible()
+        metadata = context.request.get(base_url + '/api/v1/files/' + file_id, headers=headers, timeout=10_000)
+        require(metadata.status == 200 and metadata.json().get('id') == file_id
+                and metadata.json().get('user_id') == actor['id'], 'Office continuation existing file owner differs')
+        packet['native_file'] = metadata.json()
+        screenshot = fixture.output / 'office-continuation.png'; page.screenshot(path=str(screenshot), full_page=False)
+        safe = {'schema': 1, 'status': 'browser_observed', 'chat_id': chat, 'first_answer_id': previous,
+                'answer_id': answer_id, 'user_message_id': user_id, 'actor_id': actor['id'], 'file_id': file_id,
+                'ordinary_sends': 1, 'reloads': 2, 'tasks_empty': True, 'native_accounting_accepted': False,
+                'saved_output_sha256': digest(old_output), 'screenshot_sha256': hashlib.sha256(screenshot.read_bytes()).hexdigest()}
+        no_credentials(safe, [*fixture.secrets, token, actor['password']])
+        write_private(target, packet)
+        return safe, packet
+    except Exception as error:
+        packet['failure'] = {'type': type(error).__name__, 'message': str(error)[:2000]}
+        write_private(target, packet)
+        raise AssertionError('Office continuation browser failed; inspect private evidence') from None
+    finally:
+        for context in reversed(browser.contexts):
+            if context not in contexts: context.close()

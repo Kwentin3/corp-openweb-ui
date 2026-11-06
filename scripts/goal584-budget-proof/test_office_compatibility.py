@@ -192,7 +192,7 @@ def export(component, auth="Bearer caller"):
         headers={"Authorization": auth, "X-OpenWebUI-Chat-Id": "chat", "X-OpenWebUI-Message-Id": "current"})
 
 
-def full_capture(component, *, provider=None):
+def full_capture(component, *, provider=None, encrypted_reasoning=False, expected_instruction=None):
     exported = export(component).json()
     identifier = exported["result_file_id"]
     rendered = component.client.post("/v1/officecli/render", headers={"Authorization": "Bearer caller"},
@@ -204,19 +204,21 @@ def full_capture(component, *, provider=None):
     artifact = dict(source_message_id="selected", exported=exported, native_file_id=identifier, browser_file_id=identifier,
                     native_path=native, browser_path=downloaded, png=rendered.content)
     actor, chat, answer = (str(uuid4()) for _ in range(3))
+    instruction = expected_instruction if expected_instruction is not None else "Preserve explicit instructions; perform the complete Office task."
     owner = {"actor": actor, "key_hash": "a" * 64, "chat_id": chat, "answer_id": answer,
              "wire_model": "goal584-office-wire", "native_specs": component.specs, "exported": exported,
              "png": rendered.content, "native_responses_payload": component.router["convert_to_responses_payload"],
-             "expected_instruction": "Preserve explicit instructions; perform the complete Office task."}
+             "expected_instruction": instruction}
     secret = "synthetic-component-secret-with-no-production-use"
-    body = {"model": P.MODEL, "messages": [{"role": "system", "content": "Preserve explicit instructions; perform the complete Office task."},
+    body = {"model": P.MODEL, "messages": [{"role": "system", "content": instruction},
             {"role": "assistant", "content": P.SOURCE}, {"role": "user", "content": P.USER_REQUEST}],
             "tools": [{"type": "function", "function": copy.deepcopy(s)} for s in component.specs],
             "reasoning": {"effort": "low"}, "include": ["reasoning.encrypted_content"], "store": False, "stream": True,
             "parallel_tool_calls": False, "max_completion_tokens": 1024}
     if provider is not None:
         owner["wire_model"] = provider.OFFICE_MODEL
-        body.pop("reasoning"); body.pop("include")
+        body.pop("reasoning")
+        if not encrypted_reasoning: body.pop("include")
     calls = []; recorded_outputs = []
     prefix = copy.deepcopy(body["messages"])
     for index in range(3):
@@ -337,6 +339,233 @@ def current_mock_wire_capture(component):
     _, calls, owner = full_capture(component, provider=provider)
     for call in calls: del call["before_budget"], call["after_budget"]
     return calls, owner
+
+
+@pytest.fixture(scope="module")
+def saved_context_owners():
+    from test_office_fixture import native_context_owners
+    return native_context_owners()
+
+
+@pytest.fixture
+def continuation_submission_packet():
+    # Reuse the existing browser IO fixture's ordinary one-click submission,
+    # rather than authoring a second native request-shape fixture here.
+    import test_office_browser as browser
+    world = browser.ContinuationBrowser(None)
+    page = SimpleNamespace(world=world, fields={'#chat-input': P.CONTINUATION_REQUEST}, pending=SimpleNamespace())
+    browser.ContinuationLocator(page, '#send-message-button').click()
+    response = page.pending.value
+    sent, ack = response.request.post_data_json, response.json()
+    assert json.loads(response.request.post_data) == sent and json.loads(response.body()) == ack
+    options = {'http_status': response.status, 'chat_id': browser.CHAT, 'first_answer_id': browser.ANSWER,
+               'prior_message_ids': list(world.before['chat']['history']['messages'])}
+    return sent, ack, options
+
+
+@pytest.mark.parametrize('content,ack_chat', [('text', True), ('blocks', True), ('text', False)])
+def test_continuation_submission_shared_owner_accepts_native_text_shapes_and_existing_ack_fallback(continuation_submission_packet, content, ack_chat):
+    sent, ack, options = continuation_submission_packet
+    if content == 'blocks':
+        sent['user_message']['content'] = [{'type': 'text', 'text': P.CONTINUATION_REQUEST[:12]},
+                                           {'type': 'text', 'text': P.CONTINUATION_REQUEST[12:]}]
+    if not ack_chat: ack.pop('chat_id')
+    before = copy.deepcopy((sent, ack, options))
+    assert P.verify_continuation_submission(sent, ack, **options) == (sent['user_message']['id'], sent['id'])
+    assert (sent, ack, options) == before
+
+
+@pytest.mark.parametrize('mutation', ['model', 'chat', 'parent', 'stream', 'stream_integer', 'message_ids_missing',
+    'message_ids_extra', 'message_model', 'message_answer', 'model_index', 'model_index_bool', 'model_index_float',
+    'message_key', 'user_parent', 'user_role', 'user_content', 'user_image', 'user_content_key', 'user_content_type',
+    'followup', 'followup_integer', 'task_shape', 'status', 'status_float', 'ack_chat', 'ack_shape', 'sent_shape',
+    'user_shape', 'user_old', 'answer_old', 'same_ids', 'user_uppercase', 'user_no_dashes', 'answer_bad_uuid'])
+def test_continuation_submission_rejects_coherent_raw_and_parsed_native_field_mutations(continuation_submission_packet, mutation):
+    sent, ack, options = continuation_submission_packet
+    user = sent['user_message']
+    if mutation == 'model': sent['model'] = 'foreign-model'
+    elif mutation == 'chat': sent['chat_id'] = str(uuid4())
+    elif mutation == 'parent': sent['parent_id'] = str(uuid4())
+    elif mutation == 'stream': sent['stream'] = False
+    elif mutation == 'stream_integer': sent['stream'] = 1
+    elif mutation == 'message_ids_missing': sent.pop('message_ids')
+    elif mutation == 'message_ids_extra': sent['message_ids'].append(copy.deepcopy(sent['message_ids'][0]))
+    elif mutation == 'message_model': sent['message_ids'][0]['model_id'] = 'foreign-model'
+    elif mutation == 'message_answer': sent['message_ids'][0]['message_id'] = str(uuid4())
+    elif mutation == 'model_index': sent['message_ids'][0]['modelIdx'] = 1
+    elif mutation == 'model_index_bool': sent['message_ids'][0]['modelIdx'] = False
+    elif mutation == 'model_index_float': sent['message_ids'][0]['modelIdx'] = 0.0
+    elif mutation == 'message_key': sent['message_ids'][0]['extra'] = 'not native'
+    elif mutation == 'user_parent': user['parentId'] = str(uuid4())
+    elif mutation == 'user_role': user['role'] = 'assistant'
+    elif mutation == 'user_content': user['content'] = 'Different next prompt'
+    elif mutation == 'user_image': user['content'] = [{'type': 'image_url', 'image_url': 'synthetic'}]
+    elif mutation == 'user_content_key': user['content'] = [{'type': 'text', 'text': P.CONTINUATION_REQUEST, 'extra': True}]
+    elif mutation == 'user_content_type': user['content'] = {'type': 'text', 'text': P.CONTINUATION_REQUEST}
+    elif mutation == 'followup': sent['background_tasks']['follow_up_generation'] = False
+    elif mutation == 'followup_integer': sent['background_tasks']['follow_up_generation'] = 1
+    elif mutation == 'task_shape': sent['background_tasks'] = []
+    elif mutation == 'status': options['http_status'] = 401
+    elif mutation == 'status_float': options['http_status'] = 200.0
+    elif mutation == 'ack_chat': ack['chat_id'] = str(uuid4())
+    elif mutation == 'ack_shape': ack = []
+    elif mutation == 'sent_shape': sent = []
+    elif mutation == 'user_shape': sent['user_message'] = []
+    elif mutation == 'user_old': user['id'] = options['prior_message_ids'][0]
+    elif mutation == 'answer_old': sent['id'] = sent['message_ids'][0]['message_id'] = options['prior_message_ids'][0]
+    elif mutation == 'same_ids': sent['id'] = sent['message_ids'][0]['message_id'] = user['id']
+    elif mutation == 'user_uppercase': user['id'] = 'AAAAAAAA-1111-4111-8111-111111111111'
+    elif mutation == 'user_no_dashes': user['id'] = user['id'].replace('-', '')
+    else: sent['id'] = sent['message_ids'][0]['message_id'] = 'not-a-native-uuid'
+    # The gap is coherent mutation of both retained representations, not a
+    # mismatch that a raw/parsed hash or JSON equality check already catches.
+    raw, raw_ack = json.dumps(sent), json.dumps(ack)
+    parsed, parsed_ack = json.loads(raw), json.loads(raw_ack)
+    assert parsed == sent and parsed_ack == ack
+    with pytest.raises(P.ProofError): P.verify_continuation_submission(parsed, parsed_ack, **options)
+
+
+@pytest.fixture
+def saved_continuation(component, monkeypatch, tmp_path, saved_context_owners):
+    """Actual finite factory/native producers, with explicit auth/DB IO fixtures.
+
+    The emitted native_context Python executes unchanged through the existing
+    Docker/import leaf doubles. Saved JSON and auth observations here are source
+    fixtures; they do not establish runtime DB ancestry or authenticated IO.
+    """
+    import test_office_fixture as context
+    from test_office_provider import P as provider, memory_office_response
+    import prove_office_readback as readback
+    monkeypatch.setattr(provider, "REQUESTS", [])
+    instruction = P.office_instruction((ROOT / "deploy/openwebui-functions/officecli_auto_attach_filter.py").read_bytes())
+    artifact, calls, owner = full_capture(component, provider=provider, encrypted_reasoning=True,
+                                         expected_instruction=instruction)
+    for call in calls: del call["before_budget"], call["after_budget"]
+    results = [v for v in calls[-1]["wire_before_auth"]["input"] if v.get("type") == "function_call_output"]
+    saved = []
+    for index, call in enumerate(calls):
+        saved.extend(copy.deepcopy(call["provider"]["response"]["output"]))
+        if index < 2:
+            result = copy.deepcopy(results[index])
+            if isinstance(result["output"], str): result["output"] = [{"type": "input_text", "text": result["output"]}]
+            saved.append(result)
+    saved = json.loads(json.dumps(saved))
+    reasoning = [[v for v in call["provider"]["response"]["output"] if v["type"] == "reasoning"] for call in calls]
+    observer = tmp_path / "native-observer"; observer.mkdir()
+    with pytest.MonkeyPatch.context() as observed_io:
+        world = context.native_context_world(observer, observed_io, saved_context_owners)
+        default = world.fixture.native_context(context.BASE, world.receipt, world.revision, reasoning)
+        native_saved = world.fixture.native_context(context.BASE, world.receipt, world.revision, reasoning, saved_output=saved)
+        native_final = world.fixture.native_context(context.BASE, world.receipt, world.revision, reasoning,
+            saved_output=calls[-1]["provider"]["response"]["output"])
+        source_sha = P.digest(world.handoff["office_setup"]["openapi"])
+        native_payload_bytes = [len(command[-1].encode("ascii")) for command in world.native_commands]
+        owner["native_responses_payload"] = readback.native_converter(default, world.handoff)
+    assert len(P.verify_wire_calls(calls, **owner)) == 3
+    wire = copy.deepcopy(calls[0]["wire_before_auth"])
+    wire["input"] += native_saved["saved_output_case"]["native_input"]
+    wire["input"].append({"type": "message", "role": "user", "content": [{"type": "input_text", "text": P.CONTINUATION_REQUEST}]})
+    answer = str(uuid4()); secret = "synthetic-saved-continuation-signed-scope-secret"
+    after = copy.deepcopy(wire)
+    after["litellm_metadata"] = {"owui_budget_provenance": provenance.encode_call(secret, user_id=owner["actor"],
+        chat_id=owner["chat_id"], answer_id=answer, root_chat_id=owner["chat_id"], root_answer_id=answer, model=P.MODEL)}
+    claims = P.verify_budget_boundary(wire, after, decode_call=provenance.decode_call, secret=secret, actor=owner["actor"])
+    scope = {**calls[0]["verified_cost_scope"], "answer_id": answer, "root_answer_id": answer, "call_id": claims["jti"]}
+    status, _ = memory_office_response({**copy.deepcopy(wire), "model": owner["wire_model"]})
+    assert status == [200] and len(provider.REQUESTS) == 4
+    physical = copy.deepcopy(provider.REQUESTS[-1])
+    physical["lifecycle"] = {k: physical["lifecycle"][k] for k in ("terminal", "outcome")}
+    call = {**calls[0], "wire_before_auth": wire, "wire_after_auth": copy.deepcopy(wire),
+            "verified_cost_scope": scope, "provider": physical}
+    kwargs = {**owner, "answer_id": answer, "first_calls": calls, "saved_output": saved,
+              "native_saved": native_saved, "native_final": native_final, "native_source_sha256": source_sha}
+    return SimpleNamespace(call=call, kwargs=kwargs, artifact=artifact, native_payload_bytes=native_payload_bytes)
+
+
+def test_saved_continuation_actual_factory_full_native_join_and_shared_auth_guards(saved_continuation, monkeypatch):
+    case = saved_continuation
+    original = copy.deepcopy((case.call, case.kwargs))
+    real = P.verify_wire_call; observed = []
+    def single(call, **kwargs):
+        observed.append(call["provider"]["id"])
+        return real(call, **kwargs)
+    monkeypatch.setattr(P, "verify_wire_call", single)
+    assert P.verify_saved_continuation(case.call, **case.kwargs) == {
+        case.call["provider"]["id"]: case.call["verified_cost_scope"]}
+    assert observed == [v["provider"]["id"] for v in case.kwargs["first_calls"]] + [case.call["provider"]["id"]]
+    assert (case.call, case.kwargs) == original
+    assert len(case.call["wire_before_auth"]["tools"]) == 14
+    assert len(case.kwargs["saved_output"]) == 8 and len(case.call["wire_before_auth"]["input"]) == 11
+    assert len([v for v in case.kwargs["saved_output"] if v["type"] == "reasoning"]) == 3
+    assert all(size <= 96 * 1024 for size in case.native_payload_bytes)
+    assert len(case.native_payload_bytes) == 3
+
+
+@pytest.mark.parametrize("mutation", ["lost_opaque", "truncated_opaque", "truncated_last_opaque", "coherent_final_native_opaque", "lost_tool", "wrong_image", "prior_source",
+    "prior_user", "new_user", "extra_user", "include", "tool_schema", "instructions", "store", "previous_response",
+    "auth", "key", "attestation", "unconsumed", "parent_chat", "parent_answer", "old_answer", "payee", "service",
+    "nonce", "provider_id", "provider_body", "usage", "lifecycle", "new_tool", "different_file",
+    "packet_modules", "packet_source", "packet_schema", "packet_echo", "packet_input", "final_echo", "final_input",
+    "packet_reasoning", "packet_specs"])
+def test_saved_continuation_rejects_coherent_context_loss_and_native_auth_packet_drift(saved_continuation, mutation):
+    call, options = copy.deepcopy((saved_continuation.call, saved_continuation.kwargs))
+    wires = (call["wire_before_auth"], call["wire_after_auth"], call["provider"]["body"])
+    scope = call["verified_cost_scope"]
+    if mutation == "coherent_final_native_opaque":
+        values = [options["native_final"]["saved_output_case"]["native_input"],
+                  options["native_saved"]["saved_output_case"]["native_input"], *[w["input"] for w in wires]]
+        for items in values:
+            [v for v in items if v.get("type") == "reasoning"][-1]["encrypted_content"] = "forged native final opaque"
+    elif mutation in ("lost_opaque", "truncated_opaque", "truncated_last_opaque", "lost_tool", "wrong_image"):
+        # Coherently damage DB output, observed native saved input and all new
+        # wires. Agreement between only those observations must never suffice.
+        values = [options["saved_output"], options["native_saved"]["saved_output_case"]["input_saved_output"],
+                  options["native_saved"]["saved_output_case"]["native_input"], *[w["input"] for w in wires]]
+        for items in values:
+            if mutation == "lost_opaque": items.remove(next(v for v in items if v.get("type") == "reasoning"))
+            elif mutation in ("truncated_opaque", "truncated_last_opaque"):
+                [v for v in items if v.get("type") == "reasoning"][0 if mutation == "truncated_opaque" else -1]["encrypted_content"] = "truncated"
+            elif mutation == "lost_tool": items.remove(next(v for v in items if v.get("type") == "function_call_output"))
+            else:
+                next(v for v in P._nodes(items) if v.get("type") == "input_image")["image_url"] = "data:image/png;base64,AA=="
+    elif mutation in ("prior_source", "prior_user", "new_user", "extra_user", "include", "tool_schema", "instructions", "store", "previous_response"):
+        for wire in wires:
+            if mutation == "prior_source": next(v for v in wire["input"] if v.get("role") == "assistant")["content"][0]["text"] = "source omitted"
+            elif mutation == "prior_user": next(v for v in wire["input"] if v.get("role") == "user")["content"][0]["text"] = "wrong prior user"
+            elif mutation == "new_user": wire["input"][-1]["content"][0]["text"] = "wrong next user"
+            elif mutation == "extra_user": wire["input"].append(copy.deepcopy(wire["input"][-1]))
+            elif mutation == "include": wire.pop("include")
+            elif mutation == "tool_schema": wire["tools"].pop()
+            elif mutation == "instructions": wire["instructions"] = "short instruction"
+            elif mutation == "store": wire["store"] = True
+            else: wire["previous_response_id"] = "resp-stateful"
+    elif mutation == "auth": call["auth_user_id"] = str(uuid4())
+    elif mutation == "key": call["auth_key_hash"] = "b" * 64
+    elif mutation == "attestation": call["attestation_present_before"] = False
+    elif mutation == "unconsumed": call["provenance_removed_after"] = False
+    elif mutation == "parent_chat": scope["root_chat_id"] = str(uuid4())
+    elif mutation == "parent_answer": scope["root_answer_id"] = str(uuid4())
+    elif mutation == "old_answer":
+        scope["answer_id"] = scope["root_answer_id"] = options["answer_id"] = options["first_calls"][0]["verified_cost_scope"]["answer_id"]
+    elif mutation == "payee": scope["user_id"] = str(uuid4())
+    elif mutation == "service": scope["category"] = "service"
+    elif mutation == "nonce": scope["call_id"] = options["first_calls"][0]["verified_cost_scope"]["call_id"]
+    elif mutation == "provider_id": call["provider"]["id"] = call["provider"]["response"]["id"] = options["first_calls"][0]["provider"]["id"]
+    elif mutation == "provider_body": call["provider"]["body"]["instructions"] = "provider drift"
+    elif mutation == "usage": call["provider"]["response"]["usage"] = {"input_tokens": 0}
+    elif mutation == "lifecycle": call["provider"]["lifecycle"]["terminal"] = False
+    elif mutation == "new_tool": call["provider"]["response"]["output"].append(copy.deepcopy(options["first_calls"][0]["provider"]["response"]["output"][-1]))
+    elif mutation == "different_file": call["provider"]["response"]["output"][-1]["content"][0]["text"] = "[Download](/api/v1/files/foreign/content)"
+    elif mutation == "packet_modules": options["native_saved"]["module_sha256"]["utils/misc.py"] = "f" * 64
+    elif mutation == "packet_source": options["native_saved"]["source_body_sha256"] = "f" * 64
+    elif mutation == "packet_schema": options["native_saved"]["schema"] = True
+    elif mutation == "packet_echo": options["native_saved"]["saved_output_case"]["input_saved_output"] = []
+    elif mutation == "packet_input": options["native_saved"]["saved_output_case"]["native_input"] = []
+    elif mutation == "final_echo": options["native_final"]["saved_output_case"]["input_saved_output"] = []
+    elif mutation == "final_input": options["native_final"]["saved_output_case"]["native_input"] = []
+    elif mutation == "packet_reasoning": options["native_final"]["reasoning_cases"][0]["native_input"] = []
+    else: options["native_final"]["native_specs"].pop()
+    with pytest.raises((P.ProofError, KeyError)): P.verify_saved_continuation(call, **options)
 
 
 def test_current_mock_without_reasoning_keeps_only_actual_native_tool_pairs(component):

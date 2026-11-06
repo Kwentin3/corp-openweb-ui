@@ -13,6 +13,7 @@ import prove_office_readback as R
 import prove_native_budgets as N
 import test_office_compatibility as T
 from test_office_compatibility import component, native
+from test_office_compatibility import saved_continuation, saved_context_owners
 
 
 def scenario(component, monkeypatch):
@@ -426,3 +427,352 @@ def test_native_api_inventory_preserves_all_payers_keys_raw_zero_rows_and_ignore
     assert first['primary']['old_payers'] == second['primary']['old_payers']
     keys[old][0]['max_budget'] = 2000
     assert first['primary']['old_payers'] != R.inventory(native, office)['primary']['old_payers']
+
+
+def continuation_capture(call):
+    """HTTP/auth observation leaf; the actual domain validators remain real."""
+    return {'body': copy.deepcopy(call['wire_before_auth']), 'body_after_auth': copy.deepcopy(call['wire_after_auth']),
+        'native_auth_user_id': call['auth_user_id'], 'native_auth_key_hash': call['auth_key_hash'],
+        'attestation_present_before': call['attestation_present_before'], 'provenance_removed_after': call['provenance_removed_after'],
+        'route': call['route'], 'verified_cost_scope': copy.deepcopy(call['verified_cost_scope'])}
+
+
+def continuation_service(component, native, monkeypatch, *, actor, payer, key_hash, chat, messages):
+    """Existing native task/Pipe/router and actual memory Handler, no listener."""
+    import test_office_provider as provider_owner
+    original_spec = provider_owner.importlib.util.spec_from_file_location
+    native_ids = T.NATIVE / 'utils/model_ids.py'
+    assert native_ids.read_bytes().replace(b'\r\n', b'\n') == T.subprocess.check_output(['git', '-C', str(T.NATIVE.parents[1]),
+        'show', '6a18585ff4c2e5f6805f682222cfbc46dc669ef8:backend/open_webui/utils/model_ids.py'])
+    def cached_spec(name, *args, **kwargs):
+        spec = original_spec(name, *args, **kwargs)
+        if name == 'office_service_pipe_fixture':
+            load = spec.loader.exec_module
+            def execute(module):
+                load(module)
+                module.prefix_owner = module.load('native_model_ids_for_service_test', native_ids)
+            spec.loader.exec_module = execute
+        return spec
+    def send(wire):
+        statuses, raw = provider_owner.memory_office_response(wire)
+        assert statuses == [200]
+        response = json.loads(raw); provider_owner.http_owner.Response.model_validate(response)
+        return provider_owner.http_owner.native_parsers()['convert_responses_result'](copy.deepcopy(response))
+    with monkeypatch.context() as leaf:
+        leaf.setattr(provider_owner.importlib.util, 'spec_from_file_location', cached_spec)
+        result, wires, _ = provider_owner.native_service_request(native, send, messages=messages)
+    assert len(wires) == 1
+    physical = copy.deepcopy(provider_owner.P.REQUESTS[-1]); wire = dict(wires[0], model='gpt-6-luna')
+    secret = 'synthetic-readback-service-gateway-secret'
+    claims = T.provenance.decode_service_call(T.provenance.encode_service_call(secret, user_id=actor, payer_id=payer,
+        chat_id=chat, model='gpt-6-luna', task='follow_up_generation'), secret, user_id=actor, model='gpt-6-luna', task='follow_up_generation')
+    scope = {'schema': 1, 'category': 'service', 'user_id': payer, 'actor_id': actor, 'chat_id': chat,
+        'model': 'gpt-6-luna', 'task': 'follow_up_generation', 'call_id': claims['jti']}
+    call = {'provider': physical, 'wire_before_auth': wire, 'wire_after_auth': copy.deepcopy(wire),
+        'verified_cost_scope': scope, 'auth_user_id': payer, 'auth_key_hash': key_hash,
+        'attestation_present_before': True, 'provenance_removed_after': True, 'route': '/responses'}
+    followups = json.loads(result['choices'][0]['message']['content'])['follow_ups']
+    return call, followups
+
+
+@pytest.fixture
+def continuation_case(component, native, monkeypatch, request):
+    """Actual native/domain work over explicit HTTP, auth and private-DB leaves.
+
+    The prepared objects are component inputs. They prove no actual DB, browser
+    or auth origin; no checker is replaced with a success-returning fake.
+    """
+    import test_office_fixture as context
+    packets = []; real_context = context.office.OfficeFixture.native_context
+    def observe(self, *args, **kwargs):
+        packet = real_context(self, *args, **kwargs); packets.append(copy.deepcopy(packet)); return packet
+    monkeypatch.setattr(context.office.OfficeFixture, 'native_context', observe)
+    case = request.getfixturevalue('saved_continuation')
+    assert len(packets) == 3 and packets[1] == case.kwargs['native_saved'] and packets[2] == case.kwargs['native_final']
+    seed = scenario(component, monkeypatch)
+    _, one_after, _ = T.continuation_financial_fixture(component, monkeypatch)
+    actor, chat = case.kwargs['actor'], case.kwargs['chat_id']
+    previous = case.kwargs['first_calls'][0]['verified_cost_scope']['answer_id']; answer = case.kwargs['answer_id']
+    payer = seed['office']['service_fixture']['payer_id']; file_id = case.artifact['native_file_id']; user = str(uuid4())
+    first_messages = [{'role': 'user', 'content': 'Prepare the complete original proposal.'}, {'role': 'assistant', 'content': R.proof.SOURCE},
+        {'role': 'user', 'content': R.proof.USER_REQUEST}, {'role': 'assistant', 'content': '[Download](/api/v1/files/' + file_id + '/content)'}]
+    service_first, follow_first = continuation_service(component, native, monkeypatch, actor=actor, payer=payer,
+        key_hash='b' * 64, chat=chat, messages=first_messages)
+    service_next, follow_next = continuation_service(component, native, monkeypatch, actor=actor, payer=payer,
+        key_hash='b' * 64, chat=chat, messages=first_messages + [{'role': 'user', 'content': R.proof.CONTINUATION_REQUEST},
+            {'role': 'assistant', 'content': case.call['provider']['response']['output'][-1]['content'][0]['text']}])
+    office = copy.deepcopy(seed['office']); office['users'][0].update(id=actor, token='opaque-private-readback-user-token')
+    office.update(stage='setup_complete', office_service_setup={'stage': 'readback_ready'})
+    office['office_setup']['budget'] = {'models': [{'key_hash': case.kwargs['key_hash']}]}
+    office['service_fixture']['key_hash'] = 'b' * 64
+    assert R.proof.digest(office['office_setup']['openapi']) == case.kwargs['native_source_sha256']
+    def row(template, call, deployment):
+        value = copy.deepcopy(template); scope = call['verified_cost_scope']; service = scope['category'] == 'service'
+        value.update(request_id='resp_' + T.base64.b64encode(('litellm:custom_llm_provider:openai;model_id:' + deployment
+            + ';response_id:' + call['provider']['id']).encode()).decode(), user=call['auth_user_id'], api_key=call['auth_key_hash'],
+            model='openai/' + call['provider']['response']['model'], model_id=deployment,
+            model_group='gpt-6-luna' if service else R.proof.MODEL, session_id=('owui-service:' if service else '') + chat)
+        value['metadata']['spend_logs_metadata']['owui_budget'] = copy.deepcopy(scope)
+        return value
+    initial = {k: copy.deepcopy(seed['before']['finance'][k]) for k in ('primary', 'service')}
+    for owner, uid, token in (('primary', actor, case.kwargs['key_hash']), ('service', payer, 'b' * 64)):
+        initial[owner]['user']['user_id'] = initial[owner]['key']['user_id'] = uid; initial[owner]['key']['token'] = token
+        for item in initial[owner]['rows']: item['user'] = uid
+    phases = [copy.deepcopy(initial) for _ in range(3)]
+    for slot in (1, 2):
+        phases[slot]['primary']['rows'] += [row(one_after['rows'][-1], call, 'goal584-office-primary') for call in case.kwargs['first_calls']]
+        phases[slot]['service']['rows'].append(row(seed['after']['service']['rows'][-1], service_first, 'goal584-office-service'))
+        phases[slot]['primary']['user']['spend'] = phases[slot]['primary']['key']['spend'] = .60
+        phases[slot]['service']['user']['spend'] = phases[slot]['service']['key']['spend'] = .20
+    phases[2]['primary']['rows'].append(row(one_after['rows'][-1], case.call, 'goal584-office-primary'))
+    phases[2]['service']['rows'].append(row(seed['after']['service']['rows'][-1], service_next, 'goal584-office-service'))
+    phases[2]['primary']['user']['spend'] = phases[2]['primary']['key']['spend'] = .80
+    phases[2]['service']['user']['spend'] = phases[2]['service']['key']['spend'] = .40
+    old = str(uuid4()); old_user = dict(initial['primary']['user'], user_id=old, spend=4)
+    old_keys = [dict(initial['primary']['key'], user_id=old, token=letter * 64, spend=4) for letter in ('c', 'd')]
+    backend = SimpleNamespace(phase=0, calls=[], phases=phases)
+    class Opener:
+        def open(self, req, timeout):
+            uri = urlsplit(req.full_url); query = parse_qs(uri.query); backend.calls.append((req.get_method(), uri.path, query))
+            assert req.get_method() == 'GET'
+            owners = {actor: backend.phases[backend.phase]['primary'], payer: backend.phases[backend.phase]['service']}
+            if uri.path == '/user/list': return HttpResult({'users': [{'user_id': uid} for uid in (*owners, old)], 'page': 1, 'total': 3, 'total_pages': 1})
+            uid = query['user_id'][0]
+            keys = old_keys if uid == old else [owners[uid]['key']]
+            if uri.path == '/key/list': return HttpResult({'keys': keys, 'current_page': 1, 'total_count': len(keys), 'total_pages': 1})
+            if uri.path == '/user/info': return HttpResult({'user_info': old_user if uid == old else owners[uid]['user'], 'keys': keys})
+            assert uri.path == '/spend/logs/v2'
+            return HttpResult({'data': [{'user': old, 'request_id': 'retained-other-zero', 'spend': 0, 'opaque': {'keep': True}}]
+                if uid == old else owners[uid]['rows'], 'total_pages': 1})
+    native_owner = N.NativeProof('http://127.0.0.1:4000', 'opaque-private-native-operator', 2, {}); native_owner.opener = Opener()
+    from datetime import datetime
+    native_owner.started_at = datetime.fromisoformat('2026-11-05T09:59:00+00:00')
+    finances = []
+    for index in range(3): backend.phase = index; finances.append(R.inventory(native_owner, office))
+    first_calls = case.kwargs['first_calls']; first_provider = {'requests': [*[copy.deepcopy(c['provider']) for c in first_calls], service_first['provider']]}
+    first_capture = {'requests': [*[continuation_capture(c) for c in first_calls], continuation_capture(service_first)]}
+    provider = {'requests': first_provider['requests'] + [copy.deepcopy(case.call['provider']), service_next['provider']]}
+    capture = {'requests': first_capture['requests'] + [continuation_capture(case.call), continuation_capture(service_next)]}
+    first_browser = dict(seed['browser'], chat_id=chat, answer_id=previous, file_id=file_id,
+        source_message_id=case.artifact['source_message_id'])
+    source_id = first_browser['source_message_id']; original_user = 'original-office-user'
+    saved_before = {'id': chat, 'user_id': actor, 'chat': {'models': [R.proof.MODEL], 'history': {'currentId': previous, 'messages': {
+        source_id: {'id': source_id, 'role': 'assistant', 'content': R.proof.SOURCE},
+        original_user: {'id': original_user, 'role': 'user', 'content': R.proof.USER_REQUEST, 'parentId': source_id},
+        previous: {'id': previous, 'role': 'assistant', 'model': R.proof.MODEL, 'content': first_messages[-1]['content'],
+            'parentId': original_user, 'done': True, 'childrenIds': [], 'followUps': follow_first, 'output': copy.deepcopy(case.kwargs['saved_output'])}}}}}
+    saved = copy.deepcopy(saved_before); history = saved['chat']['history']; history['currentId'] = answer
+    history['messages'][previous]['childrenIds'] = [user]
+    history['messages'][user] = {'id': user, 'role': 'user', 'content': R.proof.CONTINUATION_REQUEST, 'parentId': previous, 'childrenIds': [answer]}
+    history['messages'][answer] = {'id': answer, 'role': 'assistant', 'model': R.proof.MODEL, 'parentId': user, 'done': True,
+        'content': first_messages[-1]['content'], 'output': copy.deepcopy(case.call['provider']['response']['output']), 'followUps': follow_next,
+        'statusHistory': [{'action': 'employee_budget_cost', 'done': True, 'description': 'Ответ: $0.20 · Чат: $0.80 · на 10:00:00 UTC'}]}
+    sent = {'id': answer, 'model': R.proof.MODEL, 'chat_id': chat, 'parent_id': previous, 'stream': True,
+        'user_message': copy.deepcopy(history['messages'][user]),
+        'message_ids': [{'model_id': R.proof.MODEL, 'message_id': answer, 'modelIdx': 0}],
+        'background_tasks': {'follow_up_generation': True}}
+    ack = {'chat_id': chat, 'status': True}
+    browser = {'schema': 1, 'actor_id': actor, 'chat_id': chat, 'first_answer_id': previous, 'file_id': file_id,
+        'http_status': 200, 'submission': sent, 'acknowledgement': ack, 'raw_submission': json.dumps(sent),
+        'raw_acknowledgement_base64': T.base64.b64encode(json.dumps(ack).encode()).decode(), 'task_ids': [],
+        'baseline_chat': copy.deepcopy(saved_before), 'reloaded_before': copy.deepcopy(saved_before),
+        'stored_chat': copy.deepcopy(saved), 'reloaded_after': copy.deepcopy(saved)}
+    state = dict(seed['before'], schema=1, stage='verified_readback', prepared_sha256=R.proof.digest(office),
+        history_start_utc=native_owner.started_at.isoformat(), finance=finances[0], after=finances[1],
+        provider={'requests': []}, capture={'requests': []}, provider_after=first_provider, capture_after=first_capture,
+        saved_chat=saved_before, browser=first_browser, native_context=packets[0])
+    assert R.verify(state, finances[1], first_provider, first_capture, saved_before, first_browser, packets[0], office, seed['d'])['provider_calls'] == 4
+    state['continuation_baseline'] = {'schema': 1, 'stage': 'baseline', 'saved_chat': saved_before,
+        'finance': finances[1], 'provider': first_provider, 'capture': first_capture}
+    backend.phase = 2
+    return SimpleNamespace(state=state, after=finances[2], provider=provider, captured=capture, saved=saved,
+        browser=browser, packets={'schema': 1, 'saved': packets[1], 'final': packets[2]}, office=office, d=seed['d'],
+        native=native_owner, backend=backend, saved_before=saved_before, first_provider=first_provider, first_capture=first_capture,
+        factory=__import__('test_office_provider').P, finances=finances)
+
+
+def test_continuation_readback_joins_actual_native_factory_context_inventory_scope_rates_and_sdk(continuation_case):
+    case = continuation_case
+    original = copy.deepcopy((case.state, case.after, case.provider, case.captured, case.saved, case.browser, case.packets))
+    dispatches = copy.deepcopy(case.factory.REQUESTS)
+    result = R.verify_continuation(case.state, case.after, case.provider, case.captured, case.saved, case.browser, case.packets, case.office, case.d)
+    assert result['primary'] == result['service'] == {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
+    assert result['provider_calls'] == 2 and result['saved_chat_verified'] is True
+    assert (case.state, case.after, case.provider, case.captured, case.saved, case.browser, case.packets) == original
+    assert case.factory.REQUESTS == dispatches and all(method == 'GET' for method, _, _ in case.backend.calls)
+
+
+def test_continuation_readback_rejects_coherent_raw_fields_context_rows_caps_and_extra_dispatch(continuation_case):
+    case = continuation_case
+    names = ['raw_submission', 'raw_ack', 'submitted_parent', 'submitted_user_parent', 'submitted_model', 'submitted_chat',
+        'submitted_content', 'submitted_stream', 'submitted_old_answer', 'submitted_selection', 'submitted_task',
+        'saved_parent', 'browser_history', 'nonce', 'opaque', 'native_source', 'native_echo', 'primary_row', 'old_row',
+        'primary_cap', 'service_row', 'service_scope', 'extra_provider', 'extra_capture', 'prior_provider']
+    for name in names:
+        data = copy.deepcopy({k: getattr(case, k) for k in ('state', 'after', 'provider', 'captured', 'saved', 'browser', 'packets')})
+        browser, saved, captured = data['browser'], data['saved'], data['captured']
+        sent = browser['submission']; user = sent['user_message']['id']; answer = sent['id']
+        added = {owner: next(row for row in data['after'][owner]['rows'] if row['request_id'] not in {
+            old['request_id'] for old in data['state']['continuation_baseline']['finance'][owner]['rows']}) for owner in ('primary', 'service')}
+        if name == 'raw_submission': browser['raw_submission'] = json.dumps(dict(sent, parent_id='forged'))
+        elif name == 'raw_ack': browser['raw_acknowledgement_base64'] = T.base64.b64encode(json.dumps({'chat_id': str(uuid4())}).encode()).decode()
+        elif name.startswith('submitted_'):
+            if name == 'submitted_parent': sent['parent_id'] = str(uuid4())
+            elif name == 'submitted_user_parent': sent['user_message']['parentId'] = str(uuid4())
+            elif name == 'submitted_model': sent['model'] = 'foreign-model'
+            elif name == 'submitted_chat': sent['chat_id'] = str(uuid4())
+            elif name == 'submitted_content': sent['user_message']['content'] = 'different second turn'
+            elif name == 'submitted_stream': sent['stream'] = False
+            elif name == 'submitted_old_answer': sent['id'] = browser['first_answer_id']
+            elif name == 'submitted_selection': sent['message_ids'][0]['message_id'] = str(uuid4())
+            else: sent['background_tasks']['follow_up_generation'] = False
+            browser['raw_submission'] = json.dumps(sent)  # Coherent parsed/raw damage must still reject.
+        elif name == 'saved_parent': saved['chat']['history']['messages'][user]['parentId'] = str(uuid4())
+        elif name == 'browser_history': browser['reloaded_after']['chat']['history']['messages'][answer]['content'] = 'forged reload'
+        elif name == 'nonce': captured['requests'][-2]['verified_cost_scope']['call_id'] = captured['requests'][0]['verified_cost_scope']['call_id']
+        elif name == 'opaque':
+            before = data['state']['continuation_baseline']['saved_chat']['chat']['history']['messages'][browser['first_answer_id']]['output']
+            groups = [before, data['packets']['saved']['saved_output_case']['input_saved_output'], data['packets']['saved']['saved_output_case']['native_input'],
+                captured['requests'][-2]['body']['input'], captured['requests'][-2]['body_after_auth']['input'], data['provider']['requests'][-2]['body']['input']]
+            groups += [chat['chat']['history']['messages'][browser['first_answer_id']]['output'] for chat in (
+                saved, browser['baseline_chat'], browser['reloaded_before'], browser['stored_chat'], browser['reloaded_after'])]
+            for items in groups: [v for v in items if v.get('type') == 'reasoning'][-1]['encrypted_content'] = 'coherently forged opaque'
+        elif name == 'native_source': data['packets']['saved']['source_body_sha256'] = '0' * 64
+        elif name == 'native_echo': data['packets']['final']['saved_output_case']['input_saved_output'] = []
+        elif name == 'primary_row': added['primary']['spend'] = 0
+        elif name == 'old_row': data['after']['primary']['rows'][0]['spend'] = 1
+        elif name == 'primary_cap': data['after']['primary']['key']['max_budget'] = 99
+        elif name == 'service_row': added['service']['spend'] = .60
+        elif name == 'service_scope': captured['requests'][-1]['verified_cost_scope']['actor_id'] = str(uuid4())
+        elif name == 'extra_provider': data['provider']['requests'].append(copy.deepcopy(data['provider']['requests'][-1]))
+        elif name == 'extra_capture': captured['requests'].append(copy.deepcopy(captured['requests'][-1]))
+        else: data['state']['continuation_baseline']['provider']['requests'][0]['body']['store'] = True
+        try:
+            R.verify_continuation(**data, office=case.office, d=case.d)
+        except (N.ProofError, ValueError, KeyError):
+            pass
+        else:
+            raise AssertionError('Damaged continuation boundary accepted: ' + name)
+
+
+def continuation_cli(case, monkeypatch, tmp_path):
+    """Private and HTTP leaves only; actual R.inventory, NativeProof.poll and P owners."""
+    path = tmp_path / 'continuation-readback.private.json'; path.write_text(json.dumps(case.state))
+    monkeypatch.setattr(R, 'STATE', path)
+    world = SimpleNamespace(rounds=0, phases=[2], saved=None, writes=[], reads=[], path=path)
+    common = {'started_at_utc': '2026-11-05T10:01:00+00:00'}
+    operator = {'started_at': '2026-11-05T10:00:00+00:00', 'operator_token': 'opaque-private-readback-operator'}
+    inputs = {R.COMMON: common, R.OFFICE: case.office, R.CONTINUATION_BROWSER: case.browser,
+        R.CONTINUATION_CONTEXT: case.packets, 'operator': operator}
+    def read(target):
+        world.reads.append(target)
+        return json.loads(path.read_text()) if target == path else copy.deepcopy(inputs[target])
+    def write(target, value):
+        assert target == path; world.writes.append(copy.deepcopy(value)); path.write_text(json.dumps(value))
+    class WebUI:
+        def ok(self, method, route, *, token):
+            assert method == 'GET' and route == '/api/v1/chats/' + case.state['browser']['chat_id']
+            assert token == case.office['users'][0]['token']
+            case.backend.phase = world.phases[min(world.rounds, len(world.phases) - 1)]; world.rounds += 1
+            return copy.deepcopy(world.saved if world.saved is not None else case.saved_before if case.backend.phase == 1 else case.saved)
+    def provider(): return copy.deepcopy(case.first_provider if case.backend.phase == 1 else case.provider)
+    def captured(): return copy.deepcopy(case.first_capture if case.backend.phase == 1 else case.captured)
+    d = dict(case.d, OPERATOR_STATE='operator', read_private=read, write_private=write,
+        native_client=lambda common: case.native, WebUI=WebUI, provider=provider,
+        no_credentials=T.snapshots.no_credentials, private_credentials=T.snapshots.private_credentials,
+        capture=SimpleNamespace(capture_lock=nullcontext, _read_locked=captured))
+    monkeypatch.setattr(R, 'dependencies', lambda: d)
+    def invoke(phase):
+        world.rounds = 0; monkeypatch.setattr('sys.argv', ['prove_office_readback.py', '--phase', phase]); return R.main()
+    world.invoke = invoke; world.d = d
+    return world
+
+
+def test_continuation_cli_baseline_verify_diagnostic_and_no_new_dispatch_preserve_original_phase(continuation_case, monkeypatch, tmp_path, capsys):
+    case = continuation_case; world = continuation_cli(case, monkeypatch, tmp_path)
+    state = copy.deepcopy(case.state); state.pop('continuation_baseline'); world.path.write_text(json.dumps(state))
+    dispatches = copy.deepcopy(case.factory.REQUESTS); world.phases = [1]
+    assert world.invoke('continuation-baseline') == 0
+    public = json.loads(capsys.readouterr().out); accepted_baseline = json.loads(world.path.read_text())
+    assert public['passed'] and public['inference_issued'] is False and public['native_office_accepted'] is False
+    assert {k: accepted_baseline[k] for k in state} == state
+    assert accepted_baseline['continuation_baseline']['finance'] == case.finances[1]
+    world.phases = [2]
+    assert world.invoke('continuation-verify') == 0
+    public = json.loads(capsys.readouterr().out); final = json.loads(world.path.read_text())
+    assert public['primary'] == public['service'] == {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
+    assert public['provider_calls'] == 2 and public['native_office_accepted'] is public['live_filter_prepost_qualified'] is False
+    assert {k: final[k] for k in state} == state and final['continuation_baseline'] == accepted_baseline['continuation_baseline']
+    assert final['continuation_verified']['saved_chat'] == case.saved and 'continuation_last_observation' not in final
+    writes = len(world.writes); before = world.path.read_bytes()
+    assert world.invoke('continuation-diagnostic') == 0
+    diagnostic = json.loads(capsys.readouterr().out)
+    assert diagnostic['passed'] and diagnostic['validation_passed'] is False and len(diagnostic['provider_observations']) == 2
+    assert len(world.writes) == writes and world.path.read_bytes() == before
+    assert world.invoke('continuation-verify') == 1
+    assert json.loads(capsys.readouterr().out)['failure_code'] == 'office_continuation_no_baseline'
+    assert case.factory.REQUESTS == dispatches and all(method == 'GET' for method, _, _ in case.backend.calls)
+
+
+def test_continuation_cli_retries_only_missing_rows_or_underconverged_counters_and_keeps_failures(continuation_case, monkeypatch, tmp_path, capsys):
+    case = continuation_case; world = continuation_cli(case, monkeypatch, tmp_path)
+    original = copy.deepcopy(case.state); dispatches = copy.deepcopy(case.factory.REQUESTS)
+    cases = [('primary_rows', True), ('service_rows', True), ('primary_counter', True), ('service_counter', True),
+        ('extra_row', False), ('counter_over', False), ('old_row', False), ('service_scope', False)]
+    complete = copy.deepcopy(case.backend.phases[2])
+    for change, waiting in cases:
+        world.path.write_text(json.dumps(original)); world.writes.clear(); world.phases = [3, 2]
+        partial = copy.deepcopy(complete)
+        if change == 'primary_rows': partial['primary']['rows'].pop()
+        elif change == 'service_rows': partial['service']['rows'].pop()
+        elif change == 'primary_counter': partial['primary']['key']['spend'] = .60
+        elif change == 'service_counter': partial['service']['user']['spend'] = .20
+        elif change == 'extra_row': partial['primary']['rows'].append({'user': case.office['users'][0]['id'], 'request_id': 'unexpected-zero', 'spend': 0})
+        elif change == 'counter_over': partial['primary']['user']['spend'] = .90
+        elif change == 'old_row': partial['primary']['rows'][0]['spend'] = 1
+        else: partial['service']['rows'][-1]['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
+        case.backend.phases[:] = case.backend.phases[:3] + [partial]
+        status = world.invoke('continuation-verify'); public = json.loads(capsys.readouterr().out); private = json.loads(world.path.read_text())
+        assert world.rounds == (2 if waiting else 1), change
+        assert all(private[k] == original[k] for k in original), change
+        assert 'opaque-private' not in json.dumps(public)
+        if waiting:
+            assert status == 0 and public['passed'] and private['continuation_verified']['stage'] == 'verified', (change, public, private.get('continuation_failure_code'))
+            assert any('continuation_last_observation' in value for value in world.writes)
+        else:
+            assert status == 1 and not public['passed'] and 'continuation_verified' not in private, change
+            assert private['continuation_last_observation']['provider'] == case.provider
+            assert private['continuation_last_observation']['capture'] == case.captured
+            assert private['continuation_last_observation']['after']['primary']['rows'] == sorted(partial['primary']['rows'], key=lambda r: r['request_id'])
+    # A missing row that never arrives must time out, never become acceptance.
+    partial = copy.deepcopy(complete); partial['primary']['rows'].pop()
+    case.backend.phases[:] = case.backend.phases[:3] + [partial]; world.phases = [3]; world.path.write_text(json.dumps(original))
+    case.native.timeout = .1
+    assert world.invoke('continuation-verify') == 1
+    public = json.loads(capsys.readouterr().out); private = json.loads(world.path.read_text())
+    assert not public['passed'] and private['continuation_failure_code'] == 'office_row_count' and 'continuation_verified' not in private
+    assert case.factory.REQUESTS == dispatches
+
+
+def test_continuation_baseline_rejects_stale_state_and_retains_corrupt_original_native_reads(continuation_case, monkeypatch, tmp_path, capsys):
+    case = continuation_case; world = continuation_cli(case, monkeypatch, tmp_path)
+    original = copy.deepcopy(case.state); original.pop('continuation_baseline'); world.phases = [1]
+    for field, value in (('stage', 'baseline'), ('prepared_sha256', '0' * 64), ('history_start_utc', '2020-01-01T00:00:00+00:00')):
+        state = dict(original, **{field: value}); world.path.write_text(json.dumps(state)); reads = len(case.backend.calls)
+        assert world.invoke('continuation-baseline') == 1
+        assert json.loads(capsys.readouterr().out)['failure_code'] == 'office_continuation_prior_state'
+        assert len(case.backend.calls) == reads and json.loads(world.path.read_text()) == state
+    world.path.write_text(json.dumps(original)); case.backend.phases[1]['primary']['rows'][0]['spend'] = 1
+    assert world.invoke('continuation-baseline') == 1
+    public = json.loads(capsys.readouterr().out); private = json.loads(world.path.read_text())
+    assert not public['passed'] and public['failure_code'] == 'office_old_row_changed'
+    assert 'continuation_baseline' not in private and private['stage'] == 'verified_readback'
+    retained_id = case.backend.phases[1]['primary']['rows'][0]['request_id']
+    assert next(r for r in private['continuation_baseline_observation']['finance']['primary']['rows']
+        if r['request_id'] == retained_id)['spend'] == 1
+    assert private['continuation_baseline_observation']['provider'] == case.first_provider
+    assert {k: private[k] for k in original} == original
+    before = world.path.read_bytes(); writes = len(world.writes)
+    assert world.invoke('continuation-diagnostic') == 1
+    assert json.loads(capsys.readouterr().out)['failure_code'] == 'office_continuation_no_baseline'
+    assert world.path.read_bytes() == before and len(world.writes) == writes

@@ -303,6 +303,52 @@ def verify_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, nati
         native_responses_payload=native_responses_payload, expected_instruction=expected_instruction)
 
 
+def verify_wire_call(call, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
+                     expected_instruction):
+    """Shared single-call assertions at the existing auth/provider observation seam.
+
+    The source-bound observer owns signed scope origin. This checks its complete
+    projections and receipts, without creating a provider request or cost scope.
+    """
+    require(isinstance(call, dict) and {"wire_before_auth", "wire_after_auth", "auth_user_id", "auth_key_hash",
+        "attestation_present_before", "provenance_removed_after", "route", "verified_cost_scope", "provider"} <= set(call)
+        and all(isinstance(call[k], dict) for k in ("wire_before_auth", "wire_after_auth", "verified_cost_scope", "provider")),
+        "office_wire_packet")
+    wire = responses_projection(call["wire_before_auth"])
+    require(wire == responses_projection(call["wire_after_auth"]), "office_auth_context")
+    require(wire.get("model") == MODEL and isinstance(wire.get("input"), list)
+            and all(isinstance(v, dict) for v in wire["input"]), "office_native_serialization")
+    require(call["auth_user_id"] == actor and call["auth_key_hash"] == key_hash
+            and call["attestation_present_before"] is True and call["provenance_removed_after"] is True
+            and call["route"] in ("/responses", "/v1/responses", "/openai/v1/responses")
+            and not call.get("auth_failure"), "office_native_auth")
+    require(wire.get("store") is False and not wire.get("previous_response_id")
+            and wire.get("background", False) is False, "office_native_stateless_profile")
+    verify_schemas(wire.get("tools"), native_specs)
+    require(any(v.get("role") == "assistant" and any(n.get("text") == SOURCE for n in _nodes(v))
+                for v in wire.get("input", []))
+            and any(v.get("role") == "user" and any(n.get("text") == USER_REQUEST for n in _nodes(v))
+                    for v in wire.get("input", [])), "office_source_context")
+    verify_instruction(wire, expected_instruction)
+    p = call["provider"]
+    require({"id", "route", "body", "usage", "response", "lifecycle"} <= set(p)
+            and isinstance(p["id"], str) and bool(p["id"]) and isinstance(p["response"], dict)
+            and {"id", "model", "status", "usage", "output"} <= set(p["response"])
+            and isinstance(p["response"]["output"], list)
+            and all(isinstance(v, dict) for v in p["response"]["output"]), "office_provider_context")
+    require(p["body"] == {**copy.deepcopy(wire), "model": wire_model}
+            and p["route"] == "/v1/responses" and p["usage"] == USAGE
+            and p["response"]["id"] == p["id"] and p["response"]["model"] == wire_model
+            and p["response"]["status"] == "completed" and p["response"]["usage"] == USAGE
+            and p["lifecycle"] == {"terminal": True, "outcome": "completed"}, "office_provider_context")
+    scope = call["verified_cost_scope"]
+    require(scope.get("category") == "personal" and scope.get("model") == MODEL and scope.get("user_id") == actor
+            and scope.get("chat_id") == scope.get("root_chat_id") == chat_id
+            and scope.get("answer_id") == scope.get("root_answer_id") == answer_id
+            and isinstance(scope.get("call_id"), str) and bool(scope["call_id"]), "office_call_scope")
+    return wire
+
+
 def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
                       exported, png, native_responses_payload, expected_instruction):
     """Live auth/provider evidence: exactly export, render, final physical calls.
@@ -316,48 +362,16 @@ def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model,
     require(isinstance(calls, list) and len(calls) == 3, "office_physical_calls")
     scopes, provider_ids = {}, []
     for index, call in enumerate(calls):
-        require(isinstance(call, dict) and {"wire_before_auth", "wire_after_auth", "auth_user_id", "auth_key_hash",
-            "attestation_present_before", "provenance_removed_after", "route", "verified_cost_scope", "provider"} <= set(call)
-            and all(isinstance(call[k], dict) for k in ("wire_before_auth", "wire_after_auth", "verified_cost_scope", "provider")),
-            "office_wire_packet")
-        wire = responses_projection(call["wire_before_auth"])
-        require(wire == responses_projection(call["wire_after_auth"]), "office_auth_context")
-        require(wire.get("model") == MODEL and isinstance(wire.get("input"), list)
-                and all(isinstance(v, dict) for v in wire["input"]), "office_native_serialization")
-        require(call["auth_user_id"] == actor and call["auth_key_hash"] == key_hash
-                and call["attestation_present_before"] is True and call["provenance_removed_after"] is True
-                and call["route"] in ("/responses", "/v1/responses", "/openai/v1/responses")
-                and not call.get("auth_failure"), "office_native_auth")
-        require(wire.get("store") is False and not wire.get("previous_response_id")
-                and wire.get("background", False) is False, "office_native_stateless_profile")
-        verify_schemas(wire.get("tools"), native_specs)
+        wire = verify_wire_call(call, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=answer_id,
+            wire_model=wire_model, native_specs=native_specs, expected_instruction=expected_instruction)
         if index:
             original = responses_projection(calls[0]["wire_before_auth"])
             require({k: v for k, v in wire.items() if k != "input"} ==
                     {k: v for k, v in original.items() if k != "input"}, "office_continuation_parameters")
             previous = calls[index - 1]["wire_before_auth"]["input"]
             require(wire["input"][:len(previous)] == previous, "office_continuation_history")
-        require(any(v.get("role") == "assistant" and any(n.get("text") == SOURCE for n in _nodes(v))
-                    for v in wire.get("input", []))
-                and any(v.get("role") == "user" and any(n.get("text") == USER_REQUEST for n in _nodes(v))
-                        for v in wire.get("input", [])), "office_source_context")
-        verify_instruction(wire, expected_instruction)
         p = call["provider"]
-        require({"id", "route", "body", "usage", "response", "lifecycle"} <= set(p)
-                and isinstance(p["id"], str) and bool(p["id"]) and isinstance(p["response"], dict)
-                and {"id", "model", "status", "usage", "output"} <= set(p["response"])
-                and isinstance(p["response"]["output"], list)
-                and all(isinstance(v, dict) for v in p["response"]["output"]), "office_provider_context")
-        require(p["body"] == {**copy.deepcopy(wire), "model": wire_model}
-                and p["route"] == "/v1/responses" and p["usage"] == USAGE
-                and p["response"]["id"] == p["id"] and p["response"]["model"] == wire_model
-                and p["response"]["status"] == "completed" and p["response"]["usage"] == USAGE
-                and p["lifecycle"] == {"terminal": True, "outcome": "completed"}, "office_provider_context")
         scope = call["verified_cost_scope"]
-        require(scope.get("category") == "personal" and scope.get("model") == MODEL and scope.get("user_id") == actor
-                and scope.get("chat_id") == scope.get("root_chat_id") == chat_id
-                and scope.get("answer_id") == scope.get("root_answer_id") == answer_id
-                and isinstance(scope.get("call_id"), str) and bool(scope["call_id"]), "office_call_scope")
         require(scope["call_id"] not in scopes and p["id"] not in provider_ids, "office_call_identity")
         scopes[scope["call_id"]] = scope; provider_ids.append(p["id"])
         output = p["response"]["output"]
@@ -394,6 +408,154 @@ def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model,
                 n.get("type") == "output_text" and exported["result_file_id"] in n.get("text", "")
                 for n in _nodes(v)) for v in output), "office_final_attachment_context")
     return {p: c["verified_cost_scope"] for p, c in zip(provider_ids, calls)}
+
+
+def _continuation_text(content):
+    require(isinstance(content, str) or isinstance(content, list) and all(isinstance(part, dict)
+            and set(part) == {'type', 'text'} and part['type'] == 'text' and isinstance(part['text'], str)
+            for part in content), 'Unexpected multimodal/tool content at the provider boundary')
+    return content if isinstance(content, str) else ''.join(part['text'] for part in content)
+
+
+def verify_continuation_submission(sent, ack, *, http_status, chat_id, first_answer_id, prior_message_ids):
+    """One pure owner for the browser and collector's observed ordinary Send.
+
+    Raw/parsed request and ACK equality and their capture ordering belong to the
+    existing IO caller. This checks the complete native submitted turn, never
+    creates a request or assembles model history.
+    """
+    require(isinstance(sent, dict) and isinstance(ack, dict)
+            and isinstance(sent.get('user_message'), dict),
+            'Office continuation submission/acknowledgement schema differs')
+    user = sent['user_message']; user_id, answer_id = user.get('id'), sent.get('id')
+    for value in (user_id, answer_id):
+        require(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', value),
+                'Office native identifier unavailable')
+    require(len({user_id, answer_id}) == 2 and not ({user_id, answer_id} & set(prior_message_ids))
+            and sent.get('model') == MODEL and sent.get('chat_id') == chat_id
+            and sent.get('parent_id') == first_answer_id and sent.get('stream') is True
+            and sent.get('message_ids') == [{'model_id': MODEL, 'message_id': answer_id, 'modelIdx': 0}]
+            and type(sent['message_ids'][0]['modelIdx']) is int
+            and user.get('parentId') == first_answer_id and user.get('role') == 'user'
+            and _continuation_text(user.get('content')) == CONTINUATION_REQUEST
+            and isinstance(sent.get('background_tasks'), dict)
+            and sent['background_tasks'].get('follow_up_generation') is True
+            and type(http_status) is int and http_status == 200 and ack.get('chat_id', chat_id) == chat_id,
+            'Office continuation submitted a different native turn')
+    return user_id, answer_id
+
+
+def verify_continuation_history(before, after, actor, first_answer, user_id, answer_id, file_id):
+    """Check the selected native chain; never assemble replacement history."""
+    require(before.get('id') == after.get('id') and before.get('user_id') == after.get('user_id') == actor,
+            'Office continuation native chat owner differs')
+    old = before['chat']['history']['messages']; history = after['chat']['history']; messages = history['messages']
+    require(before['chat']['history']['currentId'] == first_answer and old[first_answer].get('childrenIds') == []
+            and before['chat']['models'] == after['chat']['models'] == [MODEL], 'Office continuation selected history differs')
+    if user_id not in messages or answer_id not in messages: return None
+    require(set(messages) == set(old) | {user_id, answer_id} and history['currentId'] == answer_id,
+            'Office continuation changed native history membership')
+    for key, original in old.items():
+        expected = copy.deepcopy(original)
+        if key == first_answer: expected['childrenIds'] = [user_id]
+        require(messages[key] == expected, 'Office continuation changed a saved prior message')
+    user, answer = messages[user_id], messages[answer_id]
+    content = _continuation_text(user.get('content'))
+    require(user.get('id') == user_id and user.get('role') == 'user' and user.get('parentId') == first_answer
+            and content == CONTINUATION_REQUEST and user.get('childrenIds') == [answer_id]
+            and answer.get('id') == answer_id and answer.get('role') == 'assistant' and answer.get('model') == MODEL
+            and answer.get('parentId') == user_id, 'Office continuation saved parent/user/model differs')
+    require(not answer.get('error'), 'Office native continuation failed')
+    if answer.get('done') is not True: return None
+    output = answer.get('output') or []
+    reasoning = [v for v in output if v.get('type') == 'reasoning']
+    text = [v for item in output if item.get('type') == 'message' for v in item.get('content', [])
+            if v.get('type') == 'output_text']
+    require(len(output) == 2 and len(reasoning) == len(text) == 1 and reasoning[0].get('encrypted_content')
+            and '/api/v1/files/' + file_id + '/content' in text[0].get('text', ''),
+            'Office continuation lost native reasoning or existing file')
+    statuses = [v for v in answer.get('statusHistory', []) if v.get('action') == 'employee_budget_cost']
+    ready = (statuses and statuses[-1].get('done') is True
+        and statuses[-1].get('description', '').startswith('Ответ: $0.20 · Чат: $0.80 · ')
+        and isinstance(answer.get('followUps'), list) and bool(answer['followUps'])
+        and all(isinstance(v, str) and v.strip() for v in answer['followUps']))
+    return answer if ready else None
+
+
+def verify_saved_continuation(call, *, first_calls, saved_output, native_saved, native_final,
+                              native_source_sha256, actor, key_hash, chat_id, answer_id, wire_model,
+                              native_specs, exported, png, native_responses_payload, expected_instruction):
+    """Reconcile one new call with already accepted first-turn observations.
+
+    The collector supplies actual saved DB output and two existing native_context
+    observations: that saved output and the last provider response's full output.
+    Host artifact binding must attest both producers. The OpenAPI digest comes
+    independently from served source-bound state, never from either packet.
+    These joins compare observations; they never build history to send a model.
+    """
+    require(isinstance(first_calls, list) and len(first_calls) == 3, "office_physical_calls")
+    first_answer = first_calls[0]["verified_cost_scope"].get("answer_id")
+    require(isinstance(first_answer, str) and bool(first_answer) and isinstance(answer_id, str)
+            and bool(answer_id) and answer_id != first_answer, "office_saved_answer_identity")
+    prior = verify_wire_calls(first_calls, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=first_answer,
+        wire_model=wire_model, native_specs=native_specs, exported=exported, png=png,
+        native_responses_payload=native_responses_payload, expected_instruction=expected_instruction)
+    wire = verify_wire_call(call, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=answer_id,
+        wire_model=wire_model, native_specs=native_specs, expected_instruction=expected_instruction)
+    require(call["provider"]["id"] not in prior and call["verified_cost_scope"]["call_id"] not in
+            {scope["call_id"] for scope in prior.values()}, "office_call_identity")
+    base = responses_projection(first_calls[0]["wire_before_auth"])
+    require(base.get("include") == ["reasoning.encrypted_content"]
+            and {k: v for k, v in wire.items() if k != "input"} ==
+                {k: v for k, v in base.items() if k != "input"}, "office_continuation_parameters")
+    modules = {k: WEBUI_MODULES[k] for k in ("utils/tools.py", "routers/openai.py", "utils/middleware.py")}
+    modules["utils/misc.py"] = "9098c447441e2f6bfa529ae8506a03acab6400a8205c7942e86b004c07833068"
+    require(isinstance(native_source_sha256, str) and re.fullmatch(r"[0-9a-f]{64}", native_source_sha256)
+            and isinstance(saved_output, list) and len(saved_output) == 8, "office_saved_native_source")
+    final_output = first_calls[-1]["provider"]["response"]["output"]
+    for packet, output in ((native_saved, saved_output), (native_final, final_output)):
+        require(isinstance(packet, dict) and set(packet) == {"schema", "module_sha256", "source_body_sha256",
+            "native_specs", "reasoning_cases", "saved_output_case"} and type(packet["schema"]) is int
+            and packet["schema"] == 1 and packet["module_sha256"] == modules
+            and packet["source_body_sha256"] == native_source_sha256
+            and isinstance(packet["native_specs"], list) and len(packet["native_specs"]) == len(native_specs),
+            "office_saved_native_source")
+        verify_schemas(base["tools"], packet["native_specs"])
+        cases = packet["reasoning_cases"]
+        require(isinstance(cases, list) and 0 < len(cases) <= 4, "office_saved_native_reasoning")
+        for case in cases:
+            require(isinstance(case, dict) and set(case) == {"input_reasoning", "native_input"}
+                    and isinstance(case["input_reasoning"], list) and all(isinstance(v, dict)
+                        and v.get("type") == "reasoning" for v in case["input_reasoning"])
+                    and case["native_input"] == native_responses_payload({"messages": [
+                        {"role": "assistant", "output": case["input_reasoning"]}]})["input"],
+                    "office_saved_native_reasoning")
+        observed = packet["saved_output_case"]
+        require(isinstance(observed, dict) and set(observed) == {"input_saved_output", "native_input"}
+                and observed["input_saved_output"] == output and isinstance(observed["native_input"], list)
+                and all(isinstance(v, dict) for v in observed["native_input"]), "office_saved_native_echo")
+    require(native_saved["reasoning_cases"] == native_final["reasoning_cases"], "office_saved_native_reasoning")
+    saved_input = native_saved["saved_output_case"]["native_input"]
+    expected_saved = first_calls[-1]["wire_before_auth"]["input"][len(base["input"]):] + native_final["saved_output_case"]["native_input"]
+    provider_reasoning = [[v for v in first["provider"]["response"]["output"] if v.get("type") == "reasoning"]
+                          for first in first_calls]
+    expected_reasoning = [v for reasoning in provider_reasoning for v in native_responses_payload(
+        {"messages": [{"role": "assistant", "output": reasoning}]})["input"]]
+    require(saved_input == expected_saved and len(saved_input) == 8
+            and [v for v in saved_output if v.get("type") == "reasoning"] ==
+                [v for reasoning in provider_reasoning for v in reasoning]
+            and [v for v in saved_input if v.get("type") == "reasoning"] == expected_reasoning
+            and len(expected_reasoning) == 3,
+            "office_saved_provider_history")
+    question = {"type": "message", "role": "user", "content": [{"type": "input_text", "text": CONTINUATION_REQUEST}]}
+    require(wire["input"] == base["input"] + saved_input + [question], "office_saved_full_context")
+    output = call["provider"]["response"]["output"]
+    require([v.get("type") for v in output] == ["reasoning", "message"]
+            and isinstance(output[0].get("encrypted_content"), str) and bool(output[0]["encrypted_content"])
+            and output[1].get("role") == "assistant" and output[1].get("content") == [{"type": "output_text",
+                "text": "[Download](/api/v1/files/" + exported["result_file_id"] + "/content)", "annotations": []}],
+            "office_saved_final_attachment")
+    return {call["provider"]["id"]: call["verified_cost_scope"]}
 
 
 def verify_artifacts(*, source_message_id, exported, native_file_id, browser_file_id,
