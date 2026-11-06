@@ -97,7 +97,7 @@ jobs:
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B scripts/goal584-budget-proof/build_native_floor_image.py \
             --context "$BUILD_ROOT/native-floor" --receipt "$OUTPUT/native-build.safe.json"
       - name: Prepare fresh private Office stand configuration
-        timeout-minutes: 4
+        timeout-minutes: 6
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
           import hashlib,json,os,re,secrets,subprocess,sys
@@ -156,6 +156,33 @@ jobs:
               packet['tests'][label]={'returncode':result.returncode};save()
               assert result.returncode==0,'Mandatory native buffered component failed: '+label
           packet['passed']=True;save()
+          # Reuse the built WebUI image to check the existing prepared STT path
+          # with the real mandatory signing hook, without starting any service.
+          audio=source/'services/stage2-stt/tests/verify_native_audio_context_runtime.py'
+          intake=source/'services/stage2-stt/openwebui_filters/stage2_audio_context_filter.py'
+          budget_sources=('provenance.py','webui_model_binding.py','cost_filter.py')
+          audio_packet={'schema':1,'passed':False,'source_commit':os.environ['GITHUB_SHA'],
+              'webui_image_id':build['images']['webui']['id'],
+              'verifier_sha256':hashlib.sha256(audio.read_bytes()).hexdigest(),
+              'filter_sha256':hashlib.sha256(intake.read_bytes()).hexdigest()}
+          audio_receipt=out/'audio-budget-component.safe.json'
+          audio_receipt.write_text(json.dumps(audio_packet,indent=2)+'\n')
+          audio_log=out/'audio-budget-component.log'
+          with audio_log.open('wb') as log:
+              result=subprocess.run(common+['-e','PYTHONPATH=/app/backend','-w','/repo','--entrypoint','python',
+                  build['images']['webui']['id'],'-B','/repo/'+str(audio.relative_to(source)),
+                  '--filter','/repo/'+str(intake.relative_to(source)),
+                  '--budgets','/repo/deploy/openwebui-budgets'],stdout=log,stderr=subprocess.STDOUT,timeout=120)
+          assert result.returncode==0,'Native audio/budget composition failed'
+          observed=json.loads(audio_log.read_text().splitlines()[-1])
+          assert len(observed['passed'])==7 and len(observed['budget_composition'])==6
+          assert observed['cached_forbidden_sidecar_calls']==0 and observed['fresh_transcription_http_fixture_calls']==1
+          assert observed['filter_sha256']==audio_packet['filter_sha256']
+          assert observed['budget_source_sha256']=={
+              name:hashlib.sha256((source/'deploy/openwebui-budgets'/name).read_bytes()).hexdigest() for name in budget_sources}
+          audio_packet.update(passed=True,component=observed,
+              scope='Native audio preparation/cache/history and actual budget signing; no recognition, provider, ledger or Terminal acceptance')
+          audio_receipt.write_text(json.dumps(audio_packet,indent=2)+'\n')
           PY
       - name: Start the isolated backend and enable the existing authentication hook
         timeout-minutes: 7
