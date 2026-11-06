@@ -24,6 +24,7 @@ MODEL = "gpt-5.4-mini"
 OUTPUT_NAME = "goal584-office.docx"
 EXPORT_ARGUMENTS = {"output_name": OUTPUT_NAME, "source_message": "previous_assistant", "commands": []}
 USER_REQUEST = "Export the complete previous answer to goal584-office.docx, render every page, and attach the native file."
+CONTINUATION_REQUEST = "Keep the attached file and report its native file ID without calling tools."
 SOURCE = "# GOAL584 Office compatibility\nBEGIN-G584-OFFICE\n" + (
     "\u041f\u0435\u0440\u0432\u044b\u0439 \u0430\u0431\u0437\u0430\u0446: \u0441\u0443\u043c\u043c\u0430 9 000 \u20bd; "
     "\u0441\u0440\u043e\u043a \u2014 5 \u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043d\u0435\u0439.\n\n"
@@ -425,13 +426,15 @@ def verify_artifacts(*, source_message_id, exported, native_file_id, browser_fil
 
 
 def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id, answer_id,
-                   wire_model, deployment_id, validate_scope, validate_rates, decode_response_id):
+                   wire_model, deployment_id, validate_scope, validate_rates, decode_response_id, expected_calls=3):
     """Readback assertions only. SDK decoder/rate validator are existing owners.
 
     The isolated collector must pass ALL raw pages from NativeProof.logs, not
     positive-cost rows, and the full retained original payer state. No pricing
     calculation, new ledger, scheduler or budget allowance is implemented here.
     """
+    require(type(expected_calls) is int and expected_calls in (1, 3), "office_expected_calls")
+    expected_spend = {1: ".20", 3: ".60"}[expected_calls]
     require(before["old_payers"] and before["old_payers"] == after["old_payers"], "office_old_finance_changed")
     require(before["user"].get("user_id") == before["key"].get("user_id") == actor
             and before["key"].get("models") == [MODEL], "office_financial_owner")
@@ -445,7 +448,7 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
     old, new = keyed(before["rows"]), keyed(after["rows"])
     require(all(new.get(k) == v for k, v in old.items()), "office_old_row_changed")
     added = [v for k, v in new.items() if k not in old]
-    require(len(added) == len(calls_by_provider) == 3, "office_row_count")
+    require(len(added) == len(calls_by_provider) == expected_calls, "office_row_count")
     observed = set()
     for row in added:
         metadata = json.loads(row["metadata"]) if isinstance(row.get("metadata"), str) else row["metadata"]
@@ -470,8 +473,8 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
                 and Decimal(str(rates["output_cost_per_token"])) == Decimal(".02"), "office_row_rates")
     for owner in ("user", "key"):
         require(close_amount(Decimal(str(after[owner]["spend"])) - Decimal(str(before[owner]["spend"])),
-                             Decimal(".60")), "office_native_spend_delta")
-    return {"physical_calls": 3, "new_raw_rows": 3, "native_spend_delta_usd": ".60"}
+                             Decimal(expected_spend)), "office_native_spend_delta")
+    return {"physical_calls": expected_calls, "new_raw_rows": expected_calls, "native_spend_delta_usd": expected_spend}
 
 
 def verify_service_finance(before, after, *, actor, payer, key_hash, chat_id, provider_id, verified_scope, dispatch,

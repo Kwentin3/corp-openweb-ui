@@ -9,6 +9,7 @@ import ast
 import asyncio
 import base64
 import copy
+from decimal import Decimal
 from contextlib import redirect_stdout
 import hashlib
 from hashlib import sha256
@@ -600,6 +601,115 @@ def test_financial_contract_mutations_fail(component, monkeypatch, mutation):
     elif mutation == "spend": row["spend"] = 0
     else: row["request_id"] = "resp_" + base64.b64encode(b"litellm:custom_llm_provider:openai;model_id:office-deployment;response_id:unobserved-provider").decode()
     with pytest.raises(P.ProofError): P.verify_finance(before, after, **kwargs)
+
+
+def continuation_financial_fixture(component, monkeypatch):
+    """A new fixture phase begins after the original three calls, retaining all rows.
+
+    Existing native decoder, rate validator and signed provenance owners remain
+    real. These are component inputs, never a claim of saved DB/GUI origin.
+    """
+    original_before, primary_after, primary = financial_fixture(component, monkeypatch)
+    assert P.verify_finance(original_before, primary_after, **primary) == {
+        "physical_calls": 3, "new_raw_rows": 3, "native_spend_delta_usd": ".60"}
+    before = copy.deepcopy(primary_after); after = copy.deepcopy(before)
+    answer_id, provider_id = str(uuid4()), "resp_" + uuid4().hex
+    secret = "synthetic-continuation-secret-with-no-production-use"
+    body = {"model": P.MODEL, "messages": [{"role": "user", "content": P.CONTINUATION_REQUEST}]}
+    admitted = copy.deepcopy(body)
+    admitted["litellm_metadata"] = {"owui_budget_provenance": provenance.encode_call(secret,
+        user_id=primary["actor"], chat_id=primary["chat_id"], answer_id=answer_id,
+        root_chat_id=primary["chat_id"], root_answer_id=answer_id, model=P.MODEL)}
+    claims = P.verify_budget_boundary(body, admitted, decode_call=provenance.decode_call, secret=secret,
+        actor=primary["actor"])
+    scope = {"schema": 1, "category": "personal", "user_id": primary["actor"], "model": P.MODEL,
+        "chat_id": primary["chat_id"], "root_chat_id": primary["chat_id"], "answer_id": answer_id,
+        "root_answer_id": answer_id, "call_id": claims["jti"]}
+    row = copy.deepcopy(primary_after["rows"][-1])
+    row["request_id"] = "resp_" + base64.b64encode(("litellm:custom_llm_provider:openai;model_id:office-deployment;response_id:"
+        + provider_id).encode()).decode()
+    row["metadata"]["spend_logs_metadata"]["owui_budget"] = copy.deepcopy(scope)
+    after["rows"].append(row)
+    after["user"]["spend"] = after["key"]["spend"] = .80
+    kwargs = {**primary, "answer_id": answer_id, "calls_by_provider": {provider_id: scope}, "expected_calls": 1}
+    return before, after, kwargs
+
+
+def test_continuation_request_is_the_finite_existing_attachment_readback_contract():
+    assert P.CONTINUATION_REQUEST == "Keep the attached file and report its native file ID without calling tools."
+
+
+def test_one_call_finance_reuses_native_owners_after_original_three_without_mutating_inputs(component, monkeypatch):
+    before, after, kwargs = continuation_financial_fixture(component, monkeypatch)
+    original = copy.deepcopy((before, after, kwargs["calls_by_provider"]))
+    assert len(before["rows"]) == 4 and len(after["rows"]) == 5
+    assert before["user"]["spend"] == before["key"]["spend"] == .60
+    assert P.verify_finance(before, after, **kwargs) == {
+        "physical_calls": 1, "new_raw_rows": 1, "native_spend_delta_usd": ".20"}
+    assert (before, after, kwargs["calls_by_provider"]) == original
+    assert kwargs["answer_id"] != before["rows"][-1]["metadata"]["spend_logs_metadata"]["owui_budget"]["answer_id"]
+    nonce = next(iter(kwargs["calls_by_provider"].values()))["call_id"]
+    assert nonce not in [r["metadata"]["spend_logs_metadata"]["owui_budget"]["call_id"] for r in before["rows"][1:]]
+
+
+def test_one_call_selector_keeps_explicit_three_equal_to_original_default(component, monkeypatch):
+    before, after, kwargs = financial_fixture(component, monkeypatch)
+    assert P.verify_finance(before, after, **kwargs, expected_calls=3) == P.verify_finance(before, after, **kwargs)
+
+
+@pytest.mark.parametrize("value", [True, False, None, 0, -1, 2, 4, 1.0, 3.0, "1", "3", Decimal(1)])
+def test_one_call_selector_rejects_nonfinite_counts_and_boolean_or_coerced_types(value):
+    with pytest.raises(P.ProofError, match="office_expected_calls"):
+        P.verify_finance({}, {}, calls_by_provider={}, actor=None, key_hash=None, chat_id=None, answer_id=None,
+            wire_model=None, deployment_id=None, validate_scope=None, validate_rates=None, decode_response_id=None,
+            expected_calls=value)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "duplicate", "extra_zero", "old_row", "missing_old_row", "old_payer",
+    "empty_old_payers", "cap", "period", "counter_user", "counter_key", "nonce", "invalid_nonce", "nonce_map",
+    "old_answer", "foreign_chat", "rate", "key", "model", "status", "usage", "usage_bool", "spend", "surplus_fee",
+    "decoded_provider", "decoded_deployment", "old_provider", "wrong_expected_count", "missing_provider_map", "extra_provider_map"])
+def test_one_call_finance_preserves_all_raw_row_scope_rate_history_and_fee_guards(component, monkeypatch, mutation):
+    before, after, kwargs = continuation_financial_fixture(component, monkeypatch)
+    row = after["rows"][-1]; scope = row["metadata"]["spend_logs_metadata"]["owui_budget"]
+    if mutation == "missing": after["rows"].pop()
+    elif mutation == "duplicate": after["rows"].append(copy.deepcopy(row))
+    elif mutation == "extra_zero": after["rows"].append({"request_id": "unexpected-continuation-zero", "spend": 0})
+    elif mutation == "old_row": after["rows"][1]["spend"] = .21
+    elif mutation == "missing_old_row": after["rows"].pop(1)
+    elif mutation == "old_payer": after["old_payers"]["existing-payer"]["key"]["spend"] = 5
+    elif mutation == "empty_old_payers": before["old_payers"] = after["old_payers"] = {}
+    elif mutation == "cap": after["key"]["max_budget"] = 11
+    elif mutation == "period": after["user"]["budget_reset_at"] = "2027-01-01"
+    elif mutation == "counter_user": after["user"]["spend"] = .81
+    elif mutation == "counter_key": after["key"]["spend"] = .81
+    elif mutation == "nonce": scope["call_id"] = str(uuid4())
+    elif mutation == "invalid_nonce": scope["call_id"] = "not-a-native-nonce"
+    elif mutation == "nonce_map": next(iter(kwargs["calls_by_provider"].values()))["call_id"] = str(uuid4())
+    elif mutation == "old_answer":
+        old = before["rows"][-1]["metadata"]["spend_logs_metadata"]["owui_budget"]
+        for field in ("answer_id", "root_answer_id"):
+            scope[field] = old[field]; next(iter(kwargs["calls_by_provider"].values()))[field] = old[field]
+    elif mutation == "foreign_chat": scope["chat_id"] = scope["root_chat_id"] = str(uuid4())
+    elif mutation == "rate": row["metadata"]["spend_logs_metadata"]["owui_billed_token_rates"]["rates"]["input_cost_per_token"] = .03
+    elif mutation == "key": row["api_key"] = "b" * 64
+    elif mutation == "model": row["model_id"] = "foreign-deployment"
+    elif mutation == "status": row["status"] = "failure"
+    elif mutation == "usage": row["total_tokens"] = 16
+    elif mutation == "usage_bool": row["prompt_tokens"] = True
+    elif mutation == "spend": row["spend"] = 0
+    elif mutation == "surplus_fee": row["spend"] = .21
+    elif mutation in ("decoded_provider", "decoded_deployment"):
+        model = "foreign-deployment" if mutation == "decoded_deployment" else "office-deployment"
+        provider = next(iter(kwargs["calls_by_provider"])) if mutation == "decoded_deployment" else "unobserved-provider"
+        row["request_id"] = "resp_" + base64.b64encode(("litellm:custom_llm_provider:openai;model_id:" + model
+            + ";response_id:" + provider).encode()).decode()
+    elif mutation == "old_provider": row["request_id"] = before["rows"][-1]["request_id"]
+    elif mutation == "wrong_expected_count": kwargs["expected_calls"] = 3
+    elif mutation == "missing_provider_map": kwargs["calls_by_provider"] = {}
+    else: kwargs["calls_by_provider"]["unobserved-provider"] = copy.deepcopy(scope)
+    with pytest.raises((P.ProofError, ValueError)):
+        P.verify_finance(before, after, **kwargs)
 
 
 def service_financial_fixture(component, monkeypatch):
