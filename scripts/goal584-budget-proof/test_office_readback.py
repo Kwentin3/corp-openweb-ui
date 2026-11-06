@@ -96,16 +96,44 @@ def buffer_primary_records(*observations):
             if row['body']['model'] == 'goal584-fake-office': row['body'].pop('stream', None)
 
 
+def buffer_primary_finance(*snapshots):
+    decode = T.sdk_decoder()
+    for snapshot in snapshots:
+        for row in snapshot['rows']:
+            if row.get('model_id') == 'goal584-office-primary':
+                decoded = decode(row['request_id'])
+                if decoded['custom_llm_provider'] is not None:
+                    assert decoded['custom_llm_provider'] == 'openai' and decoded['model_id'] == row['model_id']
+                    row['request_id'] = decoded['response_id']
+
+
 def test_buffered_actual_domain_finance_and_native_context_keep_original_service(component, monkeypatch):
     data = scenario(component, monkeypatch)
     service = copy.deepcopy(data['provider']['requests'][-1])
     data['before']['provider_profile'] = R.proof.verify_buffered_provider_profile(T.buffered_native_models())
     buffer_primary_records(data['provider'])
+    buffer_primary_finance(data['after']['primary'])
     assert R.verify(**data) == {'primary': {'physical_calls': 3, 'new_raw_rows': 3, 'native_spend_delta_usd': '.60'},
         'service': {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'},
         'provider_calls': 4, 'saved_chat_verified': True}
     assert data['provider']['requests'][-1] == service
     data['before'].pop('provider_profile')
+    with pytest.raises(N.ProofError): R.verify(**data)
+
+
+@pytest.mark.parametrize('mutation', ['encoded', 'model', 'provider', 'scope', 'counter'])
+def test_buffered_collector_keeps_strict_native_finance_binding(component, monkeypatch, mutation):
+    data = scenario(component, monkeypatch)
+    data['before']['provider_profile'] = R.proof.verify_buffered_provider_profile(T.buffered_native_models())
+    buffer_primary_records(data['provider']); buffer_primary_finance(data['after']['primary'])
+    row = data['after']['primary']['rows'][-1]
+    if mutation == 'encoded':
+        row['request_id'] = 'resp_' + T.base64.b64encode(('litellm:custom_llm_provider:openai;'
+            'model_id:goal584-office-primary;response_id:' + row['request_id']).encode()).decode()
+    elif mutation == 'model': row['model_id'] = 'foreign-deployment'
+    elif mutation == 'provider': row['request_id'] = 'resp_unobserved_provider'
+    elif mutation == 'scope': row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
+    else: data['after']['primary']['key']['spend'] = .61
     with pytest.raises(N.ProofError): R.verify(**data)
 
 
@@ -663,6 +691,8 @@ def test_buffered_continuation_keeps_full_saved_context_finance_and_service(cont
     case.state['provider_profile'] = R.proof.verify_buffered_provider_profile(T.buffered_native_models())
     buffer_primary_records(case.provider, case.first_provider, case.state['provider_after'],
         case.state['continuation_baseline']['provider'])
+    buffer_primary_finance(case.state['after']['primary'],
+        case.state['continuation_baseline']['finance']['primary'], case.after['primary'])
     result = R.verify_continuation(case.state, case.after, case.provider, case.captured, case.saved,
         case.browser, case.packets, case.office, case.d)
     assert result['primary'] == result['service'] == {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}

@@ -647,7 +647,8 @@ def verify_artifacts(*, source_message_id, exported, native_file_id, browser_fil
 
 
 def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id, answer_id,
-                   wire_model, deployment_id, validate_scope, validate_rates, decode_response_id, expected_calls=3):
+                   wire_model, deployment_id, validate_scope, validate_rates, decode_response_id, expected_calls=3,
+                   provider_transport="native"):
     """Readback assertions only. SDK decoder/rate validator are existing owners.
 
     The isolated collector must pass ALL raw pages from NativeProof.logs, not
@@ -655,6 +656,7 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
     calculation, new ledger, scheduler or budget allowance is implemented here.
     """
     require(type(expected_calls) is int and expected_calls in (1, 3), "office_expected_calls")
+    require(type(provider_transport) is str and provider_transport in ("native", "buffered"), "office_provider_transport")
     expected_spend = {1: ".20", 3: ".60"}[expected_calls]
     require(before["old_payers"] and before["old_payers"] == after["old_payers"], "office_old_finance_changed")
     require(before["user"].get("user_id") == before["key"].get("user_id") == actor
@@ -677,7 +679,10 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
         scope = validate_scope(spend["owui_budget"])
         decoded = decode_response_id(row["request_id"])
         provider = decoded["response_id"]
-        require(decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
+        binding = (decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
+                   if provider_transport == "native" else decoded["custom_llm_provider"] is None
+                   and decoded["model_id"] is None and row.get("model_id") == deployment_id)
+        require(binding
                 and provider in calls_by_provider and provider not in observed and scope == calls_by_provider[provider],
                 "office_row_dispatch_binding")
         observed.add(provider)
