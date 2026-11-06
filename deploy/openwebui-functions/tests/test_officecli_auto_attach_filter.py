@@ -219,6 +219,58 @@ def test_ordinary_chat_without_function_calling_metadata_receives_officecli():
     assert MODULE.OFFICECLI_INSTRUCTION_MARKER in body["messages"][0]["content"]
 
 
+@pytest.mark.parametrize("prompt", ["Create a new document", "Continue from the last result_file_id"])
+def test_workflow_activates_without_current_attachments_and_preserves_user_text(prompt):
+    body = eligible_body()
+    body["messages"][-1]["content"] = prompt
+    user_before = copy.deepcopy(body["messages"][-1])
+    metadata = native_metadata()
+
+    run_inlet(configured_filter(), body, metadata)
+
+    assert metadata["chat_context"]["mentioned_skill_ids"] == ["artifact-workflow"]
+    assert body["messages"][-1] == user_before
+    assert "skill_ids" not in body
+    assert "terminal_id" not in body
+    assert "terminal_file_transfer" not in body["tool_ids"]
+
+
+def test_workflow_activation_preserves_native_context_and_is_idempotent():
+    body = eligible_body()
+    instance = configured_filter()
+    instance.valves.artifact_workflow_skill_id = "configured-workflow"
+    context = {"mentioned_skill_ids": ["another-skill"],
+               "skill_versions": {"another-skill": "version-a", "configured-workflow": "version-b"},
+               "messages": [{"role": "system", "content": "Existing context"}]}
+    metadata = {"params": {}, "chat_context": context}
+    versions = copy.deepcopy(context["skill_versions"])
+    messages = copy.deepcopy(context["messages"])
+
+    run_inlet(instance, body, metadata)
+    run_inlet(instance, body, metadata)
+
+    assert metadata["chat_context"] is context
+    assert context["mentioned_skill_ids"] == ["another-skill", "configured-workflow"]
+    assert context["skill_versions"] == versions
+    assert context["messages"] == messages
+
+
+@pytest.mark.parametrize("files", [[], [{"type": "file", "id": "word", "name": "form.docx"}]])
+def test_empty_workflow_valve_preserves_context_without_activation(files):
+    instance = configured_filter()
+    instance.valves.artifact_workflow_skill_id = " "
+    body = {**eligible_body(), "files": files}
+    metadata = {"params": {}, "chat_context": {"mentioned_skill_ids": ["another-skill"],
+                "skill_versions": {"another-skill": "version-a"}}}
+    context_before = copy.deepcopy(metadata["chat_context"])
+
+    run_inlet(instance, body, metadata)
+
+    assert metadata["chat_context"] == context_before
+    assert "skill_ids" not in body
+    assert "server:officecli" in body["tool_ids"]
+
+
 def test_task_and_caller_supplied_tools_are_unchanged():
     filter_instance = configured_filter()
     task_body = eligible_body()
@@ -229,10 +281,12 @@ def test_task_and_caller_supplied_tools_are_unchanged():
         (supplied_tools_body, native_metadata()),
     ):
         before = copy.deepcopy(body)
+        metadata_before = copy.deepcopy(metadata)
 
         run_inlet(filter_instance, body, metadata)
 
         assert body == before
+        assert metadata == metadata_before
 
 
 def test_empty_valve_is_still_disabled():
@@ -294,9 +348,10 @@ def test_multiple_xlsx_do_not_override_task_explicit_tools_or_unqualified_model(
         if task:
             metadata["task"] = task
         before = copy.deepcopy(body)
+        metadata_before = copy.deepcopy(metadata)
         run_inlet(configured_filter(), body, metadata)
         assert body == before
-        assert metadata["params"] == {}
+        assert metadata == metadata_before
 
 
 def test_followup_with_files_retains_native_route_without_new_upload():
@@ -380,6 +435,7 @@ def test_native_office_route_is_independent_of_format_and_attachment_count(model
     run_inlet(instance, body, metadata)
     assert metadata["params"] == {"temperature": 0.2, "function_calling": "native"}
     assert metadata["chat_id"] == "chat"
+    assert metadata["chat_context"]["mentioned_skill_ids"] == ["artifact-workflow"]
     assert body["files"] == files
     if files:
         assert metadata["terminal_id"] == "office-linux"
