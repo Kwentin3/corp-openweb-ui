@@ -333,5 +333,128 @@ class UnknownUsageTests(unittest.TestCase):
         self.assertTrue(state['calls'][0]['scope']['call_id'])
         self.assertNotIn('private transport detail',output.getvalue())
 
+    def diagnostic_fault(self,mode):
+        """Retained real worker/native owners; change only HTTP/DB leaves."""
+        handle=self.wire.handle;clock=[0.0];provider_reads=[0]
+        def fault(method,url,*args,**kwargs):
+            status,value=handle(method,url,*args,**kwargs);path=urlsplit(url).path
+            if self.wire.attempts:
+                if mode=='provider_control_http' and urlsplit(url).hostname=='provider':
+                    provider_reads[0]+=1
+                    if provider_reads[0]>=2:return 503,{'error':'private provider detail'}
+                elif mode=='native_key_info_http' and path=='/key/info':return 503,{'error':'private native detail'}
+                elif mode=='native_protected_fields' and path=='/user/info':value.get('user_info',{}).pop('models',None)
+                elif mode=='native_amount' and path=='/spend/logs/v2':
+                    for row in value.get('data',[]):row['spend']=None
+                elif mode=='evidence_byte_bound' and urlsplit(url).hostname=='provider':
+                    value['requests'][-1]['source_witness_padding']='x'*(2*1024*1024)
+                elif mode=='poll_deadline' and path=='/spend/logs/v2':value['data']=[]
+            return status,value
+        original=P.fixture.native_client
+        def client():
+            native=original();native.timeout=45;return native
+        with patch.object(self.wire,'handle',side_effect=fault),patch.object(P.fixture,'native_client',side_effect=client):
+            if mode=='poll_deadline':
+                with patch.object(native_owner,'time',SimpleNamespace(monotonic=lambda:clock[0],
+                        sleep=lambda seconds:clock.__setitem__(0,clock[0]+seconds))),redirect_stdout(StringIO()) as output:
+                    status=P.main()
+            else:
+                with redirect_stdout(StringIO()) as output:status=P.main()
+        packet=json.loads(output.getvalue());self.assertEqual(status,1)
+        self.assertEqual((packet['stage'],packet['failure']),('provider_observed','unknown_native_contract_failed'))
+        self.assertEqual((len(self.wire.attempts),len(self.wire.physical)),(1,1))
+        self.assertFalse(any(path in('/key/block','/key/unblock','/key/update','/__proof/reset','/__proof/control')
+            for method,path,body in self.wire.requests if method=='POST'))
+        for secret in (self.wire.operator,self.wire.gateway,self.wire.viewer,'private provider detail','private native detail'):
+            self.assertNotIn(secret,output.getvalue())
+        if mode=='poll_deadline':self.assertEqual(clock[0],45)
+        return packet
+
+    def test_six_actual_owner_failures_have_distinct_bounded_owned_origins(self):
+        expected={'provider_control_http':('prove_service_tasks.py','provider'),
+            'native_key_info_http':('prove_native_budgets.py','ok'),
+            'native_protected_fields':('prove_native_budgets.py','protected_r'),
+            'native_amount':('prove_native_budgets.py','amount'),
+            'evidence_byte_bound':('prove_pricing_snapshots.py','encoded'),
+            'poll_deadline':('prove_native_budgets.py','request')}
+        origins=set()
+        for mode,(module,function) in expected.items():
+            case=UnknownUsageTests();case.setUp()
+            try:
+                with self.subTest(mode=mode):
+                    diagnostic=case.diagnostic_fault(mode)['diagnostic']
+                    self.assertEqual(set(diagnostic),{'attempt','actor','model','error_class','origin'})
+                    self.assertEqual({k:diagnostic[k] for k in('attempt','actor','model','error_class')},
+                        {'attempt':1,'actor':'A','model':1,'error_class':'ProofError'})
+                    self.assertTrue(1<=len(diagnostic['origin'])<=2)
+                    self.assertEqual((diagnostic['origin'][-1]['module'],diagnostic['origin'][-1]['function']),(module,function))
+                    origins.add(tuple((f['module'],f['function']) for f in diagnostic['origin']))
+                    if mode=='native_amount':
+                        self.assertEqual([f['function'] for f in diagnostic['origin']],['settled','amount'])
+                    for frame in diagnostic['origin']:
+                        self.assertEqual(set(frame),{'module','function','line'})
+                        self.assertEqual(Path(frame['module']).name,frame['module'])
+                        self.assertNotEqual(frame['function'],'require')
+                        self.assertTrue(1<=frame['line']<=1000000)
+            finally:case.doCleanups()
+        self.assertEqual(len(origins),6)
+
+    def test_unexpected_secret_error_and_foreign_same_basename_frames_are_not_exported(self):
+        foreign=Path(self.temp.name)/'foreign'/Path(P.__file__).name;foreign.parent.mkdir()
+        namespace={}
+        exec(compile('def unowned_secret_frame():\n    raise RuntimeError('+repr(self.wire.operator)+')\n',str(foreign),'exec'),namespace)
+        foreign.write_text('# foreign file with same basename\n')
+        original=self.wire.handle
+        def handle(method,url,*args,**kwargs):
+            if self.wire.attempts and urlsplit(url).path=='/user/info':namespace['unowned_secret_frame']()
+            return original(method,url,*args,**kwargs)
+        with patch.object(self.wire,'handle',side_effect=handle),redirect_stdout(StringIO()) as output:self.assertEqual(P.main(),1)
+        packet=json.loads(output.getvalue());self.assertEqual(packet['failure'],'unknown_usage_unexpected_failure')
+        self.assertEqual(packet['diagnostic']['error_class'],'unexpected')
+        self.assertFalse(any(f['function']=='unowned_secret_frame' for f in packet['diagnostic']['origin']))
+        for private in(self.wire.operator,str(foreign),self.temp.name,'RuntimeError'):
+            self.assertNotIn(private,output.getvalue())
+
+    def test_private_write_failure_keeps_save_origin_and_prior_private_state(self):
+        original=private_owner.os.replace
+        def replace(source,target):
+            if Path(target)==self.state and json.loads(Path(source).read_bytes()).get('stage')=='provider_observed':
+                raise OSError(self.wire.operator+' private write body')
+            return original(source,target)
+        with patch.object(private_owner.os,'replace',side_effect=replace),redirect_stdout(StringIO()) as output:
+            self.assertEqual(P.main(),1)
+        packet=json.loads(output.getvalue())
+        self.assertEqual([f['function'] for f in packet['diagnostic']['origin']],['save','write_private'])
+        self.assertEqual(packet['diagnostic']['origin'][-1]['function'],'write_private')
+        self.assertEqual(P.fixture.read_private(self.state)['stage'],'response_received')
+        self.assertNotIn(self.wire.operator,output.getvalue());self.assertNotIn('private write body',output.getvalue())
+        self.assertEqual((len(self.wire.attempts),len(self.wire.physical)),(1,1))
+
+    def test_optional_diagnostic_context_leaves_success_packet_and_source_order_unchanged(self):
+        context={};receipt={'schema':1,'proof':P.PROOF,'passed':False,'worker_sha256':sha256(Path(P.__file__).read_bytes()).hexdigest()}
+        result=asyncio.run(P.execute(receipt,diagnostic=context))
+        self.assertTrue(result['passed']);self.assertNotIn('diagnostic',result)
+        self.assertEqual(set(result),{'schema','proof','passed','stage','worker_sha256','provider_dispatches','inference_attempts',
+            'known_positive_costs','known_positive_total','blocked_assignments','unknown_cost_finality','explicit_zero_runtime_qualified',
+            'browser_or_chat_ancestry_qualified','route_sha256','rows_sha256','source_sha256','mounted_source_sha256'})
+        self.assertEqual(list(result['source_sha256']),['prove_unknown_usage_policy.py','provision_webui.py',
+            'employee_budget_admin_client.py','employee_budget_admin_contract.py','employee_budget_assignment.py',
+            'prove_gateway_auth.py','provenance.py','prove_native_budgets.py','prove_pricing_snapshots.py','prove_service_tasks.py',
+            'employee_budget_cost_readback.py','litellm_auth.py','employee_budget_provenance.py'])
+        self.assertEqual((context['attempt'],context['actor'],context['model']),(7,'B',2))
+        self.assertEqual((len(self.wire.attempts),len(self.wire.physical)),(7,5))
+        self.assertEqual(set(context),{'attempt','actor','model'})
+
+    def test_failure_context_slots_are_strict_and_private_values_are_not_projected(self):
+        try:raise RuntimeError(self.wire.operator)
+        except RuntimeError as error:
+            for context in({'operation':self.wire.operator,'attempt':True,'actor':self.wire.viewer,'model':1.0,
+                             'readback_actor':self.wire.gateway,'scope':{'secret':self.wire.operator}},
+                            {'operation':[],'attempt':8,'actor':'other','model':0,'readback_actor':'other'}):
+                value=P.failure_diagnostic(error,context)
+                self.assertEqual(set(value),{'error_class','origin'})
+                self.assertEqual(value['origin'],[])
+                self.assertNotIn(self.wire.operator,json.dumps(value))
+
 
 if __name__=='__main__':unittest.main()
