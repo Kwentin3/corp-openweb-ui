@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING
 from fastapi import HTTPException, Request
 
 if TYPE_CHECKING:
+    from litellm import Router
     from litellm.proxy._types import UserAPIKeyAuth
 
 
@@ -110,6 +111,41 @@ def _metadata_maps(data: dict) -> list[dict]:
         if isinstance(value, dict):
             maps.append(value)
     return maps
+
+
+def _require_declared_buffered_profile(request: Request, data: dict, identity: UserAPIKeyAuth,
+                                      router: Router | None, route: str) -> None:
+    """Constrain only a native-declared buffered validated canonical assignment.
+
+    Native request-body safety owns credentials/endpoint overrides. This read
+    uses the same router's complete alias expansion, not caller model_info.
+    """
+    models = getattr(identity, "models", None)
+    user_id = getattr(identity, "user_id", None)
+    if (router is None or not isinstance(models, list) or len(models) != 1
+            or not isinstance(models[0], str) or not isinstance(user_id, str)
+            or not _assignment_matches(identity, user_id, models[0])):
+        return
+    model = models[0]
+    deployments = router.get_model_list(model_name=model, team_id=identity.team_id) or []
+    if not any(isinstance(row, dict) and isinstance(row.get("model_info"), dict)
+               and row["model_info"].get("supports_native_streaming") is False for row in deployments):
+        return  # Undeclared profiles retain the existing native route semantics.
+    _require(all(isinstance(row, dict)
+                 and isinstance(row.get("model_info"), dict)
+                 and row["model_info"].get("supports_native_streaming") is False
+                 and row["model_info"].get("mode") == "responses"
+                 and isinstance(row["model_info"].get("id"), str) and bool(row["model_info"]["id"])
+                 and isinstance(row.get("litellm_params"), dict)
+                 and isinstance(row["litellm_params"].get("model"), str) and bool(row["litellm_params"]["model"])
+                 for row in deployments), 503, "Native buffered model descriptors disagree")
+    _require(request.method == "POST" and route in ("/responses", "/v1/responses", "/openai/v1/responses")
+             and data.get("model") == model and type(data.get("stream", False)) is bool,
+             403, "Declared buffered model requires a canonical Responses POST and boolean stream")
+    _require(not any(name in data for name in (
+        "user_config", "router_settings_override", "specific_deployment", "fallbacks",
+        "context_window_fallbacks", "content_policy_fallbacks",
+    )), 403, "Client routing overrides are unavailable for the declared buffered model")
 
 
 def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
@@ -339,4 +375,6 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     _require(auth.budget_reservation is None, 503, "Native validation unexpectedly reserved budget")
     if shared_gateway:
         _require(auth.user_id == user_id, 403, "Validated native payer does not match its assignment")
+    if not task and RouteChecks.is_llm_api_route(route):
+        _require_declared_buffered_profile(request, request_data, auth, proxy_server.llm_router, route)
     return auth
