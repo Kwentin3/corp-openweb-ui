@@ -538,6 +538,8 @@ class OfficeSetupTests(unittest.TestCase):
         self.assertEqual(self.config["OPENAI_API_KEYS"][1:], self.before_config["OPENAI_API_KEYS"])
         self.assertEqual({str(int(k)-1): v for k, v in self.config["OPENAI_API_CONFIGS"].items() if k != "0"}, self.before_config["OPENAI_API_CONFIGS"])
         self.assertEqual(saved["office_setup"]["budget"]["models"][0]["model"], "gpt-5.4-mini")
+        self.assertEqual(self.rows["gpt-5.4-mini"]["params"], {"function_calling": "native", "max_tokens": 1024,
+            "custom_params": {"parallel_tool_calls": False, "store": False, "include": ["reasoning.encrypted_content"]}})
         self.assertEqual(P.Decimal(saved["office_setup"]["budget"]["max_budget"]), P.Decimal(1000))
         posts = [(route, body) for method, route, _, body in self.budget_requests if method == "POST"]
         self.assertEqual([route for route, _ in posts], ["/user/new", "/key/generate"])

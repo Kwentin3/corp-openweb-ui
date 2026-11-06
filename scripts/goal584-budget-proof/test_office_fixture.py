@@ -615,14 +615,16 @@ def native_context_owners():
     tree = ast.parse(Path(owner.__file__).read_bytes())
     extractor = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'deployed_context_owner')
     result = next(n for n in ast.walk(extractor) if isinstance(n, ast.Return))
-    result.value = ast.Tuple(elts=[result.value,
-        ast.parse("(mirror / 'routers/openai.py').read_bytes()", mode='eval').body], ctx=ast.Load())
+    result.value = ast.Tuple(elts=[result.value, ast.parse(
+        "{name:(mirror/name).read_bytes() for name in ('routers/openai.py','utils/misc.py','utils/middleware.py')}",
+        mode='eval').body], ctx=ast.Load())
     namespace = vars(owner).copy()
     exec(compile(ast.fix_missing_locations(ast.Module(body=[extractor], type_ignores=[])), 'existing-native-source-extractor', 'exec'), namespace)
-    _, router = namespace['deployed_context_owner']()
-    sources = {'utils/tools.py': (owner.NATIVE / 'utils/tools.py').read_bytes().replace(b'\r\n', b'\n'), 'routers/openai.py': router}
+    _, deployed = namespace['deployed_context_owner']()
+    sources = {'utils/tools.py': (owner.NATIVE / 'utils/tools.py').read_bytes().replace(b'\r\n', b'\n'), **deployed}
     assert {n: hashlib.sha256(v).hexdigest() for n, v in sources.items()} == {
-        n: owner.P.WEBUI_MODULES[n] for n in sources}
+        **{n: owner.P.WEBUI_MODULES[n] for n in sources if n in owner.P.WEBUI_MODULES},
+        'utils/misc.py': '9098c447441e2f6bfa529ae8506a03acab6400a8205c7942e86b004c07833068'}
     return owner, native, sources
 
 
@@ -642,6 +644,7 @@ class NativeContextWorld(ReadbackWorld):
         fixture.private.mkdir(); self.state = fixture.private / 'office-state.private.json'; self.save()
         self.native_commands, self.failure = [], None
         self.before_exec = self.during_convert = self.packet_mutation = None
+        self.payload_mutation = self.during_output = None
 
     def save(self):
         self.state.write_text(json.dumps(self.handoff)); self.state.chmod(0o600)
@@ -652,12 +655,21 @@ class NativeContextWorld(ReadbackWorld):
         assert command[2] == self.ids['webui'] and command[3:6] == ['python', '-B', '-c']
         assert kwargs['capture_output'] is True and kwargs['timeout'] == 30
         if self.before_exec: self.before_exec(self)
+        if self.payload_mutation:
+            payload = json.loads(command[-1]); self.payload_mutation(payload)
+            command[-1] = json.dumps(payload, ensure_ascii=True, allow_nan=False)
         tools, router, _ = self.native
         modules = {name: ModuleType(name) for name in ('open_webui', 'open_webui.utils', 'open_webui.routers',
-            'open_webui.utils.tools', 'open_webui.routers.openai')}
+            'open_webui.utils.tools', 'open_webui.routers.openai', 'open_webui.utils.misc', 'open_webui.utils.middleware')}
         for name in ('convert_openapi_to_tool_payload', 'clean_openai_tool_schema'):
             setattr(modules['open_webui.utils.tools'], name, tools[name])
         modules['open_webui.routers.openai'].convert_to_responses_payload = router['convert_to_responses_payload']
+        modules['open_webui.utils.misc'].convert_output_to_messages = router['convert_output_to_messages']
+        modules['open_webui.utils.middleware'].process_messages_with_output = router['process_messages_with_output']
+        if self.during_output:
+            def convert(saved, **options):
+                value = router['convert_output_to_messages'](saved, **options); self.during_output(saved); return value
+            modules['open_webui.utils.misc'].convert_output_to_messages = convert
         if self.during_convert:
             def clean(spec):
                 value = tools['clean_openai_tool_schema'](spec); self.during_convert(self); return value
@@ -691,7 +703,8 @@ def assert_native_context_executes_actual_native_schema_converter_and_deduplicat
     world = native_context_world
     reason = [{'id': 'rs-native-fixture', 'type': 'reasoning', 'summary': [{'type': 'summary_text', 'text': 'Summary'}],
         'encrypted_content': 'synthetic-opaque-reasoning'}]
-    cases = [[], reason, copy.deepcopy(reason)]; original = copy.deepcopy(cases); private = world.state.read_bytes()
+    second = [*reason, {**reason[0], 'id': 'rs-second-native-fixture'}]
+    cases = [[], reason, second, copy.deepcopy(reason)]; original = copy.deepcopy(cases); private = world.state.read_bytes()
     output = io.StringIO()
     with contextlib.redirect_stdout(output):
         packet = world.fixture.native_context(BASE, world.receipt, world.revision, cases)
@@ -700,7 +713,9 @@ def assert_native_context_executes_actual_native_schema_converter_and_deduplicat
     assert packet['native_specs'] == [tools['clean_openai_tool_schema'](s) for s in tools['convert_openapi_to_tool_payload'](schema)]
     assert len(packet['native_specs']) == 14
     assert packet['reasoning_cases'] == [{'input_reasoning': case, 'native_input': router['convert_to_responses_payload'](
-        {'messages': [{'role': 'assistant', 'output': case}]})['input']} for case in ([], reason)]
+        {'messages': [{'role': 'assistant', 'output': case}]})['input']} for case in ([], reason, second)]
+    assert set(packet) == {'schema', 'module_sha256', 'source_body_sha256', 'native_specs', 'reasoning_cases'}
+    assert set(packet['module_sha256']) == {'utils/tools.py', 'routers/openai.py'}
     assert packet['source_body_sha256'] == office.digest(schema)
     assert len(world.native_commands) == 1 and len(world.native_commands[0][-1].encode('ascii')) <= 96 * 1024
     assert world.cli_calls and any('exec(compile' in code for _, code in world.execs)
@@ -771,6 +786,94 @@ class OfficeNativeContextTests(unittest.TestCase):
         for index, mutate in enumerate(cases):
             with self.subTest(case=index), self.world() as world:
                 assert_native_context_rejects_mutated_producer_packet_and_private_output(world, mutate)
+
+    def saved_output(self):
+        # Caller-supplied native output fixture, not a DB/history-origin claim.
+        reason = {'type': 'reasoning', 'id': 'rs-first', 'summary': [], 'encrypted_content': 'opaque-fixture'}
+        return [reason, {'type': 'function_call', 'call_id': 'call-first', 'name': 'render_office_file',
+                'arguments': '{"file_id":"native-file"}', 'status': 'completed'},
+            {'type': 'function_call_output', 'call_id': 'call-first', 'output': [
+                {'type': 'input_text', 'text': 'Selected file result'},
+                {'type': 'input_image', 'image_url': 'data:image/png;base64,c3ludGhldGljLWltYWdl'}]},
+            {**reason, 'id': 'rs-second'},
+            {'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': 'Ready'}]}]
+
+    def test_saved_output_uses_actual_deployed_native_pipeline_without_assembling_history(self):
+        with self.world() as world:
+            supplied = self.saved_output(); original = copy.deepcopy(supplied); private = world.state.read_bytes()
+            packet = world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=supplied)
+            observed = packet['saved_output_case']; native = world.native[1]
+            options = {'reasoning_format': 'responses', 'flatten_tool_images': False}
+            messages = native['convert_output_to_messages'](supplied, raw=True, **options)
+            messages = native['process_messages_with_output'](messages, **options)
+            assert observed == {'input_saved_output': original,
+                'native_input': native['convert_to_responses_payload']({'messages': messages})['input']}
+            assert [item['type'] for item in observed['native_input']] == [item['type'] for item in supplied]
+            assert [item['id'] for item in observed['native_input'] if item['type'] == 'reasoning'] == ['rs-first', 'rs-second']
+            assert observed['native_input'][2]['output'][1] == supplied[2]['output'][1]
+            assert all(item.get('role') != 'user' for item in observed['native_input'])
+            assert supplied == original and world.state.read_bytes() == private
+            assert set(packet['module_sha256']) == {'utils/tools.py', 'routers/openai.py', 'utils/misc.py', 'utils/middleware.py'}
+            assert set(packet) == {'schema', 'module_sha256', 'source_body_sha256', 'native_specs',
+                'reasoning_cases', 'saved_output_case'}
+            assert len(world.native_commands) == 1 and len(world.native_commands[0][-1].encode('ascii')) <= 96 * 1024
+            assert not world.fixture.output.exists()
+
+    def test_saved_output_shape_foreign_user_secrets_and_bound_fail_before_producer(self):
+        cases = ({}, [], 'foreign', [{'role': 'user', 'content': 'not native output'}],
+            [{'type': 'message', 'role': 'user', 'content': []}], [{'type': 'foreign'}],
+            [{'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': SECRET}]}],
+            [{'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': 'x' * (96 * 1024)}]}])
+        for index, supplied in enumerate(cases):
+            with self.subTest(case=index), self.world() as world:
+                with self.assertRaises((AssertionError, ProofError)) as failed:
+                    world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=supplied)
+                assert SECRET not in str(failed.exception) and not world.native_commands and not world.fixture.output.exists()
+
+    def test_saved_output_attests_both_added_module_files_before_and_after_conversion(self):
+        for name in ('utils/misc.py', 'utils/middleware.py'):
+            for moment in ('before_exec', 'during_convert'):
+                with self.subTest(module=name, moment=moment), self.world() as world:
+                    def change(w): w.path('webui', '/app/backend/open_webui/' + name).write_bytes(b'foreign producer')
+                    setattr(world, moment, change)
+                    with self.assertRaisesRegex(AssertionError, 'Office Docker topology unavailable .*exec; exit=1; stdout_bytes=0'):
+                        world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=self.saved_output())
+                    assert world.failure == 'AssertionError' and len(world.native_commands) == 1
+
+    def test_saved_output_producer_refuses_foreign_envelope_and_mutated_supplied_input(self):
+        variants = (lambda p: p.update(foreign_payload=True),
+            lambda p: p['saved_output'].append({'type': 'message', 'role': 'user', 'content': []}),
+            lambda p: p['saved_output'][0].update(id='foreign-saved-output'))
+        for index, mutate in enumerate(variants):
+            with self.subTest(case=index), self.world() as world:
+                world.payload_mutation = mutate
+                with self.assertRaises((AssertionError, ProofError)):
+                    world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=self.saved_output())
+                assert len(world.native_commands) == 1 and not world.fixture.output.exists()
+        with self.world() as world:
+            supplied = self.saved_output(); original = copy.deepcopy(supplied)
+            world.during_output = lambda value: value[0].update(id='mutated-during-native-conversion')
+            with self.assertRaisesRegex(AssertionError, 'Office Docker topology unavailable .*exec; exit=1; stdout_bytes=0'):
+                world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=supplied)
+            assert supplied == original and world.failure == 'AssertionError'
+
+    def test_saved_output_packet_echo_shape_extra_case_and_secret_are_failclosed(self):
+        variants = (lambda p: p.pop('saved_output_case'), lambda p: p.update(saved_output_case=None),
+            lambda p: p['saved_output_case'].update(input_saved_output=[]),
+            lambda p: p['saved_output_case'].update(native_input={}),
+            lambda p: p['saved_output_case'].update(foreign_case=[]),
+            lambda p: p.update(foreign_payload=[]),
+            lambda p: p['saved_output_case'].update(native_input=[{'private': SECRET}]))
+        for index, mutate in enumerate(variants):
+            with self.subTest(case=index), self.world() as world:
+                world.packet_mutation = mutate
+                with self.assertRaises((AssertionError, ProofError)) as failed:
+                    world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=self.saved_output())
+                assert SECRET not in str(failed.exception) and len(world.native_commands) == 1 and not world.fixture.output.exists()
+        with self.world() as world:
+            world.packet_mutation = lambda p: p.update(saved_output_case={'input_saved_output': [], 'native_input': []})
+            with self.assertRaisesRegex(AssertionError, 'Office unexpected native saved output observation'):
+                world.fixture.native_context(BASE, world.receipt, world.revision, [[]])
 
 
 class PrepareWorld(DockerWorld):

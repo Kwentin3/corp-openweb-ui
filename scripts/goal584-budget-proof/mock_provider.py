@@ -304,6 +304,15 @@ def office_responses_step(payload, values):
     if last_user is None:
         raise ValueError("Office user turn is missing")
     tail = [item for item in values[last_user + 1:] if item.get("type") != "reasoning"]
+    readback = values[last_user].get("content") == [{"type": "input_text",
+        "text": "Keep the attached file and report its native file ID without calling tools."}]
+    attachment = None
+    if readback:
+        previous_user = next((i for i in range(last_user - 1, -1, -1) if values[i].get("role") == "user"), None)
+        prior = [item for item in values[previous_user + 1:last_user] if item.get("type") != "reasoning"] if previous_user is not None else []
+        if tail or len(prior) != 5 or prior[-1].get("type") != "message" or prior[-1].get("role") != "assistant":
+            raise ValueError("Saved finite Office attachment context is missing")
+        tail, attachment = prior[:-1], prior[-1]
     if len(tail) not in (0, 2, 4):
         raise ValueError("Incomplete finite Office Tool continuation")
     export_args = {"output_name": "goal584-office.docx", "source_message": "previous_assistant", "commands": []}
@@ -336,6 +345,9 @@ def office_responses_step(payload, values):
     png = base64.b64decode(parts[1]["image_url"].split(",", 1)[1], validate=True)
     if len(png) < 24 or not png.startswith(b"\x89PNG\r\n\x1a\n") or png[12:16] != b"IHDR":
         raise ValueError("Native Office PNG is missing")
+    if readback and attachment.get("content") != [{"type": "output_text",
+            "text": "[Download](/api/v1/files/" + file_id + "/content)"}]:
+        raise ValueError("Saved finite Office attachment differs from Tool result")
     return None, None, file_id
 
 

@@ -14,6 +14,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from io import BytesIO
 import subprocess
 from types import SimpleNamespace
 
@@ -267,6 +268,92 @@ def exchange(boundary, component, stream):
 @pytest.mark.parametrize("stream", [False, True])
 def test_actual_three_call_office_continuation_uses_native_dynamic_id_png_and_original_context(boundary, component, stream):
     exchange(boundary, component, stream)
+
+
+def saved_office_readback(component, monkeypatch):
+    """Existing real component/factory, then native saved-output reconstruction."""
+    monkeypatch.setattr(P, "REQUESTS", [])
+    artifact, calls, owner = component_owner.full_capture(component, provider=P)
+    for call in calls:
+        del call["before_budget"], call["after_budget"]
+    assert len(component_owner.P.verify_wire_calls(calls, **owner)) == 3
+    results = [item for item in calls[-1]["wire_before_auth"]["input"]
+               if item.get("type") == "function_call_output"]
+    saved = []
+    for index, call in enumerate(calls):
+        saved.extend(copy.deepcopy(call["provider"]["response"]["output"]))
+        if index < 2:
+            item = copy.deepcopy(results[index])
+            # Wire export output is scalar; the native saved-output owner
+            # retains it as an input_text block, as in full_capture's producer.
+            if isinstance(item["output"], str):
+                item["output"] = [{"type": "input_text", "text": item["output"]}]
+            saved.append(item)
+    saved = json.loads(json.dumps(saved))
+    options = {"reasoning_format": "responses", "flatten_tool_images": False}
+    messages = component.router["convert_output_to_messages"](saved, raw=True, **options)
+    messages = component.router["process_messages_with_output"](messages, **options)
+    wire = copy.deepcopy(calls[0]["provider"]["body"])
+    wire["include"] = ["reasoning.encrypted_content"]
+    wire["input"] += component.router["convert_to_responses_payload"]({"messages": messages})["input"]
+    wire["input"].append({"type": "message", "role": "user", "content": [{"type": "input_text",
+        "text": "Keep the attached file and report its native file ID without calling tools."}]})
+    return wire, artifact
+
+
+def memory_office_response(wire):
+    handler = object.__new__(P.Handler); statuses = []
+    handler.send_response = statuses.append
+    handler.send_header = lambda *args: None; handler.end_headers = lambda: None
+    handler.wfile = BytesIO(); original = copy.deepcopy(wire)
+    handler.serve_responses(wire)
+    assert wire == original
+    return statuses, handler.wfile.getvalue()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_saved_native_office_attachment_readback_uses_existing_terminal_factory_without_tools(component, monkeypatch, stream):
+    wire, artifact = saved_office_readback(component, monkeypatch)
+    wire["stream"] = stream
+    original = copy.deepcopy(wire); cli_calls = copy.deepcopy(component.cli.calls)
+    statuses, raw = memory_office_response(wire)
+    assert statuses == [200] and wire == original and len(P.REQUESTS) == 4
+    if stream:
+        parser = http_owner.ResponsesHTTPTests()
+        events = parser.events(raw.decode())
+        for event in events:
+            http_owner.TypeAdapter(http_owner.ResponseStreamEvent).validate_python(event)
+        result = parser.native_stream(events)
+    else:
+        result = json.loads(raw)
+        http_owner.native_parsers()["convert_responses_result"](copy.deepcopy(result))
+    http_owner.Response.model_validate(result)
+    assert [item["type"] for item in result["output"]] == ["reasoning", "message"]
+    assert result["output"][0]["encrypted_content"] == "synthetic-opaque-reasoning-not-provider-cryptography"
+    assert result["output"][1]["content"][0]["text"] == "[Download](/api/v1/files/" + artifact["native_file_id"] + "/content)"
+    assert component.cli.calls == cli_calls
+    record = P.REQUESTS[-1]
+    assert record["body"] == original and record["response"] == result
+    assert record["lifecycle"]["terminal"] and record["lifecycle"]["outcome"] == "completed"
+    assert len(wire["tools"]) == 14
+
+
+@pytest.mark.parametrize("damage", ["missing_saved_turn", "missing_attachment", "foreign_attachment", "foreign_file", "missing_tool_pair", "wrong_render", "invalid_png", "new_tool_call"])
+def test_second_office_readback_rejects_damaged_saved_attachment_and_tool_context(component, monkeypatch, damage):
+    wire, _ = saved_office_readback(component, monkeypatch)
+    items = wire["input"]
+    results = [item for item in items if item.get("type") == "function_call_output"]
+    calls = [item for item in items if item.get("type") == "function_call"]
+    if damage == "missing_saved_turn": wire["input"] = [items[-1]]
+    elif damage == "missing_attachment": items.pop(-2)
+    elif damage == "foreign_attachment": items[-2]["content"][0]["text"] = "[Download](/api/v1/files/foreign/content)"
+    elif damage == "foreign_file": results[0]["output"] = json.dumps(json.loads(results[0]["output"]) | {"result_file_id": "foreign"})
+    elif damage == "missing_tool_pair": items.remove(results[0])
+    elif damage == "wrong_render": calls[1]["arguments"] = json.dumps({"file_id": "foreign", "format": "docx", "grid": 2})
+    elif damage == "invalid_png": results[1]["output"][1]["image_url"] = "data:image/png;base64," + base64.b64encode(b"not PNG").decode()
+    else: items.extend(copy.deepcopy([calls[0], results[0]]))
+    statuses, _ = memory_office_response(wire)
+    assert statuses == [400] and len(P.REQUESTS) == 3
 
 
 def test_office_specific_bad_continuations_reject_before_physical_arrival(boundary, component):

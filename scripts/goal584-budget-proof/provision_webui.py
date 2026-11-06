@@ -537,7 +537,8 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
     require(webui.ok("GET", "/openai/config", token=admin["token"]) == requested, "Office native connection remap readback differs")
     models = {}
     for model, params in ((primary, {"function_calling": "native", "max_tokens": 1024,
-            "custom_params": {"parallel_tool_calls": False, "store": False}}),
+            "custom_params": {"parallel_tool_calls": False, "store": False,
+                "include": ["reasoning.encrypted_content"]}}),
             (target, {})):
         body = {"id": model, "name": model, "base_model_id": None, "is_active": True, "params": params,
             "meta": {"capabilities": {"builtin_tools": False}},

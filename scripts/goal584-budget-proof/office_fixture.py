@@ -321,11 +321,13 @@ class OfficeFixture(PricingFixture):
                 'Office private handoff schema differs')
         return raw, value
 
-    def native_context(self, base_url, build_receipt, expected_revision, reasoning_cases):
+    def native_context(self, base_url, build_receipt, expected_revision, reasoning_cases, *, saved_output=None):
         """Execute native schema/Responses owners in the actual built WebUI.
 
         The host's strict artifact binding attests the producer; fields in the
         returned packet are observations, never independent origin evidence.
+        Optional saved_output is one caller-supplied assistant output list;
+        native owners convert only that output, without assembling chat history.
         """
         running = self.running_readback(base_url, build_receipt, expected_revision)
         _, handoff = self._office_private('office-state.private.json')
@@ -337,14 +339,26 @@ class OfficeFixture(PricingFixture):
                 'Office native reasoning observation differs')
         cases = {digest(case): case for case in reasoning_cases}
         modules = {name: running['webui']['modules'][name] for name in ('utils/tools.py', 'routers/openai.py')}
+        if saved_output is not None:
+            require(isinstance(saved_output, list) and saved_output and all(isinstance(item, dict)
+                    and item.get('type') in ('reasoning', 'message', 'function_call', 'function_call_output')
+                    and (item['type'] != 'message' or item.get('role') == 'assistant') for item in saved_output),
+                    'Office native saved output observation differs')
+            no_credentials(saved_output, self.secrets)
+            modules.update({name: running['webui']['modules'][name] for name in ('utils/misc.py', 'utils/middleware.py')})
         schema = handoff['office_setup']['openapi']
-        payload = json.dumps({'module_sha256': modules, 'openapi': schema,
-            'reasoning_cases': list(cases.values())}, ensure_ascii=True, allow_nan=False)
+        inputs = {'module_sha256': modules, 'openapi': schema, 'reasoning_cases': list(cases.values())}
+        if saved_output is not None: inputs['saved_output'] = saved_output
+        payload = json.dumps(inputs, ensure_ascii=True, allow_nan=False)
         require(len(payload.encode('ascii')) <= 96 * 1024, 'Office native context argument exceeded bound')
         code = '''import contextlib,hashlib,io,json,pathlib,sys
 p=json.loads(sys.argv[1]);r=pathlib.Path('/app/backend/open_webui')
+assert isinstance(p,dict) and set(p) in ({'module_sha256','openapi','reasoning_cases'},
+    {'module_sha256','openapi','reasoning_cases','saved_output'})
+names=('utils/tools.py','routers/openai.py')+(('utils/misc.py','utils/middleware.py') if 'saved_output' in p else ())
+original=json.dumps(p,sort_keys=True,ensure_ascii=True,allow_nan=False)
 def modules():
-    return {n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in ('utils/tools.py','routers/openai.py')}
+    return {n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in names}
 assert modules()==p['module_sha256']
 with contextlib.redirect_stdout(io.StringIO()):
     from open_webui.utils.tools import convert_openapi_to_tool_payload,clean_openai_tool_schema
@@ -352,10 +366,22 @@ with contextlib.redirect_stdout(io.StringIO()):
     specs=[clean_openai_tool_schema(s) for s in convert_openapi_to_tool_payload(p['openapi'])]
     cases=[{'input_reasoning':v,'native_input':convert_to_responses_payload(
         {'messages':[{'role':'assistant','output':v}]})['input']} for v in p['reasoning_cases']]
+    if 'saved_output' in p:
+        saved=p['saved_output']
+        assert isinstance(saved,list) and saved and all(isinstance(v,dict)
+            and v.get('type') in ('reasoning','message','function_call','function_call_output')
+            and (v['type']!='message' or v.get('role')=='assistant') for v in saved)
+        from open_webui.utils.misc import convert_output_to_messages
+        from open_webui.utils.middleware import process_messages_with_output
+        messages=convert_output_to_messages(saved,raw=True,reasoning_format='responses',flatten_tool_images=False)
+        messages=process_messages_with_output(messages,reasoning_format='responses',flatten_tool_images=False)
+        observed={'input_saved_output':saved,'native_input':convert_to_responses_payload({'messages':messages})['input']}
+assert json.dumps(p,sort_keys=True,ensure_ascii=True,allow_nan=False)==original
 assert modules()==p['module_sha256']
 body=hashlib.sha256(json.dumps(p['openapi'],sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
-print(json.dumps({'schema':1,'module_sha256':modules(),'source_body_sha256':body,
-    'native_specs':specs,'reasoning_cases':cases},allow_nan=False))
+packet={'schema':1,'module_sha256':modules(),'source_body_sha256':body,'native_specs':specs,'reasoning_cases':cases}
+if 'saved_output' in p: packet['saved_output_case']=observed
+print(json.dumps(packet,allow_nan=False))
 '''
         packet = self._docker_json(['exec', self._office_binding['services']['webui']['id'],
             'python', '-B', '-c', code, payload])
@@ -367,6 +393,15 @@ print(json.dumps({'schema':1,'module_sha256':modules(),'source_body_sha256':body
                     and isinstance(item['native_input'], list) for item in packet['reasoning_cases'])
                 and {digest(item['input_reasoning']): item['input_reasoning'] for item in packet['reasoning_cases']} == cases,
                 'Office native context producer readback differs')
+        if saved_output is None:
+            require('saved_output_case' not in packet, 'Office unexpected native saved output observation')
+        else:
+            observed = packet.get('saved_output_case')
+            require(set(packet) == {'schema', 'module_sha256', 'source_body_sha256', 'native_specs',
+                    'reasoning_cases', 'saved_output_case'} and isinstance(observed, dict)
+                    and set(observed) == {'input_saved_output', 'native_input'}
+                    and digest(observed['input_saved_output']) == digest(saved_output)
+                    and isinstance(observed['native_input'], list), 'Office native saved output producer readback differs')
         return packet
 
     def prepare(self, base_url, build_receipt, expected_revision):
