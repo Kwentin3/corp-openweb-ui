@@ -1,0 +1,1505 @@
+name: GOAL 584 native budget proof
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/goal584-native-budget-proof.yml
+      - compose/goal584.native-budget-proof.yml
+      - compose/goal584.webui-proof.yml
+      - compose/goal584.overlap-proof.yml
+      - compose/goal584.calendar-proof.yml
+      - compose/goal584.pricing-proof.yml
+      - scripts/goal584-budget-proof/**
+      - deploy/openwebui-budgets/**
+      - deploy/litellm-patches/positive-floor-v1.105.1/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Explicit stand-only candidate; provider and WebUI retain their stock images.
+  PROOF_NATIVE_VARIANT: positive-floor-v1.105.1
+
+concurrency:
+  group: goal584-native-budget-proof-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-budget-proof:
+    runs-on: ubuntu-24.04
+    # Observed main runtime leaves room for the bounded provider500 phase.
+    timeout-minutes: 85
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create isolated synthetic credentials
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, secrets
+          from pathlib import Path
+          output = Path(os.environ['RUNNER_TEMP'], 'goal584-native-budget-proof')
+          output.mkdir()
+          private = Path(os.environ['RUNNER_TEMP'], 'goal584-native-budget-private')
+          private.mkdir(mode=0o700)
+          config = private / 'config.yaml'
+          config.write_bytes(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
+          config.chmod(0o600)
+          paths = {
+              'PROOF_ENV_FILE': str(Path(os.environ['RUNNER_TEMP'], 'goal584-proof.env')),
+              'PROOF_OUTPUT_DIR': str(output),
+              'PROOF_RECEIPT': str(output / 'native-budgets.json'),
+              'PROOF_PRIVATE_DIR': str(private),
+              'PROOF_CONFIG_FILE': str(config),
+          }
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              for key, value in paths.items():
+                  handle.write(f'{key}={value}\n')
+          values = {
+              'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
+              'PROOF_DB_PASSWORD': secrets.token_hex(32),
+              'OWUI_BUDGET_GATEWAY_SECRET': 'gw-' + secrets.token_hex(32),
+              'WEBUI_SECRET_KEY': secrets.token_hex(32),
+              'PROOF_PRIVATE_DIR': str(private),
+              'PROOF_CONFIG_FILE': str(config),
+          }
+          fd = os.open(paths['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+              for key, value in values.items():
+                  handle.write(f'{key}={value}\n')
+                  if key in ('PROOF_MASTER_KEY', 'PROOF_DB_PASSWORD', 'OWUI_BUDGET_GATEWAY_SECRET', 'WEBUI_SECRET_KEY'):
+                      print(f'::add-mask::{value}')
+          PY
+
+      - name: Build the reviewed two-function native derivative
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$RUNNER_TEMP/goal584-native-floor-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
+          PY
+
+      - name: Start the pinned disposable backend
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml config --quiet
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 240
+
+      - name: Bind the receipt to the actual images and source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          import native_floor_identity as native_sdk
+          build = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          artifact = native_sdk.verify_build(build)
+          command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'], '-f', 'compose/goal584.native-budget-proof.yml']
+          containers = subprocess.check_output(command + ['ps', '-q'], text=True).split()
+          assert len(containers) == 4, 'Expected only the four disposable proof services'
+          images = []
+          for container in containers:
+              data = json.loads(subprocess.check_output(['docker', 'inspect', container]))[0]
+              images.append({
+                  'service': data['Config']['Labels']['com.docker.compose.service'],
+                  'image_ref': data['Config']['Image'],
+                  'image_id': data['Image'],
+                  'health': data['State'].get('Health', {}).get('Status'),
+              })
+              if data['Config']['Labels']['com.docker.compose.service'] == 'proxy':
+                  assert data['Config']['Image'] == data['Image'] == native_sdk.image_ref()
+              else:
+                  assert '@sha256:' in data['Config']['Image'], 'An unpinned image reached runtime'
+          native_code = "import json,sys;sys.path.insert(0,'/proof');import native_floor_identity as n;print(json.dumps(n.inspect_sources()))"
+          native_actual = json.loads(subprocess.check_output(command + ['exec','-T','proxy','python','-B','-c',native_code]))
+          assert native_actual['native_artifact'] == artifact
+          files = ['compose/goal584.native-budget-proof.yml', 'scripts/goal584-budget-proof/litellm_config.yaml',
+                   'compose/goal584.overlap-proof.yml', 'scripts/goal584-budget-proof/prove_budget_overlap.py',
+                   'scripts/goal584-budget-proof/prove_failure_recovery.py',
+                   'scripts/goal584-budget-proof/test_failure_recovery.py',
+                   'scripts/goal584-budget-proof/init_vector_database.sql',
+                   'scripts/goal584-budget-proof/mock_provider.py', 'scripts/goal584-budget-proof/prove_native_budgets.py',
+                   'deploy/openwebui-budgets/litellm_auth.py', 'deploy/openwebui-budgets/assignment.py',
+                   'deploy/openwebui-budgets/budget_errors.py',
+                   'deploy/openwebui-budgets/pricing_snapshot.py',
+                   'scripts/goal584-budget-proof/prove_pricing_snapshots.py',
+                   'scripts/goal584-budget-proof/prove_gateway_auth.py',
+                   'scripts/goal584-budget-proof/native-patch-requirements.txt',
+                   *build['files_sha256']]
+          receipt = {
+              'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'images': images,
+              'native_sdk': native_actual,
+              'files_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files},
+              'scope': 'Disposable native LiteLLM core with a synthetic provider; no WebUI or key-selection adapter acceptance',
+          }
+          assert receipt['source_commit'] == os.environ['GITHUB_SHA']
+          vector_db = subprocess.check_output(command + ['exec', '-T', 'postgres', 'psql', '-U', 'goal584',
+              '-d', 'goal584_vectors', '-tA', '-c',
+              "SELECT current_database() || ':' || default_version FROM pg_available_extensions WHERE name = 'vector'"], text=True).strip()
+          assert vector_db == 'goal584_vectors:0.8.7', 'Native vector database prerequisite unavailable'
+          receipt['vector_prerequisite'] = {'database': 'goal584_vectors', 'available_extension': '0.8.7',
+              'scope': 'Empty separate database and installed extension package; embedding flow not yet exercised'}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'runtime-identity.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          PY
+
+      - name: Qualify native budgets against the synthetic provider
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_native_budgets.py \
+            --base-url http://127.0.0.1:4000 > "$PROOF_RECEIPT" || proof_result=$?
+          cat "$PROOF_RECEIPT"
+          exit "$proof_result"
+
+      - name: Read the actual provider boundary
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$PROOF_ENV_FILE" && test -n "$(docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml ps --status running -q provider)"; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              exec -T provider python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())' \
+              > "$PROOF_OUTPUT_DIR/provider-calls.json"
+          fi
+
+      - name: Compare the provider boundary to native outcomes
+        shell: bash
+        run: |
+          python scripts/goal584-budget-proof/verify_provider_calls.py \
+            "$PROOF_RECEIPT" "$PROOF_OUTPUT_DIR/provider-calls.json" \
+            --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
+
+      - name: Bootstrap a native operator key before enabling the adapter
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_gateway_auth.py --phase bootstrap \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/bootstrap.safe.json > "$PROOF_OUTPUT_DIR/gateway-bootstrap.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/gateway-bootstrap.json"
+          exit "$proof_result"
+
+      - name: Enable the native hook through its config-file extension
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          config = Path(os.environ['PROOF_CONFIG_FILE'])
+          content = config.read_text(encoding='utf-8')
+          assert content.count('general_settings:\n') == 1 and 'custom_auth:' not in content
+          content = content.replace('general_settings:\n', 'general_settings:\n  custom_auth: litellm_auth.gateway_auth\n  custom_auth_run_common_checks: true\n', 1)
+          config.write_text(content, encoding='utf-8')
+          receipt = {'custom_auth': 'litellm_auth.gateway_auth', 'custom_auth_run_common_checks': True,
+                     'config_sha256': hashlib.sha256(config.read_bytes()).hexdigest()}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'gateway-config.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          PY
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart proxy
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 180
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T provider python -c 'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+
+      - name: Qualify gateway identity selection and native management access
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_gateway_auth.py --phase run \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/gateway.safe.json > "$PROOF_OUTPUT_DIR/gateway-auth.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/gateway-auth.json"
+          exit "$proof_result"
+
+      - name: Verify persisted spend after a cold proxy and cache restart
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart redis proxy
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 180
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            exec -T proxy python -B /proof/prove_gateway_auth.py --phase restart \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/restart.safe.json > "$PROOF_OUTPUT_DIR/gateway-restart.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/gateway-restart.json"
+          exit "$proof_result"
+
+      - name: Read the adapter provider boundary
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$PROOF_ENV_FILE" && test -n "$(docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml ps --status running -q provider)"; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              exec -T provider python -c 'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())' \
+              > "$PROOF_OUTPUT_DIR/gateway-provider-calls.json"
+          fi
+
+      - name: Reject any extra provider dispatch from adapter checks
+        shell: bash
+        run: |
+          python scripts/goal584-budget-proof/verify_provider_calls.py \
+            "$PROOF_OUTPUT_DIR/gateway-auth.json" "$PROOF_OUTPUT_DIR/gateway-provider-calls.json" \
+            --receipt "$PROOF_OUTPUT_DIR/gateway-provider-boundary.json"
+
+      - name: Prepare the disposable browser driver
+        shell: bash
+        run: |
+          command -v google-chrome
+          google-chrome --version
+          python -m venv "$RUNNER_TEMP/goal584-browser-venv"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/browser-requirements.txt
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip check
+          RUN_GOAL584_ADMIN_BROWSER=1 "$RUNNER_TEMP/goal584-browser-venv/bin/python" \
+            -m unittest discover -s deploy/openwebui-budgets/tests -p test_admin_ui.py
+
+      - name: Start stock WebUI with its native isolated data volume
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          config = Path(os.environ['PROOF_CONFIG_FILE'])
+          content = config.read_text(encoding='utf-8')
+          assert content.count('custom_auth: litellm_auth.gateway_auth') == 1
+          assert 'missing_session_id:' not in content
+          assert content.count('store_prompts_in_spend_logs:') == 1
+          assert content.count('store_prompts_in_spend_logs: false') == 1
+          content = content.replace('general_settings:\n', 'general_settings:\n  missing_session_id: omit\n', 1)
+          config.write_text(content.replace('custom_auth: litellm_auth.gateway_auth',
+                                           'custom_auth: capture_webui_auth.gateway_auth'), encoding='utf-8')
+          PY
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml config --quiet
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml up -d --wait --wait-timeout 240 webui
+          python - <<'PY'
+          import hashlib, json, os, subprocess, urllib.request
+          from pathlib import Path
+          command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'],
+                     '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
+          container = subprocess.check_output(command + ['ps', '-q', 'webui'], text=True).strip()
+          data = json.loads(subprocess.check_output(['docker', 'inspect', container]))[0]
+          assert not data['HostConfig']['PortBindings'], 'WebUI proof must not publish a host port'
+          network, = data['NetworkSettings']['Networks'].values()
+          base = 'http://' + network['IPAddress'] + ':8080'
+          opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+          with opener.open(base + '/api/version', timeout=10) as response:
+              version = json.load(response)
+          assert version.get('version') == '0.12.2'
+          image = json.loads(subprocess.check_output(['docker', 'image', 'inspect', data['Image']]))[0]
+          revision = image['Config']['Labels']['org.opencontainers.image.revision']
+          assert revision == '6a18585ff4c2e5f6805f682222cfbc46dc669ef8'
+          assert data['State']['Health']['Status'] == 'healthy'
+          files = ['compose/goal584.webui-proof.yml', 'scripts/goal584-budget-proof/provision_webui.py',
+                   'scripts/goal584-budget-proof/prove_webui_browser.py', 'scripts/goal584-budget-proof/browser-requirements.txt',
+                   'scripts/goal584-budget-proof/capture_webui_auth.py', 'scripts/goal584-budget-proof/provision_cost_display.py',
+                   'deploy/openwebui-budgets/provenance.py', 'deploy/openwebui-budgets/cost_readback.py',
+                   'deploy/openwebui-budgets/cost_filter.py', 'deploy/openwebui-budgets/cost_action.py',
+                   'scripts/goal584-budget-proof/prove_cost_browser.py',
+                   'scripts/goal584-budget-proof/provision_admin.py',
+                   'scripts/goal584-budget-proof/prove_admin_browser.py',
+                   'scripts/goal584-budget-proof/verify_admin_calls.py',
+                   'scripts/goal584-budget-proof/prove_bootstrap_browser.py',
+                   'scripts/goal584-budget-proof/verify_bootstrap_calls.py',
+                   'scripts/goal584-budget-proof/prove_service_tasks.py',
+                   'scripts/goal584-budget-proof/prove_service_admin_browser.py',
+                   'scripts/goal584-budget-proof/prove_background_tasks.py',
+                   'scripts/goal584-budget-proof/prove_background_browser.py',
+                   'scripts/goal584-budget-proof/prove_pricing_browser.py',
+                   'scripts/goal584-budget-proof/prove_rag_service.py',
+                   'scripts/goal584-budget-proof/prove_responses_chat.py',
+                   'scripts/goal584-budget-proof/prove_ledger_retention.py',
+                   'deploy/openwebui-budgets/service_pipe.py',
+                   'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
+                   'deploy/openwebui-budgets/admin_client.py', 'deploy/openwebui-budgets/admin_policy.py',
+                   'deploy/openwebui-budgets/admin_ui.py', 'deploy/openwebui-budgets/admin_tools.py',
+                   'deploy/openwebui-budgets/webui_model_binding.py']
+          receipt = {'source_commit': os.environ['GITHUB_SHA'], 'image_ref': data['Config']['Image'],
+                     'image_id': data['Image'], 'upstream_revision': revision, 'version': version['version'],
+                     'host_ports': [], 'health': 'healthy',
+                     'diagnostic_custom_auth': 'capture_webui_auth.gateway_auth',
+                     'product_auth_delegate': 'litellm_auth.gateway_auth',
+                     'config_sha256': hashlib.sha256(Path(os.environ['PROOF_CONFIG_FILE']).read_bytes()).hexdigest(),
+                     'files_sha256': {name: hashlib.sha256(Path(name).read_bytes()).hexdigest() for name in files}}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'webui-runtime-identity.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              handle.write('PROOF_WEBUI_URL=' + base + '\n')
+          PY
+
+      - name: Verify mounted budget modules in the stock runtime
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T webui python -B -c \
+            'import employee_budget_provenance as p, employee_budget_cost_readback as r; from importlib.metadata import version; assert p.__file__ == "/app/backend/employee_budget_provenance.py"; assert r.__file__ == "/app/backend/employee_budget_cost_readback.py"; print("native PyJWT:", version("PyJWT"))'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T webui python -B -c \
+            'import hashlib,importlib,json,pathlib; names=("assignment","admin_contract","admin_client","admin_policy","admin_ui","webui_model_binding"); modules=[importlib.import_module("employee_budget_"+name) for name in names]; assert all(module.__file__ == "/app/backend/employee_budget_"+name+".py" for name,module in zip(names,modules)); print(json.dumps({name:{"path":module.__file__,"sha256":hashlib.sha256(pathlib.Path(module.__file__).read_bytes()).hexdigest()} for name,module in zip(names,modules)}))' \
+            > "$PROOF_OUTPUT_DIR/admin-mounted-modules.json"
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          mounted = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'], 'admin-mounted-modules.json').read_text())
+          for name, actual in mounted.items():
+              expected = Path('deploy/openwebui-budgets', name + '.py')
+              assert actual['sha256'] == hashlib.sha256(expected.read_bytes()).hexdigest(), name
+          PY
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T webui python -B -m unittest discover -s /proof/budgets/tests
+
+      - name: Provision two native employees and their model budgets
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_webui.py \
+            --phase setup --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/webui-setup.safe.json > "$PROOF_OUTPUT_DIR/webui-setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/webui-setup.json"
+          test "$proof_result" = 0
+          umask 077
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'import json; state=json.load(open("/proof-private/webui-state.private.json")); print(json.dumps({"users":[{key:user[key] for key in ("id","email","password")} for user in state["users"]]}))' \
+            > "$PROOF_PRIVATE_DIR/browser-accounts.private.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          state = json.loads(Path(os.environ['PROOF_PRIVATE_DIR'], 'browser-accounts.private.json').read_text())
+          for user in state['users']:
+              print('::add-mask::' + user['password'])
+          PY
+
+      - name: Install the native signed-cost Filter and restricted reader
+        shell: bash
+        run: |
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_cost_display.py \
+            --phase setup --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/cost-setup.safe.json > "$PROOF_OUTPUT_DIR/cost-setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/cost-setup.json"
+          exit "$proof_result"
+
+      - name: Qualify actual employee chats in the stock browser UI
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_webui_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR"
+
+      - name: Prepare the native Tool and cost lifecycle fixture
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/costs"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_cost_display.py \
+            --phase scenario --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/cost-scenario.safe.json > "$PROOF_OUTPUT_DIR/costs/scenario.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/costs/scenario.json"
+          test "$proof_result" = 0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+
+      - name: Qualify cost details, tool rounds, regenerated spend and OFF budget denial
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_cost_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/costs"
+
+      - name: Install the native admin Tool and its private model preset
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/admin"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_admin.py \
+            --phase setup --private-state /proof-private/webui-state.private.json \
+            --browser-accounts /proof-private/admin-browser-accounts.private.json \
+            --receipt /proof-private/admin-setup.safe.json > "$PROOF_OUTPUT_DIR/admin/setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/admin/setup.json"
+          test "$proof_result" = 0
+          # The proxy runs as root; keep its 0600 handoff private and project it
+          # into a separate runner-owned 0600 file, as for the staff accounts.
+          umask 077
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/admin-browser-accounts.private.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          private = Path(os.environ['PROOF_PRIVATE_DIR'], 'admin-browser-accounts.for-browser.private.json')
+          state = json.loads(private.read_text())
+          print('::add-mask::' + state['admin']['password'])
+          PY
+
+      - name: Qualify native hash updates, zero-cap admission and owner role revocation
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'admin')
+          command = ['docker', 'compose', '--env-file', os.environ['PROOF_ENV_FILE'],
+                     '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
+          def provider_ids():
+              result = subprocess.run(command + ['exec', '-T', 'provider', 'python', '-c',
+                  'import urllib.request; print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests", timeout=3).read().decode())'],
+                  capture_output=True, text=True, check=True, timeout=15)
+              return [row['id'] for row in json.loads(result.stdout)['requests']]
+          before = provider_ids()
+          probe = subprocess.run(command + ['exec', '-T', 'proxy', 'python', '-B', '/proof/provision_admin.py',
+              '--phase', 'native-probe', '--private-state', '/proof-private/webui-state.private.json',
+              '--receipt', '/proof-private/admin-native-probe.safe.json'], capture_output=True, text=True, timeout=150)
+          receipt = json.loads(probe.stdout)
+          (output / 'native-probe.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          assert probe.returncode == 0 and receipt.get('passed') is True, receipt.get('failure', 'Native zero-cap probe failed')
+          role = subprocess.run(command + ['exec', '-T', 'proxy', 'python', '-B', '/proof/provision_admin.py',
+              '--phase', 'role-probe', '--private-state', '/proof-private/webui-state.private.json',
+              '--receipt', '/proof-private/admin-role-probe.safe.json'], capture_output=True, text=True, timeout=150)
+          role_receipt = json.loads(role.stdout)
+          (output / 'role-probe.json').write_text(json.dumps(role_receipt, indent=2), encoding='utf-8')
+          after = provider_ids()
+          comparison = {'provider_ids_before': before, 'provider_ids_after': after, 'unchanged': before == after,
+                        'native_zero_and_owner_role_probes': True}
+          (output / 'native-probe-provider.json').write_text(json.dumps(comparison, indent=2), encoding='utf-8')
+          assert role.returncode == 0 and role_receipt.get('passed') is True, role_receipt.get('failure', 'Native owner role probe failed')
+          assert before == after, 'Native zero-cap or role probe dispatched to the provider'
+          PY
+
+      - name: Prepare an independent admin provider observation
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read(); urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/control", data=b"{\"admin_mode\":true}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+
+      - name: Qualify admin Rich UI, exact JSON, confirmed caps and employee quotas
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_admin_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
+            --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/admin"
+
+      - name: Reconcile admin model context, provider calls and native ledger
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'admin')
+          browser = output / 'admin-browser.json'
+          final = output / json.loads(browser.read_text())['final_native_receipt']
+          assert final.resolve().parent == output.resolve()
+          subprocess.run(['python', 'scripts/goal584-budget-proof/verify_admin_calls.py',
+              '--browser', str(browser), '--provider', str(output / 'webui-provider-calls.json'),
+              '--context', str(output / 'webui-gateway-context.json'), '--native', str(final),
+              '--receipt', str(output / 'admin-boundary.json')], check=True)
+          PY
+
+      - name: Prepare a WebUI-only new hire after the accepted admin phase
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/bootstrap"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_admin.py \
+            --phase bootstrap-setup --private-state /proof-private/webui-state.private.json \
+            --browser-accounts /proof-private/bootstrap-browser-account.private.json \
+            --receipt /proof-private/bootstrap-setup.safe.json > "$PROOF_OUTPUT_DIR/bootstrap/setup.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/bootstrap/setup.json"
+          test "$proof_result" = 0
+          umask 077
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/bootstrap-browser-account.private.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_PRIVATE_DIR/bootstrap-browser-account.for-browser.private.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          private = Path(os.environ['PROOF_PRIVATE_DIR'], 'bootstrap-browser-account.for-browser.private.json')
+          print('::add-mask::' + json.loads(private.read_text())['user']['password'])
+          PY
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read(); urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/control", data=b"{\"admin_mode\":true}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+
+      - name: Qualify defaults and explicit new-hire initialization through the GUI
+        shell: bash
+        run: |
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_bootstrap_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
+            --employee-account "$PROOF_PRIVATE_DIR/bootstrap-browser-account.for-browser.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/bootstrap"
+
+      - name: Reconcile bootstrap context, provider calls and native ledger independently
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'bootstrap')
+          browser = output / 'bootstrap-browser.json'
+          final = output / json.loads(browser.read_text())['final_native_receipt']
+          assert final.resolve().parent == output.resolve()
+          subprocess.run(['python', 'scripts/goal584-budget-proof/verify_bootstrap_calls.py',
+              '--browser', str(browser), '--provider', str(output / 'webui-provider-calls.json'),
+              '--context', str(output / 'webui-gateway-context.json'), '--native', str(final),
+              '--receipt', str(output / 'bootstrap-boundary.json')], check=True)
+          PY
+
+      - name: Qualify a native title task against its unchanged model context and separate service payer
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/service"
+          proof_result=0
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/prove_service_tasks.py \
+            --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/service-title.safe.json \
+            --context-receipt /proof-private/service-context.safe.json \
+            --provider-receipt /proof-private/service-provider.safe.json \
+            > "$PROOF_OUTPUT_DIR/service/service-tasks.json" || proof_result=$?
+          cat "$PROOF_OUTPUT_DIR/service/service-tasks.json"
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/service-context.safe.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_OUTPUT_DIR/service/gateway-context.json"
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; print(Path("/proof-private/service-provider.safe.json").read_text(encoding="utf-8"))' \
+            > "$PROOF_OUTPUT_DIR/service/provider-calls.json"
+          test "$proof_result" -eq 0
+
+      - name: Observe the service spend through the ordinary admin form as a separate paid admin turn
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/service-admin"
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T provider python -c \
+            'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read(); urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/control", data=b"{\"admin_mode\":true}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -c \
+            'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_service_admin_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/service-admin"
+
+      - name: Qualify automatic title, tag and follow-up tasks from ordinary employee chats
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/background"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_background_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/background"
+
+      - name: Delete one owned fixture chat and verify native ledger retention and raw body privacy
+        shell: bash
+        run: |
+          python -B scripts/goal584-budget-proof/prove_ledger_retention.py \
+            --base-url "$PROOF_WEBUI_URL" --env-file "$PROOF_ENV_FILE" \
+            --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --output "$PROOF_OUTPUT_DIR/retention" \
+            --private-output "$PROOF_PRIVATE_DIR/ledger-retention.raw.private.json"
+
+      - name: Preserve actual billed rates across a controlled synthetic price change and ordinary employee call
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/pricing"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_pricing_browser.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/pricing"
+
+      - name: Qualify native provider500 reservation release and immediate recovery
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml -f compose/goal584.overlap-proof.yml \
+            up -d --scale proxy=2 --wait --wait-timeout 180 proxy
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" - <<'PY'
+          import hashlib, json, os, subprocess, sys
+          from pathlib import Path
+          from types import SimpleNamespace
+          sys.path.insert(0, 'scripts/goal584-budget-proof')
+          import prove_budget_overlap as overlap
+          from prove_pricing_browser import private_fixture
+          from prove_pricing_snapshots import MAX_BYTES, no_credentials
+
+          output = Path(os.environ['PROOF_OUTPUT_DIR'], 'failure-recovery')
+          output.mkdir()
+          receipt = {'schema': 1, 'proof': 'goal584-native-provider500-recovery', 'mode': 'host',
+                     'passed': False, 'stage': 'private_origin', 'failure_code': None}
+          secrets = []
+          try:
+              env_file = Path(os.environ['PROOF_ENV_FILE'])
+              private, _, accounts, secrets = private_fixture(env_file,
+                  Path(os.environ['PROOF_PRIVATE_DIR'], 'browser-accounts.private.json'), output)
+              secrets += [row['password'] for row in accounts]
+              args = SimpleNamespace(project='goal584-native-budget-proof', env_file=env_file,
+                  compose_file=['compose/goal584.native-budget-proof.yml', 'compose/goal584.webui-proof.yml',
+                                'compose/goal584.overlap-proof.yml'], private_root=private)
+              owner = overlap.Coordinator(args)
+              receipt['stage'] = 'source_binding'
+              revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+              assert revision == os.environ['GITHUB_SHA']
+              paths = ['scripts/goal584-budget-proof/prove_failure_recovery.py',
+                       'scripts/goal584-budget-proof/test_failure_recovery.py']
+              hashes = {}
+              for path in paths:
+                  expected = subprocess.check_output(['git', 'show', revision + ':' + path])
+                  assert Path(path).read_bytes() == expected, 'Failure source differs from tested Git'
+                  hashes[path] = hashlib.sha256(expected).hexdigest()
+              receipt.update(source_commit=revision, files_sha256=hashes)
+              receipt['stage'] = 'existing_topology'
+              receipt['topology'] = owner.topology()
+              receipt['stage'] = 'worker_mount'
+              mounted = []
+              source = str(Path(paths[0]).resolve())
+              code = "import hashlib,json;from pathlib import Path;print(json.dumps({'sha256':hashlib.sha256(Path('/proof/prove_failure_recovery.py').read_bytes()).hexdigest()}))"
+              for container in receipt['topology']['containers']:
+                  mounts = owner.run_json(['docker', 'inspect', '--format', '{{json .Mounts}}', container['id']])
+                  matches = [m for m in mounts if m['Destination'] == '/proof/prove_failure_recovery.py']
+                  assert len(matches) == 1 and matches[0]['Type'] == 'bind' and matches[0]['RW'] is False
+                  assert matches[0]['Source'] == source
+                  actual = owner.run_json(owner.command + ['exec', '-T', '--index', container['number'],
+                      'proxy', 'python', '-B', '-c', code])
+                  assert actual == {'sha256': hashes[paths[0]]}
+                  mounted.append({'container': container['id'], 'sha256': actual['sha256'], 'read_only': True})
+              receipt['mounted_worker'] = mounted
+              receipt['stage'] = 'worker'
+              receipt['command_status'] = {'returned': False}
+              result = subprocess.run(owner.command + ['exec', '-T', '--index', '1', 'proxy',
+                  'python', '-B', '/proof/prove_failure_recovery.py', '--worker-run'], capture_output=True, timeout=360)
+              receipt['command_status'] = {'returned': True, 'returncode': result.returncode, 'stdout_bytes': len(result.stdout),
+                                           'stderr_bytes': len(result.stderr)}
+              assert len(result.stdout) <= MAX_BYTES, 'Failure packet exceeded bound'
+              def closed(pairs):
+                  value = {}
+                  for key, item in pairs:
+                      assert key not in value, 'Duplicate failure packet field'
+                      value[key] = item
+                  return value
+              def nonfinite(value):
+                  raise ValueError('Nonfinite failure packet')
+              packet = json.loads(result.stdout, object_pairs_hook=closed, parse_constant=nonfinite)
+              assert isinstance(packet, dict) and set(packet) == {'schema', 'proof', 'passed', 'result', 'failure_code'}
+              assert type(packet['schema']) is int and packet['schema'] == 1
+              assert packet['proof'] == receipt['proof'] and type(packet['passed']) is bool and isinstance(packet['result'], dict)
+              assert packet['failure_code'] == (None if packet['passed'] else 'failure_recovery_verification_failed')
+              no_credentials(packet, secrets)
+              receipt['worker'] = packet
+              assert result.returncode == 0 and packet['passed'] is True and packet['result'].get('passed') is True
+              child = packet['result']
+              assert type(child.get('schema')) is int and child['schema'] == 1
+              assert child.get('proof') == receipt['proof'] and child.get('stage') == 'complete'
+              assert child['native_artifact'] == receipt['topology']['native_sdk'][0]
+              assert child['existing_owner_identity']['files_sha256'] == receipt['topology']['source_sha256']
+              assert child['existing_owner_identity']['config_sha256'] == receipt['topology']['config_sha256']
+              receipt.update(passed=True, stage='complete')
+          except Exception:
+              receipt['failure_code'] = 'failure_recovery_host_verification_failed'
+          try:
+              no_credentials(receipt, secrets)
+          except Exception:
+              receipt = {'schema': 1, 'proof': 'goal584-native-provider500-recovery', 'mode': 'host',
+                         'passed': False, 'stage': 'safe_evidence', 'failure_code': 'failure_recovery_host_verification_failed',
+                         'command_status': receipt.get('command_status', {'returned': False})}
+              no_credentials(receipt, secrets)
+          (output / 'failure-recovery.safe.json').write_text(json.dumps(receipt, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+          print(json.dumps({key: receipt[key] for key in ('passed', 'stage', 'failure_code')}))
+          assert receipt['passed'] is True, 'Native provider500 recovery failed; inspect safe receipt'
+          PY
+
+      - name: Qualify simultaneous native reservations across two isolated proxy processes
+        shell: bash
+        run: |
+          python -B scripts/goal584-budget-proof/prove_budget_overlap.py \
+            --project goal584-native-budget-proof --env-file "$PROOF_ENV_FILE" \
+            --compose-file compose/goal584.native-budget-proof.yml \
+            --compose-file compose/goal584.webui-proof.yml \
+            --compose-file compose/goal584.overlap-proof.yml \
+            --receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
+
+      - name: Qualify native RAG text and query embeddings through the protected service key
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml up -d --scale proxy=1 --wait --wait-timeout 180 proxy
+          mkdir -p "$PROOF_OUTPUT_DIR/rag"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_rag_service.py \
+            --base-url "$PROOF_WEBUI_URL" --env-file "$PROOF_ENV_FILE" \
+            --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" --output "$PROOF_OUTPUT_DIR/rag" \
+            --prior-pricing-receipt "$PROOF_OUTPUT_DIR/pricing/pricing-browser.json" \
+            --prior-overlap-receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
+
+      - name: Qualify ordinary Responses chat and its native budget ledger after RAG
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          mkdir -p "$PROOF_OUTPUT_DIR/responses"
+          "$RUNNER_TEMP/goal584-browser-venv/bin/python" -B scripts/goal584-budget-proof/prove_responses_chat.py \
+            --base-url "$PROOF_WEBUI_URL" --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/responses"
+
+      - name: Show bounded sanitized startup diagnostics on failure
+        timeout-minutes: 2
+        if: failure()
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, re, subprocess
+          from pathlib import Path
+          env_file = Path(os.environ['PROOF_ENV_FILE'])
+          if env_file.exists():
+              command = ['docker', 'compose', '--env-file', str(env_file), '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
+              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', 'proxy', 'webui'], capture_output=True, text=True)
+              output = result.stdout + result.stderr
+              for line in env_file.read_text(encoding='utf-8').splitlines():
+                  output = output.replace(line.split('=', 1)[1], '[redacted]')
+              output = re.sub(r'sk-[A-Za-z0-9_-]+', '[synthetic-key-redacted]', output)
+              output = re.sub(r'postgresql://[^\s]+', '[database-url-redacted]', output)
+              output = re.sub(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', '[session-redacted]', output)
+              print(output)
+          PY
+
+      - name: Remove the disposable backend and its data
+        timeout-minutes: 5
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$PROOF_ENV_FILE"; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml down --volumes --remove-orphans
+            python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          label = 'label=com.docker.compose.project=goal584-native-budget-proof'
+          containers = subprocess.check_output(['docker', 'ps', '-aq', '--filter', label], text=True).split()
+          volumes = subprocess.check_output(['docker', 'volume', 'ls', '-q', '--filter', label], text=True).split()
+          receipt = {'project': 'goal584-native-budget-proof', 'remaining_containers': containers, 'remaining_volumes': volumes}
+          Path(os.environ['PROOF_OUTPUT_DIR'], 'cleanup.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
+          assert not containers and not volumes, 'Disposable proof resources remain'
+          PY
+          fi
+
+      - name: Retain the synthetic qualification receipts
+        timeout-minutes: 2
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-native-budget-proof-${{ github.sha }}
+          path: ${{ runner.temp }}/goal584-native-budget-proof/
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-pricing-catalog:
+    runs-on: ubuntu-24.04
+    # Reference check + versions + used categories: 92m phase bounds + 3m reserve.
+    timeout-minutes: 95
+    steps:
+      - name: Check out the pricing candidate
+        timeout-minutes: 2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare the dedicated pricing project
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, secrets
+          from pathlib import Path
+          nonce = secrets.token_hex(6)
+          private = Path(os.environ['RUNNER_TEMP'],'goal584-pricing-'+nonce+'-private')
+          output = Path(os.environ['RUNNER_TEMP'],'goal584-pricing-proof-'+nonce)
+          private.mkdir(mode=0o700);output.mkdir()
+          config = private/'config.yaml'
+          raw = Path('scripts/goal584-budget-proof/litellm_config.yaml').read_text(encoding='utf-8')
+          assert raw.count('\ngeneral_settings:\n') == 1
+          raw = raw.replace('\ngeneral_settings:\n','\ngeneral_settings:\n  disable_reset_budget: true\n')
+          with os.fdopen(os.open(config,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              handle.write(raw)
+          paths = {'PRICING_PROJECT':'goal584-pricing-'+nonce,'PROOF_SOURCE_COMMIT':os.environ['GITHUB_SHA'],
+                   'PROOF_ENV_FILE':str(private/'proof.env'),'PROOF_PRIVATE_DIR':str(private),
+                   'PROOF_CONFIG_FILE':str(config),'PROOF_OUTPUT_DIR':str(output)}
+          values = {**paths,'PROOF_MASTER_KEY':'sk-'+secrets.token_hex(32),
+                    'PROOF_DB_PASSWORD':secrets.token_hex(32),'OWUI_BUDGET_GATEWAY_SECRET':'gw-'+secrets.token_hex(32)}
+          with os.fdopen(os.open(paths['PROOF_ENV_FILE'],os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              for key,value in values.items():
+                  handle.write(key+'='+value+'\n')
+                  if key in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET'):
+                      print('::add-mask::'+value)
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              for key,value in paths.items():handle.write(key+'='+value+'\n')
+              handle.write('PRICING_PROJECT_CLAIMED=false\n')
+          PY
+
+      - name: Build the reviewed pricing native derivative
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$RUNNER_TEMP/goal584-pricing-native-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+          python - <<'PY'
+          import json,os
+          from pathlib import Path
+          receipt = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
+          PY
+
+      - name: Start only the fresh pricing backend
+        timeout-minutes: 7
+        shell: bash
+        run: |
+          label="label=com.docker.compose.project=$PRICING_PROJECT"
+          existing_containers=$(docker ps -aq --filter "$label")
+          test -z "$existing_containers"
+          existing_volumes=$(docker volume ls -q --filter "$label")
+          test -z "$existing_volumes"
+          existing_networks=$(docker network ls -q --filter "$label")
+          test -z "$existing_networks"
+          printf 'PRICING_PROJECT_CLAIMED=true\n' >> "$GITHUB_ENV"
+          docker compose -p "$PRICING_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.pricing-proof.yml config --quiet
+          docker compose -p "$PRICING_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.pricing-proof.yml \
+            up -d --wait --wait-timeout 240 --scale proxy=1
+
+      - name: Attest the pricing containers and immutable source closure
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,ipaddress,json,os,re,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          import native_floor_identity as sdk
+          import prove_pricing_catalog as proof
+          project = os.environ['PRICING_PROJECT']
+          assert re.fullmatch('goal584-pricing-[0-9a-f]{12}',project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.pricing-proof.yml']
+          def read(argv):return subprocess.check_output(argv,text=True,timeout=60).strip()
+          revision = read(['git','rev-parse','HEAD'])
+          assert revision == os.environ['GITHUB_SHA'] == os.environ['PROOF_SOURCE_COMMIT']
+          build = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          artifact = sdk.verify_build(build)
+          resolved = json.loads(read(command+['config','--format','json']))
+          credentials = dict(line.split('=',1) for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines() if line)
+          assert set(resolved['services']) == {'proxy','postgres','redis','provider'}
+          assert resolved['networks']['proof']['internal'] is True
+          assert not any(service.get('ports') for service in resolved['services'].values())
+          readonly = {}
+          for item in resolved['services']['proxy']['volumes']:
+              assert item['type'] == 'bind'
+              if item['target'] == '/proof-private':
+                  assert item['source'] == str(Path(os.environ['PROOF_PRIVATE_DIR']).resolve()) and not item.get('read_only',False)
+              else:
+                  assert item['read_only'] is True and item['target'] not in readonly
+                  readonly[item['target']] = item['source']
+          assert readonly['/proof/config.yaml'] == str(Path(os.environ['PROOF_CONFIG_FILE']).resolve())
+          mounted = {target:Path(source).resolve().relative_to(Path.cwd()).as_posix()
+                     for target,source in readonly.items() if target != '/proof/config.yaml'}
+          assert mounted['/proof/prove_pricing_catalog.py'] == 'scripts/goal584-budget-proof/prove_pricing_catalog.py'
+          assert mounted['/proof/prove_pricing_usage.py'] == 'scripts/goal584-budget-proof/prove_pricing_usage.py'
+          assert mounted['/proof/pricing_snapshot.py'] == 'deploy/openwebui-budgets/pricing_snapshot.py'
+          required = ['.github/workflows/goal584-native-budget-proof.yml','compose/goal584.native-budget-proof.yml',
+                      'compose/goal584.pricing-proof.yml','scripts/goal584-budget-proof/litellm_config.yaml',
+                      'scripts/goal584-budget-proof/mock_provider.py','scripts/goal584-budget-proof/test_mock_provider.py',
+                      'scripts/goal584-budget-proof/test_pricing_catalog.py','deploy/openwebui-budgets/tests/test_pricing_snapshot.py',
+                      'scripts/goal584-budget-proof/test_pricing_versions.py',
+                      'scripts/goal584-budget-proof/test_pricing_usage.py',
+                      'scripts/goal584-budget-proof/test_pricing_usage_provider.py',
+                      'scripts/goal584-budget-proof/native-patch-requirements.txt',*build['files_sha256'],*mounted.values()]
+          hashes = {}
+          for name in dict.fromkeys(required):
+              data = Path(name).read_bytes()
+              assert data == subprocess.check_output(['git','show',revision+':'+name]), 'Pricing source differs from tested Git'
+              hashes[name] = hashlib.sha256(data).hexdigest()
+          helpers = proof.source_files()
+          assert helpers == {name:hashes[mounted['/proof/'+name]] for name in helpers}
+          assert proof.PROVIDER_SHA == hashes['scripts/goal584-budget-proof/mock_provider.py']
+          code = 'import hashlib,json,pathlib,sys;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          native_code = 'import hashlib,importlib.util,json,pathlib,sys;root=pathlib.Path(importlib.util.find_spec("litellm").origin).parent;print(json.dumps({p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          sdk_code = "import json,sys;sys.path.insert(0,'/proof');import native_floor_identity as n;print(json.dumps(n.inspect_sources()))"
+          config_hash = hashlib.sha256(Path(os.environ['PROOF_CONFIG_FILE']).read_bytes()).hexdigest()
+          ids = read(command+['ps','-q']).split();assert len(ids)==len(set(ids))==4
+          containers,actual_mounts,seen_ids = {},{},set()
+          for service in ('proxy','postgres','redis','provider'):
+              current = read(command+['ps','-q',service]).split();assert len(current)==1
+              item = json.loads(read(['docker','inspect',current[0]]))[0]
+              labels = item['Config']['Labels'];identifier = item['Id']
+              assert re.fullmatch('[0-9a-f]{64}',identifier) and labels['com.docker.compose.project']==project
+              assert identifier==current[0] and identifier in ids and identifier not in seen_ids
+              seen_ids.add(identifier)
+              assert labels['com.docker.compose.service']==service and labels['com.docker.compose.container-number']=='1'
+              assert item['State']['Health']['Status']=='healthy' and item['HostConfig']['NetworkMode']==project+'_proof'
+              assert set(item['NetworkSettings']['Networks'])=={project+'_proof'}
+              address = ipaddress.IPv4Address(item['NetworkSettings']['Networks'][project+'_proof']['IPAddress'])
+              assert address.is_private and not(address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified)
+              expected = sdk.image_ref() if service=='proxy' else proof.IMAGES[service]
+              assert item['Config']['Image']==expected and re.fullmatch('sha256:[0-9a-f]{64}',item['Image'])
+              if service=='proxy':assert item['Image']==expected and item['Config']['Cmd']==proof.COMMAND
+              containers[service] = {'id':identifier,'number':'1','image_ref':item['Config']['Image'],
+                  'image_id':item['Image'],'health':'healthy','network':project+'_proof'}
+              environment = dict(pair.split('=',1) for pair in item['Config']['Env'])
+              if service=='postgres':
+                  assert environment['POSTGRES_DB']=='goal584_pricing' and environment['POSTGRES_USER']=='goal584'
+                  assert environment['POSTGRES_PASSWORD']==credentials['PROOF_DB_PASSWORD']
+              if service=='provider':
+                  assert environment.get('PROOF_CATALOG_ENABLED')=='true' and not environment.get('PROOF_CATALOG_CORPUS_PATH')
+                  mount, = [value for value in item['Mounts'] if value['Type']=='bind']
+                  assert mount['Destination']=='/proof/mock_provider.py' and mount['RW'] is False
+                  assert mount['Source']==str(Path('scripts/goal584-budget-proof/mock_provider.py').resolve())
+                  continue
+              if service!='proxy':continue
+              assert environment['DATABASE_URL']=='postgresql://goal584:'+credentials['PROOF_DB_PASSWORD']+'@postgres:5432/goal584_pricing'
+              assert environment['PROOF_MASTER_KEY']==credentials['PROOF_MASTER_KEY']
+              assert environment['PROOF_SOURCE_COMMIT']==revision and environment['PROOF_PRICING_PROJECT']==project
+              assert environment['LITELLM_MODEL_COST_MAP_URL']==proof.CATALOG and environment['LITELLM_LOCAL_MODEL_COST_MAP'].lower()=='false'
+              binds = [value for value in item['Mounts'] if value['Type']=='bind']
+              assert len(binds)==len({value['Destination'] for value in binds})==len(readonly)+1
+              assert {value['Destination'] for value in binds}=={*readonly,'/proof-private'}
+              for target,source in {**readonly,'/proof-private':os.environ['PROOF_PRIVATE_DIR']}.items():
+                  mount = next(value for value in binds if value['Destination']==target)
+                  assert mount['Source']==str(Path(source).resolve()) and mount['RW'] is (target=='/proof-private')
+              execute = command+['exec','-T','proxy','python','-B','-c']
+              actual_mounts = json.loads(read(execute+[code,*readonly]))
+              assert actual_mounts == {target:config_hash if target=='/proof/config.yaml' else hashes[mounted[target]] for target in readonly}
+              assert json.loads(read(execute+[sdk_code]))=={'native_sha256':sdk.selected_hashes({k.removeprefix('litellm/'):v for k,v in sdk.load_manifest()['native_export_sha256'].items()}),'native_artifact':artifact}
+              assert json.loads(read(execute+[native_code,*proof.NATIVE]))==proof.NATIVE
+          assert seen_ids==set(ids)
+          provider = json.loads(read(command+['exec','-T','provider','python','-B','-c',code,'/proof/mock_provider.py']))
+          assert provider=={'/proof/mock_provider.py':proof.PROVIDER_SHA}
+          assert json.loads(read(command+['exec','-T','provider','python','-B','-c',native_code,'model_prices_and_context_window_backup.json']))=={'model_prices_and_context_window_backup.json':proof.NATIVE['model_prices_and_context_window_backup.json']}
+          attest = {'schema':1,'proof':proof.PROOF,'project':project,'source_commit':revision,'containers':containers,
+                    'proxy_command':proof.COMMAND,'config_sha256':config_hash,'files_sha256':helpers,
+                    'provider_sha256':proof.PROVIDER_SHA,'native_artifact':artifact}
+          private = Path(os.environ['PROOF_PRIVATE_DIR'],'catalog-attestation.private.json')
+          with os.fdopen(os.open(private,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              json.dump(attest,handle)
+          receipt = {**attest,'files_sha256':hashes,'mounted_sha256':actual_mounts,'provider_sha256':provider,
+                     'native_cost_map_sources':proof.NATIVE,'scope':'Dedicated synthetic reference-check profile, no inference/version activation'}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'runtime-identity.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+          PY
+
+      - name: Qualify the first native scheduled reference check
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          private,output = Path(os.environ['PROOF_PRIVATE_DIR']),Path(os.environ['PROOF_OUTPUT_DIR'])
+          command = ['docker','compose','-p',os.environ['PRICING_PROJECT'],'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.pricing-proof.yml']
+          argv = command+['exec','-T','proxy','python','-B','/proof/prove_pricing_catalog.py','--project',os.environ['PRICING_PROJECT'],
+                          '--attestation','/proof-private/catalog-attestation.private.json','--private-state','/proof-private/catalog-state.private.json',
+                          '--receipt','/proof-private/catalog.safe.json']
+          status = -1
+          try:status = subprocess.run(argv,capture_output=True,timeout=190).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          # Only the source-bound safe producer's packet is copied out. Arbitrary
+          # native stdout/stderr and raw private observations are never exported.
+          safe = 'import pathlib,sys;sys.stdout.buffer.write(pathlib.Path("/proof-private/catalog.safe.json").read_bytes())'
+          child = subprocess.run(command+['exec','-T','proxy','python','-B','-c',safe],capture_output=True,timeout=20)
+          assert child.returncode==0 and len(child.stdout)<=4*1024*1024,'Pricing safe packet unavailable'
+          receipt = json.loads(child.stdout)
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          assert not any(value and value.encode() in child.stdout for value in secrets)
+          assert not re.search(rb'(?:sk-|gw-|Bearer\s)[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',child.stdout)
+          assert receipt['schema']==1 and receipt['proof']=='goal584-native-pricing-catalog'
+          assert receipt['project']==os.environ['PRICING_PROJECT'] and receipt['source_commit']==os.environ['GITHUB_SHA']
+          (output/'catalog.safe.json').write_bytes(child.stdout)
+          (output/'helper-diagnostic.json').write_text(json.dumps({'helper_returncode':status,'passed':receipt.get('passed'),
+              'stage':receipt.get('stage'),'failure_code':receipt.get('failure_code')},indent=2),encoding='utf-8')
+          assert status==0 and receipt['passed'] is True,'Native pricing reference check failed; inspect safe packet'
+          PY
+
+      - name: Qualify immutable synthetic tariff versions on the same native owner
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,re,subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'])
+          candidate = Path(os.environ['RUNNER_TEMP'],os.environ['PRICING_PROJECT']+'-versions-safe')
+          candidate.mkdir(mode=0o700)
+          receipt_path = candidate/'versions.safe.json'
+          script = 'scripts/goal584-budget-proof/prove_pricing_versions.py'
+          expected = subprocess.check_output(['git','show',os.environ['GITHUB_SHA']+':'+script])
+          assert Path(script).read_bytes()==expected,'Version host differs from tested Git'
+          interpreter = str(Path(os.environ['RUNNER_TEMP'],'goal584-native-patch-venv','bin','python'))
+          argv = [interpreter,'-B',script,'--project',os.environ['PRICING_PROJECT'],
+                  '--env-file',os.environ['PROOF_ENV_FILE'],'--private-root',os.environ['PROOF_PRIVATE_DIR'],
+                  '--compose-file','compose/goal584.native-budget-proof.yml',
+                  '--compose-file','compose/goal584.pricing-proof.yml','--receipt',str(receipt_path)]
+          status = -1
+          try:status = subprocess.run(argv,capture_output=True,timeout=1500).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          diagnostic = {'helper_returncode':status,'project':os.environ['PRICING_PROJECT'],
+                        'source_commit':os.environ['GITHUB_SHA'],'host_sha256':hashlib.sha256(expected).hexdigest(),
+                        'receipt_written':receipt_path.is_file()}
+          (output/'versions-helper-diagnostic.json').write_text(json.dumps(diagnostic,indent=2),encoding='utf-8')
+          assert receipt_path.is_file() and receipt_path.stat().st_size<=4*1024*1024,'Version safe packet unavailable'
+          raw = receipt_path.read_bytes()
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          assert not any(value and value.encode() in raw for value in secrets)
+          assert not re.search(rb'(?:sk-|gw-|Bearer\s)[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',raw)
+          packet = json.loads(raw)
+          assert set(packet)=={'schema','proof','passed','action','result','failure_code'}
+          assert packet['schema']==1 and packet['proof']=='goal584-controlled-pricing-versions' and packet['action'] is None
+          (output/'versions.safe.json').write_bytes(raw)
+          assert status==0 and packet['passed'] is True and packet['result']['passed'] is True,'Native tariff version qualification failed'
+          PY
+
+      - name: Qualify native cached and reasoning tariffs and observe missing usage
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,re,subprocess
+          from pathlib import Path
+          output = Path(os.environ['PROOF_OUTPUT_DIR'])
+          candidate = Path(os.environ['RUNNER_TEMP'],os.environ['PRICING_PROJECT']+'-usage-safe')
+          candidate.mkdir(mode=0o700)
+          receipt_path = candidate/'usage.safe.json'
+          script = 'scripts/goal584-budget-proof/prove_pricing_usage.py'
+          expected = subprocess.check_output(['git','show',os.environ['GITHUB_SHA']+':'+script])
+          assert Path(script).read_bytes()==expected,'Usage host differs from tested Git'
+          interpreter = str(Path(os.environ['RUNNER_TEMP'],'goal584-native-patch-venv','bin','python'))
+          argv = [interpreter,'-B',script,'--project',os.environ['PRICING_PROJECT'],
+                  '--env-file',os.environ['PROOF_ENV_FILE'],'--private-root',os.environ['PROOF_PRIVATE_DIR'],
+                  '--compose-file','compose/goal584.native-budget-proof.yml',
+                  '--compose-file','compose/goal584.pricing-proof.yml','--receipt',str(receipt_path)]
+          status = -1
+          try:status = subprocess.run(argv,capture_output=True,timeout=1500).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          diagnostic = {'helper_returncode':status,'project':os.environ['PRICING_PROJECT'],
+                        'source_commit':os.environ['GITHUB_SHA'],'host_sha256':hashlib.sha256(expected).hexdigest(),
+                        'receipt_written':receipt_path.is_file()}
+          (output/'usage-helper-diagnostic.json').write_text(json.dumps(diagnostic,indent=2),encoding='utf-8')
+          assert receipt_path.is_file() and receipt_path.stat().st_size<=4*1024*1024,'Usage safe packet unavailable'
+          raw = receipt_path.read_bytes()
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          assert not any(value and value.encode() in raw for value in secrets)
+          assert not re.search(rb'(?:sk-|gw-|Bearer\s)[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',raw)
+          packet = json.loads(raw)
+          assert set(packet)=={'schema','proof','passed','action','result','failure_code'}
+          assert packet['schema']==1 and packet['proof']=='goal584-native-pricing-used-categories' and packet['action'] is None
+          (output/'usage.safe.json').write_bytes(raw)
+          assert status==0 and packet['passed'] is True and packet['result']['passed'] is True,'Native used-category qualification failed'
+          assert packet['result']['unknown_rows_finality'] is False and packet['result']['negative_cases_are_policy_qualification'] is False
+          PY
+
+      - name: Remove the pricing project and verify cleanup
+        timeout-minutes: 3
+        if: always() && env.PRICING_PROJECT_CLAIMED == 'true'
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          project = os.environ['PRICING_PROJECT'];assert re.fullmatch('goal584-pricing-[0-9a-f]{12}',project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.pricing-proof.yml']
+          status = -1
+          try:status = subprocess.run(command+['down','--volumes','--remove-orphans'],capture_output=True,timeout=100).returncode
+          except (OSError,subprocess.TimeoutExpired):pass
+          label = 'label=com.docker.compose.project='+project
+          remaining = {name:subprocess.check_output(argv+['--filter',label],text=True,timeout=15).split() for name,argv in (
+              ('containers',['docker','ps','-aq']),('volumes',['docker','volume','ls','-q']),('networks',['docker','network','ls','-q']))}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'cleanup.json').write_text(json.dumps({'project':project,'down_returncode':status,**remaining},indent=2),encoding='utf-8')
+          assert status==0 and not any(remaining.values()),'Pricing cleanup incomplete'
+          PY
+
+      - name: Retain only safe pricing evidence
+        timeout-minutes: 2
+        if: always() && env.PROOF_OUTPUT_DIR != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-pricing-catalog-${{ github.sha }}
+          path: ${{ env.PROOF_OUTPUT_DIR }}
+          if-no-files-found: warn
+          retention-days: 7
+
+  native-calendar-reset:
+    runs-on: ubuntu-24.04
+    # Bound each phase and reserve time for always-cleanup after both startup
+    # waits and a timed-out floor helper. Native 5s/60s clocks are unchanged.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [basic, positive-floor]
+    env:
+      CALENDAR_PROFILE: ${{ matrix.profile }}
+    steps:
+      - name: Check out the calendar candidate
+        timeout-minutes: 2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare a separate disposable calendar project
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, secrets
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          profile = os.environ['CALENDAR_PROFILE']
+          assert profile in ('basic', 'positive-floor')
+          nonce = secrets.token_hex(6)
+          private = root / ('goal584-calendar-' + profile + '-' + nonce + '-private')
+          private.mkdir(mode=0o700)
+          output = root / ('goal584-calendar-proof-' + profile + '-' + nonce)
+          output.mkdir()
+          config = private / 'config.yaml'
+          raw = Path('scripts/goal584-budget-proof/litellm_config.yaml').read_text(encoding='utf-8')
+          assert raw.count('\ngeneral_settings:\n') == raw.count('\nlitellm_settings:\n') == 1
+          raw = raw.replace('\ngeneral_settings:\n', '\ngeneral_settings:\n  disable_reset_budget: true\n')
+          raw = raw.replace('\nlitellm_settings:\n', '\nlitellm_settings:\n  timezone: Europe/Moscow\n  budget_reset_time: "00:00"\n  budget_rollover: false\n')
+          with os.fdopen(os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as handle:
+              handle.write(raw)
+          project = 'goal584-calendar-' + nonce
+          paths = {'CALENDAR_PROJECT': project, 'PROOF_ENV_FILE': str(private / 'proof.env'),
+                   'PROOF_PRIVATE_DIR': str(private), 'PROOF_CONFIG_FILE': str(config),
+                   'PROOF_OUTPUT_DIR': str(output)}
+          values = {**paths, 'PROOF_MASTER_KEY': 'sk-' + secrets.token_hex(32),
+                    'PROOF_DB_PASSWORD': secrets.token_hex(32),
+                    'OWUI_BUDGET_GATEWAY_SECRET': 'gw-' + secrets.token_hex(32)}
+          with os.fdopen(os.open(paths['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as handle:
+              for key, value in values.items():
+                  handle.write(f'{key}={value}\n')
+                  if key in ('PROOF_MASTER_KEY', 'PROOF_DB_PASSWORD', 'OWUI_BUDGET_GATEWAY_SECRET'):
+                      print(f'::add-mask::{value}')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
+              for key, value in paths.items():
+                  handle.write(f'{key}={value}\n')
+              handle.write('CALENDAR_PROJECT_CLAIMED=false\n')
+          PY
+
+      - name: Build the reviewed calendar native derivative
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt
+          "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$RUNNER_TEMP/goal584-native-floor-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:
+              handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
+          PY
+
+      - name: Start only the fresh calendar backend
+        timeout-minutes: 9
+        shell: bash
+        run: |
+          label="label=com.docker.compose.project=$CALENDAR_PROJECT"
+          calendar_containers=$(docker ps -aq --filter "$label")
+          calendar_volumes=$(docker volume ls -q --filter "$label")
+          calendar_networks=$(docker network ls -q --filter "$label")
+          test -z "$calendar_containers"
+          test -z "$calendar_volumes"
+          test -z "$calendar_networks"
+          # A failed freshness guard must never authorize deleting pre-existing
+          # resources. Claim only this empty project before any partial startup.
+          printf 'CALENDAR_PROJECT_CLAIMED=true\n' >> "$GITHUB_ENV"
+          docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml config --quiet
+          docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml \
+            up -d --wait --wait-timeout 240 --scale proxy=1
+          if test "$CALENDAR_PROFILE" = positive-floor; then
+            # Settle native Prisma on one worker before starting the cold peer.
+            docker compose -p "$CALENDAR_PROJECT" --env-file "$PROOF_ENV_FILE" \
+              -f compose/goal584.native-budget-proof.yml -f compose/goal584.calendar-proof.yml \
+              up -d --wait --wait-timeout 240 --scale proxy=2
+          fi
+
+      - name: Attest calendar containers and their exact mounted sources
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          python - <<'PY'
+          import ast, hashlib, ipaddress, json, os, re, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          import native_floor_identity as native_sdk
+          build = json.loads(Path(os.environ['PROOF_OUTPUT_DIR'],'native-build.json').read_text())
+          artifact = native_sdk.verify_build(build)
+          project = os.environ['CALENDAR_PROJECT']
+          profile = os.environ['CALENDAR_PROFILE']
+          assert profile in ('basic', 'positive-floor')
+          floor = profile == 'positive-floor'
+          assert re.fullmatch(r'goal584-calendar-[0-9a-f]{12}', project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.calendar-proof.yml']
+          def read(argv):
+              return subprocess.check_output(argv, text=True).strip()
+          rev = read(['git','rev-parse','HEAD'])
+          assert rev == os.environ['GITHUB_SHA']
+          def literal(path, name):
+              nodes = ast.parse(Path(path).read_bytes()).body
+              return ast.literal_eval(next(node.value for node in nodes if isinstance(node,ast.Assign)
+                  and any(isinstance(target,ast.Name) and target.id == name for target in node.targets)))
+          mounted = {'/proof/prove_calendar_reset.py':'scripts/goal584-budget-proof/prove_calendar_reset.py',
+                     '/proof/prove_calendar_floor.py':'scripts/goal584-budget-proof/prove_calendar_floor.py',
+                     '/proof/prove_budget_overlap.py':'scripts/goal584-budget-proof/prove_budget_overlap.py',
+                     '/proof/prove_native_budgets.py':'scripts/goal584-budget-proof/prove_native_budgets.py',
+                     '/proof/prove_gateway_auth.py':'scripts/goal584-budget-proof/prove_gateway_auth.py',
+                     '/proof/budget_errors.py':'deploy/openwebui-budgets/budget_errors.py',
+                     '/proof/pricing_snapshot.py':'deploy/openwebui-budgets/pricing_snapshot.py',
+                     '/proof/employee_budget_assignment.py':'deploy/openwebui-budgets/assignment.py',
+                     '/proof/litellm_auth.py':'deploy/openwebui-budgets/litellm_auth.py',
+                     '/proof/prove_pricing_snapshots.py':'scripts/goal584-budget-proof/prove_pricing_snapshots.py',
+                     '/proof/native_floor_identity.py':'deploy/litellm-patches/positive-floor-v1.105.1/native_floor_identity.py',
+                     '/proof/manifest.json':'deploy/litellm-patches/positive-floor-v1.105.1/manifest.json'}
+          files = ['.github/workflows/goal584-native-budget-proof.yml','compose/goal584.native-budget-proof.yml',
+                   'compose/goal584.calendar-proof.yml','scripts/goal584-budget-proof/litellm_config.yaml',
+                   'scripts/goal584-budget-proof/init_vector_database.sql','scripts/goal584-budget-proof/mock_provider.py',
+                   'scripts/goal584-budget-proof/test_calendar_floor.py','scripts/goal584-budget-proof/test_calendar_reset.py',
+                   'scripts/goal584-budget-proof/test_budget_overlap.py',
+                   'scripts/goal584-budget-proof/native-patch-requirements.txt',*build['files_sha256'],*mounted.values()]
+          hashes = {}
+          for name in dict.fromkeys(files):
+              data = Path(name).read_bytes()
+              assert data == subprocess.check_output(['git','show',rev+':'+name]), 'Source differs from tested Git commit'
+              hashes[name] = hashlib.sha256(data).hexdigest()
+          helpers = literal('scripts/goal584-budget-proof/prove_calendar_floor.py','HELPERS')
+          helpers['prove_calendar_floor.py'] = hashes['scripts/goal584-budget-proof/prove_calendar_floor.py']
+          assert len(helpers) == 10 and all(hashes[mounted['/proof/'+name]] == digest for name,digest in helpers.items())
+          native = literal('scripts/goal584-budget-proof/prove_calendar_reset.py','NATIVE_HASHES')
+          if floor:
+              native.update(literal('scripts/goal584-budget-proof/prove_calendar_floor.py','EXTRA_NATIVE'))
+          native = native_sdk.selected_hashes(native)
+          assert len(native) == (18 if floor else 10)
+          code = 'import hashlib,json,pathlib,sys;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          native_code = 'import hashlib,importlib.util,json,pathlib,sys;root=pathlib.Path(importlib.util.find_spec("litellm").origin).parent;print(json.dumps({p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in sys.argv[1:]}))'
+          config_hash = hashlib.sha256(Path(os.environ['PROOF_CONFIG_FILE']).read_bytes()).hexdigest()
+          attest = {'schema':1, 'project':project}
+          images, workers, mounted_workers = [], [], {}
+          assert len(read(command + ['ps','-q']).split()) == (5 if floor else 4)
+          for service in ('proxy','postgres','redis','provider'):
+              ids = read(command + ['ps','-q',service]).split()
+              assert len(ids) == (2 if floor and service == 'proxy' else 1)
+              for identifier in ids:
+                  assert re.fullmatch('[0-9a-f]{64}',identifier)
+                  item = json.loads(read(['docker','inspect',identifier]))[0]
+                  labels = item['Config']['Labels']
+                  assert labels['com.docker.compose.project'] == project and labels['com.docker.compose.service'] == service
+                  assert item['State']['Health']['Status'] == 'healthy'
+                  if service == 'proxy':
+                      assert item['Config']['Image'] == item['Image'] == native_sdk.image_ref()
+                  else:
+                      assert '@sha256:' in item['Config']['Image']
+                  assert re.fullmatch('sha256:[0-9a-f]{64}',item['Image'])
+                  assert item['HostConfig']['NetworkMode'] == project+'_proof'
+                  assert set(item['NetworkSettings']['Networks']) == {project+'_proof'}
+                  address = item['NetworkSettings']['Networks'][project+'_proof']['IPAddress']
+                  ipv4 = ipaddress.IPv4Address(address)
+                  assert ipv4.is_private and not (ipv4.is_loopback or ipv4.is_link_local or ipv4.is_unspecified or ipv4.is_multicast)
+                  images.append({'service':service, 'number':labels['com.docker.compose.container-number'],
+                      'container_id':identifier, 'image_ref':item['Config']['Image'], 'image_id':item['Image'],
+                      'network_mode':item['HostConfig']['NetworkMode'], 'ipv4':address, 'health':'healthy'})
+                  if service not in ('provider','proxy'): attest[service+'_container_id'] = identifier
+                  if service != 'proxy': continue
+                  number = labels['com.docker.compose.container-number']
+                  assert number in (('1','2') if floor else ('1',))
+                  assert item['Config']['Cmd'] == ['--config','/proof/config.yaml','--host','0.0.0.0','--port','4000','--num_workers','1','--telemetry','false']
+                  binds = [mount for mount in item['Mounts'] if mount['Type'] == 'bind']
+                  assert len(binds) == len({mount['Destination'] for mount in binds}) == len(mounted) + 2
+                  assert {mount['Destination'] for mount in binds} == {*mounted, '/proof/config.yaml', '/proof-private'}
+                  private_mount = next(m for m in item['Mounts'] if m['Destination'] == '/proof-private')
+                  assert private_mount['Type'] == 'bind' and private_mount['RW'] is True
+                  assert private_mount['Source'] == str(Path(os.environ['PROOF_PRIVATE_DIR']).resolve())
+                  for target,source in {**mounted, '/proof/config.yaml':os.environ['PROOF_CONFIG_FILE']}.items():
+                      mount = next(m for m in item['Mounts'] if m['Destination'] == target)
+                      assert mount['Type'] == 'bind' and mount['RW'] is False and mount['Source'] == str(Path(source).resolve())
+                  execute = command + ['exec','-T','--index',number,'proxy','python','-B','-c']
+                  actual = json.loads(read(execute + [code,*mounted]))
+                  assert actual == {target:hashes[source] for target,source in mounted.items()}
+                  assert json.loads(read(execute + [code,'/proof/config.yaml']))['/proof/config.yaml'] == config_hash
+                  native_actual = json.loads(read(execute + [native_code,*native]))
+                  assert native_actual == native
+                  worker_files = {name:actual['/proof/'+name] for name in helpers}
+                  assert worker_files == helpers
+                  workers.append({'id':identifier, 'number':number, 'image_ref':item['Config']['Image'], 'image_id':item['Image'],
+                      'health':'healthy', 'command':item['Config']['Cmd'], 'project':project, 'service':'proxy',
+                      'network_mode':item['HostConfig']['NetworkMode'], 'private_mount':private_mount['Source'],
+                      'config_sha256':config_hash, 'files_sha256':worker_files, 'native_sha256':native_actual, 'ipv4':address})
+                  mounted_workers[number] = actual
+          workers.sort(key=lambda worker:worker['number'])
+          assert [worker['number'] for worker in workers] == (['1','2'] if floor else ['1'])
+          assert len({worker['id'] for worker in workers}) == len(workers) and len({worker['ipv4'] for worker in workers}) == len(workers)
+          assert len({worker['image_id'] for worker in workers}) == 1
+          attest['proxy_container_id'] = workers[-1]['id']
+          if floor:
+              attest.update(private_mount=workers[-1]['private_mount'], workers=workers)
+          info = read(command + ['exec','-T','redis','redis-cli','INFO','server'])
+          attest['redis_run_id'] = next(line.split(':',1)[1] for line in info.splitlines() if line.startswith('run_id:'))
+          assert re.fullmatch('[0-9a-f]{40}',attest['redis_run_id'])
+          path = Path(os.environ['PROOF_PRIVATE_DIR'],'calendar-floor-attestation.private.json' if floor else 'calendar-attestation.private.json')
+          with os.fdopen(os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='utf-8') as handle:
+              json.dump(attest,handle)
+          provider = json.loads(read(command + ['exec','-T','provider','python','-B','-c',code,'/proof/mock_provider.py']))
+          assert provider['/proof/mock_provider.py'] == hashes['scripts/goal584-budget-proof/mock_provider.py']
+          receipt = {'source_commit':rev, 'profile':profile, 'project':project, 'images':images, 'files_sha256':hashes,
+                     'native_artifact':artifact,
+                     'mounted_sha256':mounted_workers, 'provider_sha256':provider, 'private_config_sha256':config_hash,
+                     'workers':[{key:value for key,value in worker.items() if key != 'private_mount'} for worker in workers],
+                     'redis_run_id':attest['redis_run_id'], 'scope':'Dedicated native calendar job only; no WebUI or production'}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'runtime-identity.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
+          PY
+
+      - name: Qualify the actual native monthly reset and immediate next call
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          private, output = Path(os.environ['PROOF_PRIVATE_DIR']), Path(os.environ['PROOF_OUTPUT_DIR'])
+          floor = os.environ['CALENDAR_PROFILE'] == 'positive-floor'
+          prefix = 'calendar-floor' if floor else 'calendar'
+          worker = '2' if floor else '1'
+          command = ['docker','compose','-p',os.environ['CALENDAR_PROJECT'],'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.calendar-proof.yml']
+          argv = command + ['exec','-T','--index',worker,'proxy','python','-B',
+              '/proof/prove_calendar_floor.py' if floor else '/proof/prove_calendar_reset.py',
+              '--project',os.environ['CALENDAR_PROJECT'],'--attestation','/proof-private/'+prefix+'-attestation.private.json',
+              '--private-state','/proof-private/'+prefix+'-state.private.json','--receipt','/proof-private/'+prefix+'.safe.json']
+          if floor:
+              attest = json.loads((private/(prefix+'-attestation.private.json')).read_text(encoding='utf-8'))
+              assert [item['number'] for item in attest['workers']] == ['1','2']
+              argv += ['--peer-url','http://'+attest['workers'][0]['ipv4']+':4000']
+          try:
+              result = subprocess.run(argv,capture_output=True,text=True,timeout=240 if floor else 150)
+              exit_code, stdout_size, stderr_size = result.returncode, len(result.stdout), len(result.stderr)
+              # Never export arbitrary native stdout/stderr, even on import failure.
+              result.stdout = result.stderr = ''
+          except subprocess.TimeoutExpired:
+              exit_code, stdout_size, stderr_size = -1, 0, 0
+          secrets = [line.split('=',1)[1] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+                     if line.split('=',1)[0] in ('PROOF_MASTER_KEY','PROOF_DB_PASSWORD','OWUI_BUDGET_GATEWAY_SECRET')]
+          # Native write_private creates root-owned 0600 files. Keep permissions;
+          # read through the owning container, retaining the raw key only in memory.
+          handoff = '''import json
+          import sys
+          from pathlib import Path
+          root=Path('/proof-private')
+          prefix=sys.argv[1]
+          assert prefix in ('calendar','calendar-floor')
+          state=json.loads((root/(prefix+'-state.private.json')).read_text()) if (root/(prefix+'-state.private.json')).exists() else {}
+          receipt=json.loads((root/(prefix+'.safe.json')).read_text()) if (root/(prefix+'.safe.json')).exists() else {'passed':False,'failure':'Native helper produced no receipt','outcome':'FAILED_BOUNDARY','failure_phase':'initialization'}
+          print(json.dumps({'key':state.get('key'),'receipt':receipt}))'''
+          transferred = subprocess.run(command+['exec','-T','--index',worker,'proxy','python','-B','-c',handoff,prefix],capture_output=True,text=True,timeout=15)
+          assert transferred.returncode == 0 and len(transferred.stdout) <= 4*1024*1024, 'Native private handoff failed'
+          value = json.loads(transferred.stdout)
+          if value.get('key'): secrets.append(value.pop('key'))
+          transferred.stdout = transferred.stderr = ''
+          receipt = value['receipt']
+          rendered = json.dumps(receipt,indent=2,allow_nan=False)
+          assert not any(value and value in rendered for value in secrets)
+          assert not re.search(r'sk-[A-Za-z0-9_-]+|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+',rendered)
+          assert str(private) not in rendered, 'Private host path in safe receipt'
+          (output/(prefix+'.safe.json')).write_text(rendered,encoding='utf-8')
+          diagnostic = {'profile':os.environ['CALENDAR_PROFILE'], 'helper_returncode':exit_code,
+              'stdout_characters_discarded':stdout_size, 'stderr_characters_discarded':stderr_size,
+              'outcome':receipt.get('outcome'), 'phase':receipt.get('failure_phase',receipt.get('phase')),
+              'failure_leaf':receipt.get('failure_leaf'), 'passed':receipt.get('passed') is True}
+          (output/'helper-diagnostic.txt').write_text(json.dumps(diagnostic,indent=2),encoding='utf-8')
+          print(rendered)
+          secrets.clear()
+          del value, transferred
+          assert exit_code == 0 and receipt.get('passed') is True, 'Native calendar qualification failed; inspect safe receipts'
+          PY
+
+      - name: Remove the calendar project and verify cleanup
+        timeout-minutes: 3
+        if: always()
+        shell: bash
+        run: |
+          if test "${CALENDAR_PROJECT_CLAIMED:-false}" = true && test -n "${CALENDAR_PROJECT:-}" && test -f "$PROOF_ENV_FILE"; then
+            python - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          project = os.environ['CALENDAR_PROJECT']
+          assert re.fullmatch(r'goal584-calendar-[0-9a-f]{12}',project)
+          command = ['docker','compose','-p',project,'--env-file',os.environ['PROOF_ENV_FILE'],
+                     '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.calendar-proof.yml']
+          down_status = -1
+          try:
+              down_status = subprocess.run(command+['down','--volumes','--remove-orphans'],capture_output=True,timeout=120).returncode
+          except (OSError,subprocess.TimeoutExpired):
+              pass
+          label = 'label=com.docker.compose.project='+project
+          remaining = {kind:subprocess.check_output(command+['--filter',label],text=True).split() for kind,command in (
+              ('containers',['docker','ps','-aq']),('volumes',['docker','volume','ls','-q']),('networks',['docker','network','ls','-q']))}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'cleanup.json').write_text(json.dumps({'project':project,
+              'profile':os.environ['CALENDAR_PROFILE'], 'down_returncode':down_status, **remaining},indent=2),encoding='utf-8')
+          assert down_status == 0 and not any(remaining.values()), 'Disposable calendar cleanup incomplete'
+          PY
+          fi
+
+      - name: Retain only safe calendar evidence
+        timeout-minutes: 2
+        if: always() && env.PROOF_OUTPUT_DIR != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-calendar-proof-${{ matrix.profile }}-${{ github.sha }}
+          path: ${{ env.PROOF_OUTPUT_DIR }}
+          if-no-files-found: warn
+          retention-days: 7

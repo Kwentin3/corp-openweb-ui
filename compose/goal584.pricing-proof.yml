@@ -1,0 +1,42 @@
+# Dedicated disposable pricing project only; never combine with WebUI/prod.
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: goal584_pricing
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U goal584 -d goal584_pricing"]
+  provider:
+    environment:
+      PROOF_CATALOG_ENABLED: "true"
+  proxy:
+    environment:
+      DATABASE_URL: postgresql://goal584:${PROOF_DB_PASSWORD:?Generate a fresh synthetic DB password}@postgres:5432/goal584_pricing
+      PROOF_PRICING_PROJECT: ${PRICING_PROJECT:?Use a fresh pricing proof project}
+      PROOF_SOURCE_COMMIT: ${PROOF_SOURCE_COMMIT:?Bind the actual tested Git revision}
+      LITELLM_LOCAL_MODEL_COST_MAP: "False"
+      LITELLM_MODEL_COST_MAP_URL: http://provider:8000/__proof/catalog
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_pricing_catalog.py
+        target: /proof/prove_pricing_catalog.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_pricing_versions.py
+        target: /proof/prove_pricing_versions.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_pricing_usage.py
+        target: /proof/prove_pricing_usage.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_budget_overlap.py
+        target: /proof/prove_budget_overlap.py
+        read_only: true
+        bind:
+          create_host_path: false

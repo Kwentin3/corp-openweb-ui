@@ -1,0 +1,120 @@
+--- a/litellm/proxy/proxy_server.py
++++ b/litellm/proxy/proxy_server.py
+@@ -2830,8 +2830,10 @@
+     row the budget reset zeroes; tag counters have no DB row, so the caller's
+     ``fallback_spend`` (loaded fresh in auth) is authoritative. The DB read is
+     skipped for healthy primary counters (counter at or above recorded spend)
+-    and cached in-process for a few seconds, so a persistently stale counter
+-    drives at most one read per counter per window rather than one per request.
++    and cached in-process for a few seconds. A cached positive floor that would
++    raise the live counter is revalidated: a completed calendar reset may have
++    made that floor obsolete. Concurrent refreshes share the native reseed lock;
++    persistently stale-low counters can require another DB read per refresh.
+     """
+     current, verified = await _read_spend_counter_estimate(counter_key=counter_key, fallback_spend=fallback_spend)
+     if fallback_authoritative:
+@@ -2854,6 +2856,7 @@
+             window_entity_id=window_entity_id,
+             window_duration=window_duration,
+             window_start=window_start,
++            current_spend=current,
+         )
+         if authoritative is not None:
+             verified = True
+@@ -2965,34 +2968,73 @@
+     window_entity_id: str | None = None,
+     window_duration: str | None = None,
+     window_start: datetime | None = None,
++    current_spend: float | None = None,
+ ) -> float | None:
++    """Revalidate a cached floor before it raises a post-reset live counter.
++
++    Removing only that obsolete marker before the DB await preserves the native
++    manual-reset protection: a marker written during the read wins, without
++    comparing numeric values as though they were reset generations. This does
++    not fence a DB read begun before a calendar reset that writes no marker.
++    """
+     marker_key: Final = f"spend_db_floor:{counter_key}"
+     cached: Final = spend_counter_cache.in_memory_cache.get_cache(key=marker_key)
+-    if cached is not None:
++    if cached is not None and (current_spend is None or float(cached) <= current_spend):
+         return float(cached)
+ 
+-    db_spend: Final = await _floor_spend_from_db(
+-        counter_key=counter_key,
+-        window_entity_type=window_entity_type,
+-        window_entity_id=window_entity_id,
+-        window_duration=window_duration,
+-        window_start=window_start,
+-    )
+-    if db_spend is None:
+-        return None
+-
+-    # a spend reset that committed during the DB read above wrote the post-reset
+-    # floor to the marker; keep it over this read's now-stale pre-commit value
+-    rechecked: Final = spend_counter_cache.in_memory_cache.get_cache(key=marker_key)
+-    if rechecked is not None:
+-        return float(rechecked)
+-
+-    spend_counter_cache.in_memory_cache.set_cache(
+-        key=marker_key,
+-        value=db_spend,
+-        ttl=SPEND_DB_FLOOR_CACHE_TTL_SECONDS,
+-    )
+-    return db_spend
++    # Use the existing bounded per-counter owner. _floor_spend_from_db calls
++    # from_db/window_from_db directly; neither reacquires this reseed lock.
++    lock: Final = await SpendCounterReseed._get_lock(counter_key)
++    async with lock:
++        previous_floor: Final = spend_counter_cache.in_memory_cache.get_cache(key=marker_key)
++        if previous_floor is not None:
++            # A caller that saw the leader's missing marker can reuse the
++            # completed refresh. Non-raising markers also retain their fast path.
++            if cached is None or current_spend is None or float(previous_floor) <= current_spend:
++                return float(previous_floor)
++            spend_counter_cache.in_memory_cache.delete_cache(key=marker_key)
++
++        try:
++            db_spend: Final = await _floor_spend_from_db(
++                counter_key=counter_key,
++                window_entity_type=window_entity_type,
++                window_entity_id=window_entity_id,
++                window_duration=window_duration,
++                window_start=window_start,
++            )
++        except BaseException:
++            # Cancellation/failure must not discard a known positive floor or
++            # overwrite a newer reset marker. The native lock releases on exit.
++            if previous_floor is not None and spend_counter_cache.in_memory_cache.get_cache(key=marker_key) is None:
++                spend_counter_cache.in_memory_cache.set_cache(
++                    key=marker_key, value=previous_floor, ttl=SPEND_DB_FLOOR_CACHE_TTL_SECONDS
++                )
++            raise
++
++        if db_spend is None:
++            if previous_floor is None:
++                return None
++            rechecked_failed: Final = spend_counter_cache.in_memory_cache.get_cache(key=marker_key)
++            if rechecked_failed is not None:
++                return float(rechecked_failed)
++            # Keep the known floor conservatively when its refresh is unavailable.
++            spend_counter_cache.in_memory_cache.set_cache(
++                key=marker_key, value=previous_floor, ttl=SPEND_DB_FLOOR_CACHE_TTL_SECONDS
++            )
++            return float(previous_floor)
++
++        # A reset that wrote a marker during the DB read supersedes that read's
++        # potentially pre-reset result. The obsolete starting marker is gone.
++        rechecked: Final = spend_counter_cache.in_memory_cache.get_cache(key=marker_key)
++        if rechecked is not None:
++            return float(rechecked)
++
++        spend_counter_cache.in_memory_cache.set_cache(
++            key=marker_key,
++            value=db_spend,
++            ttl=SPEND_DB_FLOOR_CACHE_TTL_SECONDS,
++        )
++        return db_spend
+ 
+ 
+ async def read_spend_counter_cache_value(counter_key: str) -> tuple[float | None, bool]:

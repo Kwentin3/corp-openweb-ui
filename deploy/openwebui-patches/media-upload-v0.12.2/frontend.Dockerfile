@@ -12,6 +12,8 @@ RUN node /media-overlay/verify_frontend.mjs /app
 RUN npm ci --force
 ENV APP_BUILD_HASH=${BUILD_HASH}
 ENV APP_BUILD_CHANNEL=stable
+ARG NODE_OPTIONS=""
+ENV NODE_OPTIONS=${NODE_OPTIONS}
 RUN node --version && npm --version && npm run build
 
 FROM scratch AS export

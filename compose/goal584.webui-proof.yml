@@ -1,0 +1,198 @@
+# Overlay only: combine with goal584.native-budget-proof.yml in the same project.
+# Fresh stock API qualification; no product GUI, host port or production route.
+# Official slim index and amd64 source revision verified from GHCR on 2026-11-02:
+# source 6a18585ff4c2e5f6805f682222cfbc46dc669ef8 (same source as v0.12.2).
+services:
+  proxy:
+    environment:
+      OWUI_BUDGET_REQUIRE_PROVENANCE: "true"
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_office_compatibility.py
+        target: /proof/prove_office_compatibility.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/provision_webui.py
+        target: /proof/provision_webui.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /proof/provenance.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets
+        target: /proof/budgets
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/provision_cost_display.py
+        target: /proof/provision_cost_display.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/provision_admin.py
+        target: /proof/provision_admin.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_service_tasks.py
+        target: /proof/prove_service_tasks.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_background_tasks.py
+        target: /proof/prove_background_tasks.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_rag_service.py
+        target: /proof/prove_rag_service.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_responses_chat.py
+        target: /proof/prove_responses_chat.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/verify_admin_calls.py
+        target: /proof/verify_admin_calls.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_client.py
+        target: /proof/employee_budget_admin_client.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_contract.py
+        target: /proof/employee_budget_admin_contract.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/capture_webui_auth.py
+        target: /proof/capture_webui_auth.py
+        read_only: true
+        bind:
+          create_host_path: false
+
+  webui:
+    image: ghcr.io/open-webui/open-webui:v0.12.2-slim@sha256:34db70a8e8f305dc996c4b459db0949b715400a489ca8a2d1a2a31ae5ddc67bb
+    mem_limit: 2g
+    memswap_limit: 3g
+    cpus: 1
+    pids_limit: 512
+    environment:
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?Generate a fresh synthetic WebUI secret}
+      WEBUI_AUTH: "True"
+      ENABLE_SIGNUP: "True"
+      ENABLE_PERSISTENT_CONFIG: "True"
+      # Provision only through native config APIs after synthetic admin signup.
+      ENABLE_OPENAI_API: "False"
+      ENABLE_OLLAMA_API: "False"
+      ENABLE_OPENAI_API_PASSTHROUGH: "False"
+      OFFLINE_MODE: "True"
+      HF_HUB_OFFLINE: "1"
+      VECTOR_DB: pgvector
+      PGVECTOR_DB_URL: postgresql+psycopg://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584_vectors
+      PGVECTOR_INITIALIZE_MAX_VECTOR_LENGTH: "3"
+      PGVECTOR_PGCRYPTO: "false"
+      RAG_EMBEDDING_CONTENT_PREFIX: "document:"
+      RAG_EMBEDDING_QUERY_PREFIX: "query:"
+      # Native external engine avoids loading a local SentenceTransformer model.
+      # The inactive embedding profile is configured separately by its proof.
+      RAG_EMBEDDING_ENGINE: openai
+      RAG_EMBEDDING_MODEL: goal584-unused-embedding
+      RAG_OPENAI_API_BASE_URL: http://provider:8000/v1
+      RAG_OPENAI_API_KEY: synthetic-provider-only-not-a-credential
+      NO_PROXY: localhost,127.0.0.1,webui,proxy,provider,postgres,redis
+    volumes:
+      - proof_webui:/app/backend/data
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /app/backend/employee_budget_provenance.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/cost_readback.py
+        target: /app/backend/employee_budget_cost_readback.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/assignment.py
+        target: /app/backend/employee_budget_assignment.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_contract.py
+        target: /app/backend/employee_budget_admin_contract.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_client.py
+        target: /app/backend/employee_budget_admin_client.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_policy.py
+        target: /app/backend/employee_budget_admin_policy.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_ui.py
+        target: /app/backend/employee_budget_admin_ui.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/webui_model_binding.py
+        target: /app/backend/employee_budget_webui_model_binding.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets
+        target: /proof/budgets
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      proxy:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json, urllib.request; base='http://127.0.0.1:8080'; read=lambda path: json.load(urllib.request.urlopen(base+path, timeout=3)); assert read('/health').get('status') is True; assert read('/api/version').get('version') == '0.12.2'; assert read('/ready').get('status') is True"
+      interval: 5s
+      timeout: 12s
+      retries: 40
+      start_period: 30s
+    networks: [proof]
+
+volumes:
+  # Separate SQLite/native config state; remove with both Compose files + --volumes.
+  proof_webui:

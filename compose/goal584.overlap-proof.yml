@@ -1,0 +1,16 @@
+# Disposable overlay after the settled WebUI/pricing phases. No new service.
+services:
+  proxy:
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_budget_overlap.py
+        target: /proof/prove_budget_overlap.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_failure_recovery.py
+        target: /proof/prove_failure_recovery.py
+        read_only: true
+        bind:
+          create_host_path: false
