@@ -541,6 +541,7 @@ jobs:
                   expected=common|{'gui_sends':6,'provider_dispatches':4,'positive_chats':2,'unknown_chats':2,
                       'saved_key_denials':2,'known_positive_total':'.332','blocked_assignments':2,'native_401_inferred':False,
                       'unbound_denial_audit_chat_association_independently_proven':False,'inference_issued':False,
+                      'foreign_chat_status':401,'foreign_chat_not_found':True,'foreign_auth_confirmed':True,
                       'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted}
               assert type(packet.get('schema')) is int and packet==expected,'unknown_gui_cli_receipt_changed'
               assert fixture._office_private('unknown-usage-gui-'+phase+'.safe.json')[1]==packet,'unknown_gui_private_cli_receipt_changed'
@@ -571,6 +572,16 @@ jobs:
               networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
               network,=networks.values();base='http://'+network['IPAddress']+':8080'
               stage='runtime_binding';fixture.running_readback(base,build,revision)
+              # Bind the chat-specific 401/NOT_FOUND contract to actual native
+              # files; the existing Office file routes retain their 404 proof.
+              chat_access_pins={'routers/chats.py':'510269b6f69c8f634d2d93a6dc0605453fd5ececebf55c3ef3575532b3bc5eb3',
+                  'constants.py':'9b8a38f47415a69c5b6871a5f151145dc759ea8e8d4b72dd7a7a781cf14df8b4'}
+              assert build['inputs']['upstream_commit']=='6a18585ff4c2e5f6805f682222cfbc46dc669ef8'
+              actual_chat_access=fixture._docker_json(['exec',fixture._office_binding['services']['webui']['id'],'python','-B','-c',
+                  "import hashlib,json,pathlib; r=pathlib.Path('/app/backend/open_webui'); print(json.dumps({n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(chat_access_pins))+"}))"])
+              assert actual_chat_access==chat_access_pins,'unknown_gui_native_chat_access_source_changed'
+              public('unknown-usage-gui-chat-access',{'schema':1,'passed':True,'native_revision':build['inputs']['upstream_commit'],
+                  'files_sha256':actual_chat_access})
               stage='setup';setup=cli('setup');public('unknown-usage-gui-setup',setup)
               stage='baseline';baseline=cli('baseline');public('unknown-usage-gui-baseline',baseline)
               stage='browser';signal.setitimer(signal.ITIMER_REAL,max(1,min(360,deadline-time.monotonic()-100)))
@@ -580,7 +591,8 @@ jobs:
                   finally: browser.close()
               signal.setitimer(signal.ITIMER_REAL,max(1,deadline-time.monotonic()))
               assert observed.get('schema')==1 and observed.get('status')=='browser_observed' and observed.get('actor_id')==setup['actor_id']
-              assert observed.get('foreign_chat_status')==404 and observed.get('office_settings_unchanged') is True
+              assert observed.get('foreign_chat_status')==401 and observed.get('foreign_chat_not_found') is True
+              assert observed.get('foreign_auth_confirmed') is True and observed.get('office_settings_unchanged') is True
               assert all(observed.get(k) is False for k in ('native_accounting_accepted','provider_dispatch_accepted','unknown_policy_accepted'))
               assert len(observed.get('calls',[]))==6 and len(packet.get('calls',[]))==6 and 'failure' not in packet
               assert fixture._office_private('unknown-usage-browser.private.json')[1]==packet,'unknown_gui_private_packet_changed'

@@ -82,7 +82,9 @@ class CollectorTests(unittest.TestCase):
 
     def build_packet(self):
         packet={'schema':1,'actor_id':self.wire.actor_id,'calls':[],
-                'foreign_chat_status':404,'office_settings_before':{'unchanged':True},'office_settings_after':{'unchanged':True}}
+                'foreign_chat_status':401,'foreign_chat_detail':C.CHAT_NOT_FOUND,'foreign_chat_not_found':True,
+                'foreign_auth_confirmed':True,'foreign_auth':{'http_status':200,'session':{'id':self.common['users'][0]['id'],'role':'user'}},
+                'office_settings_before':{'unchanged':True},'office_settings_after':{'unchanged':True}}
         for index,slot in enumerate(C.ORDER):
             alias=C.P.ALIASES[slot];chat,answer,user=(str(uuid4()) for _ in range(3))
             text=C.UNKNOWN if slot else C.KNOWN+' · на 12:00:00 UTC'
@@ -124,6 +126,8 @@ class CollectorTests(unittest.TestCase):
         self.build_packet();before=len(self.wire.requests);result=self.run_phase('verify')
         self.assertTrue(result['passed']);self.assertEqual(result['known_positive_total'],'.332')
         self.assertEqual(result['provider_dispatches'],4);self.assertFalse(result['native_401_inferred'])
+        self.assertEqual(result['foreign_chat_status'],401);self.assertTrue(result['foreign_auth_confirmed'])
+        self.assertTrue(result['foreign_chat_not_found'])
         self.assertFalse(result['unknown_cost_finality']);self.assertFalse(result['production_accepted'])
         self.assertEqual(len(self.wire.physical),5)
         self.assertTrue(all(method=='GET' for method,_,_ in self.wire.requests[before:]))
@@ -139,6 +143,19 @@ class CollectorTests(unittest.TestCase):
         scope['user_id']=self.wire.actor_id
         self.wire.physical.append(copy.deepcopy(self.wire.physical[-1]))
         with self.assertRaisesRegex(C.P.ProofError,'provider_prefix'):self.run_phase('verify')
+
+    def test_foreign_chat_401_requires_fresh_other_user_session_and_native_not_found(self):
+        packet=self.build_packet()
+        for mutate in (lambda p:p.update(foreign_chat_status=200),lambda p:p.update(foreign_chat_status=404),
+                       lambda p:p.update(foreign_chat_detail='Invalid token'),lambda p:p.update(foreign_chat_not_found=False),
+                       lambda p:p.update(foreign_auth_confirmed=False),lambda p:p['foreign_auth'].update(http_status=401),
+                       lambda p:p['foreign_auth']['session'].update(id=self.wire.actor_id),
+                       lambda p:p['foreign_auth']['session'].update(id=str(uuid4())),
+                       lambda p:p['foreign_auth']['session'].update(role='admin')):
+            with self.subTest(mutate=mutate):
+                changed=copy.deepcopy(packet);mutate(changed);C.P.fixture.write_private(C.PACKET,changed)
+                with self.assertRaisesRegex(C.P.ProofError,'foreign_session|foreign_or_office_settings'):
+                    self.run_phase('verify')
 
     def test_old_history_and_caps_are_not_repaired(self):
         self.build_packet();self.wire.rows[0]['spend']=.1

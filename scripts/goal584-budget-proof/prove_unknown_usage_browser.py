@@ -27,6 +27,7 @@ SETTINGS = '/api/v1/users/user/settings'
 UNKNOWN = 'Расход неизвестен. Обратитесь к администратору.'
 KNOWN = 'Ответ: $0.166 · Чат: $0.166'
 BLOCKED = 'Authentication Error, Key is blocked.'
+CHAT_NOT_FOUND = "We could not find what you're looking for :/"
 PROVISIONAL_COST_TEXT = ('учёт обновляется', 'учет обновляется', 'начислено на сейчас',
                          'стоимость ещё не подтверждена', 'стоимость еще не подтверждена',
                          'pending cost', 'cost pending', 'partial cost', 'provisional cost')
@@ -302,13 +303,33 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
         require(packet['office_settings_before'] == packet['office_settings_after'], 'Unknown GUI changed Office actor settings')
         other = common['users'][0]
         foreign, _, foreign_token = login(browser, base_url, other)
+        headers = {'Authorization': 'Bearer ' + foreign_token}
+        authenticated = foreign.request.get(base_url + '/api/v1/auths/', headers=headers, timeout=10_000)
+        packet['foreign_auth'] = {'http_status': authenticated.status}
+        packet['foreign_auth_confirmed'] = False
+        session = response_json(authenticated, base_url, '/api/v1/auths/')
+        packet['foreign_auth']['session'] = session
+        require(session.get('id') == other['id'] and session.get('id') != actor_id and session.get('role') == 'user',
+                'Unknown GUI foreign session identity/role differs')
+        packet['foreign_auth_confirmed'] = True
         denied = foreign.request.get(base_url + '/api/v1/chats/' + packet['calls'][0]['chat_id'],
-            headers={'Authorization': 'Bearer ' + foreign_token}, timeout=10_000)
-        require(denied.status == 404, 'Unknown GUI saved chat leaked to another ordinary user')
+            headers=headers, timeout=10_000)
         packet['foreign_chat_status'] = denied.status
+        require(same_origin(denied.url, base_url, '/api/v1/chats/' + packet['calls'][0]['chat_id']),
+                'Unknown GUI foreign chat response origin differs')
+        raw_denial = denied.body()
+        require(isinstance(raw_denial, bytes) and 0 < len(raw_denial) <= MAX_BYTES,
+                'Unknown GUI foreign chat response exceeded bound')
+        denial = json.loads(raw_denial)
+        packet['foreign_chat_detail'] = denial.get('detail') if isinstance(denial, dict) else None
+        packet['foreign_chat_not_found'] = denied.status == 401 and packet['foreign_chat_detail'] == CHAT_NOT_FOUND
+        # Native chat access uses 401/NOT_FOUND; Office file routes use 404.
+        # The same fresh session/headers must first prove an authenticated user.
+        require(packet['foreign_chat_not_found'], 'Unknown GUI saved chat native denial differs')
         safe = {'schema': 1, 'status': 'browser_observed', 'actor_id': actor_id, 'calls': safe_calls,
             'handoff_sha256': hashlib.sha256(raw).hexdigest(), 'running_sha256': digest(running),
-            'foreign_chat_status': 404, 'office_settings_unchanged': True,
+            'foreign_chat_status': 401, 'foreign_chat_not_found': True, 'foreign_auth_confirmed': True,
+            'office_settings_unchanged': True,
             'native_accounting_accepted': False, 'provider_dispatch_accepted': False, 'unknown_policy_accepted': False}
         no_credentials(safe, list(fixture.secrets) + [token, actor['password'], office_actor['token']])
         write_private(target, packet)

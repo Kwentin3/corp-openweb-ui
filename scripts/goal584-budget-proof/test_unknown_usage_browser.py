@@ -1,7 +1,9 @@
 """Offline native-source/host-driver rehearsal; no actual GUI or policy acceptance."""
+import ast
 import contextlib
 import copy
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -116,12 +118,16 @@ class Context:
     def get(self, url, *, headers, timeout):
         w = self.world; path = url.removeprefix(BASE); token = headers['Authorization'].removeprefix('Bearer ')
         assert timeout == 10_000
+        if self.account['id'] == OTHER:
+            w.foreign_requests.append((path, copy.deepcopy(headers)))
+        if path == '/api/v1/auths/':
+            return Response(url, copy.deepcopy(w.foreign_session), w.foreign_auth_status)
         if path.startswith(B.SETTINGS):
             return Response(url, copy.deepcopy(w.office_settings if token == w.office['token'] else w.settings))
         if path.startswith('/api/tasks/chat/'):
             return Response(url, {'task_ids': ['active'] if w.active else []})
         if path.startswith('/api/v1/chats/'):
-            if self.account['id'] == OTHER: return Response(url, {}, w.foreign_status)
+            if self.account['id'] == OTHER: return Response(url, {'detail': w.foreign_detail}, w.foreign_status)
             stored = copy.deepcopy(w.chats[path.rsplit('/', 1)[1]])
             if w.saved_mutation: w.saved_mutation(stored)
             return Response(url, stored)
@@ -138,7 +144,9 @@ class World:
         self.selected = None; self.ignored_update = self.active = False
         self.submit_mutation = self.saved_mutation = self.visible_mutation = self.ack_mutation = None
         self.ack_status = 200
-        self.foreign_status = 404
+        self.foreign_status, self.foreign_detail = 401, B.CHAT_NOT_FOUND
+        self.foreign_auth_status, self.foreign_session = 200, {'id': OTHER, 'role': 'user'}
+        self.foreign_requests = []
     def new_context(self, **kwargs):
         c = Context(self, self.actor if not self.contexts else self.other); self.contexts.append(c); return c
     def save(self, value):
@@ -214,7 +222,13 @@ class UnknownBrowserTests(unittest.TestCase):
             self.assertIsInstance(call['visible_error'], str if outcome == 'denied' else type(None))
             self.assertIn(B.BLOCKED if outcome == 'denied' else 'Proof', call['visible_text'])
         self.assertEqual(packet['office_settings_before'], packet['office_settings_after'])
-        self.assertEqual(packet['foreign_chat_status'], 404)
+        self.assertEqual(packet['foreign_chat_status'], 401)
+        self.assertEqual(packet['foreign_chat_detail'], B.CHAT_NOT_FOUND)
+        self.assertTrue(packet['foreign_auth_confirmed']); self.assertTrue(packet['foreign_chat_not_found'])
+        self.assertEqual(packet['foreign_auth']['session'], {'id': OTHER, 'role': 'user'})
+        self.assertEqual([path for path, _ in world.foreign_requests], ['/api/v1/auths/', '/api/v1/chats/' + packet['calls'][0]['chat_id']])
+        self.assertEqual(world.foreign_requests[0][1], world.foreign_requests[1][1])
+        self.assertTrue(safe['foreign_auth_confirmed']); self.assertTrue(safe['foreign_chat_not_found'])
         self.assertFalse(safe['provider_dispatch_accepted']); self.assertFalse(safe['native_accounting_accepted'])
         for secret in ('synthetic-password', world.actor['token'], world.office['token']): self.assertNotIn(secret, json.dumps(safe))
 
@@ -305,6 +319,46 @@ class UnknownBrowserTests(unittest.TestCase):
             self.assertIsNone(safe); self.assertIsNotNone(failure)
             self.assertIn('did not finish', packet['failure']['message'])
         self.assertIsNotNone(self.exercise(lambda w: setattr(w, 'foreign_status', 200))[2])
+
+    def test_foreign_chat_denial_requires_authenticated_other_user_and_exact_native_detail(self):
+        for mutate in (lambda w: setattr(w, 'foreign_auth_status', 401),
+                       lambda w: w.foreign_session.update(id=ACTOR),
+                       lambda w: w.foreign_session.update(role='admin'),
+                       lambda w: setattr(w, 'foreign_detail', 'Invalid token'),
+                       lambda w: setattr(w, 'foreign_status', 404)):
+            with self.subTest(mutate=mutate):
+                safe, packet, failure, world = self.exercise(mutate)
+                self.assertIsNone(safe); self.assertIsNotNone(failure)
+                self.assertEqual(len(packet['calls']), 6)
+                if world.foreign_auth_status == 401:
+                    self.assertFalse(packet['foreign_auth_confirmed'])
+                    self.assertEqual(world.foreign_requests[0][0], '/api/v1/auths/')
+                    self.assertEqual(len(world.foreign_requests), 1)
+                elif world.foreign_detail != B.CHAT_NOT_FOUND:
+                    self.assertEqual(packet['foreign_chat_status'], 401)
+                    self.assertEqual(packet['foreign_chat_detail'], 'Invalid token')
+
+    def test_foreign_chat_contract_matches_pinned_native_router_and_not_found_constant(self):
+        repo = HERE.parents[1] / 'local/goal584/cost-display/open-webui'
+        if not (repo / '.git').exists(): self.skipTest('Exact native source cache unavailable')
+        revision = '6a18585ff4c2e5f6805f682222cfbc46dc669ef8'
+        expected = {'backend/open_webui/routers/chats.py': '510269b6f69c8f634d2d93a6dc0605453fd5ececebf55c3ef3575532b3bc5eb3',
+                    'backend/open_webui/constants.py': '9b8a38f47415a69c5b6871a5f151145dc759ea8e8d4b72dd7a7a781cf14df8b4'}
+        source = {}
+        for path, digest in expected.items():
+            source[path] = subprocess.check_output(['git', '-c', 'gc.auto=0', 'show', revision + ':' + path], cwd=repo, timeout=10,
+                env=os.environ | {'GIT_NO_LAZY_FETCH': '1'})
+            self.assertEqual(hashlib.sha256(source[path]).hexdigest(), digest)
+        router = ast.parse(source['backend/open_webui/routers/chats.py'])
+        route = next(n for n in router.body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'get_chat_by_id')
+        self.assertIn('Depends(get_verified_user)', ast.unparse(route))
+        self.assertIn('await Chats.get_accessible_chat_by_id(', ast.unparse(route))
+        self.assertEqual(ast.unparse(route.body[-1]),
+            'raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.NOT_FOUND)')
+        constants = ast.parse(source['backend/open_webui/constants.py'])
+        errors = next(n for n in constants.body if isinstance(n, ast.ClassDef) and n.name == 'ERROR_MESSAGES')
+        not_found = next(n.value for n in errors.body if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'NOT_FOUND' for t in n.targets))
+        self.assertEqual(B.CHAT_NOT_FOUND, ast.literal_eval(not_found))
 
     def test_native_response_status_size_origin_and_json_bounds(self):
         for response in (Response(BASE + '/x', {}, 503), Response('https://foreign.invalid/x', {}),
