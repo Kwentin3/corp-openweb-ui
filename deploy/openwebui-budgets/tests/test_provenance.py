@@ -625,7 +625,7 @@ class ServiceGatewayTests(unittest.TestCase):
             return SimpleNamespace(user_id=assignment_user if validated_user is None else validated_user,
                                    budget_reservation=None)
         data = {"model": body_model, "messages": [{"role": "user", "content": "actual task context"}],
-                "metadata": {"payer_id": USER, "task": "title_generation"}}
+                "metadata": {"payer_id": USER, "task": task or ""}}
         if token is not None:
             data["litellm_metadata"] = {"owui_budget_provenance": token}
         async def read(req):
@@ -750,6 +750,34 @@ class ServiceGatewayTests(unittest.TestCase):
         self.assertEqual(data["litellm_session_id"], ROOT_CHAT)
         self.assertEqual(data["litellm_trace_id"], ROOT_ANSWER)
         self.assertEqual(sum(name == "validate" for name, value in events), 1)
+
+    def test_community_worker_uses_personal_assignment_scope_and_original_context(self):
+        result, events, data = self.run_gateway(token=call(), task="sub_agent", assignment_user=USER)
+        self.assertNotIsInstance(result, HTTPException)
+        self.assertEqual(result.user_id, USER)
+        lookup = next(value for name, value in events if name == "assignment")
+        self.assertEqual(lookup["where"]["user_id"], USER)
+        scope = protocol.validate_persisted_scope(data["metadata"]["spend_logs_metadata"]["owui_budget"])
+        self.assertEqual((scope["user_id"], scope["model"], scope["root_chat_id"], scope["root_answer_id"]),
+                         (USER, MODEL, ROOT_CHAT, ROOT_ANSWER))
+        self.assertEqual((data["litellm_session_id"], data["litellm_trace_id"]), (ROOT_CHAT, ROOT_ANSWER))
+        self.assertEqual(data["messages"], [{"role": "user", "content": "actual task context"}])
+        self.assertEqual([value for name, value in events if name == "decoder"], ["provenance.decode_call"])
+        self.assertEqual(data["metadata"]["task"], "sub_agent")
+        self.assertEqual(sum(name == "validate" for name, value in events), 1)
+
+    def test_community_worker_never_accepts_unsigned_foreign_service_or_unknown_tasks(self):
+        service = protocol.encode_service_call(SECRET, user_id=USER, payer_id=OTHER, chat_id=CHAT,
+                                               model=MODEL, task="title_generation")
+        for kwargs in ({}, {"token": "invalid"}, {"token": service}, {"token": call(), "actor": OTHER},
+                       {"token": call(), "body_model": "other-model"},
+                       {"token": call(), "api_key": "sk-native-test"},
+                       {"token": call(), "task": "other_worker"}):
+            with self.subTest(change=list(kwargs)):
+                result, events, _ = self.run_gateway(**({"task": "sub_agent", "assignment_user": USER} | kwargs))
+                self.assertIsInstance(result, HTTPException)
+                self.assertEqual(result.status_code, 403)
+                self.assertFalse(any(name in ("fresh", "validate") for name, value in events))
 
     def test_inference_forwards_writer_fresh_blocked_identity_to_native_validator(self):
         # This exercises the adapter's read choice and exact validation input.

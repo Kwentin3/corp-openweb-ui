@@ -5,7 +5,8 @@ Boundary: OpenWebUI authenticates USER_ID and expands the native {{TASK}}
 connection template into X-OpenWebUI-Task. The distinct server-held gateway
 secret authenticates the transport; it does not prove task/chat provenance.
 On the shared bearer, TASK must be present: empty TASK selects USER_ID's personal
-assignment; nonempty TASK requires a separate signed service-call audience
+assignment; sub_agent requires signed personal scope for its actual worker model.
+Other nonempty TASK requires a separate signed service-call audience
 binding the verified actor, native model, task and payer before assignment lookup.
 Native virtual keys cannot authorize a nonempty TASK. Model-less discovery is
 unsupported. OWUI_BUDGET_REQUIRE_PROVENANCE=true additionally requires signed
@@ -282,6 +283,11 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     request_data = await _read_request_body(request)
     shared_gateway = _same_secret(api_key, gateway_secret)
     _require(shared_gateway or not task, 403, "Native virtual keys cannot authorize service tasks")
+    # The community Office worker is user work, not auxiliary service generation.
+    # Keep its native header/body intact; use the existing personal proof/payer.
+    worker_call = task == "sub_agent"
+    if worker_call:
+        task = ""
     user_id = None
     actor_id = None
     model = None
@@ -331,7 +337,7 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     _metadata_maps(request_data)
     _apply_provenance(
         request, request_data, shared_gateway=shared_gateway,
-        required=_provenance_required(), secret=gateway_secret, user_id=actor_id, model=model,
+        required=_provenance_required() or worker_call, secret=gateway_secret, user_id=actor_id, model=model,
         # Keep unsigned legacy/native-key paths independent of this optional
         # mount. Strict shared calls fail closed before routing without a token.
         decoder=lambda token, secret, **scope: get_instance_fn(

@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 
 ROOT_CAPSULE = "owui_budget_root"
+ROOT_STATE = "_owui_budget_root"
 OBSERVED_IDS = "_owui_budget_observed_provider_ids"
 OBSERVED_CALL_IDS = "_owui_budget_observed_call_ids"
 UNBOUND_RESPONSE = "_owui_budget_unbound_response"
@@ -59,7 +60,8 @@ def has_delegation(message):
     # The current outlet has no controller-owned durable child-settlement receipt.
     # Keep delegated/background cost a visibly provisional accrued amount.
     return any(isinstance(item, dict) and item.get("type") == "function_call"
-               and item.get("name") == "delegate_task" for item in message.get("output", []))
+               and item.get("name") in ("delegate_task", "run_sub_agent", "run_parallel_sub_agents")
+               for item in message.get("output", []))
 
 
 async def native_answer(chat_id, answer_id, user, *, permission="write"):
@@ -132,7 +134,7 @@ class Filter:
         require(VERSION == "0.12.2", "unsupported_webui_version")
         metadata = __metadata__
         require(isinstance(metadata, dict) and __request__ is not None and isinstance(__user__, dict), "server_context")
-        require(metadata.get("task") in (None, "") and not metadata.get("direct")
+        require(metadata.get("task") in (None, "", "sub_agent") and not metadata.get("direct")
                 and not getattr(__request__.state, "direct", False), "unsupported_task_or_direct")
         user_id = canonical_uuid(__user__.get("id"), "user_id")
         require(metadata.get("user_id") == user_id, "authenticated_user")
@@ -141,12 +143,29 @@ class Filter:
         chat_id = canonical_uuid(metadata.get("chat_id"), "chat_id")
         answer_id = canonical_uuid(metadata.get("message_id"), "answer_id")
         message = await native_answer(chat_id, answer_id, user)
-        require(message.get("model") == body.get("model"), "answer_model")
+        if metadata.get("task") != "sub_agent":
+            require(message.get("model") == body.get("model"), "answer_model")
         secret, wire_model = await native_connection(body, __model__, __request__, self.valves.ledger_base_url)
 
         context = metadata.get("chat_context")
         require(isinstance(context, dict), "chat_context")
-        if metadata.get("internal") is True:
+        if metadata.get("task") == "sub_agent":
+            capsule = context.get(ROOT_CAPSULE)
+            require(isinstance(capsule, str) and bool(capsule)
+                    and getattr(__request__.state, ROOT_STATE, None) == capsule
+                    and getattr(__request__.state, "metadata", None) is metadata,
+                    "delegated_parent")
+            root = decode_root(capsule, secret)
+            require(root["sub"] == user_id and root["root_chat_id"] == chat_id
+                    and root["root_answer_id"] == answer_id, "delegated_parent")
+            # The community Tool copies the parent request. Restore the native
+            # worker Model record default instead of inheriting its parent's base.
+            if hasattr(__request__, "base_model_id"):
+                delattr(__request__, "base_model_id")
+                secret, wire_model = await native_connection(body, __model__, __request__, self.valves.ledger_base_url)
+                require(decode_root(capsule, secret) == root, "delegated_connection")
+            root_chat_id, root_answer_id = chat_id, answer_id
+        elif metadata.get("internal") is True:
             require(getattr(__request__.state, "internal", False) is True, "internal_request")
             capsule = context.get(ROOT_CAPSULE)
             require(isinstance(capsule, str) and bool(capsule), "parent_capsule")
@@ -159,6 +178,7 @@ class Filter:
             root_chat_id, root_answer_id = chat_id, answer_id
             context[ROOT_CAPSULE] = encode_root(secret, user_id=user_id,
                 root_chat_id=root_chat_id, root_answer_id=root_answer_id)
+            setattr(__request__.state, ROOT_STATE, context[ROOT_CAPSULE])
 
         # Replace client-carried scope. Existing model messages/tools/params stay untouched.
         existing = body.get("litellm_metadata")
