@@ -271,7 +271,7 @@ async def execute(receipt, *, diagnostic=None):
             else:
                 require(status == 200 and not response.get("error") and (response.get("usage") is None if unknown
                         else known_proxy_usage(response.get("usage"))), "unknown_response_usage")
-                observed = provider();call["provider_observation"] = observed;save("provider_observed")
+                observed = provider();call["provider_observation_sha256"] = digest(observed);save("provider_observed")
                 def provider_ready():
                     current = provider();record = physical(current_provider, current, alias)
                     return (current, record) if record is not None else None
