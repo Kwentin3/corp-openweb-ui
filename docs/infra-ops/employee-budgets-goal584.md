@@ -5,26 +5,27 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native74/6a06eda1 и Office74. Все четыре Native jobs, Office и Active CI
-SUCCESS; main/pricing/calendars/Office независимо прочитаны и повторены основным агентом.
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Текущая проверенная
+стендовая опора — Native76/93aa4031 и Office76 в границах отчётов (Office steps9–12).
+Все четыре Native jobs, Office и Active CI SUCCESS; main/pricing/calendars/Office
+независимо прочитаны и повторены основным агентом, actual PNG просмотрены.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
-policy принята только для personal nonstream Responses API profile; ordinary/admin
-GUI этой policy, streams, полная reasoning continuity и STT/Terminal ещё не приняты.
+policy принята для personal nonstream Responses API и ordinary GUI profile;
+admin GUI этой policy, streams/CC, полная reasoning continuity и STT/Terminal ещё не приняты.
 
 **Решение заказчика05.11, unknown expense:** если провайдер не вернул данные о
 расходе, блокировать этому сотруднику только эту модель и показывать «расход
 неизвестен». Заказчику объяснено, что первый запрос уже мог быть оплачен и его
 точную сумму восстановить нельзя. Не исключать модель глобально, не выдумывать
 денежное списание и не объявлять unknown бесплатным/окончательно оплаченным.
-API-профиль personal nonstream Responses принят в74; остальные пути требуют
-runtime acceptance. Native key/block —
+API-профиль personal nonstream Responses принят в74, ordinary GUI — в76;
+остальные пути требуют runtime acceptance. Native key/block —
 владелец запрета; исходные budgets/SpendLogs сохраняются. Ошибка/неопределённость
 block и уже принятые calls требуют явного failure/неподтверждённого статуса;
 успешную остановку новых calls без committed block не заявлять.
 
-Office71 принят independent artifact review и parent repeat: actual browser Send,
+Историческая опора Office71 принята independent artifact review и parent repeat: actual browser Send,
 native DOCX/download, три follow-ups, foreign file metadata/content404/404.
 Все четыре auth/provider dispatch связаны по полному body с единственным model
 mapping; полный pinned developer instruction, SOURCE/prior/current user,
@@ -44,9 +45,9 @@ reasoning continuity этим прогоном не принимается.
 приняты на свежем синтетическом сотруднике: signed gateway call/.20 → operator
 block/readback → native401 без нового provider dispatch/charge, caps/spend/history
 сохранены. Все11mounted owner hashes совпали с tested Git. Cache warming и
-non-admin block RBAC этим срезом не принимались. Следующий срез реализует принятое
-правило unknown expense через native serial CustomGuardrail и существующие
-readback/Filter owners; нового ledger/денежного settlement/core patch не будет.
+non-admin block RBAC этим срезом не принимались. Правило unknown expense затем
+реализовано и принято в границах74/76 через native serial CustomGuardrail и
+существующие readback/Filter owners; нового ledger/денежного settlement/core patch нет.
 Production, реальные деньги и рабочие маршруты не менялись.
 Ниже — текущие evidence/границы и история прежних кандидатов; старые FAIL не
 переименовываются в PASS после исправления следующей версии.
@@ -440,6 +441,49 @@ Svelte/app reproduction и не доказательство причины75. O
 поменять гонку: следующийPASS не доказывает устранения исходной причины. Evidence:
 `native75-main-failure/diagnostic.md`, `native75-admin-diagnostic-root-repeat/`.
 
+**Текущая поставка76 опубликована:** head93aa4031adbb62938f66352404525c079e403eb1,
+tested merge18e491a8766445dd53fd17b7b322f4d379a91c98, fetched tree diff пуст.
+[Office76/42181147765](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42181147765),
+[Native76/42181147748](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42181147748),
+[Active CI76/42181147743](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42181147743)
+подтверждены live; PR585 body readback точный/draft/open/unmerged. Разница75→76
+ровно8proof/test/doc files, product/core/Compose/финансы не менялись. Root freeze
+`candidate76-checks.safe.json`:42focused PASS/no skips,29host/28rejects,4actual-helper
+offline controls; все повторены root. `candidate76-publish.safe.json` хранит только
+initial live observation. Runtime76 не принят; исходный MAIN75 cause UNKNOWN и
+Office75FAILED сохраняются. Новые frozen readers main/pricing/calendars/Office76
+готовятся по exact source/actual jobs. Не перезапускать job из-за observation timeout;
+получить terminal/artifacts и повторить readers/actual PNG перед признанием этапа.
+
+**Terminal76 bounded acceptance:** все6jobs SUCCESS; MAIN/pricing/calendars/Office
+frozen readers повторены root (exit0), ROOT просмотрел actual Responses details/
+zero-denial, Office browser и6GUI PNG. MAIN77semantic/26negative/8marker/53Git
+sources (51unchanged74,52unchanged75),318frozen inputs; recovery7.377s<15,
+settlement8/8,containers/volumes0/0 (networks не заявлены). Pricing63negative/
+29sources/14mounts/15pins,.80/.500,cleanup0/0/0. Calendar20CURRENT negatives,
+26sources/12mounts,actual1/1/4journal/reset-post hash equality,floorfinal.567552s<5,
+cleanup0/0/0; финансовые predicates неизменны.
+
+Office76 bounded9–12: retained4wirejoins/fullinstruction/SOURCE/14schemas/2Tool
+pairs/PNG/DOCX17paragraphs/table3×4/.60personal+.20service/3followups/file404×2/
+keyblock11owners/APIunknown7attempt5dispatch3blocks сохранены. Новый GUI:
+6fresh ordinary Sends/4physical dispatches/2known chats.166each=.332/2unknown/
+2saved-key denials; actual3CLIphase receipts/host+13owners/5mounts/7SDKpins/native
+chat-access2hashes, freshforeignauth200→chat401NOT_FOUND, oldrows/caps/payers/
+Office settings/restricted reader проверены.24GUI negative +8APIreceipt/15pure/
+4wire negatives reject. Cleanup0/0/0,5images/2helpers removed.200frozen inputs;
+raw private packet/ledger independently не replayed, facts остаются exact-worker-
+source-bound. Unknown0 не объявлен бесплатным/окончательным. Release/fullprofile/
+весьGOAL, streams/CC/explicit-zero/reasoning этим не принимаются; flags остаютсяfalse.
+
+Artifacts76: MAIN13486241412/3858742B/SHAe4b2a871…; Office13486516207/1076854B/
+SHAd3ee836f…;pricing13485676349/SHA7864ef2e…;basic13484709461/SHAbf569f3d…;
+floor13484949860/SHA9b01d4b4… . Readers/results/reports/root-repeat logs находятся
+в `native76-main-review/`, `native76-pricing-review/`, `native76-calendar-review/`,
+`office76-review/`. PR585 readback точный, head93aa4031/merge18e491a8 treeidentical,
+draft/open/unmerged. MAIN75 остаётсяFAIL/causeUNKNOWN; новые наблюдения не доказывают
+устранения старой причины. Production/real prices/paid routes/merge не менялись.
+
 Следующий authorized source slice reasoning76 изолирован от tested75: worktree
 `../corp-openweb-ui-goal584-reasoning`, branch `agent/goal584-reasoning-continuity`,
 base d11f4246. Существующие fixture/provider готовят только include native encrypted
@@ -463,6 +507,63 @@ default packet точно равен75; representative payload91917/98304bytes, 
 DB ancestry/reload/secondSend/fullwire/auth/provider/finance/image imports ещё
 НЕ приняты, source подготовка не заменяет их. Evidence: `reasoning76-independent-review/`,
 `reasoning76-root-repeat/`, `reasoning76-source-commit.safe.json` и source worktree.
+
+Следующий reasoning runtime slice (готовится только в isolated worktree): native
+Chat GET/ACL владеет сохранённым output/ancestry → browser reload и второй ordinary
+Send; existing native_context конвертирует actual saved output без history assembly
+→ existing compatibility owner сравнивает полный actual first/second auth/provider
+wire и новые IDs/nonces. Native SpendLogs/user/key counters → existing
+verify_finance с finite one-call mode (.20) при прежнем default three-call (.60);
+service follow-up остаётся отдельным existing payer/verify_service_finance.
+Collector и host только задают порядок baseline → native conversion → UI → exact
+wire/financial checks; original first3+service acceptance сохраняется отдельным.
+Новый runtime history/ledger/providerclient/core не создаётся. Ready этого среза:
+actual same-chat reload/secondSend + полный native saved-output/wire/nonce/одна
+личная и одна native service row, $0.20 response/$0.80 chat, все old rows/caps/
+otherpayers/Files/SOURCE/instruction/14schemas сохранены; до этого stage pending.
+
+Reasoning continuation, текущая source-подготовка06.11: isolated HEAD05f40a46
+сохраняет первоначальные6files e8942c09 и finite existing finance mode1/.20 при
+неизменном default3/.60. Browser и collector используют общие pure owners для
+отправленного native turn и сохранённой ancestry; новые runtime history/accounting
+owners не создаются. Root повторил37submission cases (34coherent mutations),
+41saved-context cases,46прежних wire/context cases и20browser source/IO tests,
+без skips/network. Полный retained input13/saved8/opaque3/14schemas/actual33038BPNG
+проходит прежние native converters и source checks; full-workflow payload96040
+из98304bytes, прежний bound не повышен. Это уточняет прежние91917bytes, измеренные
+с укороченным component workflow. Raw SDK shape ранее проверена отдельно8JSON/SSE
+случаями, а не объявлена доказательством deployed-image parity.
+
+Новый host step готовится в существующем Office workflow: fresh baseline →
+две existing native_context observations actual saved output/provider final →
+один ordinary UI Send в том же чате после reload → native wire/SpendLogs/counters.
+Argument bound проверяется до нового Send; complete native-context packets
+остаются private, public receipt содержит hashes/counts. Новый этап запускается
+до прежних key-block/unknown-policy checks, services/Compose/core не меняются.
+Collector64tests и browser20tests PASS/0skip; root повторил их и6actual-heredoc
+host cases (успех/source mismatch/context bound/late failure/exit mismatch).
+Эти IO-leaf проверки не доказывают actual POSIX UID/DB/auth/finance. Найденный
+root0600 handoff gap исправлен без chown/ослабления прав: root читает только
+проекцию chat/baseline, host сохраняет её отдельным private-файлом для browser;
+финансовый STATE по-прежнему читается только collector. Source1c2bb77d и прежние
+e8942c09/05f40a46 интегрированы с accepted76 как91b60074; все13source files exact
+Git/isolated/delivery, новый host step exact до/после merge. Ни deploy, ни Compose,
+ни core этим diff не меняются. Actual стенд кандидата77 ещё не запущен/не принят;
+следующий шаг — публикация и тот же isolated Office/native CI. Evidence:
+`reasoning-continuation-domain/`, `reasoning-continuation-root-repeat/`,
+`reasoning-browser-shared-history/`, `reasoning-browser-shared-root-repeat/`.
+
+Admin unknown projection, source06.11:8selected native files совпали с pinned
+d665Git. Штатный key/block принимает только key и пишет blocked/settings timestamp;
+native token/key-info не содержат причины блокировки. Поэтому blocked с отсутствующим
+SpendLogs marker не означает ни manual block, ни известный расход. Наименьшая
+проекция показывает отдельно native blocked True/False/None и положительно
+подтверждённый unknown/block либо block_failed event из существующего журнала;
+модель связывается через model_group и прежний signed personal scope. Сам marker
+не доказывает исключительную текущую причину blocked. Новый reason/state store
+не добавлен. Пропуски retention/pagination/reset-start/async logging не позволяют
+объявить расходы полными по отрицательному поиску. Это source finding, не готовый
+admin UI и не изменение полномочий. Evidence: `admin-unknown-native-review/`.
 
 Новый bounded source finding для mandatory stream policy: stock iterator hook
 уже получает real auth и исполняет normal-end guard до deferred SLP/SpendLogs.
