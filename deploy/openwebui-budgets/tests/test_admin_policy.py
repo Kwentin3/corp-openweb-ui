@@ -130,6 +130,23 @@ class PolicyTests(unittest.TestCase):
         self.assertIsNone(unknown["remaining_usd"])
         self.assertEqual([m["share_percent"] for m in unknown["models"]], ["", ""])
 
+    def test_public_projection_preserves_native_block_tristate_and_revision(self):
+        identity = {"user_id": USER, "name": "Ada", "email": "ada@example.invalid"}
+        before = state()
+        revisions = set()
+        for blocked in (True, False, None):
+            observed = replace(before, models=(before.models[1], replace(before.models[0], blocked=blocked)))
+            row = policy.public_employee(identity, observed)
+            self.assertEqual([model["id"] for model in row["models"]], ["a", "b"])
+            self.assertIs(row["models"][0]["blocked"], blocked)
+            self.assertIs(row["models"][1]["blocked"], False)
+            self.assertEqual(row["revision"], policy.revision(observed))
+            revisions.add(row["revision"])
+            self.assertEqual([(model["cap_usd"], model["spend_usd"], model["share_percent"])
+                              for model in row["models"]], [("5", "0.4", "50"), ("5", "0.6", "50")])
+        self.assertEqual(len(revisions), 3)
+        self.assertIs(before.models[0].blocked, False)
+
     def test_display_filters_cannot_introduce_business_operations(self):
         with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_view"):
             policy.parse_view('{"max_budget":"100"}')
@@ -210,6 +227,18 @@ class BootstrapPolicyTests(unittest.TestCase):
 
 
 class MutationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cap_change_preserves_each_native_block_state(self):
+        for blocked in (True, False, None):
+            with self.subTest(blocked=blocked):
+                original = state()
+                before = replace(original, models=(replace(original.models[0], blocked=blocked), original.models[1]))
+                client = NativeClient(before)
+                after = await policy.apply_prepared(client, prepared(before, "20"))
+                self.assertIs(after.models[0].blocked, blocked)
+                self.assertEqual([model.blocked for model in after.models], [model.blocked for model in before.models])
+                self.assertEqual(after.spend, before.spend)
+                self.assertEqual(after.budget_reset_at, before.budget_reset_at)
+
     async def test_lower_model_then_raise_total_then_raise_other_model(self):
         before = state()
         client = NativeClient(before)

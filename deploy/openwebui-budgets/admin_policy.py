@@ -311,6 +311,7 @@ def public_employee(identity, state):
             "remaining_usd": money(state.max_budget - state.spend) if state.max_budget is not None else None,
             "models": [{"id": model.model, "label": labels.get(model.model, model.model),
                         "cap_usd": money(model.max_budget), "spend_usd": money(model.spend),
+                        "blocked": model.blocked,
                         "share_percent": money(shares[model.model]) if model.model in shares else ""}
                        for model in sorted(state.models, key=lambda item: item.model)]}
 
