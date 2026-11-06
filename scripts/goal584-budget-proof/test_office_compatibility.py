@@ -1027,6 +1027,63 @@ def test_one_call_finance_preserves_all_raw_row_scope_rate_history_and_fee_guard
         P.verify_finance(before, after, **kwargs)
 
 
+def buffered_financial_fixture(component, monkeypatch, count):
+    before, after, kwargs = (continuation_financial_fixture(component, monkeypatch) if count == 1
+                             else financial_fixture(component, monkeypatch))
+    retained = {row['request_id'] for row in before['rows']}
+    for row in after['rows']:
+        if row['request_id'] not in retained:
+            # Actual native buffered ID/SLP shape, decoded by the pinned SDK.
+            row['request_id'] = kwargs['decode_response_id'](row['request_id'])['response_id']
+    return before, after, {**kwargs, 'provider_transport': 'buffered'}
+
+
+@pytest.mark.parametrize('count', [1, 3])
+def test_buffered_finance_joins_native_raw_id_to_exact_row_deployment_scope_and_rates(component, monkeypatch, count):
+    before, after, kwargs = buffered_financial_fixture(component, monkeypatch, count)
+    original = copy.deepcopy((before, after, kwargs['calls_by_provider']))
+    assert P.verify_finance(before, after, **kwargs) == {
+        'physical_calls': count, 'new_raw_rows': count, 'native_spend_delta_usd': {1: '.20', 3: '.60'}[count]}
+    assert (before, after, kwargs['calls_by_provider']) == original
+    with pytest.raises(P.ProofError, match='office_row_dispatch_binding'):
+        P.verify_finance(before, after, **{**kwargs, 'provider_transport': 'native'})
+
+
+@pytest.mark.parametrize('count', [1, 3])
+@pytest.mark.parametrize('mutation', ['encoded_id', 'partial_provider', 'partial_model', 'model', 'provider',
+    'scope', 'scope_map', 'duplicate', 'missing', 'old_row', 'old_payer', 'cap', 'counter', 'usage', 'spend', 'rate'])
+def test_buffered_finance_preserves_strict_binding_and_existing_money_guards(component, monkeypatch, count, mutation):
+    before, after, kwargs = buffered_financial_fixture(component, monkeypatch, count)
+    row = after['rows'][-1]; provider = row['request_id']; deployment = kwargs['deployment_id']
+    if mutation in ('encoded_id', 'partial_provider', 'partial_model'):
+        native_provider = 'None' if mutation == 'partial_provider' else 'openai'
+        native_model = 'None' if mutation == 'partial_model' else deployment
+        row['request_id'] = 'resp_' + base64.b64encode(('litellm:custom_llm_provider:' + native_provider
+            + ';model_id:' + native_model + ';response_id:' + provider).encode()).decode()
+    elif mutation == 'model': row['model_id'] = 'foreign-deployment'
+    elif mutation == 'provider': row['request_id'] = 'resp_unobserved_provider'
+    elif mutation == 'scope': row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
+    elif mutation == 'scope_map': kwargs['calls_by_provider'][provider]['call_id'] = str(uuid4())
+    elif mutation == 'duplicate': after['rows'].append(copy.deepcopy(row))
+    elif mutation == 'missing': after['rows'].pop()
+    elif mutation == 'old_row': after['rows'][0]['spend'] = 1
+    elif mutation == 'old_payer': after['old_payers']['existing-payer']['key']['spend'] = 5
+    elif mutation == 'cap': after['key']['max_budget'] = 11
+    elif mutation == 'counter': after['key']['spend'] += .01
+    elif mutation == 'usage': row['total_tokens'] = True
+    elif mutation == 'spend': row['spend'] = .21
+    else: row['metadata']['spend_logs_metadata']['owui_billed_token_rates']['rates']['input_cost_per_token'] = .03
+    with pytest.raises(P.ProofError): P.verify_finance(before, after, **kwargs)
+
+
+@pytest.mark.parametrize('transport', [None, True, False, 0, [], {}, 'auto', 'both', 'Buffered'])
+def test_finance_transport_is_explicit_finite_and_never_inferred_from_rows(transport):
+    with pytest.raises(P.ProofError, match='office_provider_transport'):
+        P.verify_finance({}, {}, calls_by_provider={}, actor=None, key_hash=None, chat_id=None, answer_id=None,
+            wire_model=None, deployment_id=None, validate_scope=None, validate_rates=None, decode_response_id=None,
+            provider_transport=transport)
+
+
 def service_financial_fixture(component, monkeypatch):
     before, primary_after, primary = financial_fixture(component, monkeypatch)
     actor, payer, key_hash = primary['actor'], str(uuid4()), 'b' * 64

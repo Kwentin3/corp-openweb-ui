@@ -242,7 +242,8 @@ def verify(before, after, provider, capture, saved, browser, packet, office, d):
     main = proof.verify_finance(before['finance']['primary'], after['primary'], calls_by_provider=scopes,
         actor=actor, key_hash=key, chat_id=chat, answer_id=answer, wire_model='goal584-fake-office',
         deployment_id='goal584-office-primary', validate_scope=d['validate_persisted_scope'],
-        validate_rates=d['validate_snapshot'], decode_response_id=d['ResponsesAPIRequestUtils']._decode_responses_api_response_id)
+        validate_rates=d['validate_snapshot'], decode_response_id=d['ResponsesAPIRequestUtils']._decode_responses_api_response_id,
+        provider_transport=transport)
     task = verify_service_turn(service, before['finance']['service'], after['service'], final,
         actor=actor, payer=payer, chat=chat, descriptor=before['descriptor'], d=d)
     require(set(before['finance']['raw_owners']) == set(after['raw_owners']), 'office_payer_inventory_changed')
@@ -288,7 +289,8 @@ def verify_continuation(state, after, provider, captured, saved, browser, packet
         actor=actor, key_hash=before['finance']['primary']['key']['token'], chat_id=chat, answer_id=answer_id,
         wire_model='goal584-fake-office', deployment_id='goal584-office-primary',
         validate_scope=d['validate_persisted_scope'], validate_rates=d['validate_snapshot'],
-        decode_response_id=d['ResponsesAPIRequestUtils']._decode_responses_api_response_id, expected_calls=1)
+        decode_response_id=d['ResponsesAPIRequestUtils']._decode_responses_api_response_id, expected_calls=1,
+        provider_transport=transport)
     task = verify_service_turn(service, before['finance']['service'], after['service'], final,
         actor=actor, payer=payer, chat=chat, descriptor=state['descriptor'], d=d,
         expected_user_request=proof.CONTINUATION_REQUEST)
