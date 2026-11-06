@@ -174,6 +174,112 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(sys.modules["employee_budget_provenance"].ProtocolError):
             await self.sign()
 
+    async def community_worker(self, *, parent="gpt-6.1-sol", parent_base=None, inherited_base=None):
+        """Server-context fixture; the exact cached Tool has a separate source replay."""
+        worker = "corporate-office-worker"
+        self.metadata = {"user_id": USER, "chat_id": CHAT, "message_id": ANSWER,
+                         "chat_context": {"messages": [], "params": {}}, "internal": False}
+        self.request = SimpleNamespace(state=SimpleNamespace(internal=False),
+            app=SimpleNamespace(state=SimpleNamespace(OPENAI_MODELS={
+                "gpt-6.1-sol": {"urlIdx": 0}, "gpt-6.1-terra": {"urlIdx": 1}})))
+        if inherited_base is not None:
+            self.request.base_model_id = inherited_base
+        self.models.get_model_by_id.side_effect = lambda model: (
+            SimpleNamespace(base_model_id="gpt-6.1-terra") if model == worker
+            else SimpleNamespace(base_model_id=parent_base) if parent_base else None)
+        self.messages[(CHAT, ANSWER)] = {"id": ANSWER, "role": "assistant", "model": parent}
+        self.model = {"id": parent, "owned_by": "openai"}
+        self.connection.reset_mock()
+        self.connection.side_effect = None
+        self.connection.return_value = ("http://proxy:4000/v1", SECRET, {})
+        parent_body = self.body();parent_body["model"] = parent
+        await self.sign(parent_body)
+        parent_request, parent_metadata = self.request, self.metadata
+        self.metadata = copy.deepcopy(parent_metadata)
+        self.metadata["task"] = "sub_agent"
+        self.request = copy.copy(parent_request)
+        self.request.state = copy.copy(parent_request.state)
+        self.request.state.metadata = self.metadata
+        self.model = {"id": worker, "owned_by": "openai"}
+        body = self.body();body.update(model=worker, stream=False)
+        return body, parent_request, parent_metadata
+
+    async def test_community_worker_uses_native_model_default_and_keeps_parent_context(self):
+        for parent, base, inherited in (("gpt-6.1-sol", None, None),
+                ("corporate-documents", "gpt-6.1-terra", "gpt-6.1-terra"),
+                ("corporate-documents", "gpt-6.1-sol", "gpt-6.1-sol")):
+            with self.subTest(parent=parent, inherited=inherited):
+                body, parent_request, parent_metadata = await self.community_worker(
+                    parent=parent, parent_base=base, inherited_base=inherited)
+                before, parent_before = copy.deepcopy(body), copy.deepcopy(parent_metadata)
+                signed = await self.sign(body)
+                self.assertEqual({k: v for k, v in signed.items() if k != "litellm_metadata"}, before)
+                self.assertEqual(parent_metadata, parent_before)
+                self.assertEqual(self.metadata["task"], "sub_agent")
+                self.assertFalse(hasattr(self.request, "base_model_id"))
+                self.assertEqual(getattr(parent_request, "base_model_id", None), inherited)
+                claims = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], SECRET,
+                                              user_id=USER, model="gpt-6.1-terra")
+                self.assertEqual((claims["chat_id"], claims["answer_id"], claims["root_chat_id"], claims["root_answer_id"]),
+                                 (CHAT, ANSWER, CHAT, ANSWER))
+                self.assertNotEqual(claims["jti"], parent_metadata[extension.ISSUED_SCOPE]["call_id"])
+                self.assertEqual(self.connection.await_args_list[-1].args, (1,))
+                self.assertNotIn(extension.ROOT_STATE, json.dumps(signed))
+
+    async def test_community_worker_each_real_request_gets_its_own_personal_nonce(self):
+        body, _, _ = await self.community_worker(inherited_base="gpt-6.1-sol")
+        first = await self.sign(copy.deepcopy(body))
+        second = await self.sign(copy.deepcopy(body))
+        scopes = [protocol.decode_call(value["litellm_metadata"]["owui_budget_provenance"], SECRET,
+                                      user_id=USER, model="gpt-6.1-terra") for value in (first, second)]
+        self.assertNotEqual(scopes[0]["jti"], scopes[1]["jti"])
+        self.assertTrue(all(scope["root_answer_id"] == ANSWER for scope in scopes))
+        self.assertTrue(all("payer_id" not in scope and "task" not in scope for scope in scopes))
+
+    async def test_community_worker_rejects_spoofed_parent_before_route_or_token_change(self):
+        for case in ("no_state", "state_mismatch", "forged_root", "foreign_user", "foreign_root", "expired_root",
+                     "wrong_metadata_object", "foreign_answer_owner", "wrong_worker", "unknown_task", "direct"):
+            with self.subTest(case=case):
+                body, parent_request, _ = await self.community_worker(inherited_base="gpt-6.1-sol")
+                if case == "no_state":delattr(self.request.state, extension.ROOT_STATE)
+                elif case == "state_mismatch":setattr(self.request.state, extension.ROOT_STATE, "other")
+                elif case in ("forged_root", "foreign_user", "foreign_root", "expired_root"):
+                    token = "forged" if case == "forged_root" else protocol.encode_root(SECRET,
+                        user_id=OTHER if case == "foreign_user" else USER,
+                        root_chat_id=OTHER if case == "foreign_root" else CHAT, root_answer_id=ANSWER,
+                        now=int(datetime.now(timezone.utc).timestamp()) - 86401 if case == "expired_root" else None)
+                    self.metadata["chat_context"][extension.ROOT_CAPSULE] = token
+                    setattr(self.request.state, extension.ROOT_STATE, token)
+                elif case == "wrong_metadata_object":self.request.state.metadata = copy.deepcopy(self.metadata)
+                elif case == "foreign_answer_owner":self.messages[(CHAT, ANSWER)]["user_id"] = OTHER
+                elif case == "wrong_worker":self.model["id"] = "another-worker"
+                elif case == "unknown_task":self.metadata["task"] = "sub_agent_other"
+                elif case == "direct":self.request.state.direct = True
+                with self.assertRaises(ValueError):await self.sign(body)
+                self.assertEqual(self.request.base_model_id, "gpt-6.1-sol")
+                self.assertEqual(parent_request.base_model_id, "gpt-6.1-sol")
+                self.assertNotIn("litellm_metadata", body)
+
+    async def test_community_worker_cannot_move_the_signed_parent_to_another_gateway(self):
+        body, parent_request, _ = await self.community_worker(inherited_base="gpt-6.1-sol")
+        self.connection.side_effect = lambda index: ("http://proxy:4000/v1",
+            SECRET if index == 0 else "another-synthetic-gateway-key-" * 2, {})
+        with self.assertRaises(ValueError):await self.sign(body)
+        self.assertEqual(parent_request.base_model_id, "gpt-6.1-sol")
+        self.assertNotIn("litellm_metadata", body)
+
+    async def test_ordinary_request_still_requires_its_saved_answer_model(self):
+        body, _, _ = await self.community_worker(inherited_base="gpt-6.1-sol")
+        self.metadata["task"] = ""
+        with self.assertRaisesRegex(ValueError, "answer_model"):await self.sign(body)
+        self.assertEqual(self.request.base_model_id, "gpt-6.1-sol")
+
+    def test_native_and_community_delegation_keep_cost_display_provisional(self):
+        for name in ("delegate_task", "run_sub_agent", "run_parallel_sub_agents"):
+            self.assertTrue(extension.has_delegation({"output": [{"type": "function_call", "name": name}]}))
+        self.assertFalse(extension.has_delegation({"output": [{"type": "function_call", "name": "apply_office_batch"}]}))
+        self.assertFalse(extension.has_delegation({"output": [{"type": "function_call_output", "name": "run_sub_agent"}]}))
+
     async def test_resumed_parent_owns_new_answer_and_ignores_inherited_capsule(self):
         self.metadata["message_id"] = NEXT_ANSWER
         self.metadata["chat_context"][extension.ROOT_CAPSULE] = protocol.encode_root(SECRET,
