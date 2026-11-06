@@ -361,7 +361,8 @@ class UnknownUsageTests(unittest.TestCase):
             else:
                 with redirect_stdout(StringIO()) as output:status=P.main()
         packet=json.loads(output.getvalue());self.assertEqual(status,1)
-        self.assertEqual((packet['stage'],packet['failure']),('provider_observed','unknown_native_contract_failed'))
+        expected_stage='response_received' if mode=='evidence_byte_bound' else 'provider_observed'
+        self.assertEqual((packet['stage'],packet['failure']),(expected_stage,'unknown_native_contract_failed'))
         self.assertEqual((len(self.wire.attempts),len(self.wire.physical)),(1,1))
         self.assertFalse(any(path in('/key/block','/key/unblock','/key/update','/__proof/reset','/__proof/control')
             for method,path,body in self.wire.requests if method=='POST'))
@@ -369,6 +370,56 @@ class UnknownUsageTests(unittest.TestCase):
             self.assertNotIn(secret,output.getvalue())
         if mode=='poll_deadline':self.assertEqual(clock[0],45)
         return packet
+
+    def preceding_provider_transcript(self):
+        """Explicit bounded synthetic stress, not recovered private Office data."""
+        for index in range(6):
+            pid='resp_prior_office_'+str(index)
+            self.wire.physical.append({'id':pid,'id_kind':'provider_response','route':'/v1/responses',
+                'body':{'model':'goal584-fake-office','input':'Prior Office export/render transcript: '+'x'*70000,
+                        'max_output_tokens':16,'store':False,'stream':False},
+                'usage':copy.deepcopy(P.RAW_USAGE),
+                'response':{'id':pid,'model':'goal584-fake-office','object':'response','status':'completed','error':None,
+                    'output':[{'type':'message','role':'assistant','content':[{'type':'output_text','text':'Prior Office result'}]}],
+                    'usage':copy.deepcopy(P.RAW_USAGE)},
+                'lifecycle':{'terminal':True,'outcome':'completed','response_status':200}})
+        return copy.deepcopy(self.wire.physical)
+
+    def test_large_preceding_transcript_retains_only_digest_and_full_new_records(self):
+        prior=self.preceding_provider_transcript();result=self.run_proof();state=P.fixture.read_private(self.state)
+        self.assertTrue(result['passed']);self.assertEqual(result['known_positive_total'],'.332')
+        self.assertEqual((len(self.wire.attempts),len(self.wire.physical)),(7,len(prior)+5))
+        self.assertEqual(self.wire.physical[:len(prior)],prior)
+        self.assertEqual(sum(key['blocked'] for key in self.wire.keys.values()),3)
+        self.assertLessEqual(len(P.encoded(state)),2*1024*1024)
+        physical_calls=[call for call in state['calls'] if call['status']==200]
+        self.assertEqual(len(physical_calls),5)
+        for index,call in enumerate(physical_calls):
+            self.assertNotIn('provider_observation',call)
+            observed={'synthetic':True,'control':{'tool_round':False},'requests':self.wire.physical[:len(prior)+index+1]}
+            self.assertEqual(call['provider_observation_sha256'],P.digest(observed))
+            self.assertEqual(call['provider'],self.wire.physical[len(prior)+index])
+            self.assertTrue(call['row_sha256'])
+        self.assertFalse(any(path in('/key/block','/key/unblock','/key/update','/__proof/reset','/__proof/control')
+            for method,path,body in self.wire.requests if method=='POST'))
+
+    def test_large_transcript_does_not_hide_malformed_new_record_or_changed_old_prefix(self):
+        for mode in('new_record','old_prefix'):
+            case=UnknownUsageTests();case.setUp()
+            try:
+                with self.subTest(mode=mode):
+                    case.preceding_provider_transcript();original=case.wire.handle
+                    def handle(method,url,*args,**kwargs):
+                        status,value=original(method,url,*args,**kwargs)
+                        if case.wire.attempts and urlsplit(url).hostname=='provider':
+                            if mode=='new_record':value['requests'][-1]['body']['model']='unobserved-new-model'
+                            else:value['requests'][0]['body']['input']='changed-old-prefix'
+                        return status,value
+                    with patch.object(case.wire,'handle',side_effect=handle),self.assertRaisesRegex(P.ProofError,
+                            'unknown_provider_context' if mode=='new_record' else 'unknown_provider_prefix_or_count'):
+                        case.run_proof()
+                    self.assertEqual((len(case.wire.attempts),len(case.wire.physical)),(1,7))
+            finally:case.doCleanups()
 
     def test_six_actual_owner_failures_have_distinct_bounded_owned_origins(self):
         expected={'provider_control_http':('prove_service_tasks.py','provider'),
