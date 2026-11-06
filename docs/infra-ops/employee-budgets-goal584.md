@@ -14,6 +14,84 @@ UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usag
 policy принята для personal nonstream Responses API и ordinary GUI profile;
 admin GUI этой policy, streams/CC, полная reasoning continuity и STT/Terminal ещё не приняты.
 
+Текущий опубликованный кандидат77: headf6e3f8dba56dba4eec490c937673443ee93f8acf,
+tested mergeb8a99106700a80afb65fae5a62306999685bba7e, fetched tree diff пуст.
+PR585 draft/open/unmerged, новая body прочитана точно. [Office77/42194067162](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42194067162),
+[Native77/42194067200](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42194067200)
+и [Active CI77/42194067161](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42194067161)
+завершились: Main/Active/оба calendars SUCCESS; Office и pricing FAILED.
+Main и calendars независимо приняты в своих границах и повторены root. Pricing
+остановился на устаревшем provider SHA до financial qualification; failed artifact
+сохранён, cleanup0/0/0. Три pin-значения исправлены только в isolated source,
+27existing tests PASS и root repeat; исправленный pricing ещё не запускался.
+Office step9 PASS; новый step10 FAILED `office_saved_provider_history`, поэтому
+key-block/APIunknown/GUIunknown steps11–13 SKIPPED и в77 не принимаются. Новый
+browser Send/reload/FileID/status.20/.80 наблюдался, но полный financial/history
+gate второго хода не принят. Exact artifact/source review step9 завершён и повторён
+root: full4wirejoins/3reasoning/4→7→10inputs/14schemas/SOURCE/Tool/PNG/DOCX,
+source-bound personal.60/service.20; cleanup0/0/0,5images/2helpers. Gates11–13
+требуют нового прогона. Root просмотрел actual first/continuation browser PNG.
+Общий77 не принят. Новые source/stand evidence:
+`candidate77-publish.safe.json`, `reasoning-continuation-root-repeat/`,
+`reasoning-readback-root-repeat/`, `reasoning-browser-owned-root-repeat/`.
+
+Main77 artifact13491718257/3926579bytes/230members/SHA340bb0da…:
+83actual passed receipts сохраняют77core/26negatives/8marker cases;
+53declared sources=51unchanged76+2Office-only deltas, pure P transitive source
+привязан к обоим recovery workers и overlap. Source-bound replay объяснил
+добавочные accounting polls service-admin03..07 (false×5→true, ровно2paidcalls),
+353inputs frozen; root repeat EXIT0 и обе actual PNG просмотрены. Cleanup0containers/
+0volumes, networks не заявлены. Calendars artifacts13490613815/13491002892,
+SHA62961072…/e1541839…:20CURRENT negatives, journals1/1/4,26sources/12mounts,
+floor final.581314s<5, cleanup0/0/0; root repeat EXIT0. Evidence:
+`native77-main-review/`, `native77-main-root-repeat/`, `native77-calendar-review/`,
+`native77-calendar-root-repeat/`, `native77-pricing-review/`,
+`native77-pricing-root-repeat/`, `pricing77-pin-root-repeat/`.
+
+Office77 failure artifact13491732783/1104358bytes/65members/SHAa1367a16…
+сохранён. Actual wires4/7/10/13; native saved-input projection hash отличается
+от actual second-wire saved8, тогда как его tail6 сохраняет прежний wire точно,
+final2 matches native final hash. Source-проверка установила неэквивалентность
+optional probe: обычный native reload разрешает image File URL через существующий
+authenticated resolver, probe пока этого не делает. Actual raw saved/native
+packets удалены cleanup, поэтому конкретное прежнее stored URL/дополнительные
+ложные conjuncts не восстановлены; потеря reasoning/ACL/ledger этим не доказана.
+Следующее source-исправление касается только optional probe: native ordinary-user
+resolver/sanitize/normalize в production order, default packet и строгие guards
+сохраняются; пять conjuncts получат bounded boolean diagnosis. Source/tests ещё
+подготовлены отдельно, нового CI после77 пока нет. Evidence:
+`office77-review/`, `office77-continuation-review/`.
+
+Следующий кандидат78 source: isolated bd01f05b/bfb9a1d8 интегрированы без потери
+GOAL WIP как3f4a0f0b/73f11a4b. Diff77→78 —9proof/test files, product/deploy/core/
+Compose и финансовые predicates не менялись. Три pricing pins обновлены к exact
+provider blobd9e4cd38…/catalog02cd0d09…. Optional saved probe теперь получает
+single prepared ordinary UID, читает actual native user/role, применяет native
+Files/Storage/ACL image resolver и sanitize/normalize в production order.
+External/unresolved images не получают успешный packet. Пять новых internal
+source checks включают existing media Storage59e43c4d…; packet6keys/savedcase2fields/
+4module map/raw echo/96KiB bound сохранены. Default packet и JSON data argument
+точно прежние; Python probe code/полный docker argv менялись.
+
+Root повторил70collector tests/49saved-history cases/16native resolver tests/
+2unchanged Git-LF input variants/27pricing-version tests, без skips/network в этих
+выборках. Independent resolver review безP1, native UserModel/UsersTable/FileModel/
+FilesTable/ACL/Storage исполнялись над DB/query IO leaves и actual33038B PNG;
+не объявляются liveDB происхождением. Raw broader Windows run сохранён как
+43PASS/2inherited CRLF test failures/1optional asset skip; два прежних теста и
+config assembler не менялись, exactGitLF variant проходит. Default и full saved8
+replay прошли; полная историческая причина77 остаётся ограниченной.
+
+Пять прежних history predicates теперь формируют bounded bool map только при
+своём FAIL; source AST reversal доказал исходные comparisons и finance/service
+default guards неизменными. CLI публикует только exact5keys/strictbool/хотя бы1False,
+не выводит raw packet/URL/opaque/auth/ledger;6publisher misuse cases проверены.
+Следующий обязательный gate — actual78 same-chat DB/File/Storage/secondSend/
+wire/finance и прежние11–13, затем independent artifact acceptance/cleanup.
+Evidence: `office77-resolver-source-review/`, `office77-resolver-independent-review/`,
+`office77-resolver-root-repeat/`, `office77-saved-history-atoms/`,
+`office77-atoms-root-repeat/`, `reasoning-image-probe-next-root/`.
+
 **Решение заказчика05.11, unknown expense:** если провайдер не вернул данные о
 расходе, блокировать этому сотруднику только эту модель и показывать «расход
 неизвестен». Заказчику объяснено, что первый запрос уже мог быть оплачен и его
@@ -548,8 +626,9 @@ root0600 handoff gap исправлен без chown/ослабления пра
 финансовый STATE по-прежнему читается только collector. Source1c2bb77d и прежние
 e8942c09/05f40a46 интегрированы с accepted76 как91b60074; все13source files exact
 Git/isolated/delivery, новый host step exact до/после merge. Ни deploy, ни Compose,
-ни core этим diff не меняются. Actual стенд кандидата77 ещё не запущен/не принят;
-следующий шаг — публикация и тот же isolated Office/native CI. Evidence:
+ни core этим diff не меняются. Кандидат77 опубликован и actual isolated Office/native
+CI запущен; runtime acceptance остаётся pending, состояние jobs записано в начале.
+Следующий шаг — terminal receipts, независимая приёмка/разбор failures. Evidence:
 `reasoning-continuation-domain/`, `reasoning-continuation-root-repeat/`,
 `reasoning-browser-shared-history/`, `reasoning-browser-shared-root-repeat/`.
 
