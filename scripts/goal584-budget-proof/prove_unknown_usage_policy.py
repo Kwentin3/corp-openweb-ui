@@ -42,6 +42,42 @@ KNOWN_COST = Decimal(".166")
 digest = lambda value: sha256(encoded(value)).hexdigest()
 
 
+def source_modules():
+    return (__name__, fixture.__name__, BudgetAdminClient.__module__, BudgetAdminError.__module__, assignment_matches.__module__,
+            fixture.write_private.__module__, encode_call.__module__, protected_r.__module__, no_credentials.__module__,
+            provider.__module__, read_cost_snapshot.__module__, "litellm_auth",
+            read_cost_snapshot.__globals__["validate_persisted_scope"].__module__)
+
+
+def failure_diagnostic(error, context):
+    """Only bounded attempt slots and owned source coordinates; no error text."""
+    value = {"error_class": "ProofError" if isinstance(error, ProofError) else
+                            "BudgetAdminError" if isinstance(error, BudgetAdminError) else "unexpected"}
+    if type(context.get("attempt")) is int and 1 <= context["attempt"] <= 7: value["attempt"] = context["attempt"]
+    if context.get("actor") in ("A", "B"): value["actor"] = context["actor"]
+    if type(context.get("model")) is int and 1 <= context["model"] <= 3: value["model"] = context["model"]
+    owned = {}
+    for name in source_modules():
+        filename = getattr(sys.modules.get(name), "__file__", None)
+        if isinstance(filename, str):
+            try: path = Path(filename).resolve(strict=True)
+            except OSError: continue
+            owned[path] = path.name
+    frames, trace = [], error.__traceback__
+    while trace is not None:
+        code, line = trace.tb_frame.f_code, trace.tb_lineno
+        try: path = Path(code.co_filename).resolve(strict=True)
+        except OSError: path = None
+        if path in owned and code.co_name != "require" and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", code.co_name) \
+                and type(line) is int and 1 <= line <= 1000000:
+            frame = (path, {"module": owned[path], "function": code.co_name, "line": line})
+            if frames and frames[-1][0] == path: frames[-1] = frame
+            else: frames.append(frame)
+        trace = trace.tb_next
+    value["origin"] = [frame for _, frame in frames[-2:]]
+    return value
+
+
 def known_proxy_usage(value):
     # Native typed serialization adds nullable defaults. Provider wire Usage
     # remains exact in physical(); this check only validates its proxy projection.
@@ -182,7 +218,7 @@ def settled(native, budget, scope, key_hash, unknown, previous, calls):
     return observation, row
 
 
-async def execute(receipt):
+async def execute(receipt, *, diagnostic=None):
     require(not STATE.exists() and len({STATE, RECEIPT, fixture.OPERATOR_STATE, WEBUI_STATE}) == 4,
             "unknown_requires_fresh_private_state")
     operator, webui = fixture.read_private(fixture.OPERATOR_STATE), fixture.read_private(WEBUI_STATE)
@@ -211,6 +247,8 @@ async def execute(receipt):
         chats = {(label, alias): str(uuid4()) for label in expected for alias in ALIASES}
         for label, alias, denied in (("A", ALIASES[0], False), ("A", ALIASES[1], False), ("A", ALIASES[1], True),
                                     ("A", ALIASES[2], False), ("A", ALIASES[2], True), ("A", ALIASES[0], False), ("B", ALIASES[1], False)):
+            if diagnostic is not None:
+                diagnostic.update(attempt=len(state["calls"]) + 1, actor=label, model=ALIASES.index(alias) + 1)
             await before_write();budget = expected[label];unknown = alias != ALIASES[0]
             answer, chat = str(uuid4()), chats[label, alias]
             token = encode_call(secret, user_id=budget.user_id, model=alias, chat_id=chat, answer_id=answer,
@@ -268,10 +306,7 @@ async def execute(receipt):
     candidate = dict(receipt, provider_dispatches=5, inference_attempts=7, known_positive_costs=[".166", ".166"],
         known_positive_total=".332", blocked_assignments=3, unknown_cost_finality=False, explicit_zero_runtime_qualified=False,
         browser_or_chat_ancestry_qualified=False, route_sha256=route, rows_sha256={n: digest(v["rows"]) for n, v in last.items()})
-    modules = (__name__, fixture.__name__, BudgetAdminClient.__module__, BudgetAdminError.__module__, assignment_matches.__module__,
-               fixture.write_private.__module__, encode_call.__module__, protected_r.__module__, no_credentials.__module__,
-               provider.__module__, read_cost_snapshot.__module__, "litellm_auth",
-               read_cost_snapshot.__globals__["validate_persisted_scope"].__module__)
+    modules = source_modules()
     candidate["source_sha256"] = {Path(sys.modules[n].__file__).name: sha256(Path(sys.modules[n].__file__).read_bytes()).hexdigest() for n in modules}
     candidate["mounted_source_sha256"] = {n: sha256(path.read_bytes()).hexdigest() for n, path in MOUNTED_SOURCES.items()}
     no_credentials(candidate, [secret, viewer["key"], *private_credentials(operator), *private_credentials(webui)])
@@ -283,17 +318,22 @@ def main():
     receipt = {"schema": 1, "proof": PROOF, "passed": False, "stage": "preflight",
                "worker_sha256": sha256(Path(__file__).read_bytes()).hexdigest()}
     available = not RECEIPT.exists() and not RECEIPT.is_symlink()
+    diagnostic = {}
     try:
-        require(available, "unknown_requires_new_safe_receipt");asyncio.run(execute(receipt))
+        require(available, "unknown_requires_new_safe_receipt");asyncio.run(execute(receipt, diagnostic=diagnostic))
     except ProofError as error:
         code = str(error)
         receipt.update(passed=False, failure=code if len(code) <= 128 and re.fullmatch(r"unknown_[a-z_]+", code)
                        else "unknown_native_contract_failed")
+        receipt["diagnostic"] = failure_diagnostic(error, diagnostic)
     except BudgetAdminError as error:
         code = error.code
         receipt.update(passed=False, failure="unknown_native_" + code if isinstance(code, str) and len(code) <= 96
                        and re.fullmatch(r"[a-z][a-z0-9_]*", code) else "unknown_native_contract_failed")
-    except Exception: receipt.update(passed=False, failure="unknown_usage_unexpected_failure")
+        receipt["diagnostic"] = failure_diagnostic(error, diagnostic)
+    except Exception as error:
+        receipt.update(passed=False, failure="unknown_usage_unexpected_failure")
+        receipt["diagnostic"] = failure_diagnostic(error, diagnostic)
     no_credentials(receipt)
     if available: fixture.write_private(RECEIPT, receipt)
     print(json.dumps(receipt, indent=2, allow_nan=False))
