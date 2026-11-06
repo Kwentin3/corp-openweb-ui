@@ -12,6 +12,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
 from html.parser import HTMLParser
+import hashlib
 import ipaddress
 import json
 from pathlib import Path
@@ -332,7 +333,8 @@ def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, outp
     (output / (label + ".html")).write_text(html, encoding="utf-8")
     page.screenshot(path=str(output / (label + ".png")))
     proof.update(editor_rows=rows, terminal_persisted=True, native_embed_count=len(embeds),
-                 editor_source="function_call_output.embeds", sandbox_same_origin=False, backend_status=status)
+                 editor_source="function_call_output.embeds", sandbox_same_origin=False, backend_status=status,
+                 diagnostic_source=editor_source(html, "message-" + sent["id"]))
     write_json(output / (label + ".json"), proof)
     return frame, rows, proof
 
@@ -363,13 +365,105 @@ def diff_lines(rows, plan):
     return lines
 
 
-def submit_plan(page, frame, plan, base, output, label, *, approve):
+def editor_source(html, card_id):
+    programs = re.findall(r"<script>\(\(\)=>\{.*?</script>", html, re.DOTALL)
+    return {"card_id": card_id, "srcdoc_sha256": hashlib.sha256(html.encode()).hexdigest(),
+            "inline_program_sha256": hashlib.sha256(programs[0].encode()).hexdigest() if len(programs) == 1 else None}
+
+
+def observe_admin_browser(page):
+    """Bounded passive browser diagnostics; never retain raw console/messages."""
+    counts = Counter()
+    def console(message):
+        text = message.text.lower()
+        for code, present in (("console_csp", "content security policy" in text or "content-security-policy" in text),
+                ("console_script_blocked", "blocked script execution" in text or "refused to execute inline script" in text),
+                ("console_error", message.type == "error")):
+            if present: counts[code] = min(counts[code] + 1, 1000)
+    page.on("console", console)
+    page.on("pageerror", lambda _: counts.update({"pageerror": int(counts["pageerror"] < 1000)}))
+    page.evaluate("""() => {
+      const state={card:null,frames:new WeakMap(),next:0,loads:0,sourceChanges:0,prompts:0,lastPrompt:null};
+      window.__goal584AdminDiagnostics=state;
+      window.addEventListener('message',event=>{
+        if(event.data?.type!=='input:prompt:submit')return;
+        state.prompts=Math.min(state.prompts+1,1000);
+        const frame=document.getElementById(state.card)?.querySelector('iframe[srcdoc*="data-budget-editor"]');
+        const text=typeof event.data.text==='string'?event.data.text:'';
+        const record={source_matches_frame:!!frame&&event.source===frame.contentWindow,
+          source_connected:!!frame?.isConnected,origin_kind:event.origin===window.origin?'same':event.origin==='null'?'opaque':'other',
+          text_chars:Math.min(text.length,1048577),text_sha256:null};
+        state.lastPrompt=record;
+        if(text.length<=1048576&&crypto.subtle)crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))
+          .then(hash=>record.text_sha256=[...new Uint8Array(hash)].map(v=>v.toString(16).padStart(2,'0')).join('')).catch(()=>{});
+      });
+    }""")
+    return counts
+
+
+def admin_editor_diagnostic(page, frame, source, counts):
+    """Observe one current iframe; no product action, readiness rule or API call."""
+    source = source or {}
+    outer = frame.owner.evaluate("""(element,card) => {
+      const s=window.__goal584AdminDiagnostics;
+      if(s){if(s.card!==card){s.card=card;s.prompts=0;s.lastPrompt=null;s.loads=0;s.sourceChanges=0;}if(!s.frames.has(element)){
+        s.frames.set(element,++s.next);element.addEventListener('load',()=>s.loads=Math.min(s.loads+1,1000));
+        new MutationObserver(()=>s.sourceChanges=Math.min(s.sourceChanges+1,1000)).observe(element,{attributes:true,attributeFilter:['srcdoc','sandbox']});}}
+      return {srcdoc:element.getAttribute('srcdoc')||'',sandbox:element.getAttribute('sandbox')||'',
+        card_matches:element.closest('[id^="message-"]')?.id===card,connected:element.isConnected,
+        frame_instance:s?s.frames.get(element):null,observed_loads:s?s.loads:null,observed_source_changes:s?s.sourceChanges:null,
+        prompt_messages:s?s.prompts:null,last_prompt:s?s.lastPrompt:null};
+    }""", source.get("card_id"), timeout=500)
+    html = outer.pop("srcdoc")
+    actual = editor_source(html, "")
+    outer["sandbox"] = sorted(set(outer["sandbox"].split()) & {
+        "allow-scripts", "allow-forms", "allow-same-origin", "allow-popups", "allow-downloads"})
+    outer.update(srcdoc_sha256=actual["srcdoc_sha256"], inline_program_sha256=actual["inline_program_sha256"],
+        srcdoc_matches_saved=actual["srcdoc_sha256"] == source.get("srcdoc_sha256"),
+        inline_program_matches_saved=actual["inline_program_sha256"] is not None
+            and actual["inline_program_sha256"] == source.get("inline_program_sha256"))
+    child = frame.locator("main").evaluate("""() => {
+      const s=window.__goal584BudgetEditorProbe??={seq:0,inputs:0,clicks:0,lastInput:null,lastClick:null};
+      if(!s.bound){s.bound=true;document.addEventListener('input',e=>{if(e.target.closest('#editor')){
+        s.inputs=Math.min(s.inputs+1,1000);s.lastInput=s.seq=Math.min(s.seq+1,1000);}},true);
+        document.addEventListener('click',e=>{if(e.target.closest('#apply')){
+          s.clicks=Math.min(s.clicks+1,1000);s.lastClick=s.seq=Math.min(s.seq+1,1000);}},true);}
+      return {ready_state:document.readyState,time_origin:performance.timeOrigin,apply_disabled:document.getElementById('apply')?.disabled??null,
+        feedback:document.getElementById('feedback')?.textContent??'',preview:document.getElementById('preview')?.textContent??'',
+        input_events:s.inputs,click_events:s.clicks,last_input_sequence:s.lastInput,last_click_sequence:s.lastClick};
+    }""", timeout=500)
+    for name in ("feedback", "preview"):
+        value = child.pop(name)
+        child[name] = {"chars": len(value), "sha256": hashlib.sha256(value.encode()).hexdigest()}
+    return {"iframe": outer, "document": child, "browser_codes": {k: counts.get(k, 0) for k in
+        ("console_csp", "console_script_blocked", "console_error", "pageerror")}, "native_client": {
+        "stop_visible": page.locator('button[aria-label="Stop"],button[aria-label="Остановить"]').first.is_visible(),
+        "send_visible": page.locator("#send-message-button").is_visible(),
+        "composer_visible": page.locator("#chat-input").is_visible()}, "observation_only": True}
+
+
+def submit_plan(page, frame, plan, base, output, label, *, approve, source=None, browser_codes=None):
     text = json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
     expected_diff = diff_lines(json.loads(frame.locator("#budget-data").text_content()), plan)
+    diagnostics = {"schema": 1, "proof": "goal584-admin-editor-observation", "observation_only": True, "stages": []}
+    def observe(stage):
+        try: snapshot = admin_editor_diagnostic(page, frame, source, browser_codes or {})
+        except Exception as error:
+            snapshot = {"capture_unavailable": True,
+                        "capture_error_code": "timeout" if isinstance(error, PlaywrightTimeoutError) else "browser_error"}
+        diagnostics["stages"].append({"stage": stage, **snapshot})
+        try: write_json(output / (label + "-editor-diagnostic.json"), diagnostics)
+        except Exception: pass  # Diagnostics cannot replace the original proof failure.
+    observe("before_fill")
     fill_plan(frame, plan)
+    observe("after_fill")
     frame.get_by_role("button", name="Применить изменения", exact=True).click()
+    observe("after_click")
     prompt = page.get_by_role("dialog", name="Confirm Prompt from Embed", exact=True)
-    expect(prompt).to_be_visible()
+    try: expect(prompt).to_be_visible()
+    except Exception:
+        observe("missing_embed_confirmation")
+        raise
     expect(prompt).to_contain_text("employee_budget_plan")
     for change in plan["changes"]:
         expect(prompt).to_contain_text(change["expected_revision"])
@@ -431,6 +525,7 @@ def main():
         browser = playwright.chromium.launch(channel="chrome", headless=True)
         receipt["browser_version"] = browser.version
         page, token = admin_login(browser, args.base_url, admin)
+        browser_codes = observe_admin_browser(page)
         selector = page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first
         selector.click()
         page.locator('button[data-value="' + model_id + '"]').click()
@@ -441,7 +536,8 @@ def main():
         frame, rows, opened = wait_editor(page, args.base_url, token, chat_id, sent, admin["id"], model_id,
                                          INTENT, args.output, "admin-opened")
         plan = planned_changes(rows, staff_ids)
-        sent_cancel, cancel_chat, cancel_text = submit_plan(page, frame, plan, args.base_url, args.output, "admin-canceled", approve=False)
+        sent_cancel, cancel_chat, cancel_text = submit_plan(page, frame, plan, args.base_url, args.output, "admin-canceled", approve=False,
+            source=opened["diagnostic_source"], browser_codes=browser_codes)
         frame, cancel_rows, canceled = wait_editor(page, args.base_url, token, cancel_chat, sent_cancel, admin["id"], model_id,
             cancel_text, args.output, "admin-canceled", status="Изменения отменены.")
         after_cancel = fixture.snapshot()
@@ -450,7 +546,8 @@ def main():
         require(cancel_rows == rows, "Canceled form no longer shows actual unchanged employee state")
         retry = planned_changes(cancel_rows, staff_ids)
         require(retry == plan, "Canceled plan unexpectedly changed its original values/revisions")
-        sent_apply, apply_chat, apply_text = submit_plan(page, frame, retry, args.base_url, args.output, "admin-applied", approve=True)
+        sent_apply, apply_chat, apply_text = submit_plan(page, frame, retry, args.base_url, args.output, "admin-applied", approve=True,
+            source=canceled["diagnostic_source"], browser_codes=browser_codes)
         saved_frame, saved_rows, applied = wait_editor(page, args.base_url, token, apply_chat, sent_apply, admin["id"], model_id,
             apply_text, args.output, "admin-applied", status="Изменения применены.")
         after_apply = fixture.snapshot()
@@ -475,7 +572,7 @@ def main():
         require(len(recovery["changes"]) == 1 and recovery["changes"][0]["user_id"] == staff_ids[1],
                 "Recovery form must change only employee two")
         sent_recovery, recovery_chat, recovery_text = submit_plan(page, saved_frame, recovery, args.base_url,
-            args.output, "admin-recovered", approve=True)
+            args.output, "admin-recovered", approve=True, source=applied["diagnostic_source"], browser_codes=browser_codes)
         _, recovered_rows, recovered = wait_editor(page, args.base_url, token, recovery_chat, sent_recovery,
             admin["id"], model_id, recovery_text, args.output, "admin-recovered", status="Изменения применены.")
         after_recovery = fixture.snapshot()

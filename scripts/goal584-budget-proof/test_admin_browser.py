@@ -57,6 +57,49 @@ def changed_state(before, second='.4'):
 
 
 class AdminVerifierTests(unittest.TestCase):
+    def test_editor_diagnostic_source_binds_program_without_retaining_form_data(self):
+        program = '<script>(()=>{window.fixture=true;})();</script>'
+        first = '<main>PRIVATE_EMPLOYEE</main>' + program
+        second = '<main>OTHER_EMPLOYEE</main>' + program
+        observed = DRIVER.editor_source(first, 'message-current')
+        self.assertEqual(observed['inline_program_sha256'], DRIVER.editor_source(second, 'message-current')['inline_program_sha256'])
+        self.assertNotEqual(observed['srcdoc_sha256'], DRIVER.editor_source(second, 'message-current')['srcdoc_sha256'])
+        self.assertNotIn('PRIVATE_EMPLOYEE', json.dumps(observed))
+        self.assertIsNone(DRIVER.editor_source(first + program, 'message-current')['inline_program_sha256'])
+
+    def test_passive_browser_observer_exports_fixed_codes_without_console_content(self):
+        page = Mock(); callbacks = {}
+        page.on.side_effect = lambda event, callback: callbacks.update({event: callback})
+        counts = DRIVER.observe_admin_browser(page)
+        callbacks['console'](SimpleNamespace(type='error', text='Blocked script execution https://private.invalid/?token=SECRET'))
+        callbacks['console'](SimpleNamespace(type='warning', text='Content Security Policy: PRIVATE_EMPLOYEE'))
+        callbacks['pageerror'](RuntimeError('PRIVATE_ERROR_BODY'))
+        self.assertEqual(dict(counts), {'console_script_blocked': 1, 'console_error': 1, 'console_csp': 1, 'pageerror': 1})
+        self.assertNotIn('PRIVATE', json.dumps(counts)); self.assertNotIn('SECRET', json.dumps(counts))
+        page.context.request.get.assert_not_called()
+
+    def test_missing_embed_confirmation_keeps_original_failure_one_click_and_bounded_diagnostics(self):
+        for capture_error in (False, True):
+            page, frame = Mock(), Mock()
+            frame.locator.return_value.text_content.return_value = '[]'
+            failure = AssertionError('original missing embed confirmation')
+            assertion = Mock(); assertion.to_be_visible.side_effect = failure
+            written = []
+            def save(path, value): written.append(copy.deepcopy(value))
+            with self.subTest(capture_error=capture_error), patch.object(DRIVER, 'expect', return_value=assertion), \
+                    patch.object(DRIVER, 'fill_plan') as fill, patch.object(DRIVER, 'diff_lines', return_value=[]), \
+                    patch.object(DRIVER, 'admin_editor_diagnostic', side_effect=RuntimeError('PRIVATE_CAPTURE_BODY') if capture_error else None,
+                                 return_value={'observation_only': True}), patch.object(DRIVER, 'write_json', side_effect=save):
+                with self.assertRaises(AssertionError) as raised:
+                    DRIVER.submit_plan(page, frame, {'changes': []}, 'http://unused', Path('unused'), 'admin-applied', approve=True)
+                self.assertIs(raised.exception, failure)
+                frame.get_by_role.return_value.click.assert_called_once_with()
+                fill.assert_called_once(); assertion.to_be_visible.assert_called_once_with()
+                page.expect_response.assert_not_called()
+            self.assertEqual([item['stage'] for item in written[-1]['stages']],
+                ['before_fill', 'after_fill', 'after_click', 'missing_embed_confirmation'])
+            self.assertNotIn('PRIVATE_CAPTURE_BODY', json.dumps(written))
+
     def test_exact_plan_and_changed_rows_only_recovery(self):
         plan = DRIVER.planned_changes(public_rows(snapshot()), IDS)
         self.assertEqual(plan['changes'][0]['budget_usd'], '40')

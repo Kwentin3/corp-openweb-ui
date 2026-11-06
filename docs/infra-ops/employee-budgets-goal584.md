@@ -323,10 +323,10 @@ Private full ledger/scopes не экспортировались; это не н
 финансовых rows. Browser/admin/streams/explicit-zero UI/весь GOAL не принимаются
 этим API gate. Evidence: `local/goal584/office74-review/`, `native74-*-review/`.
 
-**Текущий следующий75, ещё не опубликован:**8GUI files прошли bounded source
+**Текущий75, опубликован, runtime ещё не принят:**8GUI files прошли bounded source
 reviews и root checks, commitcf7d8da8 в отдельном worktree перенесён cherry-pick
 в основной root branch как ff4217df1f3c599b18f91331223f3ba7f365ddda (parent6a06eda1).
-Это локальная интеграция, HEAD remotePR пока74. Только existing Filter меняет
+Первичная локальная интеграция поверх74. Только existing Filter меняет
 product behavior: completed nonstream logical nonce admission после native
 saved-success/ACL/owner/model checks. Existing Source/stream/context/history/OFF
 сохранены. Fixture9tests,Filter20tests,browser12tests,collector10tests PASS с root
@@ -360,9 +360,126 @@ CLI stdout должен совпасть с private receipt и exact schema/sour
 failed host не выпускает browser-success/verify-success receipts. Evidence:
 `local/goal584/c75-wiring-review/`. Готов к изолированному runtime-прогону; runtime
 успех75 до actual job/artifact review не заявляется.
-Новых containers/providerclient/ledger/core patches нет. Отдельный worktree
-`../corp-openweb-ui-goal584-unknown-ui`/branch `agent/goal584-unknown-ui` чистый на
-cf7d8da8; сохранить до verified integration, затем безопасно убрать в рамках GOAL.
+Новых containers/providerclient/ledger/core patches нет. Временный worktree
+`../corp-openweb-ui-goal584-unknown-ui` безопасно удалён06.11 через native git:
+все8source blobs cf7d8da8 точно совпадают с integrated ff4217df, source/component
+и artifact seam review выполнены, changes/untracked/ignored отсутствовали.
+Source branch `agent/goal584-unknown-ui`/cf7d8da8 сохранена как provenance до
+итоговой поставки; новая GUI runtime acceptance по-прежнему не заявляется.
+
+Поставка75: headd11f42464bbcb7e3a8aab6dd74cbb86d3d550165,
+tested merge22c807ee480a8d34737fda0593e9e553c784aa46, fetch/tree diff пуст;
+PR585 draft/open/unmerged, body readback точный. [Office75/42175306353](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42175306353),
+[Native75/42175306355](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42175306355),
+[Active CI75/42175306395](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42175306395)
+подтверждены live после push. `candidate75-checks.safe.json` фиксирует11Git/index
+files и945tests/8skips;19host cases повторены root также после commit при новом
+GITHUB_SHA. `candidate75-publish.safe.json` — начальное live наблюдение, не terminal
+acceptance. Сейчас frozen75readers main/pricing/calendars/Office готовятся отдельно;
+их ответы не заменяют обязательный root repeat и actual browser PNG просмотр.
+
+Native75 pricing/calendars уже PASS и frozen readers повторены root (exit0).
+Pricing63negatives/29unchanged sources/14mounts/15pins,.80/.500,cleanup0/0/0;
+artifact13482877297/20088bytes/SHA0e49d41e… . Calendars26unchanged sources/12mounts,
+basic4.279473441s<60, floorfinal.657719369s<5,cleanup0/0/0. Actual75 journal counts
+reset/post/final1/1/4, reset/post hashes равны: meaningful old-journal negative
+исполняется на текущем артефакте, поэтому20CURRENT (6+14),0selected historical.
+Financial predicate неизменён; real72 conditional fallback сохранён для growing
+journal. Прежний74summary assert19+1 не соответствует этим данным; его failure и
+wrapper-only conditional correction сохранены. Floorartifact13483202498/SHA37ef563b…,
+basic13482532692/SHA8e81caa7… . Main/Office75 целиком НЕ приняты, см. terminal ниже.
+Evidence: `native75-pricing-review/`, `native75-calendar-review/` и root-repeat logs.
+
+Terminal75: Active CI SUCCESS; Native MAIN FAILED на повторном Embed confirmation
+после server Cancel в admin Rich UI; Office FAILED на новом six-Send GUI gate.
+Cleanup обоих failed jobs SUCCESS; MAIN containers/volumes0/0, Office0/0/0.
+`candidate75-terminal.safe.json` фиксирует6terminal jobs; начальный publish receipt
+остаётся историческим. PR585 body приведён к этим результатам, readback точный,
+remote head по-прежнемуd11f4246/draft/open/unmerged. Последний полный baseline74.
+
+Office75 steps9/10/11 независимо приняты и повторены root frozen
+`office75-review/partial-review.py` (SHA31e4547f…),192immutable inputs. Исходные
+wire/instruction/SOURCE/14schemas/Tool/PNG/DOCX/service/keyblock/APIunknown guards
+сохранены. Artifact13482983761/1076800bytes/SHAfbf2da0a…; cleanup0/0/0. Root
+просмотрел OfficePNG и все6GUI PNG:known.166/absent+null unknown/два keyblocked/
+known-after.166. Но GUI verify collector НЕ запускался, private полный packet/ledger
+не replayed: финансовая/ancestry/policy приёмка GUI отсутствует.
+
+GUI failure установлен на proof seam: actual native routers/chats.py:1436 даёт
+401/ERROR_MESSAGES.NOT_FOUND для недоступного чужого чата, proof ошибочно требовал404.
+Другой native FILE route остаётся404. Исправление5existing proof/wiring files
+локально committed9b9bdc215221e8ba758346f83ab03d44aadceb05, ещё НЕ pushed:
+same-header fresh foreign auths200/exact common.user ID/role=user → exact chat401/
+NOT_FOUND; collector повторно проверяет эти факты, host до setup связывает actual
+WebUI container и два native source hashes с upstream6a18585f. Generic unauthorized401
+не принимается. Native product ACL/core/ledger не менялись. Независимый source review
+безP1;25focused tests PASS/root repeat4.33s/no skips. Postcommit host/source closure
+PASS/root repeat в `foreign-chat-proof-fix-review/`:29cases/28rejects, original19
+сохранены, actual native source-tamper/missing-file controls не доходят до setup.
+12shell/9Python syntax PASS; original75freeze неизменён. Runtime correction не принято.
+
+MAIN75 artifact13483610692/1613226bytes/SHA41c7e836… сохранён в
+`native75-main-failure/`. Первый Embed→serverCancel и native unchanged caps/spend/
+revisions проходят; затем второй Embed dialog отсутствует за5s. Root просмотрел
+actual failurePNG; причина не установлена, regression/flake/core bug не заявлены.
+Read-only диагностика frontend/form readiness/actual native bridge выполнена;
+blind rerun/doubleclick/увеличение timeout или ослабление checks не выполнены.
+Полный MAIN reader75 остаётся preparation-only, предыдущие successful steps не
+заменяют полный77semantic milestone.
+
+Узкая диагностика следующего MAIN подготовлена в2existing proof/test files:
+пассивные bounded hash/length/counter snapshots iframe/srcdoc/program/sandbox/
+input+click/postMessage/client state до/после одного клика и при исходном failure.
+Нет нового readiness gate, API call, retry, doubleclick, timeout growth или изменения
+product/core. Whole prior proof/test AST восстанавливается после удаления только
+diagnostics/newtests; исходный5s failure reraised.17focused PASS +4actual-helper
+Chrome controls PASS/root repeat в отдельной копии; immutable исходные failure
+inputs сохранены. Исправные retained HTML дают post/preview/feedback, отключённые
+scripts и unregistered source дают различимые контрольные сигналы. Это не actual
+Svelte/app reproduction и не доказательство причины75. Observer timing способен
+поменять гонку: следующийPASS не доказывает устранения исходной причины. Evidence:
+`native75-main-failure/diagnostic.md`, `native75-admin-diagnostic-root-repeat/`.
+
+Следующий authorized source slice reasoning76 изолирован от tested75: worktree
+`../corp-openweb-ui-goal584-reasoning`, branch `agent/goal584-reasoning-continuity`,
+base d11f4246. Существующие fixture/provider готовят только include native encrypted
+reasoning и конечную ветку второго вопроса; existing native_context расширяется
+optional actual-saved-output readback с прежним default поведением. Runtime/UI/
+ledger второго Send этим source work не принимаются. Root владеет последующей
+интеграцией browser reload/ancestry/full wire/native finance; push/merge этого
+worktree не разрешён автоматически результатом75. Удалить task worktree после
+проверенной интеграции и сохранения evidence, без потери уникальных изменений.
+
+Reasoning source preparation завершён:6files committed отдельно как
+e8942c09e889773bbf636c4c2fa898be038e9efd (не delivery branch, не pushed).
+Независимый review безP1; provider11/setup9/native39run+1existing class skip;
+root повторил BEFORE/AFTER и native-context witness в отдельной копии, сохранив
+24frozen inputs первоначального review. First3requests4/7/10items,0/1/2reasoning,
+14schemas/fullinstruction/SOURCE/Tool/real33038BPNG и прежние negative guards
+сохранены; второй конечный fixture response теперь возвращает существующий
+FileID без Tool. Optional saved_output наблюдает только actual native converters,
+default packet точно равен75; representative payload91917/98304bytes, bound не
+увеличивался. Root проверил полные6diff и LF source hashes до commit. Actual saved
+DB ancestry/reload/secondSend/fullwire/auth/provider/finance/image imports ещё
+НЕ приняты, source подготовка не заменяет их. Evidence: `reasoning76-independent-review/`,
+`reasoning76-root-repeat/`, `reasoning76-source-commit.safe.json` и source worktree.
+
+Новый bounded source finding для mandatory stream policy: stock iterator hook
+уже получает real auth и исполняет normal-end guard до deferred SLP/SpendLogs.
+Второй logger/auth DTO/stream assembler не требуется. Предварительный отдельный
+эскиз — сохранить provider-origin Usage до native estimates в двух producer sites
+на существующем per-call Logging и использовать existing guard iterator override.
+Root сверил actual proxy dispatch/should_run/end-barrier и обе raw capture sites.
+Это source-supported proposal, не реализация и не runtime proof. Исходно одобрены
+ТОЛЬКО2floorfunctions; дополнительные producer изменения НЕ одобрены/не внесены.
+Shared identity через fallback/cache, normal terminal/client ordering и early
+cancel остаются обязательными вопросами: end-of-stream hook сам по себе не
+доказывает block-before-UI-terminal и не исполняет normal-end policy при abort.
+Полная поставка не сводится к двум capture functions. Источник/эскиз/приёмочная
+матрица и непубликовавшийся upstream draft: `local/goal584/stream-native-gap-concrete.md`
+(SHA5fba1a1b…); прежние upstream/source findings сохранены. Следующий шаг по streams —
+проверить точную native identity/lifecycle на actual supported routes и подготовить
+конкретный ограниченный вариант перед отдельным решением о дополнительном core patch.
 
 **Следующий GUI-срез готовится отдельно, без изменения tested72:** worktree
 `../corp-openweb-ui-goal584-unknown-ui`, branch `agent/goal584-unknown-ui`, base1e8f3e29.
