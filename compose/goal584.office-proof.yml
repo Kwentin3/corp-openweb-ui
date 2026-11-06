@@ -44,6 +44,18 @@ services:
         bind:
           create_host_path: false
       - type: bind
+        source: ../scripts/goal584-budget-proof/prove_unknown_usage_gui.py
+        target: /proof/prove_unknown_usage_gui.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/unknown_usage_gui_fixture.py
+        target: /proof/unknown_usage_gui_fixture.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../deploy/openwebui-budgets/cost_readback.py
         target: /proof/employee_budget_cost_readback.py
         read_only: true

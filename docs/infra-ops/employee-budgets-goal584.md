@@ -1,23 +1,25 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Текущая запись работы, 05.11.2026. Источник требований и полномочий —
+Текущая запись работы, 06.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Последний полностью
-принятый bounded baseline — Native71/0fed2c6f и Office71. Все четыре Native jobs, Office и Active CI
-SUCCESS; main/pricing/calendars независимо прочитаны и повторены основным агентом.
+принятый bounded baseline — Native74/6a06eda1 и Office74. Все четыре Native jobs, Office и Active CI
+SUCCESS; main/pricing/calendars/Office независимо прочитаны и повторены основным агентом.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
-policy, полная reasoning continuity и STT/Terminal ещё не приняты.
+policy принята только для personal nonstream Responses API profile; ordinary/admin
+GUI этой policy, streams, полная reasoning continuity и STT/Terminal ещё не приняты.
 
 **Решение заказчика05.11, unknown expense:** если провайдер не вернул данные о
 расходе, блокировать этому сотруднику только эту модель и показывать «расход
 неизвестен». Заказчику объяснено, что первый запрос уже мог быть оплачен и его
 точную сумму восстановить нельзя. Не исключать модель глобально, не выдумывать
 денежное списание и не объявлять unknown бесплатным/окончательно оплаченным.
-Это требование к реализации, пока не runtime acceptance. Native key/block —
+API-профиль personal nonstream Responses принят в74; остальные пути требуют
+runtime acceptance. Native key/block —
 владелец запрета; исходные budgets/SpendLogs сохраняются. Ошибка/неопределённость
 block и уже принятые calls требуют явного failure/неподтверждённого статуса;
 успешную остановку новых calls без committed block не заявлять.
@@ -276,7 +278,7 @@ equal-cardinality branch проверена positive+mutated-negative на пр�
 сохранён (`local/goal584/native73-calendar-review/conditional-verifier.diff`).
 Main73 independent artifact review исполняется отдельно.
 
-**Candidate74 готовится, proof-only:** actual mock-provider → pinned native
+**Candidate74, proof-only correction и API gate принят:** actual mock-provider → pinned native
 Responses converter → FastAPI encoder воспроизводит nullable detail defaults и
 usage.cost:null. Те же10/5/15,cached6,reasoning2 не равны исходному JSON целиком.
 Это установленный local predicate defect; фактический failed CI response остаётся
@@ -295,6 +297,72 @@ clock/sleep leaf и timeout.25 в тесте проверяют2observations/т�
 redispatch; case повторён independent PASS, финальные20PASS root. Failure сохранён.
 Host8source/mount/worker/secret/exit/native-pin cases PASS; новых dependencies нет.
 GUI6WIP files не включаются в этот narrow proof correction.
+
+**Принятая поставка74:** head6a06eda127b0a7b5faf4d4b8f8f5443bb5040574,
+mergea336828216467c0c828f4757fdb27a509f6d77c7, tree diff пуст; PR585 draft/open/unmerged,
+body readback точный. [Office74/42086217223](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42086217223),
+[Native74/42086217208](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42086217208),
+[Active CI74/42086217475](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42086217475)
+terminal SUCCESS. Main77semantic/26negative/8marker,300frozen,53sources точно73,
+recovery8.223s<15,settlement8/8,containers/volumes0/0 (networks не экспортированы).
+Pricing63negatives/29sources/15pins/14mounts,.80/.500,cleanup0/0/0. Calendars19current
++1real72conditional,26sources/12mounts,floorfinal.800713s<5/basic7.547687s<60,
+cleanup0/0/0. Все frozen readers повторены root.
+
+Office74 новый U gate:7attempts/5physical dispatches/3targeted blocks/.332known;
+provider RAW absent/null различены, peer availability/known model/caps/history/
+settled counters/restricted viewer проверены actual source-bound worker.27negative
+checks:4wire+8actual receipt+15source predicates.13source+2mounted owners/7native
+SDKpins точно testedGit, whole worker AST74→73 отличается только helper/predicate.
+Сохраняются прежние4полных wire joins/14schemas/SOURCE/instruction/2Tool pairs/
+PNG/FileID/DOCX17paragraphs/table3×4/.60personal+.20service/3followups/foreign404×2
+и keyblock11owners/native401/noextra/caps/history. Root повторил reader8a13f21b…
+и просмотрел actual browserPNG. Artifact13442968275/908704bytes/59members,
+SHA22ec579a…;140inputs frozen. Cleanup0/0/0,5images/2helpers removed,buildcache retained.
+Private full ledger/scopes не экспортировались; это не независимый replay сырых
+финансовых rows. Browser/admin/streams/explicit-zero UI/весь GOAL не принимаются
+этим API gate. Evidence: `local/goal584/office74-review/`, `native74-*-review/`.
+
+**Текущий следующий75, ещё не опубликован:**8GUI files прошли bounded source
+reviews и root checks, commitcf7d8da8 в отдельном worktree перенесён cherry-pick
+в основной root branch как ff4217df1f3c599b18f91331223f3ba7f365ddda (parent6a06eda1).
+Это локальная интеграция, HEAD remotePR пока74. Только existing Filter меняет
+product behavior: completed nonstream logical nonce admission после native
+saved-success/ACL/owner/model checks. Existing Source/stream/context/history/OFF
+сохранены. Fixture9tests,Filter20tests,browser12tests,collector10tests PASS с root
+repeat; source/native DTO/frontend seams независимо проверены. Две первоначальные
+P1 browser acceptance gaps (visible extra$ и потеря bad submission) исправлены,
+оригинальные counterexamples теперь reject и сохраняются private. Nativekey
+total_spend подтверждён actual schema/GET и atomic writer, дополнительный счётчик
+не придуман. Actual GUI/DB/ledger/provider proof ещё нужен. Полный integrated
+local run:275 component tests PASS/7skips, затем Python/Pydantic аварийно завершился
+на Windows (0xC0000005) в inherited Office native-schema test; итоговый PASS отсутствует.
+Тот же тест отдельно PASS/3.33s, причина crash пока не установлена. Исходный log
+сохранён: `local/goal584/candidate75-integrated-checks.log`; отдельный —
+`local/goal584/c75-crash-isolated.log`. Scripts-only run также crash на другом тесте
+при45s diagnostic dump. После удаления только `dump_traceback_later` из ignored
+локального runner (fatal handler сохранён) полный тот же набор PASS:275component/
+7skips +670scripts/1skip,163.359s. Изменения тестов/ожиданий/product отсутствуют;
+связь с periodic watchdog — рабочая гипотеза, не установленная первопричина.
+Оба failed logs сохранены; успешный — `local/goal584/c75-no-watchdog-checks.log`.
+Source wiring двух existing Compose/workflow files frozen: ровно2новых RO binds
+с create_host_path:false, новых services нет. Host chain: accepted74API receipt →
+exactGit/mounted cold import → actual running build readback → GUI setup/baseline →
+6ordinary Sends → native collector → late source/secret/private-receipt checks.
+Host19cases/18rejects,12shell/9Python syntax PASS, независимо повторены root.
+Cold18modules с реальным SDK1.105.1 PASS/root repeat, без stubs/внешних запросов.
+Это composite local environment (native SDK/OpenAI/Pydantic, JWT из provenance,
+FastAPI из system); он не доказывает image parity. Actual native image preflight
+и GUI/ledger/provider acceptance выполнит стенд. Linux Git-blob mirror проверяет
+исходные LF bytes без изменения CRLF worktree. Existing cleanup/diagnostics сохранены;
+private state не публикуется, новые GUI credentials включены в redaction.
+CLI stdout должен совпасть с private receipt и exact schema/source hashes;
+failed host не выпускает browser-success/verify-success receipts. Evidence:
+`local/goal584/c75-wiring-review/`. Готов к изолированному runtime-прогону; runtime
+успех75 до actual job/artifact review не заявляется.
+Новых containers/providerclient/ledger/core patches нет. Отдельный worktree
+`../corp-openweb-ui-goal584-unknown-ui`/branch `agent/goal584-unknown-ui` чистый на
+cf7d8da8; сохранить до verified integration, затем безопасно убрать в рамках GOAL.
 
 **Следующий GUI-срез готовится отдельно, без изменения tested72:** worktree
 `../corp-openweb-ui-goal584-unknown-ui`, branch `agent/goal584-unknown-ui`, base1e8f3e29.

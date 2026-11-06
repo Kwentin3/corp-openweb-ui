@@ -362,6 +362,150 @@ jobs:
           assert packet.get('unknown_cost_finality') is False and packet.get('explicit_zero_runtime_qualified') is False
           assert packet.get('browser_or_chat_ancestry_qualified') is False
           PY
+      - name: Verify six ordinary Sends and native unknown Usage accounting
+        timeout-minutes: 10
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,re,signal,subprocess,sys,time
+          from pathlib import Path
+          from uuid import UUID
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_unknown_usage_browser import CASES,run
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          from playwright.sync_api import sync_playwright
+          root=Path.cwd().resolve();private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          revision=os.environ['GITHUB_SHA'];stage='source_preflight';deadline=time.monotonic()+540
+          def timed_out(*args): raise TimeoutError('unknown_gui_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.setitimer(signal.ITIMER_REAL,540)
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          def credentials():
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json',
+                  'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json','unknown-usage-browser.private.json'):
+                  path=private/name
+                  if path.exists(): fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          def public(name,packet):
+              credentials();no_credentials(packet,fixture.secrets)
+              (out/(name+'.safe.json')).write_text(json.dumps(packet,indent=2,allow_nan=False)+'\n',encoding='utf8')
+          def trusted(path):
+              raw=path.read_bytes()
+              result=subprocess.run(['git','-c','gc.auto=0','show',revision+':'+path.relative_to(root).as_posix()],
+                  capture_output=True,timeout=15,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
+              assert result.returncode==0 and result.stdout==raw,'unknown_gui_source_changed'
+              return hashlib.sha256(raw).hexdigest()
+          source=root/'scripts/goal584-budget-proof';budgets=root/'deploy/openwebui-budgets'
+          owners={name:source/name for name in ('prove_unknown_usage_policy.py','provision_webui.py','prove_gateway_auth.py',
+              'prove_native_budgets.py','prove_pricing_snapshots.py','prove_service_tasks.py')}
+          owners.update({name:budgets/path for name,path in {'employee_budget_admin_client.py':'admin_client.py',
+              'employee_budget_admin_contract.py':'admin_contract.py','employee_budget_assignment.py':'assignment.py',
+              'provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py','employee_budget_cost_readback.py':'cost_readback.py',
+              'employee_budget_provenance.py':'provenance.py'}.items()})
+          mounted={name:source/name for name in ('usage_guard_fixture.py','prove_unknown_usage_gui.py',
+              'unknown_usage_gui_fixture.py','provision_cost_display.py')}
+          mounted['unknown_usage_guard.py']=budgets/'unknown_usage_guard.py'
+          def host_sources():
+              paths={Path(m.__file__).resolve() for m in tuple(sys.modules.values()) if getattr(m,'__file__',None) and Path(m.__file__).is_file()
+                  and Path(m.__file__).resolve().is_relative_to(root)}
+              assert all(p.suffix=='.py' and p.is_relative_to(source) for p in paths),'unknown_gui_host_import_owner'
+              return {p.relative_to(root).as_posix():trusted(p) for p in sorted(paths)}
+          def native_json(arguments,timeout):
+              result=subprocess.run(fixture.command+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),
+                  'proxy','python','-B',*arguments],capture_output=True,timeout=min(timeout,max(1,deadline-time.monotonic()-5)))
+              assert 0<len(result.stdout)<=64*1024,'unknown_gui_safe_json_bound'
+              packet=json.loads(result.stdout);credentials();no_credentials(packet,fixture.secrets)
+              assert isinstance(packet,dict),'unknown_gui_safe_json_schema'
+              return result.returncode,packet
+          def cli(phase):
+              code,packet=native_json(['/proof/prove_unknown_usage_gui.py','--phase',phase],90)
+              assert code==0 and packet.get('passed') is True,'unknown_gui_cli_failed'
+              common={'schema':1,'proof':'goal584-unknown-usage-gui','passed':True,'phase':phase,
+                  'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False}
+              if phase=='setup':
+                  actor=packet.get('actor_id');assert isinstance(actor,str) and str(UUID(actor))==actor
+                  expected=common|{'status':'readback_ready','actor_id':actor,'model_ids':[c[1] for c in (CASES[0],CASES[1],CASES[3])],
+                      'inference_issued':False,'settings_configured':False,'browser_accepted':False}
+              elif phase=='baseline': expected=common|{'status':'baseline_ready','inference_issued':False}
+              else:
+                  expected=common|{'gui_sends':6,'provider_dispatches':4,'positive_chats':2,'unknown_chats':2,
+                      'saved_key_denials':2,'known_positive_total':'.332','blocked_assignments':2,'native_401_inferred':False,
+                      'unbound_denial_audit_chat_association_independently_proven':False,'inference_issued':False,
+                      'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted}
+              assert type(packet.get('schema')) is int and packet==expected,'unknown_gui_cli_receipt_changed'
+              assert fixture._office_private('unknown-usage-gui-'+phase+'.safe.json')[1]==packet,'unknown_gui_private_cli_receipt_changed'
+              return packet
+          try:
+              credentials()
+              assert re.fullmatch('[0-9a-f]{40}',revision)
+              expected_sources={name:trusted(path) for name,path in owners.items()}
+              expected_mounted={name:trusted(path) for name,path in mounted.items()}
+              expected_filter=trusted(budgets/'cost_filter.py');host=host_sources()
+              gate=json.loads((out/'unknown-usage-policy.safe.json').read_bytes())
+              assert gate.get('schema')==1 and gate.get('proof')=='goal584-unknown-usage-policy' and gate.get('passed') is True
+              assert gate.get('stage')=='complete' and gate.get('worker_sha256')==expected_sources['prove_unknown_usage_policy.py']
+              assert gate.get('source_sha256')==expected_sources and gate.get('mounted_source_sha256')=={
+                  name:expected_mounted[name] for name in ('usage_guard_fixture.py','unknown_usage_guard.py')}
+              assert gate.get('inference_attempts')==7 and gate.get('provider_dispatches')==5 and gate.get('blocked_assignments')==3
+              assert gate.get('known_positive_total')=='.332' and all(gate.get(k) is False for k in
+                  ('unknown_cost_finality','explicit_zero_runtime_qualified','browser_or_chat_ancestry_qualified'))
+              # Cold actual native imports and mounted source readback precede setup's first write.
+              code="import hashlib,json,pathlib; import prove_unknown_usage_gui as c; import provision_cost_display as d; p=c.sources(); p['filter_sha256']=hashlib.sha256(d.FILTER_SOURCE.read_bytes()).hexdigest(); print(json.dumps(p))"
+              status,actual=native_json(['-c',code],45)
+              assert status==0 and actual=={'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted,
+                  'filter_sha256':expected_filter},'unknown_gui_native_import_or_source_changed'
+              public('unknown-usage-gui-source',{'schema':1,'passed':True,'source_sha256':expected_sources,
+                  'mounted_source_sha256':expected_mounted,'filter_sha256':expected_filter,'host_source_sha256':host})
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_bytes())
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=15).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              stage='runtime_binding';fixture.running_readback(base,build,revision)
+              stage='setup';setup=cli('setup');public('unknown-usage-gui-setup',setup)
+              stage='baseline';baseline=cli('baseline');public('unknown-usage-gui-baseline',baseline)
+              stage='browser';signal.setitimer(signal.ITIMER_REAL,max(1,min(360,deadline-time.monotonic()-100)))
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,packet=run(browser,fixture,base,build,revision)
+                  finally: browser.close()
+              signal.setitimer(signal.ITIMER_REAL,max(1,deadline-time.monotonic()))
+              assert observed.get('schema')==1 and observed.get('status')=='browser_observed' and observed.get('actor_id')==setup['actor_id']
+              assert observed.get('foreign_chat_status')==404 and observed.get('office_settings_unchanged') is True
+              assert all(observed.get(k) is False for k in ('native_accounting_accepted','provider_dispatch_accepted','unknown_policy_accepted'))
+              assert len(observed.get('calls',[]))==6 and len(packet.get('calls',[]))==6 and 'failure' not in packet
+              assert fixture._office_private('unknown-usage-browser.private.json')[1]==packet,'unknown_gui_private_packet_changed'
+              images=out/'unknown-usage-browser'
+              assert {p.name for p in images.iterdir()}=={label+'.png' for label,_,_ in CASES}
+              for (label,model,outcome),call in zip(CASES,observed['calls']):
+                  assert call.get('model')==model and call.get('outcome')==outcome and call.get('terminal_persisted') is True and call.get('tasks_empty') is True
+                  image=images/(label+'.png');raw=image.read_bytes()
+                  assert not image.is_symlink() and 0<len(raw)<=8*1024*1024 and raw.startswith(b'\x89PNG\r\n\x1a\n')
+                  assert hashlib.sha256(raw).hexdigest()==call.get('screenshot_sha256')
+              no_credentials(observed,fixture.secrets)
+              stage='native_verify';verified=cli('verify')
+              # No successful public browser/final receipt is written until every late check passes.
+              assert host_sources()==host,'unknown_gui_host_source_changed'
+              assert {name:trusted(path) for name,path in owners.items()}==expected_sources
+              assert {name:trusted(path) for name,path in mounted.items()}==expected_mounted and trusted(budgets/'cost_filter.py')==expected_filter
+              credentials();no_credentials([observed,verified],fixture.secrets)
+              public('unknown-usage-browser',observed)
+              public('unknown-usage-gui-verify',verified)
+              final={'schema':1,'proof':'goal584-unknown-usage-host','passed':True,'stage':'complete',
+                  'gui_sends':6,'provider_dispatches':4,'blocked_assignments':2,'known_positive_total':'.332',
+                  'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted,'host_source_sha256':host,
+                  'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False}
+              public('unknown-usage-host',final)
+          except Exception as error:
+              failure={'schema':1,'proof':'goal584-unknown-usage-host','passed':False,'stage':stage,
+                  'failure':'unknown_gui_host_contract_failed','error_class':type(error).__name__ if type(error).__name__ in
+                  ('AssertionError','ProofError','TimeoutError','TimeoutExpired','OSError','JSONDecodeError') else 'Exception',
+                  'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False}
+              public('unknown-usage-host',failure)
+              raise SystemExit(1) from None
+          finally: signal.setitimer(signal.ITIMER_REAL,0)
+          PY
       - name: Retain bounded sanitized stand diagnostics before cleanup
         if: failure() && env.PROOF_ENV_FILE != ''
         timeout-minutes: 2
@@ -377,7 +521,8 @@ jobs:
           try:
               values=[line.partition('=')[2] for line in env_file.read_text().splitlines() if '=' in line]
               private=Path(os.environ['PROOF_PRIVATE_DIR'])
-              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json',
+                  'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json','unknown-usage-browser.private.json'):
                   path=private/name
                   if path.exists(): values.extend(private_credentials(read_private(path)))
               command=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',str(env_file),
@@ -455,6 +600,7 @@ jobs:
             ${{ env.OUTPUT }}/*.log
             ${{ env.OUTPUT }}/*.safe.json
             ${{ env.OUTPUT }}/office*.png
+            ${{ env.OUTPUT }}/unknown-usage-browser/*.png
             ${{ env.OUTPUT }}/office.docx
             ${{ env.BUILD_ROOT }}/office-build.safe.json
             ${{ env.BUILD_ROOT }}/build-inputs.json
