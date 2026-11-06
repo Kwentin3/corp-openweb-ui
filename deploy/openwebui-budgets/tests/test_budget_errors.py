@@ -9,6 +9,7 @@ import copy
 import enum
 import importlib.util
 import logging
+import os
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
@@ -20,7 +21,8 @@ from fastapi import HTTPException, status
 
 
 HERE = Path(__file__).resolve()
-UPSTREAM = HERE.parents[3] / "local/goal584/litellm/upstream/litellm"
+UPSTREAM = Path(os.environ.get("GOAL584_LITELLM_SOURCE_ROOT", str(
+    HERE.parents[3] / "local/goal584/litellm/upstream"))) / "litellm"
 
 
 def load(name, path):
@@ -88,6 +90,42 @@ class BudgetErrorTests(unittest.TestCase):
                 traceback_str="private traceback"))
         self.assertIsNone(result)
 
+    def native_block_error(self, blocked=True):
+        tree = ast.parse((UPSTREAM / "proxy/auth/user_api_key_auth.py").read_text(encoding="utf-8"))
+        owner = next(node for node in tree.body if isinstance(node, ast.AsyncFunctionDef)
+                     and node.name == "validate_resolved_virtual_key")
+        branch = next(node for node in ast.walk(owner) if isinstance(node, ast.If)
+                      and ast.unparse(node.test) == "valid_token.blocked is True")
+        namespace = {"valid_token": SimpleNamespace(blocked=blocked)}
+        try:
+            execute([copy.deepcopy(branch)], namespace)
+        except Exception as error:
+            self.assertIs(type(error), Exception)
+            self.assertEqual(error.args, (self.adapter._NATIVE_BLOCKED_MESSAGE,))
+            return error
+        return None
+
+    def test_exact_native_blocked_key_decision_only_changes_its_presentation(self):
+        for flag in (False, None, 0, 1, "true"):
+            self.assertIsNone(self.native_block_error(flag))
+        error = self.native_block_error()
+        identity = self.identity(blocked=True)
+        identity_before = copy.deepcopy(vars(identity))
+        reservation = identity.budget_reservation
+        before = copy.deepcopy(vars(error))
+        request = {"model": "wire-model", "messages": [{"role": "user", "content": "private-chat"}],
+                   "metadata": {"payer_id": "spoof"}}
+        request_before = copy.deepcopy(request)
+        self.apply(error, identity, request)
+        self.assertIs(type(error), Exception)
+        self.assertEqual(vars(error), before)
+        self.assertEqual(error.args, (self.adapter.BLOCKED_MESSAGE,))
+        self.assertEqual(vars(identity), identity_before)
+        self.assertIs(identity.budget_reservation, reservation)
+        self.assertEqual(request, request_before)
+        for private in ("/key/", "unblock", "admin.", "private-chat", "wire-model"):
+            self.assertNotIn(private, str(error))
+
     def test_mutates_only_native_presentation_and_preserves_context_and_money(self):
         for entity, expected in (("key", self.adapter.MODEL_MESSAGE), ("user", self.adapter.USER_MESSAGE)):
             error = self.error(entity)
@@ -139,6 +177,9 @@ class BudgetErrorTests(unittest.TestCase):
     def test_other_native_entities_and_non_native_errors_remain_unchanged(self):
         for error in [self.error("team"), self.error("project"), self.error(None),
                       HTTPException(403, "denied"), ValueError("budget has been exceeded"),
+                      ValueError(self.adapter._NATIVE_BLOCKED_MESSAGE),
+                      Exception("Key is blocked."), Exception(self.adapter._NATIVE_BLOCKED_MESSAGE + " "),
+                      Exception(self.adapter._NATIVE_BLOCKED_MESSAGE, "extra"),
                       SimpleNamespace(entity_type="user", message="not a native exception", args=())]:
             before = copy.deepcopy(vars(error))
             args = getattr(error, "args", None)
@@ -213,6 +254,10 @@ class BudgetErrorTests(unittest.TestCase):
         execute(source_nodes(UPSTREAM / "types/router.py", "RouterErrors"), namespace)
         execute(source_nodes(UPSTREAM / "proxy/_types.py", "ProxyErrorTypes", "ProxyException"), namespace)
         execute(source_nodes(UPSTREAM / "proxy/auth/auth_utils.py", "mark_invalid_virtual_key_error"), namespace)
+        execute(source_nodes(UPSTREAM / "proxy/auth/model_access_denied.py", "ModelAccessDeniedHTTPException"), namespace)
+        # Only the unrelated DB-outage classifier is fixed off. The blocked
+        # decision, failure dispatch and auth_error/401 conversion are native.
+        namespace["PrismaDBExceptionHandler"] = SimpleNamespace(is_database_service_unavailable_error=lambda e: False)
         execute(source_nodes(UPSTREAM / "proxy/auth/auth_exception_handler.py", "_as_proxy_exception",
                              "_with_client_context"), namespace)
         logging_tree = ast.parse((UPSTREAM / "proxy/utils.py").read_text(encoding="utf-8"))
@@ -265,6 +310,33 @@ class BudgetErrorTests(unittest.TestCase):
                     self.assertEqual(error.args, (expected,))
                     self.assertNotIn("исчерпан", response["message"].lower())
                     self.assertIn("Недостаточно", response["message"])
+        before_response = None
+        identity = self.identity(blocked=True)
+        namespace["user_api_key_dict"] = identity
+        identity_before = copy.deepcopy(vars(identity))
+        for callbacks in ([], [self.adapter.handler]):
+            self.litellm.callbacks = callbacks
+            error = self.native_block_error()
+            data = {"model": "wire-model", "messages": [{"role": "user", "content": "private-chat"}]}
+            original_data = copy.deepcopy(data)
+            with self.assertRaises(namespace["ProxyException"]) as caught:
+                asyncio.run(namespace["_handle_authentication_error"](
+                    e=error, request=None, request_data=data, route="/v1/chat/completions",
+                    parent_otel_span=None, api_key="private-key"))
+            response = caught.exception.to_dict()
+            self.assertEqual({key: value for key, value in response.items() if key != "message"},
+                             {"type": "auth_error", "param": "None", "code": "401"})
+            self.assertIs(type(error), Exception)
+            self.assertEqual(data, original_data)
+            self.assertEqual(vars(identity), identity_before)
+            if callbacks:
+                self.assertEqual(response["message"], "Authentication Error, " + self.adapter.BLOCKED_MESSAGE)
+                self.assertEqual({key: value for key, value in response.items() if key != "message"},
+                                 {key: value for key, value in before_response.items() if key != "message"})
+                self.assertNotIn("/key/unblock", response["message"])
+            else:
+                before_response = response
+                self.assertEqual(response["message"], "Authentication Error, " + self.adapter._NATIVE_BLOCKED_MESSAGE)
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ STATE = Path("/proof-private/native-key-block.private.json")
 RECEIPT = Path("/proof-private/native-key-block.safe.json")
 BODY = {"model": MODEL, "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 5, "stream": False}
 USAGE = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
-BLOCK_MESSAGE = "Authentication Error, Key is blocked. Update via `/key/unblock` if you're an admin."
+BLOCK_MESSAGE = "Authentication Error, Доступ заблокирован. Обратитесь к администратору."
 
 
 def digest(value):

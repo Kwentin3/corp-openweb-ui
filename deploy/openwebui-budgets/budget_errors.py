@@ -4,6 +4,7 @@ Configure ``litellm_settings.callbacks: ["budget_errors.handler"]``. Native
 authentication, common checks and reservation remain the only budget owners.
 This exact 1.105.1 failure-hook path reuses the original BudgetExceededError
 after callbacks return None, preserving its status and budget_exceeded type.
+The exact native blocked-key exception also keeps the native 401/auth_error path.
 """
 
 from functools import lru_cache
@@ -18,6 +19,8 @@ MODEL_MESSAGE = ("Недостаточно бюджета этой модели 
                  "выберите другую разрешённую модель или обратитесь к администратору.")
 GENERIC_MESSAGE = ("Недостаточно бюджета для этого запроса. Уменьшите запрос "
                    "или обратитесь к администратору.")
+BLOCKED_MESSAGE = "Доступ заблокирован. Обратитесь к администратору."
+_NATIVE_BLOCKED_MESSAGE = "Key is blocked. Update via `/key/unblock` if you're an admin."
 
 
 @lru_cache(maxsize=1)
@@ -50,6 +53,9 @@ class BudgetErrors(CustomLogger):
         self, request_data: dict, original_exception: Exception,
         user_api_key_dict: object, traceback_str: str | None = None,
     ) -> None:
+        if type(original_exception) is Exception and original_exception.args == (_NATIVE_BLOCKED_MESSAGE,):
+            original_exception.args = (BLOCKED_MESSAGE,)
+            return None
         if not isinstance(original_exception, BudgetExceededError):
             return None
         if original_exception.entity_type == "user":
