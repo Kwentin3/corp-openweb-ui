@@ -284,8 +284,52 @@ def verify_instruction(wire, expected_instruction):
     require(any(expected_instruction in text for text in texts), "office_system_context")
 
 
+def provider_transport_from_profile(profile=None):
+    """Select a finite proof mode from a source-bound native config observation."""
+    if profile is None:
+        return "native"
+    require(isinstance(profile, dict) and set(profile) == {"primary", "service"}
+            and isinstance(profile["service"], dict), "office_buffered_profile")
+    service_streaming = profile["service"].get("supports_native_streaming")
+    require(profile["primary"] == {"model_name": MODEL, "provider_model": "openai/goal584-fake-office",
+                "deployment_id": "goal584-office-primary", "mode": "responses", "supports_native_streaming": False}
+            and profile["primary"].get("supports_native_streaming") is False
+            and (service_streaming is None or service_streaming is True)
+            and profile["service"] == {"model_name": "gpt-6-luna", "provider_model": "openai/goal584-fake-office-service",
+                "deployment_id": "goal584-office-service", "mode": "responses", "supports_native_streaming": service_streaming},
+            "office_buffered_profile")
+    return "buffered"
+
+
+def verify_buffered_provider_profile(models):
+    """Project actual native /model/info; credentials and price state stay private."""
+    require(isinstance(models, list) and all(isinstance(row, dict) for row in models), "office_buffered_profile")
+    profile = {}
+    for name, model in (("primary", MODEL), ("service", "gpt-6-luna")):
+        rows = [row for row in models if row.get("model_name") == model]
+        require(len(rows) == 1 and isinstance(rows[0].get("model_info"), dict)
+                and isinstance(rows[0].get("litellm_params"), dict), "office_buffered_profile")
+        row = rows[0]; info = row["model_info"]
+        profile[name] = {"model_name": model, "provider_model": row["litellm_params"].get("model"),
+            "deployment_id": info.get("id"), "mode": info.get("mode"),
+            "supports_native_streaming": info.get("supports_native_streaming")}
+    provider_transport_from_profile(profile)
+    return profile
+
+
+def expected_provider_body(wire, wire_model, *, provider_transport="native"):
+    """The declared native transport changes only model and, when buffered, stream."""
+    require(type(provider_transport) is str and provider_transport in ("native", "buffered"),
+            "office_provider_transport")
+    expected = {**copy.deepcopy(wire), "model": wire_model}
+    if provider_transport == "buffered":
+        require(wire.get("stream") is True, "office_buffered_client_stream")
+        expected.pop("stream")
+    return expected
+
+
 def verify_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
-                 exported, png, native_responses_payload, expected_instruction):
+                 exported, png, native_responses_payload, expected_instruction, provider_transport="native"):
     """Component cost Filter pre/post bodies and exact native serialization.
 
     These component-only inputs must be collected at the actual Filter.request
@@ -303,11 +347,12 @@ def verify_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, nati
         require(before == after and before.get("model") == MODEL, "office_budget_context")
     return verify_wire_calls(calls, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=answer_id,
         wire_model=wire_model, native_specs=native_specs, exported=exported, png=png,
-        native_responses_payload=native_responses_payload, expected_instruction=expected_instruction)
+        native_responses_payload=native_responses_payload, expected_instruction=expected_instruction,
+        provider_transport=provider_transport)
 
 
 def verify_wire_call(call, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
-                     expected_instruction):
+                     expected_instruction, provider_transport="native"):
     """Shared single-call assertions at the existing auth/provider observation seam.
 
     The source-bound observer owns signed scope origin. This checks its complete
@@ -339,7 +384,8 @@ def verify_wire_call(call, *, actor, key_hash, chat_id, answer_id, wire_model, n
             and {"id", "model", "status", "usage", "output"} <= set(p["response"])
             and isinstance(p["response"]["output"], list)
             and all(isinstance(v, dict) for v in p["response"]["output"]), "office_provider_context")
-    require(p["body"] == {**copy.deepcopy(wire), "model": wire_model}
+    expected_body = expected_provider_body(wire, wire_model, provider_transport=provider_transport)
+    require(p["body"] == expected_body
             and p["route"] == "/v1/responses" and p["usage"] == USAGE
             and p["response"]["id"] == p["id"] and p["response"]["model"] == wire_model
             and p["response"]["status"] == "completed" and p["response"]["usage"] == USAGE
@@ -353,7 +399,7 @@ def verify_wire_call(call, *, actor, key_hash, chat_id, answer_id, wire_model, n
 
 
 def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model, native_specs,
-                      exported, png, native_responses_payload, expected_instruction):
+                      exported, png, native_responses_payload, expected_instruction, provider_transport="native"):
     """Live auth/provider evidence: exactly export, render, final physical calls.
 
     Supply complete safe pre/post-auth wire projections, actual served/native
@@ -366,7 +412,8 @@ def verify_wire_calls(calls, *, actor, key_hash, chat_id, answer_id, wire_model,
     scopes, provider_ids = {}, []
     for index, call in enumerate(calls):
         wire = verify_wire_call(call, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=answer_id,
-            wire_model=wire_model, native_specs=native_specs, expected_instruction=expected_instruction)
+            wire_model=wire_model, native_specs=native_specs, expected_instruction=expected_instruction,
+            provider_transport=provider_transport)
         if index:
             original = responses_projection(calls[0]["wire_before_auth"])
             require({k: v for k, v in wire.items() if k != "input"} ==
@@ -487,7 +534,8 @@ def verify_continuation_history(before, after, actor, first_answer, user_id, ans
 
 def verify_saved_continuation(call, *, first_calls, saved_output, native_saved, native_final,
                               native_source_sha256, actor, key_hash, chat_id, answer_id, wire_model,
-                              native_specs, exported, png, native_responses_payload, expected_instruction):
+                              native_specs, exported, png, native_responses_payload, expected_instruction,
+                              provider_transport="native"):
     """Reconcile one new call with already accepted first-turn observations.
 
     The collector supplies actual saved DB output and two existing native_context
@@ -502,9 +550,11 @@ def verify_saved_continuation(call, *, first_calls, saved_output, native_saved, 
             and bool(answer_id) and answer_id != first_answer, "office_saved_answer_identity")
     prior = verify_wire_calls(first_calls, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=first_answer,
         wire_model=wire_model, native_specs=native_specs, exported=exported, png=png,
-        native_responses_payload=native_responses_payload, expected_instruction=expected_instruction)
+        native_responses_payload=native_responses_payload, expected_instruction=expected_instruction,
+        provider_transport=provider_transport)
     wire = verify_wire_call(call, actor=actor, key_hash=key_hash, chat_id=chat_id, answer_id=answer_id,
-        wire_model=wire_model, native_specs=native_specs, expected_instruction=expected_instruction)
+        wire_model=wire_model, native_specs=native_specs, expected_instruction=expected_instruction,
+        provider_transport=provider_transport)
     require(call["provider"]["id"] not in prior and call["verified_cost_scope"]["call_id"] not in
             {scope["call_id"] for scope in prior.values()}, "office_call_identity")
     base = responses_projection(first_calls[0]["wire_before_auth"])

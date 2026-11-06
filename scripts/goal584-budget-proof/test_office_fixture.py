@@ -114,6 +114,19 @@ class OfficeConfigTests(unittest.TestCase):
     def original(self):
         return (ROOT / 'scripts/goal584-budget-proof/litellm_config.yaml').read_bytes()
 
+    def test_primary_buffered_capability_is_the_only_office_descriptor_change(self):
+        import subprocess
+        baseline = subprocess.check_output(['git', 'show',
+            'b0193586c5dae6335762583d311f2837116deb9b:scripts/goal584-budget-proof/office_fixture.py'], cwd=ROOT)
+        node = next(n for n in ast.parse(baseline).body if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == 'OFFICE_MODELS' for t in n.targets))
+        namespace = {'MODEL': office.MODEL}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), 'before-buffered-Office-descriptors', 'exec'), namespace)
+        before = yaml.safe_load('model_list:\n' + namespace['OFFICE_MODELS'])['model_list']
+        after = yaml.safe_load('model_list:\n' + office.OFFICE_MODELS)['model_list']
+        self.assertIs(after[0]['model_info'].pop('supports_native_streaming'), False)
+        self.assertEqual(after, before)
+
     def test_byte_splice_preserves_ab_unknown_fields_comments_and_crlf(self):
         original = self.original().replace(b'    model_info:', b'    keep_model_option: [one, two]\n    model_info:', 1)
         original = original.replace(b'general_settings:',
@@ -167,7 +180,10 @@ class OfficeConfigTests(unittest.TestCase):
         prepared = yaml.safe_load(office.prepare_usage_guard_config(original))
         prior = yaml.safe_load(office.prepare_office_config(original))
         usage = configuration(base, 'v1')
-        self.assertEqual(prepared['model_list'], prior['model_list'] + usage['model_list'][2:])
+        buffered = copy.deepcopy(usage['model_list'][2:])
+        for model in buffered: model['model_info']['supports_native_streaming'] = False
+        self.assertEqual(prepared['model_list'], prior['model_list'] + buffered)
+        self.assertEqual(configuration(base, 'v1'), usage)
         self.assertEqual(prepared['litellm_settings'], dict(base['litellm_settings'],
             callbacks=base['litellm_settings']['callbacks'] + ['usage_guard_fixture.handler']))
         self.assertEqual({k: v for k, v in prepared.items() if k not in ('model_list', 'litellm_settings')},
