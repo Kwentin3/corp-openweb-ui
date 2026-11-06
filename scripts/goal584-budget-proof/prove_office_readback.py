@@ -106,7 +106,7 @@ def native_converter(packet, office):
     return convert
 
 
-def wire_calls(before, provider, capture, office, *, primary_count=3):
+def wire_calls(before, provider, capture, office, *, primary_count=3, provider_transport='native'):
     require(type(primary_count) is int and primary_count in (1, 3), 'office_readback_expected_calls')
     require(provider['requests'][:len(before['provider']['requests'])] == before['provider']['requests']
             and capture['requests'][:len(before['capture']['requests'])] == before['capture']['requests'], 'office_prior_context_changed')
@@ -118,7 +118,9 @@ def wire_calls(before, provider, capture, office, *, primary_count=3):
         wire = row['body']; model = wire['model']
         require(model in (proof.MODEL, 'gpt-6-luna'), 'office_unexpected_observation')
         target = 'goal584-fake-office' if model == proof.MODEL else 'goal584-fake-office-service'
-        matches = [p for p in physical if p['body'] == {**wire, 'model': target}]
+        expected = proof.expected_provider_body(wire, target,
+            provider_transport=provider_transport if model == proof.MODEL else 'native')
+        matches = [p for p in physical if p['body'] == expected]
         require(len(matches) == 1 and matches[0]['id'] not in matched, 'office_provider_join')
         p = copy.deepcopy(matches[0]); matched.add(p['id'])
         p['lifecycle'] = {k: p['lifecycle'][k] for k in ('terminal', 'outcome')}
@@ -217,7 +219,8 @@ def render_observation(calls):
 
 
 def verify(before, after, provider, capture, saved, browser, packet, office, d):
-    calls, service = wire_calls(before, provider, capture, office)
+    transport = proof.provider_transport_from_profile(before.get('provider_profile'))
+    calls, service = wire_calls(before, provider, capture, office, provider_transport=transport)
     actor, payer = office['users'][0]['id'], office['service_fixture']['payer_id']
     chat, answer, source = (browser[k] for k in ('chat_id', 'answer_id', 'source_message_id'))
     messages = saved['chat']['history']['messages']; final = messages[answer]; request = messages[final['parentId']]
@@ -235,7 +238,7 @@ def verify(before, after, provider, capture, saved, browser, packet, office, d):
     scopes = proof.verify_wire_calls(calls, actor=actor, key_hash=key, chat_id=chat, answer_id=answer,
         wire_model='goal584-fake-office', native_specs=packet['native_specs'], exported=exported, png=png,
         native_responses_payload=native_converter(packet, office),
-        expected_instruction=proof.office_instruction(OFFICE_FILTER.read_bytes()))
+        expected_instruction=proof.office_instruction(OFFICE_FILTER.read_bytes()), provider_transport=transport)
     main = proof.verify_finance(before['finance']['primary'], after['primary'], calls_by_provider=scopes,
         actor=actor, key_hash=key, chat_id=chat, answer_id=answer, wire_model='goal584-fake-office',
         deployment_id='goal584-office-primary', validate_scope=d['validate_persisted_scope'],
@@ -262,8 +265,9 @@ def verify_continuation(state, after, provider, captured, saved, browser, packet
     user_id, answer_id = proof.verify_continuation_submission(sent, ack,
         http_status=browser['http_status'], chat_id=chat, first_answer_id=previous,
         prior_message_ids=before['saved_chat']['chat']['history']['messages'])
-    calls, service = wire_calls(before, provider, captured, office, primary_count=1)
-    first_calls, _ = wire_calls(state, state['provider_after'], state['capture_after'], office)
+    transport = proof.provider_transport_from_profile(state.get('provider_profile'))
+    calls, service = wire_calls(before, provider, captured, office, primary_count=1, provider_transport=transport)
+    first_calls, _ = wire_calls(state, state['provider_after'], state['capture_after'], office, provider_transport=transport)
     final = proof.verify_continuation_history(before['saved_chat'], saved, actor, previous, user_id, answer_id, file_id)
     if final is None: return None
     require(browser['baseline_chat']['chat']['history'] == before['saved_chat']['chat']['history']
@@ -279,7 +283,7 @@ def verify_continuation(state, after, provider, captured, saved, browser, packet
         key_hash=before['finance']['primary']['key']['token'], chat_id=chat, answer_id=answer_id,
         wire_model='goal584-fake-office', native_specs=state['native_context']['native_specs'],
         exported=exported, png=png, native_responses_payload=native_converter(state['native_context'], office),
-        expected_instruction=proof.office_instruction(OFFICE_FILTER.read_bytes()))
+        expected_instruction=proof.office_instruction(OFFICE_FILTER.read_bytes()), provider_transport=transport)
     main = proof.verify_finance(before['finance']['primary'], after['primary'], calls_by_provider=scopes,
         actor=actor, key_hash=before['finance']['primary']['key']['token'], chat_id=chat, answer_id=answer_id,
         wire_model='goal584-fake-office', deployment_id='goal584-office-primary',
@@ -292,6 +296,15 @@ def verify_continuation(state, after, provider, captured, saved, browser, packet
     return {'primary': main, 'service': task, 'provider_calls': 2, 'saved_chat_verified': True,
             'chat_id': chat, 'previous_answer_id': previous, 'answer_id': answer_id, 'file_id': file_id,
             'saved_output_sha256': proof.digest(output), 'native_context_sha256': proof.digest(packets)}
+
+
+def fresh_provider_profile(native, state):
+    """Fresh native config must match the baseline before selecting buffered proof."""
+    profile = state.get('provider_profile')
+    if profile is not None:
+        require(proof.verify_buffered_provider_profile(native.ok('GET', '/model/info')['data']) == profile,
+                'office_buffered_profile_changed')
+    return proof.provider_transport_from_profile(profile)
 
 
 def continuation_readback(phase, d, common, office, native, contexts):
@@ -311,6 +324,7 @@ def continuation_readback(phase, d, common, office, native, contexts):
             secrets=secrets, no_credentials=d['no_credentials'])
         result['phase'] = phase
         return result
+    fresh_provider_profile(native, state)
     if phase == 'continuation-baseline':
         require('continuation_baseline' not in state, 'office_continuation_baseline_exists')
         saved = chat(); after = inventory(native, office); provider, captured = contexts()
@@ -390,12 +404,14 @@ def run(phase, d):
         model, = [m for m in models if m['model_name'] == 'gpt-6-luna']
         state = {'schema': 1, 'stage': 'baseline', 'prepared_sha256': proof.digest(office), 'finance': finance,
             'provider': provider, 'capture': captured, 'descriptor': model['model_info']['owui_pricing'],
+            'provider_profile': proof.verify_buffered_provider_profile(models),
             'history_start_utc': native.started_at.isoformat()}
         result = {'baseline_payers': len(finance['raw_owners']), 'history_start_utc': state['history_start_utc']}
     else:
         state = d['read_private'](STATE)
         require(state.get('stage') == 'baseline' and state['prepared_sha256'] == proof.digest(office)
                 and state['history_start_utc'] == native.started_at.isoformat(), 'office_readback_baseline_changed')
+        fresh_provider_profile(native, state)
         browser, packet = d['read_private'](BROWSER), d['read_private'](CONTEXT)
         def settled():
             saved = d['WebUI']().ok('GET', '/api/v1/chats/' + browser['chat_id'], token=office['users'][0]['token'])

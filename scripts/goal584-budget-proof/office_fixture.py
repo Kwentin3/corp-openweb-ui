@@ -3,6 +3,7 @@
 Import this fixture only from a host coordinator. Pure worker validators must
 not import it: the inherited browser host owns the Playwright dependency.
 """
+import copy
 import ipaddress
 import hashlib
 import json
@@ -38,7 +39,7 @@ OFFICE_MODELS = ''.join(f'''  - model_name: {name}
       mode: responses
       supports_reasoning: true
       supports_function_calling: true
-      max_input_tokens: 10000
+{streaming}      max_input_tokens: 10000
       max_output_tokens: 1024
       max_tokens: 11024
       input_cost_per_token: 0.01
@@ -55,9 +56,9 @@ OFFICE_MODELS = ''.join(f'''  - model_name: {name}
         declared_effective_until_utc: null
         activation_ref: goal584-office-stand-v1
         qualified_usage: flat_input_output
-''' for name, wire, deployment in (
-    (MODEL, 'goal584-fake-office', 'goal584-office-primary'),
-    ('gpt-6-luna', 'goal584-fake-office-service', 'goal584-office-service')))
+''' for name, wire, deployment, streaming in (
+    (MODEL, 'goal584-fake-office', 'goal584-office-primary', '      supports_native_streaming: false\n'),
+    ('gpt-6-luna', 'goal584-fake-office-service', 'goal584-office-service', '')))
 
 
 def prepare_native_tokenizers(directory):
@@ -146,7 +147,10 @@ def prepare_usage_guard_config(original):
     require(usage['model_list'][:2] == base['model_list']
             and all(usage[k] == v for k, v in base.items() if k != 'model_list'),
             'Usage fixture changed the original native configuration')
-    office['model_list'].extend(usage['model_list'][2:])
+    usage_models = copy.deepcopy(usage['model_list'][2:])
+    for model in usage_models:
+        model['model_info']['supports_native_streaming'] = False
+    office['model_list'].extend(usage_models)
     callbacks = office['litellm_settings']['callbacks']
     require(callbacks == base['litellm_settings']['callbacks']
             and 'usage_guard_fixture.handler' not in callbacks,

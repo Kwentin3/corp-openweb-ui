@@ -273,6 +273,92 @@ def full_capture(component, *, provider=None, encrypted_reasoning=False, expecte
     return artifact, calls, owner
 
 
+def buffered_native_models():
+    import office_fixture
+    import yaml
+    return yaml.safe_load('model_list:\n' + office_fixture.OFFICE_MODELS)['model_list']
+
+
+def test_buffered_profile_requires_native_primary_flag_and_preserves_service_identity():
+    models = buffered_native_models(); original = copy.deepcopy(models)
+    profile = P.verify_buffered_provider_profile(models)
+    assert P.provider_transport_from_profile() == 'native'
+    assert P.provider_transport_from_profile(profile) == 'buffered'
+    assert profile['primary']['supports_native_streaming'] is False
+    assert profile['service']['supports_native_streaming'] is None
+    assert models == original and 'api_key' not in json.dumps(profile)
+
+
+@pytest.mark.parametrize('mutation', ['missing', 'true', 'integer', 'duplicate', 'provider', 'deployment',
+    'mode', 'service_flag', 'service_provider', 'profile_extra', 'profile_missing'])
+def test_buffered_profile_rejects_missing_ambiguous_or_drifting_native_configuration(mutation):
+    models = buffered_native_models()
+    if mutation == 'missing': models[0]['model_info'].pop('supports_native_streaming')
+    elif mutation == 'true': models[0]['model_info']['supports_native_streaming'] = True
+    elif mutation == 'integer': models[0]['model_info']['supports_native_streaming'] = 0
+    elif mutation == 'duplicate': models.append(copy.deepcopy(models[0]))
+    elif mutation == 'provider': models[0]['litellm_params']['model'] = 'openai/other'
+    elif mutation == 'deployment': models[0]['model_info']['id'] = 'other'
+    elif mutation == 'mode': models[0]['model_info']['mode'] = 'chat'
+    elif mutation == 'service_flag': models[1]['model_info']['supports_native_streaming'] = False
+    elif mutation == 'service_provider': models[1]['litellm_params']['model'] = 'openai/other'
+    else:
+        profile = P.verify_buffered_provider_profile(models)
+        if mutation == 'profile_extra': profile['untrusted_mode'] = True
+        else: profile['primary'].pop('supports_native_streaming')
+        with pytest.raises(P.ProofError): P.provider_transport_from_profile(profile)
+        return
+    with pytest.raises(P.ProofError): P.verify_buffered_provider_profile(models)
+
+
+def test_buffered_full_factory_wire_contract_has_one_exact_transport_delta(component):
+    calls, owner = wire_capture(component); original = copy.deepcopy(calls)
+    for call in calls: call['provider']['body'].pop('stream')
+    assert P.verify_wire_calls(calls, **owner, provider_transport='buffered')
+    with pytest.raises(P.ProofError): P.verify_wire_calls(calls, **owner)
+    with pytest.raises(P.ProofError): P.verify_wire_calls(original, **owner, provider_transport='buffered')
+    for before, after in zip(original, calls):
+        expected = copy.deepcopy(before); expected['provider']['body'].pop('stream')
+        assert after == expected and after['wire_before_auth']['stream'] is True
+
+
+@pytest.mark.parametrize('mutation', ['false', 'true', 'integer', 'input', 'tools', 'instruction', 'store', 'model'])
+def test_buffered_full_provider_comparison_never_accepts_other_transport_or_context_changes(component, mutation):
+    calls, owner = wire_capture(component)
+    for call in calls: call['provider']['body'].pop('stream')
+    body = calls[0]['provider']['body']
+    if mutation in ('false', 'true', 'integer'): body['stream'] = {'false': False, 'true': True, 'integer': 0}[mutation]
+    elif mutation == 'input': body['input'].pop()
+    elif mutation == 'tools': body['tools'].pop()
+    elif mutation == 'instruction': body['instructions'] = 'lost full instruction'
+    elif mutation == 'store': body['store'] = True
+    else: body['model'] = 'other'
+    with pytest.raises(P.ProofError): P.verify_wire_calls(calls, **owner, provider_transport='buffered')
+
+
+def buffered_saved_case(case):
+    call, kwargs = copy.deepcopy((case.call, case.kwargs))
+    for item in [*kwargs['first_calls'], call]: item['provider']['body'].pop('stream')
+    kwargs['provider_transport'] = 'buffered'
+    return SimpleNamespace(call=call, kwargs=kwargs)
+
+
+def test_buffered_saved_continuation_keeps_complete_native_factory_context(saved_continuation):
+    case = buffered_saved_case(saved_continuation)
+    assert P.verify_saved_continuation(case.call, **case.kwargs)
+    with pytest.raises(P.ProofError):
+        P.verify_saved_continuation(case.call, **{k:v for k,v in case.kwargs.items() if k != 'provider_transport'})
+    assert case.kwargs['saved_output'] == saved_continuation.kwargs['saved_output']
+    assert case.kwargs['native_saved'] == saved_continuation.kwargs['native_saved']
+
+
+@pytest.mark.parametrize('mutation', ['lost_opaque', 'truncated_opaque', 'lost_tool', 'wrong_image',
+    'prior_source', 'payee', 'parent_chat', 'packet_source'])
+def test_buffered_saved_context_reuses_all_original_coherent_loss_guards(saved_continuation, mutation):
+    test_saved_continuation_rejects_coherent_context_loss_and_native_auth_packet_drift(
+        buffered_saved_case(saved_continuation), mutation)
+
+
 def test_fixture_and_live_profile_sources_match(component):
     receipt = json.loads((ROOT / "local/goal584/current-route-compatibility-live-readback.safe.json").read_text(encoding="utf8"))
     assert P.SOURCE == receipt["representative_input"]["prior_source"]

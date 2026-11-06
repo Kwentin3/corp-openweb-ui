@@ -90,11 +90,56 @@ def scenario(component, monkeypatch):
                 browser=browser, packet=packet, office=office, d=d)
 
 
+def buffer_primary_records(*observations):
+    for value in observations:
+        for row in value['requests']:
+            if row['body']['model'] == 'goal584-fake-office': row['body'].pop('stream', None)
+
+
+def test_buffered_actual_domain_finance_and_native_context_keep_original_service(component, monkeypatch):
+    data = scenario(component, monkeypatch)
+    service = copy.deepcopy(data['provider']['requests'][-1])
+    data['before']['provider_profile'] = R.proof.verify_buffered_provider_profile(T.buffered_native_models())
+    buffer_primary_records(data['provider'])
+    assert R.verify(**data) == {'primary': {'physical_calls': 3, 'new_raw_rows': 3, 'native_spend_delta_usd': '.60'},
+        'service': {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'},
+        'provider_calls': 4, 'saved_chat_verified': True}
+    assert data['provider']['requests'][-1] == service
+    data['before'].pop('provider_profile')
+    with pytest.raises(N.ProofError): R.verify(**data)
+
+
+@pytest.mark.parametrize('change', ['flag', 'duplicate', 'provider', 'service_drift', 'baseline_drift'])
+def test_buffered_mode_is_bound_to_fresh_native_config_not_provider_body(monkeypatch, change):
+    models = T.buffered_native_models()
+    state = {'provider_profile': R.proof.verify_buffered_provider_profile(models)}
+    if change == 'flag': models[0]['model_info']['supports_native_streaming'] = True
+    elif change == 'duplicate': models.append(copy.deepcopy(models[0]))
+    elif change == 'provider': models[0]['litellm_params']['model'] = 'openai/other'
+    elif change == 'service_drift': models[1]['model_info']['supports_native_streaming'] = True
+    else: state['provider_profile']['primary']['deployment_id'] = 'changed'
+    native = N.NativeProof('http://127.0.0.1:4000', 'private-test-operator', 2, {})
+    reads = []
+    def request(method, path, **kwargs):
+        reads.append((method, path)); return 200, {'data': copy.deepcopy(models)}, b'{}'
+    monkeypatch.setattr(native, 'request', request)
+    with pytest.raises(N.ProofError): R.fresh_provider_profile(native, state)
+    assert reads == [('GET', '/model/info')]
+
+
+def test_buffered_mode_fresh_native_read_accepts_only_same_projection(monkeypatch):
+    models = T.buffered_native_models(); state = {'provider_profile': R.proof.verify_buffered_provider_profile(models)}
+    native = N.NativeProof('http://127.0.0.1:4000', 'private-test-operator', 2, {})
+    monkeypatch.setattr(native, 'request', lambda *args, **kwargs: (200, {'data': copy.deepcopy(models)}, b'{}'))
+    assert R.fresh_provider_profile(native, state) == 'buffered'
+    assert R.fresh_provider_profile(native, {}) == 'native'
+
+
 def test_actual_native_context_domain_finance_and_sdk_owners_join_complete_live_packet(component, monkeypatch):
     data = scenario(component, monkeypatch)
     observed, wire_owner, finance_owner = {}, R.wire_calls, R.proof.verify_service_finance
-    def calls(*args):
-        result = wire_owner(*args); observed['dispatch'] = result[1]; return result
+    def calls(*args, **kwargs):
+        result = wire_owner(*args, **kwargs); observed['dispatch'] = result[1]; return result
     def finance(*args, **kwargs):
         assert kwargs['dispatch'] is observed['dispatch']
         return finance_owner(*args, **kwargs)
@@ -611,6 +656,21 @@ def continuation_case(component, native, monkeypatch, request):
         browser=browser, packets={'schema': 1, 'saved': packets[1], 'final': packets[2]}, office=office, d=seed['d'],
         native=native_owner, backend=backend, saved_before=saved_before, first_provider=first_provider, first_capture=first_capture,
         factory=__import__('test_office_provider').P, finances=finances)
+
+
+def test_buffered_continuation_keeps_full_saved_context_finance_and_service(continuation_case):
+    case = continuation_case
+    case.state['provider_profile'] = R.proof.verify_buffered_provider_profile(T.buffered_native_models())
+    buffer_primary_records(case.provider, case.first_provider, case.state['provider_after'],
+        case.state['continuation_baseline']['provider'])
+    result = R.verify_continuation(case.state, case.after, case.provider, case.captured, case.saved,
+        case.browser, case.packets, case.office, case.d)
+    assert result['primary'] == result['service'] == {'physical_calls': 1, 'new_raw_rows': 1, 'native_spend_delta_usd': '.20'}
+    assert result['provider_calls'] == 2 and result['saved_chat_verified'] is True
+    case.state.pop('provider_profile')
+    with pytest.raises(N.ProofError):
+        R.verify_continuation(case.state, case.after, case.provider, case.captured, case.saved,
+            case.browser, case.packets, case.office, case.d)
 
 
 def test_continuation_readback_joins_actual_native_factory_context_inventory_scope_rates_and_sdk(continuation_case):
