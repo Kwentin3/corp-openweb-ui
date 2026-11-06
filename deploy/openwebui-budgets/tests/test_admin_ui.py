@@ -2,6 +2,7 @@
 from html import escape
 from html.parser import HTMLParser
 import importlib.util
+import copy
 import json
 import os
 from pathlib import Path
@@ -64,6 +65,41 @@ class Parser(HTMLParser):
 
 
 class RendererTests(unittest.TestCase):
+    def test_native_block_tristate_is_readonly_and_does_not_enter_client_data(self):
+        data = rows()
+        data[0]['models'][0]['blocked'] = True
+        data[0]['models'][1]['blocked'] = False
+        data[1]['models'][0]['blocked'] = None
+        before = copy.deepcopy(data)
+        html = UI.render_editor(data, as_of='now')
+        self.assertEqual(html.count('<th>Блокировка</th>'), 2)
+        self.assertEqual(html.count('<td>Заблокирована</td>'), 1)
+        self.assertEqual(html.count('<td>Не заблокирована</td>'), 1)
+        self.assertEqual(html.count('<td>Нет данных</td>'), 2)
+        self.assertEqual(html.count('<th>Учтённый расход, USD</th>'), 2)
+        self.assertIn('Учтённый расход: 1.25 USD · Остаток по учтённым расходам: 8.75 USD', html)
+        parser = Parser(html)
+        baseline = Parser(UI.render_editor(rows(), as_of='now'))
+        self.assertEqual(parser.scripts, baseline.scripts)
+        self.assertEqual(json.loads(parser.scripts[0]), rows())
+        inputs = [attrs for tag, attrs in parser.tags if tag == 'input' and 'data-model-id' in attrs]
+        self.assertEqual(len(inputs), 4)
+        self.assertTrue(all('disabled' not in attrs for attrs in inputs))
+        self.assertEqual(data, before)
+
+    def test_unexpected_block_value_cannot_inject_markup_or_become_true(self):
+        data = rows()
+        attack = '</script><img src=x onerror="alert(1)"><&\u2028\u2029'
+        data[0]['models'][0].update(blocked=attack, label=attack)
+        data[0]['models'][1]['blocked'] = 1
+        html = UI.render_editor(data, as_of='now')
+        parser = Parser(html)
+        self.assertNotIn('img', [tag for tag, _ in parser.tags])
+        self.assertEqual(html.count('<td>Нет данных</td>'), 4)
+        self.assertNotIn('<td>Заблокирована</td>', html)
+        self.assertEqual(json.loads(parser.scripts[0])[0]['models'][0]['label'], attack)
+        self.assertTrue(all('blocked' not in model for row in json.loads(parser.scripts[0]) for model in row['models']))
+
     def test_service_summary_is_readonly_escaped_and_excludes_private_fields(self):
         value = {'label': '<script>bad()</script>', 'budget_usd': '20', 'spend_usd': '0.2',
                  'remaining_usd': '19.8', 'budget_reset_at': '2026-12-01T00:00:00Z',
@@ -72,6 +108,8 @@ class RendererTests(unittest.TestCase):
         panel = rendered.split('<aside data-service-budget="v1">')[1].split('</aside>')[0]
         self.assertIn('&lt;script&gt;bad()&lt;/script&gt;', panel)
         self.assertIn('data-service-spend>0.2</span>', panel)
+        self.assertIn('Расход: <span data-service-spend>', panel)
+        self.assertIn('Остаток: <span data-service-remaining>', panel)
         self.assertNotIn('<input', panel)
         self.assertNotIn('<button', panel)
         self.assertNotIn('private-payer-id', rendered)
@@ -183,7 +221,11 @@ class ChromeSandboxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         from playwright.sync_api import sync_playwright
-        cls.editor = UI.render_editor(rows(), as_of='2026-11-02 17:00 UTC')
+        data = rows()
+        data[0]['models'][0]['blocked'] = True
+        data[0]['models'][1]['blocked'] = False
+        data[1]['models'][0]['blocked'] = None
+        cls.editor = UI.render_editor(data, as_of='2026-11-02 17:00 UTC')
         cls.bootstrap_editor = UI.render_editor(rows(), as_of='2026-11-02 17:00 UTC',
                                                 template=template(), pending=pending_rows())
         class Handler(BaseHTTPRequestHandler):
@@ -341,6 +383,18 @@ class ChromeSandboxTests(unittest.TestCase):
             readonly = self.frame.locator(f'article[data-pending-index="{index}"]')
             self.assertEqual(readonly.locator('input,button').count(), 0)
             self.assertIn('требуется проверка', readonly.inner_text())
+
+    def test_block_states_are_readonly_in_the_personal_model_table(self):
+        self.assertEqual(self.frame.get_by_role('columnheader', name='Учтённый расход, USD', exact=True).count(), 2)
+        self.assertIn('Учтённый расход: 1.25 USD · Остаток по учтённым расходам: 8.75 USD',
+                      self.frame.locator('section').first.inner_text())
+        model_rows = self.frame.locator('section tbody tr')
+        self.assertEqual(model_rows.count(), 4)
+        for index, label in enumerate(('Заблокирована', 'Не заблокирована', 'Нет данных', 'Нет данных')):
+            cell = model_rows.nth(index).locator('td').nth(2)
+            self.assertEqual(cell.inner_text(), label)
+            self.assertEqual(cell.locator('input,button').count(), 0)
+        self.assertEqual(self.prompts(), [])
 
     def test_changed_rows_precision_and_two_employee_submission(self):
         first = self.frame.locator('section').nth(0)

@@ -101,19 +101,21 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
         models = []
         for number, model in enumerate(row["models"]):
             field_id = f"share-{index}-{number}"
+            blocked = rows[index]["models"][number].get("blocked")
+            block_label = "Заблокирована" if blocked is True else "Не заблокирована" if blocked is False else "Нет данных"
             models.append(f'<tr><th scope="row"><label for="{field_id}">{_text(model["label"])}</label>'
                 f'<small>{_text(model["id"])}</small></th><td>{_text(model["cap_usd"], "не установлен")}</td>'
-                f'<td>{_text(model["spend_usd"])}</td><td><input id="{field_id}" data-model-id="{_text(model["id"])}" '
+                f'<td>{_text(model["spend_usd"])}</td><td>{block_label}</td><td><input id="{field_id}" data-model-id="{_text(model["id"])}" '
                 f'inputmode="decimal" maxlength="128" value="{_text(model["share_percent"], "")}" '
                 f'aria-label="Доля для {_text(model["label"])}, процентов" placeholder="нет данных"> %</td></tr>')
         sections.append(f'<section data-employee-id="{_text(row["user_id"])}"><h3>{_text(row["name"])}</h3>'
             f'<p>{_text(row["email"])} · ID: {_text(row["user_id"])}</p>'
-            f'<p>Расход: {_text(row["spend_usd"])} USD · Остаток: {_text(row["remaining_usd"])} USD</p>'
+            f'<p>Учтённый расход: {_text(row["spend_usd"])} USD · Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD</p>'
             f'<label for="budget-{index}">Личный бюджет, USD</label> '
             f'<input id="budget-{index}" data-field="budget_usd" inputmode="decimal" maxlength="128" '
             f'value="{_text(row["budget_usd"], "")}" placeholder="не установлен">'
-            '<table><thead><tr><th>Модель</th><th>Текущий лимит, USD</th><th>Расход, USD</th>'
-            '<th>Новая доля</th></tr></thead><tbody>' + "".join(models) + '</tbody></table></section>')
+            '<table><thead><tr><th>Модель</th><th>Текущий лимит, USD</th><th>Учтённый расход, USD</th>'
+            '<th>Блокировка</th><th>Новая доля</th></tr></thead><tbody>' + "".join(models) + '</tbody></table></section>')
     empty = '<p>Сотрудники для этого представления не найдены.</p>' if not public else ""
     bootstrap_html, bootstrap = _bootstrap_panels(template, pending)
     service_html = ""
