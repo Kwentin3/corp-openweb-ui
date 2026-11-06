@@ -5,16 +5,329 @@
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
-**Состояние:** GOAL в работе; полный продукт ещё не принят. Текущая проверенная
-стендовая опора — Native76/93aa4031 и Office76 в границах отчётов (Office steps9–12).
-Все четыре Native jobs, Office и Active CI SUCCESS; main/pricing/calendars/Office
-независимо прочитаны и повторены основным агентом, actual PNG просмотрены.
+**Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
+опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
+source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+Current deliverya7172226 дополнительно содержит component-qualified перевод
+native blocked error; этот новый текст ещё не проверен в actual GUI.
+PR585 остаётся draft/open/unmerged на опубликованном head78.
+Проверенная опора — Native78 (все4jobs), ActiveCI78 и Office78 steps9–11;
+main/pricing/calendars/Office независимо прочитаны и повторены root, PNG просмотрены.
+Office80 FAILED на finance ID binding; proof-only correction109tests+root109PASS
+подтверждён последующим Office81 native readback. Raw private DB operands не
+экспортировались; финансовая приёмка привязана к exact executed worker source.
 Сохраняются исходные
 UI/finance/context/service/RAG/retention/Responses assertions. Missing/null usage
 policy принята для personal nonstream Responses API и ordinary GUI profile;
-admin GUI этой policy, streams/CC, полная reasoning continuity и STT/Terminal ещё не приняты.
+Buffered directOffice/continuation/unknown API+GUI приняты в границах81; STT
+native context/signing composition6cases принята. AdminGUI unknown projection,
+используемые CC и Terminal ещё требуют своих проверок; STT recognition не заявлена.
+Точный community Office worker получил узкую source adaptation и component proof,
+но его пользовательский сквозной budget-сценарий остаётся обязательным. Saved reasoning
+continuity выбранного Office Responses профиля подтверждена в78 ниже;
+это не квалификация всех provider/stream/cryptography вариантов.
 
-Текущий опубликованный кандидат77: headf6e3f8dba56dba4eec490c937673443ee93f8acf,
+Уточнение native transport: actual Office9 и continuation10 personal wires —
+`stream=true` на auth/provider `/v1/responses`; service wires — `stream=false`.
+Принятый Office-профиль не равен nonstream unknown-policy профилю: опубликованный
+UnknownUsageGuard head78 пропускает streams. Отключение потока изменило бы принятый
+Office UX/transport. Теперь выбран отдельный стендовый профиль с ответом целиком;
+это ещё не compatibility proof. Universal unused
+CC/cache/fallback coverage не добавляется автоматически в обязательный объём;
+буквальные требования и минимальный native путь сверяются с issue/proposal.
+
+Текущий опубликованный кандидат78: headdc9b96d0aee857ef14fb0cc79f52be69ae6ff970,
+tested merge47bdcce04efd234de5f66b75d1d163b75a46bef3, fetched tree diff пуст;
+PR585 draft/open/unmerged. [Office78/42201926517](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42201926517)
+завершился FAILED: steps9/10/11 SUCCESS,12 FAILED,13 SKIPPED; cleanup SUCCESS.
+Новый same-chat continuation10 прошёл actual worker, независимую сверку и root
+repeat:160frozen inputs/16coherent mutations, actual13=old10+native final2+question,
+saved8/3opaque/2Toolpairs/14schemas/actual33038B PNG, oneordinarySend/tworeloads,
+extra1primary.20+1service.20. Полные private DB/auth/ledger проверки остаются
+source-bound worker evidence, raw значения для offline validator не создавались.
+Root просмотрел actual first/continuation и обеMAIN PNG. Legacy9/key-block11 независимо проверены и повторены
+root;12 остановился с общим `unknown_native_contract_failed` при stage
+`provider_observed`, конкретная причина не установлена. Private state удалён
+штатной уборкой; stage не доказывает успешное завершение предшествующей записи.
+Никаких timeout/bound increases или retries по этому сообщению не обосновано.
+
+[Native78/42201926509](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42201926509)
+все4jobs SUCCESS; MAIN/pricing/calendars независимо приняты и повторены root.
+[Active CI78/42201926535](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42201926535)
+SUCCESS, актуальный PR head и draft/unmerged повторно проверены после resume.
+MAIN:77core/26negatives/8marker,53sources exact77,357frozen inputs; pricing:
+63negatives/.80/.500/29sources/14mounts/15SDKpins; calendars:20CURRENT negatives,
+journals1/1/4,26sources/12mounts,floor final.480453s<5. Cleanup pricing/calendar/
+Office0/0/0, MAIN0containers/0volumes (networks не заявлены). Общий78 не принят.
+Evidence: `native78-{main,pricing,calendar}-review/`, соответствующие root-repeat
+копии, `office78-review/`, `office78-root-repeat/`, `office78-unknown-review/`.
+
+После подтверждённого пользователем resume GOAL active. Приоритет KISS/native:
+закончить приёмку10 и добавить только недостающие сведения о месте отказа12
+через имеющийся stage и штатный traceback Python; отдельный реестр операций,
+новый учёт, обход проверок и новые provider calls не нужны. Узкий двухфайловый
+source-срез d372a711b46b663f686bb01c5ab676dc0fb086c8 опубликован в существующей
+изолированной ветке `agent/goal584-reasoning-continuity`, PR585 остаётся на78.
+25tests/root repeat/independent review PASS,20original test AST неизменны;
+before/after success/private-state/HTTP parity7attempts5dispatch, исходные
+guards/timeouts/bounds сохранены. Failure-only output: fixed attempt slots,
+error class и≤2owned source frames без текста ошибки/locals/private данных.
+
+Запущен только существующий Office workflow через native workflow_dispatch:
+[diagnostic run42214534631](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42214534631),
+head d372a711… (branch HEAD, не PR merge), initial status in_progress.
+Код отличается от78 только этими2proof/test файлами; docs snapshot ветки старше,
+актуальная запись GOAL — этот файл в delivery worktree. Полные принятые MAIN/
+pricing/calendar profiles повторно не запускались; причины78 этим ещё не доказаны.
+Evidence: `office78-continuation-review/`, `office78-continuation-root-repeat/`,
+`unknown-failure-diagnostic-source-review/`, `unknown-failure-diagnostic-root-repeat/`,
+`unknown-failure-diagnostic-independent-review/`.
+
+Diagnostic run42214534631 terminal FAILED:9/10/11SUCCESS,12FAILED,13SKIPPED,
+14/15/16SUCCESS. Actual failure12: ProofError, attempt7/actorB/model2,
+stageprovider_observed; owned frames save:235→prove_pricing_snapshots.encoded:50.
+Последний guard — именно2MiB byte bound. Это подтверждает размерный отказ
+нового diagnostic run, не восстанавливает удалённый private state78.
+Proof-only устранение повторных копий общего provider transcript готово:
+digest наблюдения вместо его полной копии в каждом call, при сохранении полных
+новых physical records и прежних финансовых/identity/dispatch guards. Bounds,
+timeouts, product и core не меняются. Runtime после исправления ещё обязателен.
+Изолированный commit63959d005c16456a6a45e242adcd438b525d72f2;27tests и root
+repeat PASS. Bounded synthetic preceding tape425120B воспроизводит старый guard
+на attempt7 при2210370B; новый maxstate87452B/final87444B. Это regression fixture,
+не восстановленный private79state. Evidence: `unknown-provider-tape-review/`.
+
+KISS scope audit (`local/goal584/goal584-kiss-scope-audit.md`): обязательны
+согласованные пользовательские сценарии и совместимость текущих платных маршрутов;
+поддержка всех неиспользуемых provider/cache/fallback комбинаций и полный admin
+period-completeness engine не являются отдельными требованиями. STT/Terminal
+нуждаются в compatibility proof; новый учёт произвольных внешних платных команд
+и речевых сервисов не добавляется. Текущие CC/DeepSeek connections нельзя молча
+исключить: охват остаётся явным до решения владельца. Для Admin подготовлен показ
+имеющегося native blocked flag отдельно от причины; никакого нового scan/store.
+Source commitb0193586c5dae6335762583d311f2837116deb9b в reasoning worktree:
+2productfiles +2tests, блокировка True/False/None без обещания admission/причины,
+personal native counters подписаны «Учтённый расход»/«Остаток по учтённым расходам».
+JS/clientJSON/payload/revisions/service/pending прежние.25unit+2Chrome PASS;
+root повторил25+2 до label-only уточнения и2затронутых проверки после него.
+Native runtime/admin unknown-history полнота этим не принимаются. Evidence:
+`admin-native-block-projection.md`, `.diff`, `.safe.json`.
+
+**Новое решение пользователя06.11:** «Без нового патча: проверить профиль с
+ответом целиком». Дополнительный Usage-origin core patch не разрабатываем;
+прежний допуск только2floor functions сохранён. Следующий отдельный срез —
+native nonstream Responses managed-profile на изолированном Office стенде,
+existing post-call guard + server pre-call admission и полноценная Office
+Tool/reasoning/history/file/service-payer compatibility приёмка. Клиентский
+переключатель сам по себе enforcement не доказывает. Production не меняется.
+Source finding: WebUI nonstream handler не выполняет native Tool loop. Проверяется
+штатный LiteLLM full-response adapter (`supports_native_streaming=False`,
+MockResponsesAPIStreamingIterator): полный реальный provider HTTP response→native
+synthetic SSE для прежнего WebUI Tool loop. Это существующий SDK компонент,
+не mock provider. Missing Usage не оценивается в inspected adapter; прежний guard
+нуждается в узком native-iterator consumer до first yield. Exact config/admission/
+Tool/reasoning/error/cancel runtime behaviour ещё не квалифицированы.
+
+Source-plan готов (`office-buffered-native-profile-plan.md`);16real-native component
+cases прошли и повторены root:4actual полных Office78request shapes×known/absent/
+null/zero. Native Router registration→native HTTP handler→exact buffered iterator;
+только HTTP IO leaf заменён finite provider. Provider HTTP streamFalse, body stream
+отсутствует, все прочие поля исходного контекста равны. Full typed response доступен
+до первого yield; Tool/reasoning сохранены, absent/null остаютсяNone, zero известен.
+Network0, proxy/actualauth/SLP/браузер этим не принимаются. Evidence:
+`office-buffered-native-profile/`, `office-buffered-native-root-repeat/`.
+
+Начат source-срез в прежнем reasoning worktree: guard+егоtests, stateless existing
+gateway admission+егоtests, Office fixture/provider-comparison+егоtests разделены
+на3узких владельца без новых core/provider/ledger/registration owners. Root уточнил
+admission scope: только явно объявленный сервером buffered profile (native flag
+False); legacy unbuffered MAIN/Responses и operator/service paths не менять молча.
+Mixed descriptors и client shape/backend bypass для объявленного профиля отклонять.
+Admin server config остаётся владельцем режима; не добавляется anti-admin registry.
+Native config readback/route stability и cancel/block-await outcome нужны до GHA.
+
+Следующий source прогресс (ещё без runtime приёмки): auth06f16802 и GUIb36ecf57
+в reasoning ветке. Auth —38productlines, same native Router.get_model_list и
+validated auth, strictFalse declaredprofile/ResponsesPOST/boolstream, legacy/
+service/operator без изменения; лишняя проверка совпадения model_name убрана,
+чтобы native alias resolution оставался владельцем.17focused tests/root repeatPASS.
+GUI13 выбирает native WebUI streamTrue, provider body строгобезstream;3Usage
+descriptors требуютnativeFalse вbaseline/verify через прежнийroutingreader.
+API12defaultFalse/7attempt5dispatch сохранён.53из54focused checksPASS,1cachecase
+после исправления пути на уже поддерживаемый frontend-source root отдельноPASS;
+Node native frontend replayPASS, independent5file/source/workflowreview без blocker.
+Evidence: `buffered-profile-auth-source.*`, `buffered-unknown-gui-source-review/`.
+
+Office fixture/proof6files frozen в `buffered-office-source/`: primaryFalse и
+3UsageFalse толькоOffice-composition copies, service/base/globalpricing прежние;
+finite explicit native/buffered transport mode, fresh trusted model-info profile
+вexistingSTATE.38new/461unique P/R cases покрыты зелёными проверками с сохранёнными
+ошибками локального resource runner;2inherited CRLF cases отдельноGitLF PASS.
+Это component/source coverage, не GHA/actual browser. Полный повтор root461не нужен
+без новых входов; root ещё проверяет exact diff/native16coupledwitness.
+
+**Новый обязательный discriminator до CI:** реальный native Router для
+aresponses(streamTrue) ВСЕГДА добавляет FallbackResponsesStreamWrapper, даже без
+настроенных fallback. Его completed_response изначальноNone, actualMock скрыт
+вclosure. Поэтому prototype guard с exactBoundary._sourceMock НЕ считается
+работающим в actual routed path; прежние16/9component tests обходили Router.
+Frame/closure introspection не допускается. Старые prototypes сохранены только
+как evidence. Проверка native post-call pipeline выявила пропуск empty/reasoning
+output (12cases), поэтому этот механизм не выбран. Вместо него existing guard
+удерживает ссылки на original native events до естественного завершения actual
+Router wrapper, читает его typed completed_response и применяет прежнюю policy.
+Actual core Deployment должен объявить full-HTTP profile; native buffered marker
+и shield/await-on-cancel сохраняют native cleanup/SLP ownership. Native Responses
+error projection используется при отказе; новый core patch не выполнялся.
+Root повторил actualRouter20 witness и original24 guard tests (PASS); 20 typed
+deployment joins также PASS. Full native37 и auth17 обязательны в свежем Linux
+image до запуска stand services: mandatory flag запрещает missing-SDK skip,
+workflow wiring/syntax и5failure/success IO cases проверены отдельно.
+Source интегрирован в delivery9bfa3b9e, code parity с reasoningd556cba5 точная.
+Это готовность кандидата к стенду, не runtime/financial acceptance.
+Reasoning d556cba553f53e1d5092fb36c69ed5188d193814 опубликован отдельно; запущен
+existing Office-only workflow_dispatch [42234248725](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42234248725),
+actual job127947659413. Сверены event/head, initial state in_progress/build.
+PR585 head78 не изменён; новый run не выдаётся за PR merge/coherent final CI.
+Office80 terminal FAILURE: step7 mandatory native preflight SUCCESS, step8 backend
+SUCCESS, step9 FAILED при native_finance/office_row_dispatch_binding;10–13SKIPPED.
+Artifact13513040198:913709B/62entries/SHA256
+`d146724ee3878ceec561986baf46e5f308f33e5ba01fd8b9a722664f637b5a6e`,
+downloaded once в `local/goal584/office80-review/artifact.zip`, digest совпал сAPI.
+Native guard37PASS11.448s/auth17PASS4.785s, без skips; receipt source hashes exact
+d556. Browser ordinarySend/DOCX/terminal/coststatus/followups/foreignFileACL SUCCESS,
+root просмотрел actual browser PNG (Ответ/Чат .60), однако finance не принят.
+Ошибка имеет несколько conjuncts; без rawDB в sanitized artifact точный failed
+atom пока не доказан. Проверяется native full-HTTP responseID/SpendLogs binding,
+тест не ослабляется по одному failure_code. Cleanup SUCCESS:0ownedcontainers/
+0volumes/0networks/0ownedimages. Нет активного run и повторного запуска.
+
+Ранее диагностика/tape-fix/admin source интегрированы в delivery как874656a3/
+07709ef7/ebdff2a5609578e93ae6702d2e6fd7ca06866bd8; code parity с reasoning b019
+точная, GOAL doc WIP сохранён. Эти3commits ещё не опубликованы; remote PR585 head78
+не менялся. Body PR обновлена к terminal78/79 и решению без нового core patch,
+точный returned body readback совпал, draft/open/unmerged сохранён. CI не запускался
+повторно, пока buffered source не готов к содержательной приёмке.
+
+Уточнение 2026-11-06 по гипотезе пользователя main→Terra Office-worker:
+предыдущий вывод смешивал прямой OfficeCLI-вызов и делегированный маршрут.
+Сам OfficeCLI adapter действительно запускает binary через subprocess, однако
+`deploy/openwebui-tools/corporate_template_models.json` задаёт другой путь:
+`corporate-documents` → community Tool `corporate_document_delegation`
+(`run_sub_agent`) → `corporate-office-worker` с base `gpt-6.1-terra` →
+`server:officecli`. Runbook `corporate-template-library.md` фиксирует community
+Tool commit63310704483845c46b9ddbb65885f70938ac909e, DEFAULT_MODEL worker и
+APPLY_INLET_FILTERS=True. В export и ведущий профиль пока использует Terra;
+Sol как ведущая модель — пример пользователя, не проверенная live-настройка.
+Прямой stand personal=gpt-5.4-mini плюс service=gpt-6-luna/follow_up_generation
+не доказывает прохождение делегированной Office-задачи и учёт worker-расхода.
+Native subagent/root-scope проверки также не подменяют приёмку точного community
+Tool. Обязательный оставшийся пункт: подтвердить на изолированном стенде передачу
+user/root chat/root answer, фактическую модель и её квоту, отдельную запись расхода
+worker и включение в стоимость исходного ответа без двойного начисления; проверить
+сохранение полного Skill, фактов и File ID на границе worker. Live-портал не менялся.
+Это обнаруженный пробел покрытия, а не доказанная причина ошибок: diagnostic79
+по-прежнему имеет установленный локальный encoded byte-bound отказ.
+Read-only exact pinned Tool review (`local/goal584/delegated-office-route-review.md`)
+выявил conditional source gaps: task=sub_agent отвергается cost_filter; сохранённый
+parent answer profile отличается от worker profile; TASK=sub_agent в gateway
+выбирает service decoder, хотя worker должен оставаться personal. Native root/child
+приёмка не покрывает community Tool, который сохраняет parent IDs и не выставляет
+native internal=True. Простое разрешение task без остальных проверок недостаточно.
+Следующий slice: узкая адаптация existing signing/auth owners, сохранение root/user
+authority и полного worker context; без нового core/Tool/client/ledger и без
+переименования task в служебную генерацию. Реальный сбой маршрута ещё не запускался.
+Граница проектируемой адаптации: native authenticated user/Chats + private parent
+request state → existing root capsule → Filter.request signer → personal JWT;
+actual native Models/connection → unchanged worker wire model → personal assignment;
+TASK=sub_agent → existing auth classifier → personal native validation/SpendLogs;
+native SpendLogs root scope → existing readback → стоимость исходного ответа/чата.
+Это representation-only изменения; Task/Tools/модельный контекст и финансовые
+вычисления остаются у прежних владельцев. Отдельно проверяется унаследованный
+request.base_model_id: signer не должен выдавать worker-модель за фактический
+parent wire. Несовпадение требует явного отказа либо исправления у route owner,
+а не подмены только подписанной модели. Установленные профили обоих этапов Terra
+не доказывают поведение Sol→Terra.
+Worker source интегрирован в reasoning5795dfc7/delivery4098ee5c: auth явно классифицирует только TASK=sub_agent как
+personal, требует personal JWT даже при optional provenance, оставляет native
+header/body task и прежние service audiences.11 gateway control-flow tests PASS
+(actual auth function body, native IO leaves substituted; не genuine admission).
+Filter требует private request-state root token, его равенство context capsule,
+native user/parent ACL и retained IDs; только затем очищает унаследованный
+base_model_id на изолированной Tool copy и повторно сверяет native connection.
+Native Models record выбирает worker и для подписи, и для штатного маршрута;
+parent request/body/messages/tools/task сохраняются.26component tests PASS0skip,
+3actual pinned Tool/nativeFilter cases PASS (directSol→Terra, samebaseTerra,
+inheritedcustomSol→Terra); root37unique cost/auth tests покрыты зелёными проверками
+с отдельным повтором одного missing-Git-cache case после правильного env.
+Это не full current Skill/nativeDB/provider/ledger приёмка. Новые source изменения
+отсутствуют в frozen Office80/d556 run.
+
+Office80 discriminator:4actual native Router/SLP cases показали raw providerID с
+decoder None/None при точном nativeSLP.model_id. В native/full-HTTP ветвях разные
+представления ID. Proof-only fix reasoning59c507be/delivery78d005b5 выбирает их
+только по existing trusted native profile; opaque IDs допускаются исключительно
+вbuffered ветви, с точным native row.model_id/provider ID/nonce/signedscope join.
+Все финансовые guards и service/native-default assertions сохранены;109targeted
+tests PASS0skip/network0 и root repeat109PASS. Точный Office80 failed DB atom не
+приписан задним числом, реальные rows нужно заново принять на стенде.
+
+STT composition source reasoningc3d28f62/deliveryaaa82105 добавляет к existing
+native audio-context verifier6полных prepared contexts + actual budget signer;
+native User/ChatMessage/Models/Config owners, foreign native answer negative,
+before/after wholebody equality. Local syntax/AST/CLI и independent workflow
+7IOcases PASS, actual WebUI-image run pending. Existing step7 теперь дополнительно
+запускает этот verifier в том же builtWebUIimage/networknone/RO/ownedpreflight;
+120s нового check обосновывают общий timeout6min, не расширяют Office wait/bounds.
+
+Опубликован reasoningc3d28f624924e146200054e8e626431db6c10783 и запущен existing
+Office-only workflow_dispatch [42238631735](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42238631735),
+event/head совпали, job127962777900 terminalSUCCESS. Step7–13/15/16SUCCESS,
+diagnostic14SKIPPED по штатному success-path. Artifact13514292336:1282651B/84members,
+SHA256 `f6b8ff6f7e727817e2407242dcbb4a766248511a32120015c56086612b208e01`;
+один download, API digest совпал. Native37+auth19 без skips, actualSTT6cases/7checks,
+54buildinputs/70Git source files/14nativeSDKpins/3deployed functions подтверждены
+independent reader и root repeat. Cleanup0containers/0volumes/0networks/0images,
+2helpercontainers и5exactimageIDs удалены; sharedbuildcache не объявлен удалённым.
+
+Office81 steps9–11 independently PASS и root repeat: full native input4/7/10,
+14schemas/2Toolpairs/source/opaque reasoning; DOCX17paragraphs/3x4table +actualPNG;
+continuation13/saved8/final2/3reasoning/sameFileID/tworeloads/ordinarySend, totals
+personal.60+.20=.80 иservice.20+.20=.40.5new coherent transport mutants rejected;
+private DB/auth/nativepacket values остаются exact-source-bound, не воссозданы.
+Root просмотрел first/continuation/render PNG; новая Download ссылка видна внутри
+нового ответа. Первичная visual гипотеза отсутствия ссылки отвергнута повторным
+просмотром original PNG с точным ZIP SHA; browser уже ожидал scoped current link,
+изменения ожидания/DOM/новый gate не понадобились.
+
+API12:7attempts/5dispatches/3targetedblocks/known.332; GUI13:6ordinarySends/
+4dispatches/2unknown/2saveddenials/known.332, другая модель остаётся доступной.
+Root `office81-review/verify_unknown.py` сверил27uniqueGit source bindings,
+6screenshots и receipts; actual unknown warnings без суммы, 2native key refusals
+и оба known.166 PNG просмотрены. API explicit-zero runtime не заявлен, как и
+independent chat association для unbound pre-auth denial audit. WholeGoal/production
+не приняты. Evidence: `office81-native-preflight-review/` +root-repeat,
+`office81-office-context-review/` +root-repeat, `office81-review/`.
+
+Post81 human-error slice reasoningccb75580/deliverya7172226: existing budget_errors
+callback переводит только exact stock builtin blocked Exception в короткое русское
+сообщение без /key/unblock. Actual native auth handler/component8PASS+root8PASS
+сохраняет тот же exception/401/auth_error, quota/error classes unchanged.4proof
+consumers ожидают exactновую строку, GUI rejects leaked admin path;77unique API/GUI/
+browser tests green. При локальном прогоне Cyrillic substring/escapedJSON mismatch
+исправлен ensure_ascii=False; missingPlaywright site закрыт отдельным14PASS. Новый
+текст actualGUI pending до следующего согласованного stand среза, без отдельногоCI.
+
+Full community Office delegation пока не входит в81 и остаётся обязательной.
+Следующий source slice у crash_review:6files opt-in fixture/provision/provider+
+tests, freshactor2assignments, Sol/Terra, full synthetic nativeSkill/File, parent3+
+requiredworker6calls; defaultOffice не меняется. Guide actualCLI1.0.152/fullnative
+factory/context/reservation ещё не qualified, старый маленький packet не заменяет
+fullguide. Private productionSkill/doc/IDs не переносятся вGitHub. Source WIP не
+коммитится до проверки root; workflow/browser/readback этой новой ветки ещё не готовы.
+PR585 head78 не менялся; production/рабочие маршруты/paid APIs не затронуты.
+
+Предыдущий кандидат77: headf6e3f8dba56dba4eec490c937673443ee93f8acf,
 tested mergeb8a99106700a80afb65fae5a62306999685bba7e, fetched tree diff пуст.
 PR585 draft/open/unmerged, новая body прочитана точно. [Office77/42194067162](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42194067162),
 [Native77/42194067200](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42194067200)
@@ -58,11 +371,11 @@ packets удалены cleanup, поэтому конкретное прежне
 ложные conjuncts не восстановлены; потеря reasoning/ACL/ledger этим не доказана.
 Следующее source-исправление касается только optional probe: native ordinary-user
 resolver/sanitize/normalize в production order, default packet и строгие guards
-сохраняются; пять conjuncts получат bounded boolean diagnosis. Source/tests ещё
-подготовлены отдельно, нового CI после77 пока нет. Evidence:
+сохраняются; пять conjuncts получили bounded boolean diagnosis в78. Эта source
+подготовка предшествовала опубликованному78; исторический FAIL77 сохранён. Evidence:
 `office77-review/`, `office77-continuation-review/`.
 
-Следующий кандидат78 source: isolated bd01f05b/bfb9a1d8 интегрированы без потери
+Подготовка опубликованного78: isolated bd01f05b/bfb9a1d8 интегрированы без потери
 GOAL WIP как3f4a0f0b/73f11a4b. Diff77→78 —9proof/test files, product/deploy/core/
 Compose и финансовые predicates не менялись. Три pricing pins обновлены к exact
 provider blobd9e4cd38…/catalog02cd0d09…. Optional saved probe теперь получает
