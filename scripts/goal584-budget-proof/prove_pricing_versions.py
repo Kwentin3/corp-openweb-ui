@@ -37,7 +37,7 @@ CALLBACK = Path('/proof/pricing_snapshot.py')
 PROOF = 'goal584-controlled-pricing-versions'
 # Fixed LF hashes of the reviewed candidate callback and native catalog owner.
 CALLBACK_SHA256 = '64f67133962c780cbf6ae743863a7250fa6a427217c6f4981eaf860a799bad81'
-CATALOG_SHA256 = '02ea002a98c31733dd6e076e973e2544bff336ffb930ec0b4cfa4491aaf24c73'
+CATALOG_SHA256 = '02cd0d09f6974f574d49538dbd1010cc34ddd73ee9c7310ed120313b2f35f3ab'
 LABELS = ('v1_S1', 'v1_S2', 'v2_S2')
 EXPECTED = (('v1', '.20', '.20'), ('v1', '.20', '.40'), ('v2', '.40', '.80'))
 USAGE = {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}

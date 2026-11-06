@@ -34,7 +34,7 @@ STATUS = '/schedule/model_cost_map_reload/status'
 SCHEDULE = '/schedule/model_cost_map_reload'
 RELOAD = '/reload/model_cost_map'
 MAX_BYTES = 4 * 1024 * 1024
-PROVIDER_SHA = '6a235e6e81c064ea711afc5331cffece458d6a9c6d25f1ffb34b0869bd0b28da'
+PROVIDER_SHA = 'd9e4cd382a8ff6f0a5089a2f48c8231277494ecaf83c41354cc0abc83c63deca'
 HELPERS = {'prove_native_budgets.py': 'b31b13400683770aa5366d92e76e5dac8596a6a7f47ad104c001ed5f1689e331',
     'prove_gateway_auth.py': 'aec065251e8c5164ff4d10f33e4b27a76f7647a2f0e026aea0d0908a6e8f7f09',
     'native_floor_identity.py': '39d28b28e3d60fb6e5989cdd4b23a2a1341277bc569f2bf3ef0eb9e32deac839',
