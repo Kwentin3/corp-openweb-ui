@@ -1,8 +1,8 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.1.4-native-note-export
-required_open_webui_version: 0.9.6
+version: 2.1.5-native-workflow-context
+required_open_webui_version: 0.12.2
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
 
@@ -173,7 +173,7 @@ class Filter:
         )
         artifact_workflow_skill_id: str = Field(
             default=ARTIFACT_WORKFLOW_SKILL_ID,
-            description="Existing native Skill loaded for Office input workflows. Empty disables automatic loading.",
+            description="Existing native Skill loaded whenever this direct OfficeCLI route attaches. Empty disables automatic loading.",
         )
         default_terminal_id: str = Field(
             default=DEFAULT_TERMINAL_ID,
@@ -277,6 +277,17 @@ class Filter:
         # execution later in this request. Do not reconstruct file context.
         if __metadata__ is not None:
             metadata.setdefault("params", {})["function_calling"] = "native"
+            workflow_skill_id = valves.artifact_workflow_skill_id.strip()
+            if workflow_skill_id:
+                # OpenWebUI 0.12.2 resolves this shared context after inlets:
+                # its native Skill owner loads the readable active snapshot,
+                # rather than only listing a selected skill_ids manifest entry.
+                # Activate on creation and follow-ups too; no user mention or
+                # duplicate Skill text is added by this version-specific adapter.
+                context = metadata.setdefault("chat_context", {})
+                mentioned_ids = context.setdefault("mentioned_skill_ids", [])
+                if workflow_skill_id not in mentioned_ids:
+                    context["mentioned_skill_ids"] = [*mentioned_ids, workflow_skill_id]
 
         if OFFICECLI_TOOL_ID not in tool_ids:
             body["tool_ids"] = [*tool_ids, OFFICECLI_TOOL_ID]
