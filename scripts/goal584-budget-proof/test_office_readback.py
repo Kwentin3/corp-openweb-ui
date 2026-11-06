@@ -429,6 +429,28 @@ def test_native_api_inventory_preserves_all_payers_keys_raw_zero_rows_and_ignore
     assert first['primary']['old_payers'] != R.inventory(native, office)['primary']['old_payers']
 
 
+@pytest.mark.parametrize('mutation', ('valid', 'missing', 'extra', 'nonbool', 'all_true', 'wrong_failure'))
+def test_main_exposes_only_bounded_saved_history_failure_booleans(monkeypatch, capsys, mutation):
+    atoms = dict.fromkeys(R.proof.SAVED_HISTORY_ATOMS, True)
+    atoms['native_saved_join_match'] = False
+    code = 'office_saved_provider_history'
+    if mutation == 'missing': atoms.pop('native_saved_has_eight_items')
+    elif mutation == 'extra': atoms['private_db_value'] = 'do-not-export'
+    elif mutation == 'nonbool': atoms['native_saved_join_match'] = 0
+    elif mutation == 'all_true': atoms['native_saved_join_match'] = True
+    elif mutation == 'wrong_failure': code = 'office_saved_full_context'
+    error = N.ProofError(code); error.office_saved_history_atoms = atoms
+    def fail(*args): raise error
+    monkeypatch.setattr(R, 'dependencies', lambda: {})
+    monkeypatch.setattr(R, 'run', fail)
+    monkeypatch.setattr('sys.argv', ['prove_office_readback.py', '--phase', 'continuation-verify'])
+    assert R.main() == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result['passed'] is False and result['failure_code'] == code
+    assert result.get('saved_history_atoms') == (atoms if mutation == 'valid' else None)
+    assert 'do-not-export' not in json.dumps(result)
+
+
 def continuation_capture(call):
     """HTTP/auth observation leaf; the actual domain validators remain real."""
     return {'body': copy.deepcopy(call['wire_before_auth']), 'body_after_auth': copy.deepcopy(call['wire_after_auth']),

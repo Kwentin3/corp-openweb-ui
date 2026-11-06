@@ -446,6 +446,11 @@ def main():
         code = str(error) if isinstance(error, ProofError) else ''
         result = {'schema': 1, 'phase': args.phase, 'passed': False, 'native_office_accepted': False,
                   'failure_code': code if re.fullmatch(r'office_[a-z_]+', code) else 'office_readback_failed'}
+        atoms = getattr(error, 'office_saved_history_atoms', None)
+        if (code == 'office_saved_provider_history' and isinstance(atoms, dict)
+                and set(atoms) == set(proof.SAVED_HISTORY_ATOMS)
+                and all(type(value) is bool for value in atoms.values()) and not all(atoms.values())):
+            result['saved_history_atoms'] = atoms
         if code == 'office_service_dispatch_binding' and hasattr(error, 'office_service_binding') and d is not None:
             atoms = getattr(error, 'office_service_binding_atoms', None)
             if isinstance(atoms, dict) and set(atoms) == proof.SERVICE_BINDING_ATOMS and all(type(v) is bool for v in atoms.values()):

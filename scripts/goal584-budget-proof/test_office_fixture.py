@@ -1,5 +1,7 @@
 """Actual inherited topology methods with only external Docker IO doubled."""
 import ast
+import asyncio
+import base64
 import contextlib
 import copy
 from datetime import datetime
@@ -7,10 +9,12 @@ import io
 import json
 import hashlib
 import os
+import mimetypes
 from pathlib import Path
 import re
 import sys
 from types import ModuleType, SimpleNamespace
+from typing import Optional
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -628,6 +632,105 @@ def native_context_owners():
     return owner, native, sources
 
 
+def native_resolution_world(world, native_root):
+    """Actual native models/repositories/ACL/resolver; only DB/query IO leaves.
+
+    Storage uses the actual local-provider get_file method and aiofiles reads a
+    real temporary PNG. No success resolver or authenticated user DTO is mocked.
+    """
+    import aiofiles
+    import importlib.util
+    import pydantic
+    from typing import Any
+    raw = {name: (native_root / name).read_bytes().replace(b'\r\n', b'\n')
+           for name in office.NATIVE_RESOLUTION_SOURCES}
+    # Replay the existing runtime media stage, rather than attesting upstream
+    # storage bytes as if they were the deployed resolver owner.
+    media = ROOT / 'deploy/openwebui-patches/media-upload-v0.12.2'
+    manifest = json.loads((media / 'manifest.json').read_bytes())['files']['backend/open_webui/storage/provider.py']
+    if hashlib.sha256(raw['storage/provider.py']).hexdigest() == manifest['upstream_sha256']:
+        spec = importlib.util.spec_from_file_location('office_existing_resolution_media', media / 'apply_media.py')
+        applier = importlib.util.module_from_spec(spec); spec.loader.exec_module(applier)
+        raw['storage/provider.py'] = applier.transform('backend/open_webui/storage/provider.py', raw['storage/provider.py'].decode()).encode()
+    assert hashlib.sha256(raw['storage/provider.py']).hexdigest() == manifest['candidate_sha256']
+    assert {name: hashlib.sha256(value).hexdigest() for name, value in raw.items()} == office.NATIVE_RESOLUTION_SOURCES
+    for name, value in raw.items():
+        target = world.path('webui', '/app/backend/open_webui/' + name)
+        target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(value)
+        if name in world.receipt['webui']['modules']:
+            world.receipt['webui']['modules'][name] = hashlib.sha256(value).hexdigest()
+    world.user_rows = {'caller': SimpleNamespace(id='caller', email='native@example.invalid', name='Native fixture',
+        role='user', last_active_at=0, updated_at=0, created_at=0)}
+    world.file_rows, world.db_reads, world.access_queries = {}, [], []
+    User, File = type('NativeUserTableMarker', (), {}), type('NativeFileTableMarker', (), {})
+
+    class Database:
+        async def get(self, table, key):
+            world.db_reads.append(('user' if table is User else 'file', key))
+            return (world.user_rows if table is User else world.file_rows).get(key)
+
+    @contextlib.asynccontextmanager
+    async def database(db=None): yield Database()
+
+    ns = {'__name__': __name__, 'datetime': __import__('datetime'), 'Optional': Optional, 'Any': Any,
+        'BaseModel': pydantic.BaseModel, 'ConfigDict': pydantic.ConfigDict, 'Field': pydantic.Field,
+        'field_validator': pydantic.field_validator, 'model_validator': pydantic.model_validator,
+        'AsyncSession': Any, 'User': User, 'File': File, 'get_async_db_context': database,
+        'log': SimpleNamespace(debug=lambda *a: None, exception=lambda *a: None)}
+
+    def extract(relative, names, *, method=None):
+        tree = ast.parse(raw[relative]); nodes = []
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.name in names:
+                if method:
+                    node = copy.deepcopy(node)
+                    node.body = [n for n in node.body if isinstance(n, ast.AsyncFunctionDef) and n.name == method]
+                    assert len(node.body) == 1
+                nodes.append(node)
+            elif isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in names for t in node.targets):
+                nodes.append(node)
+        assert len(nodes) == len(names)
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), 'actual-native-' + relative, 'exec'), ns)
+
+    extract('models/users.py', {'UserSettings', '_DEFAULT_PROFILE_IMAGE_URL', 'UserModel'})
+    extract('models/users.py', {'UsersTable'}, method='get_user_by_id')
+    extract('models/files.py', {'FileModel'})
+    extract('models/files.py', {'FilesTable'}, method='get_file_by_id')
+    ns.update(Users=ns['UsersTable'](), Files=ns['FilesTable']())
+
+    def query_owner(name, methods):
+        result = SimpleNamespace()
+        for method in methods:
+            async def read(*args, _method=method, **kwargs):
+                world.access_queries.append((name, _method))
+                return []
+            setattr(result, method, read)
+        return result
+    for name, methods in {
+        'Knowledges': ('get_knowledges_by_file_id',), 'Groups': ('get_groups_by_member_id',),
+        'Channels': ('get_channels_by_file_id_and_user_id',),
+        'Chats': ('get_shared_chat_ids_by_file_id', 'get_accessible_chat_by_id'),
+        'Notes': ('get_note_ids_by_file_id',), 'Models': ('get_model_owner_ids_by_file_id',),
+        'AccessGrants': ('has_access', 'get_accessible_resource_ids')}.items(): ns[name] = query_owner(name, methods)
+    # This query returns a mapping, as required by the actual native ACL owner.
+    async def model_owners(*args, **kwargs):
+        world.access_queries.append(('Models', 'get_model_owner_ids_by_file_id')); return {}
+    ns['Models'].get_model_owner_ids_by_file_id = model_owners
+    extract('utils/access_control/files.py', {'has_access_to_file'})
+    storage = next(n for n in ast.parse(raw['storage/provider.py']).body if isinstance(n, ast.ClassDef) and n.name == 'LocalStorageProvider')
+    get_file = next(n for n in storage.body if isinstance(n, ast.FunctionDef) and n.name == 'get_file')
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ClassDef(name='LocalStorageProvider', bases=[],
+        keywords=[], body=[get_file], decorator_list=[])], type_ignores=[])), 'actual-native-storage-provider', 'exec'), ns)
+    ns.update(Storage=ns['LocalStorageProvider'], asyncio=asyncio, base64=base64, mimetypes=mimetypes,
+        aiofiles=aiofiles, Path=Path, re=re, ENABLE_IMAGE_CONTENT_TYPE_EXTENSION_FALLBACK=False)
+    extract('utils/files.py', {'FILE_CONTENT_URL_PATTERN', '_IMAGE_MIME_FALLBACK',
+        'get_image_base64_from_url', 'get_image_base64_from_file_id'})
+    middleware = ast.parse(world.path('webui', '/app/backend/open_webui/utils/middleware.py').read_bytes())
+    converter = next(n for n in middleware.body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'convert_url_images_to_base64')
+    exec(compile(ast.Module(body=[converter], type_ignores=[]), 'actual-deployed-native-image-converter', 'exec'), ns)
+    return ns
+
+
 class NativeContextWorld(ReadbackWorld):
     """Execute emitted Python; Docker paths/imports/argv are explicit IO doubles.
 
@@ -636,15 +739,17 @@ class NativeContextWorld(ReadbackWorld):
     """
     def __init__(self, fixture, root, owners, openapi):
         super().__init__(fixture, root)
-        _, self.native, sources = owners
+        owner, self.native, sources = owners
         for name, raw in sources.items(): self.path('webui', '/app/backend/open_webui/' + name).write_bytes(raw)
         self.receipt['webui']['modules'].update({n: hashlib.sha256(v).hexdigest() for n, v in sources.items()})
         self.handoff = {'schema': 1, 'private_sentinel': SECRET, 'office_service_setup': {'stage': 'readback_ready'},
+            'users': [{'id': 'caller'}], 'admin': {'id': 'native-admin'},
             'office_setup': {'openapi': copy.deepcopy(openapi)}}
         fixture.private.mkdir(); self.state = fixture.private / 'office-state.private.json'; self.save()
         self.native_commands, self.failure = [], None
         self.before_exec = self.during_convert = self.packet_mutation = None
         self.payload_mutation = self.during_output = None
+        self.native_resolution = native_resolution_world(self, owner.NATIVE)
 
     def save(self):
         self.state.write_text(json.dumps(self.handoff)); self.state.chmod(0o600)
@@ -660,12 +765,18 @@ class NativeContextWorld(ReadbackWorld):
             command[-1] = json.dumps(payload, ensure_ascii=True, allow_nan=False)
         tools, router, _ = self.native
         modules = {name: ModuleType(name) for name in ('open_webui', 'open_webui.utils', 'open_webui.routers',
+            'open_webui.models', 'open_webui.models.users', 'open_webui.utils.files',
             'open_webui.utils.tools', 'open_webui.routers.openai', 'open_webui.utils.misc', 'open_webui.utils.middleware')}
         for name in ('convert_openapi_to_tool_payload', 'clean_openai_tool_schema'):
             setattr(modules['open_webui.utils.tools'], name, tools[name])
         modules['open_webui.routers.openai'].convert_to_responses_payload = router['convert_to_responses_payload']
         modules['open_webui.utils.misc'].convert_output_to_messages = router['convert_output_to_messages']
         modules['open_webui.utils.middleware'].process_messages_with_output = router['process_messages_with_output']
+        for name in ('sanitize_tool_pairs', 'normalize_messages_for_model'):
+            setattr(modules['open_webui.utils.middleware'], name, router[name])
+        modules['open_webui.models.users'].Users = self.native_resolution['Users']
+        modules['open_webui.utils.files'].FILE_CONTENT_URL_PATTERN = self.native_resolution['FILE_CONTENT_URL_PATTERN']
+        modules['open_webui.utils.middleware'].convert_url_images_to_base64 = self.native_resolution['convert_url_images_to_base64']
         if self.during_output:
             def convert(saved, **options):
                 value = router['convert_output_to_messages'](saved, **options); self.during_output(saved); return value
@@ -874,6 +985,140 @@ class OfficeNativeContextTests(unittest.TestCase):
             world.packet_mutation = lambda p: p.update(saved_output_case={'input_saved_output': [], 'native_input': []})
             with self.assertRaisesRegex(AssertionError, 'Office unexpected native saved output observation'):
                 world.fixture.native_context(BASE, world.receipt, world.revision, [[]])
+
+    @contextlib.contextmanager
+    def image_case(self):
+        # Full finite Handler/Office factory + native converters, including the
+        # actual PNG. None of P's context/history/scope checks are replaced.
+        owner = self.owners[0]
+        with tempfile.TemporaryDirectory() as directory, pytest.MonkeyPatch.context() as monkeypatch:
+            root = Path(directory)
+            component = owner.component.__wrapped__(monkeypatch, root, self.owners[1])
+            case = owner.saved_continuation.__wrapped__(component, monkeypatch, root, self.owners)
+            observer = root / 'file-resolution'; observer.mkdir()
+            world = native_context_world(observer, monkeypatch, self.owners)
+            yield world, case
+
+    def stored_image(self, world, case):
+        saved = copy.deepcopy(case.kwargs['saved_output'])
+        image = next(part for item in saved if item.get('type') == 'function_call_output'
+            for part in item['output'] if part.get('type') == 'input_image')
+        png = base64.b64decode(image['image_url'].split(',', 1)[1], validate=True)
+        assert png.startswith(b'\x89PNG\r\n\x1a\n') and png == case.kwargs['png']
+        path = world.root / 'stored-tool-image.png'; path.write_bytes(png)
+        world.file_rows['native-tool-image'] = SimpleNamespace(id='native-tool-image', user_id='caller',
+            filename=path.name, path=str(path), meta={'content_type': 'image/png'}, created_at=0, updated_at=0)
+        image['image_url'] = '/api/v1/files/native-tool-image/content'
+        return saved, path
+
+    def observe_saved(self, world, case, saved):
+        reasons = [[v for v in call['provider']['response']['output'] if v['type'] == 'reasoning']
+                   for call in case.kwargs['first_calls']]
+        return world.fixture.native_context(BASE, world.receipt, world.revision, reasons, saved_output=saved)
+
+    def test_owned_native_file_resolves_actual_png_and_passes_entire_saved_context_without_input_mutation(self):
+        with self.image_case() as (world, case):
+            supplied, path = self.stored_image(world, case)
+            original = copy.deepcopy(supplied); private = world.state.read_bytes(); png = path.read_bytes()
+            packet = self.observe_saved(world, case, supplied)
+            assert packet['saved_output_case']['native_input'] == case.kwargs['native_saved']['saved_output_case']['native_input']
+            assert packet['saved_output_case']['input_saved_output'] == original == supplied
+            assert world.state.read_bytes() == private and path.read_bytes() == png
+            assert world.db_reads == [('user', 'caller'), ('file', 'native-tool-image')] and not world.access_queries
+            assert type(world.native_resolution['Users']).__name__ == 'UsersTable'
+            assert type(world.native_resolution['Files']).__name__ == 'FilesTable'
+            assert self.owners[0].P.verify_saved_continuation(case.call, **(case.kwargs | {
+                'saved_output': supplied, 'native_saved': packet})) == {
+                    case.call['provider']['id']: case.call['verified_cost_scope']}
+            assert len(world.native_commands[-1][-1].encode('ascii')) <= 96 * 1024
+            assert set(packet) == set(case.kwargs['native_saved'])
+            assert set(packet['module_sha256']) == set(case.kwargs['native_saved']['module_sha256'])
+
+    def test_forbidden_missing_and_unresolved_native_file_cannot_return_context_or_read_unowned_storage(self):
+        with self.image_case() as (world, case):
+            supplied, path = self.stored_image(world, case); original = copy.deepcopy(supplied)
+            owned = copy.deepcopy(world.file_rows['native-tool-image'])
+            for mode in ('forbidden', 'missing_row', 'missing_file', 'storage_error'):
+                with self.subTest(mode=mode):
+                    world.file_rows = {'native-tool-image': copy.deepcopy(owned)}
+                    world.db_reads.clear(); world.access_queries.clear(); world.failure = None
+                    if mode == 'forbidden': world.file_rows['native-tool-image'].user_id = 'foreign-owner'
+                    elif mode == 'missing_row': world.file_rows.clear()
+                    elif mode == 'missing_file': path.unlink()
+                    else: world.file_rows['native-tool-image'].path = None
+                    with self.assertRaisesRegex(AssertionError, 'Office Docker topology unavailable .*exec; exit=1; stdout_bytes=0'):
+                        self.observe_saved(world, case, supplied)
+                    assert world.failure == 'AssertionError' and supplied == original
+                    if mode == 'forbidden': assert world.access_queries  # actual native ACL evaluated its query leaves
+                    path.write_bytes(case.kwargs['png'])
+
+    def test_wrong_owned_png_bytes_are_rejected_by_existing_full_context_guard(self):
+        with self.image_case() as (world, case):
+            for mode in ('wrong_bytes', 'empty_image'):
+                with self.subTest(mode=mode):
+                    supplied, path = self.stored_image(world, case)
+                    if mode == 'wrong_bytes':
+                        path.write_bytes(case.kwargs['png'][:-1] + bytes([case.kwargs['png'][-1] ^ 1]))
+                    else:
+                        next(part for item in supplied if item.get('type') == 'function_call_output'
+                            for part in item['output'] if part.get('type') == 'input_image')['image_url'] = ''
+                    packet = self.observe_saved(world, case, supplied)
+                    with self.assertRaises(self.owners[0].P.ProofError):
+                        self.owners[0].P.verify_saved_continuation(case.call, **(case.kwargs | {
+                            'saved_output': supplied, 'native_saved': packet}))
+                    assert packet['saved_output_case']['input_saved_output'] == supplied
+
+    def test_ordinary_native_db_principal_is_required_and_cannot_be_replaced_in_argv(self):
+        for mode in ('host_missing', 'host_multiple', 'host_admin', 'db_missing', 'db_admin', 'db_pending',
+                     'db_misbound', 'argv_other_user'):
+            with self.subTest(mode=mode), self.world() as world:
+                if mode == 'host_missing': world.handoff.pop('users'); world.save()
+                elif mode == 'host_multiple': world.handoff['users'].append({'id': 'other'}); world.save()
+                elif mode == 'host_admin': world.handoff['users'][0]['id'] = world.handoff['admin']['id']; world.save()
+                elif mode == 'db_missing': world.user_rows.clear()
+                elif mode == 'db_admin': world.user_rows['caller'].role = 'admin'
+                elif mode == 'db_pending': world.user_rows['caller'].role = 'pending'
+                elif mode == 'db_misbound': world.user_rows['caller'].id = 'foreign'
+                else:
+                    world.user_rows['other'] = copy.deepcopy(world.user_rows['caller']); world.user_rows['other'].id = 'other'
+                    world.payload_mutation = lambda p: p.update(user_id='other')
+                with self.assertRaises((AssertionError, ProofError)):
+                    world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=self.saved_output())
+                assert len(world.native_commands) == (0 if mode.startswith('host_') else 1)
+                if mode == 'argv_other_user': assert not world.db_reads
+
+    def test_external_images_are_refused_before_native_file_or_network_io(self):
+        for url in ('https://example.invalid/image.png', 'http://127.0.0.1/private', 'foreign-file-id'):
+            with self.subTest(url=url), self.world() as world:
+                supplied = self.saved_output(); supplied[2]['output'][1]['image_url'] = url
+                with self.assertRaisesRegex(AssertionError, 'Office Docker topology unavailable .*exec; exit=1; stdout_bytes=0'):
+                    world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=supplied)
+                assert not world.db_reads and not world.access_queries
+
+    def test_inline_storage_fallback_and_image_free_final_use_no_file_io_and_keep_default_packet(self):
+        with self.image_case() as (world, case):
+            reasons = [[v for v in c['provider']['response']['output'] if v['type'] == 'reasoning'] for c in case.kwargs['first_calls']]
+            original = copy.deepcopy(case.kwargs['saved_output'])
+            packet = self.observe_saved(world, case, original)
+            final = world.fixture.native_context(BASE, world.receipt, world.revision, reasons,
+                saved_output=case.kwargs['first_calls'][-1]['provider']['response']['output'])
+            default = world.fixture.native_context(BASE, world.receipt, world.revision, reasons)
+            assert packet == case.kwargs['native_saved'] and final == case.kwargs['native_final']
+            assert original == case.kwargs['saved_output'] and all(table == 'user' for table, _ in world.db_reads)
+            assert len(world.db_reads) == 2 and not world.access_queries
+            assert set(default) == {'schema', 'module_sha256', 'source_body_sha256', 'native_specs', 'reasoning_cases'}
+            assert set(default['module_sha256']) == {'utils/tools.py', 'routers/openai.py'}
+            assert 'user_id' not in json.loads(world.native_commands[-1][-1])
+
+    def test_new_native_resolution_source_mutation_before_or_during_probe_is_rejected(self):
+        for name in office.NATIVE_RESOLUTION_SOURCES:
+            for moment in ('before_exec', 'during_convert'):
+                with self.subTest(module=name, moment=moment), self.world() as world:
+                    def change(w): w.path('webui', '/app/backend/open_webui/' + name).write_bytes(b'foreign resolver owner')
+                    setattr(world, moment, change)
+                    with self.assertRaisesRegex(AssertionError, 'Office Docker topology unavailable .*exec; exit=1; stdout_bytes=0'):
+                        world.fixture.native_context(BASE, world.receipt, world.revision, [[]], saved_output=self.saved_output())
+                    assert world.failure == 'AssertionError'
 
 
 class PrepareWorld(DockerWorld):
