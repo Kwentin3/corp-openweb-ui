@@ -25,6 +25,9 @@ OUTPUT_NAME = "goal584-office.docx"
 EXPORT_ARGUMENTS = {"output_name": OUTPUT_NAME, "source_message": "previous_assistant", "commands": []}
 USER_REQUEST = "Export the complete previous answer to goal584-office.docx, render every page, and attach the native file."
 CONTINUATION_REQUEST = "Keep the attached file and report its native file ID without calling tools."
+SAVED_HISTORY_ATOMS = ("native_saved_join_match", "native_saved_has_eight_items",
+                       "saved_reasoning_matches_provider", "native_reasoning_matches_provider",
+                       "provider_has_three_reasoning_items")
 SOURCE = "# GOAL584 Office compatibility\nBEGIN-G584-OFFICE\n" + (
     "\u041f\u0435\u0440\u0432\u044b\u0439 \u0430\u0431\u0437\u0430\u0446: \u0441\u0443\u043c\u043c\u0430 9 000 \u20bd; "
     "\u0441\u0440\u043e\u043a \u2014 5 \u0440\u0430\u0431\u043e\u0447\u0438\u0445 \u0434\u043d\u0435\u0439.\n\n"
@@ -541,12 +544,18 @@ def verify_saved_continuation(call, *, first_calls, saved_output, native_saved, 
                           for first in first_calls]
     expected_reasoning = [v for reasoning in provider_reasoning for v in native_responses_payload(
         {"messages": [{"role": "assistant", "output": reasoning}]})["input"]]
-    require(saved_input == expected_saved and len(saved_input) == 8
-            and [v for v in saved_output if v.get("type") == "reasoning"] ==
-                [v for reasoning in provider_reasoning for v in reasoning]
-            and [v for v in saved_input if v.get("type") == "reasoning"] == expected_reasoning
-            and len(expected_reasoning) == 3,
-            "office_saved_provider_history")
+    atoms = dict(zip(SAVED_HISTORY_ATOMS, (
+        bool(saved_input == expected_saved),
+        bool(len(saved_input) == 8),
+        bool([v for v in saved_output if v.get("type") == "reasoning"] ==
+             [v for reasoning in provider_reasoning for v in reasoning]),
+        bool([v for v in saved_input if v.get("type") == "reasoning"] == expected_reasoning),
+        bool(len(expected_reasoning) == 3))))
+    try:
+        require(all(atoms.values()), "office_saved_provider_history")
+    except ProofError as error:
+        error.office_saved_history_atoms = atoms
+        raise
     question = {"type": "message", "role": "user", "content": [{"type": "input_text", "text": CONTINUATION_REQUEST}]}
     require(wire["input"] == base["input"] + saved_input + [question], "office_saved_full_context")
     output = call["provider"]["response"]["output"]

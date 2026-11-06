@@ -1481,3 +1481,81 @@ def test_service_profile_and_actual_build_admission_compose_without_bypassing_ei
     running["office"]["image_id"] = "sha256:" + "f" * 64
     with pytest.raises(P.ProofError, match="office_build_live_image"):
         P.verify_profile(profile, build_receipt=receipt, expected_revision=revision, running=running, **options)
+
+
+@pytest.mark.parametrize('atom,expected', [
+    ('native_saved_join_match', (False, True, True, True, True)),
+    ('native_saved_has_eight_items', (True, False, True, True, True)),
+    ('saved_reasoning_matches_provider', (True, True, False, True, True)),
+    ('native_reasoning_matches_provider', (True, True, True, False, True)),
+    ('provider_has_three_reasoning_items', (False, True, True, True, False)),
+])
+def test_saved_continuation_history_atoms_report_original_native_predicate_failures(saved_continuation, component, atom, expected):
+    call, options = copy.deepcopy((saved_continuation.call, saved_continuation.kwargs))
+    saved = options['native_saved']['saved_output_case']; final = options['native_final']['saved_output_case']
+    if atom == 'native_saved_join_match':
+        final['native_input'][-1]['content'][0]['text'] = 'different native final observation'
+    elif atom == 'native_saved_has_eight_items':
+        saved['native_input'].pop(); final['native_input'].pop()
+    elif atom == 'saved_reasoning_matches_provider':
+        # Keep normalized native inputs intact. Raw local/native status equality
+        # remains required; diagnostics never turn this difference into a pass.
+        for values in (options['saved_output'], saved['input_saved_output']):
+            next(v for v in values if v.get('type') == 'reasoning')['status'] = None
+    elif atom == 'native_reasoning_matches_provider':
+        for values in (saved['native_input'], final['native_input']):
+            [v for v in values if v.get('type') == 'reasoning'][-1]['encrypted_content'] = 'different opaque observation'
+    else:
+        # A genuine native conversion of extra provider reasoning items also
+        # changes the full join. Record both failures; do not fake a converter
+        # to force logically related predicates to fail independently.
+        output = options['first_calls'][-1]['provider']['response']['output']
+        extra = copy.deepcopy(next(v for v in output if v.get('type') == 'reasoning'))
+        extra['id'] += '-extra'; output.insert(-1, extra)
+        raw = options['saved_output']
+        assert raw[-1].get('type') == 'message'
+        raw[-1] = copy.deepcopy(extra)
+        saved['input_saved_output'] = copy.deepcopy(raw); final['input_saved_output'] = copy.deepcopy(output)
+        native = component.router; settings = {'reasoning_format': 'responses', 'flatten_tool_images': False}
+        for observation in (saved, final):
+            messages = native['convert_output_to_messages'](observation['input_saved_output'], raw=True, **settings)
+            messages = native['process_messages_with_output'](messages, **settings)
+            observation['native_input'] = native['convert_to_responses_payload']({'messages': messages})['input']
+        options['native_responses_payload'] = native['convert_to_responses_payload']
+        cases = [[v for v in first['provider']['response']['output'] if v.get('type') == 'reasoning']
+                 for first in options['first_calls']]
+        for packet in (options['native_saved'], options['native_final']):
+            packet['reasoning_cases'] = [{'input_reasoning': copy.deepcopy(case), 'native_input':
+                native['convert_to_responses_payload']({'messages': [{'role': 'assistant', 'output': case}]})['input']}
+                for case in cases]
+    if atom == 'native_reasoning_matches_provider':
+        # The fixture deliberately shares the saved input with the before-auth
+        # wire. Keep both auth projections and the provider body coherent so
+        # this control reaches the intended native-history predicate.
+        base = options['first_calls'][0]['wire_before_auth']['input']
+        question = call['wire_after_auth']['input'][-1]
+        for body in (call['wire_before_auth'], call['wire_after_auth'], call['provider']['body']):
+            body['input'] = copy.deepcopy(base + saved['native_input'] + [question])
+    original = copy.deepcopy((call, options))
+    with pytest.raises(P.ProofError, match='^office_saved_provider_history$') as caught:
+        P.verify_saved_continuation(call, **options)
+    assert P.SAVED_HISTORY_ATOMS == ('native_saved_join_match', 'native_saved_has_eight_items',
+        'saved_reasoning_matches_provider', 'native_reasoning_matches_provider', 'provider_has_three_reasoning_items')
+    observed = caught.value.office_saved_history_atoms
+    assert tuple(observed) == P.SAVED_HISTORY_ATOMS and tuple(observed.values()) == expected, json.dumps(observed, sort_keys=True)
+    assert observed[atom] is False and all(type(value) is bool for value in observed.values())
+    assert vars(caught.value) == {'office_saved_history_atoms': observed}
+    assert (call, options) == original
+
+
+@pytest.mark.parametrize('failure', ['auth', 'new_user', 'attachment'])
+def test_saved_continuation_history_atoms_do_not_attach_to_other_proof_errors(saved_continuation, failure):
+    call, options = copy.deepcopy((saved_continuation.call, saved_continuation.kwargs))
+    if failure == 'auth': call['auth_user_id'] = str(uuid4())
+    elif failure == 'new_user':
+        for body in (call['wire_before_auth'], call['wire_after_auth'], call['provider']['body']):
+            body['input'][-1]['content'][0]['text'] = 'different next prompt'
+    else: call['provider']['response']['output'][-1]['content'][0]['text'] = 'different native file'
+    with pytest.raises(P.ProofError) as caught: P.verify_saved_continuation(call, **options)
+    assert str(caught.value) != 'office_saved_provider_history'
+    assert not hasattr(caught.value, 'office_saved_history_atoms')

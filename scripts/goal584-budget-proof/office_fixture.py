@@ -18,6 +18,16 @@ from build_office_profile import WEBUI_FILES, OFFICE_FILES
 from prove_office_compatibility import MODEL, VALVES, WEBUI_MODULES, built_images, digest, verify_profile
 
 
+# Native resolver owners from the existing pinned WebUI image source closure.
+# Internal checks leave the default packet and four-module saved packet intact.
+NATIVE_RESOLUTION_SOURCES = {
+    'utils/files.py': '4183622e47f152a0becd6cc2397e009750d14a30444c03ed50cd2c5f0d91711c',
+    'utils/access_control/files.py': '87d406ca2b5e4846e0d8ddc9403d42ee3dda33cc6f52e6919ce0352ef3202f18',
+    'models/users.py': '143e949b172252c45ae1cbe7d5f7bfc3460375fa49b203f4dbc36c6128d68bc3',
+    'models/files.py': 'e0770c88528e5f95f64ee56fd11f1e662065ba269a7bf44688fa6d5ce224cb6d',
+    'storage/provider.py': '59e43c4d64577e2e908583cf7cb8f7057d1f6be644d1781a0e754858b75f1da5'}
+
+
 OFFICE_MODELS = ''.join(f'''  - model_name: {name}
     litellm_params:
       model: openai/{wire}
@@ -348,18 +358,28 @@ class OfficeFixture(PricingFixture):
             modules.update({name: running['webui']['modules'][name] for name in ('utils/misc.py', 'utils/middleware.py')})
         schema = handoff['office_setup']['openapi']
         inputs = {'module_sha256': modules, 'openapi': schema, 'reasoning_cases': list(cases.values())}
-        if saved_output is not None: inputs['saved_output'] = saved_output
+        if saved_output is not None:
+            users = handoff.get('users')
+            require(isinstance(users, list) and len(users) == 1 and isinstance(users[0], dict)
+                    and isinstance(users[0].get('id'), str) and bool(users[0]['id'])
+                    and isinstance(handoff.get('admin'), dict) and bool(handoff['admin'].get('id'))
+                    and users[0]['id'] != handoff['admin']['id'], 'Office native context ordinary principal differs')
+            inputs.update(saved_output=saved_output, user_id=users[0]['id'])
         payload = json.dumps(inputs, ensure_ascii=True, allow_nan=False)
         require(len(payload.encode('ascii')) <= 96 * 1024, 'Office native context argument exceeded bound')
         code = '''import contextlib,hashlib,io,json,pathlib,sys
 p=json.loads(sys.argv[1]);r=pathlib.Path('/app/backend/open_webui')
 assert isinstance(p,dict) and set(p) in ({'module_sha256','openapi','reasoning_cases'},
-    {'module_sha256','openapi','reasoning_cases','saved_output'})
+    {'module_sha256','openapi','reasoning_cases','saved_output','user_id'})
 names=('utils/tools.py','routers/openai.py')+(('utils/misc.py','utils/middleware.py') if 'saved_output' in p else ())
 original=json.dumps(p,sort_keys=True,ensure_ascii=True,allow_nan=False)
 def modules():
     return {n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in names}
 assert modules()==p['module_sha256']
+resolution_sources=RESOLUTION_SOURCES
+def resolution_modules():
+    return {n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in resolution_sources}
+if 'saved_output' in p: assert resolution_modules()==resolution_sources
 with contextlib.redirect_stdout(io.StringIO()):
     from open_webui.utils.tools import convert_openapi_to_tool_payload,clean_openai_tool_schema
     from open_webui.routers.openai import convert_to_responses_payload
@@ -367,22 +387,48 @@ with contextlib.redirect_stdout(io.StringIO()):
     cases=[{'input_reasoning':v,'native_input':convert_to_responses_payload(
         {'messages':[{'role':'assistant','output':v}]})['input']} for v in p['reasoning_cases']]
     if 'saved_output' in p:
+        assert p['user_id']==EXPECTED_USER_ID
         saved=p['saved_output']
         assert isinstance(saved,list) and saved and all(isinstance(v,dict)
             and v.get('type') in ('reasoning','message','function_call','function_call_output')
             and (v['type']!='message' or v.get('role')=='assistant') for v in saved)
         from open_webui.utils.misc import convert_output_to_messages
-        from open_webui.utils.middleware import process_messages_with_output
+        import asyncio
+        from open_webui.models.users import Users
+        from open_webui.utils.files import FILE_CONTENT_URL_PATTERN
+        from open_webui.utils.middleware import (process_messages_with_output,sanitize_tool_pairs,
+            convert_url_images_to_base64,normalize_messages_for_model)
         messages=convert_output_to_messages(saved,raw=True,reasoning_format='responses',flatten_tool_images=False)
         messages=process_messages_with_output(messages,reasoning_format='responses',flatten_tool_images=False)
-        observed={'input_saved_output':saved,'native_input':convert_to_responses_payload({'messages':messages})['input']}
+        messages=sanitize_tool_pairs(messages)
+        def image_urls(messages):
+            for message in messages:
+                content=message.get('content')
+                if isinstance(content,list):
+                    for item in content:
+                        if isinstance(item,dict) and item.get('type') in ('input_image','image_url'):
+                            url=item.get('image_url')
+                            yield url.get('url') if isinstance(url,dict) else url
+        assert all(isinstance(url,str) and (url.startswith('data:image/')
+            or FILE_CONTENT_URL_PATTERN.match(url)) for url in image_urls(messages))
+        async def resolve():
+            user=await Users.get_user_by_id(p['user_id'])
+            assert user is not None and user.id==p['user_id'] and user.role=='user'
+            form=await convert_url_images_to_base64({'messages':messages},user=user)
+            assert all(isinstance(url,str) and url.startswith('data:image/') for url in image_urls(form['messages']))
+            return normalize_messages_for_model(form)
+        form=asyncio.run(resolve())
+        observed={'input_saved_output':saved,'native_input':convert_to_responses_payload(form)['input']}
 assert json.dumps(p,sort_keys=True,ensure_ascii=True,allow_nan=False)==original
 assert modules()==p['module_sha256']
+if 'saved_output' in p: assert resolution_modules()==resolution_sources
 body=hashlib.sha256(json.dumps(p['openapi'],sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
 packet={'schema':1,'module_sha256':modules(),'source_body_sha256':body,'native_specs':specs,'reasoning_cases':cases}
 if 'saved_output' in p: packet['saved_output_case']=observed
 print(json.dumps(packet,allow_nan=False))
 '''
+        code = code.replace('RESOLUTION_SOURCES', repr(NATIVE_RESOLUTION_SOURCES))
+        code = code.replace('EXPECTED_USER_ID', repr(inputs.get('user_id')))
         packet = self._docker_json(['exec', self._office_binding['services']['webui']['id'],
             'python', '-B', '-c', code, payload])
         require(isinstance(packet, dict) and type(packet.get('schema')) is int and packet['schema'] == 1
