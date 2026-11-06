@@ -87,7 +87,7 @@ Primary provider задается в `.env`. Secondary provider добавляе
 - Gemini secondary model id для Admin UI: `gemini-3.5-flash`;
 - backup retention default: `BACKUP_RETENTION_DAYS=7`.
 
-Если provider API блокирует регион исходящего IP, добавить в server-local `.env` `OPENWEBUI_OUTBOUND_PROXY` и `OPENWEBUI_NO_PROXY`. OpenWebUI provider route ожидает HTTP proxy; для SOCKS5 нужен local HTTP-to-SOCKS bridge, например Privoxy, а SOCKS5 upstream хранится отдельно. Реальные proxy credentials не коммитить.
+Если provider API блокирует регион исходящего IP, добавить в server-local `.env` `OPENWEBUI_OUTBOUND_PROXY` и `OPENWEBUI_NO_PROXY`. OpenWebUI provider route ожидает HTTP proxy. На текущем узле общий HTTP endpoint Privoxy обслуживает два backend: AmneziaWG3.1 (активен после приёмки 6 ноября 2026) и Xray. Выбор проверять через `sudo openwebui-transport status`, менять через `use awg` / `use xray`; одной правки `.env` недостаточно. Оба протокола используют один VPN-узел. Настройка, права и rollback: [provider runbook](PROVIDER_SETUP_RUNBOOK.md). Реальные proxy credentials и клиентские профили не коммитить.
 
 ## 7. Закрыть deployment decisions
 

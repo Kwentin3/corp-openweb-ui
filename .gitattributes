@@ -34,3 +34,6 @@ docs/stage2/contracts/BROKER_REPORTS_GATE3_ROLE_LABELING_RESPONSE.v1.schema.json
 docs/stage2/contracts/BROKER_REPORTS_GATE3_LABELING_RESPONSE.v1.schema.json text eol=lf
 # Unified diff context lines intentionally carry leading spaces and empty-line markers.
 deploy/openwebui-patches/media-upload-v0.12.2/media.patch text eol=lf whitespace=-trailing-space,-space-before-tab
+
+# Native Linux transport artifacts must retain their deployed bytes on Windows.
+deploy/transport/* text eol=lf
