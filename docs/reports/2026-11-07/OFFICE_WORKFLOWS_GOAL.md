@@ -4,9 +4,9 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `19ecfaae`, draft PR #588; required CI `42358402350` PASS.
-Native Filter `fdb32101…02ca95`, общий root `77c6707b…343f363` (12495 символов),
-version `26e71d53-7b1e-4b30-869d-bc05602e38d1`. Последний root выпущен narrow API/CAS,
+Текущий выпущенный код: commit `1772a0a3`, draft PR #588; required CI `42360569089` PASS.
+Native Filter `5596a73f…bf9b53`, общий root `0886ff70…4e0044` (12684 символа),
+version `e2f9bd2b-4e7b-440c-b05a-bda317ae9cf3`. Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
 | Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
@@ -14,14 +14,14 @@ metadata/grants сохранены, restart не выполнялся.
 | models/gemini-4-argon | admin | DOCX create/edit/continue PASS | ещё не принят |
 | gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | discovery/fact collection/fill/continue artifacts PASS; actual initial child context не записан |
 | gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | ещё не принят |
-| models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue PASS; natural fill routing FAIL, контролируемый child probe в работе |
+| models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
 | gpt-6.1-sol | user/admin | PPTX create/edit/continue artifacts/render/UI PASS; старое создание использовало неправильное делегирование, edit guard его блокирует | ещё не принят |
-| gpt-6.1-terra | user/admin | create/edit DOCX content/UI PASS; create Task lifecycle FAIL, continue приостановлен до исправления | ещё не принят в новом охвате |
-| deepseek-flash | user/admin | ещё не принят в новом охвате | ещё не принят |
+| gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | ещё не принят в новом охвате |
+| deepseek-flash | user/admin | create/edit/continue content/preservation/UI/Tasks PASS; лишняя косметическая версия в continue, stop-rule ещё не принят | ещё не принят |
 | models/gemini-3.5-flash | user/admin | ещё не принят | ещё не принят |
 | models/gemini-3.6-flash | user/admin | ещё не принят | ещё не принят |
 
-Выпущенный Filter 2.2.1 исправляет доказанное сокращение Skill
+Предыдущий выпуск Filter 2.2.1 исправляет доказанное сокращение Skill
 при handoff: SHA `fdb32101856ef91a9f2a1c49b48e4441ec31b57b009a02ffbe40efe15302ca95`,
 root `77c6707b43aba5d22f0d8b5d96a296b3f686dd2e9fe3e12b86636dcc6343f363` (12495).
 158 unit checks и независимое source/data-ownership review PASS; 87 exact-native
@@ -39,14 +39,22 @@ footer organization. Новый файл не принят; проблема п�
 handoff; он не заменяет повтор natural routing после исправления. Контролируемый
 запрос также пошёл direct: все ограничения пользователя сохранились в actual
 payload, Office guide находился в role=tool, более приоритетного приказа обойти
-делегирование не найдено. Передача полного Skill в actual child пока не доказана.
+делегирование не найдено. После выпуска 2.2.2 natural regenerate первого запроса
+достиг actual worker: corporate-office-worker → gpt-6.1-terra; root 12684 и полный
+template Skill 1621 переданы ровно по одному разу до первой записи. Native output
+`b9654b5e…` прошёл независимую сверку всех полей/повторов/footer/optional row и
+сохранности исходника/формы; UI-download SHA `f03d3c2f…05a999c`, 38638 bytes.
+Actual worker render из capture декодирован и просмотрен, все данные читаемы;
+нового render для приёмки не создавали. Parent Tasks 3/3 completed. В этом
+запуске parent direct write не пытался выполнять; runtime direct gate ещё не
+упражнялся live, exact-native binding/rebinding покрыт 107-check replay.
 
 Terra regular create: источник/содержание DOCX, рендер и UI-download корректны;
 Tasks созданы до записи, но native `update_task` получил `task_id` вместо `id`.
 Схема и ошибка присутствовали в actual payload; модель завершила ответ с открытым
 планом. Это argument/recovery failure. Общий root дополнен двумя предложениями
 про returned `id` и проверку состояния после ошибки; alias-wrapper не добавляется.
-Невыпущенный root: 12684 символа, SHA
+Выпущенный root: 12684 символа, SHA
 `0886ff701d5c22d0241538821f536ff4531f7adf0df3ce491eeba3d9d04e0044`.
 При review нового direct-original guard также выявлены обязательные границы:
 authoring по прочитанному authorized native authoring Skill сохраняет прямую
@@ -58,7 +66,51 @@ ACL/active/historical pin, inactive/unavailable unrelated pins, raw OpenAPI
 binder/rebinder, worker scope, direct-original rejection и filled-copy edits.
 Исполняется native `get_skill_snapshot`: missing historical version даёт native
 404 и не предоставляет authoring exemption. Source contract review PASS;
-CI, release и повтор live routing/Task lifecycle ещё обязательны.
+CI и narrow release PASS; worker/Valves/presets/grants сохранены. Защищённый
+rollback snapshot сохранён в native data. Повтор live artifact/Task lifecycle
+ещё обязателен.
+
+ACL-negative: существующий private admin QA File недоступен обычному пользователю
+(auth 200, Files content 404); actual Office inspect вернул ошибку, записей и
+придуманного содержания нет. Общий Office HTTP502 сам по себе не выдаётся за
+ACL-доказательство. Дополнительная liveness-проверка DeepSeek: native ответ
+сохранён за 3 секунды, но новый UI оставался busy; открытие сохранённого чата
+восстановило ответ без повторной генерации. Причина UI-расхождения не установлена;
+это не основание исключать модель или объявлять provider hang.
+
+Invalid-source negative PASS: uploaded synthetic PPTX точно совпал с fixture;
+из второго слайда удалён required p:cSld. Первой Office-операцией был native
+validate, вернувший конкретную schema error. Lead назвал part/path и предложил
+исправный источник либо согласованный ремонт копии. Create/apply/delegation,
+новых файлов и молчаливой пересборки нет. Root 0886 полный однократно в 6/6
+actual payload, источник и его байты сохранены.
+
+Terra repeat: create правильно использовал returned Task IDs и завершил 2/2;
+single-set edit прошёл без нового плана. Continuation создал новый план до двух
+add и продолжил последний File ID: `4354d561…` → `b21db690…` → `15ddea9c…`.
+Независимая XML/semantic проверка всех трёх DOCX PASS; сохранность source text,
+таблицы, styles/section params и точные два новых абзаца подтверждены. Все три
+UI-downloads совпали с native SHA; create/continue renders просмотрены, читаемы.
+Continuation before-write/post-file/postrender context записан; лимит capture20
+исчерпан перед последними provider rounds. Final Task completion подтверждён
+native persisted trace и DB (2/2), не объявлен захваченным за пределами лимита.
+
+DeepSeek regular lifecycle: `9588f4d6…` → `1d8f5176…` → `cc8068f7…` → `0ae6c7a4…`.
+Все native Tasks завершены, lead сохранён, native Files и UI-downloads совпали;
+независимая проверка полного содержимого/формы PASS. Однако первый continuation
+уже был полным и читаемым, а второй изменил только before=10pt нового абзаца.
+Это необязательная косметическая версия, не исправление ошибочного счётчика
+5 paragraphs / 6 body elements. Stop-rule не принят по этому прогону.
+Общий root уточнён только в строке 53: оформление новых объектов выбирается
+до записи и входит в тот же batch; новый выпуск — для конкретного дефекта
+задания; косметика уже читаемого результата остаётся для отдельного запроса.
+Кандидат root 12887 / SHA
+`9bc3f6ba5735905b70f75a7259e02727d578fefe19fedc9c8b4ad9a61186e699`;
+Filter/Tools/Task state не меняются. Independent semantic review PASS; exact
+native formatter в обоих режимах передаёт весь root без усечения. На actual
+failed input перед косметикой заменён только SYSTEM root once; 63 items,
+26 tool results, images, history и schemas сохранены. Нужны CI, narrow root
+release и повтор исходного continuation; model obedience offline не доказан.
 
 Незавершённая строка не считается исключением или квалифицированной моделью.
 Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
@@ -318,10 +370,10 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: завершить review/replay и выпуск narrow direct-original guard и
-общей Task-инструкции, повторить natural corporate routing и Terra lifecycle;
-принять actual corporate worker packet и заполненную копию другим
-пользователем, затем завершить явную матрицу моделей/форматов/ролей, negative
-cases, независимую общую приёмку и Git-доставку. Heavy renders проверять
+Следующий шаг: выпустить root-only stop-rule clarification после required CI
+и повторить исходный DeepSeek continuation; затем завершить оставшуюся явную
+матрицу моделей/форматов/ролей и presets, независимую общую приёмку и Git-доставку.
+Корпоративный worker packet и два negative cases уже приняты в своих границах.
+Heavy renders проверять
 последовательно с учётом существующего единственного render_slot.
 GOAL не завершён; пройдённый Argon DOCX не заменяет остальные обязательные срезы.
