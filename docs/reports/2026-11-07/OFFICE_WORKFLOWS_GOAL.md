@@ -4,16 +4,17 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `bc4b6a50`, draft PR #588; required CI `42364658627` PASS.
-Native Filter `5596a73f…bf9b53`, общий root `da44d781…2d438c` (12970 символов),
-version `d966dc52-b3e1-4267-aac0-999ec147d648`. Последний root выпущен narrow API/CAS,
+Текущий выпущенный код: commit `5e693ae99a39bd08679c325b21e35e6052793a46`, draft PR #588;
+required CI `42371200603` PASS. Native Filter `5596a73f…bf9b53`, общий root
+`2c2797cf…3647ae2e` (13386 символов), version `4813f66b-f32e-40af-ae69-8548379adbeb`.
+Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
 | Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
 | --- | --- | --- | --- |
 | models/gemini-4-argon | admin | DOCX create/edit/continue PASS | ещё не принят |
 | gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-luna-boundary.safe.json и corporate-luna-offline-review.safe.json; continue artifacts принят отдельно ранее |
-| gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | ещё не принят |
+| gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-mini-verdict.safe.json и corporate-mini-offline-review.safe.json |
 | models/gemini-3.5-flash-lite | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS после native Continue recovery; initial empty completion без файла — FAIL, причина неизвестна; evidence: gemini-lite-lifecycle-verdict.safe.json и gemini-lite-offline-review.safe.json | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
 | gpt-6.1-sol | user/admin | fresh PPTX create/edit/continue content/preservation/all-slide render/UI/Tasks PASS; первая ошибочная попытка корпоративного делегирования заблокирована guard, модель восстановилась сама; evidence: sol-scope-offline-review.safe.json | ещё не принят |
 | gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | ещё не принят в новом охвате |
@@ -159,16 +160,35 @@ semantic/structure PASS по всем 17 темам, решениям проти
 до новой DOCX pagination repair проверить тот же result_file_id через штатные
 stage_chat_file → LibreOffice/PDF → display_file, не публиковать неизменённый DOCX
 ради проверки; при недоступности пути выдать копию с конкретной границей проверки.
-Все три schemas доказаны в actual Large 65-tools input. Candidate root 13386 chars,
+Все три schemas доказаны в actual Large 65-tools input. Root 13386 chars,
 SHA `2c2797cfd89e897cdd1c52db0a9b4f6ab4d19017b09272aa7a8339743647ae2e`:
 11 local native formatter/Responses checks PASS на остановленном payload f708/010;
 кроме одного полного root сохранены история, results, images/reasoning и schemas.
-Это input-rehearsal, не behavioral acceptance; CI/review/release и проверка
-штатного ordinary-user transfer/render/display остаются впереди. Evidence:
+Это input-rehearsal, не behavioral acceptance. CI `42371200603` PASS; root выпущен
+native CAS с metadata/flags/permissions readback, exclusive backup
+`root-before-pagination.private.json` mode0600, без restart (`release-pagination.safe.txt`).
+Новый Large-run `4d55f213…` идёт в свежем synthetic chat `5210efd8…`: в первых четырёх
+actual requests source144102 и новый root13386 сохранены ровно по одному разу,
+lead — Luna, schemas65 включают stage/run/display, приложен тот же File3003.
+Новый запуск остановлен: после чтения опубликованного QA Skill ведущий вызвал
+corporate worker для обычной загруженной формы, хотя prompt различал её и original
+шаблона. Actual schema `run_sub_agent` содержала противоречивое общее требование
+немедленной делегации задач с 3+ шагами; generic prompt description подтверждён
+и в owned Tool metadata, community source `790de1a…45fbe` не менялся. Кандидат
+Filter 2.2.3 уточняет только descriptions корпоративного resolved Tool/schema:
+заполнение копии original опубликованного DOCX по прочитанному Skill и фактам;
+ordinary forms — direct OfficeCLI. Callable, публичные аргументы, worker и root
+не изменены; factory specs копируются без изменения исходных объектов. 182 focused
+checks и 11 checks на actual failed payload PASS: изменены только два descriptions,
+root13386/source144102/history/results/images/reasoning и 65 schema shapes сохранены.
+Это устранение конфликтующей подсказки, не semantic enforcement; CI/release и
+повторная продуктовая приёмка, включая ordinary transfer/render/display, впереди. Evidence:
 ignored `representative-large-task/large-history-preflight.safe.json`,
 `large-actual-boundary.safe.json`, `large-actual-inspect.safe.json`,
 `large-candidate-a28fa83d-review.private.json`, `large-lo-comparison.safe.json`,
-`large-terminal-schema-proof.safe.json`, `large-pagination-root-rehearsal.safe.json`
+`large-terminal-schema-proof.safe.json`, `large-pagination-root-rehearsal.safe.json`,
+`large-fresh-first-boundary.safe.json`, `large-fresh-delegation-schema.safe.json`,
+`large-delegation-scope-rehearsal.safe.json`
 внутри указанного ниже local-каталога.
 Оставшаяся матрица, corporate/native UI/readback и optional author preset требуют
 завершения; для оставшейся admin-проверки нужен штатный повторный вход владельца

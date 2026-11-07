@@ -759,6 +759,91 @@ def test_parallel_pruning_preserves_explicit_and_auxiliary_routes(native_guard_c
     assert body == before and metadata["tools"][spec["name"]] is tool
 
 
+def generic_delegation_spec():
+    # Actual community Tool advertises a general 3+ steps mandatory delegate.
+    return {"name": "run_sub_agent", "description": "Delegate a task to a sub-agent for autonomous completion. MANDATORY: 3+ steps MUST delegate.",
+            "parameters": {"type": "object", "required": ["description", "prompt"], "properties": {
+                "description": {"type": "string", "description": "Brief task summary shown to the user"},
+                "prompt": {"type": "string", "description": "Detailed instructions for the sub-agent; this can be written in any language that best suits the task."}}}}
+
+
+@pytest.mark.parametrize("flat", [False, True])
+@pytest.mark.parametrize("provider_copy", [False, True])
+def test_corporate_schema_scopes_generic_delegate_without_mutating_factory(flat, provider_copy):
+    spec = generic_delegation_spec()
+    provider_spec = copy.deepcopy(spec) if provider_copy else spec
+    schema = {"type": "function", **provider_spec} if flat else {"type": "function", "function": provider_spec}
+    original = copy.deepcopy(spec)
+    original_schema = copy.deepcopy(schema)
+    async def delegate(description, prompt): pass
+    source_tool = {"tool_id": "corporate_document_delegation", "spec": spec, "callable": delegate}
+    tools = {"run_sub_agent": source_tool}
+    body = {"tools": [schema]}
+    MODULE._scope_corporate_delegation_schema(body, tools)
+    adapted = tools["run_sub_agent"]["spec"]
+    assert adapted["description"] == MODULE.CORPORATE_DELEGATION_DESCRIPTION
+    assert adapted["parameters"]["properties"]["prompt"]["description"] == MODULE.CORPORATE_DELEGATION_PROMPT_DESCRIPTION
+    restored = copy.deepcopy(adapted)
+    restored["description"] = original["description"]
+    restored["parameters"]["properties"]["prompt"]["description"] = original["parameters"]["properties"]["prompt"]["description"]
+    assert restored == original  # Same name, argument types, required list and fields.
+    assert body["tools"][0].get("function", body["tools"][0])["description"] == adapted["description"]
+    assert spec == original and schema == original_schema
+    assert source_tool["spec"] is spec and source_tool["callable"] is delegate
+    assert tools["run_sub_agent"]["callable"] is delegate
+    before = copy.deepcopy(body)
+    MODULE._scope_corporate_delegation_schema(body, tools)
+    assert body == before
+
+
+def test_corporate_schema_preserves_same_named_foreign_tool_and_shared_schema():
+    owned, foreign = generic_delegation_spec(), generic_delegation_spec()
+    other_tool = {"tool_id": "other", "spec": foreign}
+    tools = {"owned": {"tool_id": "corporate_document_delegation", "spec": owned}, "foreign": other_tool}
+    schemas = [{"type": "function", "function": s} for s in (owned, foreign)]
+    original = copy.deepcopy(schemas)
+    body = {"tools": schemas}
+    MODULE._scope_corporate_delegation_schema(body, tools)
+    assert body["tools"][0]["function"]["description"] == MODULE.CORPORATE_DELEGATION_DESCRIPTION
+    assert body["tools"][1] is schemas[1] and tools["foreign"] is other_tool
+    assert schemas == original and foreign == original[1]["function"]
+
+
+@pytest.mark.parametrize("excluded", ["worker", "other_model", "explicit_caller", "auxiliary", "unsaved"])
+def test_corporate_schema_request_preserves_excluded_routes(native_guard_context, excluded):
+    spec = generic_delegation_spec()
+    tool = {"tool_id": "corporate_document_delegation", "spec": spec}
+    metadata = {MODULE.WORKFLOW_REQUEST_MARKER: True, "session_id": "ui", "chat_id": "saved-chat", "tools": {"run_sub_agent": tool}}
+    body = {"model": "gpt-6-luna", "tools": [{"type": "function", "function": spec}]}
+    if excluded == "worker": body["model"] = "corporate-office-worker"
+    elif excluded == "other_model": body["model"] = "other-model"
+    elif excluded == "explicit_caller": metadata.pop(MODULE.WORKFLOW_REQUEST_MARKER)
+    elif excluded == "auxiliary": metadata["task"] = "title_generation"
+    elif excluded == "unsaved": metadata["chat_id"] = "local-chat"
+    before = copy.deepcopy(body)
+    asyncio.run(configured_filter().request(body, __metadata__=metadata, __user__={"id": "user"}))
+    assert body == before and metadata["tools"]["run_sub_agent"] is tool
+
+
+def test_corporate_schema_request_retains_native_callable_guard_and_idempotence(native_guard_context):
+    async def delegate(description, prompt, __messages__=None): return "unused"
+    async def scenario():
+        function = await native_guard_context["bind"](delegate, {"__messages__": ["original"]})
+        source_tool = {"tool_id": "corporate_document_delegation", "spec": generic_delegation_spec(), "callable": function}
+        original_spec = copy.deepcopy(source_tool["spec"])
+        metadata = {MODULE.WORKFLOW_REQUEST_MARKER: True, "session_id": "ui", "chat_id": "saved-chat", "tools": {"run_sub_agent": source_tool}}
+        body = {"model": "gpt-6-luna", "tools": [{"type": "function", "function": source_tool["spec"]}]}
+        instance = configured_filter()
+        await instance.request(body, __metadata__=metadata, __user__={"id": "user"})
+        guarded = metadata["tools"]["run_sub_agent"]["callable"]
+        assert guarded._office_tasks_guard and guarded.__signature__ == function.__signature__
+        assert source_tool["callable"] is function and source_tool["spec"] == original_spec
+        await instance.request(body, __metadata__=metadata, __user__={"id": "user"})
+        assert metadata["tools"]["run_sub_agent"]["callable"] is guarded
+        assert native_guard_context["reads"] == [] and native_guard_context["writes"] == []
+    asyncio.run(scenario())
+
+
 @pytest.fixture
 def native_template_context(native_guard_context, monkeypatch):
     import sys
@@ -915,11 +1000,13 @@ def test_corporate_guard_transfers_only_temporary_fresh_messages_and_keeps_publi
                 "callable": await state["bind"](delegate, {"__messages__": [{"role": "system", "content": "Stale"}],
                                                          "__metadata__": metadata, "__user__": {"id": "user"}})}
         metadata["tools"]["run_sub_agent"] = tool
+        factory_callable = tool["callable"]
         instance = configured_filter()
         await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
-        guarded = tool["callable"]
+        guarded = metadata["tools"]["run_sub_agent"]["callable"]
         await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
-        assert tool["callable"] is guarded
+        assert metadata["tools"]["run_sub_agent"]["callable"] is guarded
+        assert tool["callable"] is factory_callable
         fresh = await state["bind"](guarded.__function__, {**guarded.__extra_params__, "__messages__": parent})
         for _ in range(2):
             assert await fresh(description="Fill", prompt="Exact agreed facts") == "delegated"
@@ -965,7 +1052,7 @@ def test_ordinary_office_delegation_without_template_is_blocked_before_original_
         metadata["tools"]["run_sub_agent"] = tool
         await configured_filter().request({"model": "gpt-6-sol"}, __metadata__=metadata, __user__={"id": "user"})
         with pytest.raises(ValueError, match="Use OfficeCLI tools directly for ordinary Office files"):
-            await tool["callable"](description="Create slides", prompt="Make an ordinary PPTX")
+            await metadata["tools"]["run_sub_agent"]["callable"](description="Create slides", prompt="Make an ordinary PPTX")
         assert not state["writes"]
     asyncio.run(scenario())
 

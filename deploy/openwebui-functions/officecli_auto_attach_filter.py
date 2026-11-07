@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.2.2-native-template-route
+version: 2.2.3-native-delegation-scope
 required_open_webui_version: 0.12.2
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -22,6 +22,15 @@ from pydantic import BaseModel, Field
 
 OFFICECLI_TOOL_ID = "server:officecli"
 CORPORATE_TOOL_IDS = ("corporate_document_delegation", "corporate_template_publication")
+CORPORATE_DELEGATION_DESCRIPTION = (
+    "Fill a copy of a published corporate DOCX template original confirmed by a fully read native Skill. "
+    "Include that Skill ID, its Original native File ID and all confirmed facts in prompt. "
+    "Ordinary uploaded Office forms use direct OfficeCLI tools. This is not general task delegation."
+)
+CORPORATE_DELEGATION_PROMPT_DESCRIPTION = (
+    "The fully read published template Skill ID, its confirmed Original native File ID, "
+    "all collected facts and the bounded filling task. Do not delegate an unrelated ordinary uploaded form."
+)
 WORKFLOW_REQUEST_MARKER = "officecli_native_workflow"
 PLAN_REQUIRED_TOOLS = {
     "create_office_document", "create_office_spreadsheet", "create_office_presentation",
@@ -74,6 +83,38 @@ OFFICECLI_PUBLISH_TOOLS = {
     "create_office_presentation", "apply_office_presentation_batch",
     "publish_terminal_file",
 }
+
+
+def _scope_corporate_delegation_schema(body: dict, tools: dict) -> None:
+    """Adapt this composition's resolved schema, not shared community Tool specs."""
+    for key, tool in list(tools.items()):
+        spec = tool.get("spec", {})
+        if (tool.get("tool_id") != "corporate_document_delegation"
+                or spec.get("name") != "run_sub_agent" or tool.get("direct")):
+            continue
+
+        def scoped(original):
+            result = deepcopy(original)
+            result["description"] = CORPORATE_DELEGATION_DESCRIPTION
+            prompt = result.get("parameters", {}).get("properties", {}).get("prompt")
+            if isinstance(prompt, dict):
+                prompt["description"] = CORPORATE_DELEGATION_PROMPT_DESCRIPTION
+            return result
+
+        # Native request tools and provider schemas can share the factory spec.
+        # Keep the original object/callable intact for other requests/owners.
+        tools[key] = {**tool, "spec": scoped(spec)}
+        unique_name = not any(other_key != key and other.get("spec", {}).get("name") == spec["name"]
+                              for other_key, other in tools.items())
+        if isinstance(body.get("tools"), list):
+            schemas = []
+            for schema in body["tools"]:
+                provider_spec = schema.get("function", schema)
+                if provider_spec is spec or (unique_name and provider_spec.get("name") == spec["name"]):
+                    schema = ({**schema, "function": scoped(provider_spec)}
+                              if "function" in schema else scoped(schema))
+                schemas.append(schema)
+            body["tools"] = schemas
 
 
 def _returned_download_urls(output: list[Any]) -> set[str]:
@@ -418,6 +459,7 @@ class Filter:
             body["tools"] = [schema for schema in body["tools"]
                              if not any(schema.get("function", schema) is spec for spec in removed_specs)
                              and schema.get("function", schema).get("name") not in removed_names]
+        _scope_corporate_delegation_schema(body, tools)
         for name, tool in metadata.get("tools", {}).items():
             corporate_handoff = (tool.get("tool_id") == "corporate_document_delegation"
                                  and tool.get("spec", {}).get("name") == "run_sub_agent")
