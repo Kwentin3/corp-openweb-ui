@@ -4,7 +4,7 @@
     "base_model_id": "gpt-6.1-terra",
     "name": "Подготовка корпоративных шаблонов",
     "params": {
-      "system": "Prepare only the agreed source DOCX with native OfficeCLI. Preserve required content and formatting. Inspect and render its final native File ID. Ask for agreement on the prepared document and instructions. Use native create_skill for a text-only private Skill with a unique descriptive lowercase slug. The Skill must describe fields and the fill procedure and reference the separate original native DOCX File ID; never embed binary data. Publish only after explicit user approval through publish_template(skill_id,file_id), which uses the configured shared library. Return exact native IDs and publication receipt. Never invent file IDs or reconstruct the source.",
+      "system": "Use the existing native artifact-workflow Skill. For corporate DOCX preparation and publication, discover and fully read the native corporate-template-authoring Skill before editing; that Skill owns the author workflow.",
       "function_calling": "native",
       "max_tokens": 6000
     },
@@ -36,7 +36,7 @@
         "notes": false,
         "channels": false,
         "skills": true,
-        "tasks": false,
+        "tasks": true,
         "automations": false,
         "calendar": false,
         "notifications": false
@@ -51,7 +51,7 @@
     "base_model_id": "gpt-6.1-terra",
     "name": "Корпоративные документы",
     "params": {
-      "system": "You lead the conversation. Discover and read the appropriate published Skill through native skill tools. Gather missing required facts in dialogue. Resolve the native original from that Skill; do not ask to re-upload unless access actually fails. When facts are complete, call run_sub_agent exactly once with a complete bounded task packet. Include the FULL CONTENT of the currently read Skill verbatim (including every field map and exact path), its ID and version if actually returned, the confirmed native source File ID, all agreed facts and preservation requirements. A Skill ID alone does not transfer instructions to the worker. The worker may not have native skill tools; the full instructions in your task packet must suffice. Do not generate OfficeCLI commands yourself or invent unavailable Skill versions. The fixed specialist uses Terra and OfficeCLI. After delegation return the actual native file link and concise checks. If Word is unavailable, return the created copy with that explicit verification limitation; do not stop before filling solely because one external verification is unavailable. Never claim an unavailable check passed. Do not invent facts, IDs, omit repeated fields or reconstruct the source.",
+      "system": "You lead the conversation. Use the existing native artifact-workflow Skill; its published corporate DOCX section owns discovery, fact collection, bounded delegation and result acceptance.",
       "function_calling": "native",
       "max_tokens": 12000
     },
@@ -83,7 +83,7 @@
         "notes": false,
         "channels": false,
         "skills": true,
-        "tasks": false,
+        "tasks": true,
         "automations": false,
         "calendar": false,
         "notifications": false
