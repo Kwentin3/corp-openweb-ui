@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.2.3-native-delegation-scope
+version: 2.2.4-native-workflow-owner
 required_open_webui_version: 0.12.2
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -60,20 +60,12 @@ DEFAULT_TARGET_MODEL_IDS = (
 )
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI reads/creates/edits DOCX, XLSX, PPTX. "
-    "For manual CLI edits, use load_officecli_skill and get_officecli_help for installed syntax. "
+    "Use load_officecli_skill and get_officecli_help for installed syntax. "
     "Execute CLI guide examples through OfficeCLI API tools; Terminal is a separate environment and does not imply an installed OfficeCLI binary. "
-    "User source-preservation requirements and tool schemas take precedence over generic guide examples. "
-    "Preserve requested fields, notes and checklists; add no filler or unrequested cover/TOC. "
     "For saved notes, use export_answer_to_word with source_note_id to import the full text instead of retyping it into create commands. "
     "Use attached_files/list_chat_files IDs, not citations; explicit file_id for multiple inputs. Reads do not publish. "
     "create/apply save copies and return native attachments. Batches contain edits, not create/open/save/close. "
-    "Before claiming readability, render the final DOCX with grid 2 and inspect every page. "
-    "For explicit export, deliver after these checks; preserved placeholders and style warnings need no confirmation. "
-    "For an attached PPTX template or previous version, edit its copy with apply_office_presentation_batch; blank decks require an independent request. "
-    "If invalid, report concrete findings and offer a valid earlier source or copy repair; never silently replace the source. "
-    "Before Terminal, check native add/from cloning for template-style slides. "
-    "Compare slide objects via query/get and render; Terminal only for a named unsupported operation. Continue from the last successful result_file_id. "
-    "Return result_file_id/download_url verbatim, without sandbox: or invented paths."
+    "The native artifact-workflow Skill owns planning, source preservation, verification, fallback and delivery."
 )
 
 

@@ -4,8 +4,9 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `5e693ae99a39bd08679c325b21e35e6052793a46`, draft PR #588;
-required CI `42371200603` PASS. Native Filter `5596a73f…bf9b53`, общий root
+Текущий выпущенный код: commit `24a3e7a8a11c4e42e87049df3d177fce175b746b`, draft PR #588;
+required CI `42372789568` PASS. Native Filter `dd3c8ea4…bd22d3bb`, version
+`b0fba4a3-feb1-4a95-81c1-05a7011becd4`, общий root
 `2c2797cf…3647ae2e` (13386 символов), version `4813f66b-f32e-40af-ae69-8548379adbeb`.
 Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
@@ -17,7 +18,7 @@ metadata/grants сохранены, restart не выполнялся.
 | gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-mini-verdict.safe.json и corporate-mini-offline-review.safe.json |
 | models/gemini-3.5-flash-lite | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS после native Continue recovery; initial empty completion без файла — FAIL, причина неизвестна; evidence: gemini-lite-lifecycle-verdict.safe.json и gemini-lite-offline-review.safe.json | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
 | gpt-6.1-sol | user/admin | fresh PPTX create/edit/continue content/preservation/all-slide render/UI/Tasks PASS; первая ошибочная попытка корпоративного делегирования заблокирована guard, модель восстановилась сама; evidence: sol-scope-offline-review.safe.json | ещё не принят |
-| gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | ещё не принят в новом охвате |
+| gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-terra-boundary.safe.json и corporate-terra-offline-review.safe.json |
 | deepseek-flash | user/admin | create/edit/continue content/preservation/render/UI/Tasks PASS; repeat после root9bc — один write без косметического повторения | ещё не принят |
 | models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; point-repeat после da44 без Task calls, changed artifact review в работе | ещё не принят |
 | models/gemini-3.6-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; atomic edit без Task calls; evidence: gemini36-offline-review.safe.json | ещё не принят |
@@ -181,14 +182,39 @@ ordinary forms — direct OfficeCLI. Callable, публичные аргумен
 не изменены; factory specs копируются без изменения исходных объектов. 182 focused
 checks и 11 checks на actual failed payload PASS: изменены только два descriptions,
 root13386/source144102/history/results/images/reasoning и 65 schema shapes сохранены.
-Это устранение конфликтующей подсказки, не semantic enforcement; CI/release и
-повторная продуктовая приёмка, включая ordinary transfer/render/display, впереди. Evidence:
+Это устранение конфликтующей подсказки, не semantic enforcement; повторная
+продуктовая приёмка, включая ordinary transfer/render/display, впереди.
+Commit `24a3e7a8…`, CI `42372789568` PASS; narrow Function source-only release
+подтверждён (`release-scope-description.safe.txt`). Замечание private helper review
+о concurrent Valves overwrite устранено до исполнения: Valves POST заменён GET
+assert, добавлена проверка Valves перед Function POST. Valves не записывались;
+неатомарность Function API/CAS не скрывается. Root и все три Skills exact unchanged,
+profile versions/worker/grants/flags сохранены, restart отсутствует; private backup
+`bc081565-8d65-4411-8238-918c5146006a/before.private.json` сохранён.
+Третий isolated synthetic seed `7d9f98d7…` с теми же source144102/File3003 отправлен
+в 12:35:52; actual direct OfficeCLI route подтверждён, но повторные pagination/style
+правки продолжились. В captures `1b468…/020` и `38eb4778…/008` schemas и developer
+инструкции одинаковы; stage/run/display не вызваны. Обнаружены конфликтующие
+подсказки grid/Terminal в bootstrap и schema render; display_file обещает только
+user viewer. Штатный read_file PNG binary → native input_image путь подтверждён
+installed source и actual schema; PDF read_file возвращает текст, а не страницы.
+Кандидат Filter 2.2.4 сокращает bootstrap1624→751 до API-фактов и ссылки на единый
+artifact-workflow owner. Единственный recovery bullet root требует независимый
+same-File PDF→PNG→read_file каждой страницы ДО font/margin/pagebreak repair,
+основанной лишь на HTML-preview; display_file — только optional user display.
+Root candidate13640 SHA `c3abf177…3c6a14d`, Filter `8456bdab…9d85158c`; 183 focused
+checks и 12 installed-native formatter/Responses checks на exact actual input PASS:
+изменены только один prefix и один полный root, schemas65/source144102/history/
+results/images/reasoning сохранены. Это не доказывает причину поведения или
+исполнение инструкции. Продуктовый результат не принят; CI/release и дешёвая
+ordinary-user stage→LO→PNG→read_file image acceptance остаются впереди. Evidence:
 ignored `representative-large-task/large-history-preflight.safe.json`,
 `large-actual-boundary.safe.json`, `large-actual-inspect.safe.json`,
 `large-candidate-a28fa83d-review.private.json`, `large-lo-comparison.safe.json`,
 `large-terminal-schema-proof.safe.json`, `large-pagination-root-rehearsal.safe.json`,
 `large-fresh-first-boundary.safe.json`, `large-fresh-delegation-schema.safe.json`,
-`large-delegation-scope-rehearsal.safe.json`
+`large-delegation-scope-rehearsal.safe.json`, `large-third-terminal-context-audit.safe.json`,
+`terminal-model-image-path.safe.json`, `large-single-owner-image-read-rehearsal.safe.json`
 внутри указанного ниже local-каталога.
 Оставшаяся матрица, corporate/native UI/readback и optional author preset требуют
 завершения; для оставшейся admin-проверки нужен штатный повторный вход владельца

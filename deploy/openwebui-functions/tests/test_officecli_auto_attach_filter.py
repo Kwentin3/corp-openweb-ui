@@ -475,6 +475,22 @@ def test_file_count_and_task_do_not_select_a_business_recipe(prompt):
     assert len(MODULE.OFFICECLI_INSTRUCTION) < 1700
 
 
+def test_bootstrap_defers_workflow_to_native_skill_and_retains_api_boundaries():
+    body = eligible_body()
+    metadata = native_metadata()
+    original_user = copy.deepcopy(body["messages"][-1])
+    run_inlet(configured_filter(), body, metadata)
+    instruction = body["messages"][0]["content"]
+    assert "artifact-workflow Skill owns" in instruction
+    assert "OfficeCLI API tools" in instruction and "Terminal is a separate environment" in instruction
+    assert "Reads do not publish" in instruction and "create/apply save copies" in instruction
+    assert "source_note_id" in instruction and "attached_files/list_chat_files IDs" in instruction
+    assert "grid" not in instruction and "Terminal only" not in instruction
+    assert "PPTX template" not in instruction and "Before claiming readability" not in instruction
+    assert metadata["chat_context"]["mentioned_skill_ids"] == ["artifact-workflow"]
+    assert body["messages"][-1] == original_user
+
+
 @pytest.mark.parametrize("name", sorted(MODULE.PLAN_REQUIRED_TOOLS))
 def test_native_plan_policy_requires_plan_for_construction_and_corporate_lifecycle(name):
     assert MODULE._requires_native_plan(name, {})
