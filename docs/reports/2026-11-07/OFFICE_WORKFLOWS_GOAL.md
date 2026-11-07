@@ -1,8 +1,20 @@
 # GOAL: единый native-вход для двух Office workflow
 
-Дата: 07.11.2026. Статус: в работе. Основание — согласованный в диалоге GOAL.
+Дата: 07.11.2026. Статус: завершён в согласованном объёме. Основание — GOAL
+и последующие решения пользователя отложить новые Argon/author-profile прогоны.
 
 ## Текущий проверенный срез
+
+Финальная уборка профиля PASS: текущая metadata подтверждает ноль сегодняшних
+тестовых chats/Files, сохранены20 прежних пользовательских chats; все33 известных
+QA chat IDs и182 File IDs отсутствуют. Protected business/source/библиотека,
+шесть Skills и права не изменились. Все13 closeout checks PASS. Ошибочный
+expected-key в первой локальной сверке grants исправлен по pre-cleanup snapshot;
+первоначальный false receipt сохранён, новый SQL или изменение прав не выполнялись.
+Транспортные tmp scripts/candidates убраны с host/container по точным SHA,
+пустые каталоги удалены без рекурсивной очистки. Private evidence/rollback сохранены.
+Evidence: `final-user-profile-cleanup.safe.json`, `cleanup-transport-applied.safe.json`
+и существующий `overall-contract-review.safe.md` в ignored local-каталоге.
 
 Текущий выпущенный код: commit `f2ea1698cf57f56e0b1b5b5cb98b31cde8f9ad69`.
 PR #588 слит в main: `f9b2ff0402c8efd65b21f09d793ec8a18b0c4646`.
@@ -318,29 +330,39 @@ ignored `representative-large-task/large-history-preflight.safe.json`,
 внутри указанного ниже local-каталога.
 Пользователь отдельно отложил новые платные проверки Argon: точный model ID
 остаётся в общем исправленном native-пути, новый corporate runtime PASS не заявлен.
-Оставшаяся admin UI-проверка — optional author profile;
-прежняя admin UI-сессия отвечает401, нужен штатный повторный вход владельца в
-отдельной сессии. API-проверки не заменяют эту UI-приёмку; ordinary Maria session
-сохраняется. Независимый source/integration и Fifth review PASS. CI `42386078354`
+Пользователь также явно отложил новый прогон optional author profile; для этой
+поставки он больше не является блокирующей проверкой и не объявляется PASS.
+Новых Argon/author-profile provider-вызовов после этого решения нет.
+Независимый source/integration и Fifth review PASS. CI `42386078354`
 PASS на documentation checkpoint `a2334ca2…`; runtime source blobs совпадают с f2ea.
-Запись запросов выключена; закрыты24 тестовые вкладки. Через native owner API
-удалены27 точных QA chats и24 временных Terminal files с hash/owner prechecks
-и absence/session readback. До удаления сохранены private native chat snapshots,
-финальные DOCX/PDF/PNG и capture receipts. Function/Skills/профили/права при уборке
-не менялись. Все native Files удержаны из-за непроверенных внешних зависимостей;
-неизвестные image File IDs не угадывались. Три admin QA chats и опубликованный
-QA Skill/Original176 сохраняются до решения по author-profile UI. Остаток Terminal
-inventory с неустановленной identity также сохранён. Git merge/main delivery
+Запись запросов выключена; тестовые вкладки и временное окно admin login закрыты.
+После адресной проверки provenance и зависимостей через native owner API удалены
+30 пользовательских QA chats (включая две архивные diagnostic forks), три admin QA
+chats, 174 пользовательских и восемь admin QA Files, 26 временных Terminal files,
+одна QA Skill и одна добавленная QA Knowledge membership. Для каждого файла
+проверены owner/identity/bytes и отсутствие живых нормализованных зависимостей;
+удаления подтверждены native GET404/row absence, для chats — GET401/404 при
+сохранившейся авторизации. Native DELETE использует непосредственные проверки,
+атомарный CAS не заявлен. Пользовательский id-only operator token получил401
+до любых удалений; далее использован штатный разрешённый admin actor для cleanup,
+без изменения user/MFA/ролей и без browser bootstrap. До удаления сохранены
+private snapshots, полезные DOCX/PDF/PNG и capture receipts. Бизнес-диалог
+сохранил полный chat SHA и updated_at; его source и прежние два Knowledge Files,
+шесть Skills и права сохранены. Function, рабочие Skills/профили и настройки не
+менялись. Произвольные вставленные текстом URL не сканировались глобально;
+provenance всех 182 QA Files подтверждена структурными native receipts, а не
+именами/датой. Неподтверждённый failed-publish path в admin Terminal не удалялся
+по одному аргументу вызова. Git merge/main delivery
 выполнены: merge `f9b2ff04…`, local main обновлён fast-forward, дерево поставки
 совпадает с CI head0105. Все пять посторонних WIP files сохранены побайтно.
 Чистая изолированная worktree и её merged local/remote branch удалены штатным Git;
-другие worktrees сохранены. Непройденная author-profile UI остаётся обязательным
-пунктом всего GOAL. Последующая правка этой записи меняет только статус поставки,
+другие worktrees сохранены. Отложенные по решению пользователя проверки остаются
+явными ограничениями квалификации. Последующая правка этой записи меняет только статус поставки,
 не runtime source; повтор продуктовых прогонов для неё не требуется.
 
-Незавершённая строка не считается исключением или квалифицированной моделью.
-Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
-уборка остаются обязательными. Доказательства и временные QA IDs — в ignored
+Отложенная пользователем строка не считается runtime PASS. Принятые presets,
+ACL-negative cases, невалидный источник, общий review, merge и выполненная безопасная
+уборка подтверждены evidence. Доказательства и временные QA IDs — в ignored
 `local/office-unified-native-20261107/`; бизнес-документы и raw payload в Git не входят.
 
 ## Результат и границы
@@ -596,10 +618,11 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: нужен штатный admin login для проверки
-optional author profile либо явное решение пользователя отложить этот прогон;
-соответствующий вопрос остаётся открытым. После решения можно завершить оставшуюся
-admin QA-уборку; native Files с неустановленными внешними зависимостями не удалять.
-Argon настроен на общий путь, новый платный corporate прогон явно отложен
-пользователем. GOAL не завершён; реализация выпущена и доставлена в main,
-принятые проверки и безопасная уборка в доступных полномочиях завершены.
+Новые Argon corporate и optional author-profile прогоны явно отложены
+пользователем. Включённые маршруты и рабочие инструкции сохранены; эти два
+непроведённых прогона не названы runtime PASS. Реализация выпущена и доставлена
+в main; исходники и принятые проверки не изменялись при уборке профиля.
+Финальные metadata/readback и closeout review подтверждают завершение согласованной
+поставки. Обязательных оставшихся шагов в текущем объёме нет; будущая проверка
+отложенных сценариев потребует отдельного возвращения
+к ним, а не незаметного нового платного прогона.
