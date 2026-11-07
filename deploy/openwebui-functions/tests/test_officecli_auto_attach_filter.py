@@ -763,8 +763,10 @@ def test_parallel_pruning_preserves_explicit_and_auxiliary_routes(native_guard_c
 def native_template_context(native_guard_context, monkeypatch):
     import sys
     import types
+    from fastapi import HTTPException
     state = native_guard_context
-    state.update(skill_reads=[], snapshot_reads=[], denied=set(), inactive=set(), snapshots={})
+    state.update(skill_reads=[], snapshot_reads=[], denied=set(), inactive=set(), snapshots={}, native_errors={})
+    state["native_http_error"] = HTTPException
 
     def published(skill_id):
         content = (f"# Fill {skill_id}\nRepeat every mapped field. Preserve the note and footer.\n"
@@ -783,15 +785,17 @@ def native_template_context(native_guard_context, monkeypatch):
 
     async def authorized(skill_id, user):
         state["skill_reads"].append((skill_id, user.id))
+        if skill_id in state["native_errors"]:
+            raise state["native_errors"][skill_id]
         if skill_id in state["denied"]:
-            raise PermissionError("Native read ACL denied")
+            raise HTTPException(403, "Native read ACL denied")
         return types.SimpleNamespace(id=skill_id, name="Changed current name", version_id="current-v",
                                      is_active=skill_id not in state["inactive"])
 
     async def snapshot(skill, version):
         state["snapshot_reads"].append((skill.id, version))
         if (skill.id, version) not in state["snapshots"]:
-            raise ValueError("Native pinned snapshot not found")
+            raise HTTPException(404, "Native pinned snapshot not found")
         return copy.deepcopy(state["snapshots"][(skill.id, version)])
 
     def overview(content, files, tools_enabled=True):
@@ -874,7 +878,7 @@ def test_template_handoff_fails_before_delegation_on_incomplete_or_unauthorized_
         template["content"] = "x" * 100001 + template["content"]
         template["data"]["files"][0]["content"] = template["content"]
     elif failure == "invalid_binding": template["content"] = template["content"].replace("/source-template-a/content", "/foreign/content")
-    with pytest.raises((ValueError, PermissionError)):
+    with pytest.raises((ValueError, state["native_http_error"])):
         handoff(state)
     assert not state["writes"]
 
@@ -964,3 +968,121 @@ def test_ordinary_office_delegation_without_template_is_blocked_before_original_
             await tool["callable"](description="Create slides", prompt="Make an ordinary PPTX")
         assert not state["writes"]
     asyncio.run(scenario())
+
+
+def test_published_original_direct_write_is_blocked_after_tasks_before_side_effect(native_template_context):
+    state = native_template_context
+    async def remote(**kwargs):
+        state["writes"].append(kwargs)
+        return "written"
+    async def scenario():
+        metadata = {**state["metadata"], MODULE.WORKFLOW_REQUEST_MARKER: True,
+                    "session_id": "ui", "chat_id": "saved-chat", "tools": {}}
+        tool = {"tool_id": MODULE.OFFICECLI_TOOL_ID, "spec": {"name": "apply_office_batch"},
+                "callable": await state["bind"](remote, {})}
+        metadata["tools"]["apply_office_batch"] = tool
+        instance = configured_filter()
+        await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
+        guarded = tool["callable"]
+        await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
+        assert tool["callable"] is guarded
+        fresh = await state["bind"](guarded.__function__, guarded.__extra_params__)
+        commands = [{"command": "set", "path": "/body/p[1]"}] * 2
+        with pytest.raises(ValueError, match="create_tasks"):
+            await fresh(file_id="source-template-a", commands=commands)
+        assert not state["writes"] and not state["snapshot_reads"]
+        state["tasks"] = [{"content": "Fill agreed template", "status": "pending"}]
+        before = copy.deepcopy(metadata["chat_context"])
+        with pytest.raises(ValueError, match="Use run_sub_agent.*template-a"):
+            await fresh(file_id="source-template-a", commands=commands)
+        assert not state["writes"]
+        assert ("template-a", "read-v") in state["snapshot_reads"]
+        assert metadata["chat_context"] == before
+        # A completed copy has its own ID and stays on the ordinary edit route.
+        assert await fresh(file_id="filled-copy-id", commands=commands) == "written"
+        state["tasks"] = []
+        assert await fresh(file_id="ordinary-file-id", commands=commands[:1]) == "written"
+        assert [write["file_id"] for write in state["writes"]] == ["filled-copy-id", "ordinary-file-id"]
+        with pytest.raises(ValueError, match="Use run_sub_agent"):
+            await fresh(file_id="source-template-a", commands=commands[:1])
+        # Reading the authorized native authoring owner enables revisions without
+        # granting a role/profile blanket bypass or skipping the Tasks policy.
+        metadata["chat_context"]["skill_versions"]["corporate-template-authoring"] = "author-v"
+        state["snapshots"][("corporate-template-authoring", "author-v")] = {"content": "Native authoring workflow"}
+        assert await fresh(file_id="source-template-a", commands=commands[:1]) == "written"
+        with pytest.raises(ValueError, match="create_tasks"):
+            await fresh(file_id="source-template-a", commands=commands)
+    asyncio.run(scenario())
+
+
+def test_direct_template_check_does_not_guess_unread_binding_or_missing_file_id(native_template_context):
+    state = native_template_context
+    state["metadata"]["chat_context"]["skill_versions"].pop("template-a")
+    # The template exists in native storage fixtures, but was not read/pinned.
+    asyncio.run(MODULE._require_corporate_template_route("source-template-a", state["metadata"], {"id": "user"}))
+    before = list(state["skill_reads"])
+    asyncio.run(MODULE._require_corporate_template_route(None, state["metadata"], {"id": "user"}))
+    assert state["skill_reads"] == before
+
+
+def test_same_named_other_owner_direct_edit_keeps_original_route(native_template_context):
+    state = native_template_context
+    async def write(file_id, commands):
+        state["writes"].append(file_id)
+        return "written"
+    async def scenario():
+        tool = {"tool_id": "other", "spec": {"name": "apply_office_batch"},
+                "callable": await state["bind"](write, {})}
+        metadata = {**state["metadata"], MODULE.WORKFLOW_REQUEST_MARKER: True,
+                    "session_id": "ui", "chat_id": "saved-chat", "tools": {"apply_office_batch": tool}}
+        await configured_filter().request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
+        assert await tool["callable"](file_id="source-template-a", commands=[{"command": "set", "path": "/body/p[1]"}]) == "written"
+        assert state["writes"] == ["source-template-a"] and not state["skill_reads"]
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("condition", ["inactive", "denied", "missing_snapshot"])
+def test_unrelated_native_pins_do_not_block_ordinary_or_filled_copy_edits(native_template_context, condition):
+    state = native_template_context
+    state["metadata"]["chat_context"]["skill_versions"]["unrelated"] = "old-v"
+    state["snapshots"][("unrelated", "old-v")] = {"content": "Unrelated read-only instructions"}
+    if condition == "inactive": state["inactive"].add("unrelated")
+    elif condition == "denied": state["denied"].add("unrelated")
+    else: state["snapshots"].pop(("unrelated", "old-v"))
+    for file_id in ("ordinary-file", "filled-copy-id"):
+        asyncio.run(MODULE._require_corporate_template_route(file_id, state["metadata"], {"id": "user"}))
+    # An authorized original still has an exact binding despite unrelated pins.
+    with pytest.raises(ValueError, match="Use run_sub_agent"):
+        asyncio.run(MODULE._require_corporate_template_route("source-template-a", state["metadata"], {"id": "user"}))
+
+
+@pytest.mark.parametrize("condition", ["valid", "not_read", "denied", "inactive", "missing_snapshot", "empty_snapshot"])
+def test_only_authorized_active_pinned_authoring_owner_exempts_original_route(native_template_context, condition):
+    state = native_template_context
+    pins = state["metadata"]["chat_context"]["skill_versions"]
+    if condition != "not_read":
+        pins["corporate-template-authoring"] = "author-read-v"
+    state["snapshots"][("corporate-template-authoring", "author-read-v")] = {"content": "Prepare, agree and publish corporate templates"}
+    if condition == "denied": state["denied"].add("corporate-template-authoring")
+    elif condition == "inactive": state["inactive"].add("corporate-template-authoring")
+    elif condition == "missing_snapshot": state["snapshots"].pop(("corporate-template-authoring", "author-read-v"))
+    elif condition == "empty_snapshot": state["snapshots"][("corporate-template-authoring", "author-read-v")]["content"] = " "
+    if condition == "valid":
+        asyncio.run(MODULE._require_corporate_template_route("source-template-a", state["metadata"], {"id": "user"}))
+        assert ("corporate-template-authoring", "author-read-v") in state["snapshot_reads"]
+    else:
+        # Admin status does not turn consumer filling into an authoring workflow.
+        with pytest.raises(ValueError, match="Use run_sub_agent"):
+            asyncio.run(MODULE._require_corporate_template_route("source-template-a", state["metadata"], {"id": "user", "role": "admin"}))
+
+
+def test_inactive_known_original_stays_gated_but_unexpected_native_errors_are_not_hidden(native_template_context):
+    state = native_template_context
+    state["inactive"].add("template-a")
+    with pytest.raises(ValueError, match="Use run_sub_agent"):
+        asyncio.run(MODULE._require_corporate_template_route("source-template-a", state["metadata"], {"id": "user"}))
+    state["metadata"]["chat_context"]["skill_versions"]["unrelated"] = "old-v"
+    state["native_errors"]["unrelated"] = state["native_http_error"](500, "Native storage unavailable")
+    with pytest.raises(state["native_http_error"]) as failure:
+        asyncio.run(MODULE._require_corporate_template_route("ordinary-file", state["metadata"], {"id": "user"}))
+    assert failure.value.status_code == 500

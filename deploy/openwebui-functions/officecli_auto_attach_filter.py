@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.2.1-native-template-handoff
+version: 2.2.2-native-template-route
 required_open_webui_version: 0.12.2
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -180,14 +180,18 @@ def _workflow_context(metadata: dict[str, Any], skill_id: str) -> None:
     metadata[WORKFLOW_REQUEST_MARKER] = True
 
 
-async def _template_handoff_messages(prompt: str, messages: list, metadata: dict, user: dict) -> list:
-    """Adapt a read native template to the pinned community Tool's system-tag input."""
+async def _read_native_skill_pin(skill_id: str, version: str, user: dict):
     from open_webui.routers.skills import authorized_skill
     from open_webui.models.skills import get_skill_snapshot
-    from open_webui.utils.skill_files import skill_overview, format_skill_content
 
-    if not isinstance(prompt, str) or not isinstance(messages, list):
-        raise ValueError("Native delegation prompt/messages are required for complete template handoff.")
+    skill = await authorized_skill(skill_id, SimpleNamespace(**user))
+    return skill, await get_skill_snapshot(skill, version)
+
+
+async def _read_published_templates(metadata: dict, user: dict, direct_write: bool = False) -> list:
+    """Resolve read pins through native ACL/snapshots and the publisher's binding."""
+    from fastapi import HTTPException
+
     pins = (metadata.get("chat_context") or {}).get("skill_versions") or {}
     candidates = []
     # This is the existing publisher's exact Original-template binding, not a
@@ -202,21 +206,69 @@ async def _template_handoff_messages(prompt: str, messages: list, metadata: dict
     for skill_id, version in pins.items():
         if skill_id.startswith("terminal:") or not version:
             continue
-        skill = await authorized_skill(skill_id, SimpleNamespace(**user))
-        if not skill.is_active:
-            raise ValueError("A previously read Skill is inactive; read an active published template before delegation.")
-        snapshot = await get_skill_snapshot(skill, version)
+        try:
+            skill, snapshot = await _read_native_skill_pin(skill_id, version, user)
+        except HTTPException as error:
+            # Ordinary edits do not depend on access to every previously read
+            # Skill. Do not bypass ACL to guess a binding from a denied pin.
+            if direct_write and error.status_code in (403, 404):
+                continue
+            raise
         content = snapshot.get("content")
-        if (isinstance(content, str) and content.count("\n## Original template\n") == 1
-                and binding.search(content)):
-            candidates.append((skill_id, snapshot))
+        if isinstance(content, str) and content.count("\n## Original template\n") == 1:
+            match = binding.search(content)
+            if match:
+                if not skill.is_active and not direct_write:
+                    raise ValueError("The read template Skill is inactive; read an active published template before delegation.")
+                candidates.append((skill_id, snapshot, match.group(1)))
+    return candidates
+
+
+async def _has_native_authoring_pin(metadata: dict, user: dict) -> bool:
+    from fastapi import HTTPException
+
+    version = ((metadata.get("chat_context") or {}).get("skill_versions") or {}).get("corporate-template-authoring")
+    if not version:
+        return False
+    try:
+        skill, snapshot = await _read_native_skill_pin("corporate-template-authoring", version, user)
+    except HTTPException as error:
+        if error.status_code in (403, 404):
+            return False
+        raise
+    return skill.is_active and isinstance(snapshot.get("content"), str) and bool(snapshot["content"].strip())
+
+
+async def _require_corporate_template_route(file_id: Any, metadata: dict, user: dict) -> None:
+    if not isinstance(file_id, str):
+        return
+    # The existing private authoring Skill owns revisions. A profile name or
+    # admin role alone does not establish that this invocation is authoring.
+    if await _has_native_authoring_pin(metadata, user):
+        return
+    for skill_id, snapshot, original_file_id in await _read_published_templates(metadata, user, direct_write=True):
+        if file_id == original_file_id:
+            raise ValueError(
+                "Use run_sub_agent with the published Skill ID " + skill_id
+                + " and all agreed facts to fill this corporate original. "
+                "Direct OfficeCLI edits remain available for ordinary files and filled result copies."
+            )
+
+
+async def _template_handoff_messages(prompt: str, messages: list, metadata: dict, user: dict) -> list:
+    """Adapt a read native template to the pinned community Tool's system-tag input."""
+    from open_webui.utils.skill_files import skill_overview, format_skill_content
+
+    if not isinstance(prompt, str) or not isinstance(messages, list):
+        raise ValueError("Native delegation prompt/messages are required for complete template handoff.")
+    candidates = await _read_published_templates(metadata, user)
     if len(candidates) > 1:
-        candidates = [(sid, snapshot) for sid, snapshot in candidates
+        candidates = [(sid, snapshot, original) for sid, snapshot, original in candidates
                       if re.search(r"(?<![A-Za-z0-9_-])" + re.escape(sid) + r"(?![A-Za-z0-9_-])", prompt)]
     if len(candidates) != 1:
         raise ValueError("Read one published template Skill before delegation; if several were read, reference exactly one Skill ID in prompt. "
                          "Use OfficeCLI tools directly for ordinary Office files; this delegation is only for published corporate DOCX templates.")
-    skill_id, snapshot = candidates[0]
+    skill_id, snapshot, original_file_id = candidates[0]
     content, files = snapshot["content"], (snapshot.get("data") or {}).get("files")
     if (not isinstance(files, list) or len(files) != 1 or files[0].get("path") != "SKILL.md"
             or files[0].get("encoding") or files[0].get("content") != content):
@@ -369,7 +421,9 @@ class Filter:
         for name, tool in metadata.get("tools", {}).items():
             corporate_handoff = (tool.get("tool_id") == "corporate_document_delegation"
                                  and tool.get("spec", {}).get("name") == "run_sub_agent")
-            if (name not in PLAN_REQUIRED_TOOLS | APPLY_TOOLS | CONDITIONAL_PLAN_TOOLS and not corporate_handoff) or tool.get("direct"):
+            direct_docx = (tool.get("tool_id") == OFFICECLI_TOOL_ID
+                           and tool.get("spec", {}).get("name") == "apply_office_batch")
+            if (name not in PLAN_REQUIRED_TOOLS | APPLY_TOOLS | CONDITIONAL_PLAN_TOOLS and not corporate_handoff and not direct_docx) or tool.get("direct"):
                 continue
             function = tool.get("callable")
             if not function or getattr(function, "_office_tasks_guard", False):
@@ -385,7 +439,8 @@ class Filter:
                 ))
                 signature = signature.replace(parameters=parameters)
 
-            def guard(original=original, signature=signature, name=name, corporate_handoff=corporate_handoff):
+            def guard(original=original, signature=signature, name=name,
+                      corporate_handoff=corporate_handoff, direct_docx=direct_docx):
                 async def guarded(*args, **kwargs):
                     params = dict(signature.bind_partial(*args, **kwargs).arguments)
                     # Native OpenAPI closures expose **kwargs, whereas local
@@ -395,8 +450,14 @@ class Filter:
                             params.update(params.pop(key, {}))
                     fresh_files = params.get("__files__")
                     files = fresh_files if isinstance(fresh_files, list) else metadata.get("files", [])
-                    if _requires_native_plan("run_sub_agent" if corporate_handoff else name, params, files):
+                    operation = "run_sub_agent" if corporate_handoff else "apply_office_batch" if direct_docx else name
+                    if _requires_native_plan(operation, params, files):
                         await _require_active_native_tasks(chat_id, user_id)
+                    if direct_docx:
+                        await _require_corporate_template_route(
+                            params.get("file_id"), params.get("__metadata__") or metadata,
+                            params.get("__user__") or __user__,
+                        )
                     if corporate_handoff:
                         kwargs["__messages__"] = await _template_handoff_messages(
                             params.get("prompt"), params.get("__messages__"),

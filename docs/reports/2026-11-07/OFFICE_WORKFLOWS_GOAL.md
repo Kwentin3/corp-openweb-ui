@@ -4,30 +4,61 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `ad9be2c5`, draft PR #588; required CI `42353759357` PASS.
-Native Filter `fabc0b2f…97c3b9`, общий root `52b3d9df…11f1bc` (12345 символов),
-version `d2311f8a-5822-4f5b-90b3-619e1146bfe8`. Последний root выпущен narrow API/CAS,
+Текущий выпущенный код: commit `19ecfaae`, draft PR #588; required CI `42358402350` PASS.
+Native Filter `fdb32101…02ca95`, общий root `77c6707b…343f363` (12495 символов),
+version `26e71d53-7b1e-4b30-869d-bc05602e38d1`. Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
 | Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
 | --- | --- | --- | --- |
 | models/gemini-4-argon | admin | DOCX create/edit/continue PASS | ещё не принят |
-| gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | reader discovery/fact collection PASS; fill в работе |
+| gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | discovery/fact collection/fill/continue artifacts PASS; actual initial child context не записан |
 | gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | ещё не принят |
-| models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue PASS; fill ещё не принят |
-| gpt-6.1-sol | user/admin | PPTX QA-chat подготовлен, прогон не начат | ещё не принят |
-| gpt-6.1-terra | user/admin | ещё не принят в новом охвате | ещё не принят в новом охвате |
+| models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue PASS; natural fill routing FAIL, контролируемый child probe в работе |
+| gpt-6.1-sol | user/admin | PPTX create/edit/continue artifacts/render/UI PASS; старое создание использовало неправильное делегирование, edit guard его блокирует | ещё не принят |
+| gpt-6.1-terra | user/admin | create/edit DOCX content/UI PASS; create Task lifecycle FAIL, continue приостановлен до исправления | ещё не принят в новом охвате |
 | deepseek-flash | user/admin | ещё не принят в новом охвате | ещё не принят |
 | models/gemini-3.5-flash | user/admin | ещё не принят | ещё не принят |
 | models/gemini-3.6-flash | user/admin | ещё не принят | ещё не принят |
 
-Новый невыпущенный кандидат Filter 2.2.1 исправляет доказанное сокращение Skill
+Выпущенный Filter 2.2.1 исправляет доказанное сокращение Skill
 при handoff: SHA `fdb32101856ef91a9f2a1c49b48e4441ec31b57b009a02ffbe40efe15302ca95`,
 root `77c6707b43aba5d22f0d8b5d96a296b3f686dd2e9fe3e12b86636dcc6343f363` (12495).
 158 unit checks и независимое source/data-ownership review PASS; 87 exact-native
 replay checks PASS, включая view_skill/pin → binder/guard → действующий community
 extractor и full Skill ровно один раз. AST взят из deployed Tool source
-`790de1a…45fbe`. CI, release и повтор actual child boundary остаются обязательными.
+`790de1a…45fbe`. CI и release PASS; повтор actual child boundary остаётся обязательным.
+
+На новом natural GeminiLite regenerate root присутствовал полностью ровно один
+раз, delegate schema доступна, Skill прочитан полностью. Модель обошла delegation:
+direct apply к опубликованному оригиналу оставил незаполненными repeat subject и
+footer organization. Новый файл не принят; проблема подтверждена artifact comparison,
+а не предположением о контексте. Проверяется узкий guard прямой записи в original
+из прочитанного pinned published Skill; обычные файлы и продолжение заполненной
+копии должны остаться доступными. Контролируемый specialist probe проверяет только
+handoff; он не заменяет повтор natural routing после исправления. Контролируемый
+запрос также пошёл direct: все ограничения пользователя сохранились в actual
+payload, Office guide находился в role=tool, более приоритетного приказа обойти
+делегирование не найдено. Передача полного Skill в actual child пока не доказана.
+
+Terra regular create: источник/содержание DOCX, рендер и UI-download корректны;
+Tasks созданы до записи, но native `update_task` получил `task_id` вместо `id`.
+Схема и ошибка присутствовали в actual payload; модель завершила ответ с открытым
+планом. Это argument/recovery failure. Общий root дополнен двумя предложениями
+про returned `id` и проверку состояния после ошибки; alias-wrapper не добавляется.
+Невыпущенный root: 12684 символа, SHA
+`0886ff701d5c22d0241538821f536ff4531f7adf0df3ce491eeba3d9d04e0044`.
+При review нового direct-original guard также выявлены обязательные границы:
+authoring по прочитанному authorized native authoring Skill сохраняет прямую
+правку копии; unrelated unavailable pins не должны блокировать обычный Office.
+Финальный кандидат Filter 2.2.2: SHA
+`5596a73f80c4fd8f5e88e827957ed34e509da603bec0832d3e2e35edd6bf9b53`.
+171 focused checks и 107 exact-native replay checks PASS, включая authoring
+ACL/active/historical pin, inactive/unavailable unrelated pins, raw OpenAPI
+binder/rebinder, worker scope, direct-original rejection и filled-copy edits.
+Исполняется native `get_skill_snapshot`: missing historical version даёт native
+404 и не предоставляет authoring exemption. Source contract review PASS;
+CI, release и повтор live routing/Task lifecycle ещё обязательны.
 
 Незавершённая строка не считается исключением или квалифицированной моделью.
 Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
@@ -287,7 +318,9 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: принять actual corporate worker packet и заполненную копию другим
+Следующий шаг: завершить review/replay и выпуск narrow direct-original guard и
+общей Task-инструкции, повторить natural corporate routing и Terra lifecycle;
+принять actual corporate worker packet и заполненную копию другим
 пользователем, затем завершить явную матрицу моделей/форматов/ролей, negative
 cases, независимую общую приёмку и Git-доставку. Heavy renders проверять
 последовательно с учётом существующего единственного render_slot.
