@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.1.5-native-workflow-context
+version: 2.2.0-native-office-composition
 required_open_webui_version: 0.12.2
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import json
+import inspect
 import re
 from typing import Any
 
@@ -17,12 +18,20 @@ from pydantic import BaseModel, Field
 
 
 OFFICECLI_TOOL_ID = "server:officecli"
+CORPORATE_TOOL_IDS = ("corporate_document_delegation", "corporate_template_publication")
+WORKFLOW_REQUEST_MARKER = "officecli_native_workflow"
+PLAN_REQUIRED_TOOLS = {
+    "create_office_document", "create_office_spreadsheet", "create_office_presentation",
+    "run_sub_agent", "publish_template",
+}
+APPLY_TOOLS = {"apply_office_batch", "apply_office_spreadsheet_batch", "apply_office_presentation_batch"}
+CONDITIONAL_PLAN_TOOLS = {"stage_chat_file", "publish_terminal_file"}
 TERMINAL_TRANSFER_TOOL_ID = "terminal_file_transfer"
 ARTIFACT_WORKFLOW_SKILL_ID = "artifact-workflow"
 DEFAULT_TERMINAL_ID = "office-linux"
 OFFICE_FILE_EXTENSIONS = (".docx", ".xlsx", ".pptx", ".docm", ".xlsm", ".pptm")
 OFFICECLI_INSTRUCTION_MARKER = "[officecli-native-workflow-v1]"
-# Keep the production default aligned with the current direct-model catalog.
+# Bootstrap defaults only; native Valves own the deployed, qualified model IDs.
 # Specialized Workspace/Pipe models stay opt-in by omission.
 DEFAULT_TARGET_MODEL_IDS = (
     "claude-opus-5,"
@@ -40,6 +49,7 @@ DEFAULT_TARGET_MODEL_IDS = (
 OFFICECLI_INSTRUCTION = (
     f"{OFFICECLI_INSTRUCTION_MARKER} OfficeCLI reads/creates/edits DOCX, XLSX, PPTX. "
     "For manual CLI edits, use load_officecli_skill and get_officecli_help for installed syntax. "
+    "Execute CLI guide examples through OfficeCLI API tools; Terminal is a separate environment and does not imply an installed OfficeCLI binary. "
     "User source-preservation requirements and tool schemas take precedence over generic guide examples. "
     "Preserve requested fields, notes and checklists; add no filler or unrequested cover/TOC. "
     "For saved notes, use export_answer_to_word with source_note_id to import the full text instead of retyping it into create commands. "
@@ -116,6 +126,57 @@ def _comma_separated_values(value: str) -> set[str]:
     return {item.strip() for item in value.split(",") if item.strip()}
 
 
+def _requires_native_plan(name: str, params: dict[str, Any], files: Any = ()) -> bool:
+    if name in PLAN_REQUIRED_TOOLS:
+        return True
+    if name == "publish_terminal_file":
+        return _has_office_file([{"name": params.get("path")}], set(OFFICE_FILE_EXTENSIONS))
+    if name == "stage_chat_file":
+        file_id = params.get("file_id")
+        if not isinstance(file_id, str) or not isinstance(files, list):
+            return False
+        for item in files:
+            if not isinstance(item, dict) or item.get("type", "file") != "file":
+                continue
+            native_file = item.get("file") if isinstance(item.get("file"), dict) else {}
+            if file_id in (item.get("id"), item.get("url"), native_file.get("id")):
+                if _has_office_file([item, native_file], set(OFFICE_FILE_EXTENSIONS)):
+                    return True
+        return False
+    if name not in APPLY_TOOLS:
+        return False
+    commands = params.get("commands")
+    # Only a single set on an existing, explicitly addressed object is atomic.
+    return not (
+        isinstance(commands, list) and len(commands) == 1
+        and isinstance(commands[0], dict) and commands[0].get("command") == "set"
+        and isinstance(commands[0].get("path"), str)
+        and commands[0]["path"].strip() not in ("", "/")
+    )
+
+
+async def _require_active_native_tasks(chat_id: str, user_id: str) -> None:
+    from open_webui.models.chats import Chats
+
+    chat = await Chats.get_chat_by_id_and_user_id(chat_id, user_id)
+    if chat and any(
+        isinstance(task, dict) and task.get("status") in ("pending", "in_progress")
+        and isinstance(task.get("content"), str) and task["content"].strip()
+        for task in (chat.tasks or [])
+    ):
+        return
+    raise ValueError("Create an active native Tasks plan with create_tasks before this Office operation.")
+
+
+def _workflow_context(metadata: dict[str, Any], skill_id: str) -> None:
+    if skill_id:
+        context = metadata.setdefault("chat_context", {})
+        mentioned_ids = context.setdefault("mentioned_skill_ids", [])
+        if skill_id not in mentioned_ids:
+            context["mentioned_skill_ids"] = [*mentioned_ids, skill_id]
+    metadata[WORKFLOW_REQUEST_MARKER] = True
+
+
 def _has_office_file(files: Any, extensions: set[str]) -> bool:
     if not isinstance(files, list):
         return False
@@ -152,6 +213,10 @@ def _append_instruction(messages: list[Any]) -> None:
 
 class Filter:
     class Valves(BaseModel):
+        workflow_profile_ids: str = Field(
+            default="corporate-documents,corporate-template-author",
+            description="Optional presets receiving the shared native workflow without direct OfficeCLI attachment; keep the bounded worker excluded.",
+        )
         target_model_ids: str = Field(
             default=DEFAULT_TARGET_MODEL_IDS,
             description=(
@@ -186,6 +251,82 @@ class Filter:
 
     def __init__(self) -> None:
         self.valves = self.Valves()
+
+    async def request(
+        self, body: dict[str, Any], __metadata__: dict[str, Any] | None = None,
+        __user__: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        metadata = __metadata__ or {}
+        scoped_models = (_comma_separated_values(self.valves.target_model_ids)
+                         | _comma_separated_values(self.valves.workflow_profile_ids))
+        if (body.get("model") not in scoped_models
+                or not metadata.get(WORKFLOW_REQUEST_MARKER) or metadata.get("task") is not None
+                or not metadata.get("session_id") or not (__user__ or {}).get("id")):
+            return body
+        from open_webui.utils.chat_id import is_saved_chat_id
+        from open_webui.utils.tools import get_async_tool_function_and_apply_extra_params
+
+        chat_id, user_id = metadata.get("chat_id"), __user__["id"]
+        if not is_saved_chat_id(chat_id):
+            return body
+        tools = metadata.get("tools", {})
+        removed_specs = []
+        for key, tool in list(tools.items()):
+            spec = tool.get("spec", {})
+            if (tool.get("tool_id") == "corporate_document_delegation"
+                    and spec.get("name") == "run_parallel_sub_agents"):
+                removed_specs.append(spec)
+                del tools[key]
+        if removed_specs and isinstance(body.get("tools"), list):
+            remaining_names = {tool.get("spec", {}).get("name") for tool in tools.values()}
+            removed_names = {spec["name"] for spec in removed_specs} - remaining_names
+            body["tools"] = [schema for schema in body["tools"]
+                             if not any(schema.get("function", schema) is spec for spec in removed_specs)
+                             and schema.get("function", schema).get("name") not in removed_names]
+        for name, tool in metadata.get("tools", {}).items():
+            if name not in PLAN_REQUIRED_TOOLS | APPLY_TOOLS | CONDITIONAL_PLAN_TOOLS or tool.get("direct"):
+                continue
+            function = tool.get("callable")
+            if not function or getattr(function, "_office_tasks_guard", False):
+                continue
+            original = getattr(function, "__function__", function)
+            signature = inspect.signature(original)
+            if name == "stage_chat_file" and "__files__" not in signature.parameters:
+                parameters = list(signature.parameters.values())
+                position = next((i for i, p in enumerate(parameters)
+                                 if p.kind is inspect.Parameter.VAR_KEYWORD), len(parameters))
+                parameters.insert(position, inspect.Parameter(
+                    "__files__", inspect.Parameter.KEYWORD_ONLY, default=None,
+                ))
+                signature = signature.replace(parameters=parameters)
+
+            def guard(original=original, signature=signature, name=name):
+                async def guarded(*args, **kwargs):
+                    params = dict(signature.bind_partial(*args, **kwargs).arguments)
+                    # Native OpenAPI closures expose **kwargs, whereas local
+                    # Tools expose named arguments. Both carry the same schema.
+                    for key, parameter in signature.parameters.items():
+                        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+                            params.update(params.pop(key, {}))
+                    fresh_files = params.get("__files__")
+                    files = fresh_files if isinstance(fresh_files, list) else metadata.get("files", [])
+                    if _requires_native_plan(name, params, files):
+                        await _require_active_native_tasks(chat_id, user_id)
+                    if name == "stage_chat_file" and "__files__" not in inspect.signature(original).parameters:
+                        kwargs.pop("__files__", None)
+                    result = original(*args, **kwargs)
+                    return await result if inspect.isawaitable(result) else result
+                # Do not copy native __function__/__extra_params__ with wraps:
+                # execute_tool_call must rebind fresh messages/files to THIS guard.
+                guarded.__signature__ = signature
+                guarded.__name__ = getattr(original, "__name__", name)
+                guarded._office_tasks_guard = True
+                return guarded
+
+            tool["callable"] = await get_async_tool_function_and_apply_extra_params(
+                guard(), getattr(function, "__extra_params__", {}),
+            )
+        return body
 
     async def outlet(
         self,
@@ -237,7 +378,9 @@ class Filter:
         # chat does not set ``metadata.params.function_calling`` at all; treating
         # its absence as a non-native mode silently removed OfficeCLI from the
         # ordinary product path.
-        if not target_model_ids or body.get("model") not in target_model_ids:
+        direct_model = body.get("model") in target_model_ids
+        workflow_profile = body.get("model") in _comma_separated_values(valves.workflow_profile_ids)
+        if not direct_model and not workflow_profile:
             return body
         if metadata.get("task") is not None:
             return body
@@ -245,6 +388,11 @@ class Filter:
         # OpenWebUI preserves caller-provided OpenAI tools instead of resolving tool_ids.
         # Do not mutate that separate contract or suggest OfficeCLI is active there.
         if body.get("tools") is not None:
+            return body
+
+        if workflow_profile and not direct_model:
+            if __metadata__ is not None:
+                _workflow_context(metadata, valves.artifact_workflow_skill_id.strip())
             return body
 
         tool_ids = body.get("tool_ids")
@@ -284,13 +432,14 @@ class Filter:
                 # rather than only listing a selected skill_ids manifest entry.
                 # Activate on creation and follow-ups too; no user mention or
                 # duplicate Skill text is added by this version-specific adapter.
-                context = metadata.setdefault("chat_context", {})
-                mentioned_ids = context.setdefault("mentioned_skill_ids", [])
-                if workflow_skill_id not in mentioned_ids:
-                    context["mentioned_skill_ids"] = [*mentioned_ids, workflow_skill_id]
+                _workflow_context(metadata, workflow_skill_id)
+            else:
+                metadata[WORKFLOW_REQUEST_MARKER] = True
 
-        if OFFICECLI_TOOL_ID not in tool_ids:
-            body["tool_ids"] = [*tool_ids, OFFICECLI_TOOL_ID]
+        body["tool_ids"] = list(tool_ids)
+        for tool_id in (OFFICECLI_TOOL_ID, *CORPORATE_TOOL_IDS):
+            if tool_id not in body["tool_ids"]:
+                body["tool_ids"].append(tool_id)
 
         if office_input:
             tool_ids = body.get("tool_ids", tool_ids)
