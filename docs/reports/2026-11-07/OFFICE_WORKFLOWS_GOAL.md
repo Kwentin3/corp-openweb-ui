@@ -4,23 +4,23 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `aab7b0aa611c86d2d5b2a6ea71e17f08f5057ad5`, draft PR #588;
-required CI `42375499317` PASS. Native Filter `8456bdab…9d85158c`, version
-`2d891473-49ea-47a4-a756-4f9806d63748`, общий root
+Текущий выпущенный код: commit `f2ea1698cf57f56e0b1b5b5cb98b31cde8f9ad69`, draft PR #588;
+required CI `42382468654` PASS. Native Filter `9edf90bf…235affe1`, version
+`a79bd7a6-f8c1-4e98-b9ee-cf5002418f7c`, общий root
 `c3abf177…3c6a14d` (13640 символов), version `3c00e6d8-de84-40b9-9c24-6288c43d44a1`.
 Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
 | Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
 | --- | --- | --- | --- |
-| models/gemini-4-argon | admin | DOCX create/edit/continue PASS | ещё не принят |
+| models/gemini-4-argon | admin | DOCX create/edit/continue PASS | общий исправленный путь подключён; новый платный прогон отложен пользователем |
 | gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-luna-boundary.safe.json и corporate-luna-offline-review.safe.json; continue artifacts принят отдельно ранее |
 | gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-mini-verdict.safe.json и corporate-mini-offline-review.safe.json |
 | models/gemini-3.5-flash-lite | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS после native Continue recovery; initial empty completion без файла — FAIL, причина неизвестна; evidence: gemini-lite-lifecycle-verdict.safe.json и gemini-lite-offline-review.safe.json | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
 | gpt-6.1-sol | user/admin | fresh PPTX create/edit/continue content/preservation/all-slide render/UI/Tasks PASS; первая ошибочная попытка корпоративного делегирования заблокирована guard, модель восстановилась сама; evidence: sol-scope-offline-review.safe.json | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 2 Tasks completed; evidence: corporate-sol-verdict.safe.json и corporate-sol-offline-review.safe.json |
 | gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-terra-boundary.safe.json и corporate-terra-offline-review.safe.json |
 | deepseek-flash | user/admin | create/edit/continue content/preservation/render/UI/Tasks PASS; repeat после root9bc — один write без косметического повторения | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 4 Tasks completed; evidence: corporate-deepseek-verdict.safe.json и corporate-deepseek-offline-review.safe.json |
-| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; point-repeat после da44 без Task calls, changed artifact review в работе | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-gemini35-verdict.safe.json и corporate-gemini35-offline-review.safe.json |
+| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; point-repeat после da44 без Task calls, changed artifact review PASS (gemini-flash-point-repeat-offline-review.safe.json) | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-gemini35-verdict.safe.json и corporate-gemini35-offline-review.safe.json |
 | models/gemini-3.6-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; atomic edit без Task calls; evidence: gemini36-offline-review.safe.json | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-gemini36-verdict.safe.json и corporate-gemini36-offline-review.safe.json |
 | corporate-documents (необязательный consumer preset) | user | проверен по корпоративной роли | discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 2 Tasks completed; evidence: corporate-profile-reader-verdict.safe.json и corporate-profile-reader-offline-review.safe.json |
 
@@ -258,11 +258,50 @@ stage/PNG шаги не доказывают LibreOffice/PDF origin или по�
 преобразованы штатным URL→base64 helper. Replay принудительно оставляет текущий
 DB assistant output пустым; проверены Continue, новый User и старые PNG после User.
 Native DB/ACL/HTTP edges — IO fixtures,
-writer — local sink; это не runtime/UI/product acceptance. Candidate Filter SHA
+writer — local sink; это не runtime/UI/product acceptance. Filter SHA
 `9edf90bfa7bab3c75d7d8d794ea39761dff3b4b14c7d985270b47b15235affe1`, rootc3 не менялся.
-Live runtime aab7 остаётся прежним; перед любым единственным новым Large acceptance
-обязательны review/CI и небольшой actual native UI gate/DB-owner probe.
-Продуктовый результат большого задания не принят. Evidence:
+После independent review PASS и CI `42382468654` PASS выполнен Function-only native
+release commit `f2ea1698…`, version `a79bd7a6-f8c1-4e98-b9ee-cf5002418f7c`:
+`release-seen-layout.safe.txt`, backup `85391e17-5746-4278-b944-6f90d1da2663/before.private.json`.
+Rootc3/version3c00, остальные Skills/profiles/Valves/grants/flags сохранены, restart нет.
+Маленький live UI gate probe начат primary в 14:45:00: chat `0bc010b3…`, capture
+`ae0eb7…`; отдельная загрузка `qa-layout-guard-probe.docx`, File `a5964c29…`,
+38262 bytes/SHA `80b776eb…ab7a2ac` подтверждена exact native current User record
+и совпадает с локальным QA fixture. Независимая component acceptance PASS:
+content-copy→render→14pt был заблокирован до original writer при observed
+done=false/output=[]; после stage того же File/hash, LibreOffice/PDF и реального
+PNG в input018 идентичный retry прошёл в input019. Native29/29, Tasks4/4 completed.
+Отдельный новый User point-edit 16pt PASS: старые29 call IDs исключены native
+ancestry, один set→новый File без новых Tasks/stage/LO, native7/7, done=true.
+Это ограниченная component-приёмка, не автономная приёмка большого задания;
+evidence `layout-gate-probe-verdict.safe.json`, `layout-gate-pointedit-verdict.safe.json`.
+Пятый Large `543a56af…` завершился самостоятельно: synthetic seed intro `7a641a83…`/carrier
+`ac1a9042…` подтверждён native owner/meta/hash; тот же File3003/source144102ff3.
+Actual первый/последний captured inputs сохраняют source/root/prefix ровно один
+раз, Luna/65 schemas. Capture957f6ff5 достиг20-request cap; второе окно fa4f0ca4
+содержит ещё11 requests, интервал между окнами явно не считается записанным.
+Native final done=true, 55/55 call/results, Tasks3/3 completed, четыре успешных
+зависимых сохранения без corporate worker. Финальный File `fe1475f8…`, 41559 bytes,
+SHA `c31c108a…4e627` совпадает с UI-download. Независимая сверка всех17 тем,
+поздних уточнений и защищённых частей формы PASS; все четыре model-used финальных
+LibreOffice PNG просмотрены, перекрытий и обрезки нет. Первые два изменения —
+заполнение и дополнение пояснения/repeat header; третье — сокращение пояснения
+и cantSplit после просмотра страниц. Четвёртое уточняет editable metadata label
+«Заказчик» → «Организация (учебная)»: source подтверждает учебную организацию,
+но не статус реального заказчика. Это допустимое уточнение факта, а не буквальное
+восстановление исходной подписи. Его строгая необходимость и внутреннее reasoning
+модели не доказаны; новая платная проверка ради этой подписи не требуется.
+Исполнитель формы → «Не установлен» отмечен как неоднозначность editable metadata;
+неизменность этого значения frozen contract не требовал. Новый guard в этом
+прогоне не блокировал calls: mixed-content batches лежат вне его узкой области,
+а layout исправлялся уже после PDF/image проверки. Native enforcement доказан
+отдельным live component probe. Итоговый native context/transition review подтверждает
+55/55 pairs, закрытый план, полный source/root ровно по одному разу в пяти
+репрезентативных captured frames и 12 реальных PNG в финальном input. Все31
+request целиком не пересканированы; порядок видимости всех четырёх первых страниц
+до третьей правки в capture gap строго не доказан. После финальной проверки
+страниц writes нет. Large принят с этими ограничениями, без обещания одного
+сохранения или Word pixel parity; весь GOAL пока не завершён. Evidence:
 ignored `representative-large-task/large-history-preflight.safe.json`,
 `large-actual-boundary.safe.json`, `large-actual-inspect.safe.json`,
 `large-candidate-a28fa83d-review.private.json`, `large-lo-comparison.safe.json`,
@@ -272,12 +311,17 @@ ignored `representative-large-task/large-history-preflight.safe.json`,
 `terminal-model-image-path.safe.json`, `large-single-owner-image-read-rehearsal.safe.json`,
 `preview-capability-verdict.safe.json`, `large-third-stopped-reconciliation.safe.json`,
 `large-fourth-final-reconciliation.safe.json`, `layout-guard-feasibility.safe.json`,
-`seen-request-scope-feasibility.safe.json`, `seen-layout-native-replay.safe.json`
+`seen-request-scope-feasibility.safe.json`, `seen-layout-native-replay.safe.json`,
+`large-fifth-context-verdict.safe.json`, `large-fifth-final-artifact-review.safe.json`
 внутри указанного ниже local-каталога.
-Оставшаяся матрица, corporate/native UI/readback и optional author preset требуют
-завершения; для оставшейся admin-проверки нужен штатный повторный вход владельца
-в отдельной сессии, ordinary Maria session сохраняется. Required CI, независимый
-общий review, Git-доставка и безопасная уборка остаются обязательными.
+Пользователь отдельно отложил новые платные проверки Argon: точный model ID
+остаётся в общем исправленном native-пути, новый corporate runtime PASS не заявлен.
+Оставшаяся admin UI-проверка — optional author profile;
+прежняя admin UI-сессия отвечает401, нужен штатный повторный вход владельца в
+отдельной сессии. API-проверки не заменяют эту UI-приёмку; ordinary Maria session
+сохраняется. После Fifth нужны независимый общий review, Git merge/main delivery
+и безопасная уборка своих QA/capture/Terminal/worktree ресурсов. Exact inventory
+сохраняет неразрешённые image File IDs и запрещает угадывать их; ничего не удалено.
 
 Незавершённая строка не считается исключением или квалифицированной моделью.
 Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
