@@ -162,8 +162,29 @@ completed, поэтому guard правильно отклонил stage/Office
 vs OfficeCLI guide; Skill/library publication vs native attachment. Это не копия
 авторской методики. Новый root: 12245 символов, SHA256
 `df38299b5dcdad3c793a09ffc0e0d7ab00be9019558f7bad35079a5d1b7c615e`;
-65 native replay checks и независимое review минимальности PASS. Ещё не выпущен;
-повтор корпоративного сценария в чистом чате обязателен.
+65 native replay checks и независимое review минимальности PASS.
+CI commit `2462e7aaf5f5424444d726bea942711fc3aeff50`, run `42352618921` PASS;
+narrow root Skill release/readback PASS, version `3733d74f-1472-4817-87e4-55c57107fdef`.
+В чистом повторе модель прочитала authoring Skill целиком (4864 символа, SHA
+`d09cc56ca3e46a23f6d1ae0cf4e69d54aee8903ddc20b42a2104e914fa3784f2`),
+осмотрела DOCX и предложила карту. После approval подготовлен outbound запрос,
+но ответа пока нет, native tools/Tasks не вызывались. Capture расположен перед
+HTTP send и не доказывает фактическую доставку upstream. Baseline существующей
+библиотеки снят до наблюдаемой QA-публикации: два прежних File ID и шесть Skills.
+
+Luna continuation сохранил данные и выдал последний File ID, но сделал второй
+successful apply ради отступа 6 pt. Необходимость косметического прохода не
+доказана; этот stop criterion не принят. Финальная копия скачана, значения
+проверены, render читаем. Кандидат общего stop-rule уточнён: общие style warnings
+и необязательные советы не требуют новой версии после проверки согласованных
+критериев. Root SHA256 `52b3d9dfd47209ad38d2acb64a1a04a7848f67e1148fea18c9c2981b8d11f1bc`,
+12345 символов; 65 native checks PASS. Повтор затронутого Luna continuation нужен.
+
+Mini XLSX create/edit: UI downloads и literal/formula/header-bold проверки PASS;
+создание содержит cached 300/600/900, после single-cell edit некоторые cached
+values пусты, формулы сохранены, native inspect вычисляет 600/600/1200.
+Не выдавать вычисленные expectations за сохранённые значения Excel. Продолжение,
+final render и общий artifact review ещё не приняты.
 
 ## Приёмка и обязательные оставшиеся шаги
 
