@@ -110,14 +110,60 @@ provider schemas и executable map, остальные Tools сохраняют�
 
 Focused suite: 135 passed. Exact-native AST replay финального Filter LF SHA256
 `fabc0b2f058c380d41b02f24afe376d3e2ee906b5e68c1d8a3707877a197c3b9`:
-58 checks passed (binder/rebinder, Task creation/dispatch, Skill/history/provider
+65 checks passed (binder/rebinder, Task creation/dispatch, Skill/history/provider
 conversion, inherited worker marker, schema/executable parity). Внешние IO/DB —
 fixtures, не UI-приёмка. Независимое ревью этого исходного/native-integration
 milestone — PASS; live/model/product этапы остаются открытыми.
+Невакуозные проверки подтверждают наличие guard, отказ без Tasks и raw preset ID
+на request boundary; base mapping происходит позже у provider router.
 Локальный полный suite: 343 passed, 3 skipped, 7 failed из-за Windows aiohttp
 multipart tempfile serialization в неизменённом terminal_file_transfer. Одна
 ошибка воспроизведена на base/main. Required Linux CI остаётся обязательным;
 тесты и несвязанный Tool ради локальной платформы не ослабляются.
+
+## Git, CI и выпуск кандидата
+
+Кандидат сохранён в commit `bdbf725f121a86b97a84f15d09117b781022c301`,
+[draft PR #588](https://github.com/Kwentin3/corp-openweb-ui/pull/588).
+[Required Linux CI](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42350958901)
+PASS, включая native file transport/routing и installed OfficeCLI qualification.
+
+Native Function/Skills и два необязательных presets обновлены штатными API без
+restart. Worker byte/state-identical; owners, READ/WRITE семантика, остальные
+params/Valves и flags сохранены. В Valves добавлен admin-visible Argon для
+квалификации, что ещё не означает приёмку. Root SHA256
+`c41bab1cf0f4f322041e2d2d648d54941d4cbd93b551089560df776310c34003`,
+11777 символов. Help Skill синхронизирован с текущим candidate guide.
+Before snapshots и release/readback receipt сохранены privately; rollback готов.
+
+Первый выпуск автоматически откатился из-за слишком строгого сравнения grants:
+native API пересоздаёт технические row ID/created_at. Readback исходных contents,
+params/Valves, worker и семантики grants подтвердил восстановление. Release helper
+исправлен: сравнивает resource/principal/permission, остальные поля exact;
+rollback не перезаписывает чужую версию и проверяет восстановленный state.
+Независимое review helper PASS; повторный native release/readback PASS.
+Ordinary Argon DOCX в отдельном admin QA-чате принят: создание, одиночная правка,
+продолжение с последней копии, все факты/таблица/два новых абзаца, XML/style
+preservation, render и реальные UI-downloads. На каждый ход одна успешная
+публикация. Первая multi-operation запись без активного плана заблокирована без
+файла; затем модель создала Tasks и успешно продолжила с F2. Atomic edit прошёл
+без нового плана. Независимое artifact/lifecycle review PASS.
+Luna: создание и контекст до/после записи/рендера подтверждены, DOCX скачан и
+проверен; правка/продолжение ещё в работе. Ordinary роль: auth/root Skill 200,
+private author Skill/publisher Tool 401, то есть отказ именно в правах.
+
+Corporate GeminiLite выявил отдельную подтверждённую semantic tool confusion:
+во всех 12 requests root полный, доступны 72 schemas, включая native Skill tools
+и publisher. Но модель вызвала `load_officecli_skill(skill="corporate-template-authoring")`
+вместо `view_skill(id=...)`, получила Unknown skill, подготовила Terminal-инструкцию
+и заявила публикацию без `create_skill`/`publish_template`. Все Tasks сразу
+completed, поэтому guard правильно отклонил stage/Office publication. Результат
+не принят. Общий root дополнен короткой картой владельцев Tools: Workspace Skill
+vs OfficeCLI guide; Skill/library publication vs native attachment. Это не копия
+авторской методики. Новый root: 12245 символов, SHA256
+`df38299b5dcdad3c793a09ffc0e0d7ab00be9019558f7bad35079a5d1b7c615e`;
+65 native replay checks и независимое review минимальности PASS. Ещё не выпущен;
+повтор корпоративного сценария в чистом чате обязателен.
 
 ## Приёмка и обязательные оставшиеся шаги
 
@@ -131,7 +177,7 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 формул, editable objects и сохранности оформления. Каждый включённый model ID
 должен пройти оба workflow; проверки общих native ACL выполняются по классам
 эквивалентных grants, а не бессодержательным произведением всех групп и моделей.
-Это план приёмки, результаты пока отсутствуют.
+Это матрица приёмки; завершённые и непринятые срезы указаны выше.
 
 1. Завершить model/role matrix, проверить native owners/ACL/вызовы и выбрать
    минимальные изменения без второго владельца состояния или методики.
@@ -152,7 +198,7 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: завершить scope/schema parity и exact-native replay кандидата,
-сверить репрезентативные запросы/ожидаемые артефакты, затем required CI и
-обратимый native release для UI/provider-boundary приёмки.
-GOAL не завершён, продуктовая приёмка нового кандидата ещё не начата.
+Следующий шаг: required CI и narrow native Skill release уточнения владельцев
+Tools, повтор corporate GeminiLite в чистом чате; затем завершить явную матрицу
+моделей/форматов/ролей, negative cases, независимую общую приёмку и Git-доставку.
+GOAL не завершён; пройдённый Argon DOCX не заменяет остальные обязательные срезы.
