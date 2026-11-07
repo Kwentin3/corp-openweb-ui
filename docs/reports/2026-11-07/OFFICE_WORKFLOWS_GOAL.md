@@ -2,6 +2,38 @@
 
 Дата: 07.11.2026. Статус: в работе. Основание — согласованный в диалоге GOAL.
 
+## Текущий проверенный срез
+
+Текущий выпущенный код: commit `ad9be2c5`, draft PR #588; required CI `42353759357` PASS.
+Native Filter `fabc0b2f…97c3b9`, общий root `52b3d9df…11f1bc` (12345 символов),
+version `d2311f8a-5822-4f5b-90b3-619e1146bfe8`. Последний root выпущен narrow API/CAS,
+metadata/grants сохранены, restart не выполнялся.
+
+| Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
+| --- | --- | --- | --- |
+| models/gemini-4-argon | admin | DOCX create/edit/continue PASS | ещё не принят |
+| gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | reader discovery/fact collection PASS; fill в работе |
+| gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | ещё не принят |
+| models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue PASS; fill ещё не принят |
+| gpt-6.1-sol | user/admin | PPTX QA-chat подготовлен, прогон не начат | ещё не принят |
+| gpt-6.1-terra | user/admin | ещё не принят в новом охвате | ещё не принят в новом охвате |
+| deepseek-flash | user/admin | ещё не принят в новом охвате | ещё не принят |
+| models/gemini-3.5-flash | user/admin | ещё не принят | ещё не принят |
+| models/gemini-3.6-flash | user/admin | ещё не принят | ещё не принят |
+
+Новый невыпущенный кандидат Filter 2.2.1 исправляет доказанное сокращение Skill
+при handoff: SHA `fdb32101856ef91a9f2a1c49b48e4441ec31b57b009a02ffbe40efe15302ca95`,
+root `77c6707b43aba5d22f0d8b5d96a296b3f686dd2e9fe3e12b86636dcc6343f363` (12495).
+158 unit checks и независимое source/data-ownership review PASS; 87 exact-native
+replay checks PASS, включая view_skill/pin → binder/guard → действующий community
+extractor и full Skill ровно один раз. AST взят из deployed Tool source
+`790de1a…45fbe`. CI, release и повтор actual child boundary остаются обязательными.
+
+Незавершённая строка не считается исключением или квалифицированной моделью.
+Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
+уборка остаются обязательными. Доказательства и временные QA IDs — в ignored
+`local/office-unified-native-20261107/`; бизнес-документы и raw payload в Git не входят.
+
 ## Результат и границы
 
 Обычный чат сохраняет выбранную ведущую модель и автоматически получает нужные
@@ -90,6 +122,26 @@ Tools, native ACL исключает недоступные. Условная м
 остаётся необязательным preset. Пакет worker содержит фактически прочитанный
 Skill целиком, подтверждённый source File ID и все согласованные факты.
 
+Actual GeminiLite consumer поймал отдельный разрыв: ведущая полностью прочитала
+Skill 1621 символ, но передала prompt 874 символа. В пяти реальных child requests
+worker→Terra root был полный, все 14 OfficeCLI tools доступны, но полного Skill
+не было. Данные и простая копия получились верными, однако полнота handoff не
+принята. Community автоматически переносит только SYSTEM Skill tags, а native
+`view_skill` хранит текст в tool result и pin — в `chat_context.skill_versions`.
+
+Кандидат 2.2.1 материализует pinned snapshot через существующие authorized_skill,
+get_skill_snapshot и native formatter только во временных `__messages__`
+corporate-owned Tool. Parent history и prompt не меняются, community/worker
+сохранены. При нескольких шаблонах нужен точный ID, без выбора «последнего»;
+неполнота, конфликт и отсутствие READ/pin останавливают запуск. Отдельной
+регистрации Skill/context/store не добавлено. В обычном Sol PPTX модель также
+пыталась вызвать corporate Tool; новый no-template guard не допускает такой
+маршрут и указывает прямые OfficeCLI Tools. Этот ordinary repeat ещё нужен.
+
+Диагностический owner также проверен: community child имеет `task=sub_agent`;
+для его capture нужен существующий `--include-task sub_agent`, одного native
+subagents flag недостаточно. Нового логгера не добавляли.
+
 Native Filter.request доступен после tools/context assembly и на продолжениях;
 executable callables принадлежат shared metadata tools. Кандидат проверяет
 сохранённые native Tasks непосредственно перед созданием Office-файла,
@@ -148,8 +200,8 @@ preservation, render и реальные UI-downloads. На каждый ход 
 публикация. Первая multi-operation запись без активного плана заблокирована без
 файла; затем модель создала Tasks и успешно продолжила с F2. Atomic edit прошёл
 без нового плана. Независимое artifact/lifecycle review PASS.
-Luna: создание и контекст до/после записи/рендера подтверждены, DOCX скачан и
-проверен; правка/продолжение ещё в работе. Ordinary роль: auth/root Skill 200,
+Luna: создание/правка проверены; continuation принят после точечного stop-rule
+повтора ниже. Ordinary роль: auth/root Skill 200,
 private author Skill/publisher Tool 401, то есть отказ именно в правах.
 
 Corporate GeminiLite выявил отдельную подтверждённую semantic tool confusion:
@@ -167,9 +219,16 @@ CI commit `2462e7aaf5f5424444d726bea942711fc3aeff50`, run `42352618921` PASS;
 narrow root Skill release/readback PASS, version `3733d74f-1472-4817-87e4-55c57107fdef`.
 В чистом повторе модель прочитала authoring Skill целиком (4864 символа, SHA
 `d09cc56ca3e46a23f6d1ae0cf4e69d54aee8903ddc20b42a2104e914fa3784f2`),
-осмотрела DOCX и предложила карту. После approval подготовлен outbound запрос,
-но ответа пока нет, native tools/Tasks не вызывались. Capture расположен перед
-HTTP send и не доказывает фактическую доставку upstream. Baseline существующей
+осмотрела DOCX и предложила карту. Capture расположен перед HTTP send и не
+доказывает фактическую доставку upstream. Пустой persisted output во время
+streaming не доказывает отсутствия Tool side effects: после Stop около десяти
+минут ожидания сохранились create_skill, guard-failed publish, create_tasks и
+incomplete publish. Original уже добавлен в Knowledge, Skill ещё private.
+Адресный native Continue использовал те же IDs и получил `status=published`;
+один Skill, один Original binding и одно membership, без повторного создания.
+Root и полный authoring Skill сохранены в resume payload, tool pairing корректен,
+авторизационных ошибок нет, Tasks completed. Прежние ресурсы сохранены.
+Baseline существующей
 библиотеки снят до наблюдаемой QA-публикации: два прежних File ID и шесть Skills.
 
 Luna continuation сохранил данные и выдал последний File ID, но сделал второй
@@ -178,13 +237,22 @@ successful apply ради отступа 6 pt. Необходимость кос
 проверены, render читаем. Кандидат общего stop-rule уточнён: общие style warnings
 и необязательные советы не требуют новой версии после проверки согласованных
 критериев. Root SHA256 `52b3d9dfd47209ad38d2acb64a1a04a7848f67e1148fea18c9c2981b8d11f1bc`,
-12345 символов; 65 native checks PASS. Повтор затронутого Luna continuation нужен.
+12345 символов; 65 native checks PASS. CI `42353759357` и narrow root release PASS.
+Повтор с того же F2 и тем же заданием: первый apply guard-blocked без File,
+затем Tasks → один успешный apply; отступ включён сразу в add, post-render writes
+нет. UI-download, literal/XML/style preservation, final render и независимый
+review PASS. Во всех восьми outbound root полный и ровно один раз.
 
 Mini XLSX create/edit: UI downloads и literal/formula/header-bold проверки PASS;
 создание содержит cached 300/600/900, после single-cell edit некоторые cached
 values пусты, формулы сохранены, native inspect вычисляет 600/600/1200.
-Не выдавать вычисленные expectations за сохранённые значения Excel. Продолжение,
-final render и общий artifact review ещё не приняты.
+Не выдавать вычисленные expectations за сохранённые значения Excel. В финальном
+продолжении фактически сохранены caches 600/600/1200, формулы/стили/все ячейки
+проверены; latest chain и Tasks guard подтверждены. Три screenshot вызова при
+создании вернули 409 render-slot busy; причину владельца lock это не доказывает.
+Точный native HTML последней версии извлечён с совпадением SHA и визуально
+проверен в браузере: все данные читаемы. Временный localhost preview helper
+остановлен, его временная директория удалена. UI-downloads всех трёх файлов PASS.
 
 ## Приёмка и обязательные оставшиеся шаги
 
@@ -219,7 +287,8 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: required CI и narrow native Skill release уточнения владельцев
-Tools, повтор corporate GeminiLite в чистом чате; затем завершить явную матрицу
-моделей/форматов/ролей, negative cases, независимую общую приёмку и Git-доставку.
+Следующий шаг: принять actual corporate worker packet и заполненную копию другим
+пользователем, затем завершить явную матрицу моделей/форматов/ролей, negative
+cases, независимую общую приёмку и Git-доставку. Heavy renders проверять
+последовательно с учётом существующего единственного render_slot.
 GOAL не завершён; пройдённый Argon DOCX не заменяет остальные обязательные срезы.

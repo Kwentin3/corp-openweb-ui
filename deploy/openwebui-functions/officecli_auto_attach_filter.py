@@ -1,7 +1,7 @@
 """
 title: OfficeCLI Auto Attach
 author: Alpha Soft
-version: 2.2.0-native-office-composition
+version: 2.2.1-native-template-handoff
 required_open_webui_version: 0.12.2
 description: Adds the existing OfficeCLI tool server only to explicitly configured direct Native chat models.
 """
@@ -9,8 +9,11 @@ description: Adds the existing OfficeCLI tool server only to explicitly configur
 from __future__ import annotations
 
 from collections.abc import Iterable
+from copy import deepcopy
 import json
 import inspect
+from html import escape
+from types import SimpleNamespace
 import re
 from typing import Any
 
@@ -177,6 +180,86 @@ def _workflow_context(metadata: dict[str, Any], skill_id: str) -> None:
     metadata[WORKFLOW_REQUEST_MARKER] = True
 
 
+async def _template_handoff_messages(prompt: str, messages: list, metadata: dict, user: dict) -> list:
+    """Adapt a read native template to the pinned community Tool's system-tag input."""
+    from open_webui.routers.skills import authorized_skill
+    from open_webui.models.skills import get_skill_snapshot
+    from open_webui.utils.skill_files import skill_overview, format_skill_content
+
+    if not isinstance(prompt, str) or not isinstance(messages, list):
+        raise ValueError("Native delegation prompt/messages are required for complete template handoff.")
+    pins = (metadata.get("chat_context") or {}).get("skill_versions") or {}
+    candidates = []
+    # This is the existing publisher's exact Original-template binding, not a
+    # guessed filename or a File ID mentioned by model prose.
+    binding = re.compile(
+        r"\n\n## Original template\n\nOriginal native File ID: `([A-Za-z0-9_-]{1,128})`\.\n"
+        r"Template Knowledge ID: `[A-Za-z0-9_-]{1,128}`\.\n"
+        r"\[Download original DOCX\]\(/api/v1/files/\1/content\)\.\n"
+        r"Retrieve this original with the existing OfficeCLI file workflow, make a new copy, "
+        r"and fill that copy\. Preserve the original document and its formatting\.\n\Z"
+    )
+    for skill_id, version in pins.items():
+        if skill_id.startswith("terminal:") or not version:
+            continue
+        skill = await authorized_skill(skill_id, SimpleNamespace(**user))
+        if not skill.is_active:
+            raise ValueError("A previously read Skill is inactive; read an active published template before delegation.")
+        snapshot = await get_skill_snapshot(skill, version)
+        content = snapshot.get("content")
+        if (isinstance(content, str) and content.count("\n## Original template\n") == 1
+                and binding.search(content)):
+            candidates.append((skill_id, snapshot))
+    if len(candidates) > 1:
+        candidates = [(sid, snapshot) for sid, snapshot in candidates
+                      if re.search(r"(?<![A-Za-z0-9_-])" + re.escape(sid) + r"(?![A-Za-z0-9_-])", prompt)]
+    if len(candidates) != 1:
+        raise ValueError("Read one published template Skill before delegation; if several were read, reference exactly one Skill ID in prompt. "
+                         "Use OfficeCLI tools directly for ordinary Office files; this delegation is only for published corporate DOCX templates.")
+    skill_id, snapshot = candidates[0]
+    content, files = snapshot["content"], (snapshot.get("data") or {}).get("files")
+    if (not isinstance(files, list) or len(files) != 1 or files[0].get("path") != "SKILL.md"
+            or files[0].get("encoding") or files[0].get("content") != content):
+        raise ValueError("Template handoff requires the published text-only SKILL.md snapshot, with no omitted supporting files.")
+    overview = skill_overview(content, [], tools_enabled=False)
+    if overview.get("next_offset") is not None or overview.get("content") != content:
+        raise ValueError("The native Skill formatter cannot transfer the complete template; delegation was not started.")
+    formatted = format_skill_content(overview, skill_id, False)
+    if formatted != content:
+        raise ValueError("Native template instructions are incomplete; delegation was not started.")
+    # Community 790de1a copies only SYSTEM tags with a name attribute. Tool
+    # results from view_skill are not such tags. Do not alter parent messages.
+    tag_pattern = re.compile(r"<skill [^\n]*?name=.*?>\n.*?\n</skill>", re.DOTALL)
+    system_text = []
+    for message in messages:
+        if message.get("role") != "system":
+            continue
+        value = message.get("content")
+        if isinstance(value, str):
+            system_text.append(value)
+        elif isinstance(value, list):
+            system_text.extend(part.get("text", "") for part in value
+                               if isinstance(part, dict) and part.get("type") == "text")
+    prompt_count = prompt.count(content)
+    system_count = sum(text.count(content) for text in system_text)
+    tags = [tag for text in system_text for tag in tag_pattern.findall(text)]
+    own_tags = [tag for tag in tags if re.search(
+        r'\bid=["\']' + re.escape(skill_id) + r'["\']', tag.split(">", 1)[0],
+    )]
+    if prompt_count + system_count > 1 or len(own_tags) > 1:
+        raise ValueError("Duplicate template instructions in delegation context; resolve duplicates before delegation.")
+    if own_tags and (content not in own_tags[0] or prompt_count):
+        raise ValueError("Conflicting or incomplete template system tag; delegation was not started.")
+    if prompt_count == 1:
+        return deepcopy(messages)
+    if system_count == 1:
+        if len(own_tags) != 1 or content not in own_tags[0]:
+            raise ValueError("Template text is outside its matching native Skill tag; delegation was not started.")
+        return deepcopy(messages)
+    tag = f'<skill id="{escape(skill_id, quote=True)}" name="{escape(snapshot["name"], quote=True)}">\n{formatted}\n</skill>'
+    return [*deepcopy(messages), {"role": "system", "content": tag}]
+
+
 def _has_office_file(files: Any, extensions: set[str]) -> bool:
     if not isinstance(files, list):
         return False
@@ -284,7 +367,9 @@ class Filter:
                              if not any(schema.get("function", schema) is spec for spec in removed_specs)
                              and schema.get("function", schema).get("name") not in removed_names]
         for name, tool in metadata.get("tools", {}).items():
-            if name not in PLAN_REQUIRED_TOOLS | APPLY_TOOLS | CONDITIONAL_PLAN_TOOLS or tool.get("direct"):
+            corporate_handoff = (tool.get("tool_id") == "corporate_document_delegation"
+                                 and tool.get("spec", {}).get("name") == "run_sub_agent")
+            if (name not in PLAN_REQUIRED_TOOLS | APPLY_TOOLS | CONDITIONAL_PLAN_TOOLS and not corporate_handoff) or tool.get("direct"):
                 continue
             function = tool.get("callable")
             if not function or getattr(function, "_office_tasks_guard", False):
@@ -300,7 +385,7 @@ class Filter:
                 ))
                 signature = signature.replace(parameters=parameters)
 
-            def guard(original=original, signature=signature, name=name):
+            def guard(original=original, signature=signature, name=name, corporate_handoff=corporate_handoff):
                 async def guarded(*args, **kwargs):
                     params = dict(signature.bind_partial(*args, **kwargs).arguments)
                     # Native OpenAPI closures expose **kwargs, whereas local
@@ -310,8 +395,13 @@ class Filter:
                             params.update(params.pop(key, {}))
                     fresh_files = params.get("__files__")
                     files = fresh_files if isinstance(fresh_files, list) else metadata.get("files", [])
-                    if _requires_native_plan(name, params, files):
+                    if _requires_native_plan("run_sub_agent" if corporate_handoff else name, params, files):
                         await _require_active_native_tasks(chat_id, user_id)
+                    if corporate_handoff:
+                        kwargs["__messages__"] = await _template_handoff_messages(
+                            params.get("prompt"), params.get("__messages__"),
+                            params.get("__metadata__") or metadata, params.get("__user__") or __user__,
+                        )
                     if name == "stage_chat_file" and "__files__" not in inspect.signature(original).parameters:
                         kwargs.pop("__files__", None)
                     result = original(*args, **kwargs)

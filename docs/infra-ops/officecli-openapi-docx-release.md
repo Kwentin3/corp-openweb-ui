@@ -287,7 +287,7 @@ Create/apply уже управляют жизненным циклом файл�
 Источник общего транспортного контекста — `OFFICECLI_INSTRUCTION` в Filter;
 не копировать его в промпты моделей и не добавлять инструкции по отдельным заданиям.
 
-Filter v2.2.0 для OpenWebUI 0.12.2 активирует существующий Skill из
+Filter v2.2.1 для OpenWebUI 0.12.2 активирует существующий Skill из
 `artifact_workflow_skill_id` через shared `chat_context.mentioned_skill_ids`.
 Штатный загрузчик Skills разрешает READ-доступ, активность и версию и передаёт
 root Skill в system context. Один `skill_ids` при включённых builtin Skill tools
@@ -316,6 +316,11 @@ Guard использует штатное binding/rebinding Tools и свежи�
 одиночный `run_sub_agent`, параллельная функция этого Tool исключена из schema
 и executable map. Общая методика явно различает lead и worker, поскольку
 существующий механизм делегирования переносит system Skill tags в child.
+Перед корпоративным вызовом прочитанный pinned Skill проверяется native owner
+и материализуется как полный Skill block только во временных сообщениях Tool.
+Community Tool и worker не меняются, parent context не дублируется, публичный
+prompt с фактами сохраняется. Неоднозначный выбор или неполный snapshot дают
+видимую ошибку до запуска worker; обычная Office-задача использует прямые Tools.
 OfficeCLI доступен через API своего сервиса: примеры CLI-команд в установленной
 справке не означают наличие executable в отдельном Terminal.
 

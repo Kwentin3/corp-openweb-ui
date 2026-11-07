@@ -757,3 +757,210 @@ def test_parallel_pruning_preserves_explicit_and_auxiliary_routes(native_guard_c
     before = copy.deepcopy(body)
     asyncio.run(configured_filter().request(body, __metadata__=metadata, __user__={"id": "user"}))
     assert body == before and metadata["tools"][spec["name"]] is tool
+
+
+@pytest.fixture
+def native_template_context(native_guard_context, monkeypatch):
+    import sys
+    import types
+    state = native_guard_context
+    state.update(skill_reads=[], snapshot_reads=[], denied=set(), inactive=set(), snapshots={})
+
+    def published(skill_id):
+        content = (f"# Fill {skill_id}\nRepeat every mapped field. Preserve the note and footer.\n"
+                   f"\n## Original template\n\nOriginal native File ID: `source-{skill_id}`.\n"
+                   "Template Knowledge ID: `library`.\n"
+                   f"[Download original DOCX](/api/v1/files/source-{skill_id}/content).\n"
+                   "Retrieve this original with the existing OfficeCLI file workflow, make a new copy, "
+                   "and fill that copy. Preserve the original document and its formatting.\n")
+        return {"name": f'Pinned "{skill_id}"', "content": content,
+                "data": {"files": [{"path": "SKILL.md", "content": content}]}}
+
+    state["published"] = published
+    state["snapshots"][("artifact-workflow", "root-v")] = {"content": "Shared root"}
+    state["snapshots"][("template-a", "read-v")] = published("template-a")
+    state["metadata"] = {"chat_context": {"skill_versions": {"artifact-workflow": "root-v", "template-a": "read-v"}}}
+
+    async def authorized(skill_id, user):
+        state["skill_reads"].append((skill_id, user.id))
+        if skill_id in state["denied"]:
+            raise PermissionError("Native read ACL denied")
+        return types.SimpleNamespace(id=skill_id, name="Changed current name", version_id="current-v",
+                                     is_active=skill_id not in state["inactive"])
+
+    async def snapshot(skill, version):
+        state["snapshot_reads"].append((skill.id, version))
+        if (skill.id, version) not in state["snapshots"]:
+            raise ValueError("Native pinned snapshot not found")
+        return copy.deepcopy(state["snapshots"][(skill.id, version)])
+
+    def overview(content, files, tools_enabled=True):
+        assert tools_enabled is False and files == []
+        return {"content": content[:100000], "next_offset": 100000 if len(content) > 100000 else None}
+
+    for module_name, attrs in {
+        "open_webui.routers.skills": {"authorized_skill": authorized},
+        "open_webui.models.skills": {"get_skill_snapshot": snapshot},
+        "open_webui.utils.skill_files": {"skill_overview": overview,
+                                         "format_skill_content": lambda page, sid, enabled: page["content"]},
+    }.items():
+        module = types.ModuleType(module_name)
+        module.__dict__.update(attrs)
+        monkeypatch.setitem(sys.modules, module_name, module)
+    return state
+
+
+def handoff(state, prompt="Fill using agreed facts", messages=None):
+    return asyncio.run(MODULE._template_handoff_messages(
+        prompt, messages if messages is not None else [{"role": "system", "content": "Parent root"}],
+        state["metadata"], {"id": "user"},
+    ))
+
+
+def test_template_handoff_uses_authorized_pinned_complete_snapshot_without_parent_mutation(native_template_context):
+    state = native_template_context
+    root = state["snapshots"][("template-a", "read-v")]["content"]
+    messages = [{"role": "system", "content": "Parent root"},
+                {"role": "tool", "content": root}]  # view_skill results are not transferable system tags.
+    before, metadata_before = copy.deepcopy(messages), copy.deepcopy(state["metadata"])
+    result = handoff(state, messages=messages)
+    assert messages == before and state["metadata"] == metadata_before
+    assert result[-1]["role"] == "system" and result[-1]["content"].count(root) == 1
+    assert 'name="Pinned &quot;template-a&quot;"' in result[-1]["content"]
+    assert "Preserve the note and footer." in result[-1]["content"]
+    assert ("template-a", "read-v") in state["snapshot_reads"]
+    assert all(user == "user" for sid, user in state["skill_reads"])
+    result[0]["content"] = "Child change"
+    assert messages == before
+
+
+@pytest.mark.parametrize("where", ["prompt", "system"])
+def test_template_handoff_does_not_duplicate_already_complete_transfer(native_template_context, where):
+    state = native_template_context
+    root = state["snapshots"][("template-a", "read-v")]["content"]
+    tag = f'<skill id="template-a" name="Pinned">\n{root}\n</skill>'
+    messages = [{"role": "system", "content": tag if where == "system" else "Parent root"}]
+    prompt = root if where == "prompt" else "Fill agreed facts"
+    result = handoff(state, prompt, messages)
+    assert result == messages and result is not messages
+    assert prompt.count(root) + sum(message["content"].count(root) for message in result) == 1
+
+
+def test_template_selection_requires_explicit_exact_id_when_multiple_read(native_template_context):
+    state = native_template_context
+    state["snapshots"][("template-b", "b-v")] = state["published"]("template-b")
+    state["metadata"]["chat_context"]["skill_versions"]["template-b"] = "b-v"
+    for prompt in ("Fill the last template", "template-a-extra", "template-a and template-b"):
+        with pytest.raises(ValueError, match="exactly one Skill ID"):
+            handoff(state, prompt)
+    result = handoff(state, "Use Skill `template-a` with these agreed facts")
+    assert state["snapshots"][("template-a", "read-v")]["content"] in result[-1]["content"]
+    assert state["snapshots"][("template-b", "b-v")]["content"] not in result[-1]["content"]
+
+
+@pytest.mark.parametrize("failure", ["no_template", "denied", "inactive", "missing_pin", "mismatched_file",
+                                      "supporting_file", "encoded", "too_large", "invalid_binding"])
+def test_template_handoff_fails_before_delegation_on_incomplete_or_unauthorized_source(native_template_context, failure):
+    state = native_template_context
+    template = state["snapshots"][("template-a", "read-v")]
+    if failure == "no_template": state["metadata"]["chat_context"]["skill_versions"].pop("template-a")
+    elif failure == "denied": state["denied"].add("template-a")
+    elif failure == "inactive": state["inactive"].add("template-a")
+    elif failure == "missing_pin": state["snapshots"].pop(("template-a", "read-v"))
+    elif failure == "mismatched_file": template["data"]["files"][0]["content"] = "Different"
+    elif failure == "supporting_file": template["data"]["files"].append({"path": "map.md", "content": "Additional rules"})
+    elif failure == "encoded": template["data"]["files"][0]["encoding"] = "base64"
+    elif failure == "too_large":
+        template["content"] = "x" * 100001 + template["content"]
+        template["data"]["files"][0]["content"] = template["content"]
+    elif failure == "invalid_binding": template["content"] = template["content"].replace("/source-template-a/content", "/foreign/content")
+    with pytest.raises((ValueError, PermissionError)):
+        handoff(state)
+    assert not state["writes"]
+
+
+@pytest.mark.parametrize("kind", ["duplicate_prompt", "duplicate_system", "prompt_and_system", "partial_tag", "untagged_system", "foreign_tag", "body_id"])
+def test_template_handoff_rejects_conflicting_transfer_context(native_template_context, kind):
+    state = native_template_context
+    root = state["snapshots"][("template-a", "read-v")]["content"]
+    tag = f'<skill id="template-a" name="Pinned">\n{root}\n</skill>'
+    prompt, content = "Agreed facts", "Parent root"
+    if kind == "duplicate_prompt": prompt = root * 2
+    elif kind == "duplicate_system": content = tag * 2
+    elif kind == "prompt_and_system": prompt, content = root, tag
+    elif kind == "partial_tag": content = '<skill id="template-a" name="Pinned">\nShort excerpt\n</skill>'
+    elif kind == "foreign_tag": content = f'<skill id="other-skill" name="Other">\n{root}\n</skill>'
+    elif kind == "body_id": content = f'<skill id="other-skill" name="Other">\nid="template-a"\n{root}\n</skill>'
+    else: content = root
+    with pytest.raises(ValueError):
+        handoff(state, prompt, [{"role": "system", "content": content}])
+
+
+def test_corporate_guard_transfers_only_temporary_fresh_messages_and_keeps_public_prompt(native_template_context):
+    state = native_template_context
+    state["tasks"] = [{"content": "Fill and verify", "status": "in_progress"}]
+    parent = [{"role": "system", "content": "Fresh parent root"}]
+    async def delegate(description, prompt, __messages__=None, __metadata__=None, __user__=None):
+        state["writes"].append((description, prompt, copy.deepcopy(__messages__)))
+        __messages__[0]["content"] = "Child-only modification"
+        return "delegated"
+    async def scenario():
+        metadata = {**state["metadata"], MODULE.WORKFLOW_REQUEST_MARKER: True,
+                    "session_id": "ui", "chat_id": "saved-chat", "tools": {}}
+        tool = {"tool_id": "corporate_document_delegation", "spec": {"name": "run_sub_agent"},
+                "callable": await state["bind"](delegate, {"__messages__": [{"role": "system", "content": "Stale"}],
+                                                         "__metadata__": metadata, "__user__": {"id": "user"}})}
+        metadata["tools"]["run_sub_agent"] = tool
+        instance = configured_filter()
+        await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
+        guarded = tool["callable"]
+        await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
+        assert tool["callable"] is guarded
+        fresh = await state["bind"](guarded.__function__, {**guarded.__extra_params__, "__messages__": parent})
+        for _ in range(2):
+            assert await fresh(description="Fill", prompt="Exact agreed facts") == "delegated"
+        assert parent == [{"role": "system", "content": "Fresh parent root"}]
+        root = state["snapshots"][("template-a", "read-v")]["content"]
+        for description, prompt, messages in state["writes"]:
+            assert (description, prompt) == ("Fill", "Exact agreed facts")
+            assert messages[0] == parent[0]
+            assert messages[-1]["content"].count(root) == 1
+    asyncio.run(scenario())
+
+
+def test_unrelated_delegation_owner_does_not_receive_corporate_skill_handoff(native_template_context):
+    state = native_template_context
+    state["tasks"] = [{"content": "Other task", "status": "pending"}]
+    async def delegate(prompt, __messages__=None):
+        state["writes"].append(__messages__)
+        return "delegated"
+    async def scenario():
+        parent = [{"role": "system", "content": "Other context"}]
+        tool = {"tool_id": "other", "spec": {"name": "run_sub_agent"},
+                "callable": await state["bind"](delegate, {"__messages__": parent})}
+        metadata = {MODULE.WORKFLOW_REQUEST_MARKER: True, "session_id": "ui", "chat_id": "saved-chat",
+                    "tools": {"run_sub_agent": tool}}
+        await configured_filter().request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
+        assert await tool["callable"](prompt="Other task") == "delegated"
+        assert state["writes"] == [parent] and not state["skill_reads"]
+    asyncio.run(scenario())
+
+
+def test_ordinary_office_delegation_without_template_is_blocked_before_original_call(native_template_context):
+    state = native_template_context
+    state["tasks"] = [{"content": "Create ordinary presentation", "status": "pending"}]
+    state["metadata"]["chat_context"]["skill_versions"].pop("template-a")
+    async def delegate(description, prompt, __messages__=None, __metadata__=None):
+        state["writes"].append(prompt)
+        return "must not run"
+    async def scenario():
+        metadata = {**state["metadata"], MODULE.WORKFLOW_REQUEST_MARKER: True,
+                    "session_id": "ui", "chat_id": "saved-chat", "tools": {}}
+        tool = {"tool_id": "corporate_document_delegation", "spec": {"name": "run_sub_agent"},
+                "callable": await state["bind"](delegate, {"__messages__": [], "__metadata__": metadata})}
+        metadata["tools"]["run_sub_agent"] = tool
+        await configured_filter().request({"model": "gpt-6-sol"}, __metadata__=metadata, __user__={"id": "user"})
+        with pytest.raises(ValueError, match="Use OfficeCLI tools directly for ordinary Office files"):
+            await tool["callable"](description="Create slides", prompt="Make an ordinary PPTX")
+        assert not state["writes"]
+    asyncio.run(scenario())
