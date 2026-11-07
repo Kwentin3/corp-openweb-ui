@@ -4,9 +4,9 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `1772a0a3`, draft PR #588; required CI `42360569089` PASS.
-Native Filter `5596a73f…bf9b53`, общий root `0886ff70…4e0044` (12684 символа),
-version `e2f9bd2b-4e7b-440c-b05a-bda317ae9cf3`. Последний root выпущен narrow API/CAS,
+Текущий выпущенный код: commit `161120e8`, draft PR #588; required CI `42363249948` PASS.
+Native Filter `5596a73f…bf9b53`, общий root `9bc3f6ba…186e699` (12887 символов),
+version `3000a8f1-bd6a-4762-a8cf-b30295f27d82`. Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
 | Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
@@ -17,8 +17,8 @@ metadata/grants сохранены, restart не выполнялся.
 | models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
 | gpt-6.1-sol | user/admin | PPTX create/edit/continue artifacts/render/UI PASS; старое создание использовало неправильное делегирование, edit guard его блокирует | ещё не принят |
 | gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | ещё не принят в новом охвате |
-| deepseek-flash | user/admin | create/edit/continue content/preservation/UI/Tasks PASS; лишняя косметическая версия в continue, stop-rule ещё не принят | ещё не принят |
-| models/gemini-3.5-flash | user/admin | ещё не принят | ещё не принят |
+| deepseek-flash | user/admin | create/edit/continue content/preservation/render/UI/Tasks PASS; repeat после root9bc — один write без косметического повторения | ещё не принят |
+| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/UI/Tasks PASS; preservation/visual review в работе, добровольный план на single-set edit ещё не исправлен | ещё не принят |
 | models/gemini-3.6-flash | user/admin | ещё не принят | ещё не принят |
 
 Предыдущий выпуск Filter 2.2.1 исправляет доказанное сокращение Skill
@@ -109,8 +109,31 @@ DeepSeek regular lifecycle: `9588f4d6…` → `1d8f5176…` → `cc8068f7…` �
 Filter/Tools/Task state не меняются. Independent semantic review PASS; exact
 native formatter в обоих режимах передаёт весь root без усечения. На actual
 failed input перед косметикой заменён только SYSTEM root once; 63 items,
-26 tool results, images, history и schemas сохранены. Нужны CI, narrow root
-release и повтор исходного continuation; model obedience offline не доказан.
+26 tool results, images, history и schemas сохранены. Required CI и narrow
+root-only release PASS; Filter/Valves/Models не обновлялись. Исходный DeepSeek
+continuation повторён с тем же parent/source и без новых подсказок пользователя;
+actual выполнение stop-rule проверено: на том же исходном запросе и ancestry
+получен единственный write `1d8f5176…` → `0916d035…`; оформление включено сразу в
+первый batch. После render новых записей нет; Tasks 2/2 completed. Root 9bc
+передан ровно один раз в 8/8 actual requests. Независимый semantic/XML review,
+UI-download и визуальная проверка grid2 PASS; новый SHA `74e6a3b3…b3e0a8d`,
+5916 bytes. Предыдущая ошибочная ветка не попала в повторный provider context.
+
+Gemini 3.5 Flash regular: native create/one-set edit/2-add continuation завершены,
+все Tasks закрыты, выбранный lead сохранён, лишних версий и скрытого worker нет.
+Content verification/UI-download PASS. На однооперационной правке модель
+добровольно создала Tasks, хотя guard их не требовал: это расходится с решением
+пользователя «точечная правка — без плана». Root step4 уточнён императивно:
+single-object edit/verbatim export выполняется без нового плана; осмотр,
+validate/render не превращают точечную правку в многооперационную. Создание и
+реальные многооперационные изменения сохраняют Tasks; existing state не меняется.
+Кандидат root 12970 / SHA
+`da44d7812d05e68b404623d0c939c42e358633eb62832ba01745a4dd262d438c`.
+Independent source review и proportional actual-input/native-formatter rehearsal
+PASS: заменён только SYSTEM root before optional Tasks, остальные 25 items,
+9 tool results, images/IDs/schema и приоритеты сохранены. Formatter передаёт
+весь root без offset в обоих native режимах. Нужны required CI, narrow root
+release и повтор именно single-set edit; выполнение новой инструкции не заявлено.
 
 Незавершённая строка не считается исключением или квалифицированной моделью.
 Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
@@ -370,8 +393,8 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: выпустить root-only stop-rule clarification после required CI
-и повторить исходный DeepSeek continuation; затем завершить оставшуюся явную
+Следующий шаг: выпустить root-only point-edit clarification после required CI,
+повторить single-set Gemini 3.5 edit и завершить оставшуюся явную
 матрицу моделей/форматов/ролей и presets, независимую общую приёмку и Git-доставку.
 Корпоративный worker packet и два negative cases уже приняты в своих границах.
 Heavy renders проверять
