@@ -319,9 +319,18 @@ ignored `representative-large-task/large-history-preflight.safe.json`,
 Оставшаяся admin UI-проверка — optional author profile;
 прежняя admin UI-сессия отвечает401, нужен штатный повторный вход владельца в
 отдельной сессии. API-проверки не заменяют эту UI-приёмку; ordinary Maria session
-сохраняется. После Fifth нужны независимый общий review, Git merge/main delivery
-и безопасная уборка своих QA/capture/Terminal/worktree ресурсов. Exact inventory
-сохраняет неразрешённые image File IDs и запрещает угадывать их; ничего не удалено.
+сохраняется. Независимый source/integration и Fifth review PASS. CI `42386078354`
+PASS на documentation checkpoint `a2334ca2…`; runtime source blobs совпадают с f2ea.
+Запись запросов выключена; закрыты24 тестовые вкладки. Через native owner API
+удалены27 точных QA chats и24 временных Terminal files с hash/owner prechecks
+и absence/session readback. До удаления сохранены private native chat snapshots,
+финальные DOCX/PDF/PNG и capture receipts. Function/Skills/профили/права при уборке
+не менялись. Все native Files удержаны из-за непроверенных внешних зависимостей;
+неизвестные image File IDs не угадывались. Три admin QA chats и опубликованный
+QA Skill/Original176 сохраняются до решения по author-profile UI. Остаток Terminal
+inventory с неустановленной identity также сохранён. Git merge/main delivery и
+уборка изолированной worktree выполняются как поставка принятой реализации;
+непройденная author-profile UI остаётся обязательным пунктом всего GOAL.
 
 Незавершённая строка не считается исключением или квалифицированной моделью.
 Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
@@ -581,9 +590,10 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: завершить оставшуюся явную
-матрицу моделей/форматов/ролей и presets, независимую общую приёмку и Git-доставку.
-Корпоративный worker packet и два negative cases уже приняты в своих границах.
-Heavy renders проверять
-последовательно с учётом существующего единственного render_slot.
-GOAL не завершён; пройдённый Argon DOCX не заменяет остальные обязательные срезы.
+Следующий шаг: доставить проверенную реализацию в main и убрать её временную
+worktree, сохранив независимый WIP. Затем нужен штатный admin login для проверки
+optional author profile либо явное решение пользователя отложить этот прогон;
+соответствующий вопрос остаётся открытым. После решения можно завершить оставшуюся
+admin QA-уборку; native Files с неустановленными внешними зависимостями не удалять.
+Argon настроен на общий путь, новый платный corporate прогон явно отложен
+пользователем. GOAL не завершён; исходный код, release и принятые проверки готовы.
