@@ -4,22 +4,22 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `161120e8`, draft PR #588; required CI `42363249948` PASS.
-Native Filter `5596a73f…bf9b53`, общий root `9bc3f6ba…186e699` (12887 символов),
-version `3000a8f1-bd6a-4762-a8cf-b30295f27d82`. Последний root выпущен narrow API/CAS,
+Текущий выпущенный код: commit `bc4b6a50`, draft PR #588; required CI `42364658627` PASS.
+Native Filter `5596a73f…bf9b53`, общий root `da44d781…2d438c` (12970 символов),
+version `d966dc52-b3e1-4267-aac0-999ec147d648`. Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
 | Native model ID | Целевая роль | Обычный Office | Корпоративный DOCX |
 | --- | --- | --- | --- |
 | models/gemini-4-argon | admin | DOCX create/edit/continue PASS | ещё не принят |
-| gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | discovery/fact collection/fill/continue artifacts PASS; actual initial child context не записан |
+| gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-luna-boundary.safe.json и corporate-luna-offline-review.safe.json; continue artifacts принят отдельно ранее |
 | gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | ещё не принят |
-| models/gemini-3.5-flash-lite | user/admin | ещё не принят | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
-| gpt-6.1-sol | user/admin | PPTX create/edit/continue artifacts/render/UI PASS; старое создание использовало неправильное делегирование, edit guard его блокирует | ещё не принят |
+| models/gemini-3.5-flash-lite | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS после native Continue recovery; initial empty completion без файла — FAIL, причина неизвестна; evidence: gemini-lite-lifecycle-verdict.safe.json и gemini-lite-offline-review.safe.json | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
+| gpt-6.1-sol | user/admin | fresh PPTX create/edit/continue content/preservation/all-slide render/UI/Tasks PASS; первая ошибочная попытка корпоративного делегирования заблокирована guard, модель восстановилась сама; evidence: sol-scope-offline-review.safe.json | ещё не принят |
 | gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | ещё не принят в новом охвате |
 | deepseek-flash | user/admin | create/edit/continue content/preservation/render/UI/Tasks PASS; repeat после root9bc — один write без косметического повторения | ещё не принят |
-| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/UI/Tasks PASS; preservation/visual review в работе, добровольный план на single-set edit ещё не исправлен | ещё не принят |
-| models/gemini-3.6-flash | user/admin | ещё не принят | ещё не принят |
+| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; point-repeat после da44 без Task calls, changed artifact review в работе | ещё не принят |
+| models/gemini-3.6-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; atomic edit без Task calls; evidence: gemini36-offline-review.safe.json | ещё не принят |
 
 Предыдущий выпуск Filter 2.2.1 исправляет доказанное сокращение Skill
 при handoff: SHA `fdb32101856ef91a9f2a1c49b48e4441ec31b57b009a02ffbe40efe15302ca95`,
@@ -132,8 +132,48 @@ validate/render не превращают точечную правку в мн�
 Independent source review и proportional actual-input/native-formatter rehearsal
 PASS: заменён только SYSTEM root before optional Tasks, остальные 25 items,
 9 tool results, images/IDs/schema и приоритеты сохранены. Formatter передаёт
-весь root без offset в обоих native режимах. Нужны required CI, narrow root
-release и повтор именно single-set edit; выполнение новой инструкции не заявлено.
+весь root без offset в обоих native режимах. Required CI и narrow root-only
+release PASS. Исходный single-set edit повторён без подсказки пользователя про
+Tasks: actual root da44 полный однократно в 6/6 requests; один SET c2, Task calls
+0, старые Task IDs/statuses остались completed. Native/UI File `607c2fa9…`,
+5800 bytes, SHA `635e2d4e…39096097`; semantic verification PASS. Changed artifact
+preservation review ещё закрывается. Create/continue native PNG независимо
+просмотрены полностью; header/title/metadata/table читаемы. Подозрение на crop
+при первичном просмотре не подтвердилось после сверки SHA и original-pixel crop;
+renderer-дефект не заявляется.
+
+Репрезентативный большой ordinary DOCX проходит отдельную приёмку: cached-native
+history/Skill/file-context/Responses projection — 13 checks PASS. В actual run
+`a139d5b4…` выбранная Luna сохранилась; в 12 записанных outbound requests полный
+assistant-источник 144102 символа и root 12970 присутствуют ровно по одному разу,
+доступны 65 schemas, включая Tasks. Тот же загруженный File `3003bda6…` успешно
+прошёл native inspect/validate с нулём ошибок. Два HTTP 502 относятся к вызовам
+с ошибочно переписанным моделью File ID; после исправления inspect успешен,
+auth failure этим не доказан. Кандидат `a28fa83d…` получил предварительный
+semantic/structure PASS по всем 17 темам, решениям против предложений, неизвестным
+полям и позднему отзыву срока. Большой запуск остановлен оператором и не принят:
+последующие правки ради пагинации не устранили наложение в native PNG; точная копия
+`8a3669be…` через установленный Terminal LibreOffice дала четыре страницы без
+наложения. Это доказывает расхождение рендереров, но не Microsoft Word parity.
+Уточнён только существующий error/recovery bullet общего artifact-workflow Skill:
+до новой DOCX pagination repair проверить тот же result_file_id через штатные
+stage_chat_file → LibreOffice/PDF → display_file, не публиковать неизменённый DOCX
+ради проверки; при недоступности пути выдать копию с конкретной границей проверки.
+Все три schemas доказаны в actual Large 65-tools input. Candidate root 13386 chars,
+SHA `2c2797cfd89e897cdd1c52db0a9b4f6ab4d19017b09272aa7a8339743647ae2e`:
+11 local native formatter/Responses checks PASS на остановленном payload f708/010;
+кроме одного полного root сохранены история, results, images/reasoning и schemas.
+Это input-rehearsal, не behavioral acceptance; CI/review/release и проверка
+штатного ordinary-user transfer/render/display остаются впереди. Evidence:
+ignored `representative-large-task/large-history-preflight.safe.json`,
+`large-actual-boundary.safe.json`, `large-actual-inspect.safe.json`,
+`large-candidate-a28fa83d-review.private.json`, `large-lo-comparison.safe.json`,
+`large-terminal-schema-proof.safe.json`, `large-pagination-root-rehearsal.safe.json`
+внутри указанного ниже local-каталога.
+Оставшаяся матрица, corporate/native UI/readback и optional author preset требуют
+завершения; для оставшейся admin-проверки нужен штатный повторный вход владельца
+в отдельной сессии, ordinary Maria session сохраняется. Required CI, независимый
+общий review, Git-доставка и безопасная уборка остаются обязательными.
 
 Незавершённая строка не считается исключением или квалифицированной моделью.
 Presets, ACL-negative cases, невалидный источник, общий review, merge и безопасная
@@ -393,8 +433,7 @@ DOCX/XLSX/PPTX распределяются по явной модельной �
 6. Выключить bounded capture, завершить свои фоновые задачи, убрать свои тестовые
    ресурсы/временные worktrees после Git-доставки. Приватные данные не публиковать.
 
-Следующий шаг: выпустить root-only point-edit clarification после required CI,
-повторить single-set Gemini 3.5 edit и завершить оставшуюся явную
+Следующий шаг: завершить оставшуюся явную
 матрицу моделей/форматов/ролей и presets, независимую общую приёмку и Git-доставку.
 Корпоративный worker packet и два negative cases уже приняты в своих границах.
 Heavy renders проверять
