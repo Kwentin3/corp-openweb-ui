@@ -540,20 +540,31 @@ def native_guard_context(monkeypatch):
         @staticmethod
         async def get_chat_by_id_and_user_id(chat_id, user_id):
             state["reads"].append((chat_id, user_id))
-            return types.SimpleNamespace(tasks=state["tasks"])
+            return types.SimpleNamespace(tasks=state["tasks"], chat=state.get("chat", {}))
 
     async def bind(function, extra_params):
+        from functools import update_wrapper
         signature = inspect.signature(function)
         bound = {k: v for k, v in extra_params.items() if k in signature.parameters}
         async def invoke(**kwargs):
             return await function(**{**bound, **kwargs})
         # Native binding exposes these fields and unwraps them on execution.
+        update_wrapper(invoke, function)
         invoke.__function__, invoke.__extra_params__ = function, bound
         invoke.__signature__ = signature
         invoke._office_tasks_guard = getattr(function, "_office_tasks_guard", False)
         return invoke
 
+    def ancestors(history, message_id):
+        chain, visited = [], set()
+        while message_id and message_id not in visited and message_id in history:
+            visited.add(message_id)
+            chain.append(history[message_id])
+            message_id = history[message_id].get("parentId")
+        return list(reversed(chain))
+
     for module_name, attrs in {
+        "open_webui.utils.misc": {"get_message_list": ancestors},
         "open_webui.models.chats": {"Chats": Chats},
         "open_webui.utils.chat_id": {"is_saved_chat_id": lambda value: value == "saved-chat"},
         "open_webui.utils.tools": {"get_async_tool_function_and_apply_extra_params": bind},
@@ -773,6 +784,205 @@ def test_parallel_pruning_preserves_explicit_and_auxiliary_routes(native_guard_c
     before = copy.deepcopy(body)
     asyncio.run(configured_filter().request(body, __metadata__=metadata, __user__={"id": "user"}))
     assert body == before and metadata["tools"][spec["name"]] is tool
+
+
+def preview_pair(call_id, name, arguments, receipt, image=False, status="completed"):
+    return [{"type": "function_call", "call_id": call_id, "name": name, "arguments": json.dumps(arguments), "status": status},
+            {"type": "function_call_output", "call_id": call_id, "status": status,
+             "output": [{"type": "input_text", "text": json.dumps(receipt) if isinstance(receipt, dict) else receipt},
+                        *([{"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo="}] if image else [])]}]
+
+
+def preview_output():
+    return (preview_pair("write", "apply_office_batch", {"file_id": "source", "commands": []},
+                         {"result_file_id": "result-A", "result_file": {"id": "result-A", "filename": "copy.docx"}, "result_sha256": "result-hash"})
+            + preview_pair("render", "render_office_file", {"file_id": "result-A", "format": "docx"}, "Image file read successfully", image=True))
+
+
+def preview_stage_and_read(file_id="result-A", image=True, status="completed", sha="result-hash"):
+    return (preview_pair("stage", "stage_chat_file", {"file_id": file_id},
+                         {"source_file_id": file_id, "path": "/native-copy/input.docx", "sha256": sha, "source_modified": False})
+            + preview_pair("read", "read_file", {"path": "/native-output/page-1.png"}, "Image file read successfully", image=image, status=status))
+
+
+def preview_messages(output, canonical=False):
+    if not canonical:
+        return [{"role": "assistant", "output": output}]
+    messages = []
+    for item in output:
+        if item["type"] == "function_call":
+            messages.append({"role": "assistant", "tool_calls": [{"id": item["call_id"], "type": "function", "function": {"name": item["name"], "arguments": item["arguments"]}}]})
+        else:
+            messages.append({"role": "tool", "tool_call_id": item["call_id"], "content": item["output"]})
+    return messages
+
+
+@pytest.mark.parametrize("canonical", [False, True])
+def test_seen_layout_checkpoint_requires_model_visible_native_stage_and_png(canonical):
+    output = preview_output()
+    seen = MODULE._seen_tool_pairs(preview_messages(output, canonical))
+    assert MODULE._seen_docx_layout_needs_preview("result-A", seen)
+    complete = output + preview_stage_and_read()
+    # Same-response unseen stage/read cannot unlock a decision already made.
+    assert MODULE._seen_docx_layout_needs_preview("result-A", seen)
+    assert not MODULE._seen_docx_layout_needs_preview("result-A", MODULE._seen_tool_pairs(preview_messages(complete, canonical)))
+
+
+@pytest.mark.parametrize("variant", ["wrong_file", "wrong_hash", "failed_read", "text_only", "before_render", "before_stage"])
+def test_seen_layout_checkpoint_does_not_unlock_wrong_failed_or_out_of_order_evidence(variant):
+    output = preview_output()
+    checkpoint = preview_stage_and_read()
+    if variant == "wrong_file": checkpoint = preview_stage_and_read(file_id="other-file")
+    elif variant == "wrong_hash": checkpoint = preview_stage_and_read(sha="different-bytes")
+    elif variant == "failed_read": checkpoint = preview_stage_and_read(image=False, status="failed")
+    elif variant == "text_only": checkpoint = preview_stage_and_read(image=False)
+    elif variant == "before_render": output, checkpoint = checkpoint + output, []
+    elif variant == "before_stage": checkpoint = checkpoint[2:] + checkpoint[:2]
+    output += checkpoint
+    assert MODULE._seen_docx_layout_needs_preview("result-A", MODULE._seen_tool_pairs(preview_messages(output)))
+
+
+@pytest.mark.parametrize("commands,expected", [
+    ([{"command": "set", "props": {"size": "9pt"}}], True),
+    ([{"command": "set", "props": {"pageBreakBefore": True, "keepNext": False}}], True),
+    ([{"command": "set", "props": {"padding": "50"}}], True),
+    ([{"command": "set", "path": "/body/tbl[2]/tr[1]", "props": {"header": "true"}}], True),
+    ([{"command": "set", "path": "/body/tbl[2]/tr[1]", "props": {"header": False}}], True),
+    ([{"command": "set", "path": "/", "props": {"header": "Organization"}}], False),
+    ([{"command": "set", "path": "/body/tbl[2]/tr[1]", "props": {"header": "Business heading"}}], False),
+    ([{"command": "set", "path": "/body/tbl[2]/tr[1]", "props": {"header": 1}}], False),
+    ([{"command": "set", "props": {"text": "Content"}}], False),
+    ([{"command": "set", "props": {"size": "9pt", "text": "Content"}}], False),
+    ([{"command": "add", "props": {"size": "9pt"}}], False),
+    ([{"command": "set", "props": {"unknown": True}}], False),
+    ([], False),
+])
+def test_layout_predicate_only_covers_known_all_set_formatting(commands, expected):
+    assert MODULE._known_layout_set_batch({"commands": commands}) is expected
+
+
+def test_unpaired_or_duplicate_model_context_is_explicitly_out_of_scope():
+    assert MODULE._seen_tool_pairs(preview_messages(preview_output()[:-1])) is None
+    assert MODULE._seen_tool_pairs(preview_messages(preview_output() + preview_output())) is None
+
+
+@pytest.mark.parametrize("url,expected", [
+    ("data:image/png;base64,iVBORw0KGgo=", True),
+    ({"url": "data:image/png;base64,iVBORw0KGgo="}, True),
+    ("data:image/png;base64,not-a-PNG", False),
+    ("data:image/jpeg;base64,iVBORw0KGgo=", False),
+    ("/api/v1/files/image-id/content", False),
+    ("https://example.invalid/image.png", False),
+    ({"detail": "high"}, False),
+])
+def test_model_seen_media_requires_png_data_header_not_truthy_image_field(url, expected):
+    assert MODULE._tool_text_and_image([{"type": "input_image", "image_url": url}])[1] is expected
+
+
+def test_flattened_unpaired_image_context_is_a_qualification_gap_not_a_claimed_checkpoint():
+    output = preview_output()
+    messages = preview_messages(output, canonical=True)
+    messages[-1]["content"] = [part for part in messages[-1]["content"] if part["type"] != "input_image"]
+    messages.append({"role": "user", "content": [
+        {"type": "text", "text": "Here are the images from the tool results above. Please analyze them."},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}}]})
+    assert not MODULE._seen_docx_layout_needs_preview("result-A", MODULE._seen_tool_pairs(messages))
+
+
+@pytest.mark.parametrize("change", ["failed_render", "other_format", "other_result"])
+def test_no_new_layout_gate_without_successful_same_docx_write_and_render(change):
+    output = preview_output()
+    if change == "failed_render": output[-1]["status"] = "failed"
+    else:
+        receipt = json.loads(output[1]["output"][0]["text"])
+        if change == "other_format": receipt["result_file"]["filename"] = "copy.xlsx"
+        else: receipt["result_file_id"] = receipt["result_file"]["id"] = "other-result"
+        output[1]["output"][0]["text"] = json.dumps(receipt)
+    assert not MODULE._seen_docx_layout_needs_preview("result-A", MODULE._seen_tool_pairs(preview_messages(output)))
+
+
+def test_owned_layout_guard_refreshes_model_request_ref_without_chaining_or_touching_other_scope(native_guard_context):
+    state = native_guard_context
+    state["tasks"] = [{"content": "Fill and verify", "status": "in_progress"}]
+    output = preview_output()
+    state["chat"] = {"history": {"messages": {"current-user": {"role": "user"}, "answer": {"role": "assistant", "parentId": "current-user", "output": [], "done": False}}}}
+    async def write(**kwargs): state["writes"].append(kwargs); return "written"
+    async def scenario():
+        original = await state["bind"](write, {})
+        tool = {"tool_id": MODULE.OFFICECLI_TOOL_ID, "spec": {"name": "apply_office_batch"}, "callable": original}
+        metadata = {MODULE.WORKFLOW_REQUEST_MARKER: True, "session_id": "ui", "chat_id": "saved-chat", "message_id": "answer", "user_message_id": "current-user", "tools": {"apply_office_batch": tool}}
+        instance = configured_filter()
+        await instance.request({"model": "gpt-6-luna", "messages": []}, __metadata__=metadata, __user__={"id": "user"})
+        assert await tool["callable"](file_id="result-A", commands=[{"command": "set", "path": "/body/p[1]", "props": {"size": "9pt"}}]) == "written"
+        first_guard = tool["callable"]
+        body = {"model": "gpt-6-luna", "messages": preview_messages(output, canonical=True)}
+        before = copy.deepcopy(body)
+        await instance.request(body, __metadata__=metadata, __user__={"id": "user"})
+        assert tool["callable"] is not first_guard and tool["callable"]._office_guard_original is write
+        rebound = await state["bind"](tool["callable"].__function__, {"__messages__": []})
+        with pytest.raises(ValueError, match="Before another DOCX layout-only repair"):
+            await rebound(file_id="result-A", commands=[{"command": "set", "path": "/body/p[1]", "props": {"size": "9pt"}}])
+        assert len(state["writes"]) == 1 and body == before
+        state["tasks"] = []
+        with pytest.raises(ValueError, match="create_tasks"):
+            await tool["callable"](file_id="result-A", commands=[{"command": "set", "path": "/body/p[1]", "props": {"size": "9pt"}}] * 2)
+        # Existing native approval/resume behavior is preserved, only new gate skipped.
+        metadata["tool_approval_resume"] = "tools"
+        assert await tool["callable"](file_id="result-A", commands=[{"command": "set", "path": "/body/p[1]", "props": {"size": "9pt"}}]) == "written"
+        metadata.pop("tool_approval_resume")
+        metadata["user_message_id"] = "new-user"
+        assert await tool["callable"](file_id="result-A", commands=[{"command": "set", "path": "/body/p[1]", "props": {"size": "9pt"}}]) == "written"
+        assert len(state["writes"]) == 3
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("ancestor_form", ["native", "canonical"])
+def test_layout_scope_uses_native_ancestry_not_streaming_output_or_user_position(native_guard_context, ancestor_form):
+    state = native_guard_context
+    current = preview_output()
+    old = preview_stage_and_read()
+    old_message = ({"role": "assistant", "output": old} if ancestor_form == "native"
+                   else {"role": "assistant", "tool_calls": [
+                       {"id": "stage"}, {"id": "read"}]})
+    old_message["parentId"] = "previous-user"
+    history = {"previous-user": {"role": "user"}, "previous-answer": old_message,
+               "current-user": {"role": "user", "parentId": "previous-answer"},
+               "answer": {"role": "assistant", "parentId": "current-user", "output": [], "done": False}}
+    state["chat"] = {"history": {"messages": history}}
+    metadata = {"chat_id": "saved-chat", "message_id": "answer", "user_message_id": "current-user"}
+    params = {"file_id": "result-A", "commands": [{"command": "set", "props": {"padding": "0"}}]}
+    async def scenario():
+        # Compaction may put the true User before retained earlier Tools. Their
+        # IDs still belong to native ancestry and cannot unlock this turn.
+        body = {"messages": [{"role": "user", "content": "Current request"}]
+                + preview_messages(current + old, canonical=True)}
+        before = copy.deepcopy(body)
+        with pytest.raises(ValueError, match="Before another DOCX layout-only repair"):
+            await MODULE._require_seen_docx_preview(params, body, metadata, "user")
+        assert body == before and history["answer"]["output"] == []
+        # Continue keeps the same native assistant anchor; absence of streaming
+        # output does not change the seen-input predicate.
+        history["answer"]["done"] = True
+        with pytest.raises(ValueError, match="Before another DOCX layout-only repair"):
+            await MODULE._require_seen_docx_preview(params, body, metadata, "user")
+        # A new genuine User makes every preceding receipt ancestral, including
+        # reordered old Tools still retained in this model input.
+        history["answer"]["output"] = current
+        history["next-user"] = {"role": "user", "parentId": "answer"}
+        history["next-answer"] = {"role": "assistant", "parentId": "next-user", "output": []}
+        metadata.update(message_id="next-answer", user_message_id="next-user")
+        await MODULE._require_seen_docx_preview(params, body, metadata, "user")
+    asyncio.run(scenario())
+
+
+def test_layout_stateful_partial_input_is_explicitly_out_of_scope(native_guard_context):
+    state = native_guard_context
+    state["chat"] = {"history": {"messages": {"u": {"role": "user"}, "a": {"role": "assistant", "parentId": "u"}}}}
+    body = {"previous_response_id": "native-stateful", "messages": preview_messages(preview_output())}
+    asyncio.run(MODULE._require_seen_docx_preview(
+        {"file_id": "result-A", "commands": [{"command": "set", "props": {"size": "9pt"}}]},
+        body, {"chat_id": "saved-chat", "message_id": "a"}, "user"))
+    assert not state["reads"]
 
 
 def generic_delegation_spec():
@@ -1088,7 +1298,8 @@ def test_published_original_direct_write_is_blocked_after_tasks_before_side_effe
         await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
         guarded = tool["callable"]
         await instance.request({"model": "gpt-6-luna"}, __metadata__=metadata, __user__={"id": "user"})
-        assert tool["callable"] is guarded
+        assert tool["callable"] is not guarded and tool["callable"]._office_guard_original is remote
+        guarded = tool["callable"]
         fresh = await state["bind"](guarded.__function__, guarded.__extra_params__)
         commands = [{"command": "set", "path": "/body/p[1]"}] * 2
         with pytest.raises(ValueError, match="create_tasks"):

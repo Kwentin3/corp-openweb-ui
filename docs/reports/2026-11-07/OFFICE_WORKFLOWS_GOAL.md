@@ -4,10 +4,10 @@
 
 ## Текущий проверенный срез
 
-Текущий выпущенный код: commit `24a3e7a8a11c4e42e87049df3d177fce175b746b`, draft PR #588;
-required CI `42372789568` PASS. Native Filter `dd3c8ea4…bd22d3bb`, version
-`b0fba4a3-feb1-4a95-81c1-05a7011becd4`, общий root
-`2c2797cf…3647ae2e` (13386 символов), version `4813f66b-f32e-40af-ae69-8548379adbeb`.
+Текущий выпущенный код: commit `aab7b0aa611c86d2d5b2a6ea71e17f08f5057ad5`, draft PR #588;
+required CI `42375499317` PASS. Native Filter `8456bdab…9d85158c`, version
+`2d891473-49ea-47a4-a756-4f9806d63748`, общий root
+`c3abf177…3c6a14d` (13640 символов), version `3c00e6d8-de84-40b9-9c24-6288c43d44a1`.
 Последний root выпущен narrow API/CAS,
 metadata/grants сохранены, restart не выполнялся.
 
@@ -17,11 +17,12 @@ metadata/grants сохранены, restart не выполнялся.
 | gpt-6-luna | user/admin | DOCX create/edit/continue PASS после stop-rule repeat | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-luna-boundary.safe.json и corporate-luna-offline-review.safe.json; continue artifacts принят отдельно ранее |
 | gpt-5.4-mini | user/admin | XLSX create/edit/continue, formulas/caches/native HTML visual/UI-download PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-mini-verdict.safe.json и corporate-mini-offline-review.safe.json |
 | models/gemini-3.5-flash-lite | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS после native Continue recovery; initial empty completion без файла — FAIL, причина неизвестна; evidence: gemini-lite-lifecycle-verdict.safe.json и gemini-lite-offline-review.safe.json | author publication + interrupted Continue, natural reader/full worker context/fields/style/render/UI/Tasks PASS |
-| gpt-6.1-sol | user/admin | fresh PPTX create/edit/continue content/preservation/all-slide render/UI/Tasks PASS; первая ошибочная попытка корпоративного делегирования заблокирована guard, модель восстановилась сама; evidence: sol-scope-offline-review.safe.json | ещё не принят |
+| gpt-6.1-sol | user/admin | fresh PPTX create/edit/continue content/preservation/all-slide render/UI/Tasks PASS; первая ошибочная попытка корпоративного делегирования заблокирована guard, модель восстановилась сама; evidence: sol-scope-offline-review.safe.json | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 2 Tasks completed; evidence: corporate-sol-verdict.safe.json и corporate-sol-offline-review.safe.json |
 | gpt-6.1-terra | user/admin | repeat DOCX create/edit/continue, content/preservation/render/UI/Tasks PASS | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-terra-boundary.safe.json и corporate-terra-offline-review.safe.json |
-| deepseek-flash | user/admin | create/edit/continue content/preservation/render/UI/Tasks PASS; repeat после root9bc — один write без косметического повторения | ещё не принят |
-| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; point-repeat после da44 без Task calls, changed artifact review в работе | ещё не принят |
-| models/gemini-3.6-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; atomic edit без Task calls; evidence: gemini36-offline-review.safe.json | ещё не принят |
+| deepseek-flash | user/admin | create/edit/continue content/preservation/render/UI/Tasks PASS; repeat после root9bc — один write без косметического повторения | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 4 Tasks completed; evidence: corporate-deepseek-verdict.safe.json и corporate-deepseek-offline-review.safe.json |
+| models/gemini-3.5-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; point-repeat после da44 без Task calls, changed artifact review в работе | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-gemini35-verdict.safe.json и corporate-gemini35-offline-review.safe.json |
+| models/gemini-3.6-flash | user/admin | DOCX create/edit/continue content/preservation/render/UI/Tasks PASS; atomic edit без Task calls; evidence: gemini36-offline-review.safe.json | natural discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 3 Tasks completed; evidence: corporate-gemini36-verdict.safe.json и corporate-gemini36-offline-review.safe.json |
+| corporate-documents (необязательный consumer preset) | user | проверен по корпоративной роли | discovery/facts/fill PASS: actual full template/worker context, source/fields/style/render/UI, parent done + 2 Tasks completed; evidence: corporate-profile-reader-verdict.safe.json и corporate-profile-reader-offline-review.safe.json |
 
 Предыдущий выпуск Filter 2.2.1 исправляет доказанное сокращение Skill
 при handoff: SHA `fdb32101856ef91a9f2a1c49b48e4441ec31b57b009a02ffbe40efe15302ca95`,
@@ -193,7 +194,9 @@ profile versions/worker/grants/flags сохранены, restart отсутст�
 `bc081565-8d65-4411-8238-918c5146006a/before.private.json` сохранён.
 Третий isolated synthetic seed `7d9f98d7…` с теми же source144102/File3003 отправлен
 в 12:35:52; actual direct OfficeCLI route подтверждён, но повторные pagination/style
-правки продолжились. В captures `1b468…/020` и `38eb4778…/008` schemas и developer
+правки продолжились. Запуск остановлен native UI в 12:47:43Z: FAIL / NOT ACCEPTED;
+автономный fallback/stop не квалифицирован (`large-third-stopped-reconciliation.safe.json`).
+В captures `1b468…/020` и `38eb4778…/008` schemas и developer
 инструкции одинаковы; stage/run/display не вызваны. Обнаружены конфликтующие
 подсказки grid/Terminal в bootstrap и schema render; display_file обещает только
 user viewer. Штатный read_file PNG binary → native input_image путь подтверждён
@@ -206,15 +209,70 @@ Root candidate13640 SHA `c3abf177…3c6a14d`, Filter `8456bdab…9d85158c`; 183 
 checks и 12 installed-native formatter/Responses checks на exact actual input PASS:
 изменены только один prefix и один полный root, schemas65/source144102/history/
 results/images/reasoning сохранены. Это не доказывает причину поведения или
-исполнение инструкции. Продуктовый результат не принят; CI/release и дешёвая
-ordinary-user stage→LO→PNG→read_file image acceptance остаются впереди. Evidence:
+исполнение инструкции. Explicit ordinary-user probe `90e72fa1…` подтвердил native
+stage→LO/PDF→четыре PNG→read_file: 12 calls/12 results, три Tasks completed, реальные
+четыре input_image с одинаковыми hashes в requests009→010; DOCX не менялся и не
+публиковался. Это PASS capability integration, не autonomous Large acceptance и
+не независимое человеческое visual agreement. Candidate commit
+`aab7b0aa611c86d2d5b2a6ea71e17f08f5057ad5` выпущен после CI `42375499317` PASS:
+combined native root-CAS + Function source-only release с GET-проверкой unchanged
+Valves подтверждён (`release-single-owner.safe.txt`). Другие два Skills, profiles/
+worker/effective Valves/grants/flags сохранены, restart отсутствует; private backup
+`ec90508d-be11-4f5a-9a8a-2f41379fe28a/before.private.json` сохранён.
+Четвёртый fresh seed `8d897fef…` создан один раз с теми же source144102/File3003;
+до запроса — два узла без Tasks/provider calls. Natural request отправлен в
+13:23:34, capture `48c2a8af…`; source144102/root13640/prefix751 и 65 Tools сохранены,
+ordinary direct route подтверждён, но обязательный PDF/PNG fallback проигнорирован.
+Четвёртый запуск остановлен primary через native UI Stop в 13:31:32 (время и действие
+из сообщения primary); native snapshot отдельно показывает done=true, пустой ответ
+и открытый Task3 — это не завершение задания. Verdict FAIL / NOT ACCEPTED;
+дальнейшие большие prompt-прогоны прекращены. Live Filter/root остаются aab7/8456/c3.
+Read-only feasibility audit нового bounded before-write checkpoint выявил разрыв:
+нормальный native Tool rebind получает исходные form_data.messages, а current results
+живут отдельно; same-batch results сохраняются лишь после исполнения batch. Guard
+на одном __messages__/Chats read не доказывает полный before-write invariant.
+Для кандидата согласована более узкая граница: только receipts, уже показанные
+модели до выбора операции, а не все успешные calls того же response batch.
+Filter 2.2.5 использует read-only ссылку на native request body в обновляемой
+per-round owned Office apply closure; original callable сохранён без wrapper-chain,
+instance/global ledger отсутствует. Первоначальная raw-current-output проверка
+отозвана: actual streaming snapshot имел done=false/output=[] при видимых calls.
+Existing Chats owner теперь подтверждает только стабильный assistant→User parent;
+native get_message_list собирает ID вызовов его предков. Эти старые ID исключаются
+из seen request pairs независимо от положения User после compaction; текущий
+assistant.output не читается. Все текущие receipts/media берутся только из уже
+показанного модели body. Только known
+layout-only set batch после same-result DOCX write+render требует показанного
+модели native stage same File/hash и последующего PNG read с actual PNG data header.
+Padding включён; header считается layout лишь как boolean row-header. Content,
+mixed/unknown props, first write, new-user point edit и остальные owners/formats
+вне нового checkpoint. Tasks/template checks сохраняют прежний порядок.
+Pending approval/tools-resume, stateful partial input, ambiguous/unpaired contexts и flattened images без
+парного image-to-call evidence пропускают только новый checkpoint: это явная
+qualification gap, не обещание полного resume/all-provider enforcement. Структурные
+stage/PNG шаги не доказывают LibreOffice/PDF origin или полноту всех страниц.
+220 focused checks и 16 native factory/binder/rebinder/executor/ancestry replay checks PASS:
+обе actual Fourth layout calls блокируются до original writer; первый content write
+проходит. Cheap native stage/four PNG разрешают checkpoint с явно раскрытой
+проекцией prior write/render IDs; PNG bytes получены по exact QA File IDs и
+преобразованы штатным URL→base64 helper. Replay принудительно оставляет текущий
+DB assistant output пустым; проверены Continue, новый User и старые PNG после User.
+Native DB/ACL/HTTP edges — IO fixtures,
+writer — local sink; это не runtime/UI/product acceptance. Candidate Filter SHA
+`9edf90bfa7bab3c75d7d8d794ea39761dff3b4b14c7d985270b47b15235affe1`, rootc3 не менялся.
+Live runtime aab7 остаётся прежним; перед любым единственным новым Large acceptance
+обязательны review/CI и небольшой actual native UI gate/DB-owner probe.
+Продуктовый результат большого задания не принят. Evidence:
 ignored `representative-large-task/large-history-preflight.safe.json`,
 `large-actual-boundary.safe.json`, `large-actual-inspect.safe.json`,
 `large-candidate-a28fa83d-review.private.json`, `large-lo-comparison.safe.json`,
 `large-terminal-schema-proof.safe.json`, `large-pagination-root-rehearsal.safe.json`,
 `large-fresh-first-boundary.safe.json`, `large-fresh-delegation-schema.safe.json`,
 `large-delegation-scope-rehearsal.safe.json`, `large-third-terminal-context-audit.safe.json`,
-`terminal-model-image-path.safe.json`, `large-single-owner-image-read-rehearsal.safe.json`
+`terminal-model-image-path.safe.json`, `large-single-owner-image-read-rehearsal.safe.json`,
+`preview-capability-verdict.safe.json`, `large-third-stopped-reconciliation.safe.json`,
+`large-fourth-final-reconciliation.safe.json`, `layout-guard-feasibility.safe.json`,
+`seen-request-scope-feasibility.safe.json`, `seen-layout-native-replay.safe.json`
 внутри указанного ниже local-каталога.
 Оставшаяся матрица, corporate/native UI/readback и optional author preset требуют
 завершения; для оставшейся admin-проверки нужен штатный повторный вход владельца
