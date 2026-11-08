@@ -1,6 +1,6 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Текущая запись работы, 06.11.2026. Источник требований и полномочий —
+Текущая запись работы, 08.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
@@ -26,6 +26,83 @@ native context/signing composition6cases принята. AdminGUI unknown projec
 но его пользовательский сквозной budget-сценарий остаётся обязательным. Saved reasoning
 continuity выбранного Office Responses профиля подтверждена в78 ниже;
 это не квалификация всех provider/stream/cryptography вариантов.
+
+**Продолжение08.11, актуальная опора:** предыдущий ход дал progress (новое
+source evidence и обновление этой записи); живого процесса после прерывания нет.
+Office workflow406918033 проверен через native run list: последний42238631735
+terminalSUCCESS/c3d28f62, новых запусков нет. PR585 всё ещё open/draft/unmerged,
+head dc9b96d0; mergeable=False, текущий main уже b45181917d743371295aecb00d002d5f0c583121.
+В main приняты Office PR587–590: общий native root, parent Tasks и full pinned
+template handoff. Current Office source теперь обязательная compatibility опора;
+Office81 на старом Filter не квалифицирует новый полный путь.
+Reasoning локально сохранён source checkpoint91e462ab (старый opt-in fixture плюс
+Word-guide capture) и CC guard772cc7ac, затем интегрирован main mergea553d670.
+Единственный merge conflict .gitattributes разрешён объединением LF rules обоих
+путей. Эти commits не pushed и workflow не запускался; production не менялась.
+
+Nonstream CC guard: SAME policy/admin owner использует native per-call Logging
+для различения absent/null и explicit0, без изменения Usage/денег. Root повторил
+30tests PASS0skip/network0 на LF guardb5798f95/testdd8f3cd2. Первый root replay
+остановился после тестов из-за не скопированного frozen JSON; полный повтор с
+исходным JSON PASS. Mandatory actual Linux proxy tests ещё не исполнены: локально
+15requested/0run/2setup errors/0skip, SDK не содержит backoff; подмены/установки нет.
+Evidence: `nonstream-cc-usage-source/finish-report.md`, `nonstream-cc-usage-root-repeat/`.
+CC SSE normal-completion origin найден у native chunks, но cancel cleanup может
+начислять до guard-finally; failure hook удаляет Logging, cancel его обходит.
+Это открытая граница used-stream policy, не новая закрытая гарантия; core/журнал
+не добавлены. Evidence: `cc-stream-lifecycle-review/`.
+
+**Решение текущего среза:** CC для Office не переключать. Native config делит
+base models, поэтому Terra switch затронул бы и обычные Terra chats. Nov7 evidence
+подтверждает actual Sol→Terra/full template/native Tasks, но не самостоятельный
+current connection-index readback. Conditional reasoning-loss witness ниже не
+доказывает необходимость менять принятый Office путь. Сохраняем текущий маршрут;
+budget adaptation должна сохранять его фактический вход/выход, а не переустраивать
+Office. Evidence: `worker-cc-native-config-review/report.md`.
+Старый fixture profileSHAa263… и отсутствие root Skill/Tasks уже недостаточны.
+Следующий обязательный шаг выполняется в существующих provisioning/provider
+owners: seed/readback актуального native root через Skills, current profile pin,
+реальные parent Task calls/returned IDs и сохранение14tools worker; затем полная
+native input/capacity и delegated budget/UI/ledger приёмка на одном candidate.
+
+**Текущий delegated Office срез,06.11:** гипотеза пользователя о ведущей
+Sol и отдельном Terra-исполнителе соответствует предусмотренному community
+маршруту; прямой OfficeCLI proof его не заменяет. В Git-export ведущий профиль
+тоже Terra, поэтому фактический live Sol→Terra не заявлен. Узкая personal/root
+адаптация уже component-qualified; полноценные Skill/File/provider/ledger/UI
+проверки этого маршрута остаются обязательными.
+На точных pinned Tool и native converter воспроизведена потеря opaque reasoning
+в nonstream Responses worker: raw reasoning1 → native CC wrapper0 → следующий
+вход worker0. Полный исходный prompt,14schemas, Tool call/result и реальный PNG
+при этом сохранены. Это conditional source defect с репрезентативным Office81
+output, не наблюдение нового Terra/provider/live вызова. Evidence:
+`local/goal584/delegated-office-personal-context/response-boundary-review/`.
+Штатный builtin delegate_task наследует модель родителя и не имеет selector
+worker-модели; config-only заменой fixed Terra он не является. Новый core patch,
+отключение reasoning и сборка отдельной истории не вводились.
+
+Проверяется KISS-кандидат: только worker через native CC connection, основной
+профиль остаётся Responses. Это ещё не принятое переключение маршрута. Actual
+Router+Logging nonstream CC8cases сохраняют trusted usage-origin: known/zero
+остаются объектом Usage, absent/null превращаются в null, хотя typed response
+показывает0 во всех unknown cases. Существующий server Logging пригоден для
+адаптации SAME unknown-policy без нового capture/core/ledger. Full proxy callback
+локально не исполнен из-за отсутствующего backoff; обязателен actual-image
+preflight. Normal CC SSE origin в native chunks найден, но fallback/cancel и
+used-stream policy пока не приняты. Evidence: `native-cc-origin-discriminator/`.
+
+Шесть opt-in fixture/provider/provision/test файлов frozen только как SOURCE;
+root повторил11tests PASS0skip и named-owner AST parity. Они пока задают Responses
+worker и потому не квалифицированы для указанной потери reasoning. Отдельный
+workflow-only capture exact installed Word guide проверен root:13Bash/10heredoc/
+8native programs и14finite IO scenarios; actual guide/capacity ещё не получены.
+Qualification timeout3min и CLI30s сохранены. Полный guide должен войти через
+реальный Tool result до ordinary delegated Send, а не через подмену истории.
+Evidence: `delegated-office-fixture-source/`, `delegated-office-fixture-root-repeat/`,
+`office-word-guide-wiring-review/`, `office-word-guide-wiring-root-repeat/`.
+Следующий шаг: проверить native per-model CC config и shared unknown-policy,
+затем минимально исправить opt-in worker candidate; перед дорогим E2E доказать
+полный native контекст/guide/reservation fit. Production и рабочие routes не менялись.
 
 Уточнение native transport: actual Office9 и continuation10 personal wires —
 `stream=true` на auth/provider `/v1/responses`; service wires — `stream=false`.
