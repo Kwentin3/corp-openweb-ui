@@ -101,6 +101,50 @@ Skill/File/Tasks/Tool/provider/SpendLogs/cost/per-model-denial/GUI сценар�
 приёмкой. Admin unknown projection, used CC interruption boundary, Terminal,
 final coherent CI и install/rollback остаются в полном GOAL.
 
+**Следующий source-кандидат08.11, перед stand:** reasoning5f5df218 поверх
+c9878d9f/cc05225b подключает один ordinary delegated Send к existing Office job
+после continuation и до key-block. Первый сквозной прогон этого кандидата ещё
+не запускался. Current native publisher85385a00 создаёт реальный Knowledge,
+обрабатывает synthetic DOCX и публикует Skill/source binding; прежний fixture
+без publisher suffix был отвергнут как несовместимый с current Office guard.
+Scoped native BYPASS_EMBEDDING_AND_RETRIEVAL восстанавливается через finally;
+partial/restore_failed не дают readiness. Best-effort metadata embedding при
+Knowledge/create — штатная отдельная попытка, без выдуманного результата и без
+real provider credentials; она не объявляется отсутствующей. Root повторил44/44
+component tests PASS0skip/network0; actual native extraction остаётся runtime gate.
+
+Provider fixture больше не дублирует full Skill в JSON prompt: передаёт ID/facts,
+а actual Office binder переносит snapshot в SYSTEM. Worker validator сверяет
+его с existing observed parent tape, не достраивает отсутствующий контекст.
+Pinned community sender подтвердил first volatile iteration note, приклеенный
+к JSON user prompt; разрешён только этот точный native suffix. Root31provider
+и30capture tests PASS; observer теперь учитывает Sol/Terra с отдельными nonces.
+Новый browser caller12tests PASS, учитывает штатный honest accrued-now label;
+полноту12related calls и сумму обязан доказать SAME native cost/finance reader.
+
+Existing finance verifier параметризован для6Sol+6Terra/shared user вместо
+копии расчёта; all-raw native inventory выделен без изменения scan. Новые41tests
+и83legacy readback покрыты root в общей проверке:233PASS/44FAIL из-за отсутствия
+historical receipt под reasoning root. Все44 оставшихся прошли отдельно после
+указания его реального delivery пути, без изменения данных/ожиданий. Старый
+Office instruction source pin обновлён на exact current9edf, полного текста и
+приоритетов проверки не ослабляли. Native SDK capacity owner импортирован root
+на реальном pinned SDK; измерение actual guide/input остаётся стендовым.
+
+Нового preflight app/client/history assembler нет: full actual input фиксирует
+existing auth observer ДО dispatch finite fake provider; complete guide сверяется
+с actual qualified CLI packet в том же прогоне, native token estimate отдельно
+от reservation estimate. Paid external checks до этого не выполняются.
+Workflow YAML/11Python heredocs и finiteIO повторены root; source mount closure,
+qualification bytes, pinned public community download и synthetic artifacts
+проверены. Существующие limits/cleanup/default legacy checks сохранены.
+Evidence: `delegated-office-{publication,browser,readback,workflow}-source/`,
+соответствующие root-repeat, `delegated-office-provider-current/iteration.safe.json`.
+Следующий шаг — ровно один dispatch existing workflow406918033 на clean source;
+затем current Linux imports/ordinary UI/provider/ledger/artifact/cleanup readback.
+Terra quota denial, admin unknown projection, used CC interruption, Terminal и
+final coherent release acceptance по-прежнему обязательны для всего GOAL.
+
 **Текущий delegated Office срез,06.11:** гипотеза пользователя о ведущей
 Sol и отдельном Terra-исполнителе соответствует предусмотренному community
 маршруту; прямой OfficeCLI proof его не заменяет. В Git-export ведущий профиль
