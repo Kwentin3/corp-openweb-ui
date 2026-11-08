@@ -4,6 +4,10 @@ from html import escape
 import json
 
 
+_EXPENSE_FIELDS = ("expense_status", "known_subtotal_usd", "expense_as_of",
+                   "expense_window_start", "expense_window_end_exclusive")
+
+
 def _text(value, missing="нет данных"):
     return escape(missing if value is None else str(value), quote=True)
 
@@ -12,6 +16,28 @@ def _script_json(value):
     return (json.dumps(value, ensure_ascii=False, separators=(",", ":"))
             .replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
+
+
+def _expense_markup(value):
+    """Render caller-qualified status/strings; never classify or total ledger rows."""
+    state = value.get("expense_status")
+    if state is None:
+        return None
+    label = "Расход неизвестен." if state == "unknown" else "Полнота данных о расходе не подтверждена."
+    parts = [f'<span role="status"><strong>{label}</strong></span>']
+    if state == "unknown":
+        parts.append('<small>В истории есть запросы без данных о расходе.</small>')
+    parts.append(f'<small>По данным учёта: {_text(value.get("spend_usd"))} USD. '
+                 'Эта сумма не подтверждает итоговый расход.</small>')
+    if value.get("known_subtotal_usd") is not None:
+        parts.append(f'<small>Подтверждённая часть расхода: {_text(value["known_subtotal_usd"])} USD. '
+                     'Итог не подтверждён.</small>')
+    if value.get("expense_as_of") is not None:
+        parts.append(f'<small>Наблюдение на: {_text(value["expense_as_of"])}.</small>')
+    start, end = value.get("expense_window_start"), value.get("expense_window_end_exclusive")
+    if start is not None or end is not None:
+        parts.append(f'<small>Диапазон наблюдения: с {_text(start)} (включительно) до {_text(end)} (не включается).</small>')
+    return ''.join(parts)
 
 
 def _bootstrap_panels(template, pending):
@@ -90,8 +116,10 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
                   service: dict | None = None) -> str:
     # Only the public presentation contract enters HTML; caller owns policy/order.
     public = [{key: row.get(key) for key in ("user_id", "name", "email", "department", "revision",
-               "budget_usd", "spend_usd", "remaining_usd")} | {"models": [
+               "budget_usd", "spend_usd", "remaining_usd")}
+        | {key: row[key] for key in _EXPENSE_FIELDS if key in row} | {"models": [
         {key: model.get(key) for key in ("id", "label", "cap_usd", "spend_usd", "share_percent")}
+        | {key: model[key] for key in _EXPENSE_FIELDS if key in model}
         for model in row["models"]]} for row in rows]
     sections, department = [], None
     for index, row in enumerate(public):
@@ -101,16 +129,23 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
         models = []
         for number, model in enumerate(row["models"]):
             field_id = f"share-{index}-{number}"
-            blocked = rows[index]["models"][number].get("blocked")
+            original_model = rows[index]["models"][number]
+            blocked = original_model.get("blocked")
             block_label = "Заблокирована" if blocked is True else "Не заблокирована" if blocked is False else "Нет данных"
+            expense = _expense_markup(model)
+            spend = _text(model["spend_usd"]) if expense is None else expense
             models.append(f'<tr><th scope="row"><label for="{field_id}">{_text(model["label"])}</label>'
                 f'<small>{_text(model["id"])}</small></th><td>{_text(model["cap_usd"], "не установлен")}</td>'
-                f'<td>{_text(model["spend_usd"])}</td><td>{block_label}</td><td><input id="{field_id}" data-model-id="{_text(model["id"])}" '
+                f'<td>{spend}</td><td>{block_label}</td><td><input id="{field_id}" data-model-id="{_text(model["id"])}" '
                 f'inputmode="decimal" maxlength="128" value="{_text(model["share_percent"], "")}" '
                 f'aria-label="Доля для {_text(model["label"])}, процентов" placeholder="нет данных"> %</td></tr>')
+        expense = _expense_markup(row)
+        summary = (f'Учтённый расход: {_text(row["spend_usd"])} USD · '
+                   f'Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD' if expense is None
+                   else expense + 'Остаток не подтверждён.')
         sections.append(f'<section data-employee-id="{_text(row["user_id"])}"><h3>{_text(row["name"])}</h3>'
             f'<p>{_text(row["email"])} · ID: {_text(row["user_id"])}</p>'
-            f'<p>Учтённый расход: {_text(row["spend_usd"])} USD · Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD</p>'
+            f'<p>{summary}</p>'
             f'<label for="budget-{index}">Личный бюджет, USD</label> '
             f'<input id="budget-{index}" data-field="budget_usd" inputmode="decimal" maxlength="128" '
             f'value="{_text(row["budget_usd"], "")}" placeholder="не установлен">'

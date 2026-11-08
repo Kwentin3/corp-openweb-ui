@@ -65,6 +65,114 @@ class Parser(HTMLParser):
 
 
 class RendererTests(unittest.TestCase):
+    def test_unknown_expense_is_primary_recorded_amount_and_known_part_are_separate(self):
+        data = rows()
+        data[0].update(expense_status='unknown', spend_usd='9.99', remaining_usd='0.01',
+                       known_subtotal_usd='0.33')
+        data[0]['models'][0].update(expense_status='unknown', spend_usd='.9',
+                                   known_subtotal_usd='.2', blocked=True)
+        before = copy.deepcopy(data)
+        html = UI.render_editor(data, as_of='owned-global-time')
+        section = html.split('<section', 1)[1].split('</section>', 1)[0]
+        self.assertIn('<span role="status"><strong>Расход неизвестен.</strong></span>', section)
+        self.assertIn('<small>В истории есть запросы без данных о расходе.</small>', section)
+        self.assertIn('По данным учёта: 9.99 USD. Эта сумма не подтверждает итоговый расход.', section)
+        self.assertIn('<small>Подтверждённая часть расхода: 0.33 USD. Итог не подтверждён.</small>', section)
+        self.assertLess(section.index('Расход неизвестен.'), section.index('Подтверждённая часть'))
+        self.assertIn('По данным учёта: .9 USD.', section)
+        self.assertIn('Подтверждённая часть расхода: .2 USD.', section)
+        self.assertNotIn('Остаток по учтённым расходам', section)
+        self.assertNotIn('0.01 USD', section)
+        self.assertIn('Остаток не подтверждён.', section)
+        self.assertIn('<td>Заблокирована</td>', section)
+        self.assertEqual(data, before)
+
+    def test_unavailable_and_invalid_explicit_status_never_reassure_with_zero_or_remaining(self):
+        for status in ('unknown', 'unavailable', '', 1, {'not': 'a status'}):
+            data = rows()
+            data[0].update(expense_status=status, spend_usd='0', remaining_usd='10.00',
+                           known_subtotal_usd=None)
+            data[0]['models'][0].update(expense_status=status, spend_usd='0', blocked=False)
+            html = UI.render_editor(data, as_of='owned')
+            section = html.split('<section', 1)[1].split('</section>', 1)[0]
+            with self.subTest(status=status):
+                self.assertIn('Расход неизвестен.' if status == 'unknown' else 'Полнота данных о расходе не подтверждена.', section)
+                self.assertEqual('В истории есть запросы без данных о расходе.' in section, status == 'unknown')
+                self.assertIn('По данным учёта: 0 USD. Эта сумма не подтверждает итоговый расход.', section)
+                self.assertNotIn('Учтённый расход: 0 USD', section)
+                self.assertNotIn('Подтверждённая часть расхода', section)
+                self.assertNotIn('Остаток по учтённым расходам', section)
+                self.assertIn('Остаток не подтверждён.', section)
+                self.assertIn('<td>Не заблокирована</td>', section)
+
+    def test_expense_context_uses_only_owned_strings_and_does_not_derive_dates_or_sums(self):
+        data = rows()
+        data[0].update(expense_status='unknown', known_subtotal_usd='7.1234567890123456789',
+            expense_as_of='caller-completed-time', expense_window_start='caller-start',
+            expense_window_end_exclusive='caller-end')
+        data[0]['models'][0].update(expense_status='unknown', known_subtotal_usd='.3')
+        data[0]['models'][1].update(expense_status='unavailable', known_subtotal_usd='.7')
+        section = UI.render_editor(data, as_of='global-header-time').split('<section', 1)[1].split('</section>', 1)[0]
+        self.assertIn('Подтверждённая часть расхода: 7.1234567890123456789 USD.', section)
+        self.assertIn('Наблюдение на: caller-completed-time.', section)
+        self.assertIn('Диапазон наблюдения: с caller-start (включительно) до caller-end (не включается).', section)
+        self.assertNotIn('Период:', section)
+        self.assertNotIn('global-header-time', section)
+        data[0] = rows()[0] | {'expense_status': 'unknown'}
+        section = UI.render_editor(data, as_of='global-header-time').split('<section', 1)[1].split('</section>', 1)[0]
+        self.assertNotIn('Наблюдение на:', section)
+        self.assertNotIn('Период:', section)
+        self.assertNotIn('Диапазон наблюдения:', section)
+
+    def test_expense_status_is_readonly_and_does_not_change_budget_actions_or_public_transport(self):
+        data = rows()
+        data[0].update(expense_status='unknown', known_subtotal_usd='.33', expense_as_of='owned-time',
+            expense_window_start='owned-start', expense_window_end_exclusive='owned-end', secret_extra='PRIVATE')
+        data[0]['models'][0].update(expense_status='unavailable', known_subtotal_usd=None,
+                                   blocked=True, secret_extra='PRIVATE')
+        html = UI.render_editor(data, as_of='owned')
+        parser = Parser(html)
+        baseline = Parser(UI.render_editor(rows(), as_of='owned'))
+        controls = lambda parsed: [(tag, attrs) for tag, attrs in parsed.tags if tag in ('input', 'button', 'form')]
+        self.assertEqual(controls(parser), controls(baseline))
+        self.assertEqual(parser.scripts[-1], baseline.scripts[-1])
+        projected = json.loads(parser.scripts[0])
+        for key in UI._EXPENSE_FIELDS:
+            self.assertEqual(projected[0][key], data[0][key])
+        self.assertEqual(projected[0]['models'][0]['expense_status'], 'unavailable')
+        self.assertNotIn('blocked', projected[0]['models'][0])
+        self.assertNotIn('PRIVATE', html)
+        cell = html.split('<td><span role="status">', 1)[1].split('</td>', 1)[0]
+        self.assertNotIn('<input', cell)
+        self.assertNotIn('<button', cell)
+        self.assertEqual(len([attrs for tag, attrs in parser.tags if attrs.get('role') == 'status']), 2)
+
+    def test_expense_strings_and_status_cannot_inject_markup_or_client_authority(self):
+        data = rows()
+        attack = '</script><img src=x onerror="alert(1)"><&\u2028\u2029'
+        data[0].update({key: attack for key in UI._EXPENSE_FIELDS})
+        data[0]['models'][0].update({key: attack for key in UI._EXPENSE_FIELDS})
+        html = UI.render_editor(data, as_of='owned')
+        parser = Parser(html)
+        self.assertNotIn('img', [tag for tag, attrs in parser.tags])
+        self.assertEqual(len(parser.scripts), 2)
+        self.assertIn('Полнота данных о расходе не подтверждена.', html)
+        self.assertIn('Подтверждённая часть расхода: &lt;/script&gt;', html)
+        self.assertEqual(json.loads(parser.scripts[0])[0]['expense_as_of'], attack)
+        self.assertNotIn('<', parser.scripts[0])
+        self.assertNotIn('\u2028', parser.scripts[0])
+
+    def test_absent_and_none_status_keep_legacy_known_markup(self):
+        baseline = UI.render_editor(rows(), as_of='owned')
+        self.assertIn('Учтённый расход: 1.25 USD · Остаток по учтённым расходам: 8.75 USD', baseline)
+        data = rows()
+        data[0].update(expense_status=None, known_subtotal_usd='must-not-replace-legacy')
+        data[0]['models'][0].update(expense_status=None, known_subtotal_usd='must-not-replace-legacy')
+        html = UI.render_editor(data, as_of='owned')
+        self.assertEqual(html.split('<form id="editor">')[1].split('</form>')[0],
+                         baseline.split('<form id="editor">')[1].split('</form>')[0])
+        self.assertNotIn('role="status"', html)
+
     def test_native_block_tristate_is_readonly_and_does_not_enter_client_data(self):
         data = rows()
         data[0]['models'][0]['blocked'] = True
