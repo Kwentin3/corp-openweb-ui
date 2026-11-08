@@ -8,6 +8,43 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Актуальный runtime-кандидат08.11:**
+[run42468080716](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42468080716),
+head `67736e68bbe4146285b0c5ba4094c0af6eed428e`, workflow406918033,
+workflow_dispatch09:39:05UTC, job128692154532 terminalFAILURE на build4.
+Steps5–15SKIPPED; cleanup16/upload17SUCCESS. Точная причина теперь УСТАНОВЛЕНА:
+official OfficeCLI release binary curl четыре раза вернул HTTP504 (native log021;
+67.65/69.65/71.66/73.67s), Office image не собран. Frontend/WebUI images собраны.
+Artifact13611953596 загружен один раз через восстановившийся connector:
+597825B/31members/SHA256 `008a557dbc1c52c597043fa0882250961fb990f427046923b983fa06ced22af8`.
+Root reader сверил54Git build inputs,5670frontend files/234727258B и cleanup2images,
+без task containers/volumes/networks/images/guide copies. Build cache retained.
+Старые0byte artifact.zip/failed-job.log сохранены как failed retrieval, не ZIP/log.
+До успешной загрузки native receiver/DoH дали DNS timeout, настройки не менялись.
+Следующий узкий build-кандидат использует SAME official binary через documented
+GitHub release asset API579806924 + native curl Accept octet-stream. Public metadata
+связывает v1.0.152/name/35394405B с прежним SHAe54d3c1d…; actual bounded host download
+200/24.458s подтвердил полные bytes/SHA, Linux binary не исполнялся. Версия/checksum,
+checksum-before-chmod, retries/bounds/skills/packages/lock/runtime не меняются.
+Новых clients/mirrors/credentials нет. Linux build и весь workflow пока не приняты.
+Evidence: `office85-review/{review.py,checks.safe.json,artifact-connector.zip}`,
+`office85-build-native-next/{report.md,probe_asset.py,asset-transfer.safe.json}`.
+
+Local source дальше runtime: REASONING b96f4937, не pushed. e146112d заменяет
+невключённый monthly subtotal на presence-only reader (independent44PASS,
+strict31 unchanged,24retained source owners unchanged); coverage уточнён на
+observed_native_rows_only, query dates не event-time/billing proof. UI ff9d2914+
+ef837023: root16PASS, при unknown остаток не подтверждён; при unavailable native
+числовой остаток сохранён как «по учтённым расходам», не финансовый итог.
+b96f4937 подключает SAMEreader→Toolcomposition→policy→SAMEform: heldsession/key,
+currentuid/model/keyhash,5s/sem4/pages2, completedunknown survives other timeouts,
+no calendar/money sum/block mutation. Agent59PASS+root10affected integrationPASS;
+41old owner functions AST unchanged. NativeAPI/DB/browser/provider/ledger proof
+ещё обязателен; source/component готовность не означает весь GOAL. Actual model
+context/tool results и ordinary admin unknown embed проверяются следующим срезом.
+Evidence: `office85-review/`, `office85-transport-review/`,
+`admin-unknown-{presence-source,presence-review,ui-source,wiring-source}/`.
+
 **Последний runtime-кандидат08.11, сейчас terminal:**
 [run42465314986](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42465314986),
 workflow406918033/workflow_dispatch, head `2f72b9b99151c8fafacb121ff31c9cdbe0f656e5`,
