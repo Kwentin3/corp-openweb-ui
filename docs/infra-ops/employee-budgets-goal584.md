@@ -28,7 +28,16 @@ auth_added12. Это НЕ доказательство6+6, terminal/context/fina
 diagnostic, без увеличения180s/отключенияTasks/followups/ослабленияacceptance.
 GOAL остаётся active. Evidence `office87-review/`, `office87-lifecycle-triage/`.
 
-**Текущая local source интеграция:** REASONING6d04c0aa, не published/runtime.
+**Текущая coherent source интеграция:** DELIVERY и REASONING exactb8a19dd7,
+чистые worktrees;27changed files сверены с Gitblob и другсдругом поLF. Не runtime.
+После merge0ab5e651 source включает SAMEreviewed nativebasefix и APIasset download.
+Новый workfloworder: ordinary→continuation→nativekeyblock→unknownAPI→unknownGUI→
+adminunknown→delegation→failurediagnostics/cleanup. B8a19dd7 ТОЛЬКО exactbyteMOVE
+existingdelegationblock; byteSHA dc1faea5… сохранён, full afterLF8384959b…,
+оба затронутыхPython blocks compiled. Prereqreview GO, старыеfatalchecks unchanged;
+keyblock создаётотдельногоpayer (не блокируетOfficeactor), current oldpayers
+snapshots/prefixes остаютсяmandatory. Runtime/API/bytebudget ещёpending.
+Evidence `coherent88-source/`, `admin-before-delegation-source-review/`.
 0da2fc6e расширяет SAMEobserver толькоknownaliasgoal584-usage (37PASS/root3,
 no format/history/bounds/auth change). 40526d09 — nativeadmincollector+shared
 joinleaf+exactpureparserMOVE:101PASS0skip/network0 (agent/root/independentreview),
@@ -98,7 +107,7 @@ Root первый provision repeat ошибочно выбрал browservenv б�
 Root4dc897f8 исправил Linux snapshot UID:GID: execтеперьsamehostowner, чтобы
 atomic0600replace не закрывалhostread; permissions не ослаблены. Browser13/root
 AST checks сноваPASS, latestLF40811bda…; actualLinuxownership ещё runtimepending.
-Пока НЕТ nativecollector/orchestration для нового admin witness: обязательны
+Nativecollector/orchestration теперь sourceготовы и reviewed; runtimeобязательны:
 actual2personalnonce/rows/cost_snapshot.332, fullSkill/tools/output/capture-provider
 joins и separate existingservice finance; затем nativeGUI/render acceptance.
 Source prep отдельно не считается принятой adminUI/всемGOAL. Evidence:
@@ -107,7 +116,7 @@ Nativecollector сейчас bounded WIP в REASONING (cc_stream_boundary): same
 parser extracted to existingpureverify_admin_calls; same auth/providerjoin leaf
 extracted fromOfficeowner, old13/6+6+1constraints retained. NewCLI admin-baseline/
 admin-verify и sourceclosure готовятся. Не published/неCI/notaccepted; workflow
-orchestration остаётся root после frozen nativecollector review.
+orchestration интегрирована root после frozen nativecollector review; runtimepending.
 
 **Предыдущий runtime-кандидат08.11, terminal:**
 [run42468080716](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42468080716),
