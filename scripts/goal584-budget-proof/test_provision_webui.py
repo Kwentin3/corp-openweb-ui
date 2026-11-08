@@ -1390,6 +1390,20 @@ class DelegatedProvisionTests(unittest.TestCase):
         self.assertEqual(P.DELEGATION_VALVES['LARGE_TOOL_RESULT_MODE'], 'raw')
 
     def test_new_phase_uses_actual_admin_owner_to_create_two_fresh_assignments(self):
+        self.exercise_delegated_setup()
+
+    def test_delegated_base_rows_require_strict_absence_before_any_mutation(self):
+        for status in (200, 401, 403, 500):
+            with self.subTest(status=status):
+                self.exercise_delegated_setup(base_absence=status, expect_failure='base Workspace Model')
+
+    def test_delegated_final_catalog_requires_both_base_rows_and_profile_bindings(self):
+        for mutate in (lambda rows: rows.pop('gpt-6.1-sol'),
+                       lambda rows: rows['corporate-documents']['info'].update(base_model_id='gpt-6.1-terra')):
+            with self.subTest(mutate=mutate):
+                self.exercise_delegated_setup(alter_catalog=mutate, expect_failure='Delegated actor')
+
+    def exercise_delegated_setup(self, *, base_absence=404, alter_catalog=None, expect_failure=None):
         """Real provision/client/private owners; explicit native HTTP/config leaves."""
         import hashlib, importlib.util, yaml
         from email import policy
@@ -1450,7 +1464,15 @@ class DelegatedProvisionTests(unittest.TestCase):
                 if path == '/api/v1/models/create' or path == '/api/v1/models/model/update':
                     rows[body['id']] = copy.deepcopy(body) | {'user_id': OWNER, 'write_access': True}
                     return Response(200, rows[body['id']])
-                if path == '/api/v1/models/model': return Response(200, rows[query['id'][0]]) if query['id'][0] in rows else Response(404, {})
+                if path == '/api/v1/models/model':
+                    identifier = query['id'][0]
+                    return Response(200, rows[identifier]) if identifier in rows else Response(
+                        base_absence if identifier in ('gpt-6.1-sol', 'gpt-6.1-terra') else 404, {})
+                if path == '/api/models':
+                    catalog = {mid: {'id': mid, 'info': copy.deepcopy(row), 'owned_by': 'openai',
+                        **({'urlIdx': 0} if row['base_model_id'] is None else {'preset': True})} for mid, row in rows.items()}
+                    if alter_catalog: alter_catalog(catalog)
+                    return Response(200, {'data': list(catalog.values())})
                 if path == '/api/v1/tools/': return Response(200, [])
                 if path == '/api/v1/tools/create': tools[body['id']] = copy.deepcopy(body); return Response(200, body)
                 if path.endswith('/valves/update'): tools['valves'] = native_tool.Tools.Valves(**body).model_dump(); return Response(200, tools['valves'])
@@ -1494,6 +1516,15 @@ class DelegatedProvisionTests(unittest.TestCase):
                     patch.object(budget.BudgetAdminClient, '_request', native_request), \
                     patch.object(Path, 'open', mounted_publisher), patch.object(aiohttp, 'ClientSession', publication.session), \
                     patch.dict(os.environ, OWUI_BUDGET_GATEWAY_SECRET='gw-synthetic-delegated'):
+                if expect_failure:
+                    with self.assertRaisesRegex(P.ProofError, expect_failure):
+                        P.office_delegation_setup(P.WebUI(), state, target, tool_source=tool_path,
+                            profiles_source=HERE.parents[1] / 'deploy/openwebui-tools/corporate_template_models.json')
+                    if base_absence != 404:
+                        self.assertFalse(any(method == 'POST' for method, _ in requests))
+                        self.assertFalse(target.exists())
+                    self.assertEqual(state, frozen)
+                    return
                 safe = P.office_delegation_setup(P.WebUI(), state, target, tool_source=tool_path,
                     profiles_source=HERE.parents[1] / 'deploy/openwebui-tools/corporate_template_models.json')
             saved = P.read_private(target)['office_delegation_setup']
@@ -1514,6 +1545,174 @@ class DelegatedProvisionTests(unittest.TestCase):
             self.assertEqual(rows['corporate-office-worker']['params']['max_tokens'], 6000)
             self.assertTrue(rows['corporate-documents']['meta']['builtinTools']['tasks'])
             self.assertFalse(rows['corporate-office-worker']['meta']['builtinTools']['tasks'])
+            self.assertEqual(set(saved['base_models']), {'gpt-6.1-sol', 'gpt-6.1-terra'})
+            self.assertEqual(set(saved['actor_catalog']), {'corporate-documents', 'corporate-office-worker',
+                                                         'gpt-6.1-sol', 'gpt-6.1-terra'})
+            for profile, alias, output in (('corporate-documents', 'gpt-6.1-sol', 12000),
+                                           ('corporate-office-worker', 'gpt-6.1-terra', 6000)):
+                self.assertIsNone(rows[alias]['base_model_id'])
+                self.assertEqual(rows[alias]['params'], {'max_tokens': output})
+                self.assertEqual(rows[alias]['meta']['filterIds'], ['employee_budget_cost'])
+                self.assertEqual(rows[alias]['access_grants'], [
+                    {'principal_type': 'user', 'principal_id': actor, 'permission': 'read'}])
+                self.assertEqual(rows[profile]['base_model_id'], alias)
+
+
+class DelegatedNativeBaseAccessTests(unittest.IsolatedAsyncioTestCase):
+    """Exact native access/parameter owners; only DB/grant IO is substituted."""
+    @classmethod
+    def setUpClass(cls):
+        import ast, hashlib, logging
+        from typing import Callable
+        import collections.abc
+        root = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(HERE.parents[1] /
+            'local/goal584/cost-display/open-webui/backend/open_webui')))
+        pins = {'utils/models.py': '20d6ad7ef8d62b521cf46d2224ac4ff83998dadbfcb90d7105da3c14cc468690',
+            'utils/access_control/__init__.py': 'aed18ea3b7788597a8b4eaf741d32e07b0244bc390ab792e44bda611d324b568',
+            'utils/payload.py': 'c4fa395b43f0cdfd1fa95461749dfa283f0ae9b780acffd53e86046eed018fdb',
+            'utils/misc.py': '24b39f1c7c7ef24c5cc436820af62df2e3eae11d94e498ae30fe9fda33b7d6c1',
+            'utils/filter.py': '6f94e65e9b793de3da6544e410019440a17fbab5848eedf1d03aa30a6e3bda2f',
+            'routers/openai.py': 'af02463b799a817b307da5d03af25874ca14f477b883e913051b3b797d365955'}
+        cls.trees = {}
+        for relative, expected in pins.items():
+            source = root / relative
+            if not source.is_file():
+                if 'GOAL584_NATIVE_SOURCE_ROOT' in os.environ: raise AssertionError('Pinned native source unavailable')
+                raise unittest.SkipTest('Set GOAL584_NATIVE_SOURCE_ROOT for exact native base-chain component proof')
+            raw = source.read_bytes().replace(b'\r\n', b'\n')
+            assert hashlib.sha256(raw).hexdigest() == expected, relative
+            cls.trees[relative] = ast.parse(raw)
+        cls.namespace = {'log': logging.getLogger('native-base-component'), 'Callable': Callable,
+                         'collections': collections, 'copy': copy}
+        def load(relative, names, namespace):
+            nodes = [copy.deepcopy(n) for n in cls.trees[relative].body if getattr(n, 'name', None) in names]
+            assert len(nodes) == len(names), (relative, names)
+            exec(compile(ast.Module(body=nodes, type_ignores=[]), relative, 'exec',
+                flags=__import__('__future__').annotations.compiler_flag), namespace)
+        cls.load_native = staticmethod(load)
+        load('utils/access_control/__init__.py', {'has_base_model_access'}, cls.namespace)
+        load('utils/models.py', {'check_model_access'}, cls.namespace)
+        load('utils/misc.py', {'deep_update'}, cls.namespace)
+        load('utils/payload.py', {'remove_open_webui_params', 'apply_model_params_to_body',
+                                'apply_model_params_to_body_openai'}, cls.namespace)
+        load('utils/filter.py', {'get_model_filter_ids'}, cls.namespace)
+        load('routers/openai.py', {'_normalize_stored_item', 'convert_to_responses_payload'}, cls.namespace)
+        allowed = next(n for n in cls.trees['routers/openai.py'].body if isinstance(n, ast.AnnAssign)
+            and isinstance(n.target, ast.Name) and n.target.id == 'RESPONSES_ALLOWED_FIELDS')
+        exec(compile(ast.Module(body=[allowed], type_ignores=[]), 'native-response-fields', 'exec'), cls.namespace)
+
+    async def asyncSetUp(self):
+        from types import SimpleNamespace, ModuleType
+        self.actor = SimpleNamespace(id=CONTROL, role='user')
+        self.profiles = {p['id']: copy.deepcopy(p) for p in json.loads((HERE.parents[1] /
+            'deploy/openwebui-tools/corporate_template_models.json').read_text(encoding='utf8'))}
+        self.profiles['corporate-documents']['base_model_id'] = 'gpt-6.1-sol'
+        self.rows = {mid: SimpleNamespace(**{k: p[k] for k in ('id', 'base_model_id')}, user_id=OWNER,
+            params=SimpleNamespace(model_dump=lambda p=p: copy.deepcopy(p['params'])))
+            for mid, p in self.profiles.items()}
+        self.grants = {(CONTROL, mid) for mid in ('corporate-documents', 'corporate-office-worker')}
+        self.queries = []
+        async def model(identifier, **kwargs):
+            self.queries.append(('model', identifier)); return self.rows.get(identifier)
+        async def groups(user_id, **kwargs): return []
+        async def access(**kwargs):
+            assert kwargs['resource_type'] == 'model' and kwargs['permission'] == 'read'
+            self.queries.append(('grant', kwargs['user_id'], kwargs['resource_id']))
+            return (kwargs['user_id'], kwargs['resource_id']) in self.grants
+        self.namespace = dict(type(self).namespace, Models=SimpleNamespace(get_model_by_id=model),
+            Groups=SimpleNamespace(get_groups_by_member_id=groups), AccessGrants=SimpleNamespace(has_access=access))
+        self.load_native('utils/access_control/__init__.py', {'has_base_model_access'}, self.namespace)
+        self.load_native('utils/models.py', {'check_model_access'}, self.namespace)
+        modules = {}
+        for name, value in [('open_webui.models.models', {'Models': self.namespace['Models']}),
+                            ('open_webui.models.access_grants', {'AccessGrants': self.namespace['AccessGrants']})]:
+            module = ModuleType(name); module.__dict__.update(value); modules[name] = module
+        self.enterContext(patch.dict(sys.modules, modules))
+
+    def register_bases(self):
+        from types import SimpleNamespace
+        for profile, maximum in [('corporate-documents', 12000), ('corporate-office-worker', 6000)]:
+            alias = self.profiles[profile]['base_model_id']
+            bodies = {}
+            def post(route, body): bodies[body['id']] = copy.deepcopy(body) | {'user_id': OWNER}
+            webui = SimpleNamespace(model=lambda token, identifier: copy.deepcopy(bodies[identifier]))
+            record = P.create_office_base_model(webui, {'id': OWNER, 'token': 'synthetic'},
+                {'id': CONTROL}, alias, {'max_tokens': maximum}, post)
+            self.assertEqual(record['access_grants'], [{'principal_type': 'user', 'principal_id': CONTROL, 'permission': 'read'}])
+            self.rows[alias] = SimpleNamespace(id=alias, base_model_id=None, user_id=OWNER,
+                params=SimpleNamespace(model_dump=lambda maximum=maximum: {'max_tokens': maximum}))
+            self.grants.add((CONTROL, alias))
+
+    async def test_exact_native_missing_or_unreadable_base_rejects_before_new_actor_grant_passes(self):
+        check = self.namespace['check_model_access']
+        for profile in ('corporate-documents', 'corporate-office-worker'):
+            with self.assertRaisesRegex(Exception, '^Model not found$'):
+                await check(self.actor, {'id': profile})
+        self.register_bases()
+        for profile in ('corporate-documents', 'corporate-office-worker'):
+            await check(self.actor, {'id': profile})
+            await check(self.actor, {'id': self.profiles[profile]['base_model_id']})
+        self.grants.remove((CONTROL, 'gpt-6.1-terra'))
+        with self.assertRaisesRegex(Exception, '^Model not found$'):
+            await check(self.actor, {'id': 'corporate-office-worker'})
+
+    async def test_exact_native_base_chain_does_not_grant_foreign_actor_profile_escape(self):
+        from types import SimpleNamespace
+        self.register_bases()
+        foreign = SimpleNamespace(id='22222222-2222-4222-8222-222222222222', role='user')
+        self.grants.add((foreign.id, 'corporate-documents'))  # Profile access alone never grants its base.
+        for identifier in ('corporate-documents', 'corporate-office-worker', 'gpt-6.1-sol', 'gpt-6.1-terra'):
+            with self.subTest(identifier=identifier), self.assertRaisesRegex(Exception, '^Model not found$'):
+                await self.namespace['check_model_access'](foreign, {'id': identifier})
+
+    async def test_native_parameter_prefix_preserves_profile_context_with_new_base_rows(self):
+        import ast
+        from types import SimpleNamespace
+        namespace = dict(self.namespace)
+        self.load_native('utils/access_control/__init__.py', {'check_model_access'}, namespace)
+        function = next(n for n in self.trees['routers/openai.py'].body if getattr(n, 'name', None) == 'generate_chat_completion')
+        start = next(i for i, n in enumerate(function.body) if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == 'payload' for t in n.targets))
+        end = next(i for i, n in enumerate(function.body) if isinstance(n, ast.If)
+            and isinstance(n.test, ast.Name) and n.test.id == 'model_info')
+        prefix = ast.parse('async def native_prefix(request, form_data, user, bypass_filter=False, bypass_system_prompt=True):\n pass').body[0]
+        prefix.body = copy.deepcopy(function.body[start:end+1]) + [ast.Return(value=ast.Name(id='payload', ctx=ast.Load()))]
+        ast.fix_missing_locations(prefix)
+        exec(compile(ast.Module(body=[prefix], type_ignores=[]), 'actual-native-route-parameter-prefix', 'exec'), namespace)
+        before = {}
+        for identifier in ('corporate-documents', 'corporate-office-worker'):
+            body = {'model': identifier, 'store': False, 'include': ['reasoning.encrypted_content'],
+                'messages': [{'role': 'system', 'content': self.profiles[identifier]['params']['system']},
+                             {'role': 'user', 'content': 'Complete representative source and two field facts'},
+                             {'role': 'tool', 'tool_call_id': 'native_call', 'content': 'Complete representative native result'}],
+                'tools': [{'type': 'function', 'function': {'name': 'native_fixture', 'parameters': {'type': 'object'}}}]}
+            # Before this fix only the native admin could pass the missing-base path.
+            prepared = await namespace['native_prefix'](SimpleNamespace(state=SimpleNamespace()), copy.deepcopy(body),
+                SimpleNamespace(id=OWNER, role='admin'))
+            before[identifier] = namespace['convert_to_responses_payload'](prepared)
+        self.register_bases()
+        for identifier, old in before.items():
+            body = {'model': identifier, 'store': False, 'include': ['reasoning.encrypted_content'],
+                'messages': [{'role': 'system', 'content': self.profiles[identifier]['params']['system']},
+                             {'role': 'user', 'content': 'Complete representative source and two field facts'},
+                             {'role': 'tool', 'tool_call_id': 'native_call', 'content': 'Complete representative native result'}],
+                'tools': [{'type': 'function', 'function': {'name': 'native_fixture', 'parameters': {'type': 'object'}}}]}
+            current = namespace['convert_to_responses_payload'](await namespace['native_prefix'](
+                SimpleNamespace(state=SimpleNamespace()), copy.deepcopy(body), self.actor))
+            self.assertEqual(current, old)
+            self.assertEqual(current['max_output_tokens'], self.profiles[identifier]['params']['max_tokens'])
+            self.assertEqual(current['model'], self.profiles[identifier]['base_model_id'])
+            self.assertIs(current['store'], False)
+            self.assertEqual(current['include'], ['reasoning.encrypted_content'])
+            self.assertEqual(current['instructions'], self.profiles[identifier]['params']['system'])
+
+    async def test_native_filter_selection_keeps_one_budget_filter_for_base_or_profile(self):
+        select = self.namespace['get_model_filter_ids']
+        active = [('employee_budget_cost', False), ('officecli_auto_attach_filter', True)]
+        for identifier in ('corporate-documents', 'corporate-office-worker', 'gpt-6.1-sol', 'gpt-6.1-terra'):
+            filters = select({'id': identifier, 'info': {'meta': {'filterIds': ['employee_budget_cost']}}}, active)
+            self.assertEqual(filters.count('employee_budget_cost'), 1)
+            self.assertEqual(filters.count('officecli_auto_attach_filter'), 1)
 
 
 if __name__ == "__main__":
