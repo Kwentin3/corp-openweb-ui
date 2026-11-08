@@ -73,6 +73,18 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-skills/artifact-workflow.md
+        target: /proof/artifact-workflow.md
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-tools/corporate_template_models.json
+        target: /proof/corporate_template_models.json
+        read_only: true
+        bind:
+          create_host_path: false
 
   webui:
     image: ${PROOF_OFFICE_WEBUI_IMAGE:?actual built immutable ID}

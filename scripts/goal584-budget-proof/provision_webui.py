@@ -48,7 +48,10 @@ TASK_FLAGS = (
 )
 DELEGATION_TOOL_ID = "corporate_document_delegation"
 DELEGATION_TOOL_SHA256 = "790de1a09eea5467ad7f87568f20c00099f7ca8c8ef1b946e55799d742c45fbe"
-DELEGATION_PROFILES_SHA256 = "a263c69f1fae32c7eed7d1dbfcd7b3a720dc631e18717d17b543c4d8a0af5232"
+DELEGATION_PROFILES_SHA256 = "9c606f06a63dcd7be3bd53345e8a702bd1eebd576e0b7ca8118aeb6207abf371"
+OFFICE_FILTER_SHA256 = "9edf90bfa7bab3c75d7d8d794ea39761dff3b4b14c7d985270b47b15235affe1"
+WORKFLOW_SKILL_ID = "artifact-workflow"
+WORKFLOW_SKILL_SHA256 = "c3abf17750e03a943e1b98c6ae0efd24e0d8b297e5b3b1bb6953181723c6a14d"
 DELEGATION_VALVES = {"DEFAULT_MODEL": "corporate-office-worker", "AVAILABLE_TOOL_IDS": "server:officecli",
     "EXCLUDED_TOOL_IDS": "", "MAX_ITERATIONS": 12, "MAX_PARALLEL_AGENTS": 1,
     "APPLY_INLET_FILTERS": True, "ENABLE_CONTEXT_COMPACTION": False, "LARGE_TOOL_RESULT_MODE": "raw",
@@ -492,7 +495,11 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
     gateway = os.environ.get("OWUI_BUDGET_GATEWAY_SECRET", "")
     require(isinstance(gateway, str) and bool(gateway) and not any(c.isspace() for c in gateway), "Office gateway prerequisite missing")
     with Path("/proof/officecli_auto_attach_filter.py").open("rb") as handle: source = handle.read(128 * 1024 + 1).decode("utf8")
-    require(source_hash(source) == "0916704e50c29fd41c949a87b4dae9ecf4d3a90e72b213355e725f680acdcdd7", "Office Filter source prerequisite differs")
+    require(source_hash(source) == OFFICE_FILTER_SHA256, "Office Filter source prerequisite differs")
+    with Path("/proof/artifact-workflow.md").open("rb") as handle:
+        workflow = handle.read(128 * 1024 + 1).decode("utf8").replace("\r\n", "\n")
+    require(len(workflow.encode("utf8")) <= 128 * 1024 and source_hash(workflow) == WORKFLOW_SKILL_SHA256,
+            "Office workflow Skill source prerequisite differs")
     cost = webui.ok("GET", "/api/v1/functions/id/" + FILTER_ID, token=admin["token"])
     require(cost.get("is_active") is True and cost.get("type") == "filter"
             and source_hash(cost.get("content", "")) == source_hash(Path("/proof/budgets/cost_filter.py").read_text(encoding="utf8")),
@@ -537,12 +544,19 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
     status, functions = response(webui, "GET", "/api/v1/functions/export?include_valves=true", admin["token"])
     require(status == 200 and isinstance(functions, list) and all(isinstance(f, dict) and f.get("id") != auto_id for f in functions),
             "Office Filter already exists or native export unavailable")
+    status, skill_packages = response(webui, "GET", "/api/v1/skills/export", admin["token"])
+    require(status == 200 and isinstance(skill_packages, list)
+            and all(isinstance(s, dict) and isinstance(s.get("id"), str) and s["id"] != WORKFLOW_SKILL_ID for s in skill_packages)
+            and len({s["id"] for s in skill_packages}) == len(skill_packages),
+            "Office workflow Skill already exists or native export unavailable")
+    old_skills = {s["id"]: webui.ok("GET", "/api/v1/skills/id/" + s["id"], token=admin["token"]) for s in skill_packages}
     tasks = webui.ok("GET", "/api/v1/tasks/config", token=admin["token"])
     chat_config = webui.ok("GET", "/api/v1/chats/config", token=admin["token"])
     require(chat_config.get("ENABLE_CONTEXT_COMPACTION") is False, "Office native context compaction must be disabled")
     handoff = {"schema": 1, "stage": "office_setup_in_progress", "admin": copy.deepcopy(admin), "users": [], "native_keys": [],
         "office_setup": {"journal": [], "source_sha256": source_hash(source), "before": {"connections": connections,
-            "catalogs": old_catalogs, "tool_servers": servers, "functions": functions, "tasks": tasks, "chat_config": chat_config, "native_models": info}}}
+            "catalogs": old_catalogs, "tool_servers": servers, "functions": functions, "tasks": tasks,
+            "skills": old_skills, "skill_packages": skill_packages, "chat_config": chat_config, "native_models": info}}}
     def journal(stage, body=None):
         webui.session(admin, "admin")
         entry = {"stage": stage, "body": copy.deepcopy(body), "returned": False}
@@ -561,6 +575,28 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
     require(actor["id"] not in {a["id"] for a in actors}, "Office actor collided with an existing fixture account")
     handoff["users"] = [actor]
     webui.session(actor, "user")
+    write_private(path, handoff)
+    root = {"id": WORKFLOW_SKILL_ID, "name": "Artifact Workflow",
+        "description": "Plan, resume, verify and publish multi-part file work without mutating sources.",
+        "content": workflow, "is_active": True,
+        "access_grants": [{"principal_type": "user", "principal_id": "*", "permission": "read"}]}
+    created_skill = post("/api/v1/skills/create", root)
+    skill_route = "/api/v1/skills/id/" + WORKFLOW_SKILL_ID
+    def read_workflow(account):
+        record = webui.ok("GET", skill_route, token=account["token"])
+        require(all(record.get(k) == root[k] for k in ("id", "name", "description", "content", "is_active"))
+                and record.get("user_id") == admin["id"] and isinstance(record.get("version_id"), str)
+                and bool(record["version_id"]) and record["version_id"] == created_skill.get("version_id")
+                and grant_set(record) == grant_set(root) and len(record["access_grants"]) == 1,
+                "Office native workflow Skill/content/version/ACL differs")
+        history = webui.ok("GET", skill_route + "/history/" + record["version_id"], token=account["token"])
+        snapshot = history.get("snapshot") or {}
+        require(history.get("id") == record["version_id"] and snapshot.get("content") == workflow
+                and snapshot.get("name") == root["name"], "Office native workflow Skill snapshot differs")
+        return record
+    workflow_skill = read_workflow(admin)
+    read_workflow(actor)
+    handoff["office_setup"]["workflow_skill"] = workflow_skill
     write_private(path, handoff)
     requested = copy.deepcopy(connections)
     requested.update(OPENAI_API_BASE_URLS=["http://proxy:4000/v1", *urls], OPENAI_API_KEYS=[gateway, *keys],
@@ -613,6 +649,8 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
             and function.get("is_active") is True and function.get("is_global") is True
             and source_hash(function.get("content", "")) == source_hash(source) and actual_valves == wanted_valves,
             "Office native Filter source/Valves/scope readback differs")
+    require(actual_valves.get("artifact_workflow_skill_id") == WORKFLOW_SKILL_ID,
+            "Office Filter workflow Skill binding differs")
     after_catalogs = catalogs()
     for uid, rows in old_catalogs.items():
         after = {r["id"]: r for r in after_catalogs[uid]}
@@ -652,12 +690,20 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
             and {f["id"]: f for f in after_functions if f.get("id") != auto_id} == {f["id"]: f for f in functions}
             and webui.ok("GET", "/api/v1/tasks/config", token=admin["token"]) == tasks
             and webui.ok("GET", "/api/v1/chats/config", token=admin["token"]) == chat_config, "Office setup changed unrelated Functions/tasks/chat config")
+    status, after_skills = response(webui, "GET", "/api/v1/skills/export", admin["token"])
+    require(status == 200 and isinstance(after_skills, list) and len(after_skills) == len(skill_packages) + 1
+            and {s["id"]: s for s in after_skills if s.get("id") != WORKFLOW_SKILL_ID} == {s["id"]: s for s in skill_packages}
+            and all(webui.ok("GET", "/api/v1/skills/id/" + sid, token=admin["token"]) == record for sid, record in old_skills.items())
+            and read_workflow(admin) == workflow_skill and read_workflow(actor).get("version_id") == workflow_skill["version_id"],
+            "Office setup changed native Skills or workflow pin")
     handoff["office_setup"].update(models=models, connections=requested, tool_servers=actual_servers, function=function,
         valves=actual_valves, openapi=schema, actor_tools=tools, actor_catalog=actor_catalog, after_catalogs=after_catalogs, budget=budget)
     handoff["stage"] = "setup_complete"
     write_private(path, handoff)
     return {"office_setup": {"status": "readback_ready", "native_office_accepted": False, "inference_issued": False,
-        "actor_id": actor["id"], "source_sha256": source_hash(source), "handoff_sha256": sha256(path.read_bytes()).hexdigest()}}
+        "actor_id": actor["id"], "source_sha256": source_hash(source), "workflow_skill_id": WORKFLOW_SKILL_ID,
+        "workflow_skill_sha256": WORKFLOW_SKILL_SHA256, "workflow_skill_version_id": workflow_skill["version_id"],
+        "handoff_sha256": sha256(path.read_bytes()).hexdigest()}}
 
 
 def delegated_source_docx() -> bytes:
@@ -733,6 +779,18 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     require(parent['params']['max_tokens'] == 12000 and worker['params']['max_tokens'] == 6000
             and worker['base_model_id'] == 'gpt-6.1-terra', 'Delegated profile parameters differ')
     admin = state['admin']; webui.session(admin, 'admin')
+    workflow = state['office_setup'].get('workflow_skill')
+    require(isinstance(workflow, dict) and workflow.get('id') == WORKFLOW_SKILL_ID
+            and workflow.get('user_id') == admin['id'] and workflow.get('is_active') is True
+            and isinstance(workflow.get('content'), str)
+            and sha256(workflow['content'].encode()).hexdigest() == WORKFLOW_SKILL_SHA256
+            and bool(workflow.get('version_id')), 'Delegated native workflow prerequisite differs')
+    workflow_fields = ('id', 'user_id', 'content', 'version_id', 'is_active', 'access_grants')
+    def read_workflow(account):
+        record = webui.ok('GET', '/api/v1/skills/id/' + WORKFLOW_SKILL_ID, token=account['token'])
+        require(all(record.get(k) == workflow[k] for k in workflow_fields),
+                'Delegated native workflow content/version/ACL differs')
+    read_workflow(admin)
     native = native_client(); info = native.ok('GET', '/model/info')['data']
     for alias, wire, deployment, output, rate_in, rate_out in (
             ('gpt-6.1-sol', 'goal584-fake-delegated-parent', 'goal584-delegated-parent', 12000, '.01', '.02'),
@@ -779,6 +837,7 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     require(actor['id'] not in {u['id'] for u in [admin, *state['users']]}, 'Delegated actor collision')
     selected['actor'] = actor
     write_private(path, current)
+    read_workflow(actor)
     config['model_ids'].extend(('gpt-6.1-sol', 'gpt-6.1-terra'))
     post('/openai/config/update', requested)
     require(webui.ok('GET', '/openai/config', token=admin['token']) == requested, 'Delegated connection readback differs')
@@ -824,6 +883,7 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
             require(native.ok('GET', '/model/info')['data'] == info
                     and all(webui.model(admin['token'], name) == saved for name, saved in selected['models'].items()),
                     'Delegated native model changed before budget write')
+            read_workflow(actor)
             before('initialize-two-personal-assignments')
         async with ClientSession(trust_env=False) as session:
             client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)['operator_token'])

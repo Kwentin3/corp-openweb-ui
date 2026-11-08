@@ -546,6 +546,34 @@ class DelegatedProviderTests(unittest.TestCase):
         cls.office_tools = [{'type': 'function', **owners['clean_openai_tool_schema'](s)}
             for s in owners['convert_openapi_to_tool_payload'](schema)]
         assert len(cls.office_tools) == 14
+        # Execute the pinned native task implementation; only Chat persistence
+        # and event delivery are IO leaves. No second Tasks implementation.
+        from pydantic import BaseModel, Field
+        from typing import Literal, Optional
+        import inspect
+        raw = (source / 'tools/builtin.py').read_bytes().replace(b'\r\n', b'\n')
+        assert hashlib.sha256(raw).hexdigest() == 'e090238724bb955847f7d14dfa0c27b4d91a413dc0987ae81595bd46b86747f9'
+        names = {'TaskItem', 'VALID_TASK_STATUSES', '_task_summary', '_emit_tasks', 'create_tasks', 'update_task'}
+        tree = ast.parse(raw)
+        nodes = [n for n in tree.body if getattr(n, 'name', None) in names
+                 or isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id in names for t in n.targets)]
+        assert len(nodes) == len(names)
+        namespace = {'__name__': __name__, 'BaseModel': BaseModel, 'Field': Field, 'Literal': Literal,
+                     'Optional': Optional, 'Request': SimpleNamespace, 'JSONCodec': json, 'log': logging.getLogger(__name__)}
+        exec(compile((source / 'utils/chat_id.py').read_text(encoding='utf-8'), 'native-chat-id', 'exec'), namespace)
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(source / 'tools/builtin.py'), 'exec'), namespace)
+        cls.native_tasks = namespace
+        # Derive the public schema from the actual function signatures and
+        # actual TaskItem schema, rather than inventing a task_id alias.
+        cls.task_tools = []
+        for name in ('create_tasks', 'update_task'):
+            parameters = inspect.signature(namespace[name]).parameters
+            public = {k: v for k, v in parameters.items() if not k.startswith('__')}
+            assert set(public) == ({'tasks'} if name == 'create_tasks' else {'id', 'status'})
+            properties = {'tasks': {'type': 'array', 'items': namespace['TaskItem'].model_json_schema()}} if name == 'create_tasks' else {
+                'id': {'type': 'string'}, 'status': {'type': 'string', 'default': public['status'].default}}
+            cls.task_tools.append({'type': 'function', 'name': name, 'parameters': {'type': 'object',
+                'properties': properties, 'required': [k for k, v in public.items() if v.default is inspect.Parameter.empty]}})
 
     def setUp(self):
         import provision_webui as provision
@@ -556,9 +584,10 @@ class DelegatedProviderTests(unittest.TestCase):
         self.skill = {'id': 'goal584-delegated-' + 'a' * 32, 'name': 'Synthetic Skill', 'content': content, 'next_offset': None, 'files': []}
         self.parent = {'model': MOCK.DELEGATED_PARENT_MODEL, 'max_output_tokens': 12000,
             'tools': [{'type': 'function', 'name': name, 'parameters': {'type': 'object', 'properties': {}}}
-                for name in ('view_skill', 'corporate_document_delegation_run_sub_agent')],
+                for name in ('view_skill', 'corporate_document_delegation_run_sub_agent')] + copy.deepcopy(self.task_tools),
             'input': [{'type': 'message', 'role': 'system', 'content': self.skill['id']},
                       {'type': 'message', 'role': 'user', 'content': MOCK.DELEGATED_USER_REQUEST}]}
+        self.task_rows, self.task_events = [], []
 
     def step(self, payload):
         before = json.dumps(payload, sort_keys=True)
@@ -574,6 +603,11 @@ class DelegatedProviderTests(unittest.TestCase):
 
     def parent_packet(self):
         selected = self.step(self.parent)
+        self.assertEqual(selected[0], 'create_tasks')
+        self.assertEqual(len(selected[1]['tasks']), 2)
+        self.assertTrue(all('id' not in task for task in selected[1]['tasks']))
+        self.append(self.parent, selected, self.native_task(selected))
+        selected = self.step(self.parent)
         self.assertEqual(selected[:2], ('view_skill', {'id': self.skill['id']}))
         self.append(self.parent, selected, self.skill)
         selected = self.step(self.parent)
@@ -582,6 +616,24 @@ class DelegatedProviderTests(unittest.TestCase):
         self.assertEqual(packet['source_file']['id'], self.source_id)
         self.assertNotIn('version_id', packet['skill'])
         return selected, packet
+
+    def native_task(self, selected):
+        import asyncio
+        name, arguments, _ = selected
+        async def save(chat_id, tasks):
+            self.assertEqual(chat_id, 'native-parent-chat')
+            self.task_rows = copy.deepcopy(tasks)
+        async def load(chat_id):
+            self.assertEqual(chat_id, 'native-parent-chat')
+            return copy.deepcopy(self.task_rows)
+        async def emit(event):
+            self.task_events.append(copy.deepcopy(event))
+        arguments = copy.deepcopy(arguments)
+        if name == 'create_tasks':
+            arguments['tasks'] = [self.native_tasks['TaskItem'].model_validate(t) for t in arguments['tasks']]
+        with patch.dict(self.native_tasks, Chats=SimpleNamespace(update_chat_tasks_by_id=save, get_chat_tasks_by_id=load)):
+            result = asyncio.run(self.native_tasks[name](**arguments, __chat_id__='native-parent-chat', __event_emitter__=emit))
+        return json.loads(result)
 
     def worker_history(self):
         _, packet = self.parent_packet()
@@ -610,13 +662,21 @@ class DelegatedProviderTests(unittest.TestCase):
         self.assertEqual(self.step(payload), (None, None, self.file_id))
         return payload, stages
 
-    def test_complete_parent_worker_nine_call_grammar_and_whole_native_packet(self):
+    def test_complete_parent_worker_tasks_grammar_and_whole_native_packet(self):
         worker, stages = self.worker_history()
         self.assertEqual(len(stages), 5)
         delegated = self.step(self.parent)
         self.append(self.parent, delegated, {'note': 'native Tool envelope', 'result': '[Download](/api/v1/files/' + self.file_id + '/content)'})
+        for task in copy.deepcopy(self.task_rows):
+            selected = self.step(self.parent)
+            self.assertEqual(selected[:2], ('update_task', {'id': task['id'], 'status': 'completed'}))
+            self.append(self.parent, selected, self.native_task(selected))
         self.assertEqual(self.step(self.parent), (None, None, self.file_id))
+        self.assertEqual([t['status'] for t in self.task_rows], ['completed', 'completed'])
+        self.assertEqual(len(self.task_events), 3)
+        self.assertEqual(self.task_events[-1], {'type': 'chat:message:tasks', 'data': {'tasks': self.task_rows}})
         self.assertEqual(len(worker['tools']), 14)
+        self.assertFalse({'create_tasks', 'update_task'} & {t['name'] for t in worker['tools']})
 
     def test_profile_params_and_transport_are_not_shrunk_or_opportunistically_changed(self):
         for field, value in [('max_output_tokens', 1024), ('stream', True), ('stream', False)]:
@@ -636,8 +696,38 @@ class DelegatedProviderTests(unittest.TestCase):
         result = json.loads(handler.wfile.getvalue())
         self.assertEqual(result['model'], MOCK.DELEGATED_PARENT_MODEL)
         self.assertEqual(result['max_output_tokens'], 12000)
-        self.assertEqual(result['output'][0]['name'], 'view_skill')
+        self.assertEqual(result['output'][0]['name'], 'create_tasks')
         self.assertEqual((result['usage']['input_tokens'], result['usage']['output_tokens']), (10, 5))
+
+    def test_parent_uses_returned_ids_and_requires_native_completion_before_download(self):
+        self.parent_packet()
+        # Legal task IDs are opaque strings in the native TaskItem contract.
+        # This IO fixture makes a hardcoded index fail; native update still runs.
+        created = json.loads(self.parent['input'][3]['output'])
+        for task, identifier in zip(created['tasks'], ('returned-fill-id', 'returned-check-id')):
+            task['id'] = identifier
+        self.parent['input'][3]['output'] = json.dumps(created)
+        self.task_rows = copy.deepcopy(created['tasks'])
+        delegated = self.step(self.parent)
+        self.append(self.parent, delegated, {'result': '[Download](/api/v1/files/' + self.file_id + '/content)'})
+        first = self.step(self.parent)
+        self.assertEqual(first[1], {'id': 'returned-fill-id', 'status': 'completed'})
+        before = copy.deepcopy(self.parent)
+        self.append(self.parent, first, self.native_task(first))
+        second = self.step(self.parent)
+        self.assertEqual(second[1], {'id': 'returned-check-id', 'status': 'completed'})
+        self.append(self.parent, second, self.native_task(second))
+        self.assertEqual(self.step(self.parent), (None, None, self.file_id))
+        mutations = [
+            (before, lambda p: p['input'][3].update(output='{"error":"Native create failed"}')),
+            (before, lambda p: p['input'][3].update(output=p['input'][3]['output'].replace('in_progress', 'completed'))),
+            (self.parent, lambda p: p['input'][-2].update(arguments='{"task_id":"returned-check-id","status":"completed"}')),
+            (self.parent, lambda p: p['input'][-1].update(output='{"error":"Native update failed"}')),
+            (self.parent, lambda p: p['input'][-1].update(output=p['input'][-1]['output'].replace('completed', 'pending'))),
+        ]
+        for index, (source, mutate) in enumerate(mutations):
+            payload = copy.deepcopy(source); mutate(payload)
+            with self.subTest(case=index), self.assertRaises(ValueError): self.step(payload)
 
     def test_native_skill_source_paths_guide_copy_inspection_and_png_mutations_fail(self):
         final, stages = self.worker_history()
