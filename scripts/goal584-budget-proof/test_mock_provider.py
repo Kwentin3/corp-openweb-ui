@@ -789,5 +789,225 @@ class DelegatedProviderTests(unittest.TestCase):
             with self.subTest(case=index), self.assertRaises((ValueError, KeyError)): self.step(payload)
 
 
+class AdminResponsesProviderTests(unittest.TestCase):
+    """Actual owner result/native conversion at finite response-writer IO leaves."""
+    @classmethod
+    def setUpClass(cls):
+        import asyncio
+        import collections
+        import re
+        import sys
+        from datetime import datetime, timezone
+        from starlette.responses import HTMLResponse
+        cls.here = Path(__file__).resolve().parent
+        cls.native = Path(os.environ.get("GOAL584_NATIVE_SOURCE_ROOT",
+            str(cls.here.parents[1] / "local/goal584/cost-display/open-webui/backend/open_webui")))
+        env = {"__file__": str(cls.here / "verify_admin_calls.py"), "ast": ast, "Path": Path,
+               "require": lambda value, message: value or (_ for _ in ()).throw(AssertionError(message))}
+        tree = ast.parse((cls.here / "verify_admin_calls.py").read_text(encoding="utf-8"))
+        exec(compile(ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
+            and n.name in {"literal", "source_contract"}], type_ignores=[]), "source_contract", "exec"), env)
+        cls.skill, cls.intent, cls.results = env["source_contract"]()
+        cls.skill_id = env["literal"](cls.here / "provision_admin.py", "SKILL_ID")
+        owner = ast.parse((cls.here.parents[1] / "deploy/openwebui-budgets/admin_tools.py").read_text(encoding="utf-8"))
+        methods = next(n for n in owner.body if isinstance(n, ast.ClassDef) and n.name == "Tools").body
+        cls.methods = {n.name: n for n in methods if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        cls.tools = copy.deepcopy(ADMIN_TOOLS)
+        for spec in cls.tools:
+            spec["function"]["description"] = ast.get_docstring(cls.methods[spec["function"]["name"].removeprefix("employee_budget_admin_")])
+        env = {"copy": copy, "deepcopy": copy.deepcopy, "collections": collections, "re": re,
+               "json": json, "JSONCodec": json, "Any": object, "HTMLResponse": HTMLResponse,
+               "datetime": datetime, "timezone": timezone}
+        cls.native_hashes = {}
+        def extract(relative, names):
+            raw = (cls.native / relative).read_bytes().replace(b"\r\n", b"\n")
+            cls.native_hashes[relative] = hashlib.sha256(raw).hexdigest()
+            nodes = [n for n in ast.parse(raw).body if getattr(n, "name", None) in names
+                or isinstance(n, (ast.Assign, ast.AnnAssign)) and any(isinstance(t, ast.Name) and t.id in names
+                    for t in (n.targets if isinstance(n, ast.Assign) else [n.target]))]
+            if len(nodes) != len(names): raise AssertionError("Exact native owner missing: " + relative)
+            exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ImportFrom(module="__future__",
+                names=[ast.alias(name="annotations")], level=0), *nodes], type_ignores=[])), relative, "exec"), env)
+        extract("utils/misc.py", {"add_or_update_system_message", "convert_output_to_messages", "get_provider_function",
+            "get_paired_tool_call_ids", "reconcile_tool_pairs", "get_content_from_message"})
+        extract("routers/openai.py", {"RESPONSES_ALLOWED_FIELDS", "_normalize_stored_item", "convert_to_responses_payload",
+            "convert_responses_result"})
+        extract("utils/skill_files.py", {"SKILL_INJECTION_MAX_CHARS", "SKILL_MANIFEST_MAX_CHARS",
+            "SKILL_MANIFEST_MAX_ENTRIES", "bounded_skill_manifest", "skill_overview", "format_skill_content"})
+        extract("utils/middleware.py", {"BASE64_IMAGE_DATA_URI_RE", "extract_base64_images", "process_tool_result",
+            "_is_tool_result_error"})
+        cls.env = env
+        # Execute the actual canonical Tool result owner; no _load/auth/API claim.
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec); sys.modules[name] = module
+            spec.loader.exec_module(module); return module
+        budgets = cls.here.parents[1] / "deploy/openwebui-budgets"
+        with patch.dict(sys.modules):
+            load("employee_budget_admin_contract", budgets / "admin_contract.py")
+            policy = load("employee_budget_admin_policy", budgets / "admin_policy.py")
+            ui = load("provider_actual_admin_ui", budgets / "admin_ui.py")
+        actual = {"policy": policy, "render_editor": ui.render_editor, "HTMLResponse": HTMLResponse,
+                  "datetime": datetime, "timezone": timezone}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ClassDef(name="ActualResult", bases=[], keywords=[],
+            body=[cls.methods["_result"]], decorator_list=[])], type_ignores=[])), "admin_tools._result", "exec"), actual)
+        result = actual["ActualResult"]._result(SimpleNamespace(identities={}, states={}, inspections={},
+            config={}, labels={}, service=None, unknown_presence=None))
+        cls.result_text, files, cls.embeds = asyncio.run(env["process_tool_result"](
+            None, OPEN_NAME, result, "local"))
+        assert files == [] and len(cls.embeds) == 1 and 'data-budget-editor="v1"' in cls.embeds[0]
+        assert json.loads(cls.result_text) == cls.results["opened"] and "<html" not in cls.result_text
+        middleware = ast.parse((cls.native / "utils/middleware.py").read_bytes())
+        cls.skill_injection = next(n for n in ast.walk(middleware) if isinstance(n, ast.Call)
+            and isinstance(n.func, ast.Name) and n.func.id == "add_or_update_system_message"
+            and n.args and isinstance(n.args[0], ast.JoinedStr)
+            and any(isinstance(part, ast.Constant) and '<skill id="' in str(part.value) for part in n.args[0].values))
+        cls.output_parts = next(n.value for n in ast.walk(middleware) if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "output_parts" for t in n.targets)
+            and isinstance(n.value, ast.List) and "result.get('content'" in ast.unparse(n.value))
+        cls.output_item = next(n for n in ast.walk(middleware) if isinstance(n, ast.Dict)
+            and any(isinstance(v, ast.Constant) and v.value == "function_call_output" for v in n.values)
+            and any(isinstance(v, ast.Name) and v.id == "local_output_status" for v in n.values))
+
+    def setUp(self):
+        self.records = patch.object(MOCK, "REQUESTS", []); self.records.start(); self.addCleanup(self.records.stop)
+        self.controls = patch.dict(MOCK.CONTROL, {"prompt_tokens": 10, "completion_tokens": 5,
+            "delay_ms": 0, "tool_round": False, "admin_mode": False, "title_mode": False, "response_status": 200})
+        self.controls.start(); self.addCleanup(self.controls.stop)
+
+    def first(self):
+        # Execute the native selected-Skill injection expression, then the
+        # native Chat -> Responses converter; no alternate history assembler.
+        env = dict(self.env)
+        env.update(skill=SimpleNamespace(id=self.skill_id, name="Employee budget administration guide"),
+            root_content=self.env["format_skill_content"](self.env["skill_overview"](self.skill, [], tools_enabled=False),
+                self.skill_id, False), resource_hint="",
+            form_data={"messages": [{"role": "user", "content": self.intent}]})
+        messages = eval(compile(ast.Expression(body=self.skill_injection), "native_skill_injection", "eval"), env)
+        return self.env["convert_to_responses_payload"]({"model": MOCK.USAGE_MODELS[0], "messages": messages,
+            "tools": copy.deepcopy(self.tools), "max_tokens": 16, "stream": False, "store": False})
+
+    def send(self, payload):
+        import io
+        handler = object.__new__(MOCK.Handler); statuses = []
+        handler.send_response = statuses.append; handler.send_header = lambda *args: None
+        handler.end_headers = lambda: None; handler.wfile = io.BytesIO()
+        handler.serve_responses(copy.deepcopy(payload))
+        return statuses[0], json.loads(handler.wfile.getvalue())
+
+    def second(self, first, emitted):
+        # Native converts actual provider output + actual Tool result, not a
+        # model-generated status or a copied expected output packet.
+        env = {"result": {"content": self.result_text, "tool_call_id": emitted["output"][0]["call_id"],
+                          "embeds": self.embeds}, "display_files": [], "output_id": lambda prefix: prefix + "-fixture",
+               "local_output_status": "failed" if self.env["_is_tool_result_error"](self.result_text) else "completed"}
+        env["output_parts"] = eval(compile(ast.Expression(body=self.output_parts), "native_output_parts", "eval"), env)
+        native_output = eval(compile(ast.Expression(body=self.output_item), "native_output_item", "eval"), env)
+        output = [*copy.deepcopy(emitted["output"]), native_output]
+        messages = [{"role": "system", "content": first["instructions"]}, {"role": "user", "content": self.intent}]
+        messages += self.env["convert_output_to_messages"](output, raw=True, reasoning_format=None, flatten_tool_images=True)
+        return self.env["convert_to_responses_payload"]({"model": first["model"], "messages": messages,
+            "tools": copy.deepcopy(self.tools), "max_tokens": 16, "stream": False, "store": False})
+
+    def test_bindings_match_canonical_skill_intent_tool_signatures_and_real_native_result(self):
+        self.assertEqual(MOCK.ADMIN_USER_REQUEST, self.intent)
+        self.assertEqual((len(self.skill.strip()), hashlib.sha256(self.skill.strip().encode()).hexdigest()),
+                         (MOCK.ADMIN_SKILL_CHARS, MOCK.ADMIN_SKILL_SHA256))
+        for tool in self.tools:
+            function = tool["function"]; name = function["name"].removeprefix("employee_budget_admin_")
+            method = self.methods[name]
+            self.assertEqual({a.arg for a in method.args.args if a.arg != "self" and not a.arg.startswith("__")},
+                             set(function["parameters"]["properties"]))
+            self.assertEqual(hashlib.sha256(ast.get_docstring(method).encode()).hexdigest(),
+                             MOCK.ADMIN_TOOL_DESCRIPTIONS[function["name"]])
+        self.assertEqual(json.loads(self.result_text), self.results["opened"])
+        changed = self.first(); changed["instructions"] = changed["instructions"].replace(self.skill.strip(), self.skill.strip()[:-1])
+        self.assertEqual(self.send(changed)[0], 400)
+
+    def test_native_two_rounds_preserve_context_and_full_known_usage(self):
+        first = self.first(); before = copy.deepcopy(first)
+        code, emitted = self.send(first); self.assertEqual(code, 200)
+        self.assertEqual(emitted["output"][0]["name"], OPEN_NAME)
+        self.assertEqual(json.loads(emitted["output"][0]["arguments"]), {"view_json": "{}"})
+        second = self.second(first, emitted); code, final = self.send(second)
+        self.assertEqual(code, 200); self.assertEqual(final["output"][0]["content"][0]["text"], "Proof")
+        self.assertEqual(first, before)
+        self.assertEqual([r["body"] for r in MOCK.REQUESTS], [first, second])
+        for result in (emitted, final):
+            parsed = self.env["convert_responses_result"](copy.deepcopy(result))
+            self.assertEqual(parsed["usage"], result["usage"])
+            self.assertEqual((parsed["usage"]["input_tokens"], parsed["usage"]["output_tokens"]), (10, 5))
+            self.assertEqual((result["usage"]["input_tokens_details"]["cached_tokens"],
+                result["usage"]["output_tokens_details"]["reasoning_tokens"]), (6, 2))
+        self.assertTrue(all(r["lifecycle"]["terminal"] and r["lifecycle"]["usage_sent"] for r in MOCK.REQUESTS))
+
+    def test_missing_demoted_duplicate_and_changed_actual_skill_fail_before_dispatch(self):
+        mutations = (lambda p:p.pop("instructions"),
+            lambda p:p.update(input=[{"role": "user", "content": p.pop("instructions")}, *p["input"]]),
+            lambda p:p.update(instructions=p["instructions"] + self.skill),
+            lambda p:p.update(instructions=p["instructions"].replace("server confirmation", "model confirmation")))
+        for mutate in mutations:
+            payload = self.first(); mutate(payload)
+            with self.subTest(mutate=mutate): self.assertEqual(self.send(payload)[0], 400)
+        self.assertEqual(MOCK.REQUESTS, [])
+
+    def test_schema_business_argument_or_missing_full_tool_changes_are_rejected(self):
+        mutations = (lambda p:p["tools"].pop(), lambda p:p["tools"][0].update(description="shortened"),
+            lambda p:p["tools"][0]["parameters"].update(properties={}),
+            lambda p:p["tools"][0]["parameters"]["properties"].update(budget_usd={"type": "number"}),
+            lambda p:p["tools"][0].update(strict=True), lambda p:p["tools"][0]["parameters"].update(required=["view_json"]))
+        for mutate in mutations:
+            payload = self.first(); mutate(payload)
+            with self.subTest(mutate=mutate): self.assertEqual(self.send(payload)[0], 400)
+        self.assertEqual(MOCK.REQUESTS, [])
+
+    def test_forged_call_output_context_and_extra_rounds_are_rejected(self):
+        first = self.first(); _, emitted = self.send(first); second = self.second(first, emitted)
+        mutations = (lambda p:p["input"][-1].update(call_id="foreign-call"),
+            lambda p:p["input"][-1].update(output=json.dumps({"status": "success", "message": "Invented visible form"})),
+            lambda p:p["input"][-2].update(name=APPLY_NAME),
+            lambda p:p["input"][-2].update(arguments="{}"),
+            lambda p:p.update(instructions=p["instructions"] + " changed context"),
+            lambda p:p["input"].append(copy.deepcopy(p["input"][-1])),
+            lambda p:p["input"].append({"role": "assistant", "content": "unobserved final"}))
+        for mutate in mutations:
+            payload = copy.deepcopy(second); mutate(payload)
+            with self.subTest(mutate=mutate): self.assertEqual(self.send(payload)[0], 400)
+        self.assertEqual(len(MOCK.REQUESTS), 1)
+        with patch.object(MOCK, "REQUESTS", []): self.assertEqual(self.send(second)[0], 400)
+
+    def test_replay_is_call_scoped_and_other_chats_and_hi_keep_working(self):
+        first = self.first(); _, one = self.send(first); _, two = self.send(first)
+        one_second, two_second = self.second(first, one), self.second(first, two)
+        self.assertEqual(self.send(one_second)[0], 200)
+        self.assertEqual(self.send(one_second)[0], 400)
+        self.assertEqual(self.send(two_second)[0], 200)
+        hi = {"model": MOCK.USAGE_MODELS[0], "input": "Hi", "max_output_tokens": 16,
+              "stream": False, "store": False, "tools": []}
+        self.assertEqual(self.send(hi)[0], 200)
+        self.assertEqual(len(MOCK.REQUESTS), 5)
+
+    def test_readonly_replay_uses_actual_tape_prefix_and_rejects_forged_observations(self):
+        first = self.first(); _, emitted = self.send(first); second = self.second(first, emitted)
+        tape = copy.deepcopy(MOCK.REQUESTS)
+        self.assertEqual(MOCK.admin_responses_step(first, MOCK.responses_input(first), prior_requests=[]),
+                         (OPEN_NAME, {"view_json": "{}"}))
+        self.assertEqual(MOCK.admin_responses_step(second, MOCK.responses_input(second), prior_requests=tape), (None, None))
+        self.assertEqual(tape, MOCK.REQUESTS)
+        mutations = (lambda t:t[0]["response"]["output"][0].update(call_id="not-returned"),
+            lambda t:t[0]["response"]["output"][0].update(arguments="{}"),
+            lambda t:t[0]["response"].update(model=MOCK.USAGE_MODELS[1]),
+            lambda t:t[0]["lifecycle"].update(outcome="controlled_failure"),
+            lambda t:t[0]["body"].update(instructions="forged context"),
+            lambda t:t[0]["body"].update(model=MOCK.USAGE_MODELS[1]))
+        for mutate in mutations:
+            forged = copy.deepcopy(tape); mutate(forged)
+            with self.subTest(mutate=mutate), self.assertRaises(ValueError):
+                MOCK.admin_responses_step(second, MOCK.responses_input(second), prior_requests=forged)
+        self.assertEqual(self.send(second)[0], 200)
+        with self.assertRaises(ValueError):
+            MOCK.admin_responses_step(second, MOCK.responses_input(second), prior_requests=copy.deepcopy(MOCK.REQUESTS))
+
+
 if __name__ == "__main__":
     unittest.main()
