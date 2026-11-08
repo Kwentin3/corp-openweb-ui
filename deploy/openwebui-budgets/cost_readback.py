@@ -13,9 +13,10 @@ returns uncapped counts plus rows, not session_total_spend. Admin-viewer sees
 all users in a session; every row is therefore checked here, never filtered out.
 Use a native proxy_admin_viewer user and a key restricted to exactly this GET
 route (not key_type=read_only, which selects the info_routes preset).
-The separate admin projection uses native /spend/logs/v2 with exact assignment
-filters and an explicit caller-owned half-open UTC calendar window. It retains
-qualified known subtotal alongside unknown rows without certifying final cost.
+The separate admin presence reader uses native /spend/logs/v2 with exact current
+assignment filters and explicit UTC observation dates. One owned persisted
+unknown marker proves presence; a negative search never proves known/zero cost,
+history completeness, a billing period, or the reason for a native key block.
 """
 
 from __future__ import annotations
@@ -101,25 +102,21 @@ class CostSnapshot:
 
 
 @dataclass(frozen=True)
-class AdminExpenseProjection:
-    """Server-only observed rows; pagination is not expense settlement."""
+class AdminUnknownPresence:
+    """An existence witness only. False means unconfirmed, never known/free."""
     user_id: str
     model: str
-    window_start: datetime
-    window_end_exclusive: datetime
-    known_subtotal: CostTotal
-    unknown_rows: int
-    observed_total_spend: Decimal | None
-    raw_rows: int
-    excluded_boundary_rows: int
+    observation_start: datetime
+    observation_end: datetime
+    unknown_confirmed: bool
+    scanned_rows: int
+    reason: str
     as_of: datetime
-    pagination_complete: Literal[True] = True
+    # No result claims a complete history/financial scan, including an early
+    # witness return or a negative scan that exhausted the current pages.
+    pagination_complete: Literal[False] = False
     final: Literal[False] = False
-    coverage: Literal["persisted_rows_in_window"] = "persisted_rows_in_window"
-
-    @property
-    def expense_unknown(self) -> bool:
-        return self.unknown_rows > 0
+    coverage: Literal["observed_native_rows_only"] = "observed_native_rows_only"
 
 
 @dataclass(frozen=True)
@@ -440,38 +437,24 @@ async def read_cost_snapshot(
         raise CostReadError("spend_api_unavailable") from None
 
 
-def _native_timestamp(value: object) -> datetime:
-    # Native writer normalizes UTC; v2 selects a plain UTC timestamp column.
-    # Its JSON may therefore have no offset. This is never local-time inference.
-    _require(isinstance(value, str) and re.fullmatch(
-        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)?", value) is not None,
-        "invalid_timestamp")
-    try:
-        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        raise CostReadError("invalid_timestamp") from None
-    return timestamp.replace(tzinfo=timezone.utc) if timestamp.tzinfo is None else timestamp
-
-
-async def read_admin_expense_projection(
+async def read_admin_unknown_presence(
     session: ClientSession, *, base_url: str, admin_key: str, user_id: str,
-    model: str, assignment_hash: str, window_start: datetime, window_end_exclusive: datetime,
+    model: str, assignment_hash: str, observation_start: datetime, observation_end: datetime,
     timeout_seconds: float = 10.0, max_pages: int = MAX_PAGES,
-) -> AdminExpenseProjection:
-    """Read one SERVER-OWNED assignment's observed personal expense rows.
+) -> AdminUnknownPresence:
+    """Look for a durable unknown marker for one SERVER-OWNED current assignment.
 
-    The caller owns admin/assignment authority and the actual calendar window;
-    this function never derives it from a clock or reset date. Both boundaries
-    must be explicit aware-UTC whole seconds. Native v2 queries inclusive end;
-    every returned boundary row is validated, then explicitly excluded from the
-    public half-open window. No min-spend/status/grouping filter hides unknowns.
+    The caller owns admin authority and explicit aware-UTC whole-second query
+    dates (native v2 requires dates and uses an inclusive end). These are query
+    bounds, not verified event-time coverage or a billing month. Returned event
+    timestamps are not validated here. No calendar or monetary calculation
+    occurs here. The latest rows are examined first within page/byte/time bounds.
 
-    Known subtotal reuses the strict existing row/Decimal owner. Missing Usage
-    (including marked failure/estimated-positive rows) cannot add an amount.
-    Empty/unknown-only has no verified zero. All pages must validate in one
-    bounded scan; there is no partial result/retry/repair on a bad scan. Offset
-    pagination and a fixed window do not prove transaction isolation, absence
-    of late writes, or settlement, hence final is always False.
+    One owned valid marker proves presence even if other rows or pagination
+    are bad/capped. Without a witness, every outcome is unconfirmed/unavailable:
+    retention, rotation, late writes and clock skew prevent an absence proof.
+    Consumers must map True to unknown and False to unavailable, never known or
+    zero. Native counters and blocked status remain separate native readbacks.
     """
     _reader_configuration(base_url, admin_key, max_pages)
     _require(type(timeout_seconds) in (int, float) and Decimal(str(timeout_seconds)).is_finite()
@@ -479,59 +462,56 @@ async def read_admin_expense_projection(
     user_id, model = _call_id(user_id), _text(model)
     _require(len(model) <= 256 and isinstance(assignment_hash, str)
              and re.fullmatch(r"[0-9a-f]{64}", assignment_hash) is not None, "invalid_scope")
-    for boundary in (window_start, window_end_exclusive):
+    for boundary in (observation_start, observation_end):
         _require(isinstance(boundary, datetime) and boundary.tzinfo is not None
-                 and boundary.utcoffset() == timedelta(0) and boundary.microsecond == 0, "invalid_window")
-    _require(window_start < window_end_exclusive, "invalid_window")
+                 and boundary.utcoffset() == timedelta(0) and boundary.microsecond == 0,
+                 "invalid_observation_range")
+    _require(observation_start < observation_end, "invalid_observation_range")
     params = {"user_id": user_id, "api_key": assignment_hash, "model_group": model,
-        "start_date": window_start.strftime("%Y-%m-%d %H:%M:%S"),
-        "end_date": window_end_exclusive.strftime("%Y-%m-%d %H:%M:%S"),
-        "page_size": PAGE_SIZE, "sort_by": "startTime", "sort_order": "asc", "group_by_session": "false"}
-    known: list[_Row] = []
-    ids: set[str] = set()
-    unknown_rows = excluded = 0
+        "start_date": observation_start.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_date": observation_end.strftime("%Y-%m-%d %H:%M:%S"),
+        "page_size": PAGE_SIZE, "sort_by": "startTime", "sort_order": "desc", "group_by_session": "false"}
+    scanned = 0
+    invalid_rows = False
     counts = None
-    page = 1
+
+    def result(confirmed: bool, reason: str) -> AdminUnknownPresence:
+        return AdminUnknownPresence(user_id, model, observation_start, observation_end,
+                                    confirmed, scanned, reason, datetime.now(timezone.utc))
+
     try:
         async with asyncio.timeout(timeout_seconds):
-            while True:
+            for page in range(1, max_pages + 1):
                 payload = await _get_page(session, base_url.rstrip("/") + ADMIN_ROUTE, admin_key,
                                           {**params, "page": page}, timeout_seconds)
-                # Unlike the uncapped session endpoint, v2 must expose this flag.
+                data = payload.get("data")
+                _require(isinstance(data, list), "invalid_pagination")
+                # An existence witness is independent of total/page metadata.
+                # Even a malformed oversized list cannot cause unbounded work.
+                for raw in data[:PAGE_SIZE]:
+                    scanned += 1
+                    try:
+                        _require(isinstance(raw, dict), "invalid_row")
+                        _text(raw.get("request_id"))
+                        _require(raw.get("api_key") == assignment_hash and raw.get("model_group") == model,
+                                 "foreign_scope")
+                        _text(raw.get("model"))  # Opaque provider model, never decoded into an alias.
+                        chat_id = _call_id(raw.get("session_id"))
+                        scope = _attribution(raw, user_id, chat_id)
+                        _require(scope["model"] == model, "foreign_scope")
+                        if _usage_unavailable(raw["metadata"]):
+                            return result(True, "usage_unavailable")
+                    except CostReadError:
+                        invalid_rows = True
                 _require(payload.get("total_is_capped") is False, "incomplete_pagination")
-                data, counts = _validated_page(payload, page, max_pages, counts)
-                for raw in data:
-                    _require(isinstance(raw, dict), "invalid_row")
-                    _require(raw.get("api_key") == assignment_hash and raw.get("model_group") == model,
-                             "foreign_scope")
-                    _text(raw.get("model"))  # Provider model is opaque, never decoded into an alias.
-                    chat_id = _call_id(raw.get("session_id"))
-                    scope = _attribution(raw, user_id, chat_id)
-                    _require(scope["model"] == model, "foreign_scope")
-                    request_id = _text(raw.get("request_id"))
-                    _require(request_id not in ids, "duplicate_request_id")
-                    ids.add(request_id)
-                    started, ended = _native_timestamp(raw.get("startTime")), _native_timestamp(raw.get("endTime"))
-                    _require(window_start <= started <= window_end_exclusive and ended >= started, "foreign_window")
-                    _require(raw.get("status") in ("success", "failure"), "accounting_unavailable")
-                    unknown = _usage_unavailable(raw["metadata"])
-                    if unknown:
-                        _usage_numbers(raw)  # Validate telemetry, never charge its estimate.
-                        item = None
-                    else:
-                        item = _row(raw, user_id, chat_id)
-                    if started == window_end_exclusive:
-                        excluded += 1
-                    elif unknown:
-                        unknown_rows += 1
-                    else:
-                        known.append(item)
+                # Reuse the native page validator without treating the search
+                # budget as a claim that all native history fits inside it.
+                native_pages = _integer(payload.get("total_pages"), "invalid_pagination")
+                _, counts = _validated_page(payload, page, max(max_pages, native_pages), counts)
                 if page >= counts[1]:
-                    _require(len(ids) == counts[0], "incomplete_pagination")
-                    subtotal = _total(known)
-                    return AdminExpenseProjection(user_id, model, window_start, window_end_exclusive,
-                        subtotal, unknown_rows, None if unknown_rows else subtotal.spend,
-                        len(ids), excluded, datetime.now(timezone.utc))
-                page += 1
+                    return result(False, "accounting_unavailable" if invalid_rows else "not_proven")
+            return result(False, "incomplete_pagination")
     except asyncio.TimeoutError:
-        raise CostReadError("spend_api_unavailable") from None
+        return result(False, "spend_api_unavailable")
+    except CostReadError as error:
+        return result(False, error.code)

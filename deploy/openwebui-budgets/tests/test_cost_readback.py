@@ -530,16 +530,14 @@ class _MemoryReadSession:
 
 
 ASSIGNMENT = "a" * 64
-WINDOW_START = datetime(2026, 10, 1, tzinfo=timezone.utc)
-WINDOW_END = datetime(2026, 11, 1, tzinfo=timezone.utc)
+OBSERVATION_START = datetime(1970, 1, 1, tzinfo=timezone.utc)
+OBSERVATION_END = datetime(2026, 11, 8, 12, tzinfo=timezone.utc)
 
 
-def admin_row(request_id="provider-1", *, unknown=False, spend="0.20", status="success",
-              started="2026-10-07T12:00:00.123Z", ended="2026-10-07T12:00:01Z", action="block"):
-    value = row(request_id, spend=spend)
-    value.update(api_key=ASSIGNMENT, model_group="alias-a", startTime=started, endTime=ended, status=status)
+def admin_row(request_id="provider-1", *, unknown=False, action="block"):
+    value = row(request_id)
+    value.update(api_key=ASSIGNMENT, model_group="alias-a")
     if unknown:
-        value.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)
         value["metadata"]["guardrail_information"] = [{"guardrail_name": "owui_budget_usage",
             "guardrail_action": action, "violation_categories": ["usage_unavailable"]}]
     return value
@@ -549,155 +547,205 @@ def admin_page(rows, *, number=1, total=None):
     return {**page(rows, number=number, total=total), "total_is_capped": False}
 
 
-class AdminExpenseProjectionTests(unittest.IsolatedAsyncioTestCase):
+class AdminUnknownPresenceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.requests, self.handler = [], None
         self.payload = admin_page([admin_row()])
         self.session = _MemoryReadSession(self)
 
+    async def asyncTearDown(self):
+        await self.session.close()
+
     async def read(self, **kwargs):
         values = dict(base_url="http://native-fixture.invalid", admin_key="synthetic-admin-only-key", user_id=USER,
-            model="alias-a", assignment_hash=ASSIGNMENT, window_start=WINDOW_START, window_end_exclusive=WINDOW_END)
+            model="alias-a", assignment_hash=ASSIGNMENT,
+            observation_start=OBSERVATION_START, observation_end=OBSERVATION_END)
         values.update(kwargs)
-        return await cost.read_admin_expense_projection(self.session, **values)
+        return await cost.read_admin_unknown_presence(self.session, **values)
 
-    async def test_known_subtotal_and_unknown_zero_failure_estimate_are_distinct(self):
-        for spend, status, action in (("0", "success", "block"), ("0.9", "success", "block"),
-                                      ("0.7", "failure", "block_failed")):
-            values = [admin_row("known-1", spend="0.10"), admin_row("known-2", spend="0.23"),
-                      admin_row("unknown", unknown=True, spend=spend, status=status, action=action)]
-            self.payload = admin_page(values); before = copy.deepcopy(self.payload)
-            result = await self.read()
-            self.assertEqual(result.known_subtotal.spend, Decimal("0.33"))
-            self.assertEqual(result.known_subtotal.calls, 2)
-            self.assertEqual(result.unknown_rows, 1); self.assertTrue(result.expense_unknown)
-            self.assertIsNone(result.observed_total_spend); self.assertFalse(result.final)
-            self.assertEqual(result.raw_rows, 3); self.assertTrue(result.pagination_complete)
-            self.assertEqual(self.payload, before); self.assertFalse(self.session.closed)
-            self.assertNotIn(ASSIGNMENT, repr(result)); self.assertNotIn("synthetic-admin", repr(result))
-
-    async def test_no_rows_unknown_only_and_known_only_never_invent_zero(self):
-        for values in ([], [admin_row(unknown=True, spend="0", status="failure")]):
-            self.payload = admin_page(values)
-            result = await self.read()
-            self.assertIsNone(result.known_subtotal.spend); self.assertIsNone(result.observed_total_spend)
-            self.assertFalse(result.final)
-        self.payload = admin_page([admin_row()])
-        result = await self.read()
-        self.assertEqual(result.observed_total_spend, Decimal("0.20")); self.assertFalse(result.expense_unknown)
+    def assert_unconfirmed(self, result):
+        self.assertFalse(result.unknown_confirmed)
         self.assertFalse(result.final)
-        self.payload = admin_page([admin_row(spend="0")])
-        with self.assertRaisesRegex(cost.CostReadError, "accounting_unavailable"): await self.read()
+        self.assertFalse(result.pagination_complete)
+        self.assertEqual(result.coverage, "observed_native_rows_only")
+        self.assertFalse(hasattr(result, "known_subtotal"))
+        self.assertFalse(hasattr(result, "observed_total_spend"))
 
-    async def test_exact_native_v2_query_uses_caller_window_without_row_hiding_filters(self):
-        await self.read()
-        self.assertEqual(self.requests, [("GET", {"user_id": USER, "api_key": ASSIGNMENT, "model_group": "alias-a",
-            "start_date": "2026-10-01 00:00:00", "end_date": "2026-11-01 00:00:00", "page_size": "100",
-            "sort_by": "startTime", "sort_order": "asc", "group_by_session": "false", "page": "1"},
-            "Bearer synthetic-admin-only-key")])
-
-    async def test_fractional_last_second_included_exact_reset_explicitly_excluded(self):
-        last = admin_row("last", started="2026-10-31T23:59:59.999", ended="2026-11-01T00:00:01Z")
-        boundary = admin_row("reset", unknown=True, spend="0", started="2026-11-01T00:00:00+00:00",
-                             ended="2026-11-01T00:00:00.001Z", status="failure")
-        self.payload = admin_page([last, boundary])
+    async def test_owned_unknown_after_known_and_unbound_audit_needs_no_money_or_usage(self):
+        witness = admin_row("unknown", unknown=True)
+        witness.update(spend="not-an-amount", total_tokens=True, prompt_tokens=None,
+                       completion_tokens=-1, status="opaque-native-status", blocked=False)
+        self.payload = admin_page([admin_row("known"), {"request_id": "unbound-native-audit"}, witness])
+        before = copy.deepcopy(self.payload)
         result = await self.read()
-        self.assertEqual(result.known_subtotal.spend, Decimal("0.20"))
-        self.assertEqual((result.raw_rows, result.excluded_boundary_rows, result.unknown_rows), (2, 1, 0))
-        self.assertFalse(result.expense_unknown); self.assertEqual(result.window_end_exclusive, WINDOW_END)
+        self.assertTrue(result.unknown_confirmed)
+        self.assertEqual((result.scanned_rows, result.reason), (3, "usage_unavailable"))
+        self.assertEqual(self.payload, before)
+        self.assertFalse(result.final); self.assertFalse(result.pagination_complete)
+        self.assertNotIn(ASSIGNMENT, repr(result))
+        self.assertNotIn("synthetic-admin", repr(result))
+        self.assertFalse(self.session.closed)
 
-    async def test_foreign_identity_even_at_exact_end_fails_closed(self):
+    async def test_foreign_or_invalid_row_identity_never_confirms_a_marker(self):
         mutations = (lambda r:r.update(user=OTHER_USER), lambda r:r.update(api_key="b"*64),
-            lambda r:r.update(model_group="other-alias"),
+            lambda r:r.update(model_group="other-alias"), lambda r:r.update(model=""),
+            lambda r:r.update(request_id=""), lambda r:r.update(session_id=OTHER_CHAT),
+            lambda r:r.update(session_id="not-native"),
             lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(model="other-alias"),
             lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(user_id=OTHER_USER),
-            lambda r:r.update(session_id=OTHER_CHAT))
-        for boundary in (False, True):
-            for mutate in mutations:
-                candidate = admin_row(unknown=True)
-                if boundary: candidate.update(startTime="2026-11-01T00:00:00Z", endTime="2026-11-01T00:00:00Z")
-                mutate(candidate); self.payload = admin_page([candidate])
-                with self.subTest(boundary=boundary, mutate=mutate), self.assertRaises(cost.CostReadError): await self.read()
-
-    async def test_missing_scope_service_scope_malformed_marker_and_bad_values_fail_closed(self):
-        mutations = (lambda r:r.update(metadata={}), lambda r:r.update(request_id=""), lambda r:r.update(session_id="not-native"),
+            lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(root_chat_id=OTHER_CHAT),
+            lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(call_id="unbound"),
             lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(category="service"),
-            lambda r:r["metadata"]["guardrail_information"][0].update(guardrail_action="allow"),
-            lambda r:r["metadata"]["guardrail_information"].append({"guardrail_name":"owui_budget_usage","violation_categories":None}),
-            lambda r:r.update(spend="NaN"), lambda r:r.update(spend="-1"), lambda r:r.update(total_tokens=True),
-            lambda r:r.update(prompt_tokens=1), lambda r:r.update(status="invented"))
+            lambda r:r.update(metadata={}))
         for mutate in mutations:
-            candidate = admin_row(unknown=True, spend="0"); mutate(candidate)
+            candidate = admin_row(unknown=True); mutate(candidate)
             self.payload = admin_page([candidate])
-            with self.subTest(mutate=mutate), self.assertRaises(cost.CostReadError): await self.read()
+            with self.subTest(mutate=mutate):
+                result = await self.read()
+                self.assert_unconfirmed(result)
+                self.assertEqual((result.scanned_rows, result.reason), (1, "accounting_unavailable"))
 
-    async def test_unsupported_or_foreign_time_and_guessed_windows_reject(self):
-        for value in ("2026-09-30T23:59:59.999Z", "2026-11-01T00:00:00.001Z", "2026-10-07",
-                      "2026-10-07T12:00:00+03:00", "bad", "2026-99-07T12:00:00Z"):
-            self.payload = admin_page([admin_row(unknown=True, started=value)])
-            with self.subTest(value=value), self.assertRaises(cost.CostReadError): await self.read()
-        cases = ({"window_start": WINDOW_START.replace(tzinfo=None)},
-            {"window_end_exclusive": WINDOW_END.replace(microsecond=1)}, {"window_start": WINDOW_END},
-            {"window_start": WINDOW_START.astimezone(timezone(timedelta(hours=3)))},
-            {"assignment_hash":"sk-not-an-assignment-hash"}, {"user_id":"invented"}, {"timeout_seconds":float("inf")})
+    async def test_valid_witness_survives_capped_missing_and_bad_pagination(self):
+        variants = ({"total_is_capped": True}, {"total_is_capped": None}, {"page": True},
+                    {"total": "bad"}, {"total_pages": -1}, {"page_size": 999})
+        for changes in variants:
+            self.payload = {**admin_page([admin_row(unknown=True), None]), **changes}
+            self.requests.clear()
+            with self.subTest(changes=changes):
+                result = await self.read()
+                self.assertTrue(result.unknown_confirmed)
+                self.assertEqual(result.scanned_rows, 1)  # Later malformed row was never examined.
+                self.assertEqual(len(self.requests), 1)
+                self.assertFalse(result.pagination_complete)
+
+    async def test_witness_after_bad_row_survives_cap_and_later_transport_failure(self):
+        self.payload = {**admin_page([None, admin_row(unknown=True)], total=101),
+                        "total_is_capped": True}
+        async def handler(request):
+            if request.query["page"] != "1":
+                return web.Response(status=403, text="PRIVATE_BODY")
+            return web.json_response(self.payload)
+        self.handler = handler
+        result = await self.read()
+        self.assertTrue(result.unknown_confirmed)
+        self.assertEqual(result.scanned_rows, 2)
+        self.assertEqual(len(self.requests), 1)
+
+    async def test_absence_known_zero_and_block_flag_never_prove_known_or_free(self):
+        for values in ([], [admin_row()], [dict(admin_row(), spend="0", blocked=True)],
+                       [{"request_id": "unsigned-auth-denial", "api_key": ASSIGNMENT, "status": "failure"}]):
+            self.payload = admin_page(values)
+            with self.subTest(values=values):
+                result = await self.read()
+                self.assert_unconfirmed(result)
+                self.assertEqual(result.scanned_rows, len(values))
+                self.assertIn(result.reason, ("not_proven", "accounting_unavailable"))
+
+    async def test_shared_native_marker_classification_stays_strict(self):
+        for action in ("block", "block_failed"):
+            self.payload = admin_page([admin_row(unknown=True, action=action)])
+            self.assertTrue((await self.read()).unknown_confirmed)
+        mutations = (
+            lambda r:r["metadata"]["guardrail_information"][0].update(guardrail_name="other-native-guardrail"),
+            lambda r:r["metadata"]["guardrail_information"][0].update(guardrail_action="allow"),
+            lambda r:r["metadata"]["guardrail_information"][0].update(violation_categories=None),
+            lambda r:r["metadata"]["guardrail_information"].append(
+                {"guardrail_name": "owui_budget_usage", "guardrail_action": "block", "violation_categories": None}))
+        for mutate in mutations:
+            candidate = admin_row(unknown=True); mutate(candidate)
+            self.payload = admin_page([candidate])
+            with self.subTest(mutate=mutate): self.assert_unconfirmed(await self.read())
+
+    async def test_exact_native_v2_query_is_explicit_latest_first_observation_not_month(self):
+        await self.read()
+        self.assertEqual(self.requests, [("GET", {"user_id": USER, "api_key": ASSIGNMENT, "model_group": "alias-a",
+            "start_date": "1970-01-01 00:00:00", "end_date": "2026-11-08 12:00:00", "page_size": "100",
+            "sort_by": "startTime", "sort_order": "desc", "group_by_session": "false", "page": "1"},
+            "Bearer synthetic-admin-only-key")])
+
+    async def test_later_page_witness_survives_prior_unbound_rows_and_large_retained_history(self):
+        async def handler(request):
+            number = int(request.query["page"])
+            values = [{"request_id": f"unbound-{i}"} for i in range(100)] if number == 1 else [
+                admin_row("later-unknown", unknown=True)] + [admin_row(f"known-{i}") for i in range(99)]
+            return web.json_response(admin_page(values, number=number, total=10001))
+        self.handler = handler
+        result = await self.read(max_pages=2)
+        self.assertTrue(result.unknown_confirmed)
+        self.assertEqual(result.scanned_rows, 101)
+        self.assertEqual([r[1]["page"] for r in self.requests], ["1", "2"])
+        self.assertFalse(result.pagination_complete)
+
+    async def test_page_budget_retention_and_incomplete_scan_leave_presence_unconfirmed(self):
+        async def handler(request):
+            number = int(request.query["page"])
+            return web.json_response(admin_page([admin_row(f"p{number}-{i}") for i in range(100)],
+                                                number=number, total=10001))
+        self.handler = handler
+        result = await self.read(max_pages=2)
+        self.assert_unconfirmed(result)
+        self.assertEqual((result.scanned_rows, result.reason), (200, "incomplete_pagination"))
+        self.assertEqual(len(self.requests), 2)
+        self.handler = None
+        for payload in (dict(admin_page([admin_row()]), total_is_capped=True),
+                        dict(admin_page([admin_row()]), total=2),
+                        dict(admin_page([admin_row()]), total_is_capped=None),
+                        {"data": None}, admin_page([])):
+            self.payload = payload
+            with self.subTest(payload=payload): self.assert_unconfirmed(await self.read())
+
+    async def test_data_iteration_is_bounded_even_if_native_page_length_is_bad(self):
+        self.payload = admin_page([admin_row(f"known-{i}") for i in range(100)] +
+                                  [admin_row("beyond-page-bound", unknown=True)])
+        result = await self.read()
+        self.assert_unconfirmed(result)
+        self.assertEqual(result.scanned_rows, 100)
+        self.payload["data"][99] = admin_row("within-bound", unknown=True)
+        result = await self.read()
+        self.assertTrue(result.unknown_confirmed)
+        self.assertEqual(result.scanned_rows, 100)
+
+    async def test_bad_http_json_size_and_partial_deadline_never_confirm_presence(self):
+        async def redirect(request): raise web.HTTPFound("http://foreign.invalid")
+        async def forbidden(request): return web.Response(status=403, text="synthetic-admin-only-key PRIVATE_BODY")
+        async def bad_json(request): return web.Response(body=b"not-json")
+        async def oversized(request): return web.Response(body=b"x" * (cost.MAX_PAGE_BYTES+1))
+        for handler in (redirect, forbidden, bad_json, oversized):
+            self.handler = handler
+            with self.subTest(handler=handler):
+                result = await self.read()
+                self.assert_unconfirmed(result)
+                self.assertEqual(result.scanned_rows, 0)
+                self.assertNotIn("PRIVATE_BODY", repr(result))
+                self.assertNotIn("synthetic-admin", repr(result))
+        async def partial(request):
+            number = int(request.query["page"])
+            if number == 2: await asyncio.sleep(.1)
+            return web.json_response(admin_page([admin_row(f"p{i}") for i in range(100)], number=number, total=200))
+        self.handler = partial; self.requests.clear()
+        result = await self.read(timeout_seconds=.03)
+        self.assert_unconfirmed(result)
+        self.assertEqual((result.scanned_rows, result.reason), (100, "spend_api_unavailable"))
+        self.assertEqual(len(self.requests), 2)
+
+    async def test_invalid_server_inputs_fail_before_http_without_guessing_or_truncating(self):
+        cases = ({"observation_start": OBSERVATION_START.replace(tzinfo=None)},
+            {"observation_end": OBSERVATION_END.replace(microsecond=1)},
+            {"observation_start": OBSERVATION_END},
+            {"observation_start": OBSERVATION_START.astimezone(timezone(timedelta(hours=3)))},
+            {"assignment_hash": "sk-not-an-assignment-hash"}, {"user_id": "invented"},
+            {"model": ""}, {"admin_key": ""}, {"timeout_seconds": float("inf")}, {"max_pages": 0})
         for values in cases:
             self.requests.clear()
             with self.subTest(values=values), self.assertRaises(cost.CostReadError): await self.read(**values)
             self.assertEqual(self.requests, [])
 
-    async def test_all_native_pages_and_boundary_rows_are_accounted_before_result(self):
-        values = [admin_row(f"known-{i}") for i in range(100)] + [admin_row("unknown", unknown=True, spend="0"),
-            admin_row("reset", started="2026-11-01T00:00:00Z", ended="2026-11-01T00:00:00Z")]
-        async def handler(request):
-            number = int(request.query["page"])
-            return web.json_response(admin_page(values[(number-1)*100:number*100], number=number, total=102))
-        self.handler = handler
-        result = await self.read()
-        self.assertEqual([r[1]["page"] for r in self.requests], ["1", "2"])
-        self.assertEqual(result.known_subtotal.spend, Decimal("20"))
-        self.assertEqual((result.raw_rows, result.excluded_boundary_rows, result.unknown_rows), (102, 1, 1))
-
-    async def test_capped_missing_flag_duplicate_incomplete_or_unstable_pages_have_no_partial_result(self):
-        missing = page([admin_row()])
-        values = (missing, dict(admin_page([admin_row()]), total_is_capped=True),
-            admin_page([admin_row()], total=2), dict(admin_page([admin_row()]), page=True),
-            admin_page([admin_row(), admin_row()]), admin_page([], total=10001))
-        for payload in values:
-            self.payload = payload
-            with self.subTest(payload=payload), self.assertRaises(cost.CostReadError): await self.read()
-        async def drift(request):
-            number = int(request.query["page"])
-            return web.json_response(admin_page([admin_row(f"p{i}") for i in range(100)] if number == 1 else [],
-                number=number, total=101 if number == 1 else 100))
-        self.handler = drift; self.requests.clear()
-        with self.assertRaisesRegex(cost.CostReadError, "incomplete_pagination"): await self.read()
-        self.assertEqual(len(self.requests), 2)  # No repair or automatic retry.
-
-    async def test_partial_timeout_http_redirect_and_size_errors_never_return_a_projection(self):
-        async def partial(request):
-            number = int(request.query["page"])
-            if number == 2: await asyncio.sleep(.1)
-            return web.json_response(admin_page([admin_row(f"p{i}") for i in range(100)] if number == 1 else [admin_row("last")],
-                number=number, total=101))
-        self.handler = partial
-        with self.assertRaisesRegex(cost.CostReadError, "spend_api_unavailable"): await self.read(timeout_seconds=.03)
-        async def redirect(request): raise web.HTTPFound("http://foreign.invalid")
-        async def forbidden(request): return web.Response(status=403, text="synthetic-admin-only-key PRIVATE_BODY")
-        async def oversized(request): return web.Response(body=b"x"*(cost.MAX_PAGE_BYTES+1))
-        for handler in (redirect, forbidden, oversized):
-            self.handler = handler
-            with self.subTest(handler=handler), self.assertRaises(cost.CostReadError) as caught: await self.read()
-            self.assertNotIn("PRIVATE_BODY", str(caught.exception)); self.assertNotIn("synthetic-admin", str(caught.exception))
-
-    async def test_shared_aggregation_keeps_small_known_charge_and_chat_remains_strict(self):
-        self.payload = admin_page([admin_row("large", spend="1e30"), admin_row("small", spend="0.01"),
-            admin_row("unknown", unknown=True, spend=".4")])
-        result = await self.read()
-        self.assertEqual(result.known_subtotal.spend, Decimal("1000000000000000000000000000000.01"))
-        self.assertIsNone(result.observed_total_spend)
+    async def test_presence_does_not_relax_existing_strict_chat_reader(self):
+        self.payload = admin_page([admin_row("known"), admin_row("unknown", unknown=True)])
+        self.assertTrue((await self.read()).unknown_confirmed)
         with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
             await cost.read_cost_snapshot(self.session, base_url="http://native-fixture.invalid", read_key="private-read-key",
-                user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER, observed_request_ids=["large"])
+                user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER, observed_request_ids=["known"])
 
 
 if __name__ == "__main__":
