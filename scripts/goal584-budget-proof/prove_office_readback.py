@@ -38,7 +38,7 @@ def dependencies():
     return locals()
 
 
-def inventory(native, office):
+def inventory_owners(native):
     """Bounded actual user/key inventories and ALL NativeProof raw log pages."""
     users, page, total = [], 1, None
     while True:
@@ -50,10 +50,6 @@ def inventory(native, office):
         if page >= result['total_pages']: break
         page += 1
     require(len(users) == len(set(users)) == total, 'office_user_inventory_incomplete')
-    actor, payer = office['users'][0]['id'], office['service_fixture']['payer_id']
-    hashes = {actor: office['office_setup']['budget']['models'][0]['key_hash'],
-              payer: office['service_fixture']['key_hash']}
-    require(actor != payer and set(hashes) <= set(users), 'office_readback_payers')
     owners = {}
     for uid in sorted(users):
         keys, page, total = [], 1, None
@@ -72,6 +68,16 @@ def inventory(native, office):
         owners[uid] = {'user': native.user_info(uid), 'keys': sorted(keys, key=lambda k: k['token']),
                        'rows': sorted(native.logs(uid), key=lambda r: r['request_id'])}
         require(owners[uid]['user'].get('user_id') == uid, 'office_user_inventory_scope')
+    return owners
+
+
+def inventory(native, office):
+    """Legacy single-key selection over the same complete native inventory."""
+    owners = inventory_owners(native)
+    actor, payer = office['users'][0]['id'], office['service_fixture']['payer_id']
+    hashes = {actor: office['office_setup']['budget']['models'][0]['key_hash'],
+              payer: office['service_fixture']['key_hash']}
+    require(actor != payer and set(hashes) <= set(owners), 'office_readback_payers')
     selected = {}
     for uid, key_hash in hashes.items():
         matches = [k for k in owners[uid]['keys'] if k['token'] == key_hash]

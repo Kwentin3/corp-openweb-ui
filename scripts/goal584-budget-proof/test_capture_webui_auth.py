@@ -196,6 +196,33 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("sk-private-native-key", json.dumps(rows))
         self.assertNotIn("owui_budget_provenance", json.dumps(rows))
 
+    async def test_delegated_office_models_keep_full_context_and_distinct_personal_nonces(self):
+        first = self.office_request()
+        requests = []
+        for index, model in enumerate(("gpt-6.1-sol", "gpt-6.1-terra", "gpt-6.1-terra")):
+            request = self.office_request(index)
+            request.data["model"] = request.scope["model"] = model
+            for field in ("user_id", "chat_id", "answer_id", "root_chat_id", "root_answer_id"):
+                request.scope[field] = first.scope[field]
+            request.headers["X-OpenWebUI-Task"] = "sub_agent" if index else ""
+            requests.append(request)
+        before = [copy.deepcopy(request.data) for request in requests]
+        with patch.object(C, "product_auth", return_value=self.responses_auth()), patch.object(
+                C, "scope_validator", side_effect=self.office_validator):
+            for request in requests:
+                await C.gateway_auth(request, "sk-private-native-key")
+        rows = self.read()["requests"]
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(len({row["verified_cost_scope"]["call_id"] for row in rows}), 3)
+        for original, request, row in zip(before, requests, rows):
+            expected = {key: value for key, value in original.items() if key != "litellm_metadata"}
+            self.assertEqual(row["body"], expected)
+            self.assertEqual(row["body_after_auth"], expected)
+            self.assertEqual(row["verified_cost_scope"], request.scope)
+            self.assertEqual(row["native_auth_user_id"], first.scope["user_id"])
+            self.assertNotIn("task", row["verified_cost_scope"])
+            self.assertTrue(row["attestation_present_before"] and row["provenance_removed_after"])
+
     async def test_office_incomplete_successful_auth_cannot_be_a_complete_capture(self):
         for service in (False, True):
             for mode in ("unsigned", "unconsumed", "missing_scope", "missing_native_identity", "no_auth"):

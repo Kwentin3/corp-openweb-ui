@@ -388,7 +388,7 @@ def delegated_responses_input(payload):
     return values
 
 
-def delegated_responses_step(payload, values):
+def delegated_responses_step(payload, values, *, parent_requests=None):
     """Simulate only the declared model choices; native Tool owns the loop/context."""
     def text(item):
         value = item.get('content', '')
@@ -435,13 +435,13 @@ def delegated_responses_step(payload, values):
         if (not isinstance(content, str) or skill.get('next_offset') is not None
                 or skill.get('id') != json.loads(calls[1]['arguments']).get('id')
                 or not content.startswith('# GOAL584 synthetic two-field Office copy\n')
-                or not content.endswith('No binary/base64 belongs in this Skill.\n')):
+                or 'No binary/base64 belongs in this Skill.\n' not in content):
             raise ValueError('Complete native Skill result missing')
         source_ids = re.findall(r'^Native source File ID: ([0-9a-f-]{36})$', content, re.M)
         hashes = re.findall(r'^Native source SHA256: ([0-9a-f]{64})$', content, re.M)
         if len(source_ids) != 1 or len(hashes) != 1: raise ValueError('Native Skill source binding missing')
         packet = {'schema': 1, 'task': 'goal584-synthetic-office',
-            'skill': {'id': skill['id'], 'content': content},
+            'skill': {'id': skill['id']},
             'source_file': {'id': source_ids[0], 'sha256': hashes[0]},
             'facts': {'employee': 'Ada Example', 'case': 'G584-2026'}, 'output_name': 'goal584-delegated.docx'}
         # view_skill does not return version_id; never invent it for the model.
@@ -469,22 +469,60 @@ def delegated_responses_step(payload, values):
     packets = []
     for item in values:
         if item.get('role') == 'user':
-            try: candidate = json.loads(text(item))
+            value = text(item)
+            try: candidate, end = json.JSONDecoder().raw_decode(value)
             except (ValueError, TypeError): continue
-            if isinstance(candidate, dict) and candidate.get('task') == 'goal584-synthetic-office': packets.append(candidate)
+            if isinstance(candidate, dict) and candidate.get('task') == 'goal584-synthetic-office':
+                # Pinned community _send_loop_request merges only the first
+                # volatile note into its trailing user prompt. Later notes are
+                # separate turns; never discard arbitrary appended instructions.
+                if value[end:] not in ('', '\n\n[Iteration 1/12]'):
+                    raise ValueError('Unexpected delegated task suffix')
+                packets.append(candidate)
     if len(packets) != 1: raise ValueError('Complete delegated worker packet missing')
     task = packets[0]
     if (set(task) != {'schema', 'task', 'skill', 'source_file', 'facts', 'output_name'}
             or type(task['schema']) is not int or task['schema'] != 1
             or task['facts'] != {'employee': 'Ada Example', 'case': 'G584-2026'}
             or task['output_name'] != 'goal584-delegated.docx'
-            or not isinstance(task['skill'], dict) or set(task['skill']) != {'id', 'content'}
-            or not isinstance(task['skill']['content'], str) or not isinstance(task['source_file'], dict)
+            or not isinstance(task['skill'], dict) or set(task['skill']) != {'id'}
+            or not isinstance(task['skill']['id'], str) or not isinstance(task['source_file'], dict)
             or set(task['source_file']) != {'id', 'sha256'}
-            or not isinstance(task['source_file']['id'], str) or not isinstance(task['source_file']['sha256'], str)
-            or 'Native source File ID: ' + task['source_file']['id'] + '\n' not in task['skill']['content']
-            or 'Native source SHA256: ' + task['source_file']['sha256'] + '\n' not in task['skill']['content']):
+            or not isinstance(task['source_file']['id'], str) or not isinstance(task['source_file']['sha256'], str)):
         raise ValueError('Delegated worker native packet differs')
+    # The current Office owner binds the full authorized Skill into the actual
+    # SYSTEM context. Do not duplicate its instructions in the model's JSON
+    # prompt. Read the existing finite provider observation tape only to verify
+    # that the worker really received the same complete native view_skill result.
+    if parent_requests is None:
+        with STATE_LOCK:
+            parent_requests = copy.deepcopy(REQUESTS)
+    contents = set()
+    for record in parent_requests:
+        body = record.get('body', {})
+        if body.get('model') != DELEGATED_PARENT_MODEL:
+            continue
+        history = body.get('input', [])
+        skill_calls = {v.get('call_id') for v in history if v.get('type') == 'function_call'
+                       and isinstance(v.get('name'), str) and v['name'].endswith('view_skill')}
+        for item in history:
+            if item.get('type') != 'function_call_output' or item.get('call_id') not in skill_calls:
+                continue
+            try:
+                skill = json.loads(item['output'])
+            except (ValueError, TypeError, KeyError):
+                continue
+            if (isinstance(skill, dict) and skill.get('id') == task['skill']['id']
+                    and isinstance(skill.get('content'), str) and skill.get('next_offset') is None):
+                contents.add(skill['content'])
+    if len(contents) != 1:
+        raise ValueError('Complete observed parent native Skill missing/ambiguous')
+    content = contents.pop()
+    if ('Native source File ID: ' + task['source_file']['id'] + '\n' not in content
+            or 'Native source SHA256: ' + task['source_file']['sha256'] + '\n' not in content
+            or sum(text(v).count(content) for v in values if v.get('role') in ('system', 'developer')) != 1
+            or sum(text(v).count(content) for v in values) != 1):
+        raise ValueError('Full native template must reach the worker exactly once')
     names = tuple(tool(s) for s in ('load_officecli_skill', 'inspect_office_document', 'apply_office_batch',
                                   'inspect_office_document', 'render_office_file'))
     if len(calls) > 5 or any(c['name'] != names[i] for i, c in enumerate(calls)):

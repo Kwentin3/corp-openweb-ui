@@ -687,7 +687,8 @@ class OfficeSetupTests(unittest.TestCase):
         config = yaml.safe_load((root / "compose/goal584.office-proof.yml").read_text(encoding="utf8"))
         mounts = {v["target"]: v for v in config["services"]["proxy"]["volumes"] if isinstance(v, dict)}
         for target, relative in (("/proof/artifact-workflow.md", "deploy/openwebui-skills/artifact-workflow.md"),
-                ("/proof/corporate_template_models.json", "deploy/openwebui-tools/corporate_template_models.json")):
+                ("/proof/corporate_template_models.json", "deploy/openwebui-tools/corporate_template_models.json"),
+                ("/proof/corporate_templates.py", "deploy/openwebui-tools/corporate_templates.py")):
             mount = mounts[target]
             self.assertTrue(mount["read_only"]); self.assertFalse(mount["bind"]["create_host_path"])
             self.assertEqual((root / "compose" / mount["source"]).resolve(), (root / relative).resolve())
@@ -965,6 +966,246 @@ class OfficeServiceSetupTests(unittest.TestCase):
         self.assertEqual(len(self.task_posts), 1)
 
 
+class PublicationHTTPWorld:
+    """Explicit native API IO leaves for the unchanged real publisher owner."""
+    def __init__(self, owner, actor, *, files=None, skills=None, fault=None):
+        self.owner, self.actor, self.fault = owner, actor, fault
+        self.files = {} if files is None else files
+        self.skills = {} if skills is None else skills
+        self.knowledge_id = '88888888-1111-4111-8111-111111111111'
+        self.knowledge, self.chats, self.processed, self.linked, self.requests = None, {}, set(), set(), []
+        self.config = {'status': True, 'BYPASS_EMBEDDING_AND_RETRIEVAL': False,
+            'RAG_TEMPLATE': 'PRIVATE_RAG_TEMPLATE', 'TOP_K': 7, 'web': {'KEEP_PRIVATE': ['a', 9]}}
+        self.baseline = copy.deepcopy(self.config)
+
+    def route(self, method, path, token, body=None, query=None):
+        self.requests.append((method, path, token, copy.deepcopy(body)))
+        if self.fault:
+            result = self.fault(self, method, path, token, body)
+            if result is not None: return result
+        if path == '/api/v1/auths/':
+            return 200, {'id': OWNER if token == 'Bearer synthetic-admin-token' else self.actor,
+                         'role': 'admin' if token == 'Bearer synthetic-admin-token' else 'user'}
+        if path == '/api/v1/retrieval/config': return 200, copy.deepcopy(self.config)
+        if path == '/api/v1/retrieval/config/update':
+            assert set(body) == {'BYPASS_EMBEDDING_AND_RETRIEVAL'}
+            self.config.update(copy.deepcopy(body)); return 200, copy.deepcopy(self.config)
+        if path == '/api/v1/knowledge/create':
+            assert self.config['BYPASS_EMBEDDING_AND_RETRIEVAL'] is True
+            self.knowledge = copy.deepcopy(body) | {'id': self.knowledge_id, 'user_id': OWNER}
+            return 200, copy.deepcopy(self.knowledge)
+        if path.startswith('/api/v1/knowledge/'):
+            base = '/api/v1/knowledge/' + self.knowledge_id
+            assert path.startswith(base)
+            value = copy.deepcopy(self.knowledge) | {'write_access': token == 'Bearer synthetic-admin-token'}
+            if path == base: return 200, value
+            if path.endswith('/file/add'):
+                assert self.config['BYPASS_EMBEDDING_AND_RETRIEVAL'] is True and body['file_id'] in self.processed
+                self.linked.add(body['file_id'])
+                return 200, value | {'files': [{'id': identifier} for identifier in self.linked]}
+            if path.endswith('/files'):
+                return 200, {'total': len(self.linked), 'items': [{'id': identifier} for identifier in self.linked]}
+        if path == '/api/v1/chats/new':
+            identifier = str(P.uuid.uuid4())
+            self.chats[identifier] = {'id': identifier, 'user_id': OWNER, 'chat': copy.deepcopy(body['chat'])}
+            return 200, copy.deepcopy(self.chats[identifier])
+        if path.startswith('/api/v1/chats/'): return 200, copy.deepcopy(self.chats[path.rsplit('/', 1)[1]])
+        if path == '/api/v1/skills/create':
+            value = copy.deepcopy(body) | {'user_id': OWNER, 'write_access': True, 'meta': {}, 'version_id': str(P.uuid.uuid4())}
+            self.skills[body['id']] = value
+            return 200, {k: v for k, v in value.items() if k != 'content'}
+        if path.startswith('/api/v1/skills/id/'):
+            identifier = path.split('/')[5]; value = self.skills[identifier]
+            if path.endswith('/update'):
+                assert body['expected_version_id'] == value['version_id']
+                value.update(copy.deepcopy(body) | {'version_id': str(P.uuid.uuid4())})
+            if path.endswith('/files'):
+                return 200, {'version_id': value['version_id'], 'files': [
+                    {'path': 'SKILL.md', 'size': len(value['content'].encode('utf8')), 'encoding': None}]}
+            return 200, copy.deepcopy(value)
+        if path == '/api/v1/retrieval/process/file':
+            assert self.config['BYPASS_EMBEDDING_AND_RETRIEVAL'] is True and body['file_id'] in self.files
+            self.processed.add(body['file_id'])
+            return 200, {'status': True}  # Explicit modeled extraction response, never runtime evidence.
+        if path.startswith('/api/v1/files/'):
+            identifier = path.split('/')[4]
+            if path.endswith('/content'): return 200, self.files[identifier]
+            return 200, {'id': identifier, 'user_id': self.actor, 'filename': 'goal584-delegated-source.docx',
+                'path': 'native-saved-original/' + identifier + '.docx',
+                'data': {'content': 'Modeled HTTP leaf extraction result'} if identifier in self.processed else {}}
+        raise AssertionError((method, path))
+
+    def session(self, **options):
+        world = self
+        if 'base_url' in options:
+            assert options['base_url'] == P.WEBUI_URL and options['trust_env'] is False
+            assert options['headers'] == {'Authorization': 'Bearer synthetic-admin-token'}
+        class Response:
+            def __init__(self, status, value): self.status, self.value = status, value
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): pass
+            async def json(self): return copy.deepcopy(self.value)
+        class Session:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): pass
+            def request(self, method, path, *, allow_redirects, json=None, params=None):
+                assert allow_redirects is False
+                return Response(*world.route(method, path, 'Bearer synthetic-admin-token', json, params))
+        return Session()
+
+
+class DelegatedPublicationTests(unittest.TestCase):
+    def test_actual_native_config_form_submits_only_the_single_owned_flag(self):
+        import ast
+        from pydantic import BaseModel, Field
+        from typing import Union
+        native = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(HERE.parents[1]/
+            'local/goal584/cost-display/open-webui/backend/open_webui')))
+        raw = (native/'routers/retrieval.py').read_bytes()
+        nodes = [node for node in ast.parse(raw).body if isinstance(node, ast.ClassDef)
+            and node.name in {'WebConfig', 'ConfigForm'}]
+        self.assertEqual(len(nodes), 2)
+        namespace = {'BaseModel': BaseModel, 'Field': Field, 'Union': Union}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), 'exact-native-retrieval-forms', 'exec'), namespace)
+        for value in (False, True):
+            form = namespace['ConfigForm'].model_validate({'BYPASS_EMBEDDING_AND_RETRIEVAL': value})
+            self.assertEqual(form.model_dump(exclude={'web'}, exclude_none=True), {'BYPASS_EMBEDDING_AND_RETRIEVAL': value})
+
+    def test_actual_native_knowledge_metadata_embedding_failure_is_best_effort(self):
+        import ast, asyncio
+        from types import SimpleNamespace
+        native = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(HERE.parents[1]/
+            'local/goal584/cost-display/open-webui/backend/open_webui')))
+        raw = (native/'routers/knowledge.py').read_bytes()
+        nodes = [node for node in ast.parse(raw).body if isinstance(node, ast.AsyncFunctionDef)
+            and node.name == 'embed_knowledge_base_metadata']
+        self.assertEqual(len(nodes), 1)
+        attempted = []
+        async def embedding_leaf(content, **kwargs):
+            attempted.append((content, kwargs)); raise RuntimeError('synthetic inactive embedding leaf')
+        namespace = {'Request': object, 'RAG_EMBEDDING_CONTENT_PREFIX': 'document:',
+            'log': SimpleNamespace(error=lambda *args: None)}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), 'exact-native-metadata-owner', 'exec'), namespace)
+        request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(EMBEDDING_FUNCTION=embedding_leaf,
+            BYPASS_EMBEDDING_AND_RETRIEVAL=True)))
+        self.assertFalse(asyncio.run(namespace['embed_knowledge_base_metadata'](request, 'native-id', 'Synthetic', 'Agreed')))
+        self.assertEqual(len(attempted), 1)
+
+    def exercise(self, fault=None):
+        import aiohttp, types
+        raw = (HERE.parents[1]/'deploy/openwebui-tools/corporate_templates.py').read_bytes().replace(b'\r\n', b'\n')
+        self.assertEqual(P.sha256(raw).hexdigest(), P.TEMPLATE_PUBLISHER_SHA256)
+        publisher = types.ModuleType('goal584_exact_publisher_test')
+        exec(compile(raw, 'exact-current-publisher', 'exec'), publisher.__dict__)
+        actor = {'id': CONTROL, 'token': 'synthetic-actor-token'}
+        file_id, skill_id = '77777777-1111-4111-8111-111111111111', 'goal584-source'
+        raw_source = P.delegated_source_docx()
+        original_skill = {'id': skill_id, 'user_id': OWNER, 'name': 'Synthetic instructions', 'description': 'Agreed',
+            'content': P.delegated_skill_content(file_id, P.sha256(raw_source).hexdigest()),
+            'version_id': OWNER, 'write_access': True, 'is_active': True, 'meta': {},
+            'access_grants': [{'principal_type': 'user', 'principal_id': CONTROL, 'permission': 'read'}]}
+        world = PublicationHTTPWorld(self, CONTROL, files={file_id: raw_source}, skills={skill_id: copy.deepcopy(original_skill)}, fault=fault)
+        state = {'schema': 1, 'admin': {'id': OWNER, 'token': 'synthetic-admin-token'}, 'office_delegation_setup': {
+            'stage': 'preparing', 'journal': [], 'actor': actor, 'source_file': {'id': file_id, 'filename': 'goal584-delegated-source.docx'},
+            'source_sha256': P.sha256(raw_source).hexdigest(), 'skill': copy.deepcopy(original_skill)}}
+        class Response(BytesIO):
+            headers = {}
+            def __init__(self, status, value):
+                super().__init__(value if isinstance(value, bytes) else json.dumps(value).encode()); self.code = status
+        class Transport:
+            def open(self, request, timeout):
+                parts = urlsplit(request.full_url)
+                return Response(*world.route(request.get_method(), parts.path, request.get_header('Authorization'),
+                    json.loads(request.data) if request.data else None, parse_qs(parts.query)))
+        with TemporaryDirectory() as directory:
+            path = Path(directory)/'publication.private.json'
+            if os.name == 'nt':
+                self.enterContext(patch.object(private_owner, 'private_parent'))
+                self.enterContext(patch.object(private_owner.stat, 'S_IMODE', return_value=0o600))
+            def before(stage, body=None):
+                state['office_delegation_setup']['journal'].append({'stage': stage, 'body': copy.deepcopy(body), 'returned': False})
+                P.write_private(path, state)
+            def post(route, body):
+                before(route, body)
+                value = webui.ok('POST', route, token=state['admin']['token'], body=body)
+                state['office_delegation_setup']['journal'][-1].update(returned=True, response=value)
+                P.write_private(path, state)
+                return value
+            error = None
+            with patch.object(P, 'build_opener', return_value=Transport()), patch.object(aiohttp, 'ClientSession', world.session):
+                webui = P.WebUI()
+                try: P.publish_delegated_template(webui, state, path, publisher, before, post)
+                except (P.ProofError, ValueError) as caught: error = caught
+            saved = P.read_private(path)
+        return error, saved['office_delegation_setup'], world, original_skill
+
+    def test_actual_publisher_full_skill_native_binding_and_scoped_restore(self):
+        error, selected, world, original = self.exercise()
+        self.assertIsNone(error)
+        self.assertEqual(selected['publication']['stage'], 'readback_ready')
+        self.assertTrue(selected['publication']['config_restored']); self.assertEqual(world.config, world.baseline)
+        self.assertEqual(selected['publication']['receipt']['status'], 'published')
+        self.assertTrue(selected['skill']['content'].startswith(original['content'].rstrip()))
+        self.assertNotEqual(selected['skill']['version_id'], original['version_id'])
+        self.assertIn('## Original template', selected['skill']['content'])
+        self.assertEqual(selected['publication']['membership']['total'], 1)
+        self.assertEqual(selected['publication']['saved_turn']['user_id'], OWNER)
+        self.assertTrue(all(message['role'] == 'user' for message in selected['publication']['saved_turn']['chat']['messages']))
+
+    def test_partial_native_processing_and_foreign_knowledge_never_earn_ready_and_restore(self):
+        for variant in ('process', 'foreign_knowledge', 'skill_id', 'skill_version', 'skill_acl', 'source_bytes'):
+            def fault(world, method, path, token, body):
+                if variant == 'process' and path == '/api/v1/retrieval/process/file': return 500, {'error': 'synthetic IO failure'}
+                if variant == 'foreign_knowledge' and path == '/api/v1/knowledge/' + world.knowledge_id:
+                    return 200, {'id': OWNER, 'user_id': OWNER, 'write_access': True, 'access_grants': world.knowledge['access_grants']}
+                if token == 'Bearer synthetic-actor-token' and path == '/api/v1/skills/id/goal584-source':
+                    value = copy.deepcopy(world.skills['goal584-source'])
+                    if variant == 'skill_id': value['id'] = 'foreign-skill'; return 200, value
+                    if variant == 'skill_version': value['version_id'] = CONTROL; return 200, value
+                    if variant == 'skill_acl': value['access_grants'] = []; return 200, value
+                if variant == 'source_bytes' and path.endswith('/content'): return 200, b'changed-source'
+            with self.subTest(variant=variant):
+                error, selected, world, _ = self.exercise(fault)
+                self.assertIsNotNone(error); self.assertEqual(selected['publication']['stage'], 'partial')
+                self.assertTrue(selected['publication']['config_restored']); self.assertEqual(world.config, world.baseline)
+
+    def test_enable_timeout_can_commit_but_finally_restores_and_retains_unreturned_journal(self):
+        def fault(world, method, path, token, body):
+            if path == '/api/v1/retrieval/config/update' and body['BYPASS_EMBEDDING_AND_RETRIEVAL'] is True:
+                world.config.update(body)
+                raise TimeoutError('PRIVATE_ENABLE_TIMEOUT')
+        error, selected, world, _ = self.exercise(fault)
+        self.assertIsNotNone(error); self.assertEqual(world.config, world.baseline)
+        self.assertTrue(selected['publication']['config_restored'])
+        self.assertFalse(selected['journal'][0]['returned'])
+
+    def test_restoration_failure_is_explicit_and_cannot_earn_readiness(self):
+        def fault(world, method, path, token, body):
+            if path == '/api/v1/retrieval/config/update' and body['BYPASS_EMBEDDING_AND_RETRIEVAL'] is False:
+                return 503, {'error': 'PRIVATE_RESTORE_FAILURE'}
+        error, selected, world, _ = self.exercise(fault)
+        self.assertIsNotNone(error); self.assertEqual(selected['publication']['stage'], 'restore_failed')
+        self.assertFalse(selected['publication']['config_restored'])
+        self.assertTrue(world.config['BYPASS_EMBEDDING_AND_RETRIEVAL'])
+
+    def test_already_enabled_bypass_needs_no_mutation_and_unrelated_drift_is_never_overwritten(self):
+        def enabled(world, method, path, token, body):
+            if path == '/api/v1/retrieval/config' and not getattr(world, 'enabled_at_start', False):
+                world.enabled_at_start = True
+                world.config['BYPASS_EMBEDDING_AND_RETRIEVAL'] = True
+                world.baseline = copy.deepcopy(world.config)
+        error, selected, world, _ = self.exercise(enabled)
+        self.assertIsNone(error); self.assertTrue(selected['publication']['config_restored'])
+        self.assertFalse(any(path == '/api/v1/retrieval/config/update' for _, path, *_ in world.requests))
+        def drift(world, method, path, token, body):
+            if path == '/api/v1/retrieval/config/update' and body['BYPASS_EMBEDDING_AND_RETRIEVAL'] is False:
+                world.config['TOP_K'] = 99
+        error, selected, world, _ = self.exercise(drift)
+        self.assertIsNotNone(error); self.assertEqual(world.config['TOP_K'], 99)
+        self.assertFalse(world.config['BYPASS_EMBEDDING_AND_RETRIEVAL'])
+        self.assertEqual(selected['publication']['stage'], 'restore_failed')
+
+
 class DelegatedProvisionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1073,6 +1314,7 @@ class DelegatedProvisionTests(unittest.TestCase):
         config = {'OPENAI_API_BASE_URLS': ['http://proxy:4000/v1'], 'OPENAI_API_KEYS': ['gw-synthetic-delegated'],
             'OPENAI_API_CONFIGS': {'0': {'api_type': 'responses', 'auth_type': 'bearer', 'model_ids': ['gpt-5.4-mini', 'gpt-6-luna']}}}
         rows, tools, files, skills, requests, budget_requests = {}, {}, {}, {P.WORKFLOW_SKILL_ID: workflow}, [], []
+        publication = PublicationHTTPWorld(self, actor, files=files, skills=skills)
         user, keys = None, []
         class Response(BytesIO):
             headers = {}
@@ -1085,6 +1327,9 @@ class DelegatedProvisionTests(unittest.TestCase):
                 method, path = request.get_method(), urlsplit(request.full_url).path
                 token = request.get_header('Authorization'); query = parse_qs(urlsplit(request.full_url).query)
                 requests.append((method, path))
+                if path.startswith(('/api/v1/retrieval/', '/api/v1/knowledge/', '/api/v1/chats/', '/api/v1/skills/')):
+                    body = json.loads(request.data) if request.data else None
+                    return Response(*publication.route(method, path, token, body, query))
                 if path == '/api/v1/files/' and method == 'POST':
                     parts = BytesParser(policy=policy.default).parsebytes(b'Content-Type: ' + request.get_header('Content-type').encode()
                         + b'\r\nMIME-Version: 1.0\r\n\r\n' + request.data)
@@ -1134,15 +1379,25 @@ class DelegatedProvisionTests(unittest.TestCase):
                 self.enterContext(patch.object(private_owner, 'private_parent'))
                 self.enterContext(patch.object(private_owner.stat, 'S_IMODE', return_value=0o600))
             P.write_private(operator, {'schema': 1, 'operator_token': 'sk-synthetic-operator'})
+            original_open = Path.open
+            publisher_source = (HERE.parents[1]/'deploy/openwebui-tools/corporate_templates.py').read_bytes()
+            def mounted_publisher(path, *args, **kwargs):
+                if path == Path('/proof/corporate_templates.py'): return BytesIO(publisher_source)
+                return original_open(path, *args, **kwargs)
+            import aiohttp
             with patch.object(P, 'build_opener', return_value=Transport()), patch.object(P, 'OPERATOR_STATE', operator), \
                     patch.object(P, 'native_client', return_value=SimpleNamespace(ok=lambda *args: {'data': copy.deepcopy(info)})), \
                     patch.object(budget.BudgetAdminClient, '_request', native_request), \
+                    patch.object(Path, 'open', mounted_publisher), patch.object(aiohttp, 'ClientSession', publication.session), \
                     patch.dict(os.environ, OWUI_BUDGET_GATEWAY_SECRET='gw-synthetic-delegated'):
                 safe = P.office_delegation_setup(P.WebUI(), state, target, tool_source=tool_path,
                     profiles_source=HERE.parents[1] / 'deploy/openwebui-tools/corporate_template_models.json')
             saved = P.read_private(target)['office_delegation_setup']
             self.assertEqual(state, frozen)
             self.assertEqual(saved['stage'], 'readback_ready')
+            self.assertEqual(saved['publication']['stage'], 'readback_ready')
+            self.assertTrue(saved['publication']['config_restored'])
+            self.assertEqual(publication.config, publication.baseline)
             self.assertEqual([m['model'] for m in saved['budget']['models']], ['gpt-6.1-sol', 'gpt-6.1-terra'])
             self.assertEqual([path for method, path, body in budget_requests if method == 'POST'], ['/user/new', '/key/generate', '/key/generate'])
             self.assertEqual(user['models'], ['gpt-6.1-sol', 'gpt-6.1-terra'])

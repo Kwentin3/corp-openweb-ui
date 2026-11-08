@@ -85,6 +85,24 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-tools/corporate_templates.py
+        target: /proof/corporate_templates.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_office_delegation_readback.py
+        target: /proof/prove_office_delegation_readback.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/mock_provider.py
+        target: /proof/mock_provider.py
+        read_only: true
+        bind:
+          create_host_path: false
 
   webui:
     image: ${PROOF_OFFICE_WEBUI_IMAGE:?actual built immutable ID}

@@ -1,0 +1,225 @@
+"""One ordinary delegated Office Send on the already prepared disposable stand.
+
+Returns (safe, private); the independent collector owns artifact/context/finance
+acceptance. This caller never executes a Tool/model loop or computes a charge.
+"""
+from __future__ import annotations
+
+import hashlib
+import re
+import time
+from urllib.parse import urlsplit
+
+from playwright.sync_api import expect
+
+from mock_provider import DELEGATED_USER_REQUEST
+from office_fixture import OfficeFixture
+from prove_gateway_auth import private_parent, write_private
+from prove_office_browser import DOCX, native_id
+from prove_office_compatibility import digest
+from prove_pricing_browser import MAX_BYTES, no_credentials
+from prove_webui_browser import login, require, text_content
+
+
+MODEL = 'corporate-documents'
+PACKET = 'office-delegation-browser.private.json'
+
+
+def empty_form():
+    """Native ChatForm wrapper with Chat.svelte's initial empty history."""
+    return {'chat': {'title': 'GOAL584 delegated Office', 'models': [MODEL], 'params': {},
+        'history': {'currentId': None, 'messages': {}}, 'messages': [], 'tags': [],
+        'timestamp': int(time.time() * 1000)}, 'folder_id': None}
+
+
+def user_request(skill_id):
+    require(isinstance(skill_id, str) and re.fullmatch(r'[a-z0-9_-]+', skill_id),
+            'delegated_browser_skill_id')
+    return DELEGATED_USER_REQUEST + '\nNative Skill ID: ' + skill_id
+
+
+def check_submission(sent, chat_id, request):
+    require(isinstance(sent, dict) and sent.get('model') == MODEL and sent.get('chat_id') == chat_id,
+            'delegated_browser_submission_model_chat')
+    user = sent.get('user_message')
+    require(isinstance(user, dict) and user.get('role') == 'user' and user.get('parentId') is None
+            and text_content(user.get('content')) == request
+            and isinstance(sent.get('background_tasks'), dict)
+            and sent['background_tasks'].get('follow_up_generation') is True,
+            'delegated_browser_submission_turn')
+    return native_id(user.get('id')), native_id(sent.get('id'))
+
+
+def observed_answer(stored, actor_id, chat_id, user_id, answer_id, request):
+    require(isinstance(stored, dict) and stored.get('id') == chat_id and stored.get('user_id') == actor_id,
+            'delegated_browser_chat_owner')
+    messages = stored.get('chat', {}).get('history', {}).get('messages', {})
+    user, answer = messages.get(user_id), messages.get(answer_id)
+    if user is None or answer is None: return None
+    require(user.get('role') == 'user' and user.get('parentId') is None
+            and text_content(user.get('content')) == request
+            and answer.get('role') == 'assistant' and answer.get('parentId') == user_id,
+            'delegated_browser_saved_ancestry')
+    require(not answer.get('error'), 'delegated_browser_answer_error')
+    if answer.get('done') is not True: return None
+    checklist = stored.get('tasks')
+    if not isinstance(checklist, list) or not checklist: return None
+    require(all(isinstance(task, dict) and isinstance(task.get('id'), str) and task['id']
+                and isinstance(task.get('content'), str) and task['content'].strip()
+                for task in checklist) and len({task['id'] for task in checklist}) == len(checklist),
+            'delegated_browser_native_tasks_shape')
+    if not all(task.get('status') == 'completed' for task in checklist): return None
+    statuses = [value for value in answer.get('statusHistory', [])
+                if isinstance(value, dict) and value.get('action') == 'employee_budget_cost']
+    if not statuses or statuses[-1].get('done') is not True: return None
+    description = statuses[-1].get('description')
+    # Observe native accrued known cost; finance must prove all related rows.
+    # Delegation keeps the existing explicit provisional label even after the
+    # UI turn completes. A terminal widget is not financial settlement proof.
+    require(isinstance(description, str) and re.fullmatch(
+        r'Ответ: \$[0-9]+(?:\.[0-9]+)? · Чат: \$[0-9]+(?:\.[0-9]+)? · на [0-9]{2}:[0-9]{2}:[0-9]{2} UTC'
+        r'(?: · начислено на сейчас, учёт обновляется)?', description),
+        'delegated_browser_cost_not_known')
+    followups = answer.get('followUps')
+    if not isinstance(followups, list) or not followups: return None
+    require(all(isinstance(value, str) and value.strip() for value in followups),
+            'delegated_browser_followups_shape')
+    return answer, statuses[-1]
+
+
+def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revision):
+    running = fixture.running_readback(base_url, build_receipt, expected_revision)
+    office_raw, state = fixture._office_private('office-state.private.json')
+    _, common = fixture._office_private('webui-state.private.json')
+    _, prepared = fixture._office_private('office-delegation-setup.safe.json')
+    selected = state.get('office_delegation_setup', {})
+    require(state.get('stage') == 'setup_complete' and selected.get('stage') == 'readback_ready'
+            and prepared.get('phase') == 'office-delegation-setup' and prepared.get('passed') is True
+            and prepared.get('inference_issued') is False and prepared.get('native_office_accepted') is False,
+            'delegated_browser_not_prepared')
+    actor, skill = selected['actor'], selected['skill']
+    actor_id, source_id = native_id(actor['id']), native_id(selected['source_file']['id'])
+    require(actor_id not in {entry['id'] for entry in [state['admin'], *state['users']]},
+            'delegated_browser_actor_not_fresh')
+    other = next((account for account in common['users'] if account['id'] != actor_id), None)
+    require(other is not None and other['id'] != state['admin']['id'], 'delegated_browser_foreign_user')
+    request = user_request(skill['id'])
+    profile = selected.get('models', {}).get(MODEL, {})
+    require(profile.get('base_model_id') == 'gpt-6.1-sol'
+            and profile.get('meta', {}).get('builtinTools', {}).get('tasks') is True
+            and isinstance(profile.get('name'), str) and bool(profile['name']),
+            'delegated_browser_parent_profile')
+    paths = {name: fixture.private / ('office-delegation-browser.' + suffix) for name, suffix in
+             (('browser', 'docx'), ('native', 'native.docx'), ('screenshot', 'png'))}
+    packet_path = fixture.private / PACKET
+    require(all(not path.exists() and not path.is_symlink() and path.resolve().parent == fixture.private.resolve()
+                for path in [*paths.values(), packet_path]), 'delegated_browser_output_conflict')
+    private_parent(packet_path)
+    existing_contexts = set(browser.contexts)
+    try:
+        context, page, token = login(browser, base_url, actor)
+        headers = {'Authorization': 'Bearer ' + token}
+        def get(path):
+            response = context.request.get(base_url + path, headers=headers, timeout=10_000)
+            require(response.status == 200, 'delegated_browser_native_read')
+            return response
+        source_path = '/api/v1/files/' + source_id + '/content'
+        before = get(source_path).body()
+        require(isinstance(before, bytes) and 0 < len(before) <= MAX_BYTES
+                and hashlib.sha256(before).hexdigest() == selected.get('source_sha256'),
+                'delegated_browser_source_before')
+        native_skill = get('/api/v1/skills/id/' + skill['id']).json()
+        require(all(native_skill.get(key) == skill.get(key) for key in ('id', 'content', 'version_id', 'is_active'))
+                and native_skill.get('is_active') is True and bool(native_skill.get('version_id')),
+                'delegated_browser_skill_binding')
+        form = empty_form()
+        created = context.request.post(base_url + '/api/v1/chats/new', headers=headers, data=form, timeout=10_000)
+        require(created.status == 200, 'delegated_browser_chat_create')
+        seeded = created.json(); chat_id = native_id(seeded.get('id'))
+        require(seeded.get('user_id') == actor_id and seeded.get('chat') == form['chat'],
+                'delegated_browser_empty_chat_readback')
+        page.goto(base_url + '/c/' + chat_id, wait_until='domcontentloaded')
+        expect(page.locator('#chat-input')).to_be_visible()
+        selector = page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first
+        expect(selector).to_have_attribute('aria-label', 'Selected model: ' + profile['name'])
+        page.locator('#chat-input').fill(request)
+        with page.expect_response(lambda response: urlsplit(response.url).path == '/api/chat/completions'
+                and response.request.method == 'POST', timeout=45_000) as pending:
+            page.locator('#send-message-button').click()
+        response = pending.value; sent = response.request.post_data_json
+        user_id, answer_id = check_submission(sent, chat_id, request)
+        require(response.status == 200, 'delegated_browser_send_rejected')
+        acknowledgement = response.json()
+        require(acknowledgement.get('chat_id', chat_id) == chat_id, 'delegated_browser_ack_chat')
+        deadline = time.monotonic() + 180
+        while True:
+            stored = get('/api/v1/chats/' + chat_id).json()
+            observed = observed_answer(stored, actor_id, chat_id, user_id, answer_id, request)
+            active = get('/api/tasks/chat/' + chat_id).json()
+            require(isinstance(active.get('task_ids'), list), 'delegated_browser_background_tasks_shape')
+            if observed is not None and not active['task_ids']: break
+            require(time.monotonic() < deadline, 'delegated_browser_lifecycle_timeout')
+            page.wait_for_timeout(250)
+        answer, cost_status = observed
+        files = [value for value in answer.get('files', []) if isinstance(value, dict) and value.get('type') == 'file'
+                 and value.get('content_type') == DOCX]
+        require(len(files) == 1, 'delegated_browser_result_attachment')
+        attachment = files[0]; file_id = native_id(attachment.get('id'))
+        path = '/api/v1/files/' + file_id; content_path = path + '/content'
+        require(file_id != source_id and attachment.get('url') == file_id
+                and isinstance(attachment.get('name'), str) and attachment['name'].endswith('.docx')
+                and content_path in text_content(answer.get('content')), 'delegated_browser_result_link')
+        file = get(path).json()
+        require(file.get('id') == file_id and file.get('user_id') == actor_id
+                and file.get('meta', {}).get('name') == attachment['name'], 'delegated_browser_result_owner')
+        raw = get(content_path).body()
+        require(isinstance(raw, bytes) and 0 < len(raw) <= MAX_BYTES, 'delegated_browser_result_size')
+        with paths['native'].open('xb') as output: output.write(raw)
+        paths['native'].chmod(0o600)
+        card = page.locator('#message-' + answer_id)
+        expect(card).to_contain_text(cost_status['description'], timeout=25_000)
+        with page.expect_download(timeout=30_000) as pending_download:
+            card.locator('a[href="' + content_path + '"]').click()
+        download = pending_download.value
+        target, origin = urlsplit(download.url), urlsplit(base_url)
+        require((target.scheme, target.netloc, target.path) == (origin.scheme, origin.netloc, content_path)
+                and not target.query and not target.fragment and download.failure() is None
+                and download.suggested_filename == attachment['name'], 'delegated_browser_download_origin')
+        download.save_as(paths['browser']); paths['browser'].chmod(0o600)
+        require(paths['browser'].stat().st_size == len(raw) and paths['browser'].read_bytes() == raw,
+                'delegated_browser_download_bytes')
+        after = get(source_path).body()
+        require(after == before, 'delegated_browser_source_changed')
+        foreign, _, foreign_token = login(browser, base_url, other)
+        denied = [foreign.request.get(base_url + target, headers={'Authorization': 'Bearer ' + foreign_token},
+                  timeout=10_000).status for target in (path, content_path)]
+        require(denied == [404, 404], 'delegated_browser_foreign_acl')
+        page.screenshot(path=str(paths['screenshot']), full_page=False); paths['screenshot'].chmod(0o600)
+        private = {'schema': 1, 'actor_id': actor_id, 'chat_id': chat_id, 'user_message_id': user_id,
+            'answer_id': answer_id, 'source_file_id': source_id, 'skill_id': skill['id'], 'file_id': file_id,
+            'submission': sent, 'submission_status': response.status, 'acknowledgement': acknowledgement,
+            'chat_form': form, 'created_chat': seeded, 'stored_chat': stored, 'native_file': file, 'running': running,
+            'native_tasks': stored['tasks'], 'background_tasks': active, 'cost_status': cost_status,
+            'native_running': active,
+            'source_before_sha256': hashlib.sha256(before).hexdigest(), 'source_after_sha256': hashlib.sha256(after).hexdigest(),
+            'source_before': {'sha256': hashlib.sha256(before).hexdigest(), 'bytes': len(before), 'status': 200},
+            'source_after': {'sha256': hashlib.sha256(after).hexdigest(), 'bytes': len(after), 'status': 200},
+            'artifacts': {'browser': {'sha256': hashlib.sha256(paths['browser'].read_bytes()).hexdigest(), 'bytes': paths['browser'].stat().st_size},
+                'native': {'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}},
+            'native_skill': native_skill, 'foreign_file_statuses': denied,
+            'paths': {key: str(value) for key, value in paths.items()}}
+        write_private(packet_path, private)
+        safe = {'schema': 1, 'status': 'browser_observed', 'native_office_accepted': False, 'ordinary_sends': 1,
+            'actor_id': actor_id, 'chat_id': chat_id, 'user_message_id': user_id, 'answer_id': answer_id,
+            'source_file_id': source_id, 'skill_id': skill['id'], 'file_id': file_id, 'model': MODEL,
+            'terminal_persisted': True, 'native_tasks_completed': len(stored['tasks']), 'background_tasks_empty': True,
+            'follow_up_count': len(answer['followUps']), 'visible_cost_status': True, 'cost_status_sha256': digest(cost_status),
+            'foreign_file_statuses': denied, 'source_unchanged': True, 'source_sha256': hashlib.sha256(before).hexdigest(),
+            'docx_sha256': hashlib.sha256(raw).hexdigest(), 'submission_sha256': digest(sent),
+            'prepared_handoff_sha256': hashlib.sha256(office_raw).hexdigest(), 'running_sha256': digest(running),
+            'screenshot_sha256': hashlib.sha256(paths['screenshot'].read_bytes()).hexdigest()}
+        no_credentials(safe, fixture.secrets)
+        return safe, private
+    finally:
+        for context in reversed(browser.contexts):
+            if context not in existing_contexts: context.close()
