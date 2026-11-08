@@ -74,6 +74,13 @@ def product_auth():
     return get_instance_fn("litellm_auth.gateway_auth", config_file_path=str(Path(__file__).with_name("config.yaml")))
 
 
+@lru_cache(maxsize=1)
+def product_denial_reader():
+    # Native config-relative loading creates a module per symbol. Use the exact
+    # callback's defining module so its private request marker stays identical.
+    return product_auth().__globals__["personal_key_budget_denial"]
+
+
 @lru_cache(maxsize=3)
 def scope_validator(category="personal"):
     from litellm.proxy.types_utils.utils import get_instance_fn
@@ -215,6 +222,13 @@ async def gateway_auth(request, api_key):
             known = status == 403 and getattr(error, "detail", None) == "Invalid signed budget provenance"
             record["auth_failure"] = {"scope": "custom_auth", "status_code": status,
                                       "code": "invalid_signed_budget_provenance" if known else "unclassified"}
+            if responses:
+                try:
+                    denial = product_denial_reader()(request, error)
+                except Exception:
+                    denial = None  # Optional observation cannot replace rejection.
+                if denial is not None:
+                    record['native_budget_denial'] = denial
         raise
     finally:
         try:

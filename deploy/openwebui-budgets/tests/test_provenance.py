@@ -26,6 +26,7 @@ from starlette.requests import Request
 
 
 HERE = Path(__file__).resolve()
+NATIVE_SOURCE = Path(os.environ.get('GOAL584_LITELLM_SOURCE', str(HERE.parents[3] / 'local/goal584/litellm/upstream')))
 
 
 def load(name, path):
@@ -209,7 +210,7 @@ class BoundaryTests(unittest.TestCase):
                             for node in imports))
 
     def test_exact_native_metadata_session_stage_cannot_drift_after_auth(self):
-        source = HERE.parents[3] / "local/goal584/litellm/upstream/litellm/proxy/litellm_pre_call_utils.py"
+        source = NATIVE_SOURCE / "litellm/proxy/litellm_pre_call_utils.py"
         if not source.exists():
             self.skipTest("Exact pinned session stage unavailable; actual-image proof remains required")
         tree = ast.parse(source.read_text(encoding="utf-8"))
@@ -287,7 +288,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertNotIn("synthetic-root-token", serialized)
 
     def test_responses_native_route_preserves_provider_metadata(self):
-        source = HERE.parents[3] / "local/goal584/litellm/upstream/litellm/proxy/litellm_pre_call_utils.py"
+        source = NATIVE_SOURCE / "litellm/proxy/litellm_pre_call_utils.py"
         if not source.exists():
             self.skipTest("Exact pinned route helper unavailable; actual-image proof remains required")
         tree = ast.parse(source.read_text(encoding="utf-8"))
@@ -367,7 +368,7 @@ class BoundaryTests(unittest.TestCase):
         self.assertNotIn("forged", json.dumps(data))
 
     def test_exact_native_cache_helpers_retain_new_canonical_keys(self):
-        source = HERE.parents[3] / "local/goal584/litellm/upstream/litellm/proxy/common_utils/http_parsing_utils.py"
+        source = NATIVE_SOURCE / "litellm/proxy/common_utils/http_parsing_utils.py"
         if not source.exists():
             self.skipTest("Exact pinned source unavailable; actual-image proof remains required")
         tree = ast.parse(source.read_text(encoding="utf-8"))
@@ -553,7 +554,7 @@ class ServiceBoundaryTests(unittest.TestCase):
                 apply(payload(self.token()), task="title_generation", **kwargs)
 
     def test_exact_native_later_session_stage_keeps_service_namespace(self):
-        source = HERE.parents[3] / "local/goal584/litellm/upstream/litellm/proxy/litellm_pre_call_utils.py"
+        source = NATIVE_SOURCE / "litellm/proxy/litellm_pre_call_utils.py"
         if not source.exists():
             self.skipTest("Exact pinned native session stage unavailable")
         tree = ast.parse(source.read_text(encoding="utf-8"))
@@ -592,13 +593,17 @@ class ServiceGatewayTests(unittest.TestCase):
     def run_gateway(self, *, token=None, task="title_generation", actor=USER, body_model=MODEL,
                     native_model=MODEL, api_key=SECRET, resolved_user=None, validated_user=None,
                     required=False, assignment_user=OTHER, llm_route=True,
-                    fresh_blocked=False, fresh_db_failure=False):
+                    fresh_blocked=False, fresh_db_failure=False, assignment_model=MODEL,
+                    key_hash="synthetic-key-hash", identity_token=None, native_validate=None,
+                    native_budget_error=None, actual_request=None, supplied_data=None,
+                    route="/v1/chat/completions", return_invocation=False):
         assignment = load("gateway_assignment_under_test", HERE.parents[1] / "assignment.py")
         events = []
-        row = SimpleNamespace(user_id=assignment_user, team_id=None, models=[MODEL],
-                              key_alias=assignment.assignment_alias(assignment_user, MODEL),
-                              metadata=assignment.assignment_metadata(MODEL), token="synthetic-key-hash")
+        row = SimpleNamespace(user_id=assignment_user, team_id=None, models=[assignment_model],
+                              key_alias=assignment.assignment_alias(assignment_user, assignment_model),
+                              metadata=assignment.assignment_metadata(assignment_model), token=key_hash)
         identity = copy.deepcopy(row)
+        if identity_token is not None: identity.token = identity_token
         identity.user_id = assignment_user if resolved_user is None else resolved_user
         identity.blocked = fresh_blocked
         cached_identity = copy.deepcopy(identity)
@@ -622,12 +627,15 @@ class ServiceGatewayTests(unittest.TestCase):
             return identity
         async def validate(**kwargs):
             events.append(("validate", kwargs))
+            if native_validate is not None:
+                return await native_validate(**kwargs)
             return SimpleNamespace(user_id=assignment_user if validated_user is None else validated_user,
                                    budget_reservation=None)
         data = {"model": body_model, "messages": [{"role": "user", "content": "actual task context"}],
                 "metadata": {"payer_id": USER, "task": task or ""}}
         if token is not None:
             data["litellm_metadata"] = {"owui_budget_provenance": token}
+        if supplied_data is not None: data = supplied_data
         async def read(req):
             return data
         def symbol(name, **kwargs):
@@ -644,9 +652,9 @@ class ServiceGatewayTests(unittest.TestCase):
                                 prisma_client=object(), llm_router=None, user_api_key_cache=None,
                                 proxy_logging_obj=None)
         namespace = {**vars(auth), "version": lambda name: auth.REQUIRED_VERSION,
-                     "litellm": SimpleNamespace(block_requests_for_models_without_pricing=True),
+                     "litellm": SimpleNamespace(block_requests_for_models_without_pricing=True, BudgetExceededError=native_budget_error),
                      "proxy_server": proxy, "LiteLLMRoutes": SimpleNamespace(master_key_only_routes=SimpleNamespace(value=[])),
-                     "get_request_route": lambda req: "/v1/chat/completions" if llm_route else "/key/info",
+                     "get_request_route": lambda req: route if llm_route else "/key/info",
                      "RouteChecks": SimpleNamespace(is_llm_api_route=lambda route: llm_route),
                      "PrismaDBExceptionHandler": SimpleNamespace(should_allow_request_on_db_unavailable=lambda: False),
                      "get_model_from_request": lambda *args, **kwargs: native_model,
@@ -654,7 +662,7 @@ class ServiceGatewayTests(unittest.TestCase):
                      "VerificationTokenRepository": lambda db: SimpleNamespace(table=SimpleNamespace(find_many=find_many)),
                      "assignment_alias": assignment.assignment_alias, "_assignment_matches": assignment.assignment_matches,
                      "get_instance_fn": symbol, "get_chain_id_from_headers": lambda headers: None,
-                     "metadata_variable_name_for_route": lambda route: "metadata",
+                     "metadata_variable_name_for_route": lambda path: "litellm_metadata" if 'responses' in path else "metadata",
                      "_get_anthropic_session_id_from_metadata": lambda metadata: None,
                      "IdentityStore": Store, "get_key_object": get_key_object,
                      "validate_resolved_virtual_key": validate,
@@ -664,12 +672,17 @@ class ServiceGatewayTests(unittest.TestCase):
         headers = [(auth.USER_ID_HEADER, actor)]
         if task is not None:
             headers.append((auth.TASK_HEADER, task))
-        with patch.dict(auth.os.environ, {"OWUI_BUDGET_GATEWAY_SECRET": SECRET,
-                                         "OWUI_BUDGET_REQUIRE_PROVENANCE": str(required).lower()}):
-            try:
-                result = asyncio.run(namespace["gateway_auth"](request(headers), api_key))
-            except HTTPException as exc:
-                return exc, events, data
+        req = actual_request or request(headers)
+        async def invoke(actual, key):
+            assert actual is req and key == api_key
+            with patch.dict(auth.os.environ, {"OWUI_BUDGET_GATEWAY_SECRET": SECRET,
+                                             "OWUI_BUDGET_REQUIRE_PROVENANCE": str(required).lower()}):
+                return await namespace["gateway_auth"](actual, key)
+        if return_invocation: return invoke, req, data, events
+        try:
+            result = asyncio.run(invoke(req, api_key))
+        except HTTPException as exc:
+            return exc, events, data
         return result, events, data
 
     def test_valid_signed_service_selects_payer_before_lookup_and_validates_once(self):
@@ -814,6 +827,146 @@ class ServiceGatewayTests(unittest.TestCase):
         validated = [value for name, value in events if name == "validate"]
         self.assertEqual(len(validated), 1)
         self.assertEqual(validated[0]["route"], "/key/info")
+
+
+
+def native_owner_source(relative):
+    """Read pinned installed SDK source or the explicit local Git cache, offline."""
+    import hashlib
+    import subprocess
+    pins = {'litellm/exceptions.py': 'd4a4b46afc48d97c2bde978b04d348b4ce2fb039af009f565178d85fba71aa64',
+            'litellm/proxy/auth/auth_checks.py': '3dd17fd821a4d762248670fc993c1e8e0ae038ce3268ce2e84e870debcd27d4d',
+            'litellm/proxy/types_utils/utils.py': '22a8c416668fe17df4e221613abbeeaa70704a8f2b307697cdde4b1ba0ef08e8'}
+    try:
+        import litellm
+        root = Path(litellm.__file__).parent.parent
+        raw = (root / relative).read_bytes().replace(b'\r\n', b'\n')
+    except (ImportError, AttributeError, TypeError, OSError):
+        root = Path(os.environ.get('GOAL584_LITELLM_SOURCE', str(HERE.parents[3] / 'local/goal584/litellm/upstream')))
+        raw = subprocess.check_output(['git', '-c', 'gc.auto=0', '-C', str(root), 'show',
+            'd665dc1a6315847fcad6cc2c1264ceb47c06abce:' + relative],
+            env=os.environ | {'GIT_NO_LAZY_FETCH': '1'}, timeout=15)
+    assert hashlib.sha256(raw).hexdigest() == pins[relative]
+    return ast.parse(raw)
+
+
+def native_quota_owners():
+    """Exact native exception and hard key-budget guard; counter/alerts are IO leaves."""
+    import enum
+    import math
+    sdk = SimpleNamespace(budget_exceeded_status_code=422)
+    namespace = dict(enum=enum, litellm=sdk, asyncio=asyncio, math=math,
+        CallInfo=lambda **kw: SimpleNamespace(**kw), Litellm_EntityType=SimpleNamespace(KEY=SimpleNamespace(value='key')),
+        budget_throttle_percentage=lambda: None, should_throttle_budget_exceeded=lambda identity: False)
+    tree = native_owner_source('litellm/exceptions.py')
+    names = {'BudgetExceededError', 'RateLimitType', 'RateLimitErrorCategory'}
+    nodes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name in names]
+    assert len(nodes) == len(names)
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), 'native-exception-source', 'exec',
+                 flags=__import__('__future__').annotations.compiler_flag), namespace)
+    sdk.BudgetExceededError = namespace['BudgetExceededError']
+    tree = native_owner_source('litellm/proxy/auth/auth_checks.py')
+    names = {'_virtual_key_max_budget_check', '_apply_budget_exceeded_throttle'}
+    nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names]
+    assert len(nodes) == len(names)
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), 'native-key-budget-source', 'exec',
+                 flags=__import__('__future__').annotations.compiler_flag), namespace)
+    return sdk.BudgetExceededError, namespace['_virtual_key_max_budget_check']
+
+
+class PersonalKeyDenialTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.BudgetExceeded, cls.native_key_check = native_quota_owners()
+
+    def denied(self, *, token=None, task='sub_agent', error_change=None, identity_token=None,
+               actual_request=None, supplied_data=None, assignment_user=USER):
+        from types import ModuleType
+        import sys
+        key_hash = 'a' * 64
+        req = actual_request or request(((auth.USER_ID_HEADER, USER), (auth.TASK_HEADER, task)))
+        req.scope['path'] = '/v1/responses'
+        data = supplied_data if supplied_data is not None else {
+            'model': MODEL, 'input': [{'role': 'user', 'content': 'actual worker input'}],
+            'litellm_metadata': {'owui_budget_provenance': token or call()}}
+        async def spend(**kwargs): return kwargs['fallback_spend']
+        proxy = ModuleType('litellm.proxy.proxy_server'); proxy.get_current_spend = spend
+        async def alert(**kwargs): pass
+        native_errors = []
+        async def validate(**kwargs):
+            identity = kwargs['valid_token']
+            identity.max_budget = identity.spend = .12
+            identity.soft_budget = None; identity.org_id = None; identity.key_name = None
+            try:
+                await type(self).native_key_check(identity, SimpleNamespace(budget_alerts=alert))
+            except self.BudgetExceeded as error:
+                native_errors.append(error)
+                if error_change: error_change(error)
+                raise
+            raise AssertionError('Real native hard budget guard must reject this fixture')
+        harness = ServiceGatewayTests()
+        with patch.dict(sys.modules, {'litellm.proxy.proxy_server': proxy}):
+            try:
+                harness.run_gateway(token=token or call(), task=task, assignment_user=assignment_user, key_hash=key_hash,
+                    identity_token=identity_token, native_validate=validate, native_budget_error=self.BudgetExceeded,
+                    actual_request=req, supplied_data=data, route='/v1/responses')
+            except self.BudgetExceeded as error:
+                self.assertIs(error, native_errors[-1])
+                return req, error, data
+        return req, None, data
+
+    def test_actual_gateway_native_key_rejection_has_independent_verified_scope_and_same_exception(self):
+        req, error, data = self.denied()
+        receipt = auth.personal_key_budget_denial(req, error)
+        self.assertEqual(receipt['key_hash'], 'a' * 64)
+        self.assertEqual(receipt['scope']['user_id'], USER)
+        self.assertEqual(receipt['scope']['model'], MODEL)
+        self.assertEqual(receipt['scope']['category'], 'personal')
+        self.assertEqual(error.status_code, 422)
+        self.assertNotIn('owui_budget_provenance', data['litellm_metadata'])
+        data['litellm_metadata']['spend_logs_metadata']['owui_budget']['call_id'] = OTHER
+        self.assertNotEqual(auth.personal_key_budget_denial(req, error)['scope']['call_id'], OTHER)
+        receipt['scope']['user_id'] = OTHER
+        self.assertEqual(auth.personal_key_budget_denial(req, error)['scope']['user_id'], USER)
+
+    def test_other_exception_wrong_native_entity_or_key_never_receives_receipt(self):
+        for change in (lambda e: setattr(e, 'entity_type', 'user'), lambda e: setattr(e, 'entity_id', 'b' * 64)):
+            req, error, _ = self.denied(error_change=change)
+            self.assertIsNone(auth.personal_key_budget_denial(req, error))
+        req, error, _ = self.denied(identity_token='b' * 64)
+        self.assertIsNone(auth.personal_key_budget_denial(req, error))
+        req, error, _ = self.denied()
+        other = self.BudgetExceeded(.12, .12, entity_type='key', entity_id='a' * 64)
+        self.assertIsNone(auth.personal_key_budget_denial(req, other))
+
+    def test_nonbudget_native_failure_is_unchanged_and_never_receives_receipt(self):
+        req = request(((auth.USER_ID_HEADER, USER), (auth.TASK_HEADER, 'sub_agent')))
+        original = RuntimeError('native-validator-IO-failure')
+        async def validate(**kwargs): raise original
+        with self.assertRaises(RuntimeError) as caught:
+            ServiceGatewayTests().run_gateway(token=call(), task='sub_agent', assignment_user=USER,
+                key_hash='a' * 64, native_validate=validate, native_budget_error=self.BudgetExceeded,
+                actual_request=req, route='/v1/responses')
+        self.assertIs(caught.exception, original)
+        self.assertIsNone(auth.personal_key_budget_denial(req, original))
+
+    def test_forged_unsigned_service_and_stale_request_cannot_reuse_personal_receipt(self):
+        req, error, _ = self.denied()
+        self.assertIsNotNone(auth.personal_key_budget_denial(req, error))
+        forged = {'model': MODEL, 'input': [], 'litellm_metadata': {'spend_logs_metadata': {
+            'owui_budget': auth.personal_key_budget_denial(req, error)['scope']}}}
+        _, denied, _ = self.denied(actual_request=req, supplied_data=forged)
+        self.assertIsNone(denied)
+        self.assertIsNone(auth.personal_key_budget_denial(req, error))
+        service = protocol.encode_service_call(SECRET, user_id=USER, payer_id=OTHER, chat_id=CHAT,
+                                               model=MODEL, task='title_generation')
+        # Personal audience and model remain mandatory; a service claim cannot
+        # produce the locally validated personal scope.
+        req, error, _ = self.denied(token=service)
+        self.assertIsNone(error)
+        req, error, _ = self.denied(token=service, task='title_generation', assignment_user=OTHER)
+        self.assertIsInstance(error, self.BudgetExceeded)
+        self.assertIsNone(auth.personal_key_budget_denial(req, error))
 
 
 class DeclaredBufferedProfileTests(unittest.TestCase):

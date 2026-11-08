@@ -327,6 +327,127 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(row["verified_cost_scope"], forged)
         self.assertEqual(row["body"]["metadata"], row["body_after_auth"]["metadata"])
 
+    def native_denial(self, *, unsigned=False, forged_token=False, wrong_key=False, service=False, actual_request=None):
+        """Actual gateway/JWT/native hard-budget guard, with resolver/counter/alert IO leaves."""
+        source = SOURCE.parents[2] / 'deploy/openwebui-budgets/tests/test_provenance.py'
+        spec = importlib.util.spec_from_file_location('capture_actual_native_auth_tests', source)
+        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        error_type, check = owner.native_quota_owners()
+        target = 'gpt-6-luna' if service else 'gpt-6.1-terra'
+        task = 'title_generation' if service else 'sub_agent'
+        payer = owner.OTHER if service else owner.USER
+        req = actual_request or owner.request(((owner.auth.USER_ID_HEADER, owner.USER), (owner.auth.TASK_HEADER, task)))
+        req.route = '/v1/responses'
+        token = (owner.protocol.encode_service_call(owner.SECRET, user_id=owner.USER, payer_id=payer,
+                    chat_id=owner.CHAT, model=target, task=task) if service else owner.call(model=target))
+        if forged_token: token += 'forged'
+        carrier = {} if unsigned else {'owui_budget_provenance': token}
+        carrier['spend_logs_metadata'] = {'owui_budget': {'schema': 1, 'user_id': 'forged-before-callback'}}
+        data = {'model': target, 'input': [{'role': 'user', 'content': 'complete actual worker source'}],
+                'store': False, 'stream': False, 'litellm_metadata': carrier}
+        req.data = data
+        errors = []
+        async def alert(**kwargs): pass
+        async def current_spend(**kwargs): return kwargs['fallback_spend']
+        proxy = module(get_current_spend=current_spend)
+        async def validate(**kwargs):
+            identity = kwargs['valid_token']
+            identity.max_budget = identity.spend = .12
+            identity.soft_budget = None; identity.org_id = None; identity.key_name = None
+            try:
+                await check(identity, SimpleNamespace(budget_alerts=alert))
+            except error_type as error:
+                errors.append(error)
+                if wrong_key: error.entity_id = 'b' * 64
+                raise
+            raise AssertionError('Actual native hard-budget guard did not reject')
+        invocation, _, _, events = owner.ServiceGatewayTests().run_gateway(
+            task=task, token=token, assignment_user=payer, assignment_model=target, body_model=target,
+            native_model=target, key_hash='a' * 64, native_validate=validate, native_budget_error=error_type,
+            actual_request=req, supplied_data=data, route='/v1/responses', return_invocation=True)
+        return owner, req, invocation, proxy, errors, events, error_type
+
+    async def test_actual_gateway_key_denial_is_scoped_but_never_native_auth_success(self):
+        import sys
+        owner, req, invoke, proxy, errors, events, error_type = self.native_denial()
+        before = C.responses_projection(req.data)
+        with patch.object(C, 'product_auth', return_value=invoke), patch.object(C, 'product_denial_reader',
+                return_value=owner.auth.personal_key_budget_denial), patch.dict(sys.modules, {'litellm.proxy.proxy_server': proxy}):
+            with self.assertRaises(error_type) as caught:
+                await C.gateway_auth(req, owner.SECRET)
+        self.assertIs(caught.exception, errors[0])
+        row = self.read()['requests'][0]
+        self.assertEqual(row['body'], before)
+        self.assertEqual(row['body_after_auth'], before)
+        self.assertEqual(row['auth_failure'], {'scope': 'custom_auth', 'status_code': 422, 'code': 'unclassified'})
+        receipt = row['native_budget_denial']
+        self.assertEqual(receipt['kind'], 'native_personal_key_budget_denial')
+        self.assertEqual(receipt['entity_type'], 'key')
+        self.assertEqual(receipt['key_hash'], 'a' * 64)
+        self.assertEqual(receipt['scope']['user_id'], owner.USER)
+        self.assertEqual(receipt['scope']['model'], 'gpt-6.1-terra')
+        self.assertEqual(receipt['scope']['root_chat_id'], owner.ROOT_CHAT)
+        self.assertEqual(receipt['scope']['root_answer_id'], owner.ROOT_ANSWER)
+        self.assertEqual(len([e for e in events if e[0] == 'validate']), 1)
+        for name in ('native_auth_user_id', 'native_auth_key_hash', 'verified_cost_scope'):
+            self.assertNotIn(name, row)
+        self.assertNotIn('forged-before-callback', json.dumps(row))
+        self.assertNotIn(owner.SECRET, json.dumps(row))
+        self.assertNotIn('owui_budget_provenance', json.dumps(row))
+
+    async def test_exact_native_symbol_loader_reader_binds_same_callback_module(self):
+        import importlib
+        from typing import Final
+        source = SOURCE.parents[2] / 'deploy/openwebui-budgets/tests/test_provenance.py'
+        spec = importlib.util.spec_from_file_location('capture_native_loader_tests', source)
+        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        tree = owner.native_owner_source('litellm/proxy/types_utils/utils.py')
+        node = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'get_instance_fn')
+        namespace = {'importlib': importlib, 'os': os, 'Any': object, 'Final': Final}
+        exec(compile(ast.Module(body=[node], type_ignores=[]), 'pinned-native-symbol-loader', 'exec'), namespace)
+        load = namespace['get_instance_fn']
+        config = str(source.parents[1] / 'config.yaml')
+        callback = load('litellm_auth.gateway_auth', config_file_path=config)
+        separate_reader = load('litellm_auth.personal_key_budget_denial', config_file_path=config)
+        self.assertIsNot(callback.__globals__['_PERSONAL_DENIAL_MARKER'],
+                         separate_reader.__globals__['_PERSONAL_DENIAL_MARKER'])
+        C.product_denial_reader.cache_clear()
+        self.addCleanup(C.product_denial_reader.cache_clear)
+        with patch.object(C, 'product_auth', return_value=callback):
+            reader = C.product_denial_reader()
+        self.assertIs(reader.__globals__, callback.__globals__)
+        self.assertIs(reader, callback.__globals__['personal_key_budget_denial'])
+
+    async def test_actual_invalid_unsigned_wrong_key_and_service_denials_never_stamp_personal_receipt(self):
+        import sys
+        from fastapi import HTTPException
+        for mode in ('unsigned', 'forged_token', 'wrong_key', 'service'):
+            C.save({'schema': 1, 'requests': []})
+            owner, req, invoke, proxy, errors, events, error_type = self.native_denial(**{mode: True})
+            with patch.object(C, 'product_auth', return_value=invoke), patch.object(C, 'product_denial_reader',
+                    return_value=owner.auth.personal_key_budget_denial), patch.dict(sys.modules, {'litellm.proxy.proxy_server': proxy}):
+                with self.assertRaises((error_type, HTTPException)) as caught:
+                    await C.gateway_auth(req, owner.SECRET)
+            if mode in ('wrong_key', 'service'): self.assertIs(caught.exception, errors[0])
+            else: self.assertFalse(any(e[0] == 'validate' for e in events))
+            row = self.read()['requests'][0]
+            for name in ('native_budget_denial', 'native_auth_user_id', 'native_auth_key_hash', 'verified_cost_scope'):
+                self.assertNotIn(name, row)
+
+    async def test_missing_or_broken_denial_reader_preserves_actual_native_exception(self):
+        import sys
+        for error in (RuntimeError('private-reader-error'), ValueError('secret-reader-error')):
+            C.save({'schema': 1, 'requests': []})
+            owner, req, invoke, proxy, errors, _, error_type = self.native_denial()
+            with patch.object(C, 'product_auth', return_value=invoke), patch.object(C, 'product_denial_reader',
+                    side_effect=error), patch.dict(sys.modules, {'litellm.proxy.proxy_server': proxy}):
+                with self.assertRaises(error_type) as caught:
+                    await C.gateway_auth(req, owner.SECRET)
+            self.assertIs(caught.exception, errors[0])
+            row = self.read()['requests'][0]
+            self.assertNotIn('native_budget_denial', row)
+            self.assertNotIn(str(error), json.dumps(row))
+
     async def test_responses_before_and_after_are_independent_full_copies_of_owner_changes(self):
         request = self.responses_request()
         before = copy.deepcopy(request.data)

@@ -48,6 +48,17 @@ REQUIRED_VERSION = "1.105.1"
 USER_ID_HEADER = "X-OpenWebUI-User-Id"
 TASK_HEADER = "X-OpenWebUI-Task"
 PROVENANCE_FIELD = "owui_budget_provenance"
+_PERSONAL_DENIAL_MARKER = object()
+
+
+def personal_key_budget_denial(request: Request, error: BaseException) -> dict | None:
+    """Read this request's native rejection receipt; never a successful identity."""
+    value = getattr(request.state, '_owui_budget_personal_denial', None)
+    if not (isinstance(value, tuple) and len(value) == 4
+            and value[0] is _PERSONAL_DENIAL_MARKER and value[1] is error):
+        return None
+    return {'kind': 'native_personal_key_budget_denial', 'entity_type': 'key',
+            'key_hash': value[2], 'scope': value[3].copy()}
 
 
 @lru_cache(maxsize=4)
@@ -153,7 +164,7 @@ def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
                       required: bool, secret: str, user_id: str | None,
                       model: str | None, decoder, chain_id: str | None,
                       metadata_slot: str, metadata_session_id: str | None,
-                      task: str = "") -> None:
+                      task: str = "") -> dict | None:
     """Change log-only fields in place; native cached-body setter follows this.
 
     Both aliases are cleaned because native normalization merges them later.
@@ -233,10 +244,15 @@ def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
     spend["owui_budget"] = scope
     data["litellm_session_id"] = session_id
     data["litellm_trace_id"] = trace_id
+    # Return the locally decoded representation independently of mutable body
+    # metadata. Callers may observe a later native rejection without redecoding.
+    return scope.copy()
 
 
 async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     """Return stock validated identity before the outer native reservation gate."""
+    # A reused request cannot carry a prior call's denial into this invocation.
+    request.state._owui_budget_personal_denial = None
     # Lazy imports preserve the native config-file loader's initialization order.
     import litellm
     from litellm.proxy import proxy_server
@@ -335,7 +351,7 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     # Match the native string-to-object normalization before invoking its
     # session extractor; otherwise JSON-string metadata could evade this check.
     _metadata_maps(request_data)
-    _apply_provenance(
+    validated_scope = _apply_provenance(
         request, request_data, shared_gateway=shared_gateway,
         required=_provenance_required() or worker_call, secret=gateway_secret, user_id=actor_id, model=model,
         # Keep unsigned legacy/native-key paths independent of this optional
@@ -371,13 +387,25 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     if shared_gateway:
         _require(_assignment_matches(identity, user_id, model), 403,
                  "Resolved native identity does not match its user/model assignment")
-    auth = await validate_resolved_virtual_key(
-        request=request, request_data=request_data, valid_token=identity,
-        api_key=key_hash, route=route,
-        start_time=getattr(request.state, "litellm_received_at", None) or datetime.now(timezone.utc),
-        parent_otel_span=getattr(request.state, "parent_otel_span", None),
-        end_user_id=None, end_user_params={}, _end_user_object=None,
-    )
+    try:
+        auth = await validate_resolved_virtual_key(
+            request=request, request_data=request_data, valid_token=identity,
+            api_key=key_hash, route=route,
+            start_time=getattr(request.state, "litellm_received_at", None) or datetime.now(timezone.utc),
+            parent_otel_span=getattr(request.state, "parent_otel_span", None),
+            end_user_id=None, end_user_params={}, _end_user_object=None,
+        )
+    except litellm.BudgetExceededError as error:
+        if (shared_gateway and not task and isinstance(validated_scope, dict)
+                and validated_scope.get('category') == 'personal'
+                and getattr(identity, 'token', None) == key_hash
+                and isinstance(key_hash, str) and len(key_hash) == 64
+                and all(c in '0123456789abcdef' for c in key_hash)
+                and getattr(error, 'entity_type', None) == 'key'
+                and getattr(error, 'entity_id', None) == key_hash):
+            request.state._owui_budget_personal_denial = (
+                _PERSONAL_DENIAL_MARKER, error, key_hash, validated_scope.copy())
+        raise
     _require(auth.budget_reservation is None, 503, "Native validation unexpectedly reserved budget")
     if shared_gateway:
         _require(auth.user_id == user_id, 403, "Validated native payer does not match its assignment")
