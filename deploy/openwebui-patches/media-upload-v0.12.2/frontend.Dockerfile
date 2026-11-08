@@ -8,8 +8,8 @@ WORKDIR /app
 COPY . .
 COPY --from=media_overlay manifest.json verify_frontend.mjs /media-overlay/
 RUN node /media-overlay/verify_frontend.mjs /app
-# Match the v0.12.2 upstream Dockerfile; retain its native pyodide/build scripts.
-RUN npm ci --force
+# Retain native v0.12.2 scripts; Node CUDA is unused by the exported browser build.
+RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --force
 ENV APP_BUILD_HASH=${BUILD_HASH}
 ENV APP_BUILD_CHANNEL=stable
 ARG NODE_OPTIONS=""
