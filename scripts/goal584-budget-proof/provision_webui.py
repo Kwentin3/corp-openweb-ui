@@ -473,6 +473,21 @@ def raise_caps(state: dict) -> None:
     native.poll("native administrative cap update readback", changed)
 
 
+def create_office_base_model(webui, admin, actor, model, params, post):
+    """One native base WorkspaceModel owner; caller proves fresh absence."""
+    from provision_cost_display import grant_set
+    body = {"id": model, "name": model, "base_model_id": None, "is_active": True, "params": params,
+        "meta": {"capabilities": {"builtin_tools": False}},
+        "access_grants": [{"principal_type": "user", "principal_id": actor["id"], "permission": "read"}]}
+    post("/api/v1/models/create", body)
+    record = webui.model(admin["token"], model)
+    require(all(record.get(k) == body[k] for k in ("id", "base_model_id", "params", "is_active"))
+            and record.get("user_id") == admin["id"] and record.get("name") == model
+            and grant_set(record) == grant_set(body) and len(record["access_grants"]) == 1
+            and record.get("meta", {}).get("capabilities") == body["meta"]["capabilities"], "Office native model body differs")
+    return record
+
+
 def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
     """Finite stand setup only; keep common handoff and existing model bodies intact.
 
@@ -611,16 +626,7 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
             "custom_params": {"parallel_tool_calls": False, "store": False,
                 "include": ["reasoning.encrypted_content"]}}),
             (target, {})):
-        body = {"id": model, "name": model, "base_model_id": None, "is_active": True, "params": params,
-            "meta": {"capabilities": {"builtin_tools": False}},
-            "access_grants": [{"principal_type": "user", "principal_id": actor["id"], "permission": "read"}]}
-        post("/api/v1/models/create", body)
-        record = webui.model(admin["token"], model)
-        require(all(record.get(k) == body[k] for k in ("id", "base_model_id", "params", "is_active"))
-                and record.get("user_id") == admin["id"] and record.get("name") == model
-                and grant_set(record) == grant_set(body) and len(record["access_grants"]) == 1
-                and record.get("meta", {}).get("capabilities") == body["meta"]["capabilities"], "Office native model body differs")
-        models[model] = record
+        models[model] = create_office_base_model(webui, admin, actor, model, params, post)
         if model == primary:
             entry = journal("attach-existing-budget-filter", {"model": model, "filter": FILTER_ID})
             models[model] = add_model_meta(webui, handoff, model, "filterIds", FILTER_ID)
@@ -962,6 +968,9 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     for profile in (parent, worker):
         status, _ = response(webui, 'GET', '/api/v1/models/model?' + urlencode({'id': profile['id']}), admin['token'])
         require(status in (401, 404), 'Delegated Workspace Model already exists')
+    for alias in (parent['base_model_id'], worker['base_model_id']):
+        status, _ = response(webui, 'GET', '/api/v1/models/model?' + urlencode({'id': alias}), admin['token'])
+        require(status == 404, 'Delegated base Workspace Model exists or absence is unproven')
     current = copy.deepcopy(state)
     selected = {'stage': 'preparing', 'journal': [], 'tool_source_sha256': DELEGATION_TOOL_SHA256,
                 'profiles_source_sha256': DELEGATION_PROFILES_SHA256}
@@ -985,6 +994,14 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     config['model_ids'].extend(('gpt-6.1-sol', 'gpt-6.1-terra'))
     post('/openai/config/update', requested)
     require(webui.ok('GET', '/openai/config', token=admin['token']) == requested, 'Delegated connection readback differs')
+    selected['base_models'] = {}
+    for profile in (parent, worker):
+        alias = profile['base_model_id']
+        selected['base_models'][alias] = create_office_base_model(webui, admin, actor, alias,
+            {'max_tokens': profile['params']['max_tokens']}, post)
+        before('attach-mandatory-base-budget-filter', {'model': alias})
+        selected['base_models'][alias] = add_model_meta(webui, current, alias, 'filterIds', FILTER_ID)
+        selected['journal'][-1]['returned'] = True
     selected['models'] = {}
     for profile in (parent, worker):
         profile['access_grants'] = [{'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}]
@@ -1027,7 +1044,8 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
             webui.session(admin, 'admin')
             require(webui.ok('GET', '/openai/config', token=admin['token']) == requested, 'Delegated connection changed before budget write')
             require(native.ok('GET', '/model/info')['data'] == info
-                    and all(webui.model(admin['token'], name) == saved for name, saved in selected['models'].items()),
+                    and all(webui.model(admin['token'], name) == saved
+                            for name, saved in (selected['base_models'] | selected['models']).items()),
                     'Delegated native model changed before budget write')
             read_workflow(actor)
             before('initialize-two-personal-assignments')
@@ -1041,6 +1059,24 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     selected['budget'] = asyncio.run(initialize())
     for entry in selected['journal']:
         if entry['stage'] == 'initialize-two-personal-assignments': entry['returned'] = True
+    webui.session(actor, 'user')
+    catalog = webui.ok('GET', '/api/models?refresh=true', token=actor['token']).get('data')
+    require(isinstance(catalog, list) and all(isinstance(row, dict) for row in catalog),
+            'Delegated actor native catalog malformed')
+    visible = {}
+    for profile in (parent, worker):
+        for model_id, base_id in ((profile['id'], profile['base_model_id']), (profile['base_model_id'], None)):
+            matches = [row for row in catalog if row.get('id') == model_id]
+            require(len(matches) == 1, 'Delegated actor profile/base missing or duplicated')
+            row = matches[0]; record = row.get('info') or {}
+            require(row.get('owned_by') == 'openai' and not row.get('pipe') and not row.get('arena')
+                    and record.get('id') == model_id and record.get('base_model_id') == base_id,
+                    'Delegated actor native profile/base binding differs')
+            # Native custom presets do not carry urlIdx; provider base rows do.
+            if base_id is None:
+                require(row.get('urlIdx') == 0, 'Delegated actor base connection index differs')
+            visible[model_id] = row
+    selected['actor_catalog'] = visible
     selected['stage'] = 'readback_ready'; write_private(path, current)
     return {'office_delegation_setup': {'status': 'readback_ready', 'inference_issued': False,
         'native_office_accepted': False, 'tool_source_sha256': DELEGATION_TOOL_SHA256,
