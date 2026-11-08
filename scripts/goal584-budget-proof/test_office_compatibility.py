@@ -972,6 +972,69 @@ def test_one_call_selector_keeps_explicit_three_equal_to_original_default(compon
     assert P.verify_finance(before, after, **kwargs, expected_calls=3) == P.verify_finance(before, after, **kwargs)
 
 
+def delegated_financial_fixture(component, monkeypatch, model):
+    """Raw native row IO data; the unchanged Scope/rates/SDK owners validate it."""
+    before, legacy, kwargs = financial_fixture(component, monkeypatch)
+    wire, spend, rate_in, rate_out, key_delta = (
+        ('goal584-fake-delegated-parent', '.20', '.01', '.02', '1.20') if model == 'gpt-6.1-sol' else
+        ('goal584-fake-delegated-worker', '.02', '.001', '.002', '.12'))
+    before['user'].update(models=['gpt-6.1-sol', 'gpt-6.1-terra'], max_budget=2000)
+    before['key'].update(models=[model], max_budget=1000)
+    after = copy.deepcopy(before)
+    kwargs.update(model=model, wire_model=wire, deployment_id='fixture-' + model, expected_calls=6,
+                  provider_transport='buffered', expected_call_spend=Decimal(spend), input_rate=Decimal(rate_in),
+                  output_rate=Decimal(rate_out), user_spend_delta=Decimal('1.32'), calls_by_provider={})
+    template = legacy['rows'][-1]
+    for _ in range(6):
+        provider_id = 'resp_' + uuid4().hex
+        row = copy.deepcopy(template)
+        row.update(request_id=provider_id, model='openai/' + wire, model_group=model,
+                   model_id=kwargs['deployment_id'], spend=float(spend))
+        metadata = row['metadata']['spend_logs_metadata']
+        scope = metadata['owui_budget']; scope.update(model=model, call_id=str(uuid4()))
+        metadata['owui_billed_token_rates']['rates'].update(input_cost_per_token=float(rate_in), output_cost_per_token=float(rate_out))
+        kwargs['calls_by_provider'][provider_id] = copy.deepcopy(scope)
+        after['rows'].append(row)
+    after['user']['spend'], after['key']['spend'] = 1.32, float(key_delta)
+    return before, after, kwargs
+
+
+@pytest.mark.parametrize('model,total', [('gpt-6.1-sol', '1.20'), ('gpt-6.1-terra', '.12')])
+def test_six_call_model_key_and_shared_user_deltas_use_existing_finance_owner(component, monkeypatch, model, total):
+    before, after, kwargs = delegated_financial_fixture(component, monkeypatch, model)
+    original = copy.deepcopy((before, after, kwargs['calls_by_provider']))
+    assert P.verify_finance(before, after, **kwargs) == {
+        'physical_calls': 6, 'new_raw_rows': 6, 'native_spend_delta_usd': total}
+    assert (before, after, kwargs['calls_by_provider']) == original
+
+
+@pytest.mark.parametrize('mutation', ['user_only_key_total', 'key_uses_shared_total', 'lost_row', 'wrong_model',
+    'wrong_rate', 'wrong_cost', 'wrong_nonce', 'old_owner', 'cap', 'duplicate_row'])
+def test_shared_user_allowance_keeps_every_native_finance_binding(component, monkeypatch, mutation):
+    before, after, kwargs = delegated_financial_fixture(component, monkeypatch, 'gpt-6.1-terra')
+    row = after['rows'][-1]
+    if mutation == 'user_only_key_total': after['user']['spend'] = .12
+    elif mutation == 'key_uses_shared_total': after['key']['spend'] = 1.32
+    elif mutation == 'lost_row': after['rows'].pop()
+    elif mutation == 'wrong_model': row['model_group'] = 'gpt-6.1-sol'
+    elif mutation == 'wrong_rate': row['metadata']['spend_logs_metadata']['owui_billed_token_rates']['rates']['input_cost_per_token'] = .01
+    elif mutation == 'wrong_cost': row['spend'] = .20
+    elif mutation == 'wrong_nonce': row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
+    elif mutation == 'old_owner': after['old_payers'].clear()
+    elif mutation == 'cap': after['user']['max_budget'] = 2001
+    elif mutation == 'duplicate_row': after['rows'].append(copy.deepcopy(row))
+    with pytest.raises(P.ProofError): P.verify_finance(before, after, **kwargs)
+
+
+@pytest.mark.parametrize('field,value', [('expected_call_spend', True), ('input_rate', .01),
+    ('output_rate', Decimal('NaN')), ('user_spend_delta', Decimal('.1')), ('model', '')])
+def test_explicit_financial_fixture_terms_fail_before_row_access(field, value):
+    kwargs = dict(calls_by_provider={}, actor=None, key_hash=None, chat_id=None, answer_id=None,
+                  wire_model=None, deployment_id=None, validate_scope=None, validate_rates=None, decode_response_id=None)
+    with pytest.raises(P.ProofError, match='office_finance_fixture_terms'):
+        P.verify_finance({}, {}, **kwargs, **{field: value})
+
+
 @pytest.mark.parametrize("value", [True, False, None, 0, -1, 2, 4, 1.0, 3.0, "1", "3", Decimal(1)])
 def test_one_call_selector_rejects_nonfinite_counts_and_boolean_or_coerced_types(value):
     with pytest.raises(P.ProofError, match="office_expected_calls"):

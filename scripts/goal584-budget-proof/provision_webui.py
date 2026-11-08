@@ -52,6 +52,7 @@ DELEGATION_PROFILES_SHA256 = "9c606f06a63dcd7be3bd53345e8a702bd1eebd576e0b7ca811
 OFFICE_FILTER_SHA256 = "9edf90bfa7bab3c75d7d8d794ea39761dff3b4b14c7d985270b47b15235affe1"
 WORKFLOW_SKILL_ID = "artifact-workflow"
 WORKFLOW_SKILL_SHA256 = "c3abf17750e03a943e1b98c6ae0efd24e0d8b297e5b3b1bb6953181723c6a14d"
+TEMPLATE_PUBLISHER_SHA256 = "85385a0093b095fe0598c340bf42cc8187728788c7ff213298206563904671ac"
 DELEGATION_VALVES = {"DEFAULT_MODEL": "corporate-office-worker", "AVAILABLE_TOOL_IDS": "server:officecli",
     "EXCLUDED_TOOL_IDS": "", "MAX_ITERATIONS": 12, "MAX_PARALLEL_AGENTS": 1,
     "APPLY_INLET_FILTERS": True, "ENABLE_CONTEXT_COMPACTION": False, "LARGE_TOOL_RESULT_MODE": "raw",
@@ -756,6 +757,116 @@ def delegated_skill_content(file_id: str, source_sha256: str) -> str:
         "Return that native result_file_id/download_url and honest checks. No binary/base64 belongs in this Skill.\n")
 
 
+def publish_delegated_template(webui, state, path, publisher, before, post):
+    """Order the unchanged native publication owner and restore one scoped flag."""
+    import asyncio
+    from fastapi.security import HTTPAuthorizationCredentials
+    from starlette.requests import Request as NativeRequest
+    from provision_cost_display import grant_set
+
+    selected, admin = state['office_delegation_setup'], state['admin']
+    actor, skill, file = selected['actor'], selected['skill'], selected['source_file']
+    baseline = webui.ok('GET', '/api/v1/retrieval/config', token=admin['token'])
+    flag = 'BYPASS_EMBEDDING_AND_RETRIEVAL'
+    require(type(baseline.get(flag)) is bool, 'Publication native retrieval bypass baseline unavailable')
+    publication = {'stage': 'preparing', 'retrieval_before': baseline, 'config_restored': False,
+        'publisher_source_sha256': TEMPLATE_PUBLISHER_SHA256}
+    selected['publication'] = publication
+    write_private(path, state)
+    attempted = False
+    try:
+        if baseline[flag] is False:
+            attempted = True  # A timeout can still have committed the native POST.
+            post('/api/v1/retrieval/config/update', {flag: True})
+        active = webui.ok('GET', '/api/v1/retrieval/config', token=admin['token'])
+        require(active == {**baseline, flag: True}, 'Publication scoped retrieval config differs')
+        publication['retrieval_active'] = active
+        knowledge = post('/api/v1/knowledge/create', {'name': 'GOAL584 synthetic template originals',
+            'description': 'Disposable agreed synthetic DOCX originals; native publication proof only.',
+            'access_grants': [{'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}]})
+        knowledge_id = knowledge.get('id')
+        publication['knowledge_create'] = knowledge
+        require(isinstance(knowledge_id, str) and str(uuid.UUID(knowledge_id)) == knowledge_id,
+                'Publication native Knowledge ID unavailable')
+        knowledge_path = '/api/v1/knowledge/' + knowledge_id
+        library = webui.ok('GET', knowledge_path, token=admin['token'])
+        require(library.get('id') == knowledge_id and library.get('user_id') == admin['id']
+                and library.get('write_access') is True and grant_set(library) == grant_set(knowledge)
+                == {('user', actor['id'], 'read')}, 'Publication Knowledge owner/ACL differs')
+        publication['knowledge'] = library
+        message_id = str(uuid.uuid4())
+        message = {'id': message_id, 'role': 'user', 'parentId': None, 'childrenIds': [],
+            'content': 'Publish the agreed GOAL584 synthetic original and native Skill.', 'timestamp': int(time.time())}
+        form = {'chat': {'title': 'GOAL584 native template publication', 'models': [], 'params': {},
+            'history': {'currentId': message_id, 'messages': {message_id: message}}, 'messages': [message],
+            'tags': [], 'timestamp': int(time.time() * 1000)}, 'folder_id': None}
+        created = post('/api/v1/chats/new', form)
+        chat_id = created.get('id')
+        require(isinstance(chat_id, str) and str(uuid.UUID(chat_id)) == chat_id, 'Publication saved chat ID unavailable')
+        chat = webui.ok('GET', '/api/v1/chats/' + chat_id, token=admin['token'])
+        require(chat.get('id') == chat_id and chat.get('user_id') == admin['id'] and chat.get('chat') == form['chat'],
+                'Publication saved primary turn differs')
+        publication['saved_turn'] = chat
+        publication['metadata'] = {'chat_id': chat_id, 'message_id': message_id}
+        verified_admin = webui.session(admin, 'admin')
+        request = NativeRequest({'type': 'http', 'headers': []})
+        request.state.user = verified_admin
+        request.state.token = HTTPAuthorizationCredentials(scheme='Bearer', credentials=admin['token'])
+        tool = publisher.Tools()
+        tool.valves.openwebui_base_url = WEBUI_URL
+        tool.valves.knowledge_id = knowledge_id
+        before('native-publish-template', {'skill_id': skill['id'], 'file_id': file['id'], 'metadata': publication['metadata']})
+        receipt = asyncio.run(tool.publish_template(skill['id'], file['id'], request, publication['metadata']))
+        selected['journal'][-1].update(returned=True, response=copy.deepcopy(receipt))
+        publication['receipt'] = receipt
+        write_private(path, state)
+        require(receipt.get('status') == 'published' and receipt.get('skill_id') == skill['id']
+                and receipt.get('source_file_id') == file['id'] and receipt.get('knowledge_id') == knowledge_id,
+                'Native template publication did not complete; inspect private state before retrying')
+        route = '/api/v1/skills/id/' + skill['id']
+        saved = webui.ok('GET', route, token=admin['token'])
+        readable = webui.ok('GET', route, token=actor['token'])
+        require(saved.get('id') == skill['id'] and saved.get('version_id') == receipt.get('skill_version_id') and bool(saved.get('version_id'))
+                and saved.get('is_active') is True and saved.get('user_id') == admin['id']
+                and isinstance(saved.get('content'), str) and saved['content'].startswith(skill['content'].rstrip())
+                and len(saved['content']) > len(skill['content'])
+                and all(readable.get(k) == saved.get(k) for k in ('id', 'content', 'version_id', 'is_active'))
+                and grant_set(saved) == grant_set(readable) == {('user', actor['id'], 'read')},
+                'Published complete Skill/version/ACL readback differs')
+        summaries = webui.ok('GET', route + '/files', token=actor['token'])
+        require(summaries.get('version_id') == saved['version_id'] and isinstance(summaries.get('files'), list)
+                and len(summaries['files']) == 1 and summaries['files'][0].get('path') == 'SKILL.md'
+                and not summaries['files'][0].get('encoding')
+                and summaries['files'][0].get('size') == len(saved['content'].encode('utf8')),
+                'Published native text Skill snapshot differs')
+        readable_library = webui.ok('GET', knowledge_path, token=actor['token'])
+        membership = webui.ok('GET', knowledge_path + '/files?' + urlencode({'query': file['filename'], 'page': 1}), token=actor['token'])
+        require(readable_library.get('id') == knowledge_id and grant_set(readable_library) == {('user', actor['id'], 'read')}
+                and membership.get('total') == 1 and len(membership.get('items', [])) == 1
+                and membership['items'][0].get('id') == file['id'], 'Published native original membership differs')
+        require(sha256(webui.file_content(actor['token'], file['id'])).hexdigest() == selected['source_sha256'],
+                'Publication changed native source bytes')
+        selected['skill'] = readable
+        publication.update(skill_admin=saved, skill_files=summaries, membership=membership, actor_knowledge=readable_library)
+    except Exception:
+        publication['stage'] = 'partial'
+        write_private(path, state)
+        raise
+    finally:
+        try:
+            if attempted: post('/api/v1/retrieval/config/update', {flag: baseline[flag]})
+            restored = webui.ok('GET', '/api/v1/retrieval/config', token=admin['token'])
+            require(restored == baseline, 'Publication retrieval config restoration differs')
+            publication.update(config_restored=True, retrieval_restored=restored)
+            write_private(path, state)
+        except Exception:
+            publication.update(stage='restore_failed', config_restored=False)
+            write_private(path, state)
+            raise ProofError('Publication retrieval config restoration failed; inspect private state before retrying') from None
+    publication['stage'] = 'readback_ready'
+    write_private(path, state)
+
+
 def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_source: Path) -> dict:
     """Explicit synthetic phase; no inference or replacement model-history owner."""
     import asyncio
@@ -764,6 +875,7 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     from employee_budget_admin_client import BudgetAdminClient
     from provision_cost_display import FILTER_ID, add_model_meta, grant_set
     from prove_service_tasks import response
+    import types
 
     require(state.get('stage') == 'setup_complete' and state.get('office_setup')
             and 'office_delegation_setup' not in state, 'Delegated setup requires fresh Office state')
@@ -773,6 +885,11 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     raw_profiles = profiles_source.read_bytes().replace(b'\r\n', b'\n')
     require(sha256(tool).hexdigest() == DELEGATION_TOOL_SHA256
             and sha256(raw_profiles).hexdigest() == DELEGATION_PROFILES_SHA256, 'Delegated Tool/profile source differs')
+    with Path('/proof/corporate_templates.py').open('rb') as handle:
+        publisher_source = handle.read(128 * 1024 + 1).replace(b'\r\n', b'\n')
+    require(sha256(publisher_source).hexdigest() == TEMPLATE_PUBLISHER_SHA256, 'Native template publisher source differs')
+    publisher = types.ModuleType('goal584_exact_template_publisher')
+    exec(compile(publisher_source, '/proof/corporate_templates.py', 'exec'), publisher.__dict__)
     profiles = {v['id']: v for v in json.loads(raw_profiles)}
     parent, worker = copy.deepcopy(profiles['corporate-documents']), copy.deepcopy(profiles['corporate-office-worker'])
     parent['base_model_id'] = 'gpt-6.1-sol'
@@ -876,6 +993,8 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     require(readable.get('content') == body['content'] and readable.get('version_id') == skill.get('version_id')
             and bool(readable.get('version_id')) and readable.get('is_active') is True, 'Delegated complete Skill/version differs')
     selected.update(skill=readable, source_sha256=sha256(source).hexdigest(), tool_valves=valves)
+    publish_delegated_template(webui, current, path, publisher, before, post)
+    readable = selected['skill']
     async def initialize():
         async def guard():
             webui.session(admin, 'admin')
@@ -898,6 +1017,8 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     selected['stage'] = 'readback_ready'; write_private(path, current)
     return {'office_delegation_setup': {'status': 'readback_ready', 'inference_issued': False,
         'native_office_accepted': False, 'tool_source_sha256': DELEGATION_TOOL_SHA256,
+        'publisher_source_sha256': TEMPLATE_PUBLISHER_SHA256,
+        'knowledge_id': selected['publication']['receipt']['knowledge_id'], 'retrieval_config_restored': True,
         'source_sha256': selected['source_sha256'], 'skill_content_sha256': sha256(readable['content'].encode()).hexdigest(),
         'handoff_sha256': sha256(path.read_bytes()).hexdigest()}}
 

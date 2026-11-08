@@ -259,7 +259,7 @@ def office_instruction(source):
     require(isinstance(source, bytes), "office_instruction_source")
     source = source.replace(b"\r\n", b"\n")
     require(sha256(source).hexdigest() ==
-            "0916704e50c29fd41c949a87b4dae9ecf4d3a90e72b213355e725f680acdcdd7",
+            "9edf90bfa7bab3c75d7d8d794ea39761dff3b4b14c7d985270b47b15235affe1",
             "office_instruction_source")
     names = {"OFFICECLI_INSTRUCTION_MARKER", "OFFICECLI_INSTRUCTION"}
     nodes = [n for n in ast.parse(source).body if isinstance(n, ast.Assign)
@@ -648,19 +648,27 @@ def verify_artifacts(*, source_message_id, exported, native_file_id, browser_fil
 
 def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id, answer_id,
                    wire_model, deployment_id, validate_scope, validate_rates, decode_response_id, expected_calls=3,
-                   provider_transport="native"):
+                   provider_transport="native", model=MODEL, expected_call_spend=Decimal('.20'),
+                   input_rate=Decimal('.01'), output_rate=Decimal('.02'), user_spend_delta=None):
     """Readback assertions only. SDK decoder/rate validator are existing owners.
 
     The isolated collector must pass ALL raw pages from NativeProof.logs, not
     positive-cost rows, and the full retained original payer state. No pricing
     calculation, new ledger, scheduler or budget allowance is implemented here.
     """
-    require(type(expected_calls) is int and expected_calls in (1, 3), "office_expected_calls")
+    require(type(expected_calls) is int and expected_calls in (1, 3, 6), "office_expected_calls")
     require(type(provider_transport) is str and provider_transport in ("native", "buffered"), "office_provider_transport")
-    expected_spend = {1: ".20", 3: ".60"}[expected_calls]
+    require(isinstance(model, str) and 0 < len(model) <= 128
+            and all(type(v) is Decimal and v.is_finite() and v > 0
+                    for v in (expected_call_spend, input_rate, output_rate)), "office_finance_fixture_terms")
+    expected_key_delta = expected_call_spend * expected_calls
+    user_spend_delta = expected_key_delta if user_spend_delta is None else user_spend_delta
+    require(type(user_spend_delta) is Decimal and user_spend_delta.is_finite()
+            and user_spend_delta >= expected_key_delta, "office_finance_fixture_terms")
+    expected_spend = format(expected_key_delta, 'f').lstrip('0')
     require(before["old_payers"] and before["old_payers"] == after["old_payers"], "office_old_finance_changed")
     require(before["user"].get("user_id") == before["key"].get("user_id") == actor
-            and before["key"].get("models") == [MODEL], "office_financial_owner")
+            and before["key"].get("models") == [model], "office_financial_owner")
     require(protected_r(before["user"], before["key"]) == protected_r(after["user"], after["key"]), "office_caps_changed")
     def keyed(rows):
         require(isinstance(rows, list) and all(isinstance(v, dict) and isinstance(v.get("request_id"), str)
@@ -686,20 +694,20 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
                 and provider in calls_by_provider and provider not in observed and scope == calls_by_provider[provider],
                 "office_row_dispatch_binding")
         observed.add(provider)
-        require(scope["user_id"] == row.get("user") == actor and scope["model"] == row.get("model_group") == MODEL
+        require(scope["user_id"] == row.get("user") == actor and scope["model"] == row.get("model_group") == model
                 and scope["chat_id"] == scope["root_chat_id"] == row.get("session_id") == chat_id
                 and scope["answer_id"] == scope["root_answer_id"] == answer_id and row.get("api_key") == key_hash
-                and row.get("model") in (MODEL, wire_model, "openai/" + wire_model)
+                and row.get("model") in (model, wire_model, "openai/" + wire_model)
                 and row.get("model_id") == deployment_id and row.get("status") == "success"
                 and [row.get(k) for k in ("prompt_tokens", "completion_tokens", "total_tokens")] == [10, 5, 15]
                 and all(type(row.get(k)) is int for k in ("prompt_tokens", "completion_tokens", "total_tokens"))
-                and close_amount(row.get("spend"), Decimal(".20")), "office_row_identity_usage_cost")
+                and close_amount(row.get("spend"), expected_call_spend), "office_row_identity_usage_cost")
         rates = validate_rates(spend["owui_billed_token_rates"])["rates"]
-        require(Decimal(str(rates["input_cost_per_token"])) == Decimal(".01")
-                and Decimal(str(rates["output_cost_per_token"])) == Decimal(".02"), "office_row_rates")
+        require(Decimal(str(rates["input_cost_per_token"])) == input_rate
+                and Decimal(str(rates["output_cost_per_token"])) == output_rate, "office_row_rates")
     for owner in ("user", "key"):
         require(close_amount(Decimal(str(after[owner]["spend"])) - Decimal(str(before[owner]["spend"])),
-                             Decimal(expected_spend)), "office_native_spend_delta")
+                              user_spend_delta if owner == 'user' else expected_key_delta), "office_native_spend_delta")
     return {"physical_calls": expected_calls, "new_raw_rows": expected_calls, "native_spend_delta_usd": expected_spend}
 
 
