@@ -1,10 +1,10 @@
-"""Read-only projection of the pinned LiteLLM 1.105.1 session spend API.
+"""Read-only projections of pinned LiteLLM 1.105.1 durable spend APIs.
 
 Owner -> contract -> consumer:
-native spend ledger -> GET /spend/logs/session/ui -> this display projection.
+native spend ledger -> session/UI or raw v2 GET -> this display projection.
 Gateway-validated spend_logs_metadata.owui_budget supplies attribution, never
 prices. The caller owns native WebUI authentication/Chat ACL validation and
-passes its existing shared aiohttp session and server-held native viewer key.
+passes its shared aiohttp session and server-held native viewer/admin key.
 No provider calls, local ledger, tariff calculation or application imports.
 
 Source: LiteLLM d665dc1a6315847fcad6cc2c1264ceb47c06abce,
@@ -13,6 +13,9 @@ returns uncapped counts plus rows, not session_total_spend. Admin-viewer sees
 all users in a session; every row is therefore checked here, never filtered out.
 Use a native proxy_admin_viewer user and a key restricted to exactly this GET
 route (not key_type=read_only, which selects the info_routes preset).
+The separate admin projection uses native /spend/logs/v2 with exact assignment
+filters and an explicit caller-owned half-open UTC calendar window. It retains
+qualified known subtotal alongside unknown rows without certifying final cost.
 """
 
 from __future__ import annotations
@@ -21,9 +24,10 @@ import asyncio
 import logging
 from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, DecimalException, Inexact, localcontext
 import json
+import re
 from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
@@ -33,6 +37,7 @@ from employee_budget_provenance import ProtocolError, validate_persisted_scope
 
 
 SESSION_ROUTE = "/spend/logs/session/ui"
+ADMIN_ROUTE = "/spend/logs/v2"
 PAGE_SIZE = 100
 MAX_PAGES = 100
 MAX_PAGE_BYTES = 2 * 1024 * 1024
@@ -96,6 +101,28 @@ class CostSnapshot:
 
 
 @dataclass(frozen=True)
+class AdminExpenseProjection:
+    """Server-only observed rows; pagination is not expense settlement."""
+    user_id: str
+    model: str
+    window_start: datetime
+    window_end_exclusive: datetime
+    known_subtotal: CostTotal
+    unknown_rows: int
+    observed_total_spend: Decimal | None
+    raw_rows: int
+    excluded_boundary_rows: int
+    as_of: datetime
+    pagination_complete: Literal[True] = True
+    final: Literal[False] = False
+    coverage: Literal["persisted_rows_in_window"] = "persisted_rows_in_window"
+
+    @property
+    def expense_unknown(self) -> bool:
+        return self.unknown_rows > 0
+
+
+@dataclass(frozen=True)
 class _Row:
     request_id: str
     call_id: str
@@ -117,6 +144,20 @@ def _text(value: object) -> str:
              and value == value.strip() and all(ord(c) >= 32 for c in value),
              "invalid_scope")
     return value
+
+
+def _reader_configuration(base_url: str, key: str, max_pages: int) -> None:
+    try:
+        parsed = urlsplit(base_url)
+        valid_url = (parsed.scheme in ("http", "https") and bool(parsed.hostname)
+                     and parsed.username is None and parsed.password is None
+                     and not parsed.query and not parsed.fragment)
+    except (ValueError, TypeError):
+        valid_url = False
+    _require(valid_url, "invalid_configuration")
+    _require(isinstance(key, str) and bool(key) and "\r" not in key and "\n" not in key,
+             "invalid_configuration")
+    _require(type(max_pages) is int and 1 <= max_pages <= MAX_PAGES, "invalid_configuration")
 
 
 def _integer(value: object, code: str = "invalid_usage") -> int:
@@ -157,11 +198,12 @@ def _sum_spend(rows: list[_Row]) -> Decimal:
         raise CostReadError("invalid_spend") from None
 
 
-def _usage_available(metadata: dict) -> None:
+def _usage_unavailable(metadata: dict) -> bool:
     information = metadata.get("guardrail_information")
     if information is None:
-        return
+        return False
     _require(isinstance(information, list), "accounting_unavailable")
+    unknown = False
     for guardrail in information:
         _require(isinstance(guardrail, dict), "accounting_unavailable")
         if guardrail.get("guardrail_name") != "owui_budget_usage":
@@ -173,11 +215,17 @@ def _usage_available(metadata: dict) -> None:
                  and action in ("allow", "block", "block_failed"), "accounting_unavailable")
         if "usage_unavailable" in categories:
             _require(action in ("block", "block_failed"), "accounting_unavailable")
-            raise CostReadError("usage_unavailable")
-        _require(action == "allow", "accounting_unavailable")
+            unknown = True
+        else:
+            _require(action == "allow", "accounting_unavailable")
+    return unknown
 
 
-def _row(raw: object, user_id: str, chat_id: str) -> _Row:
+def _usage_available(metadata: dict) -> None:
+    _require(not _usage_unavailable(metadata), "usage_unavailable")
+
+
+def _attribution(raw: object, user_id: str, chat_id: str) -> dict:
     _require(isinstance(raw, dict), "invalid_row")
     _require(raw.get("user") == user_id and raw.get("session_id") == chat_id,
              "foreign_scope")
@@ -191,6 +239,20 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
         raise CostReadError("invalid_attribution") from None
     _require(scope.get("user_id") == user_id and scope.get("root_chat_id") == chat_id,
              "foreign_scope")
+    return scope
+
+
+def _usage_numbers(raw: dict) -> tuple[int, int, int, Decimal]:
+    prompt = _integer(raw.get("prompt_tokens"))
+    completion = _integer(raw.get("completion_tokens"))
+    total = _integer(raw.get("total_tokens"))
+    _require(total == prompt + completion, "invalid_usage")
+    return prompt, completion, total, _money(raw.get("spend"))
+
+
+def _row(raw: object, user_id: str, chat_id: str) -> _Row:
+    scope = _attribution(raw, user_id, chat_id)
+    metadata = raw["metadata"]
     # This native guardrail's typed telemetry is meaningful only after the
     # existing row owner and signed scope checks. An estimated positive spend
     # cannot make its unavailable Usage a confirmed amount.
@@ -205,11 +267,7 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
              and metadata.get("response_cost_failure_debug_info") is None
              and metadata.get("response_cost_failure_debug_information") is None,
              "accounting_unavailable")
-    prompt = _integer(raw.get("prompt_tokens"))
-    completion = _integer(raw.get("completion_tokens"))
-    total = _integer(raw.get("total_tokens"))
-    _require(total == prompt + completion, "invalid_usage")
-    spend = _money(raw.get("spend"))
+    prompt, completion, total, spend = _usage_numbers(raw)
     _require(spend > 0 and total > 0, "accounting_unavailable")
     return _Row(_text(raw.get("request_id")), scope["call_id"], scope["root_answer_id"], scope["model"],
                 spend, prompt, completion, total)
@@ -230,11 +288,10 @@ def _total(rows: list[_Row]) -> CostTotal:
                      models)
 
 
-async def _page(session: ClientSession, url: str, key: str, chat_id: str,
-                page: int, request_timeout: float) -> dict:
+async def _get_page(session: ClientSession, url: str, key: str, params: dict,
+                    request_timeout: float) -> dict:
     try:
-        async with session.get(url, params={"session_id": chat_id, "page": page,
-                                           "page_size": PAGE_SIZE},
+        async with session.get(url, params=params,
                                headers={"Authorization": f"Bearer {key}"},
                                allow_redirects=False,
                                timeout=ClientTimeout(total=request_timeout)) as response:
@@ -258,6 +315,32 @@ async def _page(session: ClientSession, url: str, key: str, chat_id: str,
         raise CostReadError("spend_api_unavailable") from None
 
 
+async def _page(session: ClientSession, url: str, key: str, chat_id: str,
+                page: int, request_timeout: float) -> dict:
+    return await _get_page(session, url, key, {"session_id": chat_id, "page": page,
+                                              "page_size": PAGE_SIZE}, request_timeout)
+
+
+def _validated_page(payload: dict, page: int, max_pages: int,
+                    first_counts: tuple[int, int] | None) -> tuple[list, tuple[int, int]]:
+    total = _integer(payload.get("total"), "invalid_pagination")
+    pages = _integer(payload.get("total_pages"), "invalid_pagination")
+    _require(payload.get("total_is_capped", False) is False, "incomplete_pagination")
+    _require(type(payload.get("page")) is int and payload["page"] == page
+             and type(payload.get("page_size")) is int and payload["page_size"] == PAGE_SIZE
+             and pages == (total + PAGE_SIZE - 1) // PAGE_SIZE, "invalid_pagination")
+    _require(pages <= max_pages and total <= max_pages * PAGE_SIZE, "incomplete_pagination")
+    counts = (total, pages)
+    if first_counts is not None and counts != first_counts:
+        raise _UnstablePagination("counts_changed")
+    data = payload.get("data")
+    _require(isinstance(data, list), "invalid_pagination")
+    expected = min(PAGE_SIZE, max(0, total - (page - 1) * PAGE_SIZE))
+    if len(data) != expected:
+        raise _UnstablePagination("page_length_changed")
+    return data, counts
+
+
 async def _rows(session: ClientSession, url: str, key: str, user_id: str,
                 chat_id: str, request_timeout: float, max_pages: int) -> list[_Row]:
     rows: list[_Row] = []
@@ -266,23 +349,8 @@ async def _rows(session: ClientSession, url: str, key: str, user_id: str,
     page = 1
     while True:
         payload = await _page(session, url, key, chat_id, page, request_timeout)
-        total = _integer(payload.get("total"), "invalid_pagination")
-        pages = _integer(payload.get("total_pages"), "invalid_pagination")
-        _require(payload.get("total_is_capped", False) is False, "incomplete_pagination")
-        _require(type(payload.get("page")) is int and payload["page"] == page
-                 and type(payload.get("page_size")) is int and payload["page_size"] == PAGE_SIZE
-                 and pages == (total + PAGE_SIZE - 1) // PAGE_SIZE, "invalid_pagination")
-        _require(pages <= max_pages and total <= max_pages * PAGE_SIZE, "incomplete_pagination")
-        counts = (total, pages)
-        if first_counts is None:
-            first_counts = counts
-        if counts != first_counts:
-            raise _UnstablePagination("counts_changed")
-        data = payload.get("data")
-        _require(isinstance(data, list), "invalid_pagination")
-        expected = min(PAGE_SIZE, max(0, total - (page - 1) * PAGE_SIZE))
-        if len(data) != expected:
-            raise _UnstablePagination("page_length_changed")
+        data, first_counts = _validated_page(payload, page, max_pages, first_counts)
+        total, pages = first_counts
         for raw in data:
             row = _row(raw, user_id, chat_id)
             _require(row.request_id not in ids, "duplicate_request_id")
@@ -312,17 +380,7 @@ async def read_cost_snapshot(
     malformed, duplicate or foreign rows fail closed. Equal counts alone do not
     prove concurrent-write isolation.
     """
-    try:
-        parsed = urlsplit(base_url)
-        valid_url = (parsed.scheme in ("http", "https") and bool(parsed.hostname)
-                     and parsed.username is None and parsed.password is None
-                     and not parsed.query and not parsed.fragment)
-    except (ValueError, TypeError):
-        valid_url = False
-    _require(valid_url, "invalid_configuration")
-    _require(isinstance(read_key, str) and bool(read_key)
-             and "\r" not in read_key and "\n" not in read_key, "invalid_configuration")
-    _require(type(max_pages) is int and 1 <= max_pages <= MAX_PAGES, "invalid_configuration")
+    _reader_configuration(base_url, read_key, max_pages)
     for value in (timeout_seconds, wait_seconds, poll_interval):
         _require(type(value) in (int, float) and Decimal(str(value)).is_finite(),
                  "invalid_configuration")
@@ -379,4 +437,101 @@ async def read_cost_snapshot(
     except asyncio.TimeoutError:
         if latest is not None:
             return latest
+        raise CostReadError("spend_api_unavailable") from None
+
+
+def _native_timestamp(value: object) -> datetime:
+    # Native writer normalizes UTC; v2 selects a plain UTC timestamp column.
+    # Its JSON may therefore have no offset. This is never local-time inference.
+    _require(isinstance(value, str) and re.fullmatch(
+        r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)?", value) is not None,
+        "invalid_timestamp")
+    try:
+        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise CostReadError("invalid_timestamp") from None
+    return timestamp.replace(tzinfo=timezone.utc) if timestamp.tzinfo is None else timestamp
+
+
+async def read_admin_expense_projection(
+    session: ClientSession, *, base_url: str, admin_key: str, user_id: str,
+    model: str, assignment_hash: str, window_start: datetime, window_end_exclusive: datetime,
+    timeout_seconds: float = 10.0, max_pages: int = MAX_PAGES,
+) -> AdminExpenseProjection:
+    """Read one SERVER-OWNED assignment's observed personal expense rows.
+
+    The caller owns admin/assignment authority and the actual calendar window;
+    this function never derives it from a clock or reset date. Both boundaries
+    must be explicit aware-UTC whole seconds. Native v2 queries inclusive end;
+    every returned boundary row is validated, then explicitly excluded from the
+    public half-open window. No min-spend/status/grouping filter hides unknowns.
+
+    Known subtotal reuses the strict existing row/Decimal owner. Missing Usage
+    (including marked failure/estimated-positive rows) cannot add an amount.
+    Empty/unknown-only has no verified zero. All pages must validate in one
+    bounded scan; there is no partial result/retry/repair on a bad scan. Offset
+    pagination and a fixed window do not prove transaction isolation, absence
+    of late writes, or settlement, hence final is always False.
+    """
+    _reader_configuration(base_url, admin_key, max_pages)
+    _require(type(timeout_seconds) in (int, float) and Decimal(str(timeout_seconds)).is_finite()
+             and 0 < timeout_seconds <= 60, "invalid_configuration")
+    user_id, model = _call_id(user_id), _text(model)
+    _require(len(model) <= 256 and isinstance(assignment_hash, str)
+             and re.fullmatch(r"[0-9a-f]{64}", assignment_hash) is not None, "invalid_scope")
+    for boundary in (window_start, window_end_exclusive):
+        _require(isinstance(boundary, datetime) and boundary.tzinfo is not None
+                 and boundary.utcoffset() == timedelta(0) and boundary.microsecond == 0, "invalid_window")
+    _require(window_start < window_end_exclusive, "invalid_window")
+    params = {"user_id": user_id, "api_key": assignment_hash, "model_group": model,
+        "start_date": window_start.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_date": window_end_exclusive.strftime("%Y-%m-%d %H:%M:%S"),
+        "page_size": PAGE_SIZE, "sort_by": "startTime", "sort_order": "asc", "group_by_session": "false"}
+    known: list[_Row] = []
+    ids: set[str] = set()
+    unknown_rows = excluded = 0
+    counts = None
+    page = 1
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            while True:
+                payload = await _get_page(session, base_url.rstrip("/") + ADMIN_ROUTE, admin_key,
+                                          {**params, "page": page}, timeout_seconds)
+                # Unlike the uncapped session endpoint, v2 must expose this flag.
+                _require(payload.get("total_is_capped") is False, "incomplete_pagination")
+                data, counts = _validated_page(payload, page, max_pages, counts)
+                for raw in data:
+                    _require(isinstance(raw, dict), "invalid_row")
+                    _require(raw.get("api_key") == assignment_hash and raw.get("model_group") == model,
+                             "foreign_scope")
+                    _text(raw.get("model"))  # Provider model is opaque, never decoded into an alias.
+                    chat_id = _call_id(raw.get("session_id"))
+                    scope = _attribution(raw, user_id, chat_id)
+                    _require(scope["model"] == model, "foreign_scope")
+                    request_id = _text(raw.get("request_id"))
+                    _require(request_id not in ids, "duplicate_request_id")
+                    ids.add(request_id)
+                    started, ended = _native_timestamp(raw.get("startTime")), _native_timestamp(raw.get("endTime"))
+                    _require(window_start <= started <= window_end_exclusive and ended >= started, "foreign_window")
+                    _require(raw.get("status") in ("success", "failure"), "accounting_unavailable")
+                    unknown = _usage_unavailable(raw["metadata"])
+                    if unknown:
+                        _usage_numbers(raw)  # Validate telemetry, never charge its estimate.
+                        item = None
+                    else:
+                        item = _row(raw, user_id, chat_id)
+                    if started == window_end_exclusive:
+                        excluded += 1
+                    elif unknown:
+                        unknown_rows += 1
+                    else:
+                        known.append(item)
+                if page >= counts[1]:
+                    _require(len(ids) == counts[0], "incomplete_pagination")
+                    subtotal = _total(known)
+                    return AdminExpenseProjection(user_id, model, window_start, window_end_exclusive,
+                        subtotal, unknown_rows, None if unknown_rows else subtotal.spend,
+                        len(ids), excluded, datetime.now(timezone.utc))
+                page += 1
+    except asyncio.TimeoutError:
         raise CostReadError("spend_api_unavailable") from None

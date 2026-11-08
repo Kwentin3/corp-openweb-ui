@@ -2,12 +2,16 @@
 
 import asyncio
 import copy
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import importlib.util
 import json
 from pathlib import Path
 import sys
 import unittest
+from types import SimpleNamespace
+from urllib.parse import urlsplit
 from uuid import NAMESPACE_URL, uuid5
 
 from aiohttp import ClientSession, web
@@ -497,6 +501,203 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
         self.payload = page([row(spend="1e10000"), row("p2", spend="1e-10000")])
         with self.assertRaisesRegex(cost.CostReadError, "invalid_spend"):
             await self.read()
+
+
+class _MemoryReadSession:
+    """Finite aiohttp GET/content IO leaf; never creates a socket/client."""
+    def __init__(self, owner): self.owner, self.closed = owner, False
+
+    async def close(self): self.closed = True
+
+    def get(self, url, *, params, headers, allow_redirects, timeout):
+        owner = self.owner
+        assert allow_redirects is False and 0 < timeout.total <= 60
+        assert urlsplit(url).path in (cost.ADMIN_ROUTE, cost.SESSION_ROUTE)
+        query = {key: str(value) for key, value in params.items()}
+        @asynccontextmanager
+        async def response():
+            owner.requests.append(("GET", query, headers.get("Authorization")))
+            request = SimpleNamespace(query=query, headers=headers)
+            try:
+                result = await owner.handler(request) if owner.handler else web.json_response(owner.payload)
+            except web.HTTPException as error:
+                result = error
+            async def chunks(size):
+                body = result.body or b""
+                for offset in range(0, len(body), size): yield body[offset:offset + size]
+            yield SimpleNamespace(status=result.status, content=SimpleNamespace(iter_chunked=chunks))
+        return response()
+
+
+ASSIGNMENT = "a" * 64
+WINDOW_START = datetime(2026, 10, 1, tzinfo=timezone.utc)
+WINDOW_END = datetime(2026, 11, 1, tzinfo=timezone.utc)
+
+
+def admin_row(request_id="provider-1", *, unknown=False, spend="0.20", status="success",
+              started="2026-10-07T12:00:00.123Z", ended="2026-10-07T12:00:01Z", action="block"):
+    value = row(request_id, spend=spend)
+    value.update(api_key=ASSIGNMENT, model_group="alias-a", startTime=started, endTime=ended, status=status)
+    if unknown:
+        value.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        value["metadata"]["guardrail_information"] = [{"guardrail_name": "owui_budget_usage",
+            "guardrail_action": action, "violation_categories": ["usage_unavailable"]}]
+    return value
+
+
+def admin_page(rows, *, number=1, total=None):
+    return {**page(rows, number=number, total=total), "total_is_capped": False}
+
+
+class AdminExpenseProjectionTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.requests, self.handler = [], None
+        self.payload = admin_page([admin_row()])
+        self.session = _MemoryReadSession(self)
+
+    async def read(self, **kwargs):
+        values = dict(base_url="http://native-fixture.invalid", admin_key="synthetic-admin-only-key", user_id=USER,
+            model="alias-a", assignment_hash=ASSIGNMENT, window_start=WINDOW_START, window_end_exclusive=WINDOW_END)
+        values.update(kwargs)
+        return await cost.read_admin_expense_projection(self.session, **values)
+
+    async def test_known_subtotal_and_unknown_zero_failure_estimate_are_distinct(self):
+        for spend, status, action in (("0", "success", "block"), ("0.9", "success", "block"),
+                                      ("0.7", "failure", "block_failed")):
+            values = [admin_row("known-1", spend="0.10"), admin_row("known-2", spend="0.23"),
+                      admin_row("unknown", unknown=True, spend=spend, status=status, action=action)]
+            self.payload = admin_page(values); before = copy.deepcopy(self.payload)
+            result = await self.read()
+            self.assertEqual(result.known_subtotal.spend, Decimal("0.33"))
+            self.assertEqual(result.known_subtotal.calls, 2)
+            self.assertEqual(result.unknown_rows, 1); self.assertTrue(result.expense_unknown)
+            self.assertIsNone(result.observed_total_spend); self.assertFalse(result.final)
+            self.assertEqual(result.raw_rows, 3); self.assertTrue(result.pagination_complete)
+            self.assertEqual(self.payload, before); self.assertFalse(self.session.closed)
+            self.assertNotIn(ASSIGNMENT, repr(result)); self.assertNotIn("synthetic-admin", repr(result))
+
+    async def test_no_rows_unknown_only_and_known_only_never_invent_zero(self):
+        for values in ([], [admin_row(unknown=True, spend="0", status="failure")]):
+            self.payload = admin_page(values)
+            result = await self.read()
+            self.assertIsNone(result.known_subtotal.spend); self.assertIsNone(result.observed_total_spend)
+            self.assertFalse(result.final)
+        self.payload = admin_page([admin_row()])
+        result = await self.read()
+        self.assertEqual(result.observed_total_spend, Decimal("0.20")); self.assertFalse(result.expense_unknown)
+        self.assertFalse(result.final)
+        self.payload = admin_page([admin_row(spend="0")])
+        with self.assertRaisesRegex(cost.CostReadError, "accounting_unavailable"): await self.read()
+
+    async def test_exact_native_v2_query_uses_caller_window_without_row_hiding_filters(self):
+        await self.read()
+        self.assertEqual(self.requests, [("GET", {"user_id": USER, "api_key": ASSIGNMENT, "model_group": "alias-a",
+            "start_date": "2026-10-01 00:00:00", "end_date": "2026-11-01 00:00:00", "page_size": "100",
+            "sort_by": "startTime", "sort_order": "asc", "group_by_session": "false", "page": "1"},
+            "Bearer synthetic-admin-only-key")])
+
+    async def test_fractional_last_second_included_exact_reset_explicitly_excluded(self):
+        last = admin_row("last", started="2026-10-31T23:59:59.999", ended="2026-11-01T00:00:01Z")
+        boundary = admin_row("reset", unknown=True, spend="0", started="2026-11-01T00:00:00+00:00",
+                             ended="2026-11-01T00:00:00.001Z", status="failure")
+        self.payload = admin_page([last, boundary])
+        result = await self.read()
+        self.assertEqual(result.known_subtotal.spend, Decimal("0.20"))
+        self.assertEqual((result.raw_rows, result.excluded_boundary_rows, result.unknown_rows), (2, 1, 0))
+        self.assertFalse(result.expense_unknown); self.assertEqual(result.window_end_exclusive, WINDOW_END)
+
+    async def test_foreign_identity_even_at_exact_end_fails_closed(self):
+        mutations = (lambda r:r.update(user=OTHER_USER), lambda r:r.update(api_key="b"*64),
+            lambda r:r.update(model_group="other-alias"),
+            lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(model="other-alias"),
+            lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(user_id=OTHER_USER),
+            lambda r:r.update(session_id=OTHER_CHAT))
+        for boundary in (False, True):
+            for mutate in mutations:
+                candidate = admin_row(unknown=True)
+                if boundary: candidate.update(startTime="2026-11-01T00:00:00Z", endTime="2026-11-01T00:00:00Z")
+                mutate(candidate); self.payload = admin_page([candidate])
+                with self.subTest(boundary=boundary, mutate=mutate), self.assertRaises(cost.CostReadError): await self.read()
+
+    async def test_missing_scope_service_scope_malformed_marker_and_bad_values_fail_closed(self):
+        mutations = (lambda r:r.update(metadata={}), lambda r:r.update(request_id=""), lambda r:r.update(session_id="not-native"),
+            lambda r:r["metadata"]["spend_logs_metadata"]["owui_budget"].update(category="service"),
+            lambda r:r["metadata"]["guardrail_information"][0].update(guardrail_action="allow"),
+            lambda r:r["metadata"]["guardrail_information"].append({"guardrail_name":"owui_budget_usage","violation_categories":None}),
+            lambda r:r.update(spend="NaN"), lambda r:r.update(spend="-1"), lambda r:r.update(total_tokens=True),
+            lambda r:r.update(prompt_tokens=1), lambda r:r.update(status="invented"))
+        for mutate in mutations:
+            candidate = admin_row(unknown=True, spend="0"); mutate(candidate)
+            self.payload = admin_page([candidate])
+            with self.subTest(mutate=mutate), self.assertRaises(cost.CostReadError): await self.read()
+
+    async def test_unsupported_or_foreign_time_and_guessed_windows_reject(self):
+        for value in ("2026-09-30T23:59:59.999Z", "2026-11-01T00:00:00.001Z", "2026-10-07",
+                      "2026-10-07T12:00:00+03:00", "bad", "2026-99-07T12:00:00Z"):
+            self.payload = admin_page([admin_row(unknown=True, started=value)])
+            with self.subTest(value=value), self.assertRaises(cost.CostReadError): await self.read()
+        cases = ({"window_start": WINDOW_START.replace(tzinfo=None)},
+            {"window_end_exclusive": WINDOW_END.replace(microsecond=1)}, {"window_start": WINDOW_END},
+            {"window_start": WINDOW_START.astimezone(timezone(timedelta(hours=3)))},
+            {"assignment_hash":"sk-not-an-assignment-hash"}, {"user_id":"invented"}, {"timeout_seconds":float("inf")})
+        for values in cases:
+            self.requests.clear()
+            with self.subTest(values=values), self.assertRaises(cost.CostReadError): await self.read(**values)
+            self.assertEqual(self.requests, [])
+
+    async def test_all_native_pages_and_boundary_rows_are_accounted_before_result(self):
+        values = [admin_row(f"known-{i}") for i in range(100)] + [admin_row("unknown", unknown=True, spend="0"),
+            admin_row("reset", started="2026-11-01T00:00:00Z", ended="2026-11-01T00:00:00Z")]
+        async def handler(request):
+            number = int(request.query["page"])
+            return web.json_response(admin_page(values[(number-1)*100:number*100], number=number, total=102))
+        self.handler = handler
+        result = await self.read()
+        self.assertEqual([r[1]["page"] for r in self.requests], ["1", "2"])
+        self.assertEqual(result.known_subtotal.spend, Decimal("20"))
+        self.assertEqual((result.raw_rows, result.excluded_boundary_rows, result.unknown_rows), (102, 1, 1))
+
+    async def test_capped_missing_flag_duplicate_incomplete_or_unstable_pages_have_no_partial_result(self):
+        missing = page([admin_row()])
+        values = (missing, dict(admin_page([admin_row()]), total_is_capped=True),
+            admin_page([admin_row()], total=2), dict(admin_page([admin_row()]), page=True),
+            admin_page([admin_row(), admin_row()]), admin_page([], total=10001))
+        for payload in values:
+            self.payload = payload
+            with self.subTest(payload=payload), self.assertRaises(cost.CostReadError): await self.read()
+        async def drift(request):
+            number = int(request.query["page"])
+            return web.json_response(admin_page([admin_row(f"p{i}") for i in range(100)] if number == 1 else [],
+                number=number, total=101 if number == 1 else 100))
+        self.handler = drift; self.requests.clear()
+        with self.assertRaisesRegex(cost.CostReadError, "incomplete_pagination"): await self.read()
+        self.assertEqual(len(self.requests), 2)  # No repair or automatic retry.
+
+    async def test_partial_timeout_http_redirect_and_size_errors_never_return_a_projection(self):
+        async def partial(request):
+            number = int(request.query["page"])
+            if number == 2: await asyncio.sleep(.1)
+            return web.json_response(admin_page([admin_row(f"p{i}") for i in range(100)] if number == 1 else [admin_row("last")],
+                number=number, total=101))
+        self.handler = partial
+        with self.assertRaisesRegex(cost.CostReadError, "spend_api_unavailable"): await self.read(timeout_seconds=.03)
+        async def redirect(request): raise web.HTTPFound("http://foreign.invalid")
+        async def forbidden(request): return web.Response(status=403, text="synthetic-admin-only-key PRIVATE_BODY")
+        async def oversized(request): return web.Response(body=b"x"*(cost.MAX_PAGE_BYTES+1))
+        for handler in (redirect, forbidden, oversized):
+            self.handler = handler
+            with self.subTest(handler=handler), self.assertRaises(cost.CostReadError) as caught: await self.read()
+            self.assertNotIn("PRIVATE_BODY", str(caught.exception)); self.assertNotIn("synthetic-admin", str(caught.exception))
+
+    async def test_shared_aggregation_keeps_small_known_charge_and_chat_remains_strict(self):
+        self.payload = admin_page([admin_row("large", spend="1e30"), admin_row("small", spend="0.01"),
+            admin_row("unknown", unknown=True, spend=".4")])
+        result = await self.read()
+        self.assertEqual(result.known_subtotal.spend, Decimal("1000000000000000000000000000000.01"))
+        self.assertIsNone(result.observed_total_spend)
+        with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
+            await cost.read_cost_snapshot(self.session, base_url="http://native-fixture.invalid", read_key="private-read-key",
+                user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER, observed_request_ids=["large"])
 
 
 if __name__ == "__main__":
