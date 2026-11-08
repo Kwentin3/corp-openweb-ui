@@ -522,6 +522,26 @@ jobs:
               assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_delegation_readback.py').read_bytes()).hexdigest()
               assert packet.get('native_office_accepted') is False
               return packet
+          def setup_diagnostic():
+              # Export only the existing failed receipt and bounded publication progress.
+              _,receipt=fixture._office_private('office-delegation-setup.safe.json')
+              assert receipt.get('phase')=='office-delegation-setup' and receipt.get('passed') is False
+              _,state=fixture._office_private('office-state.private.json')
+              selected=state.get('office_delegation_setup',{})
+              publication=selected.get('publication',{});published=publication.get('receipt',{})
+              journal=selected.get('journal',[]);last=journal[-1] if journal else {}
+              publisher_steps=[entry for entry in journal if entry.get('stage')=='native-publish-template']
+              assert len(publisher_steps)<=1
+              packet={'schema':1,'passed':False,'native_office_accepted':False,
+                  'failure':receipt.get('failure'),'publication_stage':publication.get('stage'),
+                  'config_restored':publication.get('config_restored'),
+                  'last_step':{key:last.get(key) for key in ('stage','returned')},
+                  'publisher_step':{'present':bool(publisher_steps),
+                      'returned':publisher_steps[0].get('returned') if publisher_steps else None},
+                  'publisher':{key:published.get(key) for key in ('status','attempted_step','completed_steps','error')}}
+              assert len(json.dumps(packet,allow_nan=False).encode())<=4096
+              public('office-delegation-setup-failure',packet)
+              return True
           def collect_artifacts():
               assert isinstance(observed,dict) and isinstance(raw,dict) and isinstance(provider,dict)
               workers=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-delegated-worker']
@@ -625,6 +645,10 @@ jobs:
                       'worker encrypted reasoning compared with current native baseline']})
           except Exception as error:
               failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,'error_class':type(error).__name__}
+              if stage=='setup':
+                  failure['setup_diagnostic_collected']=False
+                  try: failure['setup_diagnostic_collected']=setup_diagnostic()
+                  except Exception: pass
               if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
                   try: no_credentials({'message':str(error)},fixture.secrets)
                   except (AssertionError,ProofError): pass
