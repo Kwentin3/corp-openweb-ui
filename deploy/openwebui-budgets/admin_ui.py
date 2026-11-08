@@ -142,7 +142,9 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
         expense = _expense_markup(row)
         summary = (f'Учтённый расход: {_text(row["spend_usd"])} USD · '
                    f'Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD' if expense is None
-                   else expense + 'Остаток не подтверждён.')
+                   else expense + ('Остаток не подтверждён.' if row.get('expense_status') == 'unknown'
+                       else f'Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD. '
+                            'Итоговый остаток не подтверждён.'))
         sections.append(f'<section data-employee-id="{_text(row["user_id"])}"><h3>{_text(row["name"])}</h3>'
             f'<p>{_text(row["email"])} · ID: {_text(row["user_id"])}</p>'
             f'<p>{summary}</p>'

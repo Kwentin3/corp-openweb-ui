@@ -101,8 +101,13 @@ class RendererTests(unittest.TestCase):
                 self.assertIn('По данным учёта: 0 USD. Эта сумма не подтверждает итоговый расход.', section)
                 self.assertNotIn('Учтённый расход: 0 USD', section)
                 self.assertNotIn('Подтверждённая часть расхода', section)
-                self.assertNotIn('Остаток по учтённым расходам', section)
-                self.assertIn('Остаток не подтверждён.', section)
+                if status == 'unknown':
+                    self.assertNotIn('Остаток по учтённым расходам', section)
+                    self.assertNotIn('10.00 USD', section)
+                    self.assertIn('Остаток не подтверждён.', section)
+                else:
+                    self.assertIn('Остаток по учтённым расходам: 10.00 USD.', section)
+                    self.assertIn('Итоговый остаток не подтверждён.', section)
                 self.assertIn('<td>Не заблокирована</td>', section)
 
     def test_expense_context_uses_only_owned_strings_and_does_not_derive_dates_or_sums(self):
