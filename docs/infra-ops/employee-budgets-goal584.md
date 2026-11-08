@@ -3,12 +3,52 @@
 Текущая запись работы, 08.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
-[редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
+[редакция 5](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Актуальный runtime-кандидат08.11:**
+**Последний runtime-кандидат08.11, завершён:**
+[run42496273115](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42496273115),
+exact head `4f9505de5de1ce9fddf0ba5a58dd731db275f339`, job128779198407,
+workflow_dispatch15:43:44UTC. Terminal FAILURE на шаге14/admin unknown; шаги1–13
+SUCCESS, delegation15 SKIPPED, diagnostics/cleanup/upload SUCCESS. Живого job нет.
+Artifact13624017462 получен один раз:1176708B/89unique, SHA256
+`75967457b77da0b65bf968dc3a74c6d6747fde8ce0df39a46f717afade7ea35e`.
+Root повторил прежний полный reader успешных Office-срезов:54build/72sourcepins,
+45guard/19auth/1CLI без skips; ordinary3personal/.60+service.20,
+continuation1personal/.20+service.20. DOCX17paragraphs/3x4table и actual render/
+continuation PNG просмотрены; Download/.20/chat.80 видимы. Пять image IDs связаны
+с успешной cleanup; task containers/volumes/networks/images отсутствуют.
+Native key block, unknown API и шесть GUI Sends прошли; отдельная source/receipt/
+PNG приёмка поручена reviewer. Это не independent replay приватных финансовых operands.
+
+Отказ14 различён: native admin setup passed=true/stage=setup_complete; его receipt
+не содержит inference_issued. Неизменённый workflow806 требует именно false и
+останавливается до baseline/browser, поэтому admin GUI/provider/finance не приняты.
+Source fix только unknown_setup: вернуть явный inference_issued=false. Регрессия
+исполняет actual workflow guard над stdout реального CLI: до fix26tests/1FAIL,
+после26PASS; missing-field negative и отсутствие inference attempts сохранены.
+Нужны независимое source review и один новый native прогон; assertion не ослаблен.
+Evidence `office88-review/`, `office88-admin-triage/`.
+
+Независимые оставшиеся срезы: Terminal OCI digest/amd64/config и pinned source
+сверены без загрузки слоёв; runtime/OpenAPI ещё не проверены. Opt-in topology
+готовится в REASONING через native Compose extends/тот же OfficeFixture,
+default strict-six неизменен; workflow/provision/activation в срез не входят.
+Native CC params.stream_response=false найден, но в WebUI0.12.2 обычный native
+Tool loop при нём не исполняется; это не замена используемому Tool-маршруту.
+Post-dispatch interruption/unknown policy остаётся открытой, нового core patch нет.
+Terra quota-refusal: finite source plan и 17-check actual native formatter replay
+готовы; typed native denial обязателен, строка Tool теряет HTTP type/status.
+Same-stand observation bound либо fresh negative-only — решение root в текущих
+полномочиях; source implementation и runtime ещё не выполнены. Сначала нужен
+успешный positive delegation. Evidence `terminal-artifact-prerequisites/`,
+`cc-whole-reply-native-option/`, `delegated-quota-{refusal-source-plan,error-shape}/`.
+Коммерческая редакция5 отражает согласованное unknown employee/model blocking
+и учёт порученных другой модели шагов; часов/цен/статуса production не меняет.
+
+**Предыдущий runtime-кандидат08.11, terminal:**
 [run42489150420](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42489150420),
 exact head `957021fd0120c6960e9d5f236ac775d3d657f54b`, job128757481939,
 workflow_dispatch14:18:24UTC; terminalFAILURE step11/ordinary_send,

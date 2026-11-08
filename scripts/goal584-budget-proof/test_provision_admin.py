@@ -525,6 +525,15 @@ class UnknownAdminProvisionTests(unittest.TestCase):
             self.assertEqual(p.main(), 0, output.getvalue())
         safe = json.loads(output.getvalue())
         self.assertEqual((safe['phase'], safe['stage'], safe['passed']), ('unknown-setup', 'setup_complete', True))
+        workflow = (HERE.parents[1] / '.github/workflows/goal584-office-proof.yml').read_text(encoding='utf-8')
+        guard, = (line.strip() for line in workflow.splitlines()
+                  if line.strip().startswith("assert setup.get('phase')=='unknown-setup'"))
+        exec(compile(guard, 'native-admin-setup-workflow-guard', 'exec'), {'setup': safe})
+        self.assertIs(safe['inference_issued'], False)
+        self.assertFalse(self.wire.attempts or self.wire.physical)
+        with self.assertRaises(AssertionError):
+            exec(compile(guard, 'native-admin-setup-workflow-guard', 'exec'),
+                 {'setup': {k: v for k, v in safe.items() if k != 'inference_issued'}})
         self.assertEqual(actual_read(receipt), safe)
         self.assertNotIn(self.new_token, output.getvalue())
         self.assertNotIn(self.wire.operator, output.getvalue())
