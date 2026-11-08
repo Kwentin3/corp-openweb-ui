@@ -8,6 +8,62 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний выполненный прогон08.11:**
+[run42462981003](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42462981003),
+workflow406918033, workflow_dispatch, точный published head
+`e37eecc752e751ea978a52af177a4645a0619923`, создан08:26:55UTC.
+Native job128676075758 terminalFAILURE: steps1–10SUCCESS,11setupFAILED,
+12–14SKIPPED, diagnostic15/cleanup16/upload17SUCCESS. Это один новый dispatch
+после terminal42461666692 ниже; новых live handles пока нет.
+Изменены только coordinator diagnostic bound и его tests плюс эта запись;
+full private finance/context checks и остальные шаги сохранены. Reasoning и
+delivery синхронизированы на e37eecc7. Отдельно делегированы admin unknown
+cost_readback+tests и минимальный private auth-owner/observer quota witness;
+они не входят в frozen runtime candidate. Новый auth seam допускает лишь
+native BudgetExceeded на точном personal key после проверенной подписи/assignment,
+с сохранением исходного исключения и без заявления успешной авторизации.
+
+Office83 artifact13610683469 загружен один раз:1004973B/72members,
+API/raw ZIP SHA256 `64309807e23ed05d0b17868fe8267a078ca71492a580d0c5d7fc5e36220adc89`.
+Independent reader+root проверили72exactGit pins,45guard/19auth/1CLI без skips,
+5images/containers/volumes/networks/guide cleanup. Source-bound direct Office9:
+3personal/.60+1service/.20; continuation10:1personal/.20+1service/.20, full native
+validators прежние и обязательные. Failed public diagnostic_bound сохранён и
+не стал финансовой приёмкой. Root просмотрел actual PNG: first Download/attachment
+и.60 видны, render hash совпадает с уже просмотренным82; в continuation видны
+строка/.20/chat.80/Thought/icons, но не final text/link. Source отдельно проверяет
+DOM-visible scoped link; причина расхождения снимка неизвестна, full visual
+continuation acceptance не заявлена. Raw private operands не реконструировались.
+
+Setup11 дошёл до native Knowledge200/admin saved turn200 и затем восстановил
+retrieval flag. Metadata embedding404 — штатная best-effort попытка, причинная
+связь не установлена. Точная CLI failure и private journal не были экспортированы:
+command_json оставил лишь generic отказ. Локальный real Request/Pydantic/aiohttp
+probe до первого Knowledge GET проходит. Затем actual pinned native ChatResponse/
+shared_chat_response/get_chat_by_id replay выявил точный source mismatch:
+GET добавляет share_mode=continue и user_id/user к обоим user-message представлениям,
+а publication требовала GETchat==rawsubmittedChatForm. Старое равенство False на
+реальном native output. Это доказанный механизм, не восстановленные private83 values.
+Узкий исправляемый readback сохраняет все submitted fields и проверяет лишь эти
+штатные enrichments; native owners/GET/saved source не меняются. Отдельно source
+добавляет whitelisted bounded setup failure из existing receipt/publication/journal
+перед cleanup, не новый журнал/доступ/обход.8actual helper cases PASS,
+credentials/oversize/wrongphase/success/missingreceipt/duplicate не экспортируются;
+publisher_step различает entry/return и restoration. Новый dispatch возможен после
+source freeze/review; successful publication по-прежнему требует runtime evidence.
+Evidence: `office83-review/`, `office83-native-office-review/`,
+`office83-publication-triage/`.
+
+Следующие source slices frozen отдельно в REASONING, не в executed e37:
+admin cost-readback2files —11new+31strict tests, independent42/42PASS0network,
+source LF73f5fa32/test548c07b2, same native v2/guardrail/provenance/math owners.
+UI/actual native API/blocked/history integration открыты. Quota auth-owner/observer
+4files —50auth+34observer PASS0skip, rootactualgateway/denial15PASS; same exception,
+signature/freshassignment/same-module loader identity, private rejection only.
+Full Linux image/actual quota/no-dispatch/ledger/UI witness и negative grammar ещё
+не получены. Evidence: `admin-unknown-projection-{source,review}/`,
+`delegated-quota-observer-source/`. Source integration не подменяет runtime acceptance.
+
 **Актуальное выполнение08.11:** existing Office workflow406918033 запущен ровно
 один раз на `50564cdc1b6475fccf58a9fff86288495895ee81`:
 [run42461666692](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42461666692),
@@ -47,6 +103,11 @@ Read-only следующие срезы: actual quota denial должен раз
 auth отказ и поздний reservation; current fakeparent success-only grammar после
 worker API error не доказывает terminal denial. Native CC cancel seam до
 settlement в reviewed logging/cache/hooks не найден; core patch не добавлялся.
+Live official [LiteLLM#46499](https://github.com/BerriAI/litellm/issues/46499)
+остаётся open; root прочитал issue/comments: предложен bounded upstream drain
+для CC disconnect, готовый fix нашего zero/absent/cancel-policy контракта не доказан.
+Другие Usage-loss patches проверены в `cc-stream-native-next/upstream.md` и
+не приняты за решение этого отдельного gap. Upgrade/issue posting не выполнялись.
 Admin form пока не проецирует durable unknown marker из SAME cost-readback owner;
 native scalar spend/blocked сами по себе этого не доказывают. Эти обязательные
 пункты не закрыты: `delegated-office-quota-next/`, `cc-stream-native-next/`,

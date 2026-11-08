@@ -520,6 +520,63 @@ def test_public_diagnostic_bound_keeps_private_finance_mandatory(monkeypatch, co
         assert 'financial' not in namespace
 
 
+@pytest.mark.parametrize('outcome', ['valid', 'secret_error', 'oversize', 'wrong_phase', 'passed', 'early_failure', 'missing_receipt', 'duplicate_publish'])
+def test_delegated_setup_failure_exports_only_existing_bounded_safe_progress(outcome):
+    workflow = yaml.safe_load((T.ROOT / '.github/workflows/goal584-office-proof.yml').read_bytes())
+    step = next(s for s in workflow['jobs']['office-build-proof']['steps']
+                if s.get('name', '').startswith('Verify one ordinary delegated Office Send'))
+    code = step['run'].split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    helper = next(n for n in ast.parse(code).body if isinstance(n, ast.FunctionDef) and n.name == 'setup_diagnostic')
+    secret = 'private-value-must-stay-private'
+    receipt = {'schema': 1, 'phase': 'office-delegation-setup', 'passed': False,
+               'failure': 'Native publication did not complete', 'private_token': secret}
+    publication = {'stage': 'partial', 'config_restored': True, 'retrieval_before': {'secret': secret},
+        'receipt': {'status': 'blocked', 'attempted_step': 'preflight', 'completed_steps': [],
+                    'error': 'Native preflight error', 'private_token': secret}}
+    selected = {'actor': {'token': secret}, 'publication': publication,
+                'journal': [{'stage': 'native-publish-template', 'returned': True, 'body': {'secret': secret}},
+                            {'stage': '/api/v1/retrieval/config/update', 'returned': True}]}
+    if outcome == 'secret_error': publication['receipt']['error'] = secret
+    if outcome == 'oversize': publication['receipt']['error'] = 'x' * 5000
+    if outcome == 'wrong_phase': receipt['phase'] = 'setup'
+    if outcome == 'passed': receipt['passed'] = True
+    if outcome == 'early_failure': selected = {}
+    if outcome == 'duplicate_publish': selected['journal'].append(copy.deepcopy(selected['journal'][0]))
+    observed = {}
+
+    def read(name):
+        if name == 'office-delegation-setup.safe.json':
+            if outcome == 'missing_receipt': raise N.ProofError('private_receipt_unavailable')
+            return b'', receipt
+        assert name == 'office-state.private.json'
+        return b'', {'schema': 1, 'office_delegation_setup': selected}
+
+    def publish(name, packet):
+        T.snapshots.no_credentials(packet, (secret,))
+        observed[name] = packet
+
+    namespace = dict(fixture=SimpleNamespace(_office_private=read), json=json, public=publish)
+    exec(compile(ast.Module(body=[helper], type_ignores=[]), 'actual-delegated-setup-diagnostic', 'exec'), namespace)
+    if outcome in ('valid', 'early_failure'):
+        assert namespace['setup_diagnostic']() is True
+        packet = observed['office-delegation-setup-failure']
+        assert packet['passed'] is packet['native_office_accepted'] is False
+        assert secret not in json.dumps(packet) and set(packet['last_step']) == {'stage', 'returned'}
+        assert set(packet['publisher']) == {'status', 'attempted_step', 'completed_steps', 'error'}
+        if outcome == 'valid':
+            assert packet['publisher']['error'] == 'Native preflight error'
+            assert packet['publication_stage'] == 'partial' and packet['config_restored'] is True
+            assert packet['last_step']['stage'] == '/api/v1/retrieval/config/update'
+            assert packet['publisher_step'] == {'present': True, 'returned': True}
+        else:
+            assert all(value is None for value in packet['publisher'].values())
+            assert all(value is None for value in packet['last_step'].values())
+            assert packet['publisher_step'] == {'present': False, 'returned': None}
+    else:
+        with pytest.raises((AssertionError, N.ProofError)): namespace['setup_diagnostic']()
+        assert observed == {}
+
+
 class HttpResult:
     code, headers = 200, {}
     def __init__(self, payload): self.raw = json.dumps(payload).encode()
