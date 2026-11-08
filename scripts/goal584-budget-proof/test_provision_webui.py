@@ -397,6 +397,13 @@ class OfficeSetupTests(unittest.TestCase):
         root = HERE.parents[1]
         self.cost_source = (root / "deploy/openwebui-budgets/cost_filter.py").read_text(encoding="utf8")
         self.filter_source = (root / "deploy/openwebui-functions/officecli_auto_attach_filter.py").read_text(encoding="utf8")
+        self.workflow_source = (root / "deploy/openwebui-skills/artifact-workflow.md").read_text(encoding="utf8")
+        self.skills = {"unrelated-private": {"id": "unrelated-private", "user_id": self.state["admin"]["id"],
+            "name": "Foreign Skill", "description": "Keep unchanged", "content": "PRIVATE_FOREIGN_SKILL",
+            "is_active": False, "version_id": OWNER, "access_grants": [], "meta": {"tags": ["keep"]}}}
+        self.before_skills = copy.deepcopy(self.skills)
+        self.skill_fault = None
+        self.history_fault = None
         import importlib.util
         spec = importlib.util.spec_from_file_location("office_setup_filter_fixture", root / "deploy/openwebui-functions/officecli_auto_attach_filter.py")
         filter_owner = importlib.util.module_from_spec(spec)
@@ -426,6 +433,7 @@ class OfficeSetupTests(unittest.TestCase):
         original_open = Path.open
         def source_open(path, *args, **kwargs):
             if path == Path("/proof/officecli_auto_attach_filter.py"): return BytesIO(self.filter_source.encode())
+            if path == Path("/proof/artifact-workflow.md"): return BytesIO(self.workflow_source.encode())
             if path == Path("/proof/budgets/cost_filter.py"): return StringIO(self.cost_source)
             return original_open(path, *args, **kwargs)
         self.enterContext(patch.object(Path, "open", source_open))
@@ -482,6 +490,26 @@ class OfficeSetupTests(unittest.TestCase):
                     value = copy.deepcopy(body) | {"type": "filter", "user_id": owner.state["admin"]["id"], "is_active": False, "is_global": False}
                     owner.functions[body["id"]] = value
                     owner.valves[body["id"]] = copy.deepcopy(owner.native_filter_valves)
+                elif path == "/api/v1/skills/export":
+                    value = [{"id": skill["id"], "name": skill["name"], "description": skill["description"],
+                        "files": [{"path": "SKILL.md", "content": skill["content"]}], "meta": skill.get("meta", {}),
+                        "is_active": skill["is_active"]} for skill in owner.skills.values()]
+                elif path == "/api/v1/skills/create":
+                    owner.assertEqual(body["id"], P.WORKFLOW_SKILL_ID)
+                    owner.assertNotIn(body["id"], owner.skills)
+                    skill = copy.deepcopy(body) | {"user_id": owner.state["admin"]["id"], "version_id": str(P.uuid.uuid4())}
+                    owner.skills[body["id"]] = skill
+                    value = {k: v for k, v in skill.items() if k != "content"}  # Native SkillResponse excludes content.
+                elif path.startswith("/api/v1/skills/id/"):
+                    identifier = path.split("/")[5]
+                    skill = copy.deepcopy(owner.skills[identifier])
+                    if owner.skill_fault and identifier == P.WORKFLOW_SKILL_ID:
+                        owner.skill_fault(token, skill)
+                    if "/history/" in path:
+                        owner.assertEqual(path.rsplit("/", 1)[1], skill["version_id"])
+                        value = {"id": skill["version_id"], "snapshot": {"name": skill["name"], "content": skill["content"]}}
+                        if owner.history_fault: owner.history_fault(value)
+                    else: value = skill | {"write_access": token == "Bearer synthetic-admin-token"}
                 elif path.startswith("/api/v1/functions/id/"):
                     identifier = path.split("/")[5]; suffix = path.split(identifier, 1)[1]
                     if suffix == "/valves/update": owner.valves[identifier] = copy.deepcopy(body)
@@ -550,6 +578,17 @@ class OfficeSetupTests(unittest.TestCase):
         self.assertIn("terminal_file_extensions", saved["office_setup"]["valves"])
         self.assertEqual(self.tasks, self.inputs["service_baseline"]["task_config"])
         self.assertEqual(saved["office_setup"]["before"]["chat_config"], self.chat_config)
+        root = saved["office_setup"]["workflow_skill"]
+        self.assertEqual(root["content"], self.workflow_source)
+        self.assertEqual(root["version_id"], safe["office_setup"]["workflow_skill_version_id"])
+        self.assertEqual(safe["office_setup"]["workflow_skill_sha256"], P.WORKFLOW_SKILL_SHA256)
+        self.assertEqual(self.skills["unrelated-private"], self.before_skills["unrelated-private"])
+        root_posts = [j for j in saved["office_setup"]["journal"] if j["stage"] == "/api/v1/skills/create"]
+        self.assertEqual(len(root_posts), 1); self.assertTrue(root_posts[0]["returned"])
+        self.assertEqual(root_posts[0]["body"]["content"], self.workflow_source)
+        self.assertEqual(saved["office_setup"]["valves"]["artifact_workflow_skill_id"], P.WORKFLOW_SKILL_ID)
+        self.assertFalse(any(path.endswith("/skills/id/unrelated-private/update") or path.endswith("/tasks/config/update")
+            for _, path, *_ in self.requests))
         self.assertEqual(self.rows["gpt-6-luna"]["params"], {})
         self.assertEqual(self.tasks["TASK_MODEL_PARAMS"]["custom_params"]["reasoning"]["effort"], "none")
         self.assertFalse(any("completions" in path or "responses" in path for _, path, *_ in self.requests))
@@ -571,6 +610,87 @@ class OfficeSetupTests(unittest.TestCase):
                 self.assertFalse(any(method == "POST" for method, *_ in self.requests))
                 self.assertFalse(self.office_path.exists())
         self.assertEqual(self.setup_phase(office_path=False)[0], 1)
+
+    def test_exact_root_source_and_fresh_native_id_gate_before_any_post(self):
+        original = self.workflow_source
+        self.workflow_source = original[:-1]
+        self.assertEqual(self.setup_phase()[0], 1)
+        self.assertFalse(any(method == "POST" for method, *_ in self.requests))
+        self.assertFalse(self.office_path.exists())
+        self.workflow_source = original
+        self.skills[P.WORKFLOW_SKILL_ID] = dict(self.skills["unrelated-private"], id=P.WORKFLOW_SKILL_ID)
+        self.requests.clear()
+        self.assertEqual(self.setup_phase()[0], 1)
+        self.assertFalse(any(method == "POST" for method, *_ in self.requests))
+        self.assertFalse(self.office_path.exists())
+
+    def test_native_root_readback_rejects_content_version_acl_owner_and_inactive(self):
+        mutations = {"content": self.workflow_source[:-1], "version_id": CONTROL,
+            "access_grants": [], "user_id": CONTROL, "is_active": False}
+        for field, value in mutations.items():
+            with self.subTest(field=field):
+                def fault(token, skill):
+                    if token == "Bearer synthetic-office-token": skill[field] = value
+                self.skill_fault = fault
+                self.assertEqual(self.setup_phase()[0], 1)
+                saved = P.read_private(self.office_path)
+                self.assertEqual(saved["stage"], "office_setup_in_progress")
+                self.assertTrue(saved["office_setup"]["journal"][-1]["returned"])
+                self.assertEqual(saved["office_setup"]["journal"][-1]["stage"], "/api/v1/skills/create")
+                self.assertFalse(self.budget_requests)
+                before = len(self.requests)
+                self.assertEqual(self.setup_phase()[0], 1)
+                self.assertEqual(len(self.requests), before)
+                self.office_path.unlink()
+                self.skills = copy.deepcopy(self.before_skills)
+
+    def test_workflow_create_timeout_preserves_unreturned_native_journal(self):
+        def stop(method, path, query, token):
+            if method == "POST" and path == "/api/v1/skills/create": return TimeoutError("PRIVATE_ROOT_CREATE")
+        self.fault = stop
+        self.assertEqual(self.setup_phase()[0], 1)
+        saved = P.read_private(self.office_path)
+        self.assertEqual(saved["stage"], "office_setup_in_progress")
+        entry = saved["office_setup"]["journal"][-1]
+        self.assertEqual(entry["stage"], "/api/v1/skills/create")
+        self.assertFalse(entry["returned"])
+        self.assertEqual(entry["body"]["content"], self.workflow_source)
+        self.assertFalse(self.budget_requests)
+        before = len(self.requests)
+        self.assertEqual(self.setup_phase()[0], 1)
+        self.assertEqual(len(self.requests), before)
+
+    def test_native_snapshot_truncation_does_not_earn_ready_or_reach_budget(self):
+        self.history_fault = lambda value: value["snapshot"].update(content=self.workflow_source[:-1])
+        self.assertEqual(self.setup_phase()[0], 1)
+        saved = P.read_private(self.office_path)
+        self.assertEqual(saved["stage"], "office_setup_in_progress")
+        self.assertNotIn("workflow_skill", saved["office_setup"])
+        self.assertFalse(self.budget_requests)
+
+    def test_unrelated_skill_acl_drift_cannot_be_claimed_preserved(self):
+        def drift(method, path, query, token):
+            if method == "POST" and path == "/api/v1/functions/create":
+                self.skills["unrelated-private"]["access_grants"] = [
+                    {"principal_type": "user", "principal_id": "*", "permission": "read"}]
+        self.fault = drift
+        self.assertEqual(self.setup_phase()[0], 1)
+        saved = P.read_private(self.office_path)
+        self.assertEqual(saved["stage"], "office_setup_in_progress")
+        self.assertEqual(saved["office_setup"]["before"]["skills"]["unrelated-private"]["access_grants"], [])
+        self.assertFalse(any(method == "POST" and "/api/v1/skills/id/unrelated-private" in path
+            for method, path, *_ in self.requests))
+
+    def test_workflow_mounts_bind_exact_git_sources_read_only(self):
+        import yaml
+        root = HERE.parents[1]
+        config = yaml.safe_load((root / "compose/goal584.office-proof.yml").read_text(encoding="utf8"))
+        mounts = {v["target"]: v for v in config["services"]["proxy"]["volumes"] if isinstance(v, dict)}
+        for target, relative in (("/proof/artifact-workflow.md", "deploy/openwebui-skills/artifact-workflow.md"),
+                ("/proof/corporate_template_models.json", "deploy/openwebui-tools/corporate_template_models.json")):
+            mount = mounts[target]
+            self.assertTrue(mount["read_only"]); self.assertFalse(mount["bind"]["create_host_path"])
+            self.assertEqual((root / "compose" / mount["source"]).resolve(), (root / relative).resolve())
 
     def test_setup_partial_failure_is_journaled_never_retried_or_marked_ready(self):
         def stop(method, path, query, token):
@@ -911,6 +1031,11 @@ class DelegatedProvisionTests(unittest.TestCase):
         profiles = {v['id']: v for v in json.loads(raw)}
         self.assertEqual(profiles['corporate-documents']['params']['max_tokens'], 12000)
         worker = profiles['corporate-office-worker']
+        parent = profiles['corporate-documents']
+        self.assertTrue(parent['meta']['capabilities']['builtin_tools'])
+        self.assertTrue(parent['meta']['builtinTools']['tasks'])
+        self.assertFalse(worker['meta']['builtinTools']['tasks'])
+        self.assertIn('native artifact-workflow Skill', parent['params']['system'])
         self.assertEqual(worker['params']['max_tokens'], 6000)
         for required in ('load_officecli_skill', 'Inspect before editing', 'apply_office_batch', 'Inspect the published result', 'render_office_file'):
             self.assertIn(required, worker['params']['system'])
@@ -938,12 +1063,16 @@ class DelegatedProvisionTests(unittest.TestCase):
         native_tool = importlib.util.module_from_spec(spec); sys.modules[spec.name] = native_tool; spec.loader.exec_module(native_tool)
         info = yaml.safe_load(office_fixture.prepare_delegated_office_config(HERE.joinpath('litellm_config.yaml').read_bytes()))['model_list']
         actor = str(P.uuid.uuid4()); admin = {'id': OWNER, 'token': 'synthetic-admin-token'}
+        workflow = {'id': P.WORKFLOW_SKILL_ID, 'user_id': OWNER, 'content': (HERE.parents[1] /
+            'deploy/openwebui-skills/artifact-workflow.md').read_text(encoding='utf8'),
+            'version_id': CONTROL, 'is_active': True,
+            'access_grants': [{'principal_type': 'user', 'principal_id': '*', 'permission': 'read'}]}
         state = {'schema': 1, 'stage': 'setup_complete', 'admin': admin, 'users': [{'id': CONTROL}],
-                 'office_setup': {'untouched': [1, 2]}, 'native_keys': [{'keep': 'legacy'}]}
+                 'office_setup': {'untouched': [1, 2], 'workflow_skill': workflow}, 'native_keys': [{'keep': 'legacy'}]}
         frozen = copy.deepcopy(state)
         config = {'OPENAI_API_BASE_URLS': ['http://proxy:4000/v1'], 'OPENAI_API_KEYS': ['gw-synthetic-delegated'],
             'OPENAI_API_CONFIGS': {'0': {'api_type': 'responses', 'auth_type': 'bearer', 'model_ids': ['gpt-5.4-mini', 'gpt-6-luna']}}}
-        rows, tools, files, skills, requests, budget_requests = {}, {}, {}, {}, [], []
+        rows, tools, files, skills, requests, budget_requests = {}, {}, {}, {P.WORKFLOW_SKILL_ID: workflow}, [], []
         user, keys = None, []
         class Response(BytesIO):
             headers = {}
@@ -1024,6 +1153,8 @@ class DelegatedProvisionTests(unittest.TestCase):
             self.assertFalse(safe['office_delegation_setup']['inference_issued'])
             self.assertEqual(rows['corporate-documents']['params']['max_tokens'], 12000)
             self.assertEqual(rows['corporate-office-worker']['params']['max_tokens'], 6000)
+            self.assertTrue(rows['corporate-documents']['meta']['builtinTools']['tasks'])
+            self.assertFalse(rows['corporate-office-worker']['meta']['builtinTools']['tasks'])
 
 
 if __name__ == "__main__":
