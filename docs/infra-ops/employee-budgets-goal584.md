@@ -8,6 +8,61 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний runtime-кандидат08.11, сейчас terminal:**
+[run42465314986](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42465314986),
+workflow406918033/workflow_dispatch, head `2f72b9b99151c8fafacb121ff31c9cdbe0f656e5`,
+создан09:00:37UTC. Attempt1/job128683362792 terminalFAILURE на build4:
+native npm install загрузка pinned ONNX Runtime GPU archive вернула HTTP504;
+это не compiler/product ошибка, steps5–15 не исполнялись. Artifact13611496593
+загружен один раз:258189B/23members, API/rawSHA256
+`6dc9c409aeba66079575fc307433c60ef2ac9cf41693efee8ac1febac496d3c2`.
+Cleanup16SUCCESS: task containers/volumes/networks/images/guide copies отсутствуют,
+готовых build images ещё не было; build cache retained. Код/зависимости не менялись.
+Два native failed-job rerun выполнялись только после terminal на том же head.
+Attempt2/job128684043290: frontend+WebUI собраны, OfficeCLI binary download HTTP504;
+artifact13611712222,597796B/31members, raw/API SHA256
+`26563bbac8b1487b54fbcd5237b5df61e2132e04828fbdd445220417f4314a03`.
+Attempt3/job128686282583: повторный ONNX CUDA download HTTP504, до runtime не дошёл;
+artifact13611388059,258201B/23members, raw/API SHA256
+`7c62a1dafa104acbc792b48b663db0c187e8b3cd4cb22b996d597f54e014262f`.
+Каждый ZIP загружен один раз, member paths привязаны к своему attempt. Cleanup
+обоих успешен; attempt2 удалил2готовыхimage IDs, attempt3 готовыхimages не имел;
+остатков task containers/volumes/networks/guide copies нет, cache retained.
+Новых live handles нет. Четвёртый слепой rerun не запрошен; отдельно исследуется
+только штатная устойчивость загрузки и build-only ONNX option без утраты capability.
+Полный runtime/source/публикация/UI/provider/finance review этого head остаётся открытым.
+Следующий build-only source fix проверен: frontend command-local
+ONNXRUNTIME_NODE_INSTALL_CUDA=skip исключает лишь Node CUDA EP в промежуточном
+образе, из которого в runtime копируется только /app/build. Browser WebGPU/WASM,
+lock/native scripts/pyodide и все version/image pins сохранены. Это не общее
+отключение GPU и не новое доказательство browser-TTS runtime. Office curl получил
+native retry3/delay2/retry-max-time120/connect20/max-time120, тот же official URL,
+fixed output/e54SHA/version1.0.152 и checksum-before-execution. Total curl bound
+не равен120s, finite attempts/per-attempt limits сохранены явно. Existing frontend
+verifiers PASS; actual official1.21installer skip VM:0downloads/writes/subprocess;
+real curl localhost504→200:2GET/exit0/exactbytes, persistent504:4GET/exit22.
+Все временные servers/files закрыты; только2Dockerfiles изменены. Native build/
+qualification и product checks ещё обязательны. Evidence: `office84-build-native-next/`.
+Reviewed auth/admin source сохранён двумя LOCAL commits
+REASONING: b3283ce3(admin2files) и319efe10(auth4files); содержание после review
+не менялось, рабочее дерево REASONING чистое. Они не pushed, в published/executed2f
+не входят. Actual native API/DB/GUI приёмка этих изменений не заявлена.
+Production/paid/рабочие маршруты не менялись.
+
+**KISS-уточнение admin unknown08.11:** полный месячный subtotal/completeness engine
+не является отдельным требованием (ниже, agreed scope); требуются unknown/no-false-zero
+и точный employee/model block. Поэтому невключённый b328 admin-specific subtotal
+reader заменяется presence-only поиском в SAME native v2 по текущему назначению.
+Суммы/квоты остаются native counters, отдельный календарь/settings API/права не нужны.
+Native v2 требует даты: передаётся явный UTC диапазон НАБЛЮДЕНИЯ, не billing month.
+Лишь валидный собственный durable marker подтверждает presence; отсутствие/retention/
+clock skew/неполнота не доказывают known/zero. Никаких денежных вычислений в этом
+projection. Existing strict chat reader сохраняется. UI получает preclassified
+unknown/unavailable, контекст истории и отдельное «По данным учёта», не выдаёт
+наблюдение за окончательный текущий месячный итог. Оба source-среза пока в работе;
+wiring/actual adminGUI/provider/ledger acceptance обязательны. Evidence:
+`admin-unknown-period-next/`, `admin-unknown-ui-source/`.
+
 **Последний выполненный прогон08.11:**
 [run42462981003](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42462981003),
 workflow406918033, workflow_dispatch, точный published head

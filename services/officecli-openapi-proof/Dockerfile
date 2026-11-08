@@ -27,6 +27,7 @@ RUN sed -i \
     && apt-cache -o APT::Default-Release= policy ca-certificates curl libicu76 chromium fonts-dejavu-core \
     && apt-get -o APT::Default-Release= -o Acquire::Retries=3 install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
     && curl --fail --location --silent --show-error \
+      --retry 3 --retry-delay 2 --retry-max-time 120 --connect-timeout 20 --max-time 120 \
       --output /usr/local/bin/officecli \
       "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${OFFICECLI_VERSION}/officecli-linux-x64" \
     && echo "${OFFICECLI_SHA256}  /usr/local/bin/officecli" | sha256sum --check \
