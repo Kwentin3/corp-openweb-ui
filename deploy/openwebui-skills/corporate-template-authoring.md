@@ -9,6 +9,13 @@ Use this workflow when the user asks to prepare, clean up, mark or publish a
 reusable corporate Word template. Use the existing OfficeCLI tools and native
 Skills/Knowledge/Files. Keep the binary DOCX outside the Skill.
 
+Use the OfficeCLI API operations actually available in this chat and their
+installed skill/help; command examples do not imply access to a local CLI or
+filesystem. Before an available Terminal is used for a named unsupported
+operation or copy repair, confirm transfer/access to the exact native source
+and the supported route back to a published native File. Keep the original
+unchanged. Do not use Terminal to bypass publication approval or native ACL.
+
 ## Inspect and agree
 
 1. Identify the actual native source File ID from the current chat. Inspect the
@@ -66,8 +73,6 @@ Skills/Knowledge/Files. Keep the binary DOCX outside the Skill.
     state before another publication; do not blindly retry or delete user data.
     Return the Skill name and the original-file link with the actual result.
 
-Consumers load the published Skill through native discovery, collect missing
-facts and pass its confirmed original File ID, the full instruction text and all
-agreed facts to Terra/OfficeCLI. A Skill ID alone does not transfer its content
-into a delegated worker's context.
-They fill a new copy, verify it and return the native downloadable artifact.
+The consumer workflow is owned by the existing `artifact-workflow` Skill;
+the published template Skill supplies its template-specific instructions and
+original File binding. Do not duplicate the consumer orchestration here.

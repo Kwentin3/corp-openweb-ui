@@ -1,0 +1,256 @@
+{
+  "at": "2026-11-06T11:40:03.016114+00:00",
+  "scope": "App host native Xray client and existing Privoxy upstream; no app/remote server changes",
+  "artifact": {
+    "version": "Xray 26.10.31 (Xray, Penetrates Everything.) a4a3dff (go1.27.3 linux/amd64)",
+    "binary_sha256": "cc4b84d3069569f297a61f04b914f2bb37e9d202fd7b84cb50def1fc30fd40e1",
+    "installer_commit": "04e6f3bd9534811ed901a48c47b2c042dd64eb3a",
+    "archive_sha256": "e4bd9119f50ae7c41658b1abd0679ae06f98bd864a2907ff33f2f2cf7081b214",
+    "config_sha256": "f46734f00cb023adb8120e973afdb9e0ffa748fedc2e2236d09025d9520383f2"
+  },
+  "config_test": true,
+  "native_service": "Restart=on-failure\nMainPID=836942\nNRestarts=1\nMemoryCurrent=6307840\nUser=xray\nGroup=xray\nActiveState=active\nSubState=running\nUnitFileState=enabled\n",
+  "socks_listener": {
+    "host": "127.0.0.1",
+    "port": 10808,
+    "auth": "password"
+  },
+  "only_outbounds": [
+    "vless"
+  ],
+  "upstream_directives_changed": 1,
+  "candidate": {
+    "at": "2026-11-06T11:27:07.076812+00:00",
+    "checks": [
+      {
+        "target": "example.com",
+        "status": 200,
+        "elapsed_s": 1.372,
+        "tls_verified": true,
+        "body_verified": true
+      },
+      {
+        "target": "api.ipify.org",
+        "status": 200,
+        "elapsed_s": 1.707,
+        "tls_verified": true,
+        "body_verified": true
+      },
+      {
+        "target": "api.openai.com",
+        "status": 401,
+        "elapsed_s": 1.314,
+        "tls_verified": true
+      },
+      {
+        "target": "generativelanguage.googleapis.com",
+        "status": 403,
+        "elapsed_s": 1.237,
+        "tls_verified": true
+      },
+      {
+        "target": "api.anthropic.com",
+        "status": 405,
+        "elapsed_s": 1.318,
+        "tls_verified": true
+      }
+    ],
+    "production_privoxy_unchanged": true,
+    "outbounds": [
+      "vless"
+    ],
+    "initial_checks_at": "2026-11-06T11:25:55.842447+00:00",
+    "automatic_crash_restart": {
+      "new_pid": true,
+      "enabled": true
+    },
+    "post_restart_check": {
+      "target": "api.openai.com",
+      "status": 401,
+      "elapsed_s": 1.335,
+      "tls_verified": true
+    },
+    "pass": true,
+    "candidate_cleaned": true
+  },
+  "container_probes": [
+    {
+      "container": "openwebui-0122-openwebui-0122-1",
+      "results": [
+        {
+          "library": "aiohttp",
+          "status": 401
+        },
+        {
+          "library": "httpx",
+          "status": 401
+        }
+      ]
+    },
+    {
+      "container": "openwebui-0122-stage2-stt-0122-1",
+      "results": [
+        {
+          "library": "aiohttp",
+          "error": "ModuleNotFoundError"
+        },
+        {
+          "library": "httpx",
+          "status": 401
+        }
+      ]
+    },
+    {
+      "container": "openwebui-0122-google-gateway-0122-1",
+      "results": [
+        {
+          "library": "aiohttp",
+          "status": 401
+        },
+        {
+          "library": "httpx",
+          "status": 401
+        }
+      ]
+    }
+  ],
+  "container_egress": [
+    {
+      "status": 200,
+      "expected_egress": true,
+      "container": "openwebui-0122-openwebui-0122-1"
+    },
+    {
+      "status": 200,
+      "expected_egress": true,
+      "container": "openwebui-0122-stage2-stt-0122-1"
+    },
+    {
+      "status": 200,
+      "expected_egress": true,
+      "container": "openwebui-0122-google-gateway-0122-1"
+    }
+  ],
+  "application_artifacts_unchanged": true,
+  "containers": [
+    {
+      "name": "/openwebui-0122-openwebui-0122-1",
+      "id": "6e90decff005",
+      "image": "sha256:6cc2c633a09e325b31c03acf57a5c846e381577e98ab43a993c932c599044139",
+      "health": "healthy",
+      "started_at": "2026-10-29T19:24:42.792469423Z",
+      "restarts": 0
+    },
+    {
+      "name": "/openwebui-0122-stage2-stt-0122-1",
+      "id": "1aae19fcfe74",
+      "image": "sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8",
+      "health": "healthy",
+      "started_at": "2026-10-26T14:53:45.690622206Z",
+      "restarts": 0
+    },
+    {
+      "name": "/openwebui-0122-google-gateway-0122-1",
+      "id": "1010e797c1ce",
+      "image": "sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802",
+      "health": "healthy",
+      "started_at": "2026-10-26T14:53:49.120114777Z",
+      "restarts": 0
+    }
+  ],
+  "internal_reads": [
+    {
+      "url": "http://stage2-stt-0122:8080/stage2-api/transcription/capabilities",
+      "status": 200
+    },
+    {
+      "url": "http://officecli-0122:8080/healthz",
+      "status": 200
+    },
+    {
+      "url": "http://google-gateway-0122:4000/health/liveliness",
+      "status": 200
+    },
+    {
+      "url": "http://open-terminal-0122:8000/health",
+      "status": 200
+    }
+  ],
+  "chat": {
+    "at": "2026-11-06T11:29:56.192097+00:00",
+    "route": "/api/chat/completions",
+    "requests": [
+      {
+        "model": "gpt-5.4-mini",
+        "status": 200,
+        "content_type": "text/event-stream; charset=utf-8",
+        "text_matches": true,
+        "stream_finished": true,
+        "events": 13,
+        "error_events": 0,
+        "elapsed_s": 7.078
+      },
+      {
+        "model": "models/gemini-3.5-flash-lite",
+        "status": 200,
+        "content_type": "text/event-stream; charset=utf-8",
+        "text_matches": true,
+        "stream_finished": true,
+        "events": 4,
+        "error_events": 0,
+        "elapsed_s": 5.235
+      }
+    ]
+  },
+  "stt": {
+    "at": "2026-11-06T11:32:22.014282+00:00",
+    "fixture_sha256": "f2dc60349051b56fd153c95bf8ad15c028cf7089b76fd2283cedfa781dfaeab0",
+    "fixture_bytes": 220710,
+    "native_audio": {
+      "status": 200,
+      "known_phrase_matches": true,
+      "elapsed_s": 21.516
+    },
+    "native_audio_initial_at": "2026-11-06T11:31:02.829701+00:00",
+    "stage2": {
+      "status": 200,
+      "job_status": "completed",
+      "known_phrase_matches": true,
+      "stub_warning": false,
+      "elapsed_s": 7.529,
+      "transcript_ref_present": true,
+      "readback_status": 200,
+      "readback_text_matches": true
+    }
+  },
+  "browser": {
+    "ordinary_user_role": "user",
+    "temporary_chat": true,
+    "model": "gpt-5.4-mini",
+    "visible_exact_response": "TRANSPORT_OK",
+    "native_chat_http_status": 200,
+    "stop_button_absent_after_completion": true,
+    "original_browser_session_restored": true
+  },
+  "cleanup": {
+    "native_audio": {
+      "synthetic_audio_files_removed": 2,
+      "original_wav_absent": true
+    },
+    "stage2": {
+      "native_synthetic_scopes_deleted": 1,
+      "active_synthetic_artifacts": 0,
+      "physical_retention": "native tombstones/retention; no direct SQL deletion"
+    },
+    "candidate_privoxy_config_absent": true,
+    "temporary_native_user_deleted": true,
+    "temporary_local_tokens_and_wav_removed": true
+  },
+  "limits": [
+    "Production host reboot and WAN outage not injected; systemd enabled and crash recovery plus fresh tunnel request proved.",
+    "No second working transport; old SOCKS5 is not a functional reserve.",
+    "STT tested through native audio and Stage2 APIs with synthetic WAV; physical microphone capture not retested.",
+    "Generation acceptance covers active OpenAI Responses and Google gateway models; Anthropic endpoint TLS reached without credentials, no Anthropic generation."
+  ],
+  "pass": true
+}

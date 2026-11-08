@@ -1,0 +1,566 @@
+{
+  "schema": "openwebui.transport.awg.acceptance.v1",
+  "scope": "Second manually selected outbound transport; same VPN server; no automatic failover",
+  "artifacts": {
+    "at": "2026-11-06T15:52:32.643771+00:00",
+    "tools_source_url": "https://ppa.launchpadcontent.net/amnezia/ppa/ubuntu/pool/main/a/amneziawg/amneziawg-tools_1.0.20210914-0~202608130144+ee0f0a9~ubuntu24.04.1_amd64.deb",
+    "tools_deb_sha256": "2c924076be2ba217eea04f9693291f01c5307a9be5aeee60d04525a50ff2804f",
+    "tools_package": "1.0.20210914-0~202608130144+ee0f0a9~ubuntu24.04.1",
+    "image": "amneziavpn/amneziawg-go@sha256:c68009d33df3aef4654db72bf1a7880cfa0a631fe866c50d9ae3dd34ddd7c13a",
+    "image_id": "sha256:c68009d33df3aef4654db72bf1a7880cfa0a631fe866c50d9ae3dd34ddd7c13a",
+    "image_tag_source": "v3.1.20260828",
+    "go_source_commit": "b5928efb6ca19f0153958460c3d141f04abc5c2e",
+    "static_binary_sha256": "6177066f0e35b1cb44945136d9a10841dd3ce30fdf16009c9a815cd943a982fe",
+    "static_binary_description": "/root/transport-awg-20261106/amneziawg-go: ELF 64-bit LSB executable, x86-64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=fbda19f3f564c1def9ac6cfed5426e9d48f3b1d7, for GNU/Linux 3.2.0, with debug_info, not stripped",
+    "tools_version": "amneziawg-tools v3.1.20260812 - https://amnezia.org",
+    "extraction_container_removed": true,
+    "temporary_image_removed": true
+  },
+  "backend_probe_historical_mtu1420": {
+    "at": "2026-11-06T15:57:09.531119+00:00",
+    "checks": [
+      {
+        "target": "example.com",
+        "status": 200,
+        "elapsed_s": 1.009,
+        "tls_verified": true,
+        "body_verified": true
+      },
+      {
+        "target": "api.ipify.org",
+        "status": 200,
+        "elapsed_s": 1.409,
+        "tls_verified": true,
+        "expected_egress": true
+      },
+      {
+        "target": "api.openai.com",
+        "status": 401,
+        "elapsed_s": 1.219,
+        "tls_verified": true
+      },
+      {
+        "target": "api.lemonfox.ai",
+        "status": 401,
+        "elapsed_s": 1.373,
+        "tls_verified": true
+      }
+    ],
+    "handshake_age_s": 73,
+    "tunnel_rx_bytes": 34469,
+    "tunnel_tx_bytes": 18187,
+    "namespace_routes": [
+      {
+        "dst": "default",
+        "dev": "awge0",
+        "scope": "link",
+        "flags": []
+      },
+      {
+        "dst": "10.203.0.0/30",
+        "dev": "awge-peer",
+        "protocol": "kernel",
+        "scope": "link",
+        "prefsrc": "10.203.0.2",
+        "flags": []
+      }
+    ],
+    "namespace_ipv6_routes": [
+      {
+        "dst": "fe80::/64",
+        "dev": "awge-peer",
+        "protocol": "kernel",
+        "metric": 256,
+        "flags": [],
+        "pref": "medium"
+      },
+      {
+        "dst": "fe80::/64",
+        "dev": "awge0",
+        "protocol": "kernel",
+        "metric": 256,
+        "flags": [],
+        "pref": "medium"
+      },
+      {
+        "type": "unreachable",
+        "dst": "default",
+        "dev": "lo",
+        "metric": 1024,
+        "flags": [],
+        "pref": "medium"
+      }
+    ],
+    "host_default_route_unchanged": true,
+    "parent_privoxy_unchanged": true,
+    "pass": true
+  },
+  "sequential_speed_snapshot_historical_mtu1420": [
+    {
+      "at": "2026-11-06T15:58:34.857405+00:00",
+      "route": "awg_backend",
+      "direction": "latency",
+      "requested_bytes": 0,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 0,
+      "size_upload": 0,
+      "time_starttransfer": 1.047069,
+      "time_total": 1.047101,
+      "Mbps": 0.0,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:38.501627+00:00",
+      "route": "awg_backend",
+      "direction": "download",
+      "requested_bytes": 10000000,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 10000000,
+      "size_upload": 0,
+      "time_starttransfer": 1.116929,
+      "time_total": 3.633669,
+      "Mbps": 22.016,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:41.068197+00:00",
+      "route": "awg_backend",
+      "direction": "upload",
+      "requested_bytes": 1000000,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 0,
+      "size_upload": 1000000,
+      "time_starttransfer": 2.54665,
+      "time_total": 2.546678,
+      "Mbps": 3.141,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:44.793440+00:00",
+      "route": "awg_backend",
+      "direction": "upload",
+      "requested_bytes": 5000000,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 0,
+      "size_upload": 5000000,
+      "time_starttransfer": 3.10797,
+      "time_total": 3.107994,
+      "Mbps": 12.87,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:46.354912+00:00",
+      "route": "xray_working",
+      "direction": "latency",
+      "requested_bytes": 0,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 0,
+      "size_upload": 0,
+      "time_starttransfer": 1.550684,
+      "time_total": 1.550747,
+      "Mbps": 0.0,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:52.848563+00:00",
+      "route": "xray_working",
+      "direction": "download",
+      "requested_bytes": 10000000,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 10000000,
+      "size_upload": 0,
+      "time_starttransfer": 1.363207,
+      "time_total": 6.483153,
+      "Mbps": 12.34,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:55.938821+00:00",
+      "route": "xray_working",
+      "direction": "upload",
+      "requested_bytes": 1000000,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 0,
+      "size_upload": 1000000,
+      "time_starttransfer": 3.076559,
+      "time_total": 3.076581,
+      "Mbps": 2.6,
+      "complete": true
+    },
+    {
+      "at": "2026-11-06T15:58:59.215104+00:00",
+      "route": "xray_working",
+      "direction": "upload",
+      "requested_bytes": 5000000,
+      "http_code": 200,
+      "returncode": 0,
+      "size_download": 0,
+      "size_upload": 5000000,
+      "time_starttransfer": 3.250497,
+      "time_total": 3.250519,
+      "Mbps": 12.306,
+      "complete": true
+    }
+  ],
+  "historical_large_upload_mtu1420_and_guard": {
+    "at": "2026-11-06T16:07:50.992686+00:00",
+    "foreign_link_guard": {
+      "exit_nonzero": true,
+      "foreign_link_preserved": true,
+      "namespace_not_created": true,
+      "ownership_marker_not_created": true
+    },
+    "large_upload": {
+      "bytes": 25000000,
+      "returncode": 28,
+      "status": 0,
+      "size_upload": 16908288,
+      "elapsed_s": 40.00112,
+      "Mbps": 3.382,
+      "complete": false
+    },
+    "pass": false
+  },
+  "final_large_upload_mtu1376": {
+    "at": "2026-11-06T16:15:11.765881+00:00",
+    "mtu": 1376,
+    "bytes": 25000000,
+    "returncode": 0,
+    "status": 200,
+    "size_upload": 25000000,
+    "elapsed_s": 35.711759,
+    "Mbps": 5.6,
+    "complete": true
+  },
+  "lifecycle_final_mtu1376": {
+    "at": "2026-11-06T16:17:08.175427+00:00",
+    "link_down_result": {
+      "error_type": "URLError"
+    },
+    "post_link_up_status": 401,
+    "automatic_restart_seconds": 4.423,
+    "both_processes_replaced": true,
+    "post_restart_status": 401,
+    "enabled": true,
+    "parent_privoxy_unchanged": true,
+    "xray_pid_unchanged": true,
+    "pass": true
+  },
+  "hot_switch_acceptance": {
+    "at": "2026-11-06T16:22:18.955576+00:00",
+    "switches": [
+      {
+        "selected": "awg",
+        "previous": "xray",
+        "changed": true,
+        "api_reachable": true,
+        "native_reload": true,
+        "backup": "/root/transport-awg-20261106/switch-20261106T162220648157Z-xray.before"
+      },
+      {
+        "selected": "xray",
+        "previous": "awg",
+        "changed": true,
+        "api_reachable": true,
+        "native_reload": true,
+        "backup": "/root/transport-awg-20261106/switch-20261106T162223800776Z-awg.before"
+      },
+      {
+        "selected": "awg",
+        "previous": "xray",
+        "changed": true,
+        "api_reachable": true,
+        "native_reload": true,
+        "backup": "/root/transport-awg-20261106/switch-20261106T162227080095Z-xray.before"
+      }
+    ],
+    "unusable_backend_refused_without_write": true,
+    "final_selected": "awg",
+    "parent_pid_unchanged": true,
+    "awg_rx_increase": 1111782,
+    "awg_tx_increase": 125057,
+    "completed_parent_download_bytes": 1000000,
+    "active_config_sha256": "674895789e53c6bc3dfda17e5dcf55e65718eb2372ffb5cd15c4b6dd1701fd70",
+    "selector_sha256": "09deb1cc75a27106c2d87bace40bc53b4dd38665de78e9930cf336054f1a08d1"
+  },
+  "native_chat_stream": {
+    "at": "2026-11-06T16:23:01.272826+00:00",
+    "route": "/api/chat/completions",
+    "requests": [
+      {
+        "model": "gpt-5.4-mini",
+        "status": 200,
+        "content_type": "text/event-stream; charset=utf-8",
+        "text_matches": true,
+        "stream_finished": true,
+        "events": 13,
+        "error_events": 0,
+        "elapsed_s": 11.578
+      },
+      {
+        "model": "models/gemini-3.5-flash-lite",
+        "status": 200,
+        "content_type": "text/event-stream; charset=utf-8",
+        "text_matches": true,
+        "stream_finished": true,
+        "events": 4,
+        "error_events": 0,
+        "elapsed_s": 3.641
+      }
+    ]
+  },
+  "native_stt": {
+    "at": "2026-11-06T16:23:01.277551+00:00",
+    "fixture_sha256": "f2dc60349051b56fd153c95bf8ad15c028cf7089b76fd2283cedfa781dfaeab0",
+    "fixture_bytes": 220710,
+    "native_audio": {
+      "status": 200,
+      "known_phrase_matches": true,
+      "elapsed_s": 7.344
+    },
+    "stage2": {
+      "status": 200,
+      "job_status": "completed",
+      "known_phrase_matches": true,
+      "stub_warning": false,
+      "elapsed_s": 6.282,
+      "transcript_ref_present": true,
+      "readback_status": 200,
+      "readback_text_matches": true
+    }
+  },
+  "ordinary_user_ui": {
+    "at": "2026-11-06T16:38:12.517Z",
+    "tool": "built-in Playwright MCP, isolated awg-acceptance context",
+    "visible_exact_response": "TRANSPORT_OK",
+    "generation_finished": true,
+    "temporary_chat": true,
+    "identity": {
+      "status": 200,
+      "role": "user",
+      "name": "AWG transport acceptance"
+    }
+  },
+  "ordinary_user_ui_network_evidence": "631. [POST] https://gpt.alpha-soft.ru/api/chat/completions => [200] \n\nNote: 404 static requests not shown, run with \"static\" option to see them.",
+  "final_deployment": {
+    "at": "2026-11-06T16:37:31.789391+00:00",
+    "source_files": {
+      "/usr/local/libexec/awg-egress-netns.sh": {
+        "sha256": "993dd1f65b235afe2e6a6beb4ed5689b5cd4d64a009328bcd92b7ccaa0a676d4",
+        "mode": "0o755"
+      },
+      "/etc/systemd/system/amneziawg-egress.service": {
+        "sha256": "0e72780e90230aaae2ae2a95e9d3d779ea585aeea58f83fe89be010a8f43df69",
+        "mode": "0o644"
+      },
+      "/etc/systemd/system/privoxy-awg-egress.service": {
+        "sha256": "fd8e6e55d490914043445817dedbdcb5323ed8e2c2e79f72bc31be2eec7dff3f",
+        "mode": "0o644"
+      },
+      "/etc/privoxy/awg-egress.conf": {
+        "sha256": "6980f9161ae178e003c60d02ae4064f8e819c44f37c797590999b0a70c131684",
+        "mode": "0o644"
+      },
+      "/usr/local/sbin/openwebui-transport": {
+        "sha256": "09deb1cc75a27106c2d87bace40bc53b4dd38665de78e9930cf336054f1a08d1",
+        "mode": "0o755"
+      }
+    },
+    "source_matches_deployed": true,
+    "selection": {
+      "selected": "awg",
+      "privoxy_active": true,
+      "xray_active": true,
+      "awg_active": true,
+      "awg_proxy_active": true
+    },
+    "services": {
+      "privoxy": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "MainPID": "837777",
+        "UnitFileState": "enabled"
+      },
+      "xray": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "MainPID": "836942",
+        "UnitFileState": "enabled"
+      },
+      "amneziawg-egress": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "MainPID": "935105",
+        "UnitFileState": "enabled"
+      },
+      "privoxy-awg-egress": {
+        "ActiveState": "active",
+        "SubState": "running",
+        "MainPID": "935162",
+        "UnitFileState": "static"
+      }
+    },
+    "parent_pid_unchanged": true,
+    "xray_pid_unchanged": true,
+    "xray_config_unchanged": true,
+    "namespace_ipv4_routes": [
+      {
+        "dst": "default",
+        "dev": "awge0",
+        "scope": "link",
+        "flags": []
+      },
+      {
+        "dst": "10.203.0.0/30",
+        "dev": "awge-peer",
+        "protocol": "kernel",
+        "scope": "link",
+        "prefsrc": "10.203.0.2",
+        "flags": []
+      }
+    ],
+    "namespace_ipv6_routes": [
+      {
+        "dst": "fe80::/64",
+        "dev": "awge-peer",
+        "protocol": "kernel",
+        "metric": 256,
+        "flags": [],
+        "pref": "medium"
+      },
+      {
+        "dst": "fe80::/64",
+        "dev": "awge0",
+        "protocol": "kernel",
+        "metric": 256,
+        "flags": [],
+        "pref": "medium"
+      },
+      {
+        "type": "unreachable",
+        "dst": "default",
+        "dev": "lo",
+        "metric": 1024,
+        "flags": [],
+        "pref": "medium"
+      }
+    ],
+    "native_mtu": 1376,
+    "dns_configured": true,
+    "host_default_route_unchanged": true,
+    "host_rules_unchanged": true,
+    "handshake_age_s": 9,
+    "awg_transfer": {
+      "rx_bytes": 1355005,
+      "tx_bytes": 534411
+    },
+    "protected_files": {
+      "/etc/amnezia/egress": {
+        "mode": "0o700",
+        "uid": 0
+      },
+      "/etc/amnezia/egress/profile.conf": {
+        "mode": "0o600",
+        "uid": 0
+      },
+      "/etc/amnezia/egress/interface.conf": {
+        "mode": "0o600",
+        "uid": 0
+      },
+      "/etc/amnezia/egress/interface.env": {
+        "mode": "0o600",
+        "uid": 0
+      }
+    },
+    "containers": [
+      {
+        "name": "/openwebui-0122-openwebui-0122-1",
+        "id": "6e90decff005",
+        "image": "sha256:6cc2c633a09e325b31c03acf57a5c846e381577e98ab43a993c932c599044139",
+        "health": "healthy",
+        "started_at": "2026-10-29T19:24:42.792469423Z",
+        "restarts": 0
+      },
+      {
+        "name": "/openwebui-0122-stage2-stt-0122-1",
+        "id": "1aae19fcfe74",
+        "image": "sha256:ead2a4df9ea157ba1ee2f402c2363b76851dfc1f4609339d7de25dbb7a0a70b8",
+        "health": "healthy",
+        "started_at": "2026-10-26T14:53:45.690622206Z",
+        "restarts": 0
+      },
+      {
+        "name": "/openwebui-0122-google-gateway-0122-1",
+        "id": "1010e797c1ce",
+        "image": "sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802",
+        "health": "healthy",
+        "started_at": "2026-10-26T14:53:49.120114777Z",
+        "restarts": 0
+      }
+    ],
+    "internal_reads": [
+      {
+        "url": "http://stage2-stt-0122:8080/stage2-api/transcription/capabilities",
+        "status": 200
+      },
+      {
+        "url": "http://officecli-0122:8080/healthz",
+        "status": 200
+      },
+      {
+        "url": "http://google-gateway-0122:4000/health/liveliness",
+        "status": 200
+      },
+      {
+        "url": "http://open-terminal-0122:8000/health",
+        "status": 200
+      }
+    ],
+    "syntax_checks": {
+      "shell": true,
+      "python": true,
+      "units": true
+    },
+    "pass": true,
+    "application_ids_and_images_unchanged": true
+  },
+  "final_artifact_identity": {
+    "daemon_sha256": "6177066f0e35b1cb44945136d9a10841dd3ce30fdf16009c9a815cd943a982fe",
+    "daemon_matches_artifact": true,
+    "mtu_env_1376": true,
+    "tools_version": "amneziawg-tools v3.1.20260812 - https://amnezia.org",
+    "tools_package": "1.0.20210914-0~202608130144+ee0f0a9~ubuntu24.04.1",
+    "temporary_extraction_image_absent": true,
+    "pass": true
+  },
+  "cleanup": {
+    "native_audio": {
+      "synthetic_audio_files_removed": 2,
+      "original_wav_absent": true
+    },
+    "stage2": {
+      "native_synthetic_scopes_deleted": 1,
+      "active_synthetic_artifacts": 0,
+      "physical_retention": "native tombstones/retention; no direct SQL deletion"
+    },
+    "candidate_privoxy_config_absent": true,
+    "temporary_native_user_deleted": true,
+    "temporary_local_tokens_and_wav_removed": true
+  },
+  "limitations": [
+    "Both protocols share one VPN server; no node redundancy.",
+    "Selection is manual; existing CONNECT streams retain their established route.",
+    "Speed values are bounded sequential samples, not a throughput guarantee or proof of MTU causality.",
+    "The real daemon crash/recovery was tested; a host reboot and full WAN outage were not performed.",
+    "STT used a synthetic Russian WAV through native endpoints; physical microphone capture was not tested.",
+    "Browser initial cold static loading exceeded early timeouts; the eventual real UI chat succeeded. This alone does not identify a VPN fault.",
+    "Protected server rollback archive and ignored local diagnostics are intentionally retained; native Stage2 tombstones follow normal retention."
+  ]
+}

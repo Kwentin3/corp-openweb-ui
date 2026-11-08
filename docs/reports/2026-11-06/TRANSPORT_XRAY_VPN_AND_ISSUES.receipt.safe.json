@@ -1,0 +1,323 @@
+{
+  "at": "2026-11-06T15:25:13.085197+00:00",
+  "read_only": true,
+  "vpn_inventory": {
+    "kernel": "5.14.0-759.el9.x86_64",
+    "uptime": "10:12:04 up  4:24,  0 users,  load average: 0.32, 0.43, 0.49",
+    "memory": "total        used        free      shared  buff/cache   available\nMem:             956         616          92           7         395         339\nSwap:           1023           4        1019",
+    "xray_version": "Xray 26.10.31 (Xray, Penetrates Everything.) a4a3dff (go1.27.3 linux/amd64)\nA unified platform for anti-censorship.",
+    "xray_container": {
+      "id": "b6f668357240",
+      "image": "sha256:4f04457ce5f1aaa1bbddb0ec6221bab0ea711aeb30d269d23ffb3ee2706289d4",
+      "image_id": "sha256:4f04457ce5f1aaa1bbddb0ec6221bab0ea711aeb30d269d23ffb3ee2706289d4",
+      "status": "running",
+      "started_at": "2026-11-06T11:08:32.656213383Z",
+      "restarts": 0,
+      "memory_limit": 0,
+      "cpu_quota": 0,
+      "log_driver": "none"
+    },
+    "network_sysctls": "net.ipv4.tcp_congestion_control = cubic\nnet.core.default_qdisc = fq_codel\nnet.ipv4.tcp_mtu_probing = 0\nnet.netfilter.nf_conntrack_count = 1231\nnet.netfilter.nf_conntrack_max = 7680",
+    "conntrack_overflow_log": "-- No entries --",
+    "inbounds": [
+      {
+        "protocol": "vless",
+        "port": 443,
+        "network": "tcp",
+        "security": "reality",
+        "sockopt": {},
+        "reality_fallback_limits": {},
+        "client_count": 6,
+        "supplied_client_present": true,
+        "supplied_flow_matches": true
+      }
+    ],
+    "outbounds": [
+      {
+        "protocol": "freedom",
+        "tag": null,
+        "domainStrategy": null
+      }
+    ],
+    "failed_units": "UNIT LOAD ACTIVE SUB DESCRIPTION\n0 loaded units listed.",
+    "server_config_sha256": "db71c0184df50a661d48f9a24e158c2e7edf109bacf0dd768259c3a12a819775"
+  },
+  "vpn_direct_egress": [
+    {
+      "route": "VPN host direct egress",
+      "direction": "download",
+      "bytes_requested": 10000000,
+      "returncode": 0,
+      "http_code": 200,
+      "size_download": 10000000.0,
+      "size_upload": 0.0,
+      "time_connect": 0.187488,
+      "time_appconnect": 0.243299,
+      "time_starttransfer": 0.287445,
+      "time_total": 0.713367,
+      "speed_download": 14025245.0,
+      "speed_upload": 0.0,
+      "Mbps": 112.202
+    },
+    {
+      "route": "VPN host direct egress",
+      "direction": "upload",
+      "bytes_requested": 5000000,
+      "returncode": 0,
+      "http_code": 200,
+      "size_download": 0.0,
+      "size_upload": 5000000.0,
+      "time_connect": 0.109162,
+      "time_appconnect": 0.158786,
+      "time_starttransfer": 0.158868,
+      "time_total": 0.360991,
+      "speed_download": 0.0,
+      "speed_upload": 13888888.0,
+      "Mbps": 111.111
+    }
+  ],
+  "actual_provider_path": [
+    {
+      "http_code": 401,
+      "time_namelookup": 2.5e-05,
+      "time_connect": 0.000134,
+      "time_appconnect": 1.310226,
+      "time_starttransfer": 1.663763,
+      "time_total": 1.664077,
+      "route": "application_via_privoxy_xray",
+      "returncode": 0,
+      "target": "api.lemonfox.ai"
+    },
+    {
+      "http_code": 401,
+      "time_namelookup": 2.1e-05,
+      "time_connect": 0.000125,
+      "time_appconnect": 1.216489,
+      "time_starttransfer": 1.580491,
+      "time_total": 1.580538,
+      "route": "application_via_privoxy_xray",
+      "returncode": 0,
+      "target": "api.lemonfox.ai"
+    },
+    {
+      "http_code": 401,
+      "time_namelookup": 0.019667,
+      "time_connect": 0.131586,
+      "time_appconnect": 0.304177,
+      "time_starttransfer": 0.460385,
+      "time_total": 0.46084,
+      "route": "vpn_host_direct",
+      "returncode": 0,
+      "target": "api.lemonfox.ai"
+    },
+    {
+      "http_code": 401,
+      "time_namelookup": 0.015772,
+      "time_connect": 0.133829,
+      "time_appconnect": 0.317116,
+      "time_starttransfer": 0.479522,
+      "time_total": 0.479687,
+      "route": "vpn_host_direct",
+      "returncode": 0,
+      "target": "api.lemonfox.ai"
+    },
+    {
+      "http_code": 401,
+      "time_namelookup": 0.016507,
+      "time_connect": 0.133475,
+      "time_appconnect": 0.315525,
+      "time_starttransfer": 0.481535,
+      "time_total": 0.483722,
+      "route": "vpn_xray_network_namespace",
+      "returncode": 0,
+      "target": "api.lemonfox.ai"
+    },
+    {
+      "http_code": 401,
+      "time_namelookup": 0.019761,
+      "time_connect": 0.139801,
+      "time_appconnect": 0.330567,
+      "time_starttransfer": 0.503574,
+      "time_total": 0.503816,
+      "route": "vpn_xray_network_namespace",
+      "returncode": 0,
+      "target": "api.lemonfox.ai"
+    }
+  ],
+  "isolated_native_vision_trace": [
+    {
+      "direction": "upload",
+      "size": 5000000,
+      "returncode": 28,
+      "http_code": 0,
+      "time_total": 20.002371,
+      "Mbps": 2.0,
+      "isolated_client_cpu_seconds": 0.01,
+      "padding_commands": {
+        "0": 2,
+        "2": 1
+      },
+      "unpadding_commands": {
+        "0": 1
+      },
+      "bytes_padded_before_first_direct_command": 781,
+      "total_logged_padded_payload_bytes": 781,
+      "splice_marker_count": 0,
+      "temporary_process_stopped": true,
+      "logging": "isolated debug client; production warning unchanged"
+    },
+    {
+      "direction": "download",
+      "size": 10000000,
+      "returncode": 0,
+      "http_code": 200,
+      "time_total": 10.701513,
+      "Mbps": 7.476,
+      "isolated_client_cpu_seconds": 0.16,
+      "padding_commands": {
+        "0": 2,
+        "2": 1
+      },
+      "unpadding_commands": {
+        "0": 16,
+        "2": 1
+      },
+      "bytes_padded_before_first_direct_command": 723,
+      "total_logged_padded_payload_bytes": 723,
+      "splice_marker_count": 1,
+      "temporary_process_stopped": true,
+      "logging": "isolated debug client; production warning unchanged"
+    }
+  ],
+  "tcp_observation": {
+    "route": "production Privoxy -> Xray",
+    "http_code": 0,
+    "returncode": 28,
+    "elapsed_s": 20.002386,
+    "new_socket_count": 1,
+    "rtt_min_ms": 304.501,
+    "rtt_max_ms": 347.544,
+    "min_cwnd_segments": 1,
+    "last_observed_tcp_bytes_acked": 758483,
+    "max_observed_bytes_retrans": 18584,
+    "last_observed_retrans": "0/13",
+    "monitor_stopped": true
+  },
+  "upstream_issues": {
+    "queried_at": "2026-11-06",
+    "source": "GitHub plugin issue readback",
+    "issues": [
+      {
+        "repo": "XTLS/Xray-core",
+        "number": 7164,
+        "title": "XTLS Vision: never switches to direct copy when inner TLS records arrive back to back (IsCompleteRecord is per batch)",
+        "url": "https://github.com/XTLS/Xray-core/issues/7164",
+        "state": "open",
+        "state_reason": null,
+        "created_at": "2026-10-15T12:47:34Z",
+        "updated_at": "2026-10-16T02:22:59Z",
+        "closed_at": null,
+        "comment_count": 1
+      },
+      {
+        "repo": "XTLS/Xray-core",
+        "number": 6124,
+        "title": "IOS App store 下载连接断开问题",
+        "url": "https://github.com/XTLS/Xray-core/issues/6124",
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2026-05-13T10:18:40Z",
+        "updated_at": "2026-09-27T23:39:23Z",
+        "closed_at": "2026-09-27T23:39:23Z",
+        "comment_count": 1
+      },
+      {
+        "repo": "XTLS/Xray-core",
+        "number": 1828,
+        "title": "Can't use all speed",
+        "url": "https://github.com/XTLS/Xray-core/issues/1828",
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2023-03-19T22:34:24Z",
+        "updated_at": "2024-04-15T17:14:28Z",
+        "closed_at": "2024-04-15T17:14:27Z",
+        "comment_count": 1
+      },
+      {
+        "repo": "XTLS/Xray-core",
+        "number": 2753,
+        "title": "Upload speed: 0",
+        "url": "https://github.com/XTLS/Xray-core/issues/2753",
+        "state": "closed",
+        "state_reason": "not_planned",
+        "created_at": "2023-11-23T11:27:47Z",
+        "updated_at": "2024-04-14T17:36:12Z",
+        "closed_at": "2024-04-14T17:36:11Z",
+        "comment_count": 6
+      },
+      {
+        "repo": "XTLS/Xray-core",
+        "number": 5332,
+        "title": "TCP + Reality gets blocked",
+        "url": "https://github.com/XTLS/Xray-core/issues/5332",
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2025-11-23T05:36:28Z",
+        "updated_at": "2026-05-06T03:30:11Z",
+        "closed_at": "2025-11-25T10:21:48Z",
+        "comment_count": 148
+      },
+      {
+        "repo": "XTLS/Xray-core",
+        "number": 7306,
+        "title": "Concurrent REALITY dials send only the first TCP segment of a ClientHello",
+        "url": "https://github.com/XTLS/Xray-core/issues/7306",
+        "state": "open",
+        "state_reason": null,
+        "created_at": "2026-10-31T23:19:06Z",
+        "updated_at": "2026-11-01T13:56:53Z",
+        "closed_at": null,
+        "comment_count": 0
+      },
+      {
+        "repo": "amnezia-vpn/amnezia-client",
+        "number": 3387,
+        "title": "[Windows][Xray] TUN adapter is created with MTU 65535 — large TLS handshakes are corrupted in transit (`bad_record_mac`), YouTube/Discord unusable. Setting MTU 1280/1200 fixes it",
+        "url": "https://github.com/amnezia-vpn/amnezia-client/issues/3387",
+        "state": "open",
+        "state_reason": null,
+        "created_at": "2026-11-03T04:53:06Z",
+        "updated_at": "2026-11-03T04:53:06Z",
+        "closed_at": null,
+        "comment_count": 0
+      },
+      {
+        "repo": "amnezia-vpn/amnezia-client",
+        "number": 1060,
+        "title": "Some kind of conflict with openssl that constantly manifests itself when using the Amnesia vpn xray selfhosted",
+        "url": "https://github.com/amnezia-vpn/amnezia-client/issues/1060",
+        "state": "closed",
+        "state_reason": "not_planned",
+        "created_at": "2024-09-10T18:37:55Z",
+        "updated_at": "2025-01-24T08:57:00Z",
+        "closed_at": "2025-01-24T08:57:00Z",
+        "comment_count": 1
+      }
+    ]
+  },
+  "working_client_topology": {
+    "network": "tcp",
+    "flow": "xtls-rprx-vision",
+    "mux_enabled": false,
+    "socks_udp_enabled": false,
+    "tun_used": false
+  },
+  "interpretation_limits": [
+    "TCP retransmissions are not proof of TSPU or a particular packet-loss location.",
+    "Issue7164 relevant code exists in v26.10.31, but early Direct command and download splice were observed in isolated probes; its failure mechanism was not reproduced there.",
+    "Debug-client timing may differ from production warning-level timing.",
+    "Provider401 probes prove connectivity only, not authenticated transcription or large upload completion.",
+    "No alternative native SSH throughput test from application host: it has no existing pinned VPN key or default client identity; none was copied or installed.",
+    "First VPN curl JSON write-out did not yield usable metrics; only subsequent explicit numeric format results are included."
+  ]
+}

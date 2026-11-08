@@ -35,7 +35,7 @@
 | Public ports | Decided | `22/tcp`, `80/tcp`, `443/tcp` | firewall runbook |
 | OpenWebUI image tag | Decided | `ghcr.io/open-webui/open-webui:v0.9.6`; не `:main` для пилота. | `.env`: `OPENWEBUI_IMAGE` |
 | Traefik image tag | Decided | `traefik:v3.6`. | `.env`: `TRAEFIK_IMAGE` |
-| Provider outbound proxy | Decided | OpenWebUI получает HTTP proxy env; SOCKS5 используется только за host-local HTTP-to-SOCKS bridge | `.env`, provider runbook |
+| Provider outbound proxy | Implemented, accepted 2026-11-06 | OpenWebUI/STT/gateway сохраняют HTTP endpoint Privoxy; активен AmneziaWG3.1, Xray доступен вручную. Выбор — одна forwarding directive, `openwebui-transport status/use`; оба протокола на одном VPN-узле | [provider runbook](PROVIDER_SETUP_RUNBOOK.md), [acceptance](../reports/2026-11-06/TRANSPORT_AMNEZIAWG_GOAL.md) |
 | Public repo personal data | Decided | Не хранить реальные имена, SSH endpoint, public IP, секреты. | docs and `.gitignore` |
 | Let's Encrypt email | Decided | `kwentin3@mail.ru` | `.env`: `LETSENCRYPT_EMAIL` |
 | Backup retention | Decided | `BACKUP_RETENTION_DAYS=7`; allowed pilot choices are `1`, `7`, `30` days | `.env.example`, backup runbook |
@@ -46,7 +46,8 @@
 | Item | Status | Where applied | Notes |
 | --- | --- | --- | --- |
 | OpenAI API key | Configured server-local secret | `.env`: `OPENAI_API_KEY` | Must not be committed; rotate if it was exposed outside password manager. |
-| SOCKS5 upstream credentials | Configured server-local secret | `.env`: `OPENWEBUI_SOCKS5_UPSTREAM`, Privoxy config | Must not be committed; rotate if they were exposed outside password manager. |
+| Xray loopback SOCKS credentials | Configured server-local secret | Xray config; Privoxy при выборе Xray; `.env`: `OPENWEBUI_SOCKS5_UPSTREAM` — операторская запись | Старый внешний SOCKS5 не является резервом. Секреты не коммитить. |
+| AmneziaWG client profile | Configured server-local secret | `/etc/amnezia/egress/`, root0700 / secret files0600 | Выделенный клиентский peer; не использовать одновременно на другом устройстве. Профиль и ключи не коммитить. |
 | Gemini API key | Pending operator action | OpenWebUI Admin UI secondary connection | Must not be committed. |
 | First administrator email/password | Configured server-local secret | `.env`: `WEBUI_ADMIN_EMAIL`, `WEBUI_ADMIN_PASSWORD` | Password rotation after bootstrap is recommended after stabilization. |
 | Pilot users | Pending operator action | OpenWebUI Admin UI | Create or activate 3-4 users before full pilot acceptance. |
