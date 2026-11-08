@@ -31,9 +31,17 @@ corporate-documents→gpt-6.1-sol, reason=base_model_unregistered; nextline gene
 Model not found. Setup/baselineSUCCESS, provider_added0/auth_added0. Source-only
 гипотеза stale cache ОТВЕРГНУТА как объяснение: config/update уже чистит nativecache.
 Недостаёт base WorkspaceModel DB records/actorREAD, не смены Office protocol.
-Узкий source fix готовится в existing provision_webui owner: native base rows для
-обоих новых syntheticaliases, exactactor grants/readback +nativecatalog refresh,
-без core/route/Skill/Tasks/cap изменений. Новый runtime до source review не запущен.
+Узкий source fix ГОТОВ: reasoning40571c1e / delivery4783d3fc, только2files.
+SAME native base WorkspaceModel installer extracted once; oldOfficebody/readback
+ASTequal. Для обоих новых syntheticaliases — строгая404absence доwrites, native
+base rows/actorREAD+mandatoryFilter, readback; actorcatalog проверяет4profile/base
+bindings, baseurlIdx0. 36tests PASS0skip/network0 (agent+independentreview+root),
+native6files exact6a185; actualACL missing/unreadable/newallowed/foreigndeny,
+nativeFilteroneinstance и parameterprefix/contextbeforeafter проверены.
+После cherry-pick root повторил36 на exactDELIVERY4783 с темиже sourceLF hashes
+639183c4…/509d5394…; sourceidentityпереноса подтверждена. Без core/route/Skill/
+Tasks/cap изменений. Следующий runtime должен проверить actualprovider/E2E;
+source36 отдельно его не доказывает. Evidence: `office86-base-model-{source,review}/`.
 Evidence: `office86-review/{artifact.zip,base_witness.py,base-model-witness.safe.json}`,
 `office86-native-office-review/`, `office86-native-catalog-review/`,
 `office86-model-catalog-triage/`. Текущий ход — progress (точный buildfix/runtime,
@@ -48,11 +56,19 @@ OpenAI2.54.0 cache_write_tokens schema errors; old b96 handler reproduces both,
 nativeLiteLLM1.105.1 does not require that field. Wire/SDK/shims не менялись радиgreen.
 Root первый provision repeat ошибочно выбрал browservenv безaiohttp (доtests),
 повтор на existing provenancevenv26PASS; dependencies не устанавливались.
+Root4dc897f8 исправил Linux snapshot UID:GID: execтеперьsamehostowner, чтобы
+atomic0600replace не закрывалhostread; permissions не ослаблены. Browser13/root
+AST checks сноваPASS, latestLF40811bda…; actualLinuxownership ещё runtimepending.
 Пока НЕТ nativecollector/orchestration для нового admin witness: обязательны
 actual2personalnonce/rows/cost_snapshot.332, fullSkill/tools/output/capture-provider
 joins и separate existingservice finance; затем nativeGUI/render acceptance.
 Source prep отдельно не считается принятой adminUI/всемGOAL. Evidence:
 `admin-unknown-{provider-source,provision-source,browser-source}/`.
+Nativecollector сейчас bounded WIP в REASONING (cc_stream_boundary): same readonly
+parser extracted to existingpureverify_admin_calls; same auth/providerjoin leaf
+extracted fromOfficeowner, old13/6+6+1constraints retained. NewCLI admin-baseline/
+admin-verify и sourceclosure готовятся. Не published/неCI/notaccepted; workflow
+orchestration остаётся root после frozen nativecollector review.
 
 **Предыдущий runtime-кандидат08.11, terminal:**
 [run42468080716](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42468080716),
