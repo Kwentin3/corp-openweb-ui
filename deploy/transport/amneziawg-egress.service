@@ -1,0 +1,23 @@
+[Unit]
+Description=AmneziaWG outbound tunnel with isolated proxy network
+Documentation=https://github.com/amnezia-vpn/amneziawg-go
+Wants=network-online.target privoxy-awg-egress.service
+After=network-online.target
+Before=privoxy-awg-egress.service
+Upholds=privoxy-awg-egress.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/amnezia/egress/interface.env
+UMask=0077
+ExecStartPre=/usr/local/libexec/awg-egress-netns.sh prepare
+ExecStart=/usr/local/bin/amneziawg-go -f awge0
+ExecStartPost=/usr/local/libexec/awg-egress-netns.sh configure
+ExecStopPost=/usr/local/libexec/awg-egress-netns.sh cleanup
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=20
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

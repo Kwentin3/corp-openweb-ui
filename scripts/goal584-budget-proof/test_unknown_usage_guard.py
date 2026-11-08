@@ -62,6 +62,8 @@ PINS = {
     "types/router.py": "f7dac34c660b5df2741c9612a6199a294470ab90b8f0b6daf620db21cf47cf1a",
     "proxy/guardrails/guardrail_hooks/unified_guardrail/unified_guardrail.py": "3485e5f796c39c1dc7a0b46aaed61b302535c6eb5a8a3e33d54b31675aac7568",
     "llms/openai/responses/guardrail_translation/handler.py": "ce5bddcdf3f726fe928922a9e6d0ace9ee1567c20aaf03534b338573f553e3ee",
+    "llms/openai/openai.py": "e6d25eea6d0a12d16f781ea175982830ab7eaa945ca32b4c5b424580d84f8831",
+    "utils.py": "b8780e244b32bfe709fff7ba4dfedb1141ca0fbe6443ce0d1626e4e714da37f8",
 }
 
 
@@ -379,6 +381,184 @@ class UnknownUsageTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("callback.should_run_guardrail", source)
         self.assertIn("callback.async_post_call_success_hook", source)
         self.assertIn("_run_guardrail_with_metrics", source)
+
+
+class NonstreamCCUsageTests(unittest.IsolatedAsyncioTestCase):
+    """Actual native types/Router, real guard/admin owners; finite HTTP leaves."""
+    setUp = UnknownUsageTests.setUp
+    invoke = UnknownUsageTests.invoke
+    entry = UnknownUsageTests.entry
+    assert_finance_unchanged = UnknownUsageTests.assert_finance_unchanged
+
+    def prepare_cc(self, kind="zero", *, defer=False):
+        from openai.types.chat import ChatCompletion
+        from litellm.types.utils import ModelResponse
+        self.auth.request_route = "/v1/chat/completions"
+        self.data.pop("input", None)
+        self.data.pop("litellm_logging_obj", None)
+        self.data.update(stream=False, litellm_call_id=str(uuid4()), max_tokens=6000, temperature=0,
+            messages=[{"role": "system", "content": "Preserve the full source and native function schema."},
+                {"role": "user", "content": "Inspect the complete synthetic Office source."}],
+            tools=[{"type": "function", "function": {"name": "inspect_native_file",
+                "description": "Inspect the whole source", "parameters": {"type": "object",
+                    "properties": {"file_id": {"type": "string"}}, "required": ["file_id"],
+                    "additionalProperties": False}}}])
+        raw = {"id": "chatcmpl-native-" + str(uuid4()), "object": "chat.completion", "created": 1,
+            "model": "gpt-4o", "choices": [{"index": 0, "finish_reason": "tool_calls", "message": {
+                "role": "assistant", "content": None, "tool_calls": [{"id": "call_native", "type": "function",
+                    "function": {"name": "inspect_native_file", "arguments": '{"file_id":"synthetic-source"}'}}]}}]}
+        if kind != "absent":
+            raw["usage"] = (None if kind == "null" else {"prompt_tokens": 40, "completion_tokens": 8,
+                "total_tokens": 48} if kind == "known" else {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0})
+        log, self.data = litellm.utils.function_setup(original_function="acompletion",
+            rules_obj=litellm.utils.Rules(), start_time=datetime.now(), **self.data)
+        self.data["litellm_logging_obj"] = log
+        if defer: log._defer_async_logging = True  # Native nonstream post-call lifecycle setting.
+        normalized = ChatCompletion.model_validate(raw).model_dump()
+        log.post_call(original_response=normalized)
+        response = litellm.utils.convert_to_model_response_object(response_object=normalized,
+            model_response_object=ModelResponse())
+        return response, log, raw
+
+    def reset_cc(self):
+        self.wire.key["blocked"] = False
+        self.wire.requests.clear(); self.operator.reset_mock()
+        self.data["litellm_metadata"].pop("standard_logging_guardrail_information", None)
+
+    async def routed_cc(self, kind, *, defer=False):
+        import httpx
+        from litellm.llms.openai.openai import OpenAIChatCompletion
+        _, log, raw = self.prepare_cc(kind, defer=defer)
+        # The Router, not this fixture, must establish the origin at the real
+        # native post_call seam. A preseeded copy would hide a broken binding.
+        log.model_call_details.pop("original_response", None)
+        self.assertNotIn("original_response", log.model_call_details)
+        expected = {key: copy.deepcopy(self.data[key]) for key in ("messages", "tools", "max_tokens", "temperature")}
+        expected["model"] = "gpt-4o"
+        requests = []
+        async def http_leaf(request):
+            body = json.loads(request.content); requests.append(body)
+            self.assertEqual(body, expected)  # Only native model projection and streamFalse omission.
+            return httpx.Response(200, json=raw, request=request)
+        client = httpx.AsyncClient(transport=httpx.MockTransport(http_leaf))
+        self.addAsyncCleanup(client.aclose)
+        router = litellm.Router(model_list=[{"model_name": self.model, "litellm_params": {
+            "model": "openai/gpt-4o", "api_key": "synthetic-native-cc-key", "max_retries": 0,
+            "api_base": "https://" + str(uuid4()) + ".native-fixture.invalid/v1"},
+            "model_info": {"id": "native-cc-" + str(uuid4()), "mode": "chat",
+                "input_cost_per_token": .001, "output_cost_per_token": .002}}], num_retries=0)
+        self.addCleanup(router.reset); self.cc_router = router
+        with patch.object(OpenAIChatCompletion, "_get_async_http_client", return_value=client):
+            response = await router.acompletion(**self.data)
+        self.assertEqual(len(requests), 1)
+        original = json.loads(log.model_call_details["original_response"])
+        self.assertEqual(original["id"], response.id)
+        self.assertEqual(original["model"], response.model)
+        self.assertIsNone(original["usage"]) if kind in ("absent", "null") else self.assertIsInstance(original["usage"], dict)
+        self.assertEqual((response.usage.prompt_tokens, response.usage.completion_tokens, response.usage.total_tokens),
+                         (40, 8, 48) if kind == "known" else (0, 0, 0))
+        self.assertEqual(response.choices[0].message.tool_calls[0].function.name, "inspect_native_file")
+        self.assertEqual(response.choices[0].message.tool_calls[0].function.arguments,
+                         '{"file_id":"synthetic-source"}')
+        return response, log
+
+    async def test_actual_router_four_origins_with_logging_redaction_preserve_body_and_targeted_policy(self):
+        for redact in (False, True):
+            for kind in ("known", "absent", "null", "zero"):
+                with self.subTest(redact=redact, kind=kind), patch.object(litellm, "turn_off_message_logging", redact):
+                    self.reset_cc(); response, log = await self.routed_cc(kind)
+                    before = response.model_dump(); messages = copy.deepcopy(self.data["messages"])
+                    with patch.object(self.guard, "_process_response", side_effect=AssertionError("raw response autolog")):
+                        self.assertIs(await self.invoke(response), response)
+                    self.assertEqual(response.model_dump(), before); self.assertEqual(self.data["messages"], messages)
+                    self.assertIs(self.data["litellm_logging_obj"], log)
+                    if kind in ("absent", "null"):
+                        self.assertEqual(self.entry()["guardrail_action"], "block"); self.assert_finance_unchanged()
+                        self.assertEqual([(p, body) for method, p, body, *_ in self.wire.requests if method == "POST"],
+                                         [("/key/block", {"key": self.key_hash})])
+                    else:
+                        self.assertEqual(self.entry()["guardrail_action"], "allow")
+                        self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+
+    async def test_absent_malformed_stale_and_client_origin_cannot_turn_typed_zero_into_known_usage(self):
+        for mutation in ("missing", "dict", "dto", "call_id", "stream", "call_type", "details", "raw_dict",
+                         "bad_json", "json_list", "object", "response_id", "response_model"):
+            with self.subTest(mutation=mutation):
+                self.reset_cc(); response, log, _ = self.prepare_cc()
+                original = json.loads(log.model_call_details["original_response"])
+                if mutation == "missing": self.data.pop("litellm_logging_obj")
+                elif mutation == "dict": self.data["litellm_logging_obj"] = {"original_response": json.dumps(original)}
+                elif mutation == "dto": self.data["litellm_logging_obj"] = SimpleNamespace(model_call_details=log.model_call_details)
+                elif mutation == "call_id": log.litellm_call_id = str(uuid4())
+                elif mutation == "stream": log.stream = True
+                elif mutation == "call_type": log.call_type = "aresponses"
+                elif mutation == "details": log.model_call_details = None
+                elif mutation == "raw_dict": log.model_call_details["original_response"] = original
+                elif mutation == "bad_json": log.model_call_details["original_response"] = "not json"
+                elif mutation == "json_list": log.model_call_details["original_response"] = "[]"
+                else:
+                    original[{"object": "object", "response_id": "id", "response_model": "model"}[mutation]] = "foreign"
+                    log.model_call_details["original_response"] = json.dumps(original)
+                self.data["litellm_metadata"]["original_response"] = json.dumps(original)  # Caller metadata is never origin.
+                self.assertIs(await self.invoke(response), response)
+                self.assertEqual(self.entry()["guardrail_action"], "block"); self.assert_finance_unchanged()
+
+    async def test_non_native_usage_shapes_are_unknown_and_explicit_zero_is_known(self):
+        invalid = ({}, [], False, 0, "0", {"prompt_tokens": 0, "completion_tokens": 0},
+            {"prompt_tokens": False, "completion_tokens": 0, "total_tokens": 0},
+            {"prompt_tokens": "0", "completion_tokens": 0, "total_tokens": 0},
+            {"prompt_tokens": 0.0, "completion_tokens": 0, "total_tokens": 0},
+            {"prompt_tokens": -1, "completion_tokens": 1, "total_tokens": 0},
+            {"prompt_tokens": 1, "completion_tokens": 0, "total_tokens": 0})
+        for usage in invalid:
+            with self.subTest(usage=usage):
+                self.reset_cc(); response, log, _ = self.prepare_cc()
+                original = json.loads(log.model_call_details["original_response"]); original["usage"] = usage
+                log.model_call_details["original_response"] = json.dumps(original)
+                self.assertIs(await self.invoke(response), response)
+                self.assertEqual(self.entry()["guardrail_action"], "block"); self.assert_finance_unchanged()
+
+    async def test_unmanaged_service_non_native_auth_and_stream_keep_not_run(self):
+        for variant in ("unmanaged", "service", "dto_auth", "foreign_route", "stream"):
+            with self.subTest(variant=variant):
+                self.reset_cc(); response, _, _ = self.prepare_cc("null")
+                previous_auth = self.auth
+                if variant == "unmanaged": self.auth = self.auth.model_copy(update={"metadata": {}})
+                elif variant == "service":
+                    self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"] = {
+                        "schema": 1, "category": "service", "user_id": self.uid, "actor_id": str(uuid4()),
+                        "chat_id": str(uuid4()), "call_id": str(uuid4()), "model": self.model, "task": "follow_up_generation"}
+                elif variant == "dto_auth":
+                    self.auth = UserAPIKeyAuth.model_validate(self.auth.model_dump() | {"api_key": self.raw_key})
+                elif variant == "foreign_route": self.auth.request_route = "/v1/responses"
+                else: self.data["stream"] = True
+                self.assertIs(await self.invoke(response), response)
+                self.assertEqual(self.entry()["guardrail_status"], "not_run")
+                self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+                self.auth = previous_auth
+                self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"] = copy.deepcopy(self.scope)
+
+    async def test_unknown_cc_still_requires_personal_scope_assignment_and_confirmed_block(self):
+        response, _, _ = self.prepare_cc("absent")
+        self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"]["user_id"] = str(uuid4())
+        with self.assertRaises(G.HTTPException): await self.invoke(response)
+        self.assertEqual(self.entry()["guardrail_action"], "block_failed"); self.assertFalse(self.wire.requests)
+        self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"] = copy.deepcopy(self.scope)
+        self.reset_cc(); self.wire.ignored_block = True
+        with self.assertRaises(G.HTTPException) as caught: await self.invoke(response)
+        self.assertEqual((caught.exception.status_code, caught.exception.detail), (503, G.FAILURE))
+        self.assertEqual(self.entry()["guardrail_action"], "block_failed"); self.assertFalse(self.wire.key["blocked"])
+
+    async def test_all_native_cc_routes_and_typed_positive_usage_without_origin(self):
+        for route in sorted(G.CC_ROUTES):
+            with self.subTest(route=route):
+                self.reset_cc(); response, _, _ = self.prepare_cc("known")
+                self.auth.request_route = route
+                self.data.pop("litellm_logging_obj")
+                self.assertGreater(response.usage.total_tokens, 0)
+                self.assertIs(await self.invoke(response), response)
+                self.assertEqual(self.entry()["guardrail_action"], "block")
+                self.assert_finance_unchanged()
 
 
 class BufferedNativeUsageTests(unittest.IsolatedAsyncioTestCase):
@@ -706,6 +886,66 @@ class BufferedNativeUsageTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(iterator.completed_response.response,ResponsesAPIResponse)
                 self.cancel_release.assert_not_awaited()
                 self.assertEqual(sum(p=="/key/block" for _,p,*_ in self.wire.requests),1)
+
+
+class NonstreamCCNativeProxyTests(unittest.IsolatedAsyncioTestCase):
+    """Mandatory existing-image proxy/guard/deferred-SLP component, no import shim."""
+    setUpClass = BufferedNativeUsageTests.__dict__["setUpClass"]
+    setUp = BufferedNativeUsageTests.setUp
+    prepare_cc = NonstreamCCUsageTests.prepare_cc
+    routed_cc = NonstreamCCUsageTests.routed_cc
+    reset_cc = NonstreamCCUsageTests.reset_cc
+    entry = UnknownUsageTests.entry
+    assert_finance_unchanged = UnknownUsageTests.assert_finance_unchanged
+    flush = BufferedNativeUsageTests.flush
+
+    async def test_real_proxy_cc_policy_precedes_native_deferred_single_payload(self):
+        for kind in ("known", "absent", "null", "zero"):
+            with self.subTest(kind=kind):
+                self.reset_cc(); self.queued.clear(); self.successes.clear(); self.failures.clear()
+                response, log = await self.routed_cc(kind, defer=True)
+                self.assertFalse(self.queue)
+                before = response.model_dump()
+                with patch.object(self.server, "llm_router", self.cc_router):
+                    observed = await self.proxy_instance.post_call_success_hook(data=self.data,
+                        response=response, user_api_key_dict=self.auth)
+                self.assertIs(observed, response); self.assertEqual(response.model_dump(), before)
+                self.assertFalse(self.queue)
+                self.processor._flush_deferred_async_logging(logging_obj=log, exception_raised=False)
+                await self.flush()
+                self.assertFalse(self.failures); self.assertEqual(len(self.successes), 1)
+                action = "block" if kind in ("absent", "null") else "allow"
+                self.assertEqual(self.entry()["guardrail_action"], action)
+                records = self.successes[0]["guardrail_information"]
+                self.assertEqual(len(records), 1); self.assertEqual(records[0]["guardrail_action"], action)
+                if action == "block": self.assert_finance_unchanged()
+                else: self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+
+    async def test_real_proxy_cc_native_optout_and_service_exclusion(self):
+        for variant in ("optout", "service", "unmanaged"):
+            with self.subTest(variant=variant):
+                self.reset_cc(); self.queued.clear(); self.successes.clear(); self.failures.clear()
+                self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"] = copy.deepcopy(self.scope)
+                self.data["litellm_metadata"]["user_api_key_metadata"] = copy.deepcopy(self.auth.metadata)
+                if variant == "optout":
+                    self.data["litellm_metadata"]["user_api_key_metadata"]["disable_global_guardrails"] = True
+                elif variant == "service":
+                    self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"] = {
+                        "schema": 1, "category": "service", "user_id": self.uid, "actor_id": str(uuid4()),
+                        "chat_id": str(uuid4()), "call_id": str(uuid4()), "model": self.model, "task": "follow_up_generation"}
+                previous_metadata = self.auth.metadata
+                if variant == "unmanaged": self.auth.metadata = {}
+                response, log = await self.routed_cc("null", defer=True)
+                with patch.object(self.server, "llm_router", self.cc_router):
+                    self.assertIs(await self.proxy_instance.post_call_success_hook(data=self.data,
+                        response=response, user_api_key_dict=self.auth), response)
+                if variant == "optout":
+                    self.assertNotIn("standard_logging_guardrail_information", self.data["litellm_metadata"])
+                else: self.assertEqual(self.entry()["guardrail_status"], "not_run")
+                self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+                self.processor._flush_deferred_async_logging(logging_obj=log, exception_raised=False)
+                await self.flush(); self.assertFalse(self.failures); self.assertEqual(len(self.successes), 1)
+                self.auth.metadata = previous_metadata
 
 
 if __name__ == "__main__":

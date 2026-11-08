@@ -161,6 +161,34 @@ def prepare_usage_guard_config(original):
     return raw
 
 
+def prepare_delegated_office_config(original):
+    """Explicit new scenario; never change the legacy Mini or service descriptor."""
+    import yaml
+    config = yaml.safe_load(prepare_usage_guard_config(original))
+    for alias, wire, deployment, output, input_rate, output_rate in (
+            ('gpt-6.1-sol', 'goal584-fake-delegated-parent', 'goal584-delegated-parent', 12000, .01, .02),
+            ('gpt-6.1-terra', 'goal584-fake-delegated-worker', 'goal584-delegated-worker', 6000, .001, .002)):
+        require(not any(row['model_name'] == alias for row in config['model_list']),
+                'Delegated scenario alias already exists')
+        config['model_list'].append({'model_name': alias, 'litellm_params': {
+            'model': 'openai/' + wire, 'api_base': 'http://provider:8000/v1',
+            'api_key': 'synthetic-provider-only-not-a-credential'}, 'model_info': {
+                'id': deployment, 'mode': 'responses', 'supports_reasoning': True,
+                'supports_function_calling': True, 'supports_native_streaming': False,
+                'max_input_tokens': 32768, 'max_output_tokens': output, 'max_tokens': 32768 + output,
+                'input_cost_per_token': input_rate, 'output_cost_per_token': output_rate,
+                'owui_pricing': {'schema': 1, 'deployment_id': deployment, 'currency': 'USD',
+                    'source_ref': 'goal584-delegated-synthetic-v1',
+                    'source_url': 'https://pricing.example.invalid/goal584/delegated',
+                    'source_checked_at_utc': '2026-11-06T00:00:00Z',
+                    'declared_effective_from_utc': '2026-11-06T00:00:00Z',
+                    'declared_effective_until_utc': None, 'activation_ref': 'goal584-delegated-stand-v1',
+                    'qualified_usage': 'flat_input_output'}}})
+    raw = yaml.safe_dump(config, sort_keys=False).encode('utf-8')
+    require(len(raw) <= CONFIG_LIMIT, 'Delegated scenario YAML exceeded existing bound')
+    return raw
+
+
 def topology_row(raw):
     """Project native inspect JSON in memory; never export Config.Env."""
     config, state, host, network = (raw[k] for k in ('Config', 'State', 'HostConfig', 'NetworkSettings'))

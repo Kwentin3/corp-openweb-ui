@@ -845,5 +845,186 @@ class OfficeServiceSetupTests(unittest.TestCase):
         self.assertEqual(len(self.task_posts), 1)
 
 
+class DelegatedProvisionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # The deployed /proof aliases are real sibling sources, not auth doubles.
+        import importlib.util
+        for name, filename in (('employee_budget_assignment', 'assignment.py'),
+                ('employee_budget_admin_contract', 'admin_contract.py'), ('employee_budget_admin_client', 'admin_client.py')):
+            if name not in sys.modules:
+                spec = importlib.util.spec_from_file_location(name, HERE.parents[1] / 'deploy/openwebui-budgets' / filename)
+                module = importlib.util.module_from_spec(spec); sys.modules[name] = module; spec.loader.exec_module(module)
+
+    def test_complete_synthetic_docx_and_skill_bind_every_field_to_native_source(self):
+        from hashlib import sha256
+        from zipfile import ZipFile
+        from xml.etree import ElementTree as ET
+        raw = P.delegated_source_docx()
+        self.assertEqual(raw, P.delegated_source_docx())
+        with ZipFile(BytesIO(raw)) as package:
+            document = ET.fromstring(package.read('word/document.xml'))
+            text = ''.join(document.itertext())
+            for value in ('Employee: {{employee}}', 'Case: {{case}}', 'FIXED CLAUSE: preserve this sentence.', 'FIXED TABLE'):
+                self.assertEqual(text.count(value), 1)
+            self.assertIn('FIXED FOOTER: GOAL584 synthetic only.', package.read('word/footer1.xml').decode())
+        file_id = '1296bad0-1491-4c19-b7f2-93e57d812864'
+        content = P.delegated_skill_content(file_id, sha256(raw).hexdigest())
+        self.assertIn('Native source File ID: ' + file_id + '\n', content)
+        self.assertIn('Native source SHA256: ' + sha256(raw).hexdigest() + '\n', content)
+        self.assertIn('each occurs exactly once', content)
+        self.assertIn('Ada Example', content); self.assertIn('G584-2026', content)
+        # Exact pinned native Skill preview owner, not a shortened stand paraphrase.
+        import ast
+        source = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(HERE.parents[1] /
+            'local/goal584/cost-display/open-webui/backend/open_webui'))) / 'utils/skill_files.py'
+        if not source.is_file():
+            if 'GOAL584_NATIVE_SOURCE_ROOT' in os.environ: raise AssertionError('Selected native source is unavailable')
+            self.skipTest('New opt-in native Skill source unavailable; no preview substitute')
+        names = {'skill_content_page', 'bounded_skill_manifest', 'skill_overview'}
+        tree = ast.parse(source.read_bytes()); selected = [n for n in tree.body if getattr(n, 'name', None) in names
+            or isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id.startswith('SKILL_') for t in n.targets)]
+        namespace = {'json': json}
+        exec(compile(ast.Module(body=selected, type_ignores=[]), str(source), 'exec'), namespace)
+        result = namespace['skill_overview'](content, [{'path': 'SKILL.md', 'size': len(content.encode())}])
+        self.assertEqual(result['content'], content); self.assertIsNone(result['next_offset'])
+
+    def test_synthetic_source_binding_rejects_non_native_id_and_bad_hash(self):
+        for file_id, digest in [('invented', 'a' * 64), (OWNER, 'not-a-hash'), (OWNER, 'G' * 64)]:
+            with self.subTest(file_id=file_id, digest=digest), self.assertRaises((ValueError, P.ProofError)):
+                P.delegated_skill_content(file_id, digest)
+
+    def test_wrong_tool_source_stops_before_any_native_read_or_mutation(self):
+        with TemporaryDirectory() as directory:
+            tool = Path(directory) / 'tool.py'; tool.write_bytes(b'not-the-reviewed-tool')
+            profiles = Path(directory) / 'profiles.json'
+            profiles.write_bytes((HERE.parents[1] / 'deploy/openwebui-tools/corporate_template_models.json').read_bytes())
+            with patch.object(P, 'native_client', side_effect=AssertionError('Native read before source gate')):
+                with self.assertRaisesRegex(P.ProofError, 'Tool/profile source differs'):
+                    P.office_delegation_setup(object(), {'stage': 'setup_complete', 'office_setup': {'present': True}},
+                        Path(directory) / 'state.json', tool_source=tool, profiles_source=profiles)
+
+    def test_exact_profiles_and_tool_valves_keep_current_worker_contract(self):
+        from hashlib import sha256
+        raw = (HERE.parents[1] / 'deploy/openwebui-tools/corporate_template_models.json').read_bytes().replace(b'\r\n', b'\n')
+        self.assertEqual(sha256(raw).hexdigest(), P.DELEGATION_PROFILES_SHA256)
+        profiles = {v['id']: v for v in json.loads(raw)}
+        self.assertEqual(profiles['corporate-documents']['params']['max_tokens'], 12000)
+        worker = profiles['corporate-office-worker']
+        self.assertEqual(worker['params']['max_tokens'], 6000)
+        for required in ('load_officecli_skill', 'Inspect before editing', 'apply_office_batch', 'Inspect the published result', 'render_office_file'):
+            self.assertIn(required, worker['params']['system'])
+        self.assertEqual(P.DELEGATION_VALVES['DEFAULT_MODEL'], worker['id'])
+        self.assertEqual(P.DELEGATION_VALVES['MAX_ITERATIONS'], 12)
+        self.assertIs(P.DELEGATION_VALVES['APPLY_INLET_FILTERS'], True)
+        self.assertIs(P.DELEGATION_VALVES['ENABLE_CONTEXT_COMPACTION'], False)
+        self.assertEqual(P.DELEGATION_VALVES['LARGE_TOOL_RESULT_MODE'], 'raw')
+
+    def test_new_phase_uses_actual_admin_owner_to_create_two_fresh_assignments(self):
+        """Real provision/client/private owners; explicit native HTTP/config leaves."""
+        import hashlib, importlib.util, yaml
+        from email import policy
+        from email.parser import BytesParser
+        from types import SimpleNamespace
+        import office_fixture
+        import employee_budget_admin_client as budget
+        original = HERE.parents[1].with_name('corp-openweb ui')
+        tool_path = Path(os.environ.get('GOAL584_COMMUNITY_TOOL_SOURCE', str(original / 'local/subagent-office-trial-20261029/sub_agent.py')))
+        if not tool_path.is_file():
+            if 'GOAL584_COMMUNITY_TOOL_SOURCE' in os.environ: raise AssertionError('Selected pinned Tool source unavailable')
+            self.skipTest('New opt-in pinned Tool fixture unavailable; no Tool substitute')
+        self.assertEqual(hashlib.sha256(tool_path.read_bytes()).hexdigest(), P.DELEGATION_TOOL_SHA256)
+        spec = importlib.util.spec_from_file_location('provision_exact_pinned_tool', tool_path)
+        native_tool = importlib.util.module_from_spec(spec); sys.modules[spec.name] = native_tool; spec.loader.exec_module(native_tool)
+        info = yaml.safe_load(office_fixture.prepare_delegated_office_config(HERE.joinpath('litellm_config.yaml').read_bytes()))['model_list']
+        actor = str(P.uuid.uuid4()); admin = {'id': OWNER, 'token': 'synthetic-admin-token'}
+        state = {'schema': 1, 'stage': 'setup_complete', 'admin': admin, 'users': [{'id': CONTROL}],
+                 'office_setup': {'untouched': [1, 2]}, 'native_keys': [{'keep': 'legacy'}]}
+        frozen = copy.deepcopy(state)
+        config = {'OPENAI_API_BASE_URLS': ['http://proxy:4000/v1'], 'OPENAI_API_KEYS': ['gw-synthetic-delegated'],
+            'OPENAI_API_CONFIGS': {'0': {'api_type': 'responses', 'auth_type': 'bearer', 'model_ids': ['gpt-5.4-mini', 'gpt-6-luna']}}}
+        rows, tools, files, skills, requests, budget_requests = {}, {}, {}, {}, [], []
+        user, keys = None, []
+        class Response(BytesIO):
+            headers = {}
+            def __init__(self, status, value, binary=False):
+                super().__init__(value if binary else json.dumps(value).encode()); self.code = status
+        owner = self
+        class Transport:
+            def open(self, request, timeout):
+                nonlocal config
+                method, path = request.get_method(), urlsplit(request.full_url).path
+                token = request.get_header('Authorization'); query = parse_qs(urlsplit(request.full_url).query)
+                requests.append((method, path))
+                if path == '/api/v1/files/' and method == 'POST':
+                    parts = BytesParser(policy=policy.default).parsebytes(b'Content-Type: ' + request.get_header('Content-type').encode()
+                        + b'\r\nMIME-Version: 1.0\r\n\r\n' + request.data)
+                    body = next(parts.iter_parts()).get_payload(decode=True)
+                    identifier = str(P.uuid.uuid4()); files[identifier] = body
+                    return Response(200, {'id': identifier, 'user_id': actor, 'filename': 'goal584-delegated-source.docx'})
+                if path.startswith('/api/v1/files/'): return Response(200, files[path.split('/')[4]], True)
+                body = json.loads(request.data) if request.data else None
+                if path == '/api/v1/auths/': return Response(200, {'id': OWNER if token == 'Bearer synthetic-admin-token' else actor,
+                                                               'role': 'admin' if token == 'Bearer synthetic-admin-token' else 'user'})
+                if path == '/api/v1/auths/add': return Response(200, {'id': actor, 'role': 'user', 'token': 'synthetic-new-actor-token'})
+                if path == '/openai/config': return Response(200, config)
+                if path == '/openai/config/update': config = copy.deepcopy(body); return Response(200, config)
+                if path == '/api/v1/models/create' or path == '/api/v1/models/model/update':
+                    rows[body['id']] = copy.deepcopy(body) | {'user_id': OWNER, 'write_access': True}
+                    return Response(200, rows[body['id']])
+                if path == '/api/v1/models/model': return Response(200, rows[query['id'][0]]) if query['id'][0] in rows else Response(404, {})
+                if path == '/api/v1/tools/': return Response(200, [])
+                if path == '/api/v1/tools/create': tools[body['id']] = copy.deepcopy(body); return Response(200, body)
+                if path.endswith('/valves/update'): tools['valves'] = native_tool.Tools.Valves(**body).model_dump(); return Response(200, tools['valves'])
+                if path.endswith('/valves'): return Response(200, tools.get('valves', native_tool.Tools.Valves().model_dump()))
+                if path == '/api/v1/tools/id/' + P.DELEGATION_TOOL_ID: return Response(200, tools[P.DELEGATION_TOOL_ID])
+                if path == '/api/v1/skills/create':
+                    skills[body['id']] = copy.deepcopy(body) | {'version_id': str(P.uuid.uuid4())}; return Response(200, skills[body['id']])
+                if path.startswith('/api/v1/skills/id/'): return Response(200, skills[path.rsplit('/', 1)[1]])
+                raise AssertionError((method, path))
+        async def native_request(client, method, route, *, params=None, body=None):
+            nonlocal user
+            budget_requests.append((method, route, copy.deepcopy(body)))
+            if route == '/user/info':
+                if user is None: raise budget.BudgetAdminError('native_http_404')
+                return {'user_info': user, 'teams': []}
+            if route == '/key/list': return {'keys': copy.deepcopy(keys), 'current_page': 1, 'total_count': len(keys), 'total_pages': int(bool(keys))}
+            if route == '/user/new':
+                owner.assertIsNone(user)
+                user = copy.deepcopy(body) | {'team_id': None, 'budget_reset_at': '2099-01-01T00:00:00Z'}
+                return {'user_id': 'POST ack is not authority'}
+            if route == '/key/generate':
+                row = copy.deepcopy(body); raw = row.pop('key')
+                keys.append(row | {'token': hashlib.sha256(raw.encode()).hexdigest(), 'expires': None,
+                                   'budget_reset_at': '2099-01-01T00:00:00Z'})
+                return {'key': 'POST ack is not authority'}
+            raise AssertionError(route)
+        with TemporaryDirectory() as directory:
+            target, operator = Path(directory) / 'office.json', Path(directory) / 'operator.json'
+            if os.name == 'nt':
+                self.enterContext(patch.object(private_owner, 'private_parent'))
+                self.enterContext(patch.object(private_owner.stat, 'S_IMODE', return_value=0o600))
+            P.write_private(operator, {'schema': 1, 'operator_token': 'sk-synthetic-operator'})
+            with patch.object(P, 'build_opener', return_value=Transport()), patch.object(P, 'OPERATOR_STATE', operator), \
+                    patch.object(P, 'native_client', return_value=SimpleNamespace(ok=lambda *args: {'data': copy.deepcopy(info)})), \
+                    patch.object(budget.BudgetAdminClient, '_request', native_request), \
+                    patch.dict(os.environ, OWUI_BUDGET_GATEWAY_SECRET='gw-synthetic-delegated'):
+                safe = P.office_delegation_setup(P.WebUI(), state, target, tool_source=tool_path,
+                    profiles_source=HERE.parents[1] / 'deploy/openwebui-tools/corporate_template_models.json')
+            saved = P.read_private(target)['office_delegation_setup']
+            self.assertEqual(state, frozen)
+            self.assertEqual(saved['stage'], 'readback_ready')
+            self.assertEqual([m['model'] for m in saved['budget']['models']], ['gpt-6.1-sol', 'gpt-6.1-terra'])
+            self.assertEqual([path for method, path, body in budget_requests if method == 'POST'], ['/user/new', '/key/generate', '/key/generate'])
+            self.assertEqual(user['models'], ['gpt-6.1-sol', 'gpt-6.1-terra'])
+            self.assertEqual(len(keys), 2); self.assertTrue(all(k['spend'] == 0 for k in keys))
+            self.assertEqual(user['max_budget'], 2000)
+            self.assertEqual(sum(k['max_budget'] for k in keys), user['max_budget'])
+            self.assertTrue(all(k['max_budget'] == 1000 for k in keys))
+            self.assertFalse(safe['office_delegation_setup']['inference_issued'])
+            self.assertEqual(rows['corporate-documents']['params']['max_tokens'], 12000)
+            self.assertEqual(rows['corporate-office-worker']['params']['max_tokens'], 6000)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,14 @@
+[Unit]
+Description=Privoxy HTTP adapter for isolated AmneziaWG egress
+Requires=amneziawg-egress.service
+BindsTo=amneziawg-egress.service
+PartOf=amneziawg-egress.service
+After=amneziawg-egress.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/ip netns exec awg-egress /usr/sbin/privoxy --no-daemon --user privoxy /etc/privoxy/awg-egress.conf
+Restart=on-failure
+RestartSec=3
+SuccessExitStatus=15
+TimeoutStopSec=10

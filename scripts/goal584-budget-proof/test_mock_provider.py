@@ -2,6 +2,7 @@
 
 import importlib.util
 import ast
+import copy
 import json
 import hashlib
 import logging
@@ -528,6 +529,129 @@ class CatalogHTTPTests(unittest.TestCase):
                 self.assertFalse(owner.validate_model_cost_map(dict(list(outcome.model_cost_map.items())[:100]), count(corpus)))
             else:
                 self.assertIsInstance(outcome, namespace["ModelCostMapReloadUnavailable"])
+
+
+class DelegatedProviderTests(unittest.TestCase):
+    """Finite grammar checks; CLI IO replies here are not installed-guide acceptance."""
+    @classmethod
+    def setUpClass(cls):
+        import test_office_compatibility as existing
+        source = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(existing.NATIVE)))
+        if not (source / 'utils/tools.py').is_file():
+            if 'GOAL584_NATIVE_SOURCE_ROOT' in os.environ: raise AssertionError('Selected native source is unavailable')
+            raise unittest.SkipTest('New opt-in native source fixture unavailable; no schema substitute')
+        with patch.object(existing, 'NATIVE', source):
+            owners, _, _ = existing.native.__wrapped__()
+        schema = existing.create_app(existing.CliIO()).openapi()
+        cls.office_tools = [{'type': 'function', **owners['clean_openai_tool_schema'](s)}
+            for s in owners['convert_openapi_to_tool_payload'](schema)]
+        assert len(cls.office_tools) == 14
+
+    def setUp(self):
+        import provision_webui as provision
+        self.source_id = '1296bad0-1491-4c19-b7f2-93e57d812864'
+        self.file_id = 'cf931dc8-a099-4471-9173-27b1e296bb59'
+        source = provision.delegated_source_docx()
+        content = provision.delegated_skill_content(self.source_id, hashlib.sha256(source).hexdigest())
+        self.skill = {'id': 'goal584-delegated-' + 'a' * 32, 'name': 'Synthetic Skill', 'content': content, 'next_offset': None, 'files': []}
+        self.parent = {'model': MOCK.DELEGATED_PARENT_MODEL, 'max_output_tokens': 12000,
+            'tools': [{'type': 'function', 'name': name, 'parameters': {'type': 'object', 'properties': {}}}
+                for name in ('view_skill', 'corporate_document_delegation_run_sub_agent')],
+            'input': [{'type': 'message', 'role': 'system', 'content': self.skill['id']},
+                      {'type': 'message', 'role': 'user', 'content': MOCK.DELEGATED_USER_REQUEST}]}
+
+    def step(self, payload):
+        before = json.dumps(payload, sort_keys=True)
+        result = MOCK.delegated_responses_step(payload, MOCK.delegated_responses_input(payload))
+        self.assertEqual(json.dumps(payload, sort_keys=True), before)
+        return result
+
+    def append(self, payload, selection, result):
+        name, arguments, _ = selection
+        identifier = 'call-' + str(sum(v.get('type') == 'function_call' for v in payload['input']))
+        payload['input'].extend([{'type': 'function_call', 'call_id': identifier, 'name': name, 'arguments': json.dumps(arguments)},
+            {'type': 'function_call_output', 'call_id': identifier, 'output': result if isinstance(result, list) else json.dumps(result)}])
+
+    def parent_packet(self):
+        selected = self.step(self.parent)
+        self.assertEqual(selected[:2], ('view_skill', {'id': self.skill['id']}))
+        self.append(self.parent, selected, self.skill)
+        selected = self.step(self.parent)
+        packet = json.loads(selected[1]['prompt'])
+        self.assertEqual(packet['skill'], {'id': self.skill['id'], 'content': self.skill['content']})
+        self.assertEqual(packet['source_file']['id'], self.source_id)
+        self.assertNotIn('version_id', packet['skill'])
+        return selected, packet
+
+    def worker_history(self):
+        _, packet = self.parent_packet()
+        payload = {'model': MOCK.DELEGATED_WORKER_MODEL, 'max_output_tokens': 6000, 'stream': False,
+            'tools': copy.deepcopy(self.office_tools), 'instructions': 'Actual profile is checked by the native-factory rehearsal.',
+            'input': [{'type': 'message', 'role': 'user', 'content': json.dumps(packet)}]}
+        guide = 'Deterministic CLI IO leaf only; not the installed Office guide.'
+        source_nodes = [{'path': '/body/p[1]', 'text': 'Employee: {{employee}}'},
+                        {'path': '/body/p[2]', 'text': 'Case: {{case}}'}]
+        filled = [{'path': '/body/p[' + str(i + 1) + ']', 'text': value} for i, value in enumerate((
+            'Employee: Ada Example', 'Case: G584-2026', 'FIXED CLAUSE: preserve this sentence.', 'FIXED TABLE'))]
+        png = b'\x89PNG\r\n\x1a\n' + b'\x00\x00\x00\rIHDR' + b'\x00' * 8
+        replies = [
+            {'content': guide, 'content_sha256': hashlib.sha256(guide.encode()).hexdigest()},
+            {'file_id': self.source_id, 'officecli_result': {'success': True, 'data': {'results': source_nodes}}},
+            {'source_file_id': self.source_id, 'source_sha256': packet['source_file']['sha256'], 'source_bytes_preserved': True,
+             'result_file_id': self.file_id, 'result_file': {'id': self.file_id}},
+            {'file_id': self.file_id, 'officecli_result': {'success': True, 'data': {'results': filled}}},
+            [{'type': 'input_text', 'text': 'render_office_file: Image file read successfully.'},
+             {'type': 'input_image', 'image_url': 'data:image/png;base64,' + __import__('base64').b64encode(png).decode()}],
+        ]
+        stages = []
+        for reply in replies:
+            selected = self.step(payload); stages.append(copy.deepcopy(payload))
+            self.append(payload, selected, reply)
+        self.assertEqual(self.step(payload), (None, None, self.file_id))
+        return payload, stages
+
+    def test_complete_parent_worker_nine_call_grammar_and_whole_native_packet(self):
+        worker, stages = self.worker_history()
+        self.assertEqual(len(stages), 5)
+        delegated = self.step(self.parent)
+        self.append(self.parent, delegated, {'note': 'native Tool envelope', 'result': '[Download](/api/v1/files/' + self.file_id + '/content)'})
+        self.assertEqual(self.step(self.parent), (None, None, self.file_id))
+        self.assertEqual(len(worker['tools']), 14)
+
+    def test_profile_params_and_transport_are_not_shrunk_or_opportunistically_changed(self):
+        for field, value in [('max_output_tokens', 1024), ('stream', True), ('stream', False)]:
+            payload = copy.deepcopy(self.parent); payload[field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError): self.step(payload)
+
+    def test_actual_finite_handler_keeps_new_alias_and_output_cap(self):
+        import io
+        handler = object.__new__(MOCK.Handler); statuses = []
+        handler.send_response = statuses.append
+        handler.send_header = lambda *args: None
+        handler.end_headers = lambda: None
+        handler.wfile = io.BytesIO()
+        with patch.object(MOCK, 'REQUESTS', []), patch.dict(MOCK.CONTROL, response_status=200):
+            handler.serve_responses(copy.deepcopy(self.parent))
+        self.assertEqual(statuses, [200])
+        result = json.loads(handler.wfile.getvalue())
+        self.assertEqual(result['model'], MOCK.DELEGATED_PARENT_MODEL)
+        self.assertEqual(result['max_output_tokens'], 12000)
+        self.assertEqual(result['output'][0]['name'], 'view_skill')
+        self.assertEqual((result['usage']['input_tokens'], result['usage']['output_tokens']), (10, 5))
+
+    def test_native_skill_source_paths_guide_copy_inspection_and_png_mutations_fail(self):
+        final, stages = self.worker_history()
+        mutations = [
+            (stages[0], lambda p: p['input'][0].update(content=p['input'][0]['content'].replace(self.source_id, self.file_id, 1))),
+            (stages[1], lambda p: p['input'][-1].update(output='{}')),
+            (stages[2], lambda p: p['input'][-1].update(output=p['input'][-1]['output'].replace('/body/p[2]', '/body/p[1]'))),
+            (stages[3], lambda p: p['input'][-1].update(output=p['input'][-1]['output'].replace('true', 'false'))),
+            (stages[4], lambda p: p['input'][-1].update(output=p['input'][-1]['output'].replace('G584-2026', 'LOST'))),
+            (final, lambda p: p['input'][-1]['output'][1].update(image_url='data:image/png;base64,bm90LXBuZw==')),
+        ]
+        for index, (source, mutate) in enumerate(mutations):
+            payload = copy.deepcopy(source); mutate(payload)
+            with self.subTest(case=index), self.assertRaises((ValueError, KeyError)): self.step(payload)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Native post-call primitive for unavailable personal Responses Usage.
+"""Native post-call primitive for unavailable personal Responses/nonstream CC Usage.
 
 Registration/operator-key factory belong to the server composition root. This
 module never registers itself, prices a response, changes Usage or owns a ledger.
@@ -7,14 +7,17 @@ The native budget gateway must own authenticated scope; a DTO alone is not proof
 from collections.abc import Callable
 from importlib.metadata import version
 import asyncio
+import json
 import re
 
 from aiohttp import ClientSession, ClientTimeout
 from fastapi import HTTPException
 from litellm.integrations.custom_guardrail import CustomGuardrail, log_guardrail_information
+from litellm.litellm_core_utils.litellm_logging import Logging
 from litellm.proxy._types import UserAPIKeyAuth
 from litellm.types.guardrails import GuardrailEventHooks
 from litellm.types.llms.openai import ResponsesAPIResponse
+from litellm.types.utils import ModelResponse
 
 from employee_budget_admin_client import BudgetAdminClient
 from employee_budget_assignment import ASSIGNMENT_NAMESPACE, assignment_matches
@@ -23,6 +26,7 @@ from provenance import validate_persisted_scope, validate_persisted_service_scop
 NAME = "owui_budget_usage"
 FAILURE = "Usage unavailable; model key block could not be confirmed."
 ROUTES = frozenset({"/responses", "/v1/responses", "/openai/v1/responses"})
+CC_ROUTES = frozenset({"/chat/completions", "/v1/chat/completions", "/openai/v1/chat/completions"})
 
 
 class UnknownUsageGuard(CustomGuardrail):
@@ -67,7 +71,7 @@ class UnknownUsageGuard(CustomGuardrail):
         # No streaming aggregation, model-ID decoding, or generic DTO inference.
         if not isinstance(data, dict):
             return None  # Native callback contract adopts the original response unchanged.
-        if not isinstance(response, ResponsesAPIResponse) or data.get("stream", False) is not False:
+        if not isinstance(response, (ResponsesAPIResponse, ModelResponse)) or data.get("stream", False) is not False:
             self._record(data, "allow", not_run=True)
             return response
         return await self._apply_policy(data, user_api_key_dict, response)
@@ -128,13 +132,44 @@ class UnknownUsageGuard(CustomGuardrail):
         async for event in response:
             yield event
 
+    @staticmethod
+    def _cc_usage_available(data, response):
+        # The pinned OpenAI SDK normalizes absent/null Usage to null here;
+        # ModelResponse instead synthesizes zeros. Only the server's own
+        # per-call Logging object can supply this distinction.
+        log = data.get("litellm_logging_obj")
+        if (not isinstance(log, Logging) or getattr(log, "stream", None) is not False
+                or getattr(log, "call_type", None) != "acompletion"
+                or not isinstance(data.get("litellm_call_id"), str) or not data["litellm_call_id"]
+                or getattr(log, "litellm_call_id", None) != data["litellm_call_id"]):
+            return False
+        details = getattr(log, "model_call_details", None)
+        original = details.get("original_response") if isinstance(details, dict) else None
+        if not isinstance(original, str):
+            return False
+        try:
+            original = json.loads(original)
+        except (ValueError, TypeError, RecursionError):
+            return False
+        if (not isinstance(original, dict) or original.get("object") != "chat.completion"
+                or not isinstance(response.id, str) or not response.id
+                or original.get("id") != response.id or not isinstance(response.model, str) or not response.model
+                or original.get("model") != response.model):
+            return False
+        usage = original.get("usage")
+        return (isinstance(usage, dict)
+                and all(type(usage.get(key)) is int and usage[key] >= 0
+                        for key in ("prompt_tokens", "completion_tokens", "total_tokens"))
+                and usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"])
+
     async def _apply_policy(self, data, user_api_key_dict, response):
-        if response.usage is not None:  # Explicit zero is known Usage, not absence.
+        cc = isinstance(response, ModelResponse)
+        if not cc and response.usage is not None:  # Explicit zero is known Usage, not absence.
             self._record(data, "allow")
             return response
         auth = user_api_key_dict
         if (not isinstance(auth, UserAPIKeyAuth) or auth.authenticated_by_custom_auth is not True
-                or auth.request_route not in ROUTES or not isinstance(auth.metadata, dict)
+                or auth.request_route not in (CC_ROUTES if cc else ROUTES) or not isinstance(auth.metadata, dict)
                 or auth.metadata.get("owui_budget_namespace") != ASSIGNMENT_NAMESPACE):
             self._record(data, "allow", not_run=True)
             return response
@@ -142,6 +177,9 @@ class UnknownUsageGuard(CustomGuardrail):
             scope = self._personal_scope(data)
             if scope is None:
                 self._record(data, "allow", not_run=True)
+                return response
+            if cc and self._cc_usage_available(data, response):
+                self._record(data, "allow")
                 return response
             # Native client-pricing opt-in permits caller-supplied telemetry;
             # this initial contract cannot use those assignments as its origin.

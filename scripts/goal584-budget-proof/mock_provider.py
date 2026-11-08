@@ -26,6 +26,10 @@ EMBEDDING_MODEL = "goal584-fake-e"
 RESPONSES_MODEL = "goal584-fake-r"
 OFFICE_MODEL = "goal584-fake-office"
 OFFICE_SERVICE_MODEL = "goal584-fake-office-service"
+DELEGATED_PARENT_MODEL = "goal584-fake-delegated-parent"
+DELEGATED_WORKER_MODEL = "goal584-fake-delegated-worker"
+DELEGATED_USER_REQUEST = ("Fill the synthetic template for employee Ada Example and case G584-2026. "
+    "Use the current native Skill, delegate once, and return the checked copy.")
 USAGE_MODELS = ("goal584-fake-usage", "goal584-fake-usage-absent", "goal584-fake-usage-null")
 RESPONSES_MAX_OUTPUT_TOKENS = 16
 STATE_LOCK = threading.Lock()
@@ -351,6 +355,153 @@ def office_responses_step(payload, values):
     return None, None, file_id
 
 
+def delegated_responses_input(payload):
+    """Finite opt-in profile, using the existing validator on an observation copy."""
+    maximum = 12000 if payload.get('model') == DELEGATED_PARENT_MODEL else 6000
+    tools, values = payload.get('tools'), payload.get('input')
+    if (payload.get('model') not in (DELEGATED_PARENT_MODEL, DELEGATED_WORKER_MODEL)
+            or (('stream' in payload) if payload.get('model') == DELEGATED_PARENT_MODEL else payload.get('stream') is not False)
+            or type(payload.get('max_output_tokens')) is not int or payload['max_output_tokens'] != maximum
+            or not isinstance(tools, list) or not 1 <= len(tools) <= 64
+            or not all(isinstance(t, dict) and t.get('type') == 'function' and isinstance(t.get('name'), str)
+                and isinstance(t.get('parameters'), dict) for t in tools)
+            or len({t['name'] for t in tools}) != len(tools) or not isinstance(values, list)
+            or len(json.dumps(payload, ensure_ascii=False).encode()) > 1_048_576):
+        raise ValueError('Invalid finite delegated Responses profile')
+    checked = copy.deepcopy(payload); checked['max_output_tokens'] = RESPONSES_MAX_OUTPUT_TOKENS; checked['tools'] = []
+    for item in checked['input']:
+        parts = item.get('output') if item.get('type') == 'function_call_output' else item.get('content')
+        if isinstance(parts, list):
+            for part in parts:
+                if not isinstance(part, dict): raise ValueError('Invalid delegated content part')
+                if part.get('type') == 'input_image':
+                    url = part.get('image_url')
+                    if not isinstance(url, str) or not url.startswith('data:image/png;base64,'):
+                        raise ValueError('Invalid delegated native image')
+                    png = base64.b64decode(url.split(',', 1)[1], validate=True)
+                    if len(png) < 24 or not png.startswith(b'\x89PNG\r\n\x1a\n') or png[12:16] != b'IHDR':
+                        raise ValueError('Invalid delegated native PNG')
+                    part.clear(); part.update(type='input_text', text='Native PNG validated separately')
+            if item.get('type') == 'function_call_output':
+                item['output'] = json.dumps(parts, ensure_ascii=False)
+    responses_input(checked)
+    return values
+
+
+def delegated_responses_step(payload, values):
+    """Simulate only the declared model choices; native Tool owns the loop/context."""
+    def text(item):
+        value = item.get('content', '')
+        return value if isinstance(value, str) else '\n'.join(p['text'] for p in value
+            if isinstance(p, dict) and p.get('type') in ('input_text', 'output_text'))
+    def tool(suffix):
+        found = [t['name'] for t in payload['tools'] if t['name'].endswith(suffix)]
+        if len(found) != 1: raise ValueError('Ambiguous delegated Tool schema')
+        return found[0]
+    calls = [v for v in values if v.get('type') == 'function_call']
+    results = [v for v in values if v.get('type') == 'function_call_output']
+    if len(calls) != len(results) or len({c['call_id'] for c in calls}) != len(calls):
+        raise ValueError('Incomplete delegated Tool continuation')
+    if any(r['call_id'] != c['call_id'] for c, r in zip(calls, results)):
+        raise ValueError('Unpaired delegated Tool continuation')
+    if payload['model'] == DELEGATED_PARENT_MODEL:
+        if not any(v.get('role') == 'user' and DELEGATED_USER_REQUEST in text(v) for v in values):
+            raise ValueError('Delegated parent task differs')
+        names = (tool('view_skill'), tool('run_sub_agent'))
+        if len(calls) > 2 or any(c['name'] != names[i] for i, c in enumerate(calls)):
+            raise ValueError('Delegated parent Tool order differs')
+        if not calls:
+            ids = set(re.findall(r'goal584-delegated-[0-9a-f]{32}', json.dumps(values)))
+            if len(ids) != 1: raise ValueError('Native synthetic Skill selection missing/ambiguous')
+            return names[0], {'id': ids.pop()}, None
+        skill = json.loads(results[0]['output']); content = skill.get('content')
+        if (not isinstance(content, str) or skill.get('next_offset') is not None
+                or skill.get('id') != json.loads(calls[0]['arguments']).get('id')
+                or not content.startswith('# GOAL584 synthetic two-field Office copy\n')
+                or not content.endswith('No binary/base64 belongs in this Skill.\n')):
+            raise ValueError('Complete native Skill result missing')
+        source_ids = re.findall(r'^Native source File ID: ([0-9a-f-]{36})$', content, re.M)
+        hashes = re.findall(r'^Native source SHA256: ([0-9a-f]{64})$', content, re.M)
+        if len(source_ids) != 1 or len(hashes) != 1: raise ValueError('Native Skill source binding missing')
+        packet = {'schema': 1, 'task': 'goal584-synthetic-office',
+            'skill': {'id': skill['id'], 'content': content},
+            'source_file': {'id': source_ids[0], 'sha256': hashes[0]},
+            'facts': {'employee': 'Ada Example', 'case': 'G584-2026'}, 'output_name': 'goal584-delegated.docx'}
+        # view_skill does not return version_id; never invent it for the model.
+        if len(calls) == 1:
+            return names[1], {'prompt': json.dumps(packet, ensure_ascii=False), 'description': 'Fill the synthetic Office copy'}, None
+        if json.loads(json.loads(calls[1]['arguments'])['prompt']) != packet:
+            raise ValueError('Delegated task packet lost native Skill/source/facts')
+        result = json.loads(results[1]['output']).get('result')
+        if not isinstance(result, str): raise ValueError('Delegated native worker result missing')
+        ids = set(re.findall(r'/api/v1/files/([A-Za-z0-9-]{1,128})/content', result))
+        if len(ids) != 1: raise ValueError('Delegated native result identity missing/ambiguous')
+        return None, None, ids.pop()
+    packets = []
+    for item in values:
+        if item.get('role') == 'user':
+            try: candidate = json.loads(text(item))
+            except (ValueError, TypeError): continue
+            if isinstance(candidate, dict) and candidate.get('task') == 'goal584-synthetic-office': packets.append(candidate)
+    if len(packets) != 1: raise ValueError('Complete delegated worker packet missing')
+    task = packets[0]
+    if (set(task) != {'schema', 'task', 'skill', 'source_file', 'facts', 'output_name'}
+            or type(task['schema']) is not int or task['schema'] != 1
+            or task['facts'] != {'employee': 'Ada Example', 'case': 'G584-2026'}
+            or task['output_name'] != 'goal584-delegated.docx'
+            or not isinstance(task['skill'], dict) or set(task['skill']) != {'id', 'content'}
+            or not isinstance(task['skill']['content'], str) or not isinstance(task['source_file'], dict)
+            or set(task['source_file']) != {'id', 'sha256'}
+            or not isinstance(task['source_file']['id'], str) or not isinstance(task['source_file']['sha256'], str)
+            or 'Native source File ID: ' + task['source_file']['id'] + '\n' not in task['skill']['content']
+            or 'Native source SHA256: ' + task['source_file']['sha256'] + '\n' not in task['skill']['content']):
+        raise ValueError('Delegated worker native packet differs')
+    names = tuple(tool(s) for s in ('load_officecli_skill', 'inspect_office_document', 'apply_office_batch',
+                                  'inspect_office_document', 'render_office_file'))
+    if len(calls) > 5 or any(c['name'] != names[i] for i, c in enumerate(calls)):
+        raise ValueError('Delegated worker required Tool order differs')
+    if not calls: return names[0], {'skill': 'word'}, None
+    guide = json.loads(results[0]['output'])
+    if (json.loads(calls[0]['arguments']) != {'skill': 'word'} or not isinstance(guide.get('content'), str)
+            or not guide['content'] or guide.get('content_sha256') != hashlib.sha256(guide['content'].encode()).hexdigest()):
+        raise ValueError('Complete installed Office guide missing')
+    inspect_source = {'file_id': task['source_file']['id'], 'command_payload': {'command': 'query', 'selector': 'paragraph'}}
+    if len(calls) == 1: return names[1], inspect_source, None
+    inspection = json.loads(results[1]['output'])
+    if json.loads(calls[1]['arguments']) != inspect_source or inspection.get('file_id') != task['source_file']['id']:
+        raise ValueError('Original native Office inspection differs')
+    nodes = inspection['officecli_result']['data']['results']
+    commands = []
+    for field in ('employee', 'case'):
+        label = 'Employee' if field == 'employee' else 'Case'
+        matches = [n for n in nodes if n.get('text') == label + ': {{' + field + '}}']
+        if len(matches) != 1 or not isinstance(matches[0].get('path'), str):
+            raise ValueError('Actual native field path missing/ambiguous')
+        commands.append({'command': 'set', 'path': matches[0]['path'], 'props': {'text': label + ': ' + task['facts'][field]}})
+    if len({command['path'] for command in commands}) != 2:
+        raise ValueError('Native field paths overlap')
+    apply = {'file_id': task['source_file']['id'], 'output_name': task['output_name'], 'commands': commands}
+    if len(calls) == 2: return names[2], apply, None
+    applied = json.loads(results[2]['output']); file_id = applied.get('result_file_id')
+    if (json.loads(calls[2]['arguments']) != apply or applied.get('source_file_id') != task['source_file']['id']
+            or applied.get('source_sha256') != task['source_file']['sha256'] or applied.get('source_bytes_preserved') is not True
+            or not isinstance(file_id, str) or applied.get('result_file', {}).get('id') != file_id):
+        raise ValueError('Native copied Office result differs')
+    inspect_result = {'file_id': file_id, 'command_payload': {'command': 'query', 'selector': 'paragraph'}}
+    if len(calls) == 3: return names[3], inspect_result, None
+    checked = json.loads(results[3]['output'])
+    if json.loads(calls[3]['arguments']) != inspect_result or checked.get('file_id') != file_id:
+        raise ValueError('Native result inspection differs')
+    contents = [n.get('text') for n in checked['officecli_result']['data']['results']]
+    if not all(v in contents for v in ('Employee: Ada Example', 'Case: G584-2026', 'FIXED CLAUSE: preserve this sentence.', 'FIXED TABLE')):
+        raise ValueError('Native filled content incomplete')
+    render = {'file_id': file_id, 'format': 'docx', 'grid': 2}
+    if len(calls) == 4: return names[4], render, None
+    if json.loads(calls[4]['arguments']) != render or 'data:image/png;base64,' not in json.dumps(values):
+        raise ValueError('Native result PNG missing')
+    return None, None, file_id
+
+
 def pricing_usage_input(payload, values):
     """One finite nonstreaming Hi; the original wire is never rewritten."""
     if (payload.get("stream", False) is not False or payload.get("tools", []) != []
@@ -544,11 +695,12 @@ class Handler(BaseHTTPRequestHandler):
         usage_profile = payload.get("model") in USAGE_MODELS
         office = payload.get("model") == OFFICE_MODEL
         office_service = payload.get("model") == OFFICE_SERVICE_MODEL
-        if not office_service and not office and not usage_profile and payload.get("model") != RESPONSES_MODEL:
+        delegated = payload.get('model') in (DELEGATED_PARENT_MODEL, DELEGATED_WORKER_MODEL)
+        if not delegated and not office_service and not office and not usage_profile and payload.get("model") != RESPONSES_MODEL:
             return self.send_json(404, {"error": {"message": "Unknown synthetic model", "code": "model_not_found"}})
         try:
-            values = office_service_responses_input(payload) if office_service else office_responses_input(payload) if office else responses_input(payload)
-            selection = office_responses_step(payload, values) if office else None
+            values = delegated_responses_input(payload) if delegated else office_service_responses_input(payload) if office_service else office_responses_input(payload) if office else responses_input(payload)
+            selection = delegated_responses_step(payload, values) if delegated else office_responses_step(payload, values) if office else None
             if usage_profile:
                 pricing_usage_input(payload, values)
         except (ValueError, UnicodeError):
@@ -561,7 +713,7 @@ class Handler(BaseHTTPRequestHandler):
                     "output_tokens_details": {"reasoning_tokens": 2}} if payload["model"] == USAGE_MODELS[0] else None
         if self.controlled_failure(control, record):
             return
-        name = selection[0] if office else responses_tool(payload, values, control)
+        name = selection[0] if office or delegated else responses_tool(payload, values, control)
         output = []
         if not office_service and (payload.get("reasoning") or "reasoning.encrypted_content" in payload.get("include", [])):
             output.append({"id": "rs_" + uuid.uuid4().hex, "type": "reasoning", "status": "completed",
@@ -570,15 +722,15 @@ class Handler(BaseHTTPRequestHandler):
         if name:
             output.append({"id": "fc_" + uuid.uuid4().hex, "type": "function_call", "status": "completed",
                 "call_id": "call-goal584-" + uuid.uuid4().hex, "name": name,
-                "arguments": json.dumps(selection[1], separators=(",", ":")) if office else "{}"})
+                "arguments": json.dumps(selection[1], separators=(",", ":")) if office or delegated else "{}"})
         else:
             output.append({"id": "msg_" + uuid.uuid4().hex, "type": "message", "status": "completed", "role": "assistant",
                 "content": [{"type": "output_text", "text": json.dumps({"follow_ups": ["Prepare a PDF copy of the document.",
-                    "Create an Excel version of the table.", "Draft a short email to accompany the file."]}) if office_service else "[Download](/api/v1/files/" + selection[2] + "/content)" if office else "Proof", "annotations": []}]})
+                    "Create an Excel version of the table.", "Draft a short email to accompany the file."]}) if office_service else "[Download](/api/v1/files/" + selection[2] + "/content)" if office or delegated else "Proof", "annotations": []}]})
         result = {"id": record["id"], "object": "response", "created_at": record["created"], "status": "completed",
             "error": None, "incomplete_details": None, "instructions": payload.get("instructions"),
-            "model": OFFICE_SERVICE_MODEL if office_service else OFFICE_MODEL if office else payload["model"] if usage_profile else RESPONSES_MODEL, "output": output, "usage": record["usage"],
-            "max_output_tokens": None if office_service else 1024 if office else RESPONSES_MAX_OUTPUT_TOKENS, "parallel_tool_calls": payload.get("parallel_tool_calls", True),
+            "model": payload['model'] if delegated else OFFICE_SERVICE_MODEL if office_service else OFFICE_MODEL if office else payload["model"] if usage_profile else RESPONSES_MODEL, "output": output, "usage": record["usage"],
+            "max_output_tokens": payload['max_output_tokens'] if delegated else None if office_service else 1024 if office else RESPONSES_MAX_OUTPUT_TOKENS, "parallel_tool_calls": payload.get("parallel_tool_calls", True),
             "tool_choice": payload.get("tool_choice", "auto"), "tools": copy.deepcopy(payload.get("tools", [])),
             "reasoning": None if office_service else copy.deepcopy(payload.get("reasoning")), "store": False, "previous_response_id": None,
             "metadata": copy.deepcopy(payload.get("metadata", {})), "temperature": payload.get("temperature", 1.0),
