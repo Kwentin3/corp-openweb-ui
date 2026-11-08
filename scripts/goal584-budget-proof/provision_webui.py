@@ -757,6 +757,34 @@ def delegated_skill_content(file_id: str, source_sha256: str) -> str:
         "Return that native result_file_id/download_url and honest checks. No binary/base64 belongs in this Skill.\n")
 
 
+def validate_publication_turn(record, submitted, chat_id, admin):
+    """Preserve every submitted field; admit only pinned native GET enrichment."""
+    failure = 'Publication saved primary turn differs'
+    require(isinstance(admin, dict) and admin.get('role') == 'admin'
+            and isinstance(admin.get('name'), str) and isinstance(record, dict)
+            and record.get('id') == chat_id and record.get('user_id') == admin.get('id'), failure)
+    actual = record.get('chat')
+    require(isinstance(actual, dict) and set(actual) == set(submitted) | {'share_mode'}
+            and actual.get('share_mode') == 'continue'
+            and all(actual.get(key) == value for key, value in submitted.items() if key not in ('history', 'messages')),
+            failure)
+    source_history, history = submitted['history'], actual.get('history')
+    require(isinstance(history, dict) and set(history) == set(source_history)
+            and history.get('currentId') == source_history['currentId']
+            and isinstance(history.get('messages'), dict)
+            and set(history['messages']) == set(source_history['messages']) == {source_history['currentId']}, failure)
+    def preserved_message(message, source):
+        require(isinstance(message, dict) and source.get('role') == 'user'
+                and set(message) == set(source) | {'user_id', 'user'}
+                and all(message.get(key) == value for key, value in source.items())
+                and message.get('user_id') == admin['id']
+                and message.get('user') == {'id': admin['id'], 'name': admin['name']}, failure)
+    preserved_message(history['messages'][source_history['currentId']], source_history['messages'][source_history['currentId']])
+    messages = actual.get('messages')
+    require(isinstance(messages, list) and len(messages) == len(submitted['messages']) == 1, failure)
+    preserved_message(messages[0], submitted['messages'][0])
+
+
 def publish_delegated_template(webui, state, path, publisher, before, post):
     """Order the unchanged native publication owner and restore one scoped flag."""
     import asyncio
@@ -804,11 +832,10 @@ def publish_delegated_template(webui, state, path, publisher, before, post):
         chat_id = created.get('id')
         require(isinstance(chat_id, str) and str(uuid.UUID(chat_id)) == chat_id, 'Publication saved chat ID unavailable')
         chat = webui.ok('GET', '/api/v1/chats/' + chat_id, token=admin['token'])
-        require(chat.get('id') == chat_id and chat.get('user_id') == admin['id'] and chat.get('chat') == form['chat'],
-                'Publication saved primary turn differs')
         publication['saved_turn'] = chat
-        publication['metadata'] = {'chat_id': chat_id, 'message_id': message_id}
         verified_admin = webui.session(admin, 'admin')
+        validate_publication_turn(chat, form['chat'], chat_id, verified_admin)
+        publication['metadata'] = {'chat_id': chat_id, 'message_id': message_id}
         request = NativeRequest({'type': 'http', 'headers': []})
         request.state.user = verified_admin
         request.state.token = HTTPAuthorizationCredentials(scheme='Bearer', credentials=admin['token'])

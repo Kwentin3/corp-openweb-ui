@@ -966,6 +966,53 @@ class OfficeServiceSetupTests(unittest.TestCase):
         self.assertEqual(len(self.task_posts), 1)
 
 
+def native_publication_chat_get(record, actor):
+    """Exact pinned native response owner; only DB/stream/context IO leaves."""
+    import ast, asyncio, builtins
+    from types import SimpleNamespace
+    from pydantic import BaseModel, field_validator
+    from starlette.requests import Request
+    native = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(HERE.parents[1]/
+        'local/goal584/cost-display/open-webui/backend/open_webui')))
+    model = (native/'models/chats.py').read_bytes().replace(b'\r\n', b'\n')
+    routes = (native/'routers/chats.py').read_bytes().replace(b'\r\n', b'\n')
+    assert P.sha256(model).hexdigest() == 'b784d932eb521cc0d20f1ce753285d4f7951e32232578feccbb07d4e86305faa'
+    assert P.sha256(routes).hexdigest() == '510269b6f69c8f634d2d93a6dc0605453fd5ececebf55c3ef3575532b3bc5eb3'
+    user = SimpleNamespace(**actor)
+    class UsersIO:
+        @staticmethod
+        async def get_users_by_user_ids(ids, db=None):
+            assert ids == [user.id]
+            return [user]
+    original_import = builtins.__import__
+    def dependency_import(name, *args, **kwargs):
+        if name == 'open_webui.models.users': return SimpleNamespace(Users=UsersIO)
+        return original_import(name, *args, **kwargs)
+    namespace = {'BaseModel': BaseModel, 'field_validator': field_validator,
+        '__builtins__': dict(vars(builtins), __import__=dependency_import)}
+    response = next(node for node in ast.parse(model).body if isinstance(node, ast.ClassDef) and node.name == 'ChatResponse')
+    exec(compile(ast.Module(body=[response], type_ignores=[]), 'exact-native-chat-response', 'exec'), namespace)
+    nodes = [node for node in ast.parse(routes).body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in ('shared_chat_response', 'overlay_response_streams', 'get_chat_by_id')]
+    assert len(nodes) == 3
+    for node in nodes:
+        node.decorator_list = []
+        if node.name == 'get_chat_by_id': node.args.defaults = []  # Explicit user/db instead of FastAPI injection.
+    chat = SimpleNamespace(**copy.deepcopy(record), title=record['chat']['title'], created_at=1, updated_at=1, archived=False)
+    class ChatsIO:
+        @staticmethod
+        async def get_accessible_chat_by_id(identifier, current_user, **kwargs):
+            assert identifier == chat.id and current_user.id == user.id
+            return chat
+    async def streams_io(*args): return []
+    async def context_io(*args): return None
+    namespace.update(Chats=ChatsIO, get_response_streams_by_chat_id=streams_io, get_chat_context_usage=context_io)
+    module = ast.Module(body=[ast.ImportFrom(module='__future__', names=[ast.alias(name='annotations')], level=0), *nodes], type_ignores=[])
+    exec(compile(ast.fix_missing_locations(module), 'exact-native-chat-get', 'exec'), namespace)
+    request = Request({'type': 'http', 'app': SimpleNamespace(state=SimpleNamespace(redis=None))})
+    return asyncio.run(namespace['get_chat_by_id'](chat.id, request, user, None))
+
+
 class PublicationHTTPWorld:
     """Explicit native API IO leaves for the unchanged real publisher owner."""
     def __init__(self, owner, actor, *, files=None, skills=None, fault=None):
@@ -985,7 +1032,8 @@ class PublicationHTTPWorld:
             if result is not None: return result
         if path == '/api/v1/auths/':
             return 200, {'id': OWNER if token == 'Bearer synthetic-admin-token' else self.actor,
-                         'role': 'admin' if token == 'Bearer synthetic-admin-token' else 'user'}
+                         'role': 'admin' if token == 'Bearer synthetic-admin-token' else 'user',
+                         'name': 'Synthetic administrator' if token == 'Bearer synthetic-admin-token' else 'Synthetic employee'}
         if path == '/api/v1/retrieval/config': return 200, copy.deepcopy(self.config)
         if path == '/api/v1/retrieval/config/update':
             assert set(body) == {'BYPASS_EMBEDDING_AND_RETRIEVAL'}
@@ -1009,7 +1057,9 @@ class PublicationHTTPWorld:
             identifier = str(P.uuid.uuid4())
             self.chats[identifier] = {'id': identifier, 'user_id': OWNER, 'chat': copy.deepcopy(body['chat'])}
             return 200, copy.deepcopy(self.chats[identifier])
-        if path.startswith('/api/v1/chats/'): return 200, copy.deepcopy(self.chats[path.rsplit('/', 1)[1]])
+        if path.startswith('/api/v1/chats/'):
+            return 200, native_publication_chat_get(self.chats[path.rsplit('/', 1)[1]],
+                {'id': OWNER, 'name': 'Synthetic administrator', 'role': 'admin'})
         if path == '/api/v1/skills/create':
             value = copy.deepcopy(body) | {'user_id': OWNER, 'write_access': True, 'meta': {}, 'version_id': str(P.uuid.uuid4())}
             self.skills[body['id']] = value
@@ -1151,6 +1201,59 @@ class DelegatedPublicationTests(unittest.TestCase):
         self.assertEqual(selected['publication']['membership']['total'], 1)
         self.assertEqual(selected['publication']['saved_turn']['user_id'], OWNER)
         self.assertTrue(all(message['role'] == 'user' for message in selected['publication']['saved_turn']['chat']['messages']))
+
+    def test_exact_native_get_reproduces_old_failure_and_preserves_full_record(self):
+        error, selected, world, _ = self.exercise()
+        self.assertIsNone(error)
+        actual = selected['publication']['saved_turn']
+        submitted = world.chats[actual['id']]['chat']
+        self.assertNotEqual(actual['chat'], submitted)  # Old source failed here before publisher invocation.
+        self.assertEqual(actual['chat']['share_mode'], 'continue')
+        before = copy.deepcopy((actual, submitted))
+        P.validate_publication_turn(actual, submitted, actual['id'],
+            {'id': OWNER, 'name': 'Synthetic administrator', 'role': 'admin'})
+        self.assertEqual((actual, submitted), before)
+        for message in [*actual['chat']['history']['messages'].values(), *actual['chat']['messages']]:
+            self.assertEqual(message['user_id'], OWNER)
+            self.assertEqual(message['user'], {'id': OWNER, 'name': 'Synthetic administrator'})
+
+    def test_native_enrichment_does_not_relax_any_submitted_field_or_author_scope(self):
+        error, selected, world, _ = self.exercise()
+        self.assertIsNone(error)
+        original = selected['publication']['saved_turn']; submitted = world.chats[original['id']]['chat']
+        admin = {'id': OWNER, 'name': 'Synthetic administrator', 'role': 'admin'}
+        mutations = [lambda r:r.update(id=CONTROL), lambda r:r.update(user_id=CONTROL),
+            lambda r:r['chat'].update(share_mode=None), lambda r:r['chat'].update(models=['foreign']),
+            lambda r:r['chat'].update(params={'foreign':True}), lambda r:r['chat'].update(tags=['foreign']),
+            lambda r:r['chat'].update(timestamp=0), lambda r:r['chat'].update(title='changed'),
+            lambda r:r['chat'].update(extra='unsupported'), lambda r:r['chat']['history'].update(currentId=CONTROL),
+            lambda r:r['chat']['history']['messages'].clear(), lambda r:r['chat']['messages'].append({})]
+        for location in ('history', 'messages'):
+            for field, value in (('id', CONTROL), ('role','assistant'), ('content','truncated'), ('parentId',CONTROL),
+                    ('childrenIds',[CONTROL]), ('timestamp',0), ('user_id',CONTROL),
+                    ('user',{'id':CONTROL,'name':'Synthetic administrator'}), ('user',{'id':OWNER,'name':'foreign name'})):
+                def mutate(record, location=location, field=field, value=value):
+                    target = next(iter(record['chat']['history']['messages'].values())) if location == 'history' else record['chat']['messages'][0]
+                    target[field] = value
+                mutations.append(mutate)
+        for mutation in mutations:
+            changed = copy.deepcopy(original); mutation(changed)
+            with self.subTest(mutation=mutation), self.assertRaisesRegex(P.ProofError, 'saved primary turn differs'):
+                P.validate_publication_turn(changed, submitted, original['id'], admin)
+
+    def test_changed_native_saved_turn_stops_before_publisher_and_restores_config(self):
+        def changed(world, method, path, token, body):
+            if method == 'GET' and path.startswith('/api/v1/chats/'):
+                value = native_publication_chat_get(world.chats[path.rsplit('/',1)[1]],
+                    {'id': OWNER, 'name': 'Synthetic administrator', 'role':'admin'})
+                value['chat']['models'] = ['changed']
+                return 200, value
+        error, selected, world, _ = self.exercise(changed)
+        self.assertIsNotNone(error); self.assertEqual(selected['publication']['stage'], 'partial')
+        self.assertTrue(selected['publication']['config_restored'])
+        self.assertNotIn('receipt', selected['publication'])
+        self.assertEqual(selected['publication']['saved_turn']['chat']['models'], ['changed'])
+        self.assertFalse(any(path == '/api/v1/retrieval/process/file' for _,path,*_ in world.requests))
 
     def test_partial_native_processing_and_foreign_knowledge_never_earn_ready_and_restore(self):
         for variant in ('process', 'foreign_knowledge', 'skill_id', 'skill_version', 'skill_acl', 'source_bytes'):
@@ -1339,7 +1442,8 @@ class DelegatedProvisionTests(unittest.TestCase):
                 if path.startswith('/api/v1/files/'): return Response(200, files[path.split('/')[4]], True)
                 body = json.loads(request.data) if request.data else None
                 if path == '/api/v1/auths/': return Response(200, {'id': OWNER if token == 'Bearer synthetic-admin-token' else actor,
-                                                               'role': 'admin' if token == 'Bearer synthetic-admin-token' else 'user'})
+                    'role': 'admin' if token == 'Bearer synthetic-admin-token' else 'user',
+                    'name': 'Synthetic administrator' if token == 'Bearer synthetic-admin-token' else 'Synthetic employee'})
                 if path == '/api/v1/auths/add': return Response(200, {'id': actor, 'role': 'user', 'token': 'synthetic-new-actor-token'})
                 if path == '/openai/config': return Response(200, config)
                 if path == '/openai/config/update': config = copy.deepcopy(body); return Response(200, config)
