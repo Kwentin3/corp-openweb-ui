@@ -327,6 +327,92 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(row["verified_cost_scope"], forged)
         self.assertEqual(row["body"]["metadata"], row["body_after_auth"]["metadata"])
 
+    def actual_personal_invocation(self, body):
+        """Actual product gateway/JWT; only resolver/native identity IO is replaced."""
+        source = SOURCE.parents[2] / 'deploy/openwebui-budgets/tests/test_provenance.py'
+        spec = importlib.util.spec_from_file_location('capture_known_usage_actual_product', source)
+        owner = importlib.util.module_from_spec(spec); spec.loader.exec_module(owner)
+        target = body['model']
+        token = owner.call(model=target)
+        req = owner.request(((owner.auth.USER_ID_HEADER, owner.USER), (owner.auth.TASK_HEADER, '')))
+        req.route = '/v1/responses'
+        req.data = copy.deepcopy(body) | {'litellm_metadata': {'owui_budget_provenance': token}}
+        async def native_validate(**kwargs):
+            self.assertEqual(kwargs['valid_token'].user_id, owner.USER)
+            self.assertEqual(kwargs['valid_token'].models, [target])
+            return SimpleNamespace(user_id=owner.USER, api_key='a' * 64, budget_reservation=None, team_id=None)
+        invoke, _, _, events = owner.ServiceGatewayTests().run_gateway(
+            task='', token=token, required=True, assignment_user=owner.USER, assignment_model=target,
+            body_model=target, native_model=target, key_hash='a' * 64, native_validate=native_validate,
+            actual_request=req, supplied_data=req.data, route=req.route, return_invocation=True)
+        return owner, req, invoke, events
+
+    async def test_actual_product_known_admin_rounds_are_observed_with_unchanged_full_native_context(self):
+        import test_mock_provider as fixture
+        # Reuse the accepted canonical Tool/Skill + exact native converter
+        # component fixture, not another model-history assembler.
+        await asyncio.to_thread(fixture.AdminResponsesProviderTests.setUpClass)
+        model = fixture.AdminResponsesProviderTests()
+        with patch.object(fixture.MOCK, 'REQUESTS', []), patch.dict(fixture.MOCK.CONTROL, response_status=200):
+            first = model.first(); status, emitted = model.send(first)
+            self.assertEqual(status, 200)
+            bodies = [first, model.second(first, emitted)]
+        for body in bodies:
+            # Explicit existing LiteLLM alias -> provider-wire binding; no model-ID parsing.
+            self.assertEqual(body['model'], 'goal584-fake-usage')
+            body = copy.deepcopy(body) | {'model': 'goal584-usage'}
+            owner, req, invoke, events = self.actual_personal_invocation(body)
+            before = copy.deepcopy(body)
+            with patch.object(C, 'product_auth', return_value=invoke), patch.object(C, 'scope_validator',
+                    side_effect=lambda category: owner.protocol.validate_persisted_scope):
+                result = await C.gateway_auth(req, owner.SECRET)
+            record = self.read()['requests'][-1]
+            self.assertEqual(record['body'], before)
+            self.assertEqual(record['body_after_auth'], before)
+            self.assertEqual(record['native_auth_user_id'], result.user_id)
+            self.assertEqual(record['native_auth_key_hash'], 'a' * 64)
+            self.assertEqual(record['verified_cost_scope'], req.data['litellm_metadata']['spend_logs_metadata']['owui_budget'])
+            self.assertEqual(record['verified_cost_scope']['model'], 'goal584-usage')
+            self.assertEqual(record['verified_cost_scope']['root_chat_id'], owner.ROOT_CHAT)
+            self.assertTrue(record['attestation_present_before'] and record['provenance_removed_after'])
+            self.assertEqual(len([event for event in events if event[0] == 'validate']), 1)
+            self.assertNotIn('native_stream_usage_patch', record)
+            self.assertNotIn(owner.SECRET, json.dumps(record))
+            self.assertNotIn('owui_budget_provenance', json.dumps(record))
+        records = self.read()['requests']
+        self.assertEqual(len(records), 2)
+        self.assertNotEqual(records[0]['verified_cost_scope']['call_id'], records[1]['verified_cost_scope']['call_id'])
+
+    async def test_actual_product_known_hi_is_appended_without_rewriting_earlier_history(self):
+        C._append({'body': {'earlier_observation': 'preserve complete prior record'}})
+        earlier = copy.deepcopy(self.read()['requests'][0])
+        body = {'model': 'goal584-usage', 'input': [{'type': 'message', 'role': 'user',
+            'content': [{'type': 'input_text', 'text': 'Hi'}]}], 'stream': False, 'store': False, 'max_output_tokens': 16}
+        owner, req, invoke, events = self.actual_personal_invocation(body)
+        with patch.object(C, 'product_auth', return_value=invoke), patch.object(C, 'scope_validator',
+                side_effect=lambda category: owner.protocol.validate_persisted_scope):
+            await C.gateway_auth(req, owner.SECRET)
+        records = self.read()['requests']
+        self.assertEqual(len(records), 2); self.assertEqual(records[0], earlier)
+        self.assertEqual(records[1]['body'], body); self.assertEqual(records[1]['body_after_auth'], body)
+        self.assertEqual(records[1]['verified_cost_scope']['user_id'], owner.USER)
+        self.assertEqual(records[1]['verified_cost_scope']['category'], 'personal')
+        self.assertEqual(len([event for event in events if event[0] == 'validate']), 1)
+
+    async def test_actual_product_unsupported_usage_aliases_remain_unobserved_without_auth_change(self):
+        for alias in ('goal584-usage-absent', 'goal584-usage-null', 'goal584-usage-other'):
+            body = {'model': alias, 'input': 'Hi', 'stream': False, 'store': False, 'max_output_tokens': 16}
+            owner, req, invoke, events = self.actual_personal_invocation(body)
+            with patch.object(C, 'product_auth', return_value=invoke), patch.object(C, 'scope_validator') as validate:
+                result = await C.gateway_auth(req, owner.SECRET)
+            self.assertEqual(result.user_id, owner.USER)
+            self.assertEqual(C.responses_projection(req.data), body)
+            self.assertEqual(req.data['litellm_metadata']['spend_logs_metadata']['owui_budget']['model'], alias)
+            self.assertEqual(len([event for event in events if event[0] == 'validate']), 1)
+            validate.assert_not_called()
+            self.assertFalse(C.CAPTURE.exists())
+            self.assertFalse(C.CAPTURE.with_name(C.CAPTURE.name + '.lock').exists())
+
     def native_denial(self, *, unsigned=False, forged_token=False, wrong_key=False, service=False, actual_request=None):
         """Actual gateway/JWT/native hard-budget guard, with resolver/counter/alert IO leaves."""
         source = SOURCE.parents[2] / 'deploy/openwebui-budgets/tests/test_provenance.py'

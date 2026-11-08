@@ -32,9 +32,10 @@ RESPONSES_FIELDS = (
 )
 # These belong to native logging/provenance, not the provider model context.
 RESPONSES_LOG_FIELDS = frozenset({"litellm_metadata", "litellm_session_id", "litellm_trace_id"})
-# Exact aliases in the Office fixture config owners; this disposable observer
-# is mounted only on the synthetic stand, never as product authentication.
-OFFICE_MODELS = frozenset({"gpt-5.4-mini", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra"})
+# Existing finite Office fixture selector also covers the known-usage admin/Hi
+# alias. This disposable observer is stand-only, never product authentication;
+# absent/null usage aliases are deliberately outside this selector.
+OFFICE_MODELS = frozenset({"gpt-5.4-mini", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra", "goal584-usage"})
 CREDENTIAL = re.compile(r"(?:sk-|gw-)[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
 
 
