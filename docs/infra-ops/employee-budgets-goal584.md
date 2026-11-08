@@ -9,6 +9,52 @@
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
 **Актуальный runtime-кандидат08.11:**
+[run42485628591](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42485628591),
+exact head `0c82fad368cdeb830a91889b261531bec4ed3d84`, job128746749741,
+workflow_dispatch13:34:43UTC; terminalFAILURE step11, steps1–10SUCCESS,
+12–14SKIPPED, diagnostics15/cleanup16/upload17SUCCESS. Нет живого job.
+Remote reasoning ref опубликован exact0c82 из DELIVERY; локальные admin/provenance
+source changes reasoningb96 и последующие E2E edits в этот прогон НЕ входят.
+Меняется только official OfficeCLI release transport (same version/digest).
+Artifact13619503238 получен ОДИН раз:1007127B/75members,
+SHA256 `89cafeab73cf6dbe32ece4a4f98ae5ddc24d9af6ce65016451f056f45c5b9cf8`.
+Independent reader и root повторили54build/72distinct source pins exact0c82,
+45guard/19auth/1actualCLI zero skips, cleanup5images и отсутствие taskresources.
+Ordinary:3personal/.60+1service/.20; continuation:1personal/.20+1service/.20,
+original full context/finance validators unchanged и source-bound; private operands
+не экспортированы, независимый полный finance replay не заявлен. DOCX17paragraphs/
+3x4table; root просмотрел actualrender и continuationPNG: Download/.20/chat.80
+видимы. Старый83 visual gap не объясняется задним числом; current86 label proof есть.
+CLI1.0.152 и прежний binarySHA/guide42586B сохранены, nativeAPI download build прошёл.
+Отказ11 теперь различён actualnativejournal:13:44:45.434 has_base_model_access:333,
+corporate-documents→gpt-6.1-sol, reason=base_model_unregistered; nextline generic
+Model not found. Setup/baselineSUCCESS, provider_added0/auth_added0. Source-only
+гипотеза stale cache ОТВЕРГНУТА как объяснение: config/update уже чистит nativecache.
+Недостаёт base WorkspaceModel DB records/actorREAD, не смены Office protocol.
+Узкий source fix готовится в existing provision_webui owner: native base rows для
+обоих новых syntheticaliases, exactactor grants/readback +nativecatalog refresh,
+без core/route/Skill/Tasks/cap изменений. Новый runtime до source review не запущен.
+Evidence: `office86-review/{artifact.zip,base_witness.py,base-model-witness.safe.json}`,
+`office86-native-office-review/`, `office86-native-catalog-review/`,
+`office86-model-catalog-triage/`. Текущий ход — progress (точный buildfix/runtime,
+actual frontend/Office/finance/visual acceptance в границах и различённый ACL отказ).
+
+**Admin unknown E2E source prep08.11:** REASONING commits9da55383/e92c679c/f2bbcd39,
+6files, НЕ published/runtime. SAMEknown Responses alias finite2Tool rounds;
+fresh nativeadmin +SAME Tool/Skill/preset/one personalassignment; hostordinarySend
+и persistedembed/DOM/PNG witness. Provider38PASS (root7new), provisioning26PASS
+(root26), browser13PASS (root13), zero skips. Expanded provider57:55PASS/2 baseline
+OpenAI2.54.0 cache_write_tokens schema errors; old b96 handler reproduces both,
+nativeLiteLLM1.105.1 does not require that field. Wire/SDK/shims не менялись радиgreen.
+Root первый provision repeat ошибочно выбрал browservenv безaiohttp (доtests),
+повтор на existing provenancevenv26PASS; dependencies не устанавливались.
+Пока НЕТ nativecollector/orchestration для нового admin witness: обязательны
+actual2personalnonce/rows/cost_snapshot.332, fullSkill/tools/output/capture-provider
+joins и separate existingservice finance; затем nativeGUI/render acceptance.
+Source prep отдельно не считается принятой adminUI/всемGOAL. Evidence:
+`admin-unknown-{provider-source,provision-source,browser-source}/`.
+
+**Предыдущий runtime-кандидат08.11, terminal:**
 [run42468080716](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42468080716),
 head `67736e68bbe4146285b0c5ba4094c0af6eed428e`, workflow406918033,
 workflow_dispatch09:39:05UTC, job128692154532 terminalFAILURE на build4.
