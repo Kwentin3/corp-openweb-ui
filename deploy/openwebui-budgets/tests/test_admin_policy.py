@@ -70,6 +70,46 @@ class NativeClient:
 
 
 class PolicyTests(unittest.TestCase):
+    def test_presence_projection_maps_only_true_to_unknown_without_changing_native_values(self):
+        before = state()
+        identity = {'user_id': USER, 'name': 'Ada', 'email': 'ada@example.invalid', 'models': ('a', 'b')}
+        original = policy.public_employee(identity, before)
+        observations = {'a': {'unknown_confirmed': True, 'as_of': '2026-11-08T10:00:00+00:00'},
+                        'b': {'unknown_confirmed': False, 'as_of': '2026-11-08T10:00:01+00:00'}}
+        public = policy.public_employee(identity, before, unknown_presence=observations)
+        self.assertEqual(public['expense_status'], 'unknown')
+        self.assertEqual(public['expense_as_of'], observations['a']['as_of'])
+        self.assertEqual([m['expense_status'] for m in public['models']], ['unknown', 'unavailable'])
+        self.assertEqual({k: v for k, v in public.items() if not k.startswith('expense_') and k != 'models'},
+                         {k: v for k, v in original.items() if k != 'models'})
+        for new, old in zip(public['models'], original['models']):
+            self.assertEqual({k: v for k, v in new.items() if not k.startswith('expense_')}, old)
+        self.assertNotIn('known_subtotal_usd', public)
+        for private in ('a'*64, 'private-alias', 'unknown_confirmed', 'scanned_rows', 'pagination_complete'):
+            self.assertNotIn(private, json.dumps(public))
+        self.assertEqual(policy.public_employee(identity, before, unknown_presence=None), original)
+
+    def test_presence_missing_false_or_bad_primitive_is_unavailable_never_known_zero(self):
+        identity = {'user_id': USER, 'name': 'Ada', 'email': 'ada@example.invalid', 'models': ('a', 'b')}
+        for values in ({}, {'a': {'unknown_confirmed': False, 'as_of': 'source-time'}},
+                       {'a': {'unknown_confirmed': 1, 'as_of': 'source-time'}},
+                       {'a': {'unknown_confirmed': True, 'as_of': None}},
+                       {'a': {'unknown_confirmed': True, 'as_of': 'source-time', 'raw': 'not allowed'}}):
+            with self.subTest(values=values):
+                public = policy.public_employee(identity, state(), unknown_presence=values)
+                self.assertEqual(public['expense_status'], 'unavailable')
+                self.assertEqual([m['expense_status'] for m in public['models']], ['unavailable', 'unavailable'])
+                self.assertEqual(public['spend_usd'], '1')
+                self.assertEqual(public['remaining_usd'], '9')
+
+    def test_presence_extra_model_or_mismatched_allowed_set_cannot_enter_projection(self):
+        identity = {'user_id': USER, 'name': 'Ada', 'email': 'ada@example.invalid', 'models': ('a', 'b')}
+        with self.assertRaisesRegex(contract.BudgetAdminError, 'invalid_expense_observations'):
+            policy.public_employee(identity, state(), unknown_presence={'foreign': {'unknown_confirmed': True, 'as_of': 'x'}})
+        for models in (('a',), ('a', 'b', 'foreign'), ('a', 'a')):
+            with self.subTest(models=models), self.assertRaisesRegex(contract.BudgetAdminError, 'invalid_models'):
+                policy.public_employee(identity | {'models': models}, state(), unknown_presence={})
+
     def test_exact_allocation_and_hard_zero(self):
         p = prepared(state(), "0.3", {"a": "33", "b": "67"})
         self.assertEqual(p.new_caps, (("a", D(".099")), ("b", D(".201"))))

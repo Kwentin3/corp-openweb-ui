@@ -289,7 +289,7 @@ async def apply_prepared(client, prepared):
     return after
 
 
-def public_employee(identity, state):
+def public_employee(identity, state, *, unknown_presence=None):
     require(identity["user_id"] == state.user_id, "invalid_employee")
     monthly(state)
     shares = {}
@@ -305,7 +305,7 @@ def public_employee(identity, state):
             if models:
                 shares[models[-1].model] = 100 - sum(shares.values(), Decimal(0))
     labels = identity.get("model_labels") or {}
-    return {"user_id": state.user_id, "name": identity["name"], "email": identity["email"],
+    public = {"user_id": state.user_id, "name": identity["name"], "email": identity["email"],
             "department": identity.get("department", ""), "revision": revision(state),
             "budget_usd": money(state.max_budget), "spend_usd": money(state.spend),
             "remaining_usd": money(state.max_budget - state.spend) if state.max_budget is not None else None,
@@ -314,6 +314,26 @@ def public_employee(identity, state):
                         "blocked": model.blocked,
                         "share_percent": money(shares[model.model]) if model.model in shares else ""}
                        for model in sorted(state.models, key=lambda item: item.model)]}
+    if unknown_presence is not None:
+        allowed = identity.get("models")
+        models = [model.model for model in state.models]
+        require(isinstance(allowed, (tuple, list)) and len(allowed) == len(set(allowed))
+                and len(models) == len(set(models)) and set(models) == set(allowed), "invalid_models")
+        require(type(unknown_presence) is dict and set(unknown_presence) <= set(models), "invalid_expense_observations")
+        for model in public["models"]:
+            value = unknown_presence.get(model["id"])
+            model["expense_status"] = "unavailable"
+            if (type(value) is dict and set(value) == {"unknown_confirmed", "as_of"}
+                    and type(value["unknown_confirmed"]) is bool and isinstance(value["as_of"], str)
+                    and 0 < len(value["as_of"]) <= 128 and all(ord(c) >= 32 for c in value["as_of"])):
+                model["expense_status"] = "unknown" if value["unknown_confirmed"] else "unavailable"
+                model["expense_as_of"] = value["as_of"]
+        witnesses = [model for model in public["models"] if model["expense_status"] == "unknown"]
+        public["expense_status"] = "unknown" if witnesses else "unavailable"
+        timed = witnesses or [model for model in public["models"] if "expense_as_of" in model]
+        if timed:
+            public["expense_as_of"] = timed[0]["expense_as_of"]
+    return public
 
 
 def parse_view(text="{}"):
