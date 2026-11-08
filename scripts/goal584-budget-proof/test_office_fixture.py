@@ -285,9 +285,15 @@ def native_inspect(row):
         if row[source] is not None: host[key] = row[source]
     state = {'Running': row['running']}
     if row['health'] is not None: state['Health'] = {'Status': row['health']}
-    return {'Id': row['id'], 'Config': {'Labels': row['labels'], 'Env': ['PRIVATE=' + SECRET]},
+    result = {'Id': row['id'], 'Config': {'Labels': row['labels'], 'Env': ['PRIVATE=' + SECRET]},
         'State': state, 'HostConfig': host, 'NetworkSettings': {'Networks': row['networks'], 'Ports': row['ports']},
         'Mounts': row['mounts']}
+    if 'terminal_inspect' in row:
+        extra = copy.deepcopy(row['terminal_inspect'])
+        result['Config'].update(extra.pop('Config'))
+        result['HostConfig'].update(extra.pop('HostConfig'))
+        result.update(extra)
+    return result
 
 
 class DockerWorld:
@@ -472,6 +478,213 @@ class OfficeTopologyTests(unittest.TestCase):
                 with patch.object(office.subprocess, 'run', side_effect=error), self.assertRaisesRegex(AssertionError, 'Office Docker topology unavailable') as raised:
                     fixture._docker_json(['inspect', 'fixed'])
                 self.assertNotIn(SECRET, str(raised.exception))
+
+
+TERMINAL_KEY = 'goal584-terminal-fixture-private-' + 'k' * 32
+
+
+class TerminalWorld(DockerWorld):
+    """Finite native config/inspect IO, never a Python Compose merge emulator."""
+    def __init__(self, fixture):
+        super().__init__(fixture)
+        self.version = b'2.24.4\n'
+        name = office.TERMINAL_SERVICE
+        self.ids[name] = '7' * 64
+        self.selected_ids.append(self.ids[name])
+        service = copy.deepcopy(yaml.safe_load((ROOT/'compose/openwebui.staging-terminal.compose.yml').read_text(encoding='utf8'))['services'][name])
+        # These are explicit CLI JSON leaves. They do not claim native !override ran.
+        service.update(networks={'proof': None}, mem_limit=805306368, memswap_limit=1073741824,
+            volumes=[{'type': 'volume', 'source': 'terminal_home', 'target': '/home'}])
+        service['environment']['OPEN_TERMINAL_API_KEY'] = TERMINAL_KEY
+        self.config['services'][name] = service
+        volume = self.config['name'] + '_terminal_home'
+        self.config['volumes'] = {'terminal_home': {'name': volume}}
+        proxy = 'localhost,127.0.0.1,webui,proxy,provider,postgres,redis,office,open-terminal-office,open-terminal-office:8000'
+        self.config['services']['webui']['environment'] = {'NO_PROXY': proxy, 'no_proxy': proxy}
+        self.webui_proxy = ['NO_PROXY=' + proxy, 'no_proxy=' + proxy, 'PRIVATE=' + SECRET]
+        row = copy.deepcopy(self.rows[self.ids['webui']])
+        row.update(id=self.ids[name], labels={'com.docker.compose.project': self.config['name'],
+            'com.docker.compose.service': name}, ports={'8000/tcp': None}, init=None, tmpfs=None, capdrop=None,
+            security=None, mounts=[{'Type': 'volume', 'Name': volume, 'Destination': '/home', 'RW': True,
+                                  'Source': '/engine/volumes/' + volume + '/_data'}])
+        row['terminal_inspect'] = {'Image': office.TERMINAL_IMAGE_ID,
+            'Config': {'Image': service['image'], 'User': 'user', 'WorkingDir': '/home/user',
+                'Entrypoint': ['/usr/bin/tini', '--', '/app/entrypoint.sh'], 'Cmd': ['run'],
+                'Env': ['OPEN_TERMINAL_API_KEY=' + TERMINAL_KEY, 'OPEN_TERMINAL_MULTI_USER=true']},
+            'HostConfig': {'Memory': 805306368, 'MemorySwap': 1073741824, 'NanoCpus': 500000000,
+                'PidsLimit': 256, 'RestartPolicy': {'Name': 'no'}, 'CapAdd': None, 'Devices': []}}
+        self.rows[self.ids[name]] = row
+        self.volume = [{'Name': volume, 'Driver': 'local', 'Options': None,
+            'Mountpoint': row['mounts'][0]['Source'], 'Labels': {'com.docker.compose.project': self.config['name'],
+                'com.docker.compose.volume': 'terminal_home'}}]
+        self.platform = {'id': office.TERMINAL_IMAGE_ID, 'os': 'linux', 'architecture': 'amd64'}
+
+    def run(self, command, **kwargs):
+        if command == ['docker', 'compose', 'version', '--short']:
+            self.calls.append(command)
+            return SimpleNamespace(returncode=0, stdout=self.version)
+        if command[:3] == ['docker', 'volume', 'inspect']:
+            self.calls.append(command)
+            assert command[3] == self.config['name'] + '_terminal_home'
+            return SimpleNamespace(returncode=0, stdout=json.dumps(self.volume).encode())
+        if command[:3] == ['docker', 'image', 'inspect']:
+            self.calls.append(command)
+            assert command[-1] == office.TERMINAL_IMAGE_ID
+            return SimpleNamespace(returncode=0, stdout=json.dumps(self.platform).encode())
+        if command[:4] == ['docker','inspect','--format','{{json .Config.Env}}'] and command[-1] == self.ids['webui']:
+            self.calls.append(command)
+            return SimpleNamespace(returncode=0, stdout=json.dumps(self.webui_proxy).encode())
+        return super().run(command, **kwargs)
+
+
+class TerminalTopologyTests(unittest.TestCase):
+    def exercise(self, mutate=None, *, terminal=True):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); env = root/'proof.env'
+            env.write_text('PROOF_DB_PASSWORD=' + SECRET + '\nSTAGING_TERMINAL_API_KEY=' + TERMINAL_KEY + '\n', encoding='utf8')
+            env.chmod(0o600)
+            fixture = office.OfficeFixture(env, root/'output', root/'config', root/'private', [SECRET, TERMINAL_KEY], terminal=terminal)
+            world = TerminalWorld(fixture)
+            if mutate: mutate(world)
+            output = io.StringIO(); error = None
+            with patch.object(office.subprocess, 'run', side_effect=world.run), contextlib.redirect_stdout(output):
+                try: fixture.bind(BASE)
+                except (AssertionError, ProofError) as caught: error = caught
+            self.assertEqual(output.getvalue(), ''); self.assertFalse(fixture.output.exists())
+            if error:
+                self.assertIsNone(fixture._office_binding)
+                self.assertNotIn(TERMINAL_KEY, str(error)); self.assertNotIn(SECRET, str(error))
+            return fixture, world, error
+
+    def test_overlay_reuses_only_native_extends_and_network_override_with_existing_no_proxy_prefix(self):
+        path = ROOT/office.TERMINAL_OVERLAY
+        tree = yaml.compose(path.read_text(encoding='utf8'))
+        root = dict((key.value, value) for key,value in tree.value)
+        services = dict((key.value, value) for key,value in root['services'].value)
+        terminal = dict((key.value, value) for key,value in services[office.TERMINAL_SERVICE].value)
+        self.assertEqual(set(terminal), {'extends', 'networks'})
+        self.assertEqual({key.value:value.value for key,value in terminal['extends'].value},
+                         {'file': 'openwebui.staging-terminal.compose.yml', 'service': office.TERMINAL_SERVICE})
+        self.assertEqual(terminal['networks'].tag, '!override')
+        self.assertEqual([node.value for node in terminal['networks'].value], ['proof'])
+        self.assertEqual([key.value for key,_ in root['volumes'].value], ['terminal_home'])
+        with self.assertRaises(yaml.constructor.ConstructorError): yaml.safe_load(path.read_text(encoding='utf8'))
+        # The actual fixture consumes native CLI JSON, never safe_load on this overlay.
+        prior = yaml.safe_load((ROOT/'compose/goal584.office-proof.yml').read_text(encoding='utf8'))
+        webui = dict((key.value,value) for key,value in services['webui'].value)
+        env = {key.value:value.value for key,value in webui['environment'].value}
+        expected = prior['services']['webui']['environment']['NO_PROXY'] + ',open-terminal-office,open-terminal-office:8000'
+        self.assertEqual(env, {'NO_PROXY': expected, 'no_proxy': expected})
+        self.assertIn('>=2.24.4', path.read_text(encoding='utf8'))
+
+    def test_explicit_seven_binding_keeps_default_office_artifact_binding_unchanged_and_env_private(self):
+        fixture, world, error = self.exercise()
+        self.assertIsNone(error)
+        self.assertEqual(fixture.command[-2:], ['-f', office.TERMINAL_OVERLAY])
+        self.assertEqual(set(fixture._office_binding['services']), {'webui', 'office'})
+        self.assertEqual(fixture._terminal_binding['image_id'], world.platform['id'])
+        row = office.topology_row(native_inspect(world.rows[world.ids[office.TERMINAL_SERVICE]]), terminal=True)
+        self.assertNotIn(TERMINAL_KEY, json.dumps(row)); self.assertNotIn('Env', json.dumps(row))
+        self.assertEqual(row['terminal']['key_sha256'], [hashlib.sha256(TERMINAL_KEY.encode()).hexdigest()])
+
+    def test_default_false_rejects_seven_without_private_env_or_version_probe(self):
+        fixture, world, error = self.exercise(terminal=False)
+        self.assertIsNotNone(error)
+        self.assertNotIn(office.TERMINAL_OVERLAY, fixture.command)
+        self.assertNotIn(['docker', 'compose', 'version', '--short'], world.calls)
+        with self.assertRaisesRegex(AssertionError, 'explicit boolean'):
+            office.OfficeFixture(Path('env'), Path('out'), Path('config'), Path('private'), [], terminal='true')
+
+    def test_optin_requires_exact_seven_declared_and_actual_services(self):
+        cases = (lambda w:w.config['services'].pop(office.TERMINAL_SERVICE),
+            lambda w:w.config['services'].update(foreign={'networks': {'proof': None}}),
+            lambda w:w.selected_ids.pop(), lambda w:w.selected_ids.append('8'*64),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['labels'].update({'com.docker.compose.service':'webui'}))
+        for change in cases:
+            with self.subTest(change=change): self.assertIsNotNone(self.exercise(change)[2])
+
+    def test_terminal_declared_image_resources_security_key_and_proxy_drift_fail(self):
+        for field, value in (('image','foreign:latest'), ('build',{}), ('restart','always'), ('privileged',True),
+                ('read_only',True), ('cap_add',['SYS_ADMIN']), ('devices',['/dev/sda']), ('user','0'),
+                ('cap_drop',['ALL']), ('security_opt',['no-new-privileges:true']), ('init',True),
+                ('command',['sh']), ('entrypoint',['sh']), ('mem_limit',1), ('memswap_limit',1), ('cpus',1), ('pids_limit',512)):
+            with self.subTest(field=field):
+                change = lambda w:w.config['services'][office.TERMINAL_SERVICE].update({field:value})
+                self.assertIsNotNone(self.exercise(change)[2])
+        for key, value in (('OPEN_TERMINAL_API_KEY',SECRET), ('OPEN_TERMINAL_MULTI_USER','false')):
+            with self.subTest(key=key):
+                self.assertIsNotNone(self.exercise(lambda w:w.config['services'][office.TERMINAL_SERVICE]['environment'].update({key:value}))[2])
+        for key in ('NO_PROXY','no_proxy'):
+            self.assertIsNotNone(self.exercise(lambda w:w.config['services']['webui']['environment'].update({key:'localhost'}))[2])
+        self.assertIsNotNone(self.exercise(lambda w:w.webui_proxy.pop(0))[2])
+        self.assertIsNotNone(self.exercise(lambda w:w.webui_proxy.append(w.webui_proxy[0]))[2])
+
+    def test_terminal_actual_config_env_image_resources_health_and_privilege_drift_fail(self):
+        for section, field, value in (('Config','Image','foreign:latest'), ('Config','User','root'),
+                ('Config','WorkingDir','/'), ('Config','Entrypoint',['sh']), ('Config','Cmd',['sleep']),
+                ('Config','Env',['OPEN_TERMINAL_API_KEY='+SECRET,'OPEN_TERMINAL_MULTI_USER=true']),
+                ('Config','Env',['OPEN_TERMINAL_API_KEY='+TERMINAL_KEY]*2+['OPEN_TERMINAL_MULTI_USER=true']),
+                ('Config','Env',['OPEN_TERMINAL_API_KEY='+TERMINAL_KEY]),
+                ('HostConfig','Memory',1), ('HostConfig','MemorySwap',1), ('HostConfig','NanoCpus',1),
+                ('HostConfig','PidsLimit',512), ('HostConfig','RestartPolicy',{'Name':'always'}),
+                ('HostConfig','CapAdd',['SYS_ADMIN']), ('HostConfig','Devices',[{'PathOnHost':'/dev/sda'}])):
+            with self.subTest(field=field, value=value):
+                self.assertIsNotNone(self.exercise(lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['terminal_inspect'][section].update({field:value}))[2])
+        for field, value in (('privileged',True), ('readonly',True), ('health','starting'),
+                             ('capdrop',['ALL']), ('security',['no-new-privileges']), ('init',True)):
+            self.assertIsNotNone(self.exercise(lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]].update({field:value}))[2])
+        self.assertIsNotNone(self.exercise(lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['terminal_inspect'].update(Image='sha256:'+'f'*64))[2])
+        self.assertIsNotNone(self.exercise(lambda w:w.platform.update(architecture='arm64'))[2])
+
+    def test_terminal_network_and_host_ports_keep_common_native_boundaries(self):
+        cases = (lambda w:w.config['services'][office.TERMINAL_SERVICE]['networks'].update(isolated=None),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['networks'].update(public={}),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]].update(networkmode='host'),
+            lambda w:w.config['services'][office.TERMINAL_SERVICE].update(ports=['8000:8000']),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['ports'].update({'8000/tcp':[{'HostPort':'8000'}]}))
+        for change in cases:
+            with self.subTest(change=change): self.assertIsNotNone(self.exercise(change)[2])
+
+    def test_home_volume_must_be_project_owned_local_single_writable_mount(self):
+        cases = (lambda w:w.config['volumes']['terminal_home'].update(external=True),
+            lambda w:w.config['volumes']['terminal_home'].update(driver_opts={'device':'/host'}),
+            lambda w:w.config['volumes']['terminal_home'].update(name='foreign'),
+            lambda w:w.config['services'][office.TERMINAL_SERVICE]['volumes'][0].update(type='bind'),
+            lambda w:w.config['services'][office.TERMINAL_SERVICE]['volumes'].append({'target':'/var/run/docker.sock'}),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['mounts'][0].update(Type='bind'),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['mounts'][0].update(Name='foreign'),
+            lambda w:w.rows[w.ids[office.TERMINAL_SERVICE]]['mounts'][0].update(RW=False),
+            lambda w:w.volume[0]['Labels'].update({'com.docker.compose.project':'foreign'}),
+            lambda w:w.volume[0].update(Options={'device':'/host'}),
+            lambda w:w.volume[0].update(Mountpoint='/foreign'))
+        for change in cases:
+            with self.subTest(change=change): self.assertIsNotNone(self.exercise(change)[2])
+
+    def test_private_env_duplicates_malformed_or_unprotected_key_stop_before_cli(self):
+        for content in ('STAGING_TERMINAL_API_KEY=x\n',
+                'STAGING_TERMINAL_API_KEY='+TERMINAL_KEY+'\nSTAGING_TERMINAL_API_KEY='+TERMINAL_KEY+'\n',
+                'STAGING_TERMINAL_API_KEY='+TERMINAL_KEY+'\nMALFORMED\n',
+                'STAGING_TERMINAL_API_KEY="'+TERMINAL_KEY+'"\n',
+                'STAGING_TERMINAL_API_KEY='+TERMINAL_KEY+'\nOTHER_KEY='+TERMINAL_KEY+'\n',
+                'STAGING_TERMINAL_API_KEY='+TERMINAL_KEY+'\n#'+'x'*65536):
+            with self.subTest(content=content[:40]):
+                _, world, error = self.exercise(lambda w:w.fixture._terminal_env_file.write_text(content,encoding='utf8'))
+                self.assertIsNotNone(error); self.assertEqual(world.calls, [])
+        _, _, error = self.exercise(lambda w:w.fixture._terminal_env_file.write_text('STAGING_TERMINAL_API_KEY='+TERMINAL_KEY,encoding='utf8'))
+        self.assertIsNone(error)
+        _, world, error = self.exercise(lambda w:w.fixture.secrets.remove(TERMINAL_KEY))
+        self.assertIsNotNone(error); self.assertEqual(world.calls, [])
+        if os.name != 'nt':
+            _, world, error = self.exercise(lambda w:w.fixture._terminal_env_file.chmod(0o644))
+            self.assertIsNotNone(error); self.assertEqual(world.calls, [])
+
+    def test_compose_minimum_and_bounded_version_are_explicit_without_fallback_parser(self):
+        for version in (b'2.24.3\n', b'2.24.4-rc1\n', b'garbage', b'2.24.4 '+b'x'*129):
+            with self.subTest(version=version):
+                _, world, error = self.exercise(lambda w:setattr(w,'version',version))
+                self.assertEqual(str(error), 'Terminal requires Docker Compose >=2.24.4')
+                self.assertEqual(world.calls, [['docker','compose','version','--short']])
+        self.assertIsNone(self.exercise(lambda w:setattr(w,'version',b'v2.39.4-desktop.1\n'))[2])
 
 
 class ReadbackWorld(DockerWorld):
