@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import ast
+import base64
 import hashlib
 import io
 import json
@@ -48,8 +49,11 @@ class Locator:
                 'messages': [{'role': 'user', 'content': self.page.fields['#chat-input']}],
                 'background_tasks': {'follow_up_generation': True}, 'params': {}}
             if world.submit_mutation: world.submit_mutation(world.sent)
-            self.page.pending.value = Response({'chat_id': CHAT}, status=world.ack_status,
+            self.page.pending.value = Response({'chat_id': CHAT}, status=world.ack_status, body=world.raw_ack,
                 url=BASE + '/api/chat/completions', request=SimpleNamespace(method='POST', post_data_json=world.sent))
+            if world.ack_error:
+                def decode(): raise world.ack_error
+                self.page.pending.value.json = decode
         elif self.selector == 'a[href="/api/v1/files/' + FILE + '/content"]':
             world.downloads += 1
             self.page.pending.value = SimpleNamespace(url=world.download_url, suggested_filename=world.filename,
@@ -114,7 +118,7 @@ class Context:
             value = {'id': CHAT, 'user_id': ACTOR, 'chat': chat, 'tasks': copy.deepcopy(world.tasks)}
             if world.saved_mutation: world.saved_mutation(value)
             return Response(value)
-        if url == BASE + '/api/tasks/chat/' + CHAT: return Response({'task_ids': world.running_tasks})
+        if url == BASE + '/api/tasks/chat/' + CHAT: return Response({'task_ids': world.running_tasks}, status=world.active_status)
         if url == BASE + '/api/v1/files/' + FILE:
             value = {'id': FILE, 'user_id': ACTOR, 'meta': {'name': world.filename}}
             if world.file_mutation: world.file_mutation(value)
@@ -130,6 +134,8 @@ class Browser:
         self.contexts = []; self.sends = self.downloads = self.chat_reads = self.source_reads = 0
         self.created_contexts = 0
         self.foreign_reads = []; self.role = 'user'; self.ack_status = 200; self.foreign_status = 404
+        self.raw_ack = json.dumps({'chat_id': CHAT}).encode(); self.ack_error = None
+        self.active_status = 200
         self.skill = {'id': 'goal584-delegated-synthetic', 'content': 'Complete synthetic private template Skill',
             'version_id': USER, 'is_active': True}
         self.source_bytes = self.source_after = b'synthetic original IO bytes'
@@ -167,7 +173,7 @@ class DelegatedBrowserTests(unittest.TestCase):
         self.assertEqual(native_form['chat']['messages'], [])
         self.assertEqual(native_form['chat']['models'], [B.MODEL])
 
-    def exercise(self, mutation=None, clock=None):
+    def exercise(self, mutation=None, clock=None, packet_limit=None, writer=None):
         with TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
             root = Path(directory); private = root/'private'; private.mkdir(mode=0o700)
             fixture = B.OfficeFixture(root/'env', root/'output', root/'config', private, [SECRET, 'actor-token', 'other-token'])
@@ -190,13 +196,15 @@ class DelegatedBrowserTests(unittest.TestCase):
             running = stack.enter_context(patch.object(B.OfficeFixture, 'running_readback',
                 return_value={'webui': {'image_id': 'actual-IO-boundary-observation'}, 'office': {'image_id': 'office-IO'}}))
             if clock: stack.enter_context(patch.object(B.time, 'monotonic', side_effect=clock))
+            if packet_limit: stack.enter_context(patch.object(B, 'MAX_BYTES', packet_limit))
+            if writer: stack.enter_context(patch.object(B, 'write_private', side_effect=writer))
             if os.name == 'nt':
                 stack.enter_context(patch.object(B, 'private_parent'))
                 stack.enter_context(patch.object(private_owner, 'private_parent'))
             safe = packet = error = None; stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
                 try: safe, packet = B.run(browser, fixture, BASE, {'bound': 'builder'}, 'accepted-revision')
-                except AssertionError as caught: error = caught
+                except Exception as caught: error = caught
             self.assertEqual(stdout.getvalue(), '')
             self.assertTrue(all(context.closed for context in browser.contexts if context not in inherited_contexts))
             self.assertTrue(all(not context.closed for context in inherited_contexts))
@@ -210,8 +218,185 @@ class DelegatedBrowserTests(unittest.TestCase):
                     if os.name != 'nt': self.assertEqual(Path(path).stat().st_mode & 0o777, 0o600)
                 for value in (SECRET, 'actor-token', 'other-token', browser.skill['content'], B.DELEGATED_USER_REQUEST, browser.cost):
                     self.assertNotIn(value, json.dumps(safe, ensure_ascii=False))
-            else: self.assertFalse((private/B.PACKET).exists())
+            elif (private/B.PACKET).exists():
+                packet = json.loads((private/B.PACKET).read_text(encoding='utf8'))
+                self.assertIn(packet['status'], ('observing', 'failed'))
+                self.assertLessEqual((private/B.PACKET).stat().st_size, packet_limit or B.MAX_BYTES)
+                public = B.failure_projection(packet)
+                B.no_credentials(public, fixture.secrets)
+                for value in (SECRET, 'actor-token', 'other-token', browser.skill['content'],
+                              B.DELEGATED_USER_REQUEST, browser.cost, ACTOR, CHAT, USER, ANSWER, SOURCE):
+                    self.assertNotIn(value, json.dumps(public, ensure_ascii=False))
             return safe, packet, error, browser
+
+    def test_failure_projection_reports_each_actual_lifecycle_none_gate(self):
+        def answer_change(change):
+            return lambda b,s,r:setattr(b, 'saved_mutation', lambda value:change(value['chat']['history']['messages'][ANSWER]))
+        cases = [
+            ('user_missing', lambda b,s,r:setattr(b, 'saved_mutation', lambda v:v['chat']['history']['messages'].pop(USER)), 'user_present', False),
+            ('answer_missing', lambda b,s,r:setattr(b, 'saved_mutation', lambda v:v['chat']['history']['messages'].pop(ANSWER)), 'answer_present', False),
+            ('done_missing', answer_change(lambda a:a.pop('done')), 'answer_done', None),
+            ('done_false', answer_change(lambda a:a.update(done=False)), 'answer_done', False),
+            ('done_not_bool', answer_change(lambda a:a.update(done=1)), 'answer_done', None),
+            ('checklist_missing', lambda b,s,r:setattr(b, 'saved_mutation', lambda v:v.pop('tasks')), 'checklist_present', False),
+            ('checklist_empty', lambda b,s,r:setattr(b, 'tasks', []), 'checklist_count', 0),
+            ('cost_missing', answer_change(lambda a:a.pop('statusHistory')), 'budget_status_present', False),
+            ('cost_pending', answer_change(lambda a:a['statusHistory'][0].update(done=False)), 'budget_status_done', False),
+            ('cost_done_missing', answer_change(lambda a:a['statusHistory'][0].pop('done')), 'budget_status_done', None),
+            ('followups_missing', answer_change(lambda a:a.pop('followUps')), 'followups_count', None),
+            ('followups_empty', lambda b,s,r:setattr(b, 'followups', []), 'followups_count', 0),
+            ('active_task', lambda b,s,r:setattr(b, 'running_tasks', ['native-active']), 'native_task_ids_count', 1)]
+        for name, change, key, expected in cases:
+            with self.subTest(name=name):
+                safe, packet, error, browser = self.exercise(change, [0, 181])
+                self.assertIsNone(safe)
+                self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+                self.assertEqual(packet['phase'], 'lifecycle')
+                self.assertEqual(packet['actor_id'], ACTOR)
+                self.assertEqual((packet['chat_id'], packet['user_message_id'], packet['answer_id']), (CHAT, USER, ANSWER))
+                self.assertEqual(packet['native_tasks'], packet['stored_chat'].get('tasks'))
+                self.assertEqual(packet['native_running'], {'task_ids': browser.running_tasks})
+                projection = B.failure_projection(packet)
+                self.assertTrue(projection['collected'])
+                self.assertEqual(projection[key], expected)
+                self.assertFalse(projection['native_finance_qualified'])
+
+    def test_failure_projection_attachment_and_task_statuses_are_counts_only(self):
+        def change(b,s,r):
+            b.tasks = [{'id': str(index), 'content': 'PRIVATE_TASK_CONTENT', 'status': status}
+                       for index, status in enumerate(('pending', 'in_progress', 'completed', 'cancelled', 'PRIVATE_STATUS'))]
+            b.saved_mutation = lambda value:value['chat']['history']['messages'][ANSWER].update(files=[
+                {'type': 'file', 'content_type': B.DOCX, 'url': 'https://PRIVATE_URL'}, {'private': SECRET}, None])
+        _, packet, error, _ = self.exercise(change, [0, 181])
+        self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+        projection = B.failure_projection(packet)
+        self.assertEqual(projection['checklist_status_counts'], dict.fromkeys(B.TASK_STATUSES, 1))
+        self.assertEqual((projection['attachment_count'], projection['docx_count']), (3, 1))
+        for secret in ('PRIVATE_TASK_CONTENT', 'PRIVATE_STATUS', 'https://PRIVATE_URL'):
+            self.assertNotIn(secret, json.dumps(projection))
+
+    def test_created_chat_and_raw_ack_checkpoints_precede_validation_without_poll_writes(self):
+        writes = []
+        def writer(path, packet):
+            writes.append(copy.deepcopy(packet))
+            private_owner.write_private(path, packet)
+        _, packet, error, _ = self.exercise(lambda b,s,r:setattr(b, 'ack_status', 503), writer=writer)
+        self.assertEqual(str(error), 'delegated_browser_send_rejected')
+        self.assertEqual(len(writes), 3)
+        self.assertEqual(writes[0]['created_chat']['id'], CHAT)
+        self.assertNotIn('submission', writes[0])
+        self.assertEqual(writes[1]['submission_status'], 503)
+        self.assertEqual(base64.b64decode(writes[1]['raw_acknowledgement_base64']), json.dumps({'chat_id': CHAT}).encode())
+        self.assertNotIn('acknowledgement', writes[1])
+        self.assertEqual(packet['submission'], writes[1]['submission'])
+        writes.clear()
+        _, _, error, _ = self.exercise(lambda b,s,r:setattr(b, 'running_tasks', ['active']), [0, 1, 2, 181], writer=writer)
+        self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+        self.assertEqual(len(writes), 3)  # created, wire ACK, final failure; never per poll
+
+    def test_non_json_raw_ack_survives_decode_exception_without_text_dump(self):
+        original = ValueError('PRIVATE_RESPONSE_ERROR')
+        def change(b,s,r): b.raw_ack = b'\xff\x00not JSON PRIVATE_ACK'; b.ack_error = original
+        safe, packet, error, _ = self.exercise(change)
+        self.assertIsNone(safe); self.assertIs(error, original)
+        self.assertEqual(base64.b64decode(packet['raw_acknowledgement_base64']), b'\xff\x00not JSON PRIVATE_ACK')
+        self.assertEqual(packet['failure'], 'delegated_browser_unclassified')
+        self.assertNotIn('PRIVATE_RESPONSE_ERROR', json.dumps(packet))
+        self.assertNotIn('PRIVATE_ACK', json.dumps(B.failure_projection(packet)))
+
+    def test_failed_native_read_keeps_last_actual_chat_without_extra_diagnostic_reads(self):
+        _, packet, error, browser = self.exercise(lambda b,s,r:setattr(b, 'active_status', 503))
+        self.assertEqual(str(error), 'delegated_browser_native_read')
+        self.assertEqual(browser.chat_reads, 1)
+        self.assertEqual(packet['stored_chat']['chat']['history']['messages'][ANSWER], browser.answer())
+        projection = B.failure_projection(packet)
+        self.assertTrue(projection['answer_done'])
+        self.assertIsNone(projection['native_task_ids_count'])
+
+    def test_failure_retains_actual_source_binding_without_repairing_it(self):
+        _, packet, error, browser = self.exercise(lambda b,s,r:setattr(b, 'skill_mutation', lambda v:v.update(version_id=OTHER)))
+        self.assertEqual(str(error), 'delegated_browser_skill_binding')
+        self.assertEqual(packet['native_skill']['version_id'], OTHER)
+        self.assertEqual(packet['source_before']['sha256'], hashlib.sha256(browser.source_bytes).hexdigest())
+        self.assertEqual(browser.sends, 0)
+        self.assertNotIn('created_chat', packet)
+        _, packet, error, browser = self.exercise(lambda b,s,r:setattr(b, 'seed_mutation', lambda v:v.update(user_id=OTHER)))
+        self.assertEqual(str(error), 'delegated_browser_empty_chat_readback')
+        self.assertEqual(packet['created_chat']['user_id'], OTHER)
+        self.assertEqual(browser.sends, 0)
+
+    def test_browser_code_binding_is_actual_module_bytes_in_regular_and_omitted_packets(self):
+        expected = hashlib.sha256(Path(B.__file__).read_bytes()).hexdigest()
+        for oversized in (False, True):
+            with self.subTest(oversized=oversized):
+                def change(b,s,r):
+                    b.running_tasks = ['active']
+                    s['browser_source_sha256'] = 'f' * 64  # caller claim is never the code source
+                    if oversized:
+                        b.saved_mutation = lambda value:value['chat']['history']['messages'][ANSWER].update(content='x' * 20000)
+                _, packet, error, _ = self.exercise(change, [0, 181], packet_limit=12000 if oversized else None)
+                self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+                self.assertEqual(packet['browser_source_sha256'], expected)
+                self.assertNotEqual(packet['browser_source_sha256'], packet['source_before']['sha256'])
+                self.assertEqual(packet.get('raw_omitted', False), oversized)
+        with TemporaryDirectory() as directory:
+            module = Path(directory) / 'actual-browser-module.py'
+            for actual in (b'actual first module bytes', b'changed module bytes'):
+                module.write_bytes(actual)
+                with patch.object(B, '__file__', str(module)):
+                    _, packet, error, _ = self.exercise(lambda b,s,r:setattr(b, 'running_tasks', ['active']), [0, 181])
+                self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+                self.assertEqual(packet['browser_source_sha256'], hashlib.sha256(actual).hexdigest())
+    def test_oversized_actual_chat_retains_only_explicit_bounded_observation(self):
+        def change(b,s,r):
+            b.running_tasks = ['active']
+            b.saved_mutation = lambda value:value['chat']['history']['messages'][ANSWER].update(content='PRIVATE_LARGE_' * 5000)
+        _, packet, error, _ = self.exercise(change, [0, 181], packet_limit=12000)
+        self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+        self.assertTrue(packet['raw_omitted']); self.assertGreater(packet['raw_bytes'], 12000)
+        self.assertNotIn('stored_chat', packet); self.assertNotIn('submission', packet)
+        self.assertEqual(packet['source_before']['sha256'], hashlib.sha256(b'synthetic original IO bytes').hexdigest())
+        projection = B.failure_projection(packet)
+        self.assertTrue(projection['collected']); self.assertTrue(projection['answer_done'])
+        self.assertEqual(projection['native_task_ids_count'], 1)
+        self.assertNotIn('PRIVATE_LARGE_', json.dumps(packet))
+
+    def test_oversized_ack_is_explicitly_omitted_and_keeps_only_technical_metadata(self):
+        def change(b,s,r): b.raw_ack = b'PRIVATE_ACK' * 2000; b.ack_status = 503
+        _, packet, error, _ = self.exercise(change, packet_limit=12000)
+        self.assertEqual(str(error), 'delegated_browser_send_rejected')
+        self.assertTrue(packet['raw_omitted']); self.assertTrue(packet['raw_acknowledgement_omitted'])
+        self.assertEqual(packet['raw_acknowledgement_bytes'], 22000)
+        self.assertEqual(packet['raw_acknowledgement_sha256'], hashlib.sha256(b'PRIVATE_ACK' * 2000).hexdigest())
+        self.assertNotIn('submission', packet); self.assertNotIn('raw_acknowledgement_base64', packet)
+
+    def test_success_cannot_export_an_oversized_private_packet_as_accepted(self):
+        def change(b,s,r):
+            b.saved_mutation = lambda v:v['chat']['history']['messages'][ANSWER].update(private_extra='x' * 20000)
+        safe, packet, error, _ = self.exercise(change, packet_limit=12000)
+        self.assertIsNone(safe); self.assertEqual(str(error), 'delegated_browser_packet_bound')
+        self.assertTrue(packet['raw_omitted']); self.assertEqual(packet['status'], 'failed')
+        self.assertFalse(B.failure_projection(packet)['native_office_accepted'])
+
+    def test_failure_save_error_keeps_original_failure_and_observing_packet_uncollected(self):
+        def writer(path, packet):
+            if packet.get('status') == 'failed': raise OSError('PRIVATE_WRITE_ERROR')
+            private_owner.write_private(path, packet)
+        _, packet, error, _ = self.exercise(lambda b,s,r:setattr(b, 'running_tasks', ['active']), [0, 181], writer=writer)
+        self.assertEqual(str(error), 'delegated_browser_lifecycle_timeout')
+        self.assertEqual(packet['status'], 'observing')
+        self.assertFalse(B.failure_projection(packet)['collected'])
+
+    def test_projection_rejects_untrusted_text_types_and_oversize_summary_values(self):
+        projection = B.failure_projection({'schema': 1, 'status': 'failed', 'phase': 'PRIVATE_PHASE',
+            'failure': 'delegated_browser_timeout PRIVATE_SECRET', 'user_message_id': [], 'answer_id': {},
+            'raw_omitted': True, 'lifecycle_observation': {'answer_done': 1, 'attachment_count': True,
+                'checklist_status_counts': {'PRIVATE_STATUS': 5}}})
+        self.assertIsNone(projection['phase']); self.assertIsNone(projection['failure'])
+        self.assertFalse(projection['collected'])
+        self.assertIsNone(projection['answer_done']); self.assertIsNone(projection['attachment_count'])
+        self.assertIsNone(projection['checklist_status_counts'])
+        self.assertNotIn('PRIVATE_', json.dumps(projection))
 
     def test_one_ordinary_send_native_tasks_file_download_acl_and_full_private_handoff(self):
         safe, packet, error, browser = self.exercise()
@@ -223,6 +408,11 @@ class DelegatedBrowserTests(unittest.TestCase):
         self.assertEqual(packet['native_tasks'], packet['stored_chat']['tasks'])
         self.assertEqual(packet['source_before'], packet['source_after'])
         self.assertEqual(packet['artifacts']['browser'], packet['artifacts']['native'])
+        self.assertEqual(set(packet), {'schema', 'actor_id', 'chat_id', 'user_message_id', 'answer_id',
+            'source_file_id', 'skill_id', 'file_id', 'submission', 'submission_status', 'acknowledgement',
+            'chat_form', 'created_chat', 'stored_chat', 'native_file', 'running', 'native_tasks',
+            'background_tasks', 'cost_status', 'native_running', 'source_before_sha256', 'source_after_sha256',
+            'source_before', 'source_after', 'artifacts', 'native_skill', 'foreign_file_statuses', 'paths'})
         self.assertTrue(set(('schema', 'actor_id', 'chat_id', 'user_message_id', 'answer_id', 'source_file_id',
             'skill_id', 'file_id', 'submission', 'stored_chat', 'native_file', 'running', 'paths')) <= set(packet))
 

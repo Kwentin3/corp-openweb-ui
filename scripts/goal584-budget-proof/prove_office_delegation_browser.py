@@ -5,7 +5,10 @@ acceptance. This caller never executes a Tool/model loop or computes a charge.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
+from pathlib import Path
 import re
 import time
 from urllib.parse import urlsplit
@@ -23,6 +26,106 @@ from prove_webui_browser import login, require, text_content
 
 MODEL = 'corporate-documents'
 PACKET = 'office-delegation-browser.private.json'
+PHASES = ('login', 'source', 'create_chat', 'send', 'acknowledgement', 'lifecycle',
+          'artifact', 'download', 'source_after', 'foreign_acl', 'success')
+TASK_STATUSES = ('pending', 'in_progress', 'completed', 'cancelled', 'other')
+
+
+def _mapping(value):
+    return value if isinstance(value, dict) else {}
+
+
+def failure_projection(packet):
+    """Public technical observations only; never an Office/financial acceptance."""
+    packet = _mapping(packet)
+    stored = _mapping(packet.get('stored_chat'))
+    messages = _mapping(_mapping(_mapping(stored.get('chat')).get('history')).get('messages'))
+    user = messages.get(packet['user_message_id']) if isinstance(packet.get('user_message_id'), str) else None
+    answer = messages.get(packet['answer_id']) if isinstance(packet.get('answer_id'), str) else None
+    answer_present = isinstance(answer, dict)
+    answer = _mapping(answer)
+    tasks = stored.get('tasks')
+    statuses = answer.get('statusHistory')
+    costs = [value for value in statuses if isinstance(value, dict)
+             and value.get('action') == 'employee_budget_cost'] if isinstance(statuses, list) else []
+    files = answer.get('files')
+    active = _mapping(packet.get('native_running')).get('task_ids')
+    def boolean(value): return value if type(value) is bool else None
+    observation = {
+        'user_present': isinstance(user, dict),
+        'answer_present': answer_present,
+        'answer_done': boolean(answer.get('done')),
+        'checklist_present': isinstance(tasks, list),
+        'checklist_count': len(tasks) if isinstance(tasks, list) else None,
+        'checklist_status_counts': {status: sum(1 for task in tasks
+            if (task.get('status') if isinstance(task, dict) and task.get('status') in TASK_STATUSES[:-1]
+                else 'other') == status) for status in TASK_STATUSES} if isinstance(tasks, list) else None,
+        'budget_status_present': bool(costs),
+        'budget_status_done': boolean(costs[-1].get('done')) if costs else None,
+        'followups_count': len(answer['followUps']) if isinstance(answer.get('followUps'), list) else None,
+        'native_task_ids_count': len(active) if isinstance(active, list) else None,
+        'attachment_count': len(files) if isinstance(files, list) else None,
+        'docx_count': sum(isinstance(value, dict) and value.get('type') == 'file'
+                          and value.get('content_type') == DOCX for value in files) if isinstance(files, list) else None}
+    # A size-bound checkpoint explicitly retains only these technical values.
+    if packet.get('raw_omitted') is True:
+        saved = _mapping(packet.get('lifecycle_observation'))
+        for key, value in observation.items():
+            candidate = saved.get(key)
+            if key == 'checklist_status_counts':
+                observation[key] = ({status: candidate[status] for status in TASK_STATUSES}
+                    if isinstance(candidate, dict) and set(candidate) == set(TASK_STATUSES)
+                    and all(type(number) is int and number >= 0 for number in candidate.values()) else None)
+            elif key.endswith('_present') or key.endswith('_done'):
+                observation[key] = boolean(candidate)
+            else:
+                observation[key] = candidate if type(candidate) is int and candidate >= 0 else None
+    failure = packet.get('failure')
+    phase = packet.get('phase') if packet.get('phase') in PHASES else None
+    failure = failure if isinstance(failure, str) and re.fullmatch(r'delegated_browser_[a-z0-9_]{1,80}', failure) else None
+    return {'schema': 1, 'collected': type(packet.get('schema')) is int and packet['schema'] == 1
+            and packet.get('status') == 'failed' and phase is not None and failure is not None,
+        'phase': phase, 'failure': failure,
+        'raw_omitted': packet.get('raw_omitted') is True,
+        'native_office_accepted': False, 'native_finance_qualified': False, **observation}
+
+
+def _checkpoint(path, packet):
+    """Use the existing atomic private writer, with its actual serialized bound."""
+    size = len((json.dumps(packet, allow_nan=False) + '\n').encode('utf-8'))
+    if size > MAX_BYTES or packet.get('raw_acknowledgement_omitted') is True:
+        projection = failure_projection(packet)
+        retained = {key: packet[key] for key in ('schema', 'status', 'phase', 'failure') if key in packet}
+        for key in ('actor_id', 'chat_id', 'user_message_id', 'answer_id', 'source_file_id'):
+            value = packet.get(key)
+            if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', value):
+                retained[key] = value
+        for key in ('browser_source_sha256', 'prepared_handoff_sha256', 'raw_acknowledgement_sha256'):
+            value = packet.get(key)
+            if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value):
+                retained[key] = value
+        if type(packet.get('raw_acknowledgement_bytes')) is int:
+            retained['raw_acknowledgement_bytes'] = packet['raw_acknowledgement_bytes']
+        if packet.get('raw_acknowledgement_omitted') is True:
+            retained['raw_acknowledgement_omitted'] = True
+        if isinstance(packet.get('skill_id'), str) and re.fullmatch(r'[a-z0-9_-]+', packet['skill_id']):
+            retained['skill_id'] = packet['skill_id']
+        if isinstance(packet.get('error_class'), str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,79}', packet['error_class']):
+            retained['error_class'] = packet['error_class']
+        if isinstance(packet.get('native_skill'), dict):
+            retained['native_skill_sha256'] = digest(packet['native_skill'])
+        source = _mapping(packet.get('source_before'))
+        if isinstance(source.get('sha256'), str) and re.fullmatch(r'[0-9a-f]{64}', source['sha256']) \
+                and type(source.get('bytes')) is int and source['bytes'] >= 0 and source.get('status') == 200:
+            retained['source_before'] = source
+        retained.update(raw_omitted=True, raw_bytes=size,
+                        lifecycle_observation={key: value for key, value in projection.items()
+                            if key not in ('schema', 'collected', 'phase', 'failure', 'raw_omitted',
+                                           'native_office_accepted', 'native_finance_qualified')})
+        packet = retained
+    require(len((json.dumps(packet, allow_nan=False) + '\n').encode('utf-8')) <= MAX_BYTES,
+            'delegated_browser_packet_bound')
+    write_private(path, packet)
 
 
 def empty_form():
@@ -116,6 +219,10 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
                 for path in [*paths.values(), packet_path]), 'delegated_browser_output_conflict')
     private_parent(packet_path)
     existing_contexts = set(browser.contexts)
+    checkpoint = {'schema': 1, 'status': 'observing', 'phase': 'login',
+        'browser_source_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'actor_id': actor_id, 'source_file_id': source_id, 'skill_id': skill['id'],
+        'prepared_handoff_sha256': hashlib.sha256(office_raw).hexdigest(), 'running': running}
     try:
         context, page, token = login(browser, base_url, actor)
         headers = {'Authorization': 'Bearer ' + token}
@@ -124,18 +231,29 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             require(response.status == 200, 'delegated_browser_native_read')
             return response
         source_path = '/api/v1/files/' + source_id + '/content'
+        checkpoint['phase'] = 'source'
         before = get(source_path).body()
+        checkpoint['source_before'] = {'sha256': hashlib.sha256(before).hexdigest(),
+            'bytes': len(before), 'status': 200} if isinstance(before, bytes) else None
         require(isinstance(before, bytes) and 0 < len(before) <= MAX_BYTES
                 and hashlib.sha256(before).hexdigest() == selected.get('source_sha256'),
                 'delegated_browser_source_before')
         native_skill = get('/api/v1/skills/id/' + skill['id']).json()
+        checkpoint['native_skill'] = native_skill
         require(all(native_skill.get(key) == skill.get(key) for key in ('id', 'content', 'version_id', 'is_active'))
                 and native_skill.get('is_active') is True and bool(native_skill.get('version_id')),
                 'delegated_browser_skill_binding')
         form = empty_form()
+        checkpoint.update(phase='create_chat', chat_form=form)
         created = context.request.post(base_url + '/api/v1/chats/new', headers=headers, data=form, timeout=10_000)
         require(created.status == 200, 'delegated_browser_chat_create')
-        seeded = created.json(); chat_id = native_id(seeded.get('id'))
+        seeded = created.json()
+        checkpoint['created_chat'] = seeded
+        if isinstance(seeded, dict) and isinstance(seeded.get('id'), str) and re.fullmatch(
+                r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', seeded['id']):
+            checkpoint['chat_id'] = seeded['id']
+        _checkpoint(packet_path, checkpoint)
+        chat_id = native_id(seeded.get('id'))
         require(seeded.get('user_id') == actor_id and seeded.get('chat') == form['chat'],
                 'delegated_browser_empty_chat_readback')
         page.goto(base_url + '/c/' + chat_id, wait_until='domcontentloaded')
@@ -143,24 +261,47 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
         selector = page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first
         expect(selector).to_have_attribute('aria-label', 'Selected model: ' + profile['name'])
         page.locator('#chat-input').fill(request)
+        checkpoint['phase'] = 'send'
         with page.expect_response(lambda response: urlsplit(response.url).path == '/api/chat/completions'
                 and response.request.method == 'POST', timeout=45_000) as pending:
             page.locator('#send-message-button').click()
         response = pending.value; sent = response.request.post_data_json
+        checkpoint.update(submission=sent, submission_status=response.status)
+        raw_user = _mapping(_mapping(sent).get('user_message'))
+        for key, value in (('user_message_id', raw_user.get('id')), ('answer_id', _mapping(sent).get('id'))):
+            if isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', value):
+                checkpoint[key] = value
+        # Preserve the wire acknowledgement before status/JSON/turn validation.
+        raw_ack = response.body()
+        checkpoint['raw_acknowledgement_bytes'] = len(raw_ack) if isinstance(raw_ack, bytes) else None
+        if isinstance(raw_ack, bytes):
+            checkpoint['raw_acknowledgement_sha256'] = hashlib.sha256(raw_ack).hexdigest()
+            if len(raw_ack) <= MAX_BYTES:
+                checkpoint['raw_acknowledgement_base64'] = base64.b64encode(raw_ack).decode('ascii')
+            else:
+                checkpoint['raw_acknowledgement_omitted'] = True
+        _checkpoint(packet_path, checkpoint)
         user_id, answer_id = check_submission(sent, chat_id, request)
+        checkpoint.update(user_message_id=user_id, answer_id=answer_id, phase='acknowledgement')
         require(response.status == 200, 'delegated_browser_send_rejected')
         acknowledgement = response.json()
+        checkpoint['acknowledgement'] = acknowledgement
         require(acknowledgement.get('chat_id', chat_id) == chat_id, 'delegated_browser_ack_chat')
         deadline = time.monotonic() + 180
+        checkpoint['phase'] = 'lifecycle'
         while True:
             stored = get('/api/v1/chats/' + chat_id).json()
+            checkpoint['stored_chat'] = stored
+            checkpoint['native_tasks'] = stored.get('tasks') if isinstance(stored, dict) else None
             observed = observed_answer(stored, actor_id, chat_id, user_id, answer_id, request)
             active = get('/api/tasks/chat/' + chat_id).json()
+            checkpoint.update(background_tasks=active, native_running=active)
             require(isinstance(active.get('task_ids'), list), 'delegated_browser_background_tasks_shape')
             if observed is not None and not active['task_ids']: break
             require(time.monotonic() < deadline, 'delegated_browser_lifecycle_timeout')
             page.wait_for_timeout(250)
         answer, cost_status = observed
+        checkpoint['phase'] = 'artifact'
         files = [value for value in answer.get('files', []) if isinstance(value, dict) and value.get('type') == 'file'
                  and value.get('content_type') == DOCX]
         require(len(files) == 1, 'delegated_browser_result_attachment')
@@ -177,6 +318,7 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
         with paths['native'].open('xb') as output: output.write(raw)
         paths['native'].chmod(0o600)
         card = page.locator('#message-' + answer_id)
+        checkpoint['phase'] = 'download'
         expect(card).to_contain_text(cost_status['description'], timeout=25_000)
         with page.expect_download(timeout=30_000) as pending_download:
             card.locator('a[href="' + content_path + '"]').click()
@@ -188,13 +330,18 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
         download.save_as(paths['browser']); paths['browser'].chmod(0o600)
         require(paths['browser'].stat().st_size == len(raw) and paths['browser'].read_bytes() == raw,
                 'delegated_browser_download_bytes')
+        checkpoint['phase'] = 'source_after'
         after = get(source_path).body()
+        checkpoint['source_after'] = {'sha256': hashlib.sha256(after).hexdigest(),
+            'bytes': len(after), 'status': 200} if isinstance(after, bytes) else None
         require(after == before, 'delegated_browser_source_changed')
+        checkpoint['phase'] = 'foreign_acl'
         foreign, _, foreign_token = login(browser, base_url, other)
         denied = [foreign.request.get(base_url + target, headers={'Authorization': 'Bearer ' + foreign_token},
                   timeout=10_000).status for target in (path, content_path)]
         require(denied == [404, 404], 'delegated_browser_foreign_acl')
         page.screenshot(path=str(paths['screenshot']), full_page=False); paths['screenshot'].chmod(0o600)
+        checkpoint['phase'] = 'success'
         private = {'schema': 1, 'actor_id': actor_id, 'chat_id': chat_id, 'user_message_id': user_id,
             'answer_id': answer_id, 'source_file_id': source_id, 'skill_id': skill['id'], 'file_id': file_id,
             'submission': sent, 'submission_status': response.status, 'acknowledgement': acknowledgement,
@@ -208,6 +355,8 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
                 'native': {'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw)}},
             'native_skill': native_skill, 'foreign_file_statuses': denied,
             'paths': {key: str(value) for key, value in paths.items()}}
+        require(len((json.dumps(private, allow_nan=False) + '\n').encode('utf-8')) <= MAX_BYTES,
+                'delegated_browser_packet_bound')
         write_private(packet_path, private)
         safe = {'schema': 1, 'status': 'browser_observed', 'native_office_accepted': False, 'ordinary_sends': 1,
             'actor_id': actor_id, 'chat_id': chat_id, 'user_message_id': user_id, 'answer_id': answer_id,
@@ -220,6 +369,17 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             'screenshot_sha256': hashlib.sha256(paths['screenshot'].read_bytes()).hexdigest()}
         no_credentials(safe, fixture.secrets)
         return safe, private
+    except Exception as error:
+        code = str(error)
+        checkpoint.update(status='failed', failure=code if re.fullmatch(
+            r'delegated_browser_[a-z0-9_]{1,80}', code) else 'delegated_browser_unclassified')
+        checkpoint['error_class'] = type(error).__name__
+        try:
+            _checkpoint(packet_path, checkpoint)
+        except Exception:
+            # Diagnostics cannot replace the original fatal browser/native error.
+            pass
+        raise
     finally:
         for context in reversed(browser.contexts):
             if context not in existing_contexts: context.close()
