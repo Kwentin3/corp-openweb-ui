@@ -9,6 +9,45 @@
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
 **Актуальный runtime-кандидат08.11:**
+[run42489150420](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42489150420),
+exact head `957021fd0120c6960e9d5f236ac775d3d657f54b`, job128757481939,
+workflow_dispatch14:18:24UTC; terminalFAILURE step11/ordinary_send,
+delegated_browser_lifecycle_timeout180s. Steps1–10SUCCESS,12–14SKIPPED,
+cleanup/uploadSUCCESS. Нет живого job. Artifact13621232809 загружен ОДИН раз:
+1005253B/75members/SHA `ba98f16cc45633b7bc1b2e278d8c102f5941cb91295207c84b706b66235af9b1`.
+Independent reader подтвердил54build/72sourcepins exact957,45guard/19auth/1CLI0skip,
+ordinary3personal/.60+service.20, continuation1personal/.20+service.20, actualDOCX/
+PNG и cleanup5images. Evidence `office87-native-office-review/`.
+Это exactDELIVERY source с reviewed base WorkspaceModel/actorACL fix; remote
+reasoning ref fast-forward опубликован ровно957021fd. Новый dispatch один.
+Local admin E2E/collector/observer source work в этот runtime НЕ входит.
+BaseACLfix продвинул сценарий: setup/baselineSUCCESS, diagnostic provider_added12/
+auth_added12. Это НЕ доказательство6+6, terminal/context/finance. Последние80loglines
+не содержат различающего witness; savedchat/tasks/followups/coststatus не экспортированы,
+поэтому точная Nonegate ещё неизвестна. Следующий source step — bounded lifecycle
+diagnostic, без увеличения180s/отключенияTasks/followups/ослабленияacceptance.
+GOAL остаётся active. Evidence `office87-review/`, `office87-lifecycle-triage/`.
+
+**Текущая local source интеграция:** REASONING6d04c0aa, не published/runtime.
+0da2fc6e расширяет SAMEobserver толькоknownaliasgoal584-usage (37PASS/root3,
+no format/history/bounds/auth change). 40526d09 — nativeadmincollector+shared
+joinleaf+exactpureparserMOVE:101PASS0skip/network0 (agent/root/independentreview),
+сохранены old13/6+6+1constraints. Новый workflow admingate пока source-only.
+3657bb53 — толькоsyntheticNEWadmin user+knownkey cap10: native SDK rehearsal на
+реальном полномconverter input дал first1.35/second2.71, cap2 недостаточен до
+второгоToolround; realprices/limits/unknownemployee caps2 не менялись, expected
+actualpersonalexpense.332 прежний. Root26initializer testsPASS. Estimator не считает
+top-levelinstructions/tools вResponses input branch; это ограничениеnativeowner,
+не разрешение сокращать фактическийmodelcontext или создаватьвторойcalculator.
+bd5241cf — earlyprivatecheckpoint/rawACK/lastactualstate +publicwhitelist;
+24PASS/root24+independent24, successABI/oldguards unchanged. Initial codebinding
+defect выявленreview и исправленdistinctbrowser_source_sha256; documentSHA не
+выдаётся за codeSHA. Workflowcatch full/omitted/absent/wrongsource replay принят.
+Следующая nativeпроверкаобязательна; sourcechecks не доказываютImage/API/browser/
+settlement. Evidence `admin-unknown-{capture-source,native-collector-source,
+native-collector-review,reservation-rehearsal}/`, `office87-lifecycle-diagnostic-{source,review}/`.
+
+**Предыдущий runtime-кандидат08.11, terminal:**
 [run42485628591](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42485628591),
 exact head `0c82fad368cdeb830a91889b261531bec4ed3d84`, job128746749741,
 workflow_dispatch13:34:43UTC; terminalFAILURE step11, steps1–10SUCCESS,
