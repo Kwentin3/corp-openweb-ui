@@ -407,16 +407,33 @@ def delegated_responses_step(payload, values):
     if payload['model'] == DELEGATED_PARENT_MODEL:
         if not any(v.get('role') == 'user' and DELEGATED_USER_REQUEST in text(v) for v in values):
             raise ValueError('Delegated parent task differs')
-        names = (tool('view_skill'), tool('run_sub_agent'))
-        if len(calls) > 2 or any(c['name'] != names[i] for i, c in enumerate(calls)):
+        names = (tool('create_tasks'), tool('view_skill'), tool('run_sub_agent'),
+                 tool('update_task'), tool('update_task'))
+        if len(calls) > len(names) or any(c['name'] != names[i] for i, c in enumerate(calls)):
             raise ValueError('Delegated parent Tool order differs')
+        plan = {'tasks': [
+            {'content': 'Read the published template Skill and fill a preserved copy with Employee Ada Example and Case G584-2026.',
+             'status': 'in_progress'},
+            {'content': 'Inspect both filled fields and fixed content, render the actual copy, and return its native download.',
+             'status': 'pending'}]}
         if not calls:
+            return names[0], plan, None
+        created = json.loads(results[0]['output'])
+        tasks = created.get('tasks')
+        if (json.loads(calls[0]['arguments']) != plan or not isinstance(tasks, list) or len(tasks) != 2
+                or any(not isinstance(t, dict) or set(t) != {'id', 'content', 'status'}
+                       or not isinstance(t['id'], str) or not 1 <= len(t['id']) <= 128
+                       or {k: t[k] for k in ('content', 'status')} != plan['tasks'][i] for i, t in enumerate(tasks))
+                or len({t['id'] for t in tasks}) != 2
+                or created.get('summary') != {'total': 2, 'pending': 1, 'in_progress': 1, 'completed': 0, 'cancelled': 0}):
+            raise ValueError('Native active Tasks plan missing')
+        if len(calls) == 1:
             ids = set(re.findall(r'goal584-delegated-[0-9a-f]{32}', json.dumps(values)))
             if len(ids) != 1: raise ValueError('Native synthetic Skill selection missing/ambiguous')
-            return names[0], {'id': ids.pop()}, None
-        skill = json.loads(results[0]['output']); content = skill.get('content')
+            return names[1], {'id': ids.pop()}, None
+        skill = json.loads(results[1]['output']); content = skill.get('content')
         if (not isinstance(content, str) or skill.get('next_offset') is not None
-                or skill.get('id') != json.loads(calls[0]['arguments']).get('id')
+                or skill.get('id') != json.loads(calls[1]['arguments']).get('id')
                 or not content.startswith('# GOAL584 synthetic two-field Office copy\n')
                 or not content.endswith('No binary/base64 belongs in this Skill.\n')):
             raise ValueError('Complete native Skill result missing')
@@ -428,14 +445,26 @@ def delegated_responses_step(payload, values):
             'source_file': {'id': source_ids[0], 'sha256': hashes[0]},
             'facts': {'employee': 'Ada Example', 'case': 'G584-2026'}, 'output_name': 'goal584-delegated.docx'}
         # view_skill does not return version_id; never invent it for the model.
-        if len(calls) == 1:
-            return names[1], {'prompt': json.dumps(packet, ensure_ascii=False), 'description': 'Fill the synthetic Office copy'}, None
-        if json.loads(json.loads(calls[1]['arguments'])['prompt']) != packet:
+        if len(calls) == 2:
+            return names[2], {'prompt': json.dumps(packet, ensure_ascii=False), 'description': 'Fill the synthetic Office copy'}, None
+        if json.loads(json.loads(calls[2]['arguments'])['prompt']) != packet:
             raise ValueError('Delegated task packet lost native Skill/source/facts')
-        result = json.loads(results[1]['output']).get('result')
+        result = json.loads(results[2]['output']).get('result')
         if not isinstance(result, str): raise ValueError('Delegated native worker result missing')
         ids = set(re.findall(r'/api/v1/files/([A-Za-z0-9-]{1,128})/content', result))
         if len(ids) != 1: raise ValueError('Delegated native result identity missing/ambiguous')
+        expected_tasks = copy.deepcopy(tasks)
+        for i, (call, result) in enumerate(zip(calls[3:], results[3:])):
+            if json.loads(call['arguments']) != {'id': tasks[i]['id'], 'status': 'completed'}:
+                raise ValueError('Native returned Task id/status differs')
+            expected_tasks[i]['status'] = 'completed'
+            updated = json.loads(result['output'])
+            if (updated.get('tasks') != expected_tasks
+                    or updated.get('summary') != {'total': 2, 'pending': 1 - i, 'in_progress': 0,
+                                                 'completed': i + 1, 'cancelled': 0}):
+                raise ValueError('Native Task completion missing')
+        if len(calls) < len(names):
+            return names[len(calls)], {'id': tasks[len(calls) - 3]['id'], 'status': 'completed'}, None
         return None, None, ids.pop()
     packets = []
     for item in values:
