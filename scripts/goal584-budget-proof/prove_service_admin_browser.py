@@ -20,6 +20,167 @@ from verify_admin_calls import accounting_totals_ready, compare_provider, source
 MODEL = "goal584-budget-admin"
 
 
+def verify_unknown_render(accounts, rows, visible, native_keys):
+    """Presentation only; native collectors own marker/counter/finance truth."""
+    from verify_admin_calls import literal
+    aliases = literal(Path(__file__).with_name("prove_unknown_usage_policy.py"), "ALIASES")
+    require(accounts.get("schema") == 1 and accounts.get("model_id") == MODEL
+            and accounts.get("tool_id") == "employee_budget_admin"
+            and accounts.get("skill_id") == "goal584-budget-admin-guide"
+            and accounts.get("managed_model_ids") == list(aliases), "Unknown admin handoff/source differs")
+    identities = accounts.get("employee_ids")
+    require(isinstance(identities, list) and identities and len(set(identities)) == len(identities),
+            "Unknown admin prepared employee roster differs")
+    for identity in [accounts["admin"]["id"], accounts["actor_id"], *identities]: uuid(identity)
+    require(accounts["admin"]["id"] not in identities and accounts["actor_id"] in identities
+            and len(rows) == len(identities) and {r["user_id"] for r in rows} == set(identities),
+            "Unknown admin rendered a different employee roster")
+    actor, = [r for r in rows if r["user_id"] == accounts["actor_id"]]
+    require(actor.get("expense_status") == "unknown" and actor.get("known_subtotal_usd") is None
+            and visible["employee_primary"] == "Расход неизвестен."
+            and "Остаток не подтверждён." in visible["employee_summary"],
+            "Employee unknown is not the primary expense state")
+    expected = {alias: "unknown" if index else "unavailable" for index, alias in enumerate(aliases)}
+    require(len(actor["models"]) == len(aliases) and {m["id"] for m in actor["models"]} == set(aliases)
+            and set(visible["models"]) == set(aliases) and set(native_keys) == set(aliases),
+            "Unknown admin model identities differ")
+    values = [(actor, visible["employee_summary"], visible["employee_primary"])]
+    for model in actor["models"]:
+        alias = model["id"]; rendered = visible["models"][alias]
+        require(model.get("expense_status") == expected[alias] and model.get("known_subtotal_usd") is None,
+                "Unknown marker was cleared or false presence became known")
+        blocked = native_keys[alias].get("blocked")
+        require(type(blocked) is bool and rendered["blocked"] == ("Заблокирована" if blocked else "Не заблокирована"),
+                "Rendered block differs from native assignment readback")
+        values.append((model, rendered["expense"], rendered["primary"]))
+    for value, rendered, primary in values:
+        label = "Расход неизвестен." if value["expense_status"] == "unknown" else "Полнота данных о расходе не подтверждена."
+        require(primary == label and f'По данным учёта: {value["spend_usd"]} USD.' in rendered
+                and "Эта сумма не подтверждает итоговый расход." in rendered
+                and "Подтверждённая часть расхода:" not in rendered,
+                "Native counter was presented as a final expense/subtotal")
+        if value["expense_status"] == "unknown":
+            require("В истории есть запросы без данных о расходе." in rendered,
+                    "Unknown expense lost its historical witness qualification")
+    return {"employee_unknown_primary": True, "unknown_models": list(aliases[1:]),
+            "native_counters_not_final": True, "known_subtotal_present": False,
+            "native_block_labels_match": True}
+
+
+def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_revision, accounts):
+    """One ordinary admin Send. Native collectors retain all financial authority."""
+    import base64
+    import hashlib
+    from prove_admin_browser import chat_read
+    from prove_gateway_auth import private_parent, write_private
+    from prove_pricing_browser import MAX_BYTES, no_credentials
+
+    running = fixture.running_readback(base_url, build_receipt, expected_revision)
+    admin = accounts["admin"]
+    require(accounts.get("schema") == 1 and accounts.get("model_id") == MODEL
+            and isinstance(accounts.get("employee_ids"), list) and accounts["employee_ids"],
+            "Unknown admin browser handoff unavailable")
+    paths = {"packet": fixture.private / "admin-unknown-browser.private.json",
+             "html": fixture.private / "admin-unknown-opened.html",
+             "opened_receipt": fixture.private / "admin-unknown-opened.json",
+             "page_screenshot": fixture.private / "admin-unknown-opened.png",
+             "employee_screenshot": fixture.private / "admin-unknown-employee.png"}
+    require(all(not p.exists() and not p.is_symlink() and p.resolve().parent == fixture.private.resolve()
+                for p in paths.values()), "Unknown admin private evidence already exists or escaped")
+    private_parent(paths["packet"])
+    packet = {"schema": 1, "admin_id": admin["id"], "actor_id": accounts["actor_id"], "model_id": MODEL,
+              "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+              "binding": {"source_commit": expected_revision, "running": running},
+              "paths": {name: str(path) for name, path in paths.items()}}
+
+    def snapshot(label):
+        argv = ["exec", "-T", "proxy", "python", "-B", "/proof/provision_admin.py", "--phase", "unknown-snapshot",
+            "--private-state", "/proof-private/webui-state.private.json", "--office-state", "/proof-private/office-state.private.json",
+            "--unknown-state", "/proof-private/unknown-usage-gui-state.private.json",
+            "--admin-unknown-state", "/proof-private/admin-unknown-state.private.json",
+            "--receipt", "/proof-private/admin-unknown-snapshot.safe.json"]
+        receipt = fixture.command_json(argv, "admin_unknown_" + label, timeout=90)
+        require(receipt.get("passed") is True and receipt.get("phase") == "unknown-snapshot"
+                and receipt.get("admin_id") == admin["id"] and receipt.get("actor_id") == accounts["actor_id"],
+                "Unknown admin native snapshot identity differs")
+        _, state = fixture._office_private("admin-unknown-state.private.json")
+        require(state.get("schema") == 1 and state.get("stage") == "setup_complete"
+                and state["observation"]["unknown"]["budget"]["user_id"] == accounts["actor_id"],
+                "Unknown admin native private snapshot unavailable")
+        packet["snapshot_" + label] = state
+        write_private(paths["packet"], packet)
+        return state["observation"]
+
+    contexts = set(browser.contexts)
+    try:
+        snapshot("before")
+        page, token = admin_login(browser, base_url, admin, first_login=True)
+        page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first.click()
+        page.locator('button[data-value="' + MODEL + '"]').click()
+        page.locator("#chat-input").fill(INTENT)
+        with page.expect_response(lambda r: urlsplit(r.url).path == "/api/chat/completions"
+                and r.request.method == "POST", timeout=45_000) as pending:
+            page.locator("#send-message-button").click()
+        response = pending.value
+        raw_submission, raw_ack = response.request.post_data, response.body()
+        require(isinstance(raw_submission, str) and 0 < len(raw_submission.encode()) <= MAX_BYTES
+                and isinstance(raw_ack, bytes) and 0 < len(raw_ack) <= MAX_BYTES,
+                "Unknown admin native Send/ACK exceeded bound")
+        submitted, chat_id = acknowledgement(response)
+        acknowledgement_body = json.loads(raw_ack)
+        require(json.loads(raw_submission) == submitted, "Unknown admin raw/native submission differs")
+        packet.update(submitted=submitted, raw_submission=raw_submission, http_status=response.status,
+            acknowledgement=acknowledgement_body, raw_acknowledgement_base64=base64.b64encode(raw_ack).decode("ascii"))
+        write_private(paths["packet"], packet)
+        frame, rows, opened = wait_editor(page, base_url, token, chat_id, submitted, admin["id"], MODEL, INTENT,
+            fixture.private, "admin-unknown-opened", expected_count=len(accounts["employee_ids"]))
+        stored = chat_read(page, base_url, token, chat_id)
+        tasks = page.context.request.get(base_url + "/api/tasks/chat/" + chat_id,
+            headers={"Authorization": "Bearer " + token}, timeout=10_000)
+        require(tasks.status == 200 and tasks.json().get("task_ids") == [], "Unknown admin native tasks remain active")
+        html = paths["html"].read_text(encoding="utf8")
+        require(len(html.encode()) <= MAX_BYTES and len(json.dumps(stored).encode()) <= MAX_BYTES,
+                "Unknown admin persisted context exceeded bound")
+        packet.update(opened=opened, rows=rows, html=html, html_sha256=hashlib.sha256(html.encode()).hexdigest(),
+                      stored_chat=stored, task_ids=[])
+        write_private(paths["packet"], packet)
+        actor = frame.locator('section[data-employee-id="' + accounts["actor_id"] + '"]')
+        expect(actor).to_have_count(1)
+        summary = actor.locator(":scope > p").nth(1)
+        visible = {"employee_summary": summary.inner_text(), "employee_primary": summary.locator("strong").inner_text(), "models": {}}
+        for alias in accounts["managed_model_ids"]:
+            row = actor.locator('tr:has(input[data-model-id="' + alias + '"])')
+            expect(row).to_have_count(1)
+            cells = row.locator("td")
+            visible["models"][alias] = {"primary": cells.nth(1).locator("strong").inner_text(),
+                "expense": cells.nth(1).inner_text(), "blocked": cells.nth(2).inner_text()}
+        packet["visible"] = visible
+        write_private(paths["packet"], packet)
+        after = snapshot("after")
+        checked = verify_unknown_render(accounts, rows, visible, after["unknown"]["native"]["keys"])
+        actor.screenshot(path=str(paths["employee_screenshot"]))
+        page.screenshot(path=str(paths["page_screenshot"]))
+        require(all(0 < paths[name].stat().st_size <= MAX_BYTES for name in ("page_screenshot", "employee_screenshot")),
+                "Unknown admin screenshot exceeded bound")
+        packet["presentation"] = checked
+        packet["screenshot_sha256"] = {name: hashlib.sha256(paths[name].read_bytes()).hexdigest()
+            for name in ("page_screenshot", "employee_screenshot")}
+        safe = {"schema": 1, "status": "browser_observed", "admin_id": admin["id"], "actor_id": accounts["actor_id"],
+            "model_id": MODEL, "chat_id": chat_id, "answer_id": submitted["id"], "ordinary_sends": 1,
+            "tasks_empty": True, "terminal_persisted": True, "html_sha256": packet["html_sha256"],
+            "screenshot_sha256": packet["screenshot_sha256"],
+            "native_accounting_accepted": False, "provider_dispatch_accepted": False, "whole_goal_accepted": False, **checked}
+        no_credentials(safe, [*fixture.secrets, admin["password"], token])
+        write_private(paths["packet"], packet)
+        return safe, packet
+    except Exception as error:
+        packet["failure"] = {"error_class": type(error).__name__}
+        write_private(paths["packet"], packet)
+        raise
+    finally:
+        for context in set(browser.contexts) - contexts: context.close()
+
+
 class ServiceAdminFixture(Fixture):
     def snapshot(self, *, expected_rows=None):
         deadline = time.monotonic() + 60

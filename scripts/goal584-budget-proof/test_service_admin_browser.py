@@ -145,5 +145,78 @@ class ServiceAdminViewTests(unittest.TestCase):
         self.reject(forge)
 
 
+def unknown_packet():
+    actor, admin = str(uuid4()), str(uuid4())
+    from verify_admin_calls import literal
+    aliases = literal(HERE / "prove_unknown_usage_policy.py", "ALIASES")
+    accounts = {"schema": 1, "admin": {"id": admin}, "actor_id": actor, "employee_ids": [actor],
+        "model_id": B.MODEL, "tool_id": "employee_budget_admin", "skill_id": "goal584-budget-admin-guide",
+        "managed_model_ids": list(aliases)}
+    actor_row = {"user_id": actor, "expense_status": "unknown", "spend_usd": ".332", "models": [
+        {"id": alias, "spend_usd": ".332" if index == 0 else "0",
+         "expense_status": "unavailable" if index == 0 else "unknown"} for index, alias in enumerate(aliases)]}
+    def expense(value):
+        primary = ("Расход неизвестен." if value["expense_status"] == "unknown" else
+                   "Полнота данных о расходе не подтверждена.")
+        return primary, primary + " В истории есть запросы без данных о расходе. " + (
+            "По данным учёта: " + value["spend_usd"] + " USD. Эта сумма не подтверждает итоговый расход.")
+    primary, summary = expense(actor_row)
+    visible = {"employee_primary": primary, "employee_summary": summary + " Остаток не подтверждён.", "models": {}}
+    keys = {}
+    for index, model in enumerate(actor_row["models"]):
+        primary, text = expense(model)
+        visible["models"][model["id"]] = {"primary": primary, "expense": text,
+            "blocked": "Заблокирована" if index else "Не заблокирована"}
+        keys[model["id"]] = {"blocked": bool(index)}
+    return [accounts, [actor_row], visible, keys]
+
+
+class UnknownAdminRenderTests(unittest.TestCase):
+    def reject(self, mutate):
+        values = unknown_packet(); mutate(values)
+        with self.assertRaises((AssertionError, ValueError, KeyError)): B.verify_unknown_render(*values)
+
+    def test_unknown_primary_keeps_zero_native_counter_secondary_and_not_final(self):
+        values = unknown_packet()
+        result = B.verify_unknown_render(*values)
+        self.assertTrue(result["employee_unknown_primary"])
+        self.assertTrue(result["native_counters_not_final"])
+        self.assertFalse(result["known_subtotal_present"])
+        self.assertEqual(len(result["unknown_models"]), 2)
+        self.assertNotIn("spend_usd", result)
+
+    def test_actual_employee_model_and_source_roster_are_required(self):
+        self.reject(lambda v: v[0].update(actor_id=str(uuid4())))
+        self.reject(lambda v: v[0].update(employee_ids=[v[0]["admin"]["id"]]))
+        self.reject(lambda v: v[0]["managed_model_ids"].reverse())
+        self.reject(lambda v: v[1][0]["models"].pop())
+        self.reject(lambda v: v[0].update(skill_id="another-skill"))
+
+    def test_unknown_cannot_be_cleared_or_presented_as_confirmed_subtotal(self):
+        self.reject(lambda v: v[1][0].update(expense_status="known"))
+        self.reject(lambda v: v[1][0]["models"][1].update(expense_status="unavailable"))
+        self.reject(lambda v: v[1][0].update(known_subtotal_usd="0"))
+        self.reject(lambda v: v[1][0]["models"][1].update(known_subtotal_usd="0"))
+        self.reject(lambda v: v[1][0]["models"][0].update(expense_status="known"))
+
+    def test_primary_final_zero_and_missing_counter_caveats_are_rejected(self):
+        self.reject(lambda v: v[2].update(employee_primary="0 USD"))
+        self.reject(lambda v: v[2].update(employee_summary="Расход неизвестен. По данным учёта: .332 USD."))
+        alias = unknown_packet()[0]["managed_model_ids"][1]
+        self.reject(lambda v: v[2]["models"][alias].update(expense="Расход неизвестен. По данным учёта: 0 USD."))
+        self.reject(lambda v: v[2]["models"][alias].update(primary="0"))
+
+    def test_visible_counter_and_historical_qualification_must_match_saved_row(self):
+        self.reject(lambda v: v[2].update(employee_summary=v[2]["employee_summary"].replace(".332", "9")))
+        self.reject(lambda v: v[2].update(employee_summary=v[2]["employee_summary"].replace(
+            "В истории есть запросы без данных о расходе.", "")))
+
+    def test_block_label_requires_actual_boolean_native_readback(self):
+        alias = unknown_packet()[0]["managed_model_ids"][1]
+        self.reject(lambda v: v[3][alias].update(blocked=False))
+        self.reject(lambda v: v[3][alias].update(blocked="true"))
+        self.reject(lambda v: v[2]["models"][alias].update(blocked="Не заблокирована"))
+
+
 if __name__ == "__main__":
     unittest.main()
