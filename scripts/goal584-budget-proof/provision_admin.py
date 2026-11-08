@@ -44,6 +44,8 @@ MODEL_ID = "goal584-budget-admin"
 SOURCE = Path("/proof/budgets/admin_tools.py")
 UNKNOWN_ADMIN_STATE = Path('/proof-private/admin-unknown-state.private.json')
 UNKNOWN_ADMIN_ACCOUNTS = Path('/proof-private/admin-unknown-accounts.private.json')
+# Stand-only headroom for the native reservation of both full-context Tool rounds.
+UNKNOWN_ADMIN_CAP = Decimal('10')
 SKILL = """# Employee budget administration
 
 For a request to view or configure employee budgets, call open_budget_form.
@@ -373,8 +375,8 @@ async def unknown_setup(webui, common, office, unknown, path, handoff):
             selected['journal'].append('native-initialization-before-write'); write_private(path, selected)
         async with ClientSession(trust_env=False) as session:
             client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)['operator_token'])
-            own = await client.initialize_employee(selected['admin']['id'], ((ALIASES[0], Decimal(2)),),
-                                                   Decimal(2), gateway, before_write=guard)
+            own = await client.initialize_employee(selected['admin']['id'], ((ALIASES[0], UNKNOWN_ADMIN_CAP),),
+                                                   UNKNOWN_ADMIN_CAP, gateway, before_write=guard)
             require(await client.read_employee(own.user_id, (ALIASES[0],)) == own, 'New admin native budget readback differs')
         selected['admin_fixture']['preset'] = install_resources(webui, unknown_view(common, selected), source,
             managed_model_ids=ALIASES, base_model_id=ALIASES[0])
@@ -382,9 +384,9 @@ async def unknown_setup(webui, common, office, unknown, path, handoff):
         require({k: v for k, v in observed.items() if k != 'own'} == initial,
                 'Admin setup changed existing personal/service budgets or history')
         own = observed['own']['budget']
-        require(own['user_id'] == selected['admin']['id'] and Decimal(own['max_budget']) == Decimal(2)
+        require(own['user_id'] == selected['admin']['id'] and Decimal(own['max_budget']) == UNKNOWN_ADMIN_CAP
                 and Decimal(own['spend']) == 0 and len(own['models']) == 1
-                and own['models'][0]['model'] == ALIASES[0] and Decimal(own['models'][0]['max_budget']) == Decimal(2),
+                and own['models'][0]['model'] == ALIASES[0] and Decimal(own['models'][0]['max_budget']) == UNKNOWN_ADMIN_CAP,
                 'New admin native budget differs from the known-only synthetic assignment')
         after = unknown_webui_state(webui, common, office, unknown)
         unknown_preserved(before, after, new_admin=selected['admin'], installing=True)
