@@ -1715,5 +1715,276 @@ class DelegatedNativeBaseAccessTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(filters.count('officecli_auto_attach_filter'), 1)
 
 
+class TerminalProvisionTests(unittest.TestCase):
+    """Actual provision/private/native-budget owners; explicit HTTP/DB leaves."""
+    @classmethod
+    def setUpClass(cls):
+        import test_service_tasks
+        cls.budget = sys.modules['employee_budget_admin_client']
+
+    def exercise(self, change=None, *, cli=False):
+        from types import SimpleNamespace
+        from hashlib import sha256
+        from provision_cost_display import FILTER_ID
+        actor = {'id': '33333333-3333-4333-8333-333333333333', 'token': 'synthetic-terminal-actor'}
+        admin, foreign = {'id': OWNER, 'token': 'synthetic-terminal-admin'}, {'id': CONTROL, 'token': 'synthetic-terminal-foreign'}
+        key = 'synthetic-terminal-only-' + 'k' * 40
+        grants = [{'principal_type':'user','principal_id':actor['id'],'permission':'read'}]
+        profiles = json.loads((HERE.parents[1]/'deploy/openwebui-tools/corporate_template_models.json').read_text(encoding='utf8'))
+        parent = copy.deepcopy(next(row for row in profiles if row['id'] == 'corporate-documents'))
+        parent.update(base_model_id='gpt-6.1-sol', access_grants=grants, user_id=OWNER, write_access=True)
+        parent['meta']['filterIds'] = [FILTER_ID]
+        parent['params']['untouched_native'] = {'nested': [True, 17]}
+        base = {'id':'gpt-6.1-sol','name':'gpt-6.1-sol','base_model_id':None,'user_id':OWNER,'write_access':True,
+            'params':{'max_tokens':12000},'meta':{'filterIds':[FILTER_ID]},'access_grants':grants,'is_active':True}
+        workflow = {'id':P.WORKFLOW_SKILL_ID,'content':'actual complete root Skill','version_id':OWNER,
+            'is_active':True,'access_grants':grants}
+        state = {'schema':1,'stage':'setup_complete','admin':admin,'users':[foreign],
+            'office_setup':{'workflow_skill':workflow},'office_delegation_setup':{'stage':'readback_ready',
+                'actor':actor,'models':{'corporate-documents':parent},'base_models':{'gpt-6.1-sol':base}}}
+        old = dict(id='existing-terminal',name='Preserved',enabled=False,url='http://old-terminal:8000',path='/openapi.json',
+            key='old-private-sentinel',auth_type='bearer',forward_cookies=False,config={'access_grants':[]},
+            server_type=None,policy_id=None,vendor_extra={'untouched':[1,2]})
+        world = SimpleNamespace(state=state, rows={'corporate-documents':copy.deepcopy(parent),'gpt-6.1-sol':copy.deepcopy(base)},
+            registry={'TERMINAL_SERVER_CONNECTIONS':[old]}, tools={}, valves={}, calls=[], budget_calls=[],
+            key=key, actor=actor, admin=admin, foreign=foreign, health={'status':'ok'},
+            schema={'openapi':'3.1.0','info':{'version':'0.14.0'},'paths':{'/execute':{'post':{'operationId':'run_command',
+                'requestBody':{'content':{'application/json':{'schema':{'$ref':'#/components/schemas/ExecRequest'}}}}}}},
+                'components':{'schemas':{'ExecRequest':{'type':'object','required':['command'],
+                    'properties':{'command':{'type':'string'},'cwd':{'anyOf':[{'type':'string'},{'type':'null'}]},
+                                  'env':{'anyOf':[{'type':'object'},{'type':'null'}]}}}}}},
+            fault=None, model_absence=404, foreign_session=None, failed_post=None, mutate_after_model=None, source_fault=False)
+        user = {'user_id':actor['id'],'user_role':'internal_user','max_budget':2000,'spend':0,'budget_duration':'1mo','budget_reset_at':None}
+        keys = [dict(token=str(index+1)*64,user_id=actor['id'],team_id=None,models=[alias],
+            key_alias=self.budget.assignment_alias(actor['id'],alias),metadata=self.budget.assignment_metadata(alias),max_budget=1000,
+            spend=0,budget_duration='1mo',budget_reset_at=None,blocked=False) for index,alias in enumerate(('gpt-6.1-sol','gpt-6.1-terra'))]
+        world.budget_user, world.budget_keys = user, keys
+
+        class Response(BytesIO):
+            headers = {}
+            def __init__(self,status,value): self.code=status; super().__init__(json.dumps(value).encode())
+        def permitted(account, record):
+            return account is admin or any(g.get('principal_id') in (account['id'],'*') and g.get('permission')=='read'
+                                           for g in record.get('access_grants',[]))
+        class Transport:
+            def open(transport,request,timeout):
+                parsed=urlsplit(request.full_url);route=parsed.path;method=request.method
+                token=request.get_header('Authorization');account=next(a for a in (admin,actor,foreign) if token=='Bearer '+a['token'])
+                body=json.loads(request.data) if request.data else None
+                world.calls.append((method,route,account['id'],copy.deepcopy(body)))
+                if method=='POST':
+                    journal=P.read_private(world.target)['journal'][-1]
+                    assert journal['route']==route and journal['body']==body and journal['returned'] is False
+                    if world.failed_post==route:return Response(500,{'detail':'native failed'})
+                    if route=='/api/v1/configs/terminal_servers':world.registry=copy.deepcopy(body)
+                    elif route=='/api/v1/tools/create':
+                        specs=[{'name':name,'parameters':{'type':'object','properties':{arg:{'type':'string'}},'required':[arg]}}
+                            for name,arg in (('stage_chat_file','file_id'),('publish_terminal_file','path'))]
+                        world.tools[body['id']]=copy.deepcopy(body)|{'user_id':OWNER,'write_access':True,'specs':specs}
+                        world.valves={'openwebui_base_url':'http://127.0.0.1:8080','max_file_mib':32}
+                    elif route.endswith('/valves/update'):world.valves=copy.deepcopy(body)
+                    elif route=='/api/v1/models/create':
+                        world.rows[body['id']]=copy.deepcopy(body)|{'user_id':OWNER,'write_access':True}
+                        if world.mutate_after_model:world.mutate_after_model(world)
+                    else:raise AssertionError('Unexpected Terminal write')
+                    return Response(200,world.registry if route=='/api/v1/configs/terminal_servers' else {'ok':True})
+                if route=='/api/v1/auths/':
+                    return Response(200,world.foreign_session if account is foreign and world.foreign_session else
+                        {'id':account['id'],'role':'admin' if account is admin else 'user'})
+                if route=='/api/v1/configs/terminal_servers':return Response(200,world.registry)
+                if route=='/openai/config':return Response(200,{'OPENAI_API_CONFIGS':{'0':{'api_type':'responses','model_ids':['gpt-6.1-sol','gpt-6.1-terra']}}})
+                if route=='/api/v1/tasks/config':return Response(200,{'ENABLE_FOLLOW_UP_GENERATION':True,'unchanged':17})
+                if route=='/api/v1/skills/id/'+P.WORKFLOW_SKILL_ID:return Response(200,workflow)
+                if route.startswith('/api/v1/functions/id/'):
+                    return Response(200,{'ledger_base_url':'http://proxy:4000'} if route.endswith('/valves') else {'is_active':True,'id':FILTER_ID})
+                if route=='/api/v1/models/model':
+                    identifier=parse_qs(parsed.query)['id'][0]
+                    if identifier not in world.rows:return Response(world.model_absence,{})
+                    return Response(200,world.rows[identifier]) if permitted(account,world.rows[identifier]) else Response(401,{'detail':'denied'})
+                if route=='/api/models':
+                    rows=[]
+                    for identifier,record in world.rows.items():
+                        if permitted(account,record):
+                            info=copy.deepcopy(record)
+                            if account is not admin:info['params']={}
+                            row={'id':identifier,'owned_by':'openai','info':info}
+                            if record.get('base_model_id') is None:row['urlIdx']=0
+                            rows.append(row)
+                    return Response(200,{'data':rows})
+                if route=='/api/v1/terminals/':
+                    return Response(200,[{'id':entry['id']} for entry in world.registry['TERMINAL_SERVER_CONNECTIONS'] or []
+                        if entry.get('enabled') and permitted(account,{'access_grants':entry.get('config',{}).get('access_grants',[])})])
+                if route.startswith('/api/v1/terminals/'+P.TERMINAL_ID+'/'):
+                    connection=world.registry['TERMINAL_SERVER_CONNECTIONS'][-1]
+                    if not permitted(account,{'access_grants':connection['config']['access_grants']}):return Response(403,{'detail':'denied'})
+                    return Response(200,world.schema if route.endswith('openapi.json') else world.health)
+                if route.startswith('/api/v1/tools/id/'+P.TERMINAL_TOOL_ID):
+                    if P.TERMINAL_TOOL_ID not in world.tools:return Response(404,{})
+                    value=world.tools[P.TERMINAL_TOOL_ID]
+                    if not permitted(account,value):return Response(401,{'detail':'denied'})
+                    if route.endswith('/valves'):return Response(200,world.valves)
+                    value=copy.deepcopy(value)
+                    if account is not admin:value.update(write_access=False);value.pop('content',None)
+                    return Response(200,value)
+                raise AssertionError('Unexpected Terminal read: '+route)
+        async def budget_request(client,method,route,*,params=None,body=None):
+            self.assertEqual(method,'GET');world.budget_calls.append((method,route))
+            if route=='/user/info':return {'user_info':copy.deepcopy(world.budget_user)}
+            self.assertEqual(route,'/key/list')
+            return {'current_page':1,'total_pages':1,'total_count':2,'keys':copy.deepcopy(world.budget_keys)}
+        with TemporaryDirectory() as directory:
+            root=Path(directory);root.chmod(0o700);world.target=root/'terminal-state.private.json'
+            operator=root/'operator.json';operator.write_text(json.dumps({'schema':1,'operator_token':'sk-synthetic-operator'}));operator.chmod(0o600)
+            source=HERE.parents[1]/'deploy/openwebui-tools/terminal_file_transfer.py'
+            if change:change(world)
+            if world.source_fault:
+                changed=root/'wrong-transfer.py';changed.write_bytes(source.read_bytes()+b'\n# altered source\n');source=changed
+            frozen=copy.deepcopy(state);result=error=None
+            original=root/'office-state.private.json';original.write_text(json.dumps(state),encoding='utf8');original.chmod(0o600)
+            original_bytes=original.read_bytes()
+            with patch.object(P,'build_opener',return_value=Transport()),patch.object(P,'OPERATOR_STATE',operator), \
+                    patch.object(self.budget.BudgetAdminClient,'_request',budget_request), \
+                    patch.dict(os.environ,{'STAGING_TERMINAL_API_KEY':key}), \
+                    __import__('contextlib').ExitStack() as stack:
+                if os.name=='nt':
+                    stack.enter_context(patch.object(private_owner,'private_parent'))
+                    stack.enter_context(patch.object(private_owner.stat,'S_IMODE',return_value=0o600))
+                with redirect_stdout(StringIO()) as stdout:
+                    try:
+                        if cli:
+                            argv=['provision_webui.py','--phase','terminal-setup','--private-state',str(original),
+                                '--terminal-state',str(world.target),'--terminal-tool-source',str(source),
+                                '--receipt',str(root/'terminal.safe.json')]
+                            with patch.object(sys,'argv',argv):code=P.main()
+                            result=json.loads(stdout.getvalue());self.assertEqual(code,0,result)
+                        else:result=P.terminal_setup(P.WebUI(),state,world.target,tool_source=source)
+                    except Exception as caught:error=caught
+                if not cli:self.assertEqual(stdout.getvalue(),'')
+                self.assertEqual(state,frozen);self.assertEqual(original.read_bytes(),original_bytes)
+            packet=json.loads(world.target.read_text(encoding='utf8')) if world.target.exists() else None
+            return world,result,packet,error
+
+    def test_native_setup_preserves_full_context_prefix_and_only_new_actor_resources(self):
+        world,result,packet,error=self.exercise()
+        self.assertIsNone(error);self.assertEqual(packet['stage'],'readback_ready')
+        self.assertTrue(result['terminal_setup']['daemon_proxy_verified'])
+        self.assertFalse(result['terminal_setup']['native_terminal_accepted'])
+        self.assertEqual(packet['model']['params'],world.state['office_delegation_setup']['models']['corporate-documents']['params'])
+        self.assertEqual(packet['model']['meta']['toolIds'][:-1],world.state['office_delegation_setup']['models']['corporate-documents']['meta']['toolIds'])
+        self.assertEqual(packet['registry_after']['TERMINAL_SERVER_CONNECTIONS'][:-1],packet['registry_before']['TERMINAL_SERVER_CONNECTIONS'])
+        self.assertTrue(all(entry['returned'] for entry in packet['journal']))
+        self.assertEqual([route for method,route,_,_ in world.calls if method=='POST'],[
+            '/api/v1/configs/terminal_servers','/api/v1/tools/create','/api/v1/tools/id/terminal_file_transfer/valves/update','/api/v1/models/create'])
+        self.assertTrue(all(method=='GET' for method,_ in world.budget_calls))
+        for value in (world.key,'actual complete root Skill','old-private-sentinel'):
+            self.assertNotIn(value,json.dumps(result))
+
+    def test_prewrite_absence_registry_and_foreign_auth_drift_are_fatal_without_posts(self):
+        cases=(lambda w:setattr(w,'model_absence',401),
+            lambda w:setattr(w,'source_fault',True),
+            lambda w:w.tools.update({P.TERMINAL_TOOL_ID:{'id':P.TERMINAL_TOOL_ID}}),
+            lambda w:w.registry['TERMINAL_SERVER_CONNECTIONS'][0].pop('name'),
+            lambda w:w.registry['TERMINAL_SERVER_CONNECTIONS'][0].update(id=P.TERMINAL_ID),
+            lambda w:setattr(w,'foreign_session',{'id':w.actor['id'],'role':'user'}))
+        for change in cases:
+            with self.subTest(change=change):
+                world,result,packet,error=self.exercise(change)
+                self.assertIsNone(result);self.assertIsNotNone(error);self.assertIsNone(packet)
+                self.assertFalse(any(method=='POST' for method,_,_,_ in world.calls))
+
+    def test_explicit_cli_phase_writes_separate_journal_without_replacing_office_state(self):
+        world,result,packet,error=self.exercise(cli=True)
+        self.assertIsNone(error);self.assertTrue(result['passed']);self.assertEqual(result['phase'],'terminal-setup')
+        self.assertFalse(result['inference_issued']);self.assertEqual(packet['stage'],'readback_ready')
+
+    def test_native_null_registry_is_known_empty_without_fabricating_old_rows(self):
+        _,result,packet,error=self.exercise(lambda w:w.registry.update(TERMINAL_SERVER_CONNECTIONS=None))
+        self.assertIsNone(error);self.assertIsNone(packet['registry_before']['TERMINAL_SERVER_CONNECTIONS'])
+        self.assertEqual(len(packet['registry_after']['TERMINAL_SERVER_CONNECTIONS']),1)
+
+    def test_real_native_readiness_is_mandatory_and_partial_config_is_journalled(self):
+        for change in (lambda w:w.health.update(status=False),lambda w:w.schema['paths']['/execute']['post'].update(operationId='fake_command'),
+                       lambda w:w.schema['components']['schemas']['ExecRequest']['properties'].pop('command')):
+            with self.subTest(change=change):
+                world,result,packet,error=self.exercise(change)
+                self.assertIsNone(result);self.assertIsNotNone(error)
+                self.assertEqual(packet['stage'],'failed');self.assertFalse(packet['daemon_proxy_verified'])
+                self.assertEqual(len(packet['journal']),1);self.assertTrue(packet['journal'][0]['returned'])
+                self.assertFalse(world.tools)
+
+    def test_post_failure_keeps_exact_unreturned_intent_without_rollback_retry(self):
+        world,result,packet,error=self.exercise(lambda w:setattr(w,'failed_post','/api/v1/tools/create'))
+        self.assertIsNotNone(error);self.assertIsNone(result);self.assertEqual(packet['stage'],'failed')
+        self.assertTrue(packet['daemon_proxy_verified']);self.assertFalse(packet['journal'][-1]['returned'])
+        self.assertEqual(packet['journal'][-1]['route'],'/api/v1/tools/create')
+        self.assertEqual(sum(method=='POST' and route=='/api/v1/tools/create' for method,route,_,_ in world.calls),1)
+
+    def test_context_budget_or_foreign_permission_drift_cannot_complete(self):
+        for mutate in (lambda w:w.rows['corporate-documents']['params'].update(system='changed'),
+                       lambda w:w.budget_user.update(spend=1),
+                       lambda w:w.rows[P.TERMINAL_MODEL_ID]['access_grants'].append({'principal_type':'user','principal_id':'*','permission':'read'})):
+            with self.subTest(mutate=mutate):
+                world,result,packet,error=self.exercise(lambda w:setattr(w,'mutate_after_model',mutate))
+                self.assertIsNone(result);self.assertIsNotNone(error);self.assertEqual(packet['stage'],'failed')
+
+
+class TerminalNativeContractTests(unittest.IsolatedAsyncioTestCase):
+    """Pinned native DTO and access bodies; config/group IO leaves only."""
+    @classmethod
+    def setUpClass(cls):
+        import ast, hashlib, __future__
+        from pydantic import BaseModel, ConfigDict
+        cls.root=Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT',str(HERE.parents[1]/
+            'local/goal584/cost-display/open-webui/backend/open_webui')))
+        cls.ns={'BaseModel':BaseModel,'ConfigDict':ConfigDict}
+        pins={'routers/configs.py':'e417a2c7bff5c839f2f134e21f9d1901353999aa408f1cafcda014f66c62ca1e',
+              'utils/access_control/__init__.py':'aed18ea3b7788597a8b4eaf741d32e07b0244bc390ab792e44bda611d324b568'}
+        for path,names in (('routers/configs.py',{'TerminalServerConnection','TerminalServersConfigForm'}),
+                           ('utils/access_control/__init__.py',{'has_access','has_connection_access'})):
+            if not (cls.root/path).is_file():
+                if 'GOAL584_NATIVE_SOURCE_ROOT' in os.environ:raise AssertionError('Pinned Terminal native source unavailable')
+                raise unittest.SkipTest('Set GOAL584_NATIVE_SOURCE_ROOT for pinned native Terminal contract checks')
+            raw=(cls.root/path).read_bytes().replace(b'\r\n',b'\n')
+            assert hashlib.sha256(raw).hexdigest()==pins[path],path
+            nodes=[node for node in ast.parse(raw).body if getattr(node,'name',None) in names]
+            assert len(nodes)==len(names)
+            exec(compile(ast.Module(body=nodes,type_ignores=[]),path,'exec',flags=__future__.annotations.compiler_flag),cls.ns)
+        cls.ns['TerminalServersConfigForm'].model_rebuild(_types_namespace=cls.ns)
+
+    async def test_actual_native_registry_dto_preserves_canonical_prefix_and_exposes_legacy_normalization(self):
+        connection=dict(id='old',name='Old',enabled=False,url='http://old:8000',path='/openapi.json',key='private-old',
+            auth_type='bearer',forward_cookies=False,config={'access_grants':[]},server_type=None,policy_id=None,vendor={'keep':[1]})
+        form=self.ns['TerminalServersConfigForm'].model_validate({'TERMINAL_SERVER_CONNECTIONS':[connection]})
+        self.assertEqual(form.model_dump()['TERMINAL_SERVER_CONNECTIONS'],[connection])
+        legacy=copy.deepcopy(connection);legacy.pop('name')
+        self.assertNotEqual(self.ns['TerminalServerConnection'].model_validate(legacy).model_dump(),legacy)
+        # This exact native default insertion is why the provisioner rejects an
+        # incomplete old prefix before POST rather than silently rewriting it.
+
+    async def test_actual_native_connection_acl_accepts_actor_and_rejects_foreign_and_top_level_grants(self):
+        from types import ModuleType,SimpleNamespace
+        config=ModuleType('open_webui.config');config.BYPASS_ADMIN_ACCESS_CONTROL=True
+        actor,foreign=SimpleNamespace(id=OWNER,role='user'),SimpleNamespace(id=CONTROL,role='user')
+        connection={'config':{'access_grants':[{'principal_type':'user','principal_id':OWNER,'permission':'read'}]}}
+        with patch.dict(sys.modules,{'open_webui.config':config}):
+            check=self.ns['has_connection_access']
+            self.assertTrue(await check(actor,connection,set()))
+            self.assertFalse(await check(foreign,connection,set()))
+            self.assertFalse(await check(actor,{'access_grants':connection['config']['access_grants']},set()))
+            wrong=copy.deepcopy(connection);wrong['config']['access_grants'][0]['permission']='write'
+            self.assertFalse(await check(actor,wrong,set()))
+            self.assertTrue(await check(SimpleNamespace(id=CONTROL,role='admin'),connection,set()))
+
+    def test_optin_proxy_mount_is_readonly_and_uses_the_same_private_daemon_key(self):
+        import yaml
+        tree=yaml.compose((HERE.parents[1]/'compose/goal584.office-terminal-proof.yml').read_text(encoding='utf8'))
+        root={key.value:value for key,value in tree.value}
+        services={key.value:value for key,value in root['services'].value}
+        proxy=yaml.safe_load(yaml.serialize(services['proxy']))
+        self.assertEqual(proxy['environment'],{'STAGING_TERMINAL_API_KEY':'${STAGING_TERMINAL_API_KEY:?Set a separate staging Terminal key}'})
+        self.assertEqual(proxy['volumes'],[{'type':'bind','source':'../deploy/openwebui-tools/terminal_file_transfer.py',
+            'target':'/proof/terminal_file_transfer.py','read_only':True,'bind':{'create_host_path':False}}])
+
+
 if __name__ == "__main__":
     unittest.main()

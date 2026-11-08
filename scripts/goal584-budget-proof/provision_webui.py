@@ -53,6 +53,10 @@ OFFICE_FILTER_SHA256 = "9edf90bfa7bab3c75d7d8d794ea39761dff3b4b14c7d985270b47b15
 WORKFLOW_SKILL_ID = "artifact-workflow"
 WORKFLOW_SKILL_SHA256 = "c3abf17750e03a943e1b98c6ae0efd24e0d8b297e5b3b1bb6953181723c6a14d"
 TEMPLATE_PUBLISHER_SHA256 = "85385a0093b095fe0598c340bf42cc8187728788c7ff213298206563904671ac"
+TERMINAL_ID = "goal584-terminal-office"
+TERMINAL_MODEL_ID = "goal584-terminal-sol"
+TERMINAL_TOOL_ID = "terminal_file_transfer"
+TERMINAL_TOOL_SHA256 = "be8fb4b8e39753f716a7c5980b28666e9bf8008ba185549d9ec698502ad2736d"
 DELEGATION_VALVES = {"DEFAULT_MODEL": "corporate-office-worker", "AVAILABLE_TOOL_IDS": "server:officecli",
     "EXCLUDED_TOOL_IDS": "", "MAX_ITERATIONS": 12, "MAX_PARALLEL_AGENTS": 1,
     "APPLY_INLET_FILTERS": True, "ENABLE_CONTEXT_COMPACTION": False, "LARGE_TOOL_RESULT_MODE": "raw",
@@ -1086,6 +1090,214 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
         'handoff_sha256': sha256(path.read_bytes()).hexdigest()}}
 
 
+def terminal_setup(webui: WebUI, state: dict, path: Path, *, tool_source: Path) -> dict:
+    """Opt-in native components only. No LLM, new account or financial write."""
+    import asyncio
+    from dataclasses import asdict
+    from aiohttp import ClientSession
+    from employee_budget_admin_client import BudgetAdminClient
+    from provision_cost_display import FILTER_ID, grant_set, model_body, source_hash
+    from prove_service_tasks import response
+
+    selected = state.get('office_delegation_setup', {})
+    require(state.get('stage') == 'setup_complete' and selected.get('stage') == 'readback_ready'
+            and not path.exists() and not path.is_symlink(), 'Terminal requires fresh handoff and prepared Sol actor')
+    require(tool_source.is_file() and not tool_source.is_symlink() and 0 < tool_source.stat().st_size <= 128 * 1024,
+            'Terminal transfer source unavailable')
+    source = tool_source.read_text(encoding='utf8')
+    require(source_hash(source) == TERMINAL_TOOL_SHA256, 'Terminal transfer source differs')
+    key = os.environ.get('STAGING_TERMINAL_API_KEY', '')
+    require(isinstance(key, str) and 32 <= len(key) <= 128 and all(c.isascii() and (c.isalnum() or c in '_-') for c in key),
+            'Terminal separate private key unavailable')
+    admin, actor = state['admin'], selected['actor']
+    foreign = [account for account in state['users'] if account['id'] not in (actor['id'], admin['id'])]
+    require(actor['id'] != admin['id'] and foreign, 'Terminal authenticated foreign-user prerequisite missing')
+    accounts = [admin, actor, *foreign]
+    for account in accounts: webui.session(account, 'admin' if account is admin else 'user')
+    registry_path = '/api/v1/configs/terminal_servers'
+    tool_path = '/api/v1/tools/id/' + TERMINAL_TOOL_ID
+    parent = webui.model(admin['token'], 'corporate-documents')
+    base = webui.model(admin['token'], 'gpt-6.1-sol')
+    require(model_body(parent) == model_body(selected['models']['corporate-documents'])
+            and model_body(base) == model_body(selected['base_models']['gpt-6.1-sol'])
+            and parent.get('base_model_id') == base.get('id') == 'gpt-6.1-sol'
+            and base.get('base_model_id') is None
+            and FILTER_ID in parent.get('meta', {}).get('filterIds', [])
+            and FILTER_ID in base.get('meta', {}).get('filterIds', [])
+            and parent.get('meta', {}).get('builtinTools', {}).get('tasks') is True,
+            'Terminal existing Sol context/filter/base differs')
+    registry = webui.ok('GET', registry_path, token=admin['token'])
+    require('TERMINAL_SERVER_CONNECTIONS' in registry, 'Terminal native registry unavailable')
+    old = registry['TERMINAL_SERVER_CONNECTIONS']
+    require(old is None or isinstance(old, list), 'Terminal native registry malformed')
+    old = [] if old is None else old
+    # Native POST model_dump supplies defaults to every row. Refuse a legacy
+    # incomplete prefix rather than silently normalizing unrelated connections.
+    fields = {'id', 'name', 'enabled', 'url', 'path', 'key', 'auth_type', 'forward_cookies', 'config', 'server_type', 'policy_id'}
+    for entry in old:
+        require(isinstance(entry, dict) and fields <= set(entry) and not {'policy', 'lifecycle'} & set(entry)
+                and all(entry[name] is None or isinstance(entry[name], str)
+                        for name in ('id', 'name', 'path', 'key', 'auth_type', 'server_type', 'policy_id'))
+                and isinstance(entry['url'], str) and type(entry['forward_cookies']) is bool
+                and (entry['enabled'] is None or type(entry['enabled']) is bool)
+                and (entry['config'] is None or isinstance(entry['config'], dict)),
+                'Terminal existing registry cannot be preserved by native schema')
+    require(all(entry['id'] != TERMINAL_ID for entry in old), 'Terminal connection already exists')
+    for route in (tool_path, '/api/v1/models/model?' + urlencode({'id': TERMINAL_MODEL_ID})):
+        status, _ = response(webui, 'GET', route, admin['token'])
+        require(status == 404, 'Terminal new resource absence is unproven')
+
+    def catalogs():
+        result = {}
+        for account in accounts:
+            webui.session(account, 'admin' if account is admin else 'user')
+            rows = webui.ok('GET', '/api/models?refresh=true', token=account['token']).get('data')
+            require(isinstance(rows, list) and all(isinstance(row, dict) and isinstance(row.get('id'), str) for row in rows)
+                    and len({row['id'] for row in rows}) == len(rows), 'Terminal native catalog malformed')
+            result[account['id']] = {row['id']: row for row in rows}
+        return result
+
+    def preserved():
+        return {'connection': webui.ok('GET', '/openai/config', token=admin['token']),
+            'tasks': webui.ok('GET', '/api/v1/tasks/config', token=admin['token']),
+            'parent': webui.model(admin['token'], parent['id']), 'base': webui.model(admin['token'], base['id']),
+            'workflow': webui.ok('GET', '/api/v1/skills/id/' + WORKFLOW_SKILL_ID, token=actor['token']),
+            'filter': webui.ok('GET', '/api/v1/functions/id/' + FILTER_ID, token=admin['token']),
+            'filter_valves': webui.ok('GET', '/api/v1/functions/id/' + FILTER_ID + '/valves', token=admin['token'])}
+
+    async def budget():
+        async with ClientSession(trust_env=False) as session:
+            client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)['operator_token'])
+            value = await client.read_employee(actor['id'], ('gpt-6.1-sol', 'gpt-6.1-terra'))
+            return json.loads(json.dumps(asdict(value), default=str))
+
+    before, visible_before, budget_before = preserved(), catalogs(), asyncio.run(budget())
+    workflow = state['office_setup']['workflow_skill']
+    require(all(before['workflow'].get(name) == workflow.get(name)
+                for name in ('id', 'content', 'version_id', 'is_active', 'access_grants'))
+            and before['workflow'].get('is_active') is True and before['filter'].get('is_active') is True,
+            'Terminal existing native root Skill/Filter differs')
+    require(TERMINAL_MODEL_ID not in visible_before[actor['id']] and 'gpt-6.1-sol' in visible_before[actor['id']],
+            'Terminal actor base is inaccessible or profile exists')
+    actor_base = visible_before[actor['id']]['gpt-6.1-sol']
+    require(actor_base.get('urlIdx') == 0 and actor_base.get('info', {}).get('base_model_id') is None
+            and actor_base.get('owned_by') == 'openai', 'Terminal actor native base route differs')
+    grants = [{'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}]
+    profile = model_body(parent)
+    profile.update(id=TERMINAL_MODEL_ID, name='GOAL584 Terminal Sol', access_grants=grants)
+    tool_ids = profile['meta'].get('toolIds', [])
+    require(isinstance(tool_ids, list) and TERMINAL_TOOL_ID not in tool_ids
+            and isinstance(profile['meta'].get('capabilities'), dict), 'Terminal parent Tool IDs/capabilities differ')
+    profile['meta']['toolIds'] = [*tool_ids, TERMINAL_TOOL_ID]
+    profile['meta']['capabilities']['terminal'] = True
+    record = {'schema': 1, 'stage': 'preparing', 'actor_id': actor['id'], 'admin_id': admin['id'],
+        'tool_source_sha256': TERMINAL_TOOL_SHA256, 'journal': [], 'registry_before': registry,
+        'before': before, 'catalogs_before': visible_before, 'budget_before': budget_before,
+        'daemon_proxy_verified': False, 'inference_issued': False, 'native_terminal_accepted': False}
+    write_private(path, record)
+
+    def post(route, body):
+        webui.session(admin, 'admin')
+        record['journal'].append({'route': route, 'body': copy.deepcopy(body), 'returned': False})
+        write_private(path, record)
+        result = webui.ok('POST', route, token=admin['token'], body=body)
+        record['journal'][-1].update(returned=True, response=copy.deepcopy(result))
+        write_private(path, record)
+        return result
+
+    try:
+        connection = dict(id=TERMINAL_ID, name='GOAL584 native Terminal', enabled=True,
+            url='http://open-terminal-office:8000', path='/openapi.json', key=key, auth_type='bearer',
+            forward_cookies=False, config={'access_grants': grants}, server_type=None, policy_id=None)
+        wanted = {'TERMINAL_SERVER_CONNECTIONS': [*copy.deepcopy(old), connection]}
+        post(registry_path, wanted)
+        require(webui.ok('GET', registry_path, token=admin['token']) == wanted, 'Terminal native registry prefix/readback differs')
+        status, allowed = response(webui, 'GET', '/api/v1/terminals/', actor['token'])
+        require(status == 200 and isinstance(allowed, list) and sum(item.get('id') == TERMINAL_ID for item in allowed) == 1,
+                'Terminal actor native selection unavailable')
+        proxy = '/api/v1/terminals/' + TERMINAL_ID + '/'
+        health = webui.ok('GET', proxy + 'health', token=actor['token'])
+        schema = webui.ok('GET', proxy + 'openapi.json', token=actor['token'])
+        command = schema.get('paths', {}).get('/execute', {}).get('post', {})
+        body = command.get('requestBody', {}).get('content', {}).get('application/json', {}).get('schema', {})
+        if isinstance(body, dict) and '$ref' in body:
+            reference = body['$ref']
+            require(isinstance(reference, str) and reference.startswith('#/components/schemas/')
+                    and '/' not in reference[len('#/components/schemas/'):], 'Terminal native command schema reference unsupported')
+            body = schema.get('components', {}).get('schemas', {}).get(reference.rsplit('/', 1)[-1], {})
+        require((health.get('status') is True or health.get('status') == 'ok')
+                and isinstance(schema.get('openapi'), str) and schema['openapi'].startswith('3.')
+                and isinstance(schema.get('info', {}).get('version'), str) and schema['info']['version']
+                and command.get('operationId') == 'run_command' and isinstance(body, dict)
+                and body.get('type') == 'object' and body.get('required') == ['command']
+                and set(body.get('properties', {})) == {'command', 'cwd', 'env'}
+                and body['properties']['command'].get('type') == 'string',
+                'Terminal actual native health/OpenAPI prerequisite failed')
+        record.update(health=health, openapi=schema, daemon_proxy_verified=True)
+        write_private(path, record)
+        post('/api/v1/tools/create', {'id': TERMINAL_TOOL_ID, 'name': 'Native Terminal File Transfer',
+            'content': source, 'meta': {}, 'access_grants': grants})
+        defaults = webui.ok('GET', tool_path + '/valves', token=admin['token'])
+        require(set(defaults) == {'openwebui_base_url', 'max_file_mib'}, 'Terminal native Tool Valves differ')
+        valves = defaults | {'openwebui_base_url': 'http://127.0.0.1:8080', 'max_file_mib': 32}
+        post(tool_path + '/valves/update', valves)
+        tool = webui.ok('GET', tool_path, token=admin['token'])
+        require(source_hash(tool.get('content', '')) == TERMINAL_TOOL_SHA256 and grant_set(tool) == grant_set({'access_grants': grants})
+                and len(tool['access_grants']) == 1 and tool.get('user_id') == admin['id']
+                and webui.ok('GET', tool_path + '/valves', token=admin['token']) == valves
+                and {spec.get('name') for spec in tool.get('specs', [])} == {'stage_chat_file', 'publish_terminal_file'}
+                and len(tool['specs']) == 2, 'Terminal native Tool source/ACL/specs/Valves differ')
+        for spec in tool['specs']:
+            argument = 'file_id' if spec['name'] == 'stage_chat_file' else 'path'
+            parameters = spec.get('parameters', {})
+            require(parameters.get('type') == 'object' and set(parameters.get('properties', {})) == {argument}
+                    and parameters['properties'][argument].get('type') == 'string'
+                    and parameters.get('required') == [argument], 'Terminal native Tool argument schema differs')
+        readable = webui.ok('GET', tool_path, token=actor['token'])
+        require(readable.get('id') == TERMINAL_TOOL_ID and readable.get('write_access') is False
+                and readable.get('specs') == tool['specs'], 'Terminal actor native Tool access differs')
+        post('/api/v1/models/create', profile)
+        saved = webui.model(admin['token'], TERMINAL_MODEL_ID)
+        require(model_body(saved) == profile and saved.get('user_id') == admin['id'], 'Terminal native profile context/ACL differs')
+        require(webui.ok('GET', registry_path, token=admin['token']) == wanted,
+                'Terminal registry changed before readiness readback')
+        require(preserved() == before and asyncio.run(budget()) == budget_before,
+                'Terminal setup changed existing context/route/tasks/budget')
+        visible_after = catalogs()
+        for account in accounts:
+            prior, current = visible_before[account['id']], visible_after[account['id']]
+            expected = {TERMINAL_MODEL_ID} if account is admin or account is actor else set()
+            require(set(current) == set(prior) | expected and all(current[name] == row for name, row in prior.items()),
+                    'Terminal changed existing catalog rows/ACL')
+        current = visible_after[actor['id']][TERMINAL_MODEL_ID]
+        require(current.get('owned_by') == 'openai' and current.get('info', {}).get('base_model_id') == 'gpt-6.1-sol',
+                'Terminal native actor profile/base binding differs')
+        for account in foreign:
+            webui.session(account, 'user')  # Establish valid authentication separately from ACL denial.
+            status, allowed = response(webui, 'GET', '/api/v1/terminals/', account['token'])
+            require(status == 200 and isinstance(allowed, list) and all(row.get('id') != TERMINAL_ID for row in allowed),
+                    'Terminal foreign selection was not denied')
+            for route, denied in ((proxy + 'health', 403), (tool_path, 401),
+                                  ('/api/v1/models/model?' + urlencode({'id': TERMINAL_MODEL_ID}), 401)):
+                webui.session(account, 'user')
+                status, _ = response(webui, 'GET', route, account['token'])
+                require(status == denied, 'Terminal authenticated foreign ACL denial differs')
+        record.update(stage='readback_ready', registry_after=wanted, tool=tool, tool_valves=valves,
+            model=saved, catalogs_after=visible_after, authenticated_foreign_denial=True)
+        write_private(path, record)
+        return {'terminal_setup': {'status': 'readback_ready', 'tool_source_sha256': TERMINAL_TOOL_SHA256,
+            'daemon_proxy_verified': True, 'inference_issued': False, 'native_terminal_accepted': False,
+            'registry_prefix_preserved': True, 'existing_context_and_budget_unchanged': True,
+            'authenticated_foreign_denial': True}}
+    except Exception:
+        record['stage'] = 'failed'
+        try:
+            write_private(path, record)
+        except Exception:
+            pass
+        raise
+
+
 def office_service_readback(webui: WebUI, state: dict, path: Path, phase: str) -> dict:
     """Read prepared native configuration; no inference or configuration writes.
 
@@ -1231,19 +1443,21 @@ def office_service_setup(webui: WebUI, state: dict, path: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "raise", "plainchat",
-        "office-service-baseline", "office-service-current", "office-setup", "office-service-setup", "office-delegation-setup"))
+        "office-service-baseline", "office-service-current", "office-setup", "office-service-setup", "office-delegation-setup", "terminal-setup"))
     parser.add_argument("--private-state", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--office-state", type=Path)
     parser.add_argument("--delegation-tool-source", type=Path)
     parser.add_argument("--delegation-profiles-source", type=Path)
+    parser.add_argument("--terminal-state", type=Path)
+    parser.add_argument("--terminal-tool-source", type=Path)
     args = parser.parse_args()
     receipt = {"schema": 1, "proof": "goal584-real-webui-native-provisioning", "phase": args.phase,
                "passed": False, "not_qualified": ["management_GUI", "service_classification", "paid_provider"],
                "started_at_utc": datetime.now(timezone.utc).isoformat()}
     if args.phase in ("office-service-baseline", "office-service-current"):
         receipt.update(readback_only=True, native_office_accepted=False)
-    if args.phase in ("office-setup", "office-service-setup", "office-delegation-setup"):
+    if args.phase in ("office-setup", "office-service-setup", "office-delegation-setup", "terminal-setup"):
         receipt.update(inference_issued=False, native_office_accepted=False)
     receipt_path_valid = False
     try:
@@ -1258,11 +1472,18 @@ def main() -> int:
         if args.phase == "office-delegation-setup":
             require(args.delegation_tool_source is not None and args.delegation_profiles_source is not None,
                     "Delegated setup requires exact source inputs")
+        if args.phase == 'terminal-setup':
+            require(args.terminal_state is not None and args.terminal_tool_source is not None
+                    and len({args.private_state.resolve(), args.receipt.resolve(), OPERATOR_STATE.resolve(),
+                             args.terminal_state.resolve()}) == 4
+                    and args.terminal_state.resolve().parent == args.private_state.resolve().parent,
+                    'Terminal setup requires separate journal and exact source input')
         if args.phase == "raise":
             raise_caps(state)
         if args.phase == "plainchat":
             receipt["plainchat_control"] = plainchat(webui, state)
-        observed = (office_delegation_setup(webui, state, args.private_state,
+        observed = (terminal_setup(webui, state, args.terminal_state, tool_source=args.terminal_tool_source)
+            if args.phase == 'terminal-setup' else office_delegation_setup(webui, state, args.private_state,
                 tool_source=args.delegation_tool_source, profiles_source=args.delegation_profiles_source)
             if args.phase == "office-delegation-setup" else
             office_setup(webui, state, args.office_state) if args.phase == "office-setup" else
