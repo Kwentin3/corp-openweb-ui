@@ -255,7 +255,7 @@ def editor_embeds(message, method):
 
 
 def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, output, label, *, status=None,
-                expected_count=2):
+                expected_count=2, observer=None):
     deadline = time.monotonic() + 60
     method = "open_budget_form" if text == INTENT else "apply_budget_form"
     while True:
@@ -265,6 +265,8 @@ def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, outp
         tasks = page.context.request.get(base + "/api/tasks/chat/" + chat_id,
             headers={"Authorization": "Bearer " + token}, timeout=10_000)
         require(tasks.status == 200 and isinstance(tasks.json().get("task_ids"), list), "Native admin task owner unavailable")
+        if observer is not None:
+            observer(stored, tasks.json())
         if message.get("done") is True and not tasks.json()["task_ids"] and embeds:
             break
         if time.monotonic() >= deadline:

@@ -218,5 +218,237 @@ class UnknownAdminRenderTests(unittest.TestCase):
         self.reject(lambda v: v[2]["models"][alias].update(blocked="Не заблокирована"))
 
 
+class UnknownAdminFailureTests(unittest.TestCase):
+    """Actual wait/catch owners at browser/HTTP/filesystem leaves; no browser claim."""
+    def native_state(self):
+        answer, chat = str(uuid4()), str(uuid4())
+        stored = {'id':chat, 'chat':{'history':{'messages':{answer:{'id':answer,'role':'assistant','done':False,
+            'error':{'type':'invalid_request_error','code':'400','message':B.UNKNOWN_PROVIDER_ERROR},
+            'output':[{'type':'function_call','name':'employee_budget_admin_open_budget_form','call_id':'native-open'},
+                      {'type':'function_call_output','call_id':'native-open','status':'completed','embeds':[]}]}}}}}
+        return {'id':answer}, stored, {'task_ids':[str(uuid4())]}
+
+    def private_io(self, stack):
+        import os
+        import stat
+        import prove_gateway_auth as owner
+        if os.name == 'nt':
+            # POSIX mode metadata is an OS leaf on Windows; all existing native
+            # private path/symlink/write/read checks continue to execute.
+            stack.enter_context(patch.object(owner.stat,'S_IMODE',side_effect=lambda mode:0o700 if stat.S_ISDIR(mode) else 0o600))
+        return owner
+
+    def test_wait_editor_observer_receives_actual_references_and_preserves_pending(self):
+        from types import SimpleNamespace
+        import prove_admin_browser as A
+        sent, stored, task_body = self.native_state(); observed=[]; gets=[]
+        response = SimpleNamespace(status=200,json=lambda:task_body)
+        page = SimpleNamespace(context=SimpleNamespace(request=SimpleNamespace(get=lambda *a,**k:gets.append((a,k)) or response)))
+        with tempfile.TemporaryDirectory() as directory, patch.object(A,'chat_read',return_value=stored), \
+                patch.object(A.time,'monotonic',side_effect=[0,61]):
+            with self.assertRaisesRegex(AssertionError,'Native admin task/editor did not complete'):
+                A.wait_editor(page,'http://stand','private-token',stored['id'],sent,'admin',B.MODEL,B.INTENT,
+                    Path(directory),'observed',observer=lambda chat,tasks:observed.append((chat,tasks)))
+            pending=json.loads((Path(directory)/'observed-pending.json').read_text())
+        self.assertIs(observed[0][0],stored); self.assertIs(observed[0][1],task_body)
+        self.assertEqual(len(gets),1)
+        self.assertEqual(set(pending),{'assistant_id','message_fields','done','active_task_ids','top_embed_count','output'})
+        self.assertEqual(pending['assistant_id'],sent['id']); self.assertEqual(pending['active_task_ids'],task_body['task_ids'])
+        self.assertEqual(pending['done'],False)
+
+    def test_wait_editor_default_and_invalid_tasks_keep_original_guards(self):
+        from types import SimpleNamespace
+        import prove_admin_browser as A
+        sent,stored,task_body=self.native_state()
+        for status,body,expected in ((200,task_body,'Native admin task/editor did not complete'),
+                                     (503,{'task_ids':[]},'Native admin task owner unavailable')):
+            observed=[];gets=[]
+            response=SimpleNamespace(status=status,json=lambda:body)
+            page=SimpleNamespace(context=SimpleNamespace(request=SimpleNamespace(get=lambda *a,**k:gets.append(a) or response)))
+            with self.subTest(status=status),tempfile.TemporaryDirectory() as directory, \
+                    patch.object(A,'chat_read',return_value=stored),patch.object(A.time,'monotonic',side_effect=[0,61]):
+                kwargs={} if status==200 else {'observer':lambda *args:observed.append(args)}
+                with self.assertRaisesRegex(AssertionError,expected):
+                    A.wait_editor(page,'http://stand','private-token',stored['id'],sent,'admin',B.MODEL,B.INTENT,
+                        Path(directory),'default',**kwargs)
+            self.assertEqual(observed,[]);self.assertEqual(len(gets),1)
+
+    def exercise(self, *, oversized=False, ack_status=200, write_failure=False, oversized_ack=False):
+        import base64
+        import contextlib
+        import hashlib
+        import os
+        from types import SimpleNamespace
+        import prove_admin_browser as A
+        with tempfile.TemporaryDirectory() as directory,contextlib.ExitStack() as stack:
+            private=Path(directory);owner=self.private_io(stack)
+            sent,stored,tasks=self.native_state(); sent.update(model=B.MODEL,chat_id=stored['id'])
+            raw_submission=json.dumps(sent);raw_ack=json.dumps({'chat_id':stored['id'],'task_id':'native-task'}).encode()
+            if oversized_ack:raw_ack=b'x'*5000
+            response=SimpleNamespace(status=ack_status,request=SimpleNamespace(post_data=raw_submission,post_data_json=sent),
+                body=lambda:raw_ack,json=lambda:json.loads(raw_ack))
+            class Pending:
+                def __enter__(self): return SimpleNamespace(value=response)
+                def __exit__(self,*args): return False
+            class Control:
+                @property
+                def first(self): return self
+                def click(self): pass
+                def fill(self,value): pass
+            gets=[]
+            page=SimpleNamespace(locator=lambda selector:Control(),expect_response=lambda *a,**k:Pending(),
+                context=SimpleNamespace(request=SimpleNamespace(get=lambda *a,**k:gets.append(a[0]) or
+                    SimpleNamespace(status=200,json=lambda:tasks))))
+            class Context:
+                closed=False
+                def close(self): self.closed=True
+            inherited,created=Context(),Context();browser=SimpleNamespace(contexts=[inherited])
+            def login(*args,**kwargs): browser.contexts.append(created);return page,'private-token'
+            admin,actor=str(uuid4()),str(uuid4());revision='a'*40
+            state={'schema':1,'stage':'setup_complete','observation':{'unknown':{'budget':{'user_id':actor}}}}
+            fixture=SimpleNamespace(private=private,command=[],secrets=['private-token','private-password'],
+                running_readback=lambda *args:{'bound':'actual-leaf'},
+                command_json=lambda *a,**k:{'passed':True,'phase':'unknown-snapshot','admin_id':admin,'actor_id':actor},
+                _office_private=lambda name:(b'',state))
+            accounts={'schema':1,'model_id':B.MODEL,'employee_ids':[actor],'actor_id':actor,
+                'admin':{'id':admin,'password':'private-password'}}
+            stack.enter_context(patch.object(B,'admin_login',side_effect=login))
+            stack.enter_context(patch.object(A,'chat_read',return_value=stored))
+            stack.enter_context(patch.object(A.time,'monotonic',side_effect=[0,61]))
+            stack.enter_context(patch.object(os,'getuid',return_value=1001,create=True))
+            stack.enter_context(patch.object(os,'getgid',return_value=1001,create=True))
+            if oversized:
+                stored['private_padding']='private-secret-'+ 'x'*20_000
+            if oversized or oversized_ack:
+                stack.enter_context(patch.object(B,'MAX_BYTES',4096))
+            checkpoint=B._unknown_checkpoint
+            if write_failure:
+                def writing(path,packet,**kwargs):
+                    if kwargs.get('failure'):raise OSError('private diagnostic write failed')
+                    return checkpoint(path,packet,**kwargs)
+                stack.enter_context(patch.object(B,'_unknown_checkpoint',side_effect=writing))
+            try:
+                B.run_unknown_presence(browser,fixture,'http://stand',{},revision,accounts)
+            except Exception as error:
+                caught=error
+            else:self.fail('Controlled native incomplete state must fail')
+            path=private/'admin-unknown-browser.private.json'
+            packet=json.loads(path.read_text(encoding='utf8'))
+            self.assertTrue(created.closed);self.assertFalse(inherited.closed)
+            self.assertEqual(packet['source_sha256'],hashlib.sha256(Path(B.__file__).read_bytes()).hexdigest())
+            self.assertEqual(packet['binding']['source_commit'],revision)
+            self.assertLessEqual(path.stat().st_size,B.MAX_BYTES)
+            if not oversized and not oversized_ack:
+                self.assertEqual(packet['raw_submission'],raw_submission)
+                self.assertEqual(base64.b64decode(packet['raw_acknowledgement_base64']),raw_ack)
+            return packet,caught,gets
+
+    def test_actual_failure_packet_retains_raw_send_ack_last_native_state(self):
+        packet,error,gets=self.exercise()
+        self.assertEqual(str(error),'Native admin task/editor did not complete');self.assertEqual(len(gets),1)
+        self.assertEqual(packet['failure_phase'],'wait_editor')
+        self.assertEqual(len(packet['last_native_tasks']['task_ids']),1)
+        safe=B.unknown_failure_projection(packet)
+        self.assertTrue(safe['collected']);self.assertEqual(safe['answer_http_status'],400)
+        self.assertEqual(safe['provider_error_hint'],'synthetic_responses_request_rejected')
+        self.assertEqual(safe['tool_call_count'],1);self.assertEqual(safe['editor_embed_count'],0)
+
+    def test_oversize_failure_omits_raw_explicitly_and_retains_real_summary_binding(self):
+        packet,error,gets=self.exercise(oversized=True)
+        self.assertEqual(str(error),'Native admin task/editor did not complete');self.assertEqual(len(gets),1)
+        self.assertTrue(packet['raw_omitted']);self.assertGreater(packet['raw_bytes'],4096)
+        self.assertNotIn('last_native_chat',packet);self.assertNotIn('raw_submission',packet)
+        self.assertIn('id',packet['submitted']);self.assertIn('chat_id',packet['acknowledgement'])
+        safe=B.unknown_failure_projection(packet)
+        self.assertTrue(safe['collected']);self.assertTrue(safe['raw_omitted'])
+        self.assertEqual(safe['native_task_ids_count'],1);self.assertIs(safe['answer_done'],False)
+
+    def test_before_observer_missing_packet_and_write_failure_are_unavailable(self):
+        packet,error,gets=self.exercise(ack_status=403)
+        self.assertEqual(gets,[]);self.assertEqual(packet['failure_phase'],'ordinary_send')
+        self.assertFalse(B.unknown_failure_projection(packet)['collected'])
+        for value in (None,{},'private-secret'):
+            safe=B.unknown_failure_projection(value);self.assertFalse(safe['collected'])
+            self.assertIsNone(safe['answer_done']);self.assertIsNone(safe['native_task_ids_count'])
+        packet,error,gets=self.exercise(write_failure=True)
+        self.assertEqual(str(error),'Native admin task/editor did not complete')
+        self.assertFalse(B.unknown_failure_projection(packet)['collected'])
+        packet,error,gets=self.exercise(oversized_ack=True)
+        self.assertEqual(gets,[]);self.assertTrue(packet['raw_omitted']);self.assertTrue(packet['raw_send_ack_omitted'])
+        self.assertEqual(packet['raw_acknowledgement_bytes'],5000)
+        self.assertFalse(B.unknown_failure_projection(packet)['collected'])
+
+    def test_whitelist_drops_hostile_fields_and_unknown_or_conflicting_error_types(self):
+        import ast
+        sent,stored,tasks=self.native_state()
+        packet={'submitted':sent,'last_native_chat':stored,'last_native_tasks':tasks,'failure':{'error_class':'private-secret'},
+            'failure_phase':'private-secret','url':'https://private-secret','amount':'99.99','token':'private-secret'}
+        answer=stored['chat']['history']['messages'][sent['id']]
+        answer['error'].update(message='private-secret '+B.UNKNOWN_PROVIDER_ERROR+' private-secret',status_code=422)
+        safe=B.unknown_failure_projection(packet)
+        self.assertIsNone(safe['answer_http_status']);self.assertEqual(safe['phase'],'unavailable')
+        encoded=json.dumps(safe);self.assertNotIn('private-secret',encoded);self.assertNotIn('99.99',encoded)
+        self.assertNotIn(sent['id'],encoded);self.assertNotIn('http',encoded.replace('answer_http_status',''))
+        self.assertLessEqual(len(encoded.encode()),4096)
+        for field in ('native_accounting_accepted','provider_dispatch_accepted','whole_goal_accepted'):self.assertIs(safe[field],False)
+        literals={n.value for n in ast.walk(ast.parse((HERE/'mock_provider.py').read_bytes())) if isinstance(n,ast.Constant) and isinstance(n.value,str)}
+        self.assertIn(B.UNKNOWN_PROVIDER_ERROR,literals)
+        answer['error']={'type':'private-secret','status_code':True,'message':'other'}
+        safe=B.unknown_failure_projection(packet)
+        self.assertEqual(safe['answer_error_type'],'unavailable');self.assertIsNone(safe['answer_http_status'])
+        self.assertEqual(safe['provider_error_hint'],'unavailable')
+        packet.update(raw_omitted=True,diagnostic_observation={k:'private-secret' for k in B._unknown_observation({})})
+        safe=B.unknown_failure_projection(packet)
+        self.assertFalse(safe['collected']);self.assertNotIn('private-secret',json.dumps(safe))
+
+    def test_success_packet_cannot_be_silently_omitted_and_pending_identity_is_preserved(self):
+        import contextlib
+        with tempfile.TemporaryDirectory() as directory,contextlib.ExitStack() as stack:
+            self.private_io(stack);path=Path(directory)/'private.json'
+            with patch.object(B,'MAX_BYTES',512),self.assertRaisesRegex(AssertionError,'packet exceeded bound'):
+                B._unknown_checkpoint(path,{'content':'x'*2048})
+            self.assertFalse(path.exists())
+        packet,_,_=self.exercise()
+        sent=packet['submitted']['id'];answer=packet['last_native_chat']['chat']['history']['messages'][sent]
+        self.assertEqual(answer['id'],sent)
+        safe=B.unknown_failure_projection(packet)
+        self.assertTrue(safe['answer_id_matches_submitted'])
+
+    def test_actual_workflow_catch_requires_source_revision_and_remains_fatal(self):
+        import ast
+        import hashlib
+        from types import SimpleNamespace
+        from prove_pricing_snapshots import no_credentials
+        workflow=(HERE.parents[1]/'.github/workflows/goal584-office-proof.yml').read_text(encoding='utf8')
+        block=next(b for b in workflow.split('      - name: ')[1:] if b.startswith('Verify the native admin form'))
+        embedded=block.split("<<'PY'\n",1)[1].rsplit('\n          PY',1)[0]
+        tree=ast.parse('\n'.join(line[10:] for line in embedded.splitlines()))
+        handlers=[h for n in ast.walk(tree) if isinstance(n,ast.Try) for h in n.handlers
+            if any(isinstance(v,ast.Constant) and v.value=='admin-unknown-host' for v in ast.walk(h))]
+        self.assertEqual(len(handlers),1)
+        code=compile(ast.fix_missing_locations(ast.Module(body=[ast.Try(body=[ast.Raise(exc=ast.Name(id='error',ctx=ast.Load()),cause=None)],
+            handlers=[handlers[0]],orelse=[],finalbody=[])],type_ignores=[])),'actual_workflow_admin_catch','exec')
+        full,_,_=self.exercise();omitted,_,_=self.exercise(oversized=True)
+        no_observation=copy.deepcopy(full);no_observation.pop('last_native_chat');no_observation.pop('last_native_tasks')
+        badsource=copy.deepcopy(full);badsource['source_sha256']='0'*64
+        badrevision=copy.deepcopy(full);badrevision['binding']['source_commit']='b'*40
+        for packet,expected in ((full,True),(omitted,True),(None,False),(badsource,False),(badrevision,False),(no_observation,False)):
+            public={}
+            def private(name):
+                if packet is None:raise FileNotFoundError(name)
+                return b'',packet
+            env={'error':AssertionError('private-secret'), 'stage':'browser','json':json,
+                'unknown_failure_projection':B.unknown_failure_projection,'no_credentials':no_credentials,
+                'fixture':SimpleNamespace(_office_private=private,secrets=['private-secret']),
+                'browser_sha':hashlib.sha256(Path(B.__file__).read_bytes()).hexdigest(),'revision':'a'*40,
+                'public':lambda name,value:public.update({name:value})}
+            with self.subTest(expected=expected),self.assertRaises(SystemExit) as caught:exec(code,env)
+            self.assertEqual(caught.exception.code,1)
+            self.assertIs(public['admin-unknown-lifecycle']['collected'],expected)
+            self.assertIs(public['admin-unknown-host']['lifecycle_diagnostic_collected'],expected)
+            self.assertIs(public['admin-unknown-host']['passed'],False)
+            self.assertNotIn('private-secret',json.dumps(public))
+
+
 if __name__ == "__main__":
     unittest.main()

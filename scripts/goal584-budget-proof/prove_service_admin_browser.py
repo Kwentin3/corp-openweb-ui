@@ -12,12 +12,123 @@ import time
 from urllib.parse import urlsplit
 
 from playwright.sync_api import expect, sync_playwright
-from prove_admin_browser import INTENT, acknowledgement, admin_login, wait_editor
+from prove_admin_browser import INTENT, acknowledgement, admin_login, editor_embeds, wait_editor
+from prove_pricing_browser import MAX_BYTES
 from prove_webui_browser import Fixture, require, safe_failure, same_money, write_json
 from verify_admin_calls import accounting_totals_ready, compare_provider, source_contract, text, tool_schemas, uuid, verify_accounting_totals
 
 
 MODEL = "goal584-budget-admin"
+UNKNOWN_PHASES = ('before_snapshot', 'login', 'ordinary_send', 'wait_editor', 'render', 'after_snapshot', 'screenshots')
+UNKNOWN_ERROR_TYPES = ('budget_exceeded', 'auth_error', 'invalid_request_error', 'model_not_found',
+                       'api_error', 'internal_server_error', 'rate_limit_exceeded')
+UNKNOWN_HTTP_STATUSES = (400, 401, 403, 404, 409, 422, 429, 500, 502, 503, 504)
+UNKNOWN_PROVIDER_ERROR = 'Invalid bounded synthetic Responses request'
+
+
+def _unknown_observation(packet):
+    """Technical facts from the last actual native read; absent stays unknown."""
+    mapping = lambda value: value if isinstance(value, dict) else {}
+    sent = mapping(packet.get('submitted'))
+    stored = packet.get('last_native_chat')
+    tasks = packet.get('last_native_tasks')
+    messages = mapping(mapping(mapping(stored).get('chat')).get('history')).get('messages')
+    answer = messages.get(sent['id']) if isinstance(messages, dict) and isinstance(sent.get('id'), str) else None
+    output = answer.get('output') if isinstance(answer, dict) else None
+    top_embeds = answer.get('embeds') if isinstance(answer, dict) else None
+    task_ids = tasks.get('task_ids') if isinstance(tasks, dict) else None
+    acknowledgement = mapping(packet.get('acknowledgement'))
+    error = mapping(answer.get('error')) if isinstance(answer, dict) else {}
+    error = mapping(error['error']) if isinstance(error.get('error'), dict) else error
+    error_type = error.get('type') if error.get('type') in UNKNOWN_ERROR_TYPES else 'unavailable'
+    statuses = [error.get(k) for k in ('status', 'status_code', 'code') if k in error]
+    statuses = [int(v) if type(v) is int and v in UNKNOWN_HTTP_STATUSES
+                or isinstance(v, str) and v in {str(s) for s in UNKNOWN_HTTP_STATUSES} else None for v in statuses]
+    http_status = statuses[0] if statuses and None not in statuses and len(set(statuses)) == 1 else None
+    # Static fixture hint only: never authority for quota, actor or a particular guard.
+    provider_hint = ('synthetic_responses_request_rejected' if any(isinstance(error.get(k), str)
+        and UNKNOWN_PROVIDER_ERROR in error[k] for k in ('message', 'detail')) else 'unavailable')
+    return {
+        'native_observation_available': isinstance(stored, dict) and isinstance(task_ids, list),
+        'submitted_answer_id_present': isinstance(sent.get('id'), str) if sent else None,
+        'answer_present': isinstance(answer, dict) if isinstance(messages, dict) and sent else None,
+        'answer_id_matches_submitted': answer.get('id') == sent.get('id')
+            if isinstance(answer, dict) and isinstance(answer.get('id'), str) else None,
+        'chat_id_matches_ack': stored.get('id') == acknowledgement.get('chat_id')
+            if isinstance(stored, dict) and isinstance(stored.get('id'), str)
+            and isinstance(acknowledgement.get('chat_id'), str) else None,
+        'answer_done': answer.get('done') if isinstance(answer, dict) and type(answer.get('done')) is bool else None,
+        'answer_error_present': bool(answer['error']) if isinstance(answer, dict) and 'error' in answer else None,
+        'answer_error_type': error_type,
+        'answer_http_status': http_status,
+        'provider_error_hint': provider_hint,
+        'native_task_ids_count': len(task_ids) if isinstance(task_ids, list) else None,
+        'answer_output_count': len(output) if isinstance(output, list) else None,
+        'tool_call_count': sum(isinstance(v, dict) and v.get('type') == 'function_call' for v in output)
+            if isinstance(output, list) else None,
+        'tool_result_count': sum(isinstance(v, dict) and v.get('type') == 'function_call_output' for v in output)
+            if isinstance(output, list) else None,
+        'top_embed_count': len(top_embeds) if isinstance(top_embeds, list) else None,
+        'editor_embed_count': len(editor_embeds(answer, 'open_budget_form')) if isinstance(output, list) else None}
+
+
+def unknown_failure_projection(packet):
+    """Pure public whitelist; the caller MUST bind packet.source_sha256 first."""
+    packet = packet if isinstance(packet, dict) else {}
+    observation = _unknown_observation({})
+    if packet.get('raw_omitted') is True:
+        saved = packet.get('diagnostic_observation')
+        if isinstance(saved, dict) and set(saved) == set(observation):
+            for key in observation:
+                value = saved[key]
+                if key == 'answer_error_type': valid = value in (*UNKNOWN_ERROR_TYPES, 'unavailable')
+                elif key == 'provider_error_hint': valid = value in ('synthetic_responses_request_rejected', 'unavailable')
+                elif key == 'answer_http_status': valid = value is None or type(value) is int and value in UNKNOWN_HTTP_STATUSES
+                else: valid = (value is None or type(value) is bool) if not key.endswith('_count') else (
+                    value is None or type(value) is int and 0 <= value <= MAX_BYTES)
+                observation[key] = value if valid else None
+    else:
+        observation = _unknown_observation(packet)
+    available = isinstance(packet.get('failure'), dict) and observation['native_observation_available'] is True
+    return {'schema': 1, 'collected': available,
+        'failure': 'unknown_admin_browser_failure' if isinstance(packet.get('failure'), dict) else 'failure_packet_unavailable',
+        'phase': packet.get('failure_phase') if packet.get('failure_phase') in UNKNOWN_PHASES else 'unavailable',
+        'observation_status': 'observed' if available else 'unavailable',
+        'raw_omitted': packet.get('raw_omitted') is True,
+        'native_accounting_accepted': False, 'provider_dispatch_accepted': False, 'whole_goal_accepted': False,
+        **observation}
+
+
+def _unknown_checkpoint(path, packet, *, failure=False):
+    """Bound the existing atomic private writer; omission is failure-only."""
+    from prove_gateway_auth import write_private
+    size = len((json.dumps(packet, allow_nan=False) + '\n').encode('utf8'))
+    if size > MAX_BYTES or packet.get('raw_send_ack_omitted') is True:
+        require(failure, 'Unknown admin private packet exceeded bound')
+        retained = {'schema': 1, 'raw_omitted': True, 'raw_bytes': size,
+            'failure': {'error_class': 'BrowserFailure'},
+            'failure_phase': packet.get('failure_phase') if packet.get('failure_phase') in UNKNOWN_PHASES else 'unavailable',
+            'diagnostic_observation': _unknown_observation(packet)}
+        if packet.get('raw_send_ack_omitted') is True:
+            retained['raw_send_ack_omitted'] = True
+            for key in ('raw_submission_bytes', 'raw_acknowledgement_bytes'):
+                if type(packet.get(key)) is int and packet[key] >= 0: retained[key] = packet[key]
+        if isinstance(packet.get('source_sha256'), str) and re.fullmatch('[0-9a-f]{64}', packet['source_sha256']):
+            retained['source_sha256'] = packet['source_sha256']
+        binding = packet.get('binding')
+        if isinstance(binding, dict) and isinstance(binding.get('source_commit'), str) \
+                and re.fullmatch('[0-9a-f]{40}', binding['source_commit']):
+            retained['binding'] = {'source_commit': binding['source_commit']}
+        for key in ('submitted', 'acknowledgement'):
+            value = packet.get(key)
+            field = 'id' if key == 'submitted' else 'chat_id'
+            if isinstance(value, dict) and isinstance(value.get(field), str) \
+                    and re.fullmatch('[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', value[field]):
+                retained[key] = {field: value[field]}
+        packet = retained
+    require(len((json.dumps(packet, allow_nan=False) + '\n').encode('utf8')) <= MAX_BYTES,
+            'Unknown admin private checkpoint exceeded bound')
+    write_private(path, packet)
 
 
 def verify_unknown_render(accounts, rows, visible, native_keys):
@@ -73,8 +184,8 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
     import hashlib
     import os
     from prove_admin_browser import chat_read
-    from prove_gateway_auth import private_parent, write_private
-    from prove_pricing_browser import MAX_BYTES, no_credentials
+    from prove_gateway_auth import private_parent
+    from prove_pricing_browser import no_credentials
 
     running = fixture.running_readback(base_url, build_receipt, expected_revision)
     admin = accounts["admin"]
@@ -93,6 +204,10 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
               "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
               "binding": {"source_commit": expected_revision, "running": running},
               "paths": {name: str(path) for name, path in paths.items()}}
+    last_native = {}
+    def observe(stored, tasks):
+        # References to observations already read by wait_editor; no extra IO.
+        last_native.update(last_native_chat=stored, last_native_tasks=tasks)
 
     def snapshot(label):
         argv = ["exec", "-T", "--user", str(os.getuid()) + ":" + str(os.getgid()),
@@ -110,32 +225,44 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
                 and state["observation"]["unknown"]["budget"]["user_id"] == accounts["actor_id"],
                 "Unknown admin native private snapshot unavailable")
         packet["snapshot_" + label] = state
-        write_private(paths["packet"], packet)
+        _unknown_checkpoint(paths["packet"], packet)
         return state["observation"]
 
     contexts = set(browser.contexts)
+    phase = 'before_snapshot'
     try:
         snapshot("before")
+        phase = 'login'
         page, token = admin_login(browser, base_url, admin, first_login=True)
         page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first.click()
         page.locator('button[data-value="' + MODEL + '"]').click()
         page.locator("#chat-input").fill(INTENT)
+        phase = 'ordinary_send'
         with page.expect_response(lambda r: urlsplit(r.url).path == "/api/chat/completions"
                 and r.request.method == "POST", timeout=45_000) as pending:
             page.locator("#send-message-button").click()
         response = pending.value
         raw_submission, raw_ack = response.request.post_data, response.body()
+        if not (isinstance(raw_submission, str) and 0 < len(raw_submission.encode()) <= MAX_BYTES
+                and isinstance(raw_ack, bytes) and 0 < len(raw_ack) <= MAX_BYTES):
+            packet.update(raw_send_ack_omitted=True,
+                raw_submission_bytes=len(raw_submission.encode()) if isinstance(raw_submission, str) else None,
+                raw_acknowledgement_bytes=len(raw_ack) if isinstance(raw_ack, bytes) else None)
         require(isinstance(raw_submission, str) and 0 < len(raw_submission.encode()) <= MAX_BYTES
                 and isinstance(raw_ack, bytes) and 0 < len(raw_ack) <= MAX_BYTES,
                 "Unknown admin native Send/ACK exceeded bound")
+        packet.update(raw_submission=raw_submission, http_status=response.status,
+            raw_acknowledgement_base64=base64.b64encode(raw_ack).decode("ascii"))
         submitted, chat_id = acknowledgement(response)
         acknowledgement_body = json.loads(raw_ack)
         require(json.loads(raw_submission) == submitted, "Unknown admin raw/native submission differs")
         packet.update(submitted=submitted, raw_submission=raw_submission, http_status=response.status,
             acknowledgement=acknowledgement_body, raw_acknowledgement_base64=base64.b64encode(raw_ack).decode("ascii"))
-        write_private(paths["packet"], packet)
+        _unknown_checkpoint(paths["packet"], packet)
+        phase = 'wait_editor'
         frame, rows, opened = wait_editor(page, base_url, token, chat_id, submitted, admin["id"], MODEL, INTENT,
-            fixture.private, "admin-unknown-opened", expected_count=len(accounts["employee_ids"]))
+            fixture.private, "admin-unknown-opened", expected_count=len(accounts["employee_ids"]), observer=observe)
+        phase = 'render'
         stored = chat_read(page, base_url, token, chat_id)
         tasks = page.context.request.get(base_url + "/api/tasks/chat/" + chat_id,
             headers={"Authorization": "Bearer " + token}, timeout=10_000)
@@ -145,7 +272,7 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
                 "Unknown admin persisted context exceeded bound")
         packet.update(opened=opened, rows=rows, html=html, html_sha256=hashlib.sha256(html.encode()).hexdigest(),
                       stored_chat=stored, task_ids=[])
-        write_private(paths["packet"], packet)
+        _unknown_checkpoint(paths["packet"], packet)
         actor = frame.locator('section[data-employee-id="' + accounts["actor_id"] + '"]')
         expect(actor).to_have_count(1)
         summary = actor.locator(":scope > p").nth(1)
@@ -157,9 +284,11 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
             visible["models"][alias] = {"primary": cells.nth(1).locator("strong").inner_text(),
                 "expense": cells.nth(1).inner_text(), "blocked": cells.nth(2).inner_text()}
         packet["visible"] = visible
-        write_private(paths["packet"], packet)
+        _unknown_checkpoint(paths["packet"], packet)
+        phase = 'after_snapshot'
         after = snapshot("after")
         checked = verify_unknown_render(accounts, rows, visible, after["unknown"]["native"]["keys"])
+        phase = 'screenshots'
         actor.screenshot(path=str(paths["employee_screenshot"]))
         page.screenshot(path=str(paths["page_screenshot"]))
         require(all(0 < paths[name].stat().st_size <= MAX_BYTES for name in ("page_screenshot", "employee_screenshot")),
@@ -173,11 +302,15 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
             "screenshot_sha256": packet["screenshot_sha256"],
             "native_accounting_accepted": False, "provider_dispatch_accepted": False, "whole_goal_accepted": False, **checked}
         no_credentials(safe, [*fixture.secrets, admin["password"], token])
-        write_private(paths["packet"], packet)
+        _unknown_checkpoint(paths["packet"], packet)
         return safe, packet
     except Exception as error:
         packet["failure"] = {"error_class": type(error).__name__}
-        write_private(paths["packet"], packet)
+        packet.update(failure_phase=phase, **last_native)
+        try:
+            _unknown_checkpoint(paths["packet"], packet, failure=True)
+        except Exception:
+            pass  # A diagnostic write failure cannot replace the original failure.
         raise
     finally:
         for context in set(browser.contexts) - contexts: context.close()

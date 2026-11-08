@@ -739,7 +739,7 @@ jobs:
           from pathlib import Path
           sys.path.insert(0,'scripts/goal584-budget-proof')
           from office_fixture import OfficeFixture
-          from prove_service_admin_browser import run_unknown_presence
+          from prove_service_admin_browser import run_unknown_presence, unknown_failure_projection
           from prove_pricing_snapshots import no_credentials,private_credentials
           from playwright.sync_api import sync_playwright
           root=Path.cwd().resolve();private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
@@ -840,8 +840,22 @@ jobs:
                   'ordinary_sends':1,'personal_calls':2,'personal_cost_usd':'.332','source_closure':closure,
                   'whole_goal_accepted':False,'production_accepted':False,'unknown_cost_finality':False})
           except Exception as error:
-              public('admin-unknown-host',{'schema':1,'passed':False,'stage':stage,'failure':'admin_unknown_host_contract_failed',
-                  'error_class':type(error).__name__,'whole_goal_accepted':False,'production_accepted':False})
+              failure={'schema':1,'passed':False,'stage':stage,'failure':'admin_unknown_host_contract_failed',
+                  'error_class':type(error).__name__,'whole_goal_accepted':False,'production_accepted':False}
+              if stage=='browser':
+                  lifecycle=unknown_failure_projection(None)
+                  try:
+                      _,pending=fixture._office_private('admin-unknown-browser.private.json')
+                      assert pending.get('source_sha256')==browser_sha
+                      assert pending.get('binding',{}).get('source_commit')==revision
+                      lifecycle=unknown_failure_projection(pending)
+                      assert len(json.dumps(lifecycle,allow_nan=False).encode())<=4096
+                      no_credentials(lifecycle,fixture.secrets)
+                  except Exception:
+                      lifecycle=unknown_failure_projection(None)
+                  public('admin-unknown-lifecycle',lifecycle)
+                  failure['lifecycle_diagnostic_collected']=lifecycle.get('collected') is True
+              public('admin-unknown-host',failure)
               raise SystemExit(1) from None
           finally: signal.setitimer(signal.ITIMER_REAL,0)
           PY

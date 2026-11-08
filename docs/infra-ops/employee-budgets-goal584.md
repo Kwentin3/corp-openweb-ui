@@ -23,11 +23,20 @@ Admin setup и native baseline теперь PASS, то есть receipt fix ср
 Браузерный шаг14 длился78s; host экспортирует лишь stage=browser/AssertionError.
 Existing private pending/native chat state не попали в ZIP; bounded proxy traceback
 обрезан, а polling200 без body не различает причину. Конкретный отказ продукта,
-provider grammar или Tool пока НЕ установлен. Готовится узкий existing-browser
-checkpoint/private actual last-state и whitelist export, без дополнительных HTTP,
-увеличения60s, ослабления guards или нового history/client/ledger владельца.
-Root затем свяжет failure export с точным source и проверит перед одним новым run.
+provider grammar или Tool пока НЕ установлен. Узкий existing-browser checkpoint
+и whitelist export готовы:21PASS и independent21PASS,12workflow heredocs compile.
+Optional observer сохраняет MEMORYONLY actual stored chat/tasks; существующий
+failure writer пишет private full либо explicit2MiB omitted packet. Public только
+фиксированные flags/counts/native error enums и untrusted static fixture hint,
+не raw error text/ID/amount/URL/credential и не quota/finance authority.
+Root catch требует exact trusted source+revision,4KiB/no_credentials; исходный
+fatal exit1 и прежние60s/HTTP/success guards сохранены. Actual catch AST full/
+omitted/missing/badsource/wrongrevision/no-observation проверен. Это diagnostic
+source, не исправление неизвестной причины; следующий шаг — один coherent run.
 Evidence `office89-review/`, `office89-admin-triage/`.
+Source/review: `office89-admin-diagnostic-{source,review}/`,
+`office89-admin-diagnostic-workflow/`. Worktrees сведены mergef62d8c84, одинаковый
+committed code; root интегрирует frozen diagnostic4files перед публикацией.
 **Последний runtime-кандидат08.11, завершён:**
 [run42496273115](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42496273115),
 exact head `4f9505de5de1ce9fddf0ba5a58dd731db275f339`, job128779198407,
