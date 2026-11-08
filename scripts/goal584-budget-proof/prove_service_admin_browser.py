@@ -71,6 +71,7 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
     """One ordinary admin Send. Native collectors retain all financial authority."""
     import base64
     import hashlib
+    import os
     from prove_admin_browser import chat_read
     from prove_gateway_auth import private_parent, write_private
     from prove_pricing_browser import MAX_BYTES, no_credentials
@@ -94,7 +95,8 @@ def run_unknown_presence(browser, fixture, base_url, build_receipt, expected_rev
               "paths": {name: str(path) for name, path in paths.items()}}
 
     def snapshot(label):
-        argv = ["exec", "-T", "proxy", "python", "-B", "/proof/provision_admin.py", "--phase", "unknown-snapshot",
+        argv = ["exec", "-T", "--user", str(os.getuid()) + ":" + str(os.getgid()),
+            "proxy", "python", "-B", "/proof/provision_admin.py", "--phase", "unknown-snapshot",
             "--private-state", "/proof-private/webui-state.private.json", "--office-state", "/proof-private/office-state.private.json",
             "--unknown-state", "/proof-private/unknown-usage-gui-state.private.json",
             "--admin-unknown-state", "/proof-private/admin-unknown-state.private.json",
