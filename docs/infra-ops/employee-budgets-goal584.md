@@ -65,6 +65,42 @@ owners: seed/readback актуального native root через Skills, curr
 реальные parent Task calls/returned IDs и сохранение14tools worker; затем полная
 native input/capacity и delegated budget/UI/ledger приёмка на одном candidate.
 
+**Source-срез08.11 завершён, runtime остаётся открытым:** reasoning08f000bd
+добавляет parent create_tasks → view_skill → run_sub_agent → два update_task по
+реально возвращённым IDs → Download. Worker и legacy provider AST неизменны;
+finite grammar теперь6parent+6worker=12candidate calls, не runtime call receipt.
+Agent29/29 PASS0skip; root получил24PASS/5cache skips, затем после указания
+existing LiteLLM cache класс7/7PASS закрывает все5skips (29unique tests покрыты).
+Source AST reversal и hashes повторены root. Evidence:
+`current-office-provider-tasks-source/`, `current-office-provider-tasks-root-repeat/`.
+
+Reasoninge97596c6 seeding/readback актуального native root: full content,
+version/history snapshot, owner/ACL/active, admin+ordinary user, неизменные
+unrelated Skills, pre-write journal и отказ повторного setup после partial failure.
+Два readonly Compose mounts дают exact Git root/profile, current Filter/root/
+profile hashes9edf90bf/c3abf177/9c606f06; workflow и Tasks не отключаются.
+Root повторил37/37PASS0skip/network0. Ранний root запуск до freeze использовал
+неполный cache address, затем intermediate source snapshot:0run/setup error и
+9run/7fail/1error не принимались; итоговый замороженный срез проверен отдельно.
+Evidence: `current-office-provision-source/`, `current-office-provision-root-repeat/`.
+
+Независимое source review четырёх границ актуального Office и budget Filters не
+нашло concrete blocker: priority0→1000, request/metadata identity, capsule,
+native callable rebind, worker base model, parent Tasks и worker exclusion
+сохранены. Это не runtime receipt14schemas/ledger; evidence:
+`current-office-budget-boundary-review/`. Все source edits сохранены локально,
+не pushed; delivery и reasoning product sources сверены при интеграции.
+Тестовые процессы/clients/tempdirs закрыты; новых stands/CI/production ресурсов нет.
+
+**Следующий обязательный шаг:** подключить opt-in delegated config/setup к
+существующему Office workflow и обычному browser/readback owner; проверить full
+native request/guide/reservation до внешнего dispatch и current root совместимость
+legacy Office expectations. Затем actual-image mandatory guard preflight и native
+Skill/File/Tasks/Tool/provider/SpendLogs/cost/per-model-denial/GUI сценарий.
+Ни один из подготовленных opt-in helper сам по себе ещё не является сквозной
+приёмкой. Admin unknown projection, used CC interruption boundary, Terminal,
+final coherent CI и install/rollback остаются в полном GOAL.
+
 **Текущий delegated Office срез,06.11:** гипотеза пользователя о ведущей
 Sol и отдельном Terra-исполнителе соответствует предусмотренному community
 маршруту; прямой OfficeCLI proof его не заменяет. В Git-export ведущий профиль
