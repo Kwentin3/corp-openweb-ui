@@ -3,12 +3,84 @@
 Текущая запись работы, 08.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
-[редакция 4](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
+[редакция 5](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
 
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Актуальный runtime-кандидат08.11:**
+**Последний прогон Office89, завершён:**
+[run42498156345](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42498156345),
+head `860631719d13e02cea03186314fee3aa1aa6b7a4`, job128784883233,
+dispatch16:06:10UTC, terminal FAILURE на14/browser, шаги1–13SUCCESS,
+delegation15SKIPPED, diagnostics/cleanup/uploadSUCCESS. Живого job нет. Remote
+reasoning ref опубликован ровно86063171. Изменение относительно88 — один receipt
+return + regression и docs; независимый review GO,26PASS. Terminal в прогон
+не включён. Artifact13625330237 получен один раз:1177631B/90unique/SHA256
+`4cba085da35bdde939783ca71c8c184201ce2c2a68294314cd7b13322e9e588a`.
+Прежний полный root reader ordinary/continuation/build/source/cleanup снова PASS:
+54build/72sourcepins,45guard/19auth/1CLI0skip,5image IDs удалены, taskresources нет.
+Admin setup и native baseline теперь PASS, то есть receipt fix сработал.
+Браузерный шаг14 длился78s; host экспортирует лишь stage=browser/AssertionError.
+Existing private pending/native chat state не попали в ZIP; bounded proxy traceback
+обрезан, а polling200 без body не различает причину. Конкретный отказ продукта,
+provider grammar или Tool пока НЕ установлен. Готовится узкий existing-browser
+checkpoint/private actual last-state и whitelist export, без дополнительных HTTP,
+увеличения60s, ослабления guards или нового history/client/ledger владельца.
+Root затем свяжет failure export с точным source и проверит перед одним новым run.
+Evidence `office89-review/`, `office89-admin-triage/`.
+**Последний runtime-кандидат08.11, завершён:**
+[run42496273115](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42496273115),
+exact head `4f9505de5de1ce9fddf0ba5a58dd731db275f339`, job128779198407,
+workflow_dispatch15:43:44UTC. Terminal FAILURE на шаге14/admin unknown; шаги1–13
+SUCCESS, delegation15 SKIPPED, diagnostics/cleanup/upload SUCCESS. Живого job нет.
+Artifact13624017462 получен один раз:1176708B/89unique, SHA256
+`75967457b77da0b65bf968dc3a74c6d6747fde8ce0df39a46f717afade7ea35e`.
+Root повторил прежний полный reader успешных Office-срезов:54build/72sourcepins,
+45guard/19auth/1CLI без skips; ordinary3personal/.60+service.20,
+continuation1personal/.20+service.20. DOCX17paragraphs/3x4table и actual render/
+continuation PNG просмотрены; Download/.20/chat.80 видимы. Пять image IDs связаны
+с успешной cleanup; task containers/volumes/networks/images отсутствуют.
+Native key block, unknown API и шесть GUI Sends прошли; независимая source/receipt/
+PNG приёмка PASS:113pin occurrences (104product+9native),29product paths,
+14archive checks,6actual PNG visually/hash-bound. Unknown без суммы, следующие
+запросы заблокированы. Это не independent replay приватных финансовых operands;
+native_401_inferred=false и unbound denial-audit chat association не заявлены.
+Evidence `office88-unknown-acceptance/`.
+
+Отказ14 различён: native admin setup passed=true/stage=setup_complete; его receipt
+не содержит inference_issued. Неизменённый workflow806 требует именно false и
+останавливается до baseline/browser, поэтому admin GUI/provider/finance не приняты.
+Source fix только unknown_setup: вернуть явный inference_issued=false. Регрессия
+исполняет actual workflow guard над stdout реального CLI: до fix26tests/1FAIL,
+после26PASS; missing-field negative и отсутствие inference attempts сохранены.
+Независимый source review GO/26PASS; assertion не ослаблен. Office89 подтвердил
+setup/baseline, но admin GUI/provider/finance по-прежнему не приняты.
+Evidence `office88-review/`, `office88-admin-triage/`.
+
+Независимые оставшиеся срезы: Terminal OCI digest/amd64/config и pinned source
+сверены без загрузки слоёв; runtime/OpenAPI ещё не проверены. Opt-in topology
+принят как source/focused25PASS и включён: reasoning2ff69575 → delivery8004a27b,
+через native Compose extends/тот же OfficeFixture, default strict-six сохранён.
+Full59 не green:2CRLFfailures воспроизведены на точном baseline4f9505de,
+1cache-dependentclass unavailable. Native Compose merge/daemon/API/UI/finance
+ещё не проверены; workflow/provision/activation в срез не входят.
+Native CC params.stream_response=false найден, но в WebUI0.12.2 обычный native
+Tool loop при нём не исполняется; это не замена используемому Tool-маршруту.
+Post-dispatch interruption/unknown policy остаётся открытой, нового core patch нет.
+Terra quota-refusal: finite source plan и 17-check actual native formatter replay
+готовы; typed native denial обязателен, строка Tool теряет HTTP type/status.
+Same-stand observation bound либо fresh negative-only — решение root в текущих
+полномочиях. Provider2file source принят,46PASS (38old+8new), independent46PASS:
+reasoningb320432b → delivery593971bf, exact source identity после cherry-pick.
+Finite6Sol/две actual-ID Tasks cancelled/без fake file, successABI сохранён.
+Browser/readback/bounds/runtime ещё не выполнены; сначала нужен успешный positive
+delegation. Evidence `terminal-artifact-prerequisites/`,
+`terminal-opt-in-topology-{source,review}/`, `delegated-quota-provider-{source,review}/`,
+`cc-whole-reply-native-option/`, `delegated-quota-{refusal-source-plan,error-shape}/`.
+Коммерческая редакция5 отражает согласованное unknown employee/model blocking
+и учёт порученных другой модели шагов; часов/цен/статуса production не меняет.
+
+**Предыдущий runtime-кандидат08.11, terminal:**
 [run42489150420](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42489150420),
 exact head `957021fd0120c6960e9d5f236ac775d3d657f54b`, job128757481939,
 workflow_dispatch14:18:24UTC; terminalFAILURE step11/ordinary_send,

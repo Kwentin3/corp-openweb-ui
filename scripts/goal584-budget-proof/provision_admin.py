@@ -396,7 +396,7 @@ async def unknown_setup(webui, common, office, unknown, path, handoff):
         write_private(handoff, {'schema': 1, 'admin': {k: selected['admin'][k] for k in ('id', 'email', 'password')},
             'model_id': MODEL_ID, 'tool_id': TOOL_ID, 'skill_id': SKILL_ID, 'actor_id': selected['actor_id'],
             'managed_model_ids': list(ALIASES), 'employee_ids': receipt['employee_ids']})
-        return receipt
+        return receipt | {'inference_issued': False}
     except Exception:
         selected['stage'] = 'setup_failed'; write_private(path, selected)
         raise
