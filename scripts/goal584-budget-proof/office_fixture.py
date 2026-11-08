@@ -1,4 +1,4 @@
-"""Host-only strict-six topology, not image/profile or native Office acceptance.
+"""Host-only strict-six (explicit Terminal: seven) topology, not native acceptance.
 
 Import this fixture only from a host coordinator. Pure worker validators must
 not import it: the inherited browser host owns the Playwright dependency.
@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import PurePosixPath
 import re
+import stat
 import subprocess
 from urllib.parse import urlsplit
 from urllib.request import ProxyHandler, build_opener
@@ -27,6 +28,12 @@ NATIVE_RESOLUTION_SOURCES = {
     'models/users.py': '143e949b172252c45ae1cbe7d5f7bfc3460375fa49b203f4dbc36c6128d68bc3',
     'models/files.py': 'e0770c88528e5f95f64ee56fd11f1e662065ba269a7bf44688fa6d5ce224cb6d',
     'storage/provider.py': '59e43c4d64577e2e908583cf7cb8f7057d1f6be644d1781a0e754858b75f1da5'}
+
+TERMINAL_SERVICE = 'open-terminal-office'
+TERMINAL_IMAGE = 'ghcr.io/open-webui/open-terminal@sha256:81a5394b3cd4ae32adb600f2135f09ee124de37f26b0a780e2f5692472c0fc5c'
+# Public OCI config of that index's linux/amd64 child, not a mutable tag.
+TERMINAL_IMAGE_ID = 'sha256:6e8d19cc8196d501a875b1eea0e0b1bd43e2ee37b30d7952a219e699af21f3fb'
+TERMINAL_OVERLAY = 'compose/goal584.office-terminal-proof.yml'
 
 
 OFFICE_MODELS = ''.join(f'''  - model_name: {name}
@@ -189,23 +196,141 @@ def prepare_delegated_office_config(original):
     return raw
 
 
-def topology_row(raw):
+def topology_row(raw, *, terminal=False):
     """Project native inspect JSON in memory; never export Config.Env."""
     config, state, host, network = (raw[k] for k in ('Config', 'State', 'HostConfig', 'NetworkSettings'))
     health = state.get('Health')
     require(health is None or isinstance(health, dict), 'Office Docker health shape differs')
-    return {'id': raw['Id'], 'labels': config['Labels'], 'running': state['Running'],
+    row = {'id': raw['Id'], 'labels': config['Labels'], 'running': state['Running'],
         'health': health.get('Status') if health is not None else None,
         'networks': network['Networks'], 'ports': network['Ports'], 'mounts': raw['Mounts'],
         'readonly': host['ReadonlyRootfs'], 'init': host.get('Init'), 'tmpfs': host.get('Tmpfs'),
         'capdrop': host.get('CapDrop'), 'privileged': host['Privileged'],
         'security': host.get('SecurityOpt'), 'networkmode': host['NetworkMode']}
+    if terminal:
+        environment = config['Env']
+        require(isinstance(environment, list) and all(isinstance(value, str) for value in environment),
+                'Terminal native environment shape differs')
+        keys = [value.partition('=')[2] for value in environment if value.startswith('OPEN_TERMINAL_API_KEY=')]
+        row['terminal'] = {'image_ref': config['Image'], 'image_id': raw['Image'], 'user': config['User'],
+            'entrypoint': config['Entrypoint'], 'command': config['Cmd'], 'workdir': config['WorkingDir'],
+            'key_sha256': [hashlib.sha256(value.encode()).hexdigest() for value in keys],
+            'multi_user': [value for value in environment if value.startswith('OPEN_TERMINAL_MULTI_USER=')]
+                == ['OPEN_TERMINAL_MULTI_USER=true'],
+            'memory': host['Memory'], 'memory_swap': host['MemorySwap'], 'nano_cpus': host['NanoCpus'],
+            'pids_limit': host['PidsLimit'], 'restart': host['RestartPolicy']['Name'],
+            'capadd': host.get('CapAdd'), 'devices': host.get('Devices')}
+    return row
 
 
 class OfficeFixture(PricingFixture):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, env_file, output, config, private, secrets, *, terminal=False):
+        require(type(terminal) is bool, 'Terminal topology mode must be explicit boolean')
+        super().__init__(env_file, output, config, private, secrets)
+        self.terminal, self._terminal_env_file = terminal, env_file
         self.command += ['-f', 'compose/goal584.office-proof.yml']
+        if terminal:
+            self.command += ['-f', TERMINAL_OVERLAY]
+
+    def _terminal_key(self):
+        """One protected fixture assignment; not another general dotenv loader."""
+        path = self._terminal_env_file
+        require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= 65536,
+                'Terminal private fixture env unavailable')
+        if os.name != 'nt':
+            require(stat.S_IMODE(path.stat().st_mode) & 0o077 == 0,
+                    'Terminal private fixture env permissions differ')
+        raw = path.read_bytes()
+        require(len(raw) <= 65536, 'Terminal private fixture env exceeded bound')
+        try:
+            lines = [line for line in raw.decode('utf-8').splitlines() if line and not line.startswith('#')]
+        except UnicodeError:
+            raise AssertionError('Terminal private fixture env encoding differs') from None
+        entries = [line.partition('=') for line in lines]
+        names = [key for key, _, _ in entries]
+        require(all(separator and re.fullmatch('[A-Za-z_][A-Za-z0-9_]*', key)
+                    for key, separator, _ in entries) and len(names) == len(set(names)),
+                'Terminal private fixture env is ambiguous')
+        selected = [value for key, _, value in entries if key == 'STAGING_TERMINAL_API_KEY']
+        require(len(selected) == 1 and re.fullmatch('[A-Za-z0-9_-]{32,128}', selected[0])
+                and selected[0] in self.secrets
+                and all(value != selected[0] for key, _, value in entries if key != 'STAGING_TERMINAL_API_KEY'),
+                'Terminal requires its separate protected synthetic key')
+        return selected[0]
+
+    def _terminal_prerequisites(self):
+        key = self._terminal_key()
+        try:
+            result = subprocess.run(['docker', 'compose', 'version', '--short'], cwd=ROOT,
+                                    capture_output=True, timeout=15)
+        except (OSError, subprocess.SubprocessError):
+            raise AssertionError('Terminal requires Docker Compose >=2.24.4') from None
+        version = re.fullmatch(rb'v?(\d+)\.(\d+)\.(\d+)(?:-desktop\.\d+)?\s*', result.stdout) \
+            if result.returncode == 0 and len(result.stdout) <= 128 else None
+        require(version is not None and tuple(int(value) for value in version.groups()) >= (2, 24, 4),
+                'Terminal requires Docker Compose >=2.24.4')
+        return key
+
+    def _check_terminal(self, config, row, key, webui_id):
+        """Check the inherited service in this binding; no daemon exec/API call."""
+        service = config['services'][TERMINAL_SERVICE]
+        volume = config.get('volumes', {}).get('terminal_home', {})
+        volume_name = config['name'] + '_terminal_home'
+        require(volume.get('name') == volume_name and not volume.get('external')
+                and not volume.get('driver_opts') and volume.get('driver', 'local') == 'local',
+                'Terminal requires its project-owned local home volume')
+        mounts = service.get('volumes', [])
+        require(len(mounts) == 1 and mounts[0].get('type') == 'volume'
+                and mounts[0].get('source') == 'terminal_home' and mounts[0].get('target') == '/home'
+                and not mounts[0].get('read_only') and not mounts[0].get('volume'),
+                'Terminal declared home mount differs')
+        require(service.get('image') == TERMINAL_IMAGE and 'build' not in service
+                and service.get('restart') == 'no' and not service.get('privileged')
+                and not service.get('read_only') and not service.get('cap_add') and not service.get('devices')
+                and not service.get('cap_drop') and not service.get('security_opt') and not service.get('init')
+                and not service.get('user') and not service.get('command') and not service.get('entrypoint')
+                and service.get('mem_limit') == 768 * 1024**2 and service.get('memswap_limit') == 1024**3
+                and service.get('cpus') == .5 and service.get('pids_limit') == 256
+                and service.get('environment', {}).get('OPEN_TERMINAL_API_KEY') == key
+                and service['environment'].get('OPEN_TERMINAL_MULTI_USER') == 'true',
+                'Terminal inherited image/resources/security/key differ')
+        bypass = 'localhost,127.0.0.1,webui,proxy,provider,postgres,redis,office,open-terminal-office,open-terminal-office:8000'
+        require(all(config['services']['webui'].get('environment', {}).get(name) == bypass
+                    for name in ('NO_PROXY', 'no_proxy')), 'Terminal native WebUI proxy bypass differs')
+        actual_proxy = self._docker_json(['inspect', '--format', '{{json .Config.Env}}', webui_id],
+            project=lambda values: [value for value in values if value.partition('=')[0] in ('NO_PROXY', 'no_proxy')])
+        require(sorted(actual_proxy) == sorted([name + '=' + bypass for name in ('NO_PROXY', 'no_proxy')]),
+                'Terminal actual native WebUI proxy bypass differs')
+        actual = row.get('terminal', {})
+        require(row['health'] == 'healthy' and row['privileged'] is False and row['readonly'] is False
+                and not row['init'] and not row['capdrop'] and not row['security']
+                and actual.get('image_ref') == TERMINAL_IMAGE and actual.get('image_id') == TERMINAL_IMAGE_ID
+                and actual.get('user') == 'user' and actual.get('workdir') == '/home/user'
+                and actual.get('entrypoint') == ['/usr/bin/tini', '--', '/app/entrypoint.sh']
+                and actual.get('command') == ['run'] and not actual.get('capadd') and not actual.get('devices')
+                and actual.get('memory') == 768 * 1024**2 and actual.get('memory_swap') == 1024**3
+                and actual.get('nano_cpus') == 500000000 and actual.get('pids_limit') == 256
+                and actual.get('restart') == 'no' and actual.get('multi_user') is True
+                and actual.get('key_sha256') == [hashlib.sha256(key.encode()).hexdigest()],
+                'Terminal actual image/resources/security/key differ')
+        mounts = row['mounts']
+        require(len(mounts) == 1 and mounts[0].get('Type') == 'volume' and mounts[0].get('Name') == volume_name
+                and mounts[0].get('Destination') == '/home' and mounts[0].get('RW') is True,
+                'Terminal actual home mount differs')
+        volumes = self._docker_json(['volume', 'inspect', volume_name])
+        require(isinstance(volumes, list) and len(volumes) == 1 and volumes[0].get('Name') == volume_name
+                and volumes[0].get('Driver') == 'local' and not volumes[0].get('Options')
+                and volumes[0].get('Labels', {}).get('com.docker.compose.project') == config['name']
+                and volumes[0]['Labels'].get('com.docker.compose.volume') == 'terminal_home'
+                and isinstance(volumes[0].get('Mountpoint'), str) and volumes[0]['Mountpoint'].startswith('/')
+                and mounts[0].get('Source') == volumes[0].get('Mountpoint'),
+                'Terminal actual project home volume differs')
+        platform = self._docker_json(['image', 'inspect', '--format',
+            '{"id":{{json .Id}},"os":{{json .Os}},"architecture":{{json .Architecture}}}', TERMINAL_IMAGE_ID])
+        require(platform == {'id': TERMINAL_IMAGE_ID, 'os': 'linux', 'architecture': 'amd64'},
+                'Terminal pinned platform differs')
+        self._terminal_binding = {'id': row['id'], 'image': TERMINAL_IMAGE, 'image_id': TERMINAL_IMAGE_ID,
+                                  'volume': volume_name, 'os': 'linux', 'architecture': 'amd64'}
 
     def _docker_json(self, arguments, *, project=None):
         try:
@@ -230,7 +355,11 @@ class OfficeFixture(PricingFixture):
 
     def bind(self, base_url):
         self._office_binding = None
+        self._terminal_binding = None
+        terminal_key = self._terminal_prerequisites() if self.terminal else None
         services = {'proxy', 'postgres', 'provider', 'redis', 'webui', 'office'}
+        if self.terminal:
+            services.add(TERMINAL_SERVICE)
         config = self._bind_services(base_url, services)
         project = config.get('name'); network = config['networks']['proof'].get('name')
         require(isinstance(project, str) and project and isinstance(network, str) and network
@@ -245,9 +374,11 @@ class OfficeFixture(PricingFixture):
                 'Office Compose security/session owner differs')
         result = subprocess.run(self.command + ['ps', '--all', '--quiet'], cwd=ROOT, capture_output=True, timeout=15)
         ids = result.stdout.decode('ascii').split()
-        require(result.returncode == 0 and len(ids) == len(set(ids)) == 6
-                and all(re.fullmatch('[a-f0-9]{64}', value) for value in ids), 'Office requires six unique containers')
-        rows = [self._docker_json(['inspect', '--format', '{{json .}}', value], project=topology_row) for value in ids]
+        require(result.returncode == 0 and len(ids) == len(set(ids)) == len(services)
+                and all(re.fullmatch('[a-f0-9]{64}', value) for value in ids),
+                'Office requires seven unique containers' if self.terminal else 'Office requires six unique containers')
+        rows = [self._docker_json(['inspect', '--format', '{{json .}}', value], project=lambda raw: topology_row(raw,
+            terminal=self.terminal and raw['Config']['Labels'].get('com.docker.compose.service') == TERMINAL_SERVICE)) for value in ids]
         require({r['id'] for r in rows} == set(ids) and all(r['running'] is True
                 and r['labels'].get('com.docker.compose.project') == project for r in rows)
                 and {r['labels'].get('com.docker.compose.service') for r in rows} == services,
@@ -275,6 +406,8 @@ class OfficeFixture(PricingFixture):
         environment = self._docker_json(['inspect', '--format', '{{json .Config.Env}}', row['id']])
         callback = [value for value in environment if value.startswith('OPENWEBUI_BASE_URL=')]
         require(callback == ['OPENWEBUI_BASE_URL=http://webui:8080'], 'Office actual native WebUI callback differs')
+        if self.terminal:
+            self._check_terminal(config, by_service[TERMINAL_SERVICE], terminal_key, by_service['webui']['id'])
         self._office_binding = {'project': project, 'services': {name: {'id': by_service[name]['id'],
             'image': config['services'][name].get('image')} for name in ('webui', 'office')}}
 
@@ -282,7 +415,7 @@ class OfficeFixture(PricingFixture):
         """Collect actual same-job artifacts; not persisted profile/Office acceptance.
 
         Caller supplies trusted clean GITHUB_SHA and successful builder output.
-        Strict-six binding is repeated immediately before target selection.
+        The explicit six/seven binding repeats immediately before selection.
         """
         require(isinstance(expected_revision, str) and re.fullmatch('[0-9a-f]{40}', expected_revision)
                 and isinstance(build_receipt, dict) and build_receipt.get('source_commit') == expected_revision,
