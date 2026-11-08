@@ -11,7 +11,6 @@ import argparse
 from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
-from html.parser import HTMLParser
 import hashlib
 import ipaddress
 import json
@@ -23,49 +22,12 @@ from urllib.parse import urlsplit
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect, sync_playwright
 from prove_webui_browser import Fixture, chat, login, require, safe_failure, same_money, text_content, write_json
+from verify_admin_calls import MARKER, FormParser, editor_rows
 
 
 INTENT = "Давай настроим лимиты"
 MODELS = ("goal584-a", "goal584-b")
 SERVER_TITLE = "Изменение бюджетов сотрудников"
-MARKER = 'data-budget-editor="v1"'
-
-
-class FormParser(HTMLParser):
-    def __init__(self, html, block_id="budget-data"):
-        super().__init__()
-        self.current = False
-        self.blocks = []
-        self.block_id = block_id
-        self.feed(html)
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "script" and dict(attrs).get("id") == self.block_id:
-            self.current = True
-            self.blocks.append("")
-
-    def handle_data(self, data):
-        if self.current:
-            self.blocks[-1] += data
-
-    def handle_endtag(self, tag):
-        if tag == "script":
-            self.current = False
-
-
-def editor_rows(html, *, expected_count=2):
-    require(isinstance(html, str) and MARKER in html, "Native editor embed is missing")
-    require(not re.search(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|(?:sk-|gw-)[A-Za-z0-9_-]{16,}", html),
-            "Native editor contains a credential-shaped value")
-    parser = FormParser(html)
-    require(len(parser.blocks) == 1, "Native editor has an ambiguous data block")
-    rows = json.loads(parser.blocks[0])
-    require(isinstance(rows, list) and len(rows) == expected_count
-            and len({r["user_id"] for r in rows}) == expected_count,
-            "Native editor must show the expected actual employees")
-    return rows
-
-
 def planned_changes(rows, staff_ids, *, second_budget="0.4"):
     require({row["user_id"] for row in rows} == set(staff_ids), "Native editor differs from fixture employees")
     changes = []

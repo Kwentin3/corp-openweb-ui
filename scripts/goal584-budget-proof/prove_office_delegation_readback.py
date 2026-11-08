@@ -104,6 +104,23 @@ def descriptors(models):
     return result
 
 
+def join_responses_call(row, physical, *, wire_model, provider_transport):
+    """Join one actual auth observation to its whole physical Responses body."""
+    wire = row['body']
+    require(wire == row['body_after_auth'] and not row.get('auth_failure')
+            and row['attestation_present_before'] is True and row['provenance_removed_after'] is True
+            and row['route'] in ('/responses', '/v1/responses', '/openai/v1/responses'), 'office_delegation_auth_context')
+    expected = proof.expected_provider_body(wire, wire_model, provider_transport=provider_transport)
+    matches = [p for p in physical if p['body'] == expected]
+    require(len(matches) == 1, 'office_delegation_provider_join')
+    p = copy.deepcopy(matches[0])
+    p['lifecycle'] = {k: p['lifecycle'][k] for k in ('terminal', 'outcome')}
+    return dict(wire_before_auth=wire, wire_after_auth=row['body_after_auth'],
+        auth_user_id=row['native_auth_user_id'], auth_key_hash=row['native_auth_key_hash'],
+        attestation_present_before=True, provenance_removed_after=True, route=row['route'],
+        verified_cost_scope=row['verified_cost_scope'], provider=p)
+
+
 def calls(before, provider, captured):
     for name, current in (('provider', provider), ('capture', captured)):
         old = before[name]['requests']
@@ -114,21 +131,16 @@ def calls(before, provider, captured):
     groups = {m: [] for m in (*MODELS, 'gpt-6-luna')}; used, nonces = set(), set()
     for row in observed:
         wire = row['body']; model = wire.get('model')
-        require(model in groups and wire == row['body_after_auth'] and not row.get('auth_failure')
-                and row['attestation_present_before'] is True and row['provenance_removed_after'] is True
-                and row['route'] in ('/responses', '/v1/responses', '/openai/v1/responses'), 'office_delegation_auth_context')
+        require(model in groups, 'office_delegation_auth_context')
         target = WIRES.get(model, 'goal584-fake-office-service')
-        expected = proof.expected_provider_body(wire, target, provider_transport='buffered' if model == MODELS[0] else 'native')
-        matches = [p for p in physical if p['body'] == expected]
-        require(len(matches) == 1 and matches[0]['id'] not in used, 'office_delegation_provider_join')
-        p = copy.deepcopy(matches[0]); used.add(p['id'])
-        p['lifecycle'] = {k: p['lifecycle'][k] for k in ('terminal', 'outcome')}
+        call = join_responses_call(row, physical, wire_model=target,
+                                  provider_transport='buffered' if model == MODELS[0] else 'native')
+        require(call['provider']['id'] not in used, 'office_delegation_provider_join')
+        used.add(call['provider']['id'])
         scope = row['verified_cost_scope']
         require(scope['call_id'] not in nonces, 'office_delegation_nonce')
         nonces.add(scope['call_id'])
-        groups[model].append(dict(wire_before_auth=wire, wire_after_auth=row['body_after_auth'],
-            auth_user_id=row['native_auth_user_id'], auth_key_hash=row['native_auth_key_hash'],
-            attestation_present_before=True, provenance_removed_after=True, route=row['route'], verified_cost_scope=scope, provider=p))
+        groups[model].append(call)
     require([len(groups[m]) for m in (*MODELS, 'gpt-6-luna')] == [6, 6, 1] and len(used) == 13,
             'office_delegation_call_partition')
     return groups

@@ -4,6 +4,7 @@ import ast
 from collections import Counter
 from decimal import Decimal, InvalidOperation
 import hashlib
+from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
@@ -14,11 +15,47 @@ from capture_webui_auth import FIELDS
 MODELS = ("goal584-a", "goal584-b")
 PHYSICAL = {"goal584-a": "goal584-fake-a", "goal584-b": "goal584-fake-b"}
 SCOPE_FIELDS = {"schema", "user_id", "chat_id", "answer_id", "root_chat_id", "root_answer_id", "model", "call_id", "category"}
+MARKER = 'data-budget-editor="v1"'
 
 
 def require(value, message):
     if not value:
         raise AssertionError(message)
+
+
+class FormParser(HTMLParser):
+    def __init__(self, html, block_id="budget-data"):
+        super().__init__()
+        self.current = False
+        self.blocks = []
+        self.block_id = block_id
+        self.feed(html)
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "script" and dict(attrs).get("id") == self.block_id:
+            self.current = True
+            self.blocks.append("")
+
+    def handle_data(self, data):
+        if self.current:
+            self.blocks[-1] += data
+
+    def handle_endtag(self, tag):
+        if tag == "script":
+            self.current = False
+
+
+def editor_rows(html, *, expected_count=2):
+    require(isinstance(html, str) and MARKER in html, "Native editor embed is missing")
+    require(not re.search(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|(?:sk-|gw-)[A-Za-z0-9_-]{16,}", html),
+            "Native editor contains a credential-shaped value")
+    parser = FormParser(html)
+    require(len(parser.blocks) == 1, "Native editor has an ambiguous data block")
+    rows = json.loads(parser.blocks[0])
+    require(isinstance(rows, list) and len(rows) == expected_count
+            and len({r["user_id"] for r in rows}) == expected_count,
+            "Native editor must show the expected actual employees")
+    return rows
 
 
 def uuid(value):

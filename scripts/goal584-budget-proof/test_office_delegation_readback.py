@@ -140,6 +140,29 @@ def test_physical_dispatch_join_is_full_body_not_count_or_model_only():
     assert [len(groups[m]) for m in (*R.MODELS, 'gpt-6-luna')] == [6, 6, 1]
 
 
+def test_public_single_join_retains_actual_auth_and_provider_for_another_responses_alias():
+    provider, captured = wire_observations()
+    row = captured['requests'][0]
+    row['body']['model'] = row['body_after_auth']['model'] = 'goal584-usage'
+    target = 'goal584-fake-usage'
+    provider['requests'][0]['body'] = R.proof.expected_provider_body(row['body'], target, provider_transport='buffered')
+    result = R.join_responses_call(row, provider['requests'], wire_model=target, provider_transport='buffered')
+    assert result['wire_before_auth'] == row['body'] and result['provider']['id'] == provider['requests'][0]['id']
+    assert result['verified_cost_scope'] == row['verified_cost_scope'] and result['auth_key_hash'] == 'a' * 64
+
+
+@pytest.mark.parametrize('mutation', ['instructions', 'tool_result', 'duplicate', 'forged_auth', 'route'])
+def test_public_single_join_does_not_repair_or_guess_context_and_auth(mutation):
+    provider, captured = wire_observations(); row = captured['requests'][0]
+    if mutation == 'instructions': row['body_after_auth']['instructions'] = 'different actual instructions'
+    elif mutation == 'tool_result': provider['requests'][0]['body']['input'].append({'type': 'function_call_output', 'call_id': 'forged', 'output': '{}'})
+    elif mutation == 'duplicate': provider['requests'].append(copy.deepcopy(provider['requests'][0]))
+    elif mutation == 'forged_auth': row['auth_failure'] = {'status_code': 403}
+    else: row['route'] = '/chat/completions'
+    with pytest.raises(N.ProofError):
+        R.join_responses_call(row, provider['requests'], wire_model=R.WIRES[R.MODELS[0]], provider_transport='buffered')
+
+
 @pytest.mark.parametrize('mutation', ['missing_worker_capture', 'body', 'nonce', 'extra_provider', 'auth_failure', 'route', 'old_rewrite'])
 def test_missing_or_coherently_unrelated_observations_do_not_prove_dispatch(mutation):
     provider, capture = wire_observations(); before = {'provider': {'requests': []}, 'capture': {'requests': []}}

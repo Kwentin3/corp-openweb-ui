@@ -1,11 +1,17 @@
 """Batch collector joins real public clients/provenance/cost reader over HTTP leaves."""
 import copy
+import asyncio
+from contextlib import redirect_stdout
 from datetime import datetime,timedelta,timezone
 from decimal import Decimal
 from hashlib import sha256
 import json
+import io
+import os
 from pathlib import Path
 import sys
+import stat
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 from uuid import uuid4
@@ -264,6 +270,271 @@ class CollectorTests(unittest.TestCase):
         self.assertFalse(result['unbound_denial_audit_chat_association_independently_proven'])
         audit['spend']=.1
         with self.assertRaisesRegex(C.P.ProofError,'unbound_failure_audit'):self.run_phase('verify')
+
+
+class AdminReceiptTests(unittest.TestCase):
+    def invoke(self, phase, *, error=None):
+        temp = TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        private = Path(temp.name)
+        if os.name == 'nt':
+            import prove_gateway_auth as private_owner
+            self.enterContext(patch.object(private_owner.stat, 'S_IMODE',
+                side_effect=lambda mode: 0o700 if stat.S_ISDIR(mode) else 0o600))
+        for name in ('PRIVATE', 'STATE', 'ADMIN_STATE'):
+            value = private if name == 'PRIVATE' else private / (name.lower() + '.private.json')
+            self.enterContext(patch.object(C, name, value))
+        C.P.fixture.write_private(C.STATE, {'legacy': 'untouched'})
+        original = C.STATE.read_bytes()
+        async def execute(actual):
+            self.assertEqual(actual, phase)
+            if error is not None: raise error
+            return {'status': 'baseline_ready', 'inference_issued': False, 'admin_source_sha256': {'actual.py': 'a' * 64}}
+        output = io.StringIO()
+        with patch.object(sys, 'argv', ['proof', '--phase', phase]), patch.object(C, 'execute', execute), redirect_stdout(output):
+            code = C.main()
+        self.assertEqual(C.STATE.read_bytes(), original)
+        receipt = private / ('admin-unknown-' + phase.removeprefix('admin-') + '.safe.json')
+        result = C.P.fixture.read_private(receipt)
+        self.assertEqual(result, json.loads(output.getvalue()))
+        self.assertEqual(result['proof'], C.ADMIN_PROOF)
+        self.assertEqual(result['phase'], phase)
+        self.assertIs(result['inference_issued'], False)
+        self.assertIs(result['whole_goal_accepted'], False)
+        self.assertIs(result['production_accepted'], False)
+        return code, result
+
+    def test_optin_success_preserves_legacy_state_and_source_receipt(self):
+        code, result = self.invoke('admin-baseline')
+        self.assertEqual(code, 0)
+        self.assertIs(result['passed'], True)
+        self.assertEqual(result['admin_source_sha256'], {'actual.py': 'a' * 64})
+        self.assertFalse(C.ADMIN_STATE.exists())
+
+    def test_optin_failure_keeps_raw_error_in_separate_private_state(self):
+        private_error = 'private synthetic native diagnostic'
+        code, result = self.invoke('admin-verify', error=C.P.ProofError(private_error))
+        self.assertEqual(code, 1)
+        self.assertIs(result['passed'], False)
+        self.assertEqual(result['failure'], 'admin_unknown_contract_failed')
+        self.assertNotIn(private_error, json.dumps(result))
+        self.assertEqual(C.P.fixture.read_private(C.ADMIN_STATE)['admin_unknown_error']['message'], private_error)
+
+    def test_native_source_closure_only_reads_consumed_source_files(self):
+        import provision_admin
+        budgets = HERE.parents[1] / 'deploy/openwebui-budgets'
+        mounted = {'usage_guard_fixture.py': HERE / 'usage_guard_fixture.py',
+                   'unknown_usage_guard.py': budgets / 'unknown_usage_guard.py'}
+        def forbidden(*args, **kwargs): raise AssertionError('source closure must not perform runtime IO')
+        with patch.object(C.P, 'MOUNTED_SOURCES', mounted), patch.object(provision_admin, 'SOURCE', budgets / 'admin_tools.py'), \
+                patch.object(C.P.fixture, 'write_private', forbidden), patch.object(C.P.fixture, 'WebUI', forbidden), \
+                patch.object(C.P.fixture, 'native_client', forbidden), patch.object(C.P, 'provider', forbidden):
+            result = C.admin_sources()
+        self.assertEqual(set(result['admin_source_sha256']), {'provision_admin.py', 'verify_admin_calls.py',
+            'prove_office_delegation_readback.py', 'prove_office_readback.py', 'prove_office_compatibility.py',
+            'mock_provider.py', 'capture_webui_auth.py'})
+        self.assertEqual(set(result['admin_producer_sha256']), {'admin_tools.py', 'admin_ui.py', 'admin_policy.py'})
+        for values in result.values():
+            self.assertTrue(values)
+            self.assertTrue(all(len(value) == 64 for value in values.values()))
+
+
+class AdminCollectorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import os
+        import test_mock_provider as provider_tests
+        native = HERE.parents[1].with_name('corp-openweb-ui-goal584') / 'local/goal584/cost-display/open-webui/backend/open_webui'
+        with patch.dict(os.environ, GOAL584_NATIVE_SOURCE_ROOT=str(native)):
+            provider_tests.AdminResponsesProviderTests.setUpClass()
+        cls.provider_tests = provider_tests
+
+    def case(self):
+        """Reuse actual native provider/context conversion, not a history builder."""
+        from types import SimpleNamespace
+        import base64
+        from verify_admin_calls import FormParser
+        H = self.provider_tests.AdminResponsesProviderTests
+        helper = H(methodName='test_native_two_rounds_preserve_context_and_full_known_usage')
+        helper.setUp(); self.addCleanup(helper.doCleanups)
+        admin, actor, chat, answer, user = (str(uuid4()) for _ in range(5)); key = 'a' * 64
+        import importlib.util
+        ui_spec = importlib.util.spec_from_file_location('admin_collector_actual_ui', HERE.parents[1]/'deploy/openwebui-budgets/admin_ui.py')
+        ui = importlib.util.module_from_spec(ui_spec); ui_spec.loader.exec_module(ui)
+        public_row = {'user_id': actor, 'name': 'Synthetic employee', 'email': 'employee@example.invalid',
+            'department': '', 'revision': 'c'*64, 'budget_usd': '6', 'spend_usd': '.332', 'remaining_usd': '5.668',
+            'expense_status': 'unknown', 'models': [{'id': alias, 'label': alias, 'cap_usd': '2',
+                'spend_usd': '.332' if index == 0 else '0', 'share_percent': '', 'blocked': bool(index),
+                'expense_status': 'unavailable' if index == 0 else 'unknown'} for index,alias in enumerate(C.P.ALIASES)]}
+        helper.embeds = [ui.render_editor([public_row], as_of='2026-11-08T00:00:00Z')]
+        from prove_office_compatibility import expected_provider_body
+        first = helper.first()
+        first = expected_provider_body({**first, 'model': C.P.ALIASES[0], 'stream': True}, C.P.WIRES[0], provider_transport='buffered')
+        code, emitted = helper.send(first); self.assertEqual(code, 200)
+        second = helper.second(first, emitted)
+        second = expected_provider_body({**second, 'model': C.P.ALIASES[0], 'stream': True}, C.P.WIRES[0], provider_transport='buffered')
+        code, final_response = helper.send(second); self.assertEqual(code, 200)
+        physical = copy.deepcopy(self.provider_tests.MOCK.REQUESTS)
+        scopes = [dict(schema=1, category='personal', user_id=admin, model=C.P.ALIASES[0],
+            chat_id=chat, root_chat_id=chat, answer_id=answer, root_answer_id=answer, call_id=str(uuid4())) for _ in range(2)]
+        captures = []
+        for payload, scope in zip((first, second), scopes):
+            wire = copy.deepcopy(payload); wire.update(model=C.P.ALIASES[0], stream=True)
+            captures.append(dict(body=wire, body_after_auth=copy.deepcopy(wire), route='/responses',
+                native_auth_user_id=admin, native_auth_key_hash=key, attestation_present_before=True,
+                provenance_removed_after=True, verified_cost_scope=scope))
+        service_scope = {'call_id': str(uuid4()), 'category': 'service'}
+        service_wire = {'model': 'gpt-6-luna', 'input': [{'role': 'user', 'content': H.intent}]}
+        captures.append(dict(body=service_wire, body_after_auth=copy.deepcopy(service_wire), route='/responses',
+            native_auth_user_id='service-payer', native_auth_key_hash='b'*64, attestation_present_before=True,
+            provenance_removed_after=True, verified_cost_scope=service_scope))
+        physical.append({'id': 'service-response', 'body': {**service_wire, 'model': 'goal584-fake-office-service'},
+                         'lifecycle': {'terminal': True, 'outcome': 'completed'}})
+        # Persist native converter output rather than synthesizing its tool pair.
+        values = second['input']; call = copy.deepcopy(emitted['output'][0]); call['status'] = 'completed'
+        result = copy.deepcopy(next(v for v in values if v.get('type') == 'function_call_output'))
+        result.update(status='completed', embeds=copy.deepcopy(helper.embeds),
+                      output=[{'type': 'input_text', 'text': helper.result_text}])
+        response = {'id': answer, 'parentId': user, 'role': 'assistant', 'model': 'goal584-budget-admin',
+                    'done': True, 'output': [call, result, *copy.deepcopy(final_response['output'])]}
+        parent = {'id': user, 'parentId': None, 'childrenIds': [answer], 'role': 'user', 'content': H.intent}
+        sent = {'id': answer, 'model': 'goal584-budget-admin', 'parent_id': None, 'user_message': copy.deepcopy(parent)}
+        saved = {'id': chat, 'user_id': admin, 'chat': {'history': {'currentId': answer, 'messages': {user: parent, answer: response}}}}
+        packet = {'schema': 1, 'admin_id': admin, 'actor_id': actor, 'model_id': 'goal584-budget-admin',
+            'http_status': 200, 'task_ids': [], 'submitted': sent, 'raw_submission': json.dumps(sent),
+            'acknowledgement': {'chat_id': chat}, 'raw_acknowledgement_base64': base64.b64encode(json.dumps({'chat_id': chat}).encode()).decode(),
+            'stored_chat': saved, 'html': helper.embeds[0], 'html_sha256': sha256(helper.embeds[0].encode()).hexdigest()}
+        # The existing pure parser independently reads that actual native embed.
+        parser = FormParser(packet['html']); packet['rows'] = json.loads(parser.blocks[0])
+        self.assertEqual(packet['rows'][0]['user_id'], actor)
+        return SimpleNamespace(before={'provider': {'synthetic': True, 'control': {}, 'requests': []}, 'capture': {'requests': []}},
+            provider={'synthetic': True, 'control': {}, 'requests': physical}, captured={'requests': captures},
+            main_scopes=scopes, saved=saved, packet=packet, final=response, selected={'admin': {'id': admin}, 'actor_id': actor},
+            admin=admin, chat=chat, answer=answer, key=key)
+
+    def test_shared_join_and_existing_full_native_provider_grammar(self):
+        data = self.case(); main, service = C.admin_calls(data.before, data.provider, data.captured)
+        self.assertEqual(len(main), 2); self.assertEqual(service['provider']['id'], 'service-response')
+        C.admin_context(main, data.final)
+        chat, answer, _, rows = C.admin_browser(data.packet, data.saved, data.selected)
+        self.assertEqual((chat, answer, rows[0]['user_id']), (data.chat, data.answer, data.selected['actor_id']))
+
+    def test_full_skill_context_tool_result_and_prefix_must_not_be_repaired(self):
+        for mutation in ('skill', 'result', 'extra', 'rewritten_prefix', 'forged_token'):
+            data = self.case()
+            if mutation == 'skill':
+                for body in (data.captured['requests'][0]['body'], data.captured['requests'][0]['body_after_auth'], data.provider['requests'][0]['body']):
+                    body['instructions'] = 'omitted native Skill'
+            elif mutation == 'result':
+                item = next(v for v in data.provider['requests'][1]['body']['input'] if v.get('type') == 'function_call_output'); item['output'] = '{}'
+            elif mutation == 'extra': data.provider['requests'].append(copy.deepcopy(data.provider['requests'][0]))
+            elif mutation == 'rewritten_prefix': data.before['provider']['requests'] = [{'id': 'lost-prior-call'}]
+            else: data.captured['requests'][0]['auth_failure'] = {'status_code': 403}
+            with self.subTest(mutation=mutation), self.assertRaises((C.P.ProofError, ValueError)):
+                C.admin_calls(data.before, data.provider, data.captured)
+
+    def test_native_stored_tool_result_must_equal_actual_next_request(self):
+        data = self.case(); main, _ = C.admin_calls(data.before, data.provider, data.captured)
+        data.final['output'][1]['output'][0]['text'] = '{}'
+        with self.assertRaisesRegex(C.P.ProofError, 'tool_result_binding'): C.admin_context(main, data.final)
+
+    def test_saved_embed_parser_rejects_forgery_before_any_native_finance(self):
+        data = self.case(); data.packet['rows'] = []
+        with self.assertRaises((AssertionError, C.P.ProofError)): C.admin_browser(data.packet, data.saved, data.selected)
+        data.packet['html'] += '<script id="budget-data">[]</script>'
+        data.packet['html_sha256'] = sha256(data.packet['html'].encode()).hexdigest()
+        data.final['output'][1]['embeds'] = [data.packet['html']]
+        with self.assertRaises((AssertionError, C.P.ProofError)): C.admin_browser(data.packet, data.saved, data.selected)
+
+    def test_actual_cost_reader_and_native_counter_cardinality_scope_join(self):
+        import importlib.util
+        from types import SimpleNamespace
+        from provenance import ProtocolError
+        path = HERE.parents[1] / 'deploy/openwebui-budgets/tests/test_cost_readback.py'
+        spec = importlib.util.spec_from_file_location('admin_actual_cost_fixture', path)
+        T = importlib.util.module_from_spec(spec); spec.loader.exec_module(T)
+        data = self.case(); main, _ = C.admin_calls(data.before, data.provider, data.captured)
+        rows = []
+        for index, scope in enumerate(data.main_scopes):
+            r = T.row('admin-row-'+str(index), spend='.166', model=C.P.ALIASES[0], chat=data.chat,
+                      answer=data.answer, call_id=scope['call_id'])
+            r.update(user=data.admin, api_key=data.key, model_group=C.P.ALIASES[0])
+            r['metadata']['spend_logs_metadata']['owui_budget'] = scope
+            rows.append(r)
+        owner = SimpleNamespace(requests=[], handler=None, payload=T.page(rows))
+        async def read():
+            return await C.P.read_cost_snapshot(T._MemoryReadSession(owner), base_url='http://native-fixture.invalid',
+                read_key='private-viewer', user_id=data.admin, root_chat_id=data.chat, root_answer_id=data.answer,
+                observed_call_ids=[s['call_id'] for s in data.main_scopes])
+        cost = asyncio.run(read())
+        user = {'user_id': data.admin, 'user_role': 'internal_user', 'models': [], 'max_budget': 2, 'spend': 0,
+                'budget_duration': '30d', 'budget_reset_at': '2026-12-01T00:00:00Z'}
+        key = {'token': data.key, 'user_id': data.admin, 'models': [C.P.ALIASES[0]], 'key_alias': 'native-known-assignment',
+               'budget_duration': '30d', 'budget_reset_at': '2026-12-01T00:00:00Z', 'spend': 0, 'max_budget': 2, 'blocked': False}
+        before = {'own': {'native': {'user': user, 'keys': {C.P.ALIASES[0]: key}, 'rows': []}},
+                  'unknown': {'durable-marker': 'retained'}, 'old': {'staff': 'unchanged'}}
+        after = copy.deepcopy(before); after['own']['native']['rows'] = rows
+        after['own']['native']['user']['spend'] = after['own']['native']['keys'][C.P.ALIASES[0]]['spend'] = .332
+        kwargs = dict(admin=data.admin, chat=data.chat, answer=data.answer)
+        C.admin_native(before, after, main, cost, **kwargs)
+        from dataclasses import replace
+        with self.assertRaisesRegex(C.P.ProofError, 'cost_snapshot'):
+            C.admin_native(before, after, main, replace(cost, user_id=str(uuid4())), **kwargs)
+        with self.assertRaisesRegex(C.P.ProofError, 'cost_snapshot'):
+            C.admin_native(before, after, main, replace(cost, root_chat_id=str(uuid4())), **kwargs)
+        with self.assertRaisesRegex(C.P.ProofError, 'cost_snapshot'):
+            C.admin_native(before, after, main, replace(cost, root_answer_id=str(uuid4())), **kwargs)
+        for mutation in ('counter', 'foreign_scope', 'service_charge', 'old_marker', 'extra_row'):
+            changed, calls = copy.deepcopy(after), copy.deepcopy(main)
+            if mutation == 'counter': changed['own']['native']['user']['spend'] = .4
+            elif mutation == 'foreign_scope': calls[0]['verified_cost_scope']['user_id'] = str(uuid4())
+            elif mutation == 'service_charge': calls[0]['verified_cost_scope']['category'] = 'service'
+            elif mutation == 'old_marker': changed['unknown'] = {}
+            else: changed['own']['native']['rows'].append(copy.deepcopy(rows[0]))
+            with self.subTest(mutation=mutation), self.assertRaises((C.P.ProofError, ProtocolError)):
+                C.admin_native(before, changed, calls, cost, **kwargs)
+
+    def test_rendered_native_counter_fields_cannot_be_forged(self):
+        data = self.case(); rows = data.packet['rows']
+        budget = {'spend': '.332', 'max_budget': '6', 'models': [
+            {'model': m['id'], 'spend': m['spend_usd'], 'max_budget': m['cap_usd']} for m in rows[0]['models']]}
+        C.admin_row_counters(rows, budget)
+        changed = copy.deepcopy(rows); changed[0]['models'][1]['spend_usd'] = '9'
+        with self.assertRaisesRegex(C.P.ProofError, 'render_model_counter'): C.admin_row_counters(changed, budget)
+        changed = copy.deepcopy(rows); changed[0]['budget_usd'] = '9'
+        with self.assertRaisesRegex(C.P.ProofError, 'render_counter'): C.admin_row_counters(changed, budget)
+
+
+# Reuse the already-qualified native SDK/rate/Office IO component fixtures.
+from test_office_compatibility import component, native
+
+
+def test_admin_uses_existing_actual_native_service_finance_owner(component, monkeypatch):
+    import test_office_compatibility as T
+    import prove_office_readback as R
+    from types import SimpleNamespace
+    from mock_provider import ADMIN_USER_REQUEST
+    before, after, terms = T.service_financial_fixture(component, monkeypatch)
+    # The shared finance fixture omits the native /key/info token field, which
+    # the whole-turn wire owner also binds to the observed authenticated key.
+    before['key']['token'] = after['key']['token'] = terms['key_hash']
+    call = copy.deepcopy(terms['dispatch'])
+    wire = {'model': 'gpt-6-luna', 'input': [{'type': 'message', 'role': 'user', 'content': [
+        {'type': 'input_text', 'text': ADMIN_USER_REQUEST}]}]}
+    followups = ['Synthetic follow-up']
+    call.update(wire_before_auth=wire, wire_after_auth=copy.deepcopy(wire))
+    call['provider'].update(route='/v1/responses', usage=T.P.USAGE, lifecycle={'terminal': True, 'outcome': 'completed'},
+        response={'id': terms['provider_id'], 'model': 'goal584-fake-office-service', 'status': 'completed', 'usage': T.P.USAGE,
+            'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': json.dumps({'follow_ups': followups})}]}]})
+    d = {'validate_persisted_service_scope': terms['validate_scope'], 'validate_snapshot': terms['validate_rates'],
+         'ResponsesAPIRequestUtils': SimpleNamespace(_decode_responses_api_response_id=terms['decode_response_id'])}
+    kwargs = dict(actor=terms['actor'], payer=terms['payer'], chat=terms['chat_id'], descriptor=terms['descriptor'], d=d,
+                  expected_user_request=ADMIN_USER_REQUEST)
+    assert R.verify_service_turn(call, before, after, {'followUps': followups}, **kwargs)['physical_calls'] == 1
+    changed = copy.deepcopy(after); changed['rows'][-1]['spend'] = .4
+    import pytest
+    with pytest.raises(C.P.ProofError): R.verify_service_turn(call, before, changed, {'followUps': followups}, **kwargs)
+    changed = copy.deepcopy(call); changed['verified_cost_scope']['actor_id'] = str(uuid4())
+    with pytest.raises(C.P.ProofError): R.verify_service_turn(changed, before, after, {'followUps': followups}, **kwargs)
 
 
 if __name__=='__main__':unittest.main()
