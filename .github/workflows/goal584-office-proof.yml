@@ -495,7 +495,7 @@ jobs:
           from prove_native_budgets import ProofError
           from prove_pricing_browser import no_credentials
           from prove_pricing_snapshots import private_credentials
-          from prove_office_delegation_browser import run
+          from prove_office_delegation_browser import PACKET, failure_projection, run
           from prove_office_compatibility import _nodes,digest
           from playwright.sync_api import sync_playwright
           signal.alarm(420)
@@ -645,6 +645,18 @@ jobs:
                       'worker encrypted reasoning compared with current native baseline']})
           except Exception as error:
               failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,'error_class':type(error).__name__}
+              if stage=='ordinary_send':
+                  lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
+                  try:
+                      _,pending=fixture._office_private(PACKET)
+                      assert pending.get('browser_source_sha256')==host_sources['prove_office_delegation_browser.py']
+                      lifecycle=failure_projection(pending)
+                      assert len(json.dumps(lifecycle,allow_nan=False).encode())<=4096
+                      no_credentials(lifecycle,fixture.secrets)
+                  except Exception:
+                      lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
+                  public('office-delegation-lifecycle',lifecycle)
+                  failure['lifecycle_diagnostic_collected']=lifecycle.get('collected') is True
               if stage=='setup':
                   failure['setup_diagnostic_collected']=False
                   try: failure['setup_diagnostic_collected']=setup_diagnostic()
@@ -912,6 +924,120 @@ jobs:
               raise SystemExit(1) from None
           finally: signal.setitimer(signal.ITIMER_REAL,0)
           PY
+      - name: Verify the native admin form against unknown expense and separate accounting
+        timeout-minutes: 10
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,signal,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_service_admin_browser import run_unknown_presence
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          from playwright.sync_api import sync_playwright
+          root=Path.cwd().resolve();private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          revision=os.environ['GITHUB_SHA'];stage='source_preflight';deadline=time.monotonic()+540
+          def timed_out(*args): raise TimeoutError('admin_unknown_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.setitimer(signal.ITIMER_REAL,540)
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          private_names=('gateway-state.private.json','webui-state.private.json','office-state.private.json',
+              'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json',
+              'admin-unknown-state.private.json','admin-unknown-accounts.private.json',
+              'admin-unknown-browser.private.json')
+          def credentials():
+              for name in private_names:
+                  if (private/name).exists(): fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          def public(name,packet):
+              credentials();no_credentials(packet,fixture.secrets)
+              raw=json.dumps(packet,indent=2,allow_nan=False).encode()
+              assert len(raw)<=64*1024,'admin_unknown_public_bound'
+              (out/(name+'.safe.json')).write_bytes(raw+b'\n')
+          def native(arguments,label,timeout=120,require_passed=True,host_owner=True):
+              owner=['--user',str(os.getuid())+':'+str(os.getgid())] if host_owner else []
+              result=subprocess.run(fixture.command+['exec','-T',*owner,'proxy','python','-B',*arguments],
+                  capture_output=True,timeout=min(timeout,max(1,deadline-time.monotonic()-5)))
+              assert 0<len(result.stdout)<=64*1024,'admin_unknown_native_bound'
+              packet=json.loads(result.stdout);public(label,packet)
+              assert result.returncode==0 and (not require_passed or packet.get('passed') is True),'admin_unknown_native_failed'
+              return packet
+          def trusted(path):
+              raw=path.read_bytes()
+              result=subprocess.run(['git','-c','gc.auto=0','show',revision+':'+path.relative_to(root).as_posix()],
+                  capture_output=True,timeout=15,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
+              assert result.returncode==0 and result.stdout==raw,'admin_unknown_source_changed'
+              return hashlib.sha256(raw).hexdigest()
+          try:
+              source=root/'scripts/goal584-budget-proof';budgets=root/'deploy/openwebui-budgets'
+              aliases={'employee_budget_admin_client.py':'admin_client.py',
+                  'employee_budget_admin_contract.py':'admin_contract.py','employee_budget_assignment.py':'assignment.py',
+                  'employee_budget_cost_readback.py':'cost_readback.py','employee_budget_provenance.py':'provenance.py',
+                  'provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py',
+                  'unknown_usage_guard.py':'unknown_usage_guard.py',
+                  'admin_tools.py':'admin_tools.py','admin_ui.py':'admin_ui.py','admin_policy.py':'admin_policy.py'}
+              browser_sha=trusted(source/'prove_service_admin_browser.py')
+              closure=native(['-c','import json,prove_unknown_usage_gui as c; print(json.dumps(c.admin_sources()))'],
+                  'admin-unknown-native-sources',30,require_passed=False)
+              assert set(closure)=={'source_sha256','mounted_source_sha256','admin_source_sha256','admin_producer_sha256'}
+              for group in closure.values():
+                  assert isinstance(group,dict) and group
+                  for name,value in group.items():
+                      path=budgets/aliases[name] if name in aliases else source/name
+                      assert path.is_file() and path.resolve().parent in (source,budgets)
+                      assert trusted(path)==value,'admin_unknown_runtime_source_changed'
+              gate=fixture._office_private('unknown-usage-gui-verify.safe.json')[1]
+              assert gate.get('passed') is True and gate.get('proof')=='goal584-unknown-usage-gui'
+              stage='setup'
+              setup=native(['/proof/provision_admin.py','--phase','unknown-setup',
+                  '--private-state','/proof-private/webui-state.private.json','--office-state','/proof-private/office-state.private.json',
+                  '--unknown-state','/proof-private/unknown-usage-gui-state.private.json',
+                  '--admin-unknown-state','/proof-private/admin-unknown-state.private.json',
+                  '--browser-accounts','/proof-private/admin-unknown-accounts.private.json',
+                  '--receipt','/proof-private/admin-unknown-setup.safe.json'],'admin-unknown-setup')
+              assert setup.get('phase')=='unknown-setup' and setup.get('inference_issued') is False
+              accounts=fixture._office_private('admin-unknown-accounts.private.json')[1]
+              stage='baseline'
+              # Preserve the existing Office collector owner for its0600 capture/lock.
+              # Its private readback stays native-only; host reads only safe stdout.
+              baseline=native(['/proof/prove_unknown_usage_gui.py','--phase','admin-baseline'],'admin-unknown-baseline',host_owner=False)
+              assert baseline.get('status')=='baseline_ready' and baseline.get('inference_issued') is False
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_bytes())
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=15).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              stage='browser'
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,packet=run_unknown_presence(browser,fixture,base,build,revision,accounts)
+                  finally: browser.close()
+              assert observed.get('status')=='browser_observed' and observed.get('ordinary_sends')==1
+              assert observed.get('native_accounting_accepted') is False and observed.get('provider_dispatch_accepted') is False
+              assert fixture._office_private('admin-unknown-browser.private.json')[1]==packet
+              assert packet.get('source_sha256')==browser_sha==trusted(source/'prove_service_admin_browser.py')
+              assert packet.get('binding',{}).get('source_commit')==revision
+              public('admin-unknown-browser',observed)
+              stage='verify'
+              verified=native(['/proof/prove_unknown_usage_gui.py','--phase','admin-verify'],'admin-unknown-verify',150,host_owner=False)
+              assert verified.get('status')=='verified' and verified.get('personal_calls')==2 and verified.get('personal_cost_usd')=='.332'
+              assert verified.get('native_saved_embed_verified') is True and verified.get('unknown_employee_verified') is True
+              assert all(verified.get(key) is False for key in ('whole_goal_accepted','production_accepted','unknown_cost_finality'))
+              from prove_office_compatibility import checked_png
+              for key,label in (('page_screenshot','page'),('employee_screenshot','employee')):
+                  path=Path(packet['paths'][key]);assert path.resolve().parent==private.resolve() and not path.is_symlink()
+                  raw=path.read_bytes();checked_png(raw)
+                  assert hashlib.sha256(raw).hexdigest()==packet['screenshot_sha256'][key]
+                  (out/('office-admin-unknown-'+label+'.png')).write_bytes(raw)
+              public('admin-unknown-host',{'schema':1,'passed':True,'stage':'complete','source_commit':revision,
+                  'ordinary_sends':1,'personal_calls':2,'personal_cost_usd':'.332','source_closure':closure,
+                  'whole_goal_accepted':False,'production_accepted':False,'unknown_cost_finality':False})
+          except Exception as error:
+              public('admin-unknown-host',{'schema':1,'passed':False,'stage':stage,'failure':'admin_unknown_host_contract_failed',
+                  'error_class':type(error).__name__,'whole_goal_accepted':False,'production_accepted':False})
+              raise SystemExit(1) from None
+          finally: signal.setitimer(signal.ITIMER_REAL,0)
+          PY
       - name: Retain bounded sanitized stand diagnostics before cleanup
         if: failure() && env.PROOF_ENV_FILE != ''
         timeout-minutes: 2
@@ -928,7 +1054,9 @@ jobs:
               values=[line.partition('=')[2] for line in env_file.read_text().splitlines() if '=' in line]
               private=Path(os.environ['PROOF_PRIVATE_DIR'])
               for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json',
-                  'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json','unknown-usage-browser.private.json'):
+                  'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json','unknown-usage-browser.private.json',
+                  'admin-unknown-state.private.json','admin-unknown-accounts.private.json',
+                  'admin-unknown-browser.private.json'):
                   path=private/name
                   if path.exists(): values.extend(private_credentials(read_private(path)))
               command=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',str(env_file),
