@@ -795,8 +795,12 @@ class AdminResponsesProviderTests(unittest.TestCase):
     def setUpClass(cls):
         import asyncio
         import collections
+        import inspect
         import re
         import sys
+        from functools import partial, update_wrapper
+        from typing import get_args, get_type_hints
+        from pydantic import BaseModel, Field
         from datetime import datetime, timezone
         from starlette.responses import HTMLResponse
         cls.here = Path(__file__).resolve().parent
@@ -812,9 +816,6 @@ class AdminResponsesProviderTests(unittest.TestCase):
         owner = ast.parse((cls.here.parents[1] / "deploy/openwebui-budgets/admin_tools.py").read_text(encoding="utf-8"))
         methods = next(n for n in owner.body if isinstance(n, ast.ClassDef) and n.name == "Tools").body
         cls.methods = {n.name: n for n in methods if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
-        cls.tools = copy.deepcopy(ADMIN_TOOLS)
-        for spec in cls.tools:
-            spec["function"]["description"] = ast.get_docstring(cls.methods[spec["function"]["name"].removeprefix("employee_budget_admin_")])
         env = {"copy": copy, "deepcopy": copy.deepcopy, "collections": collections, "re": re,
                "json": json, "JSONCodec": json, "Any": object, "HTMLResponse": HTMLResponse,
                "datetime": datetime, "timezone": timezone}
@@ -836,6 +837,51 @@ class AdminResponsesProviderTests(unittest.TestCase):
             "SKILL_MANIFEST_MAX_ENTRIES", "bounded_skill_manifest", "skill_overview", "format_skill_content"})
         extract("utils/middleware.py", {"BASE64_IMAGE_DATA_URI_RE", "extract_base64_images", "process_tool_result",
             "_is_tool_result_error"})
+        # Exact native DB specs observed in Office90's installation receipt.
+        # get_tool_specs/langchain ran in that server; here DB/cache are IO leaves.
+        # Execute the real local factory/wrapper, not the prefixed legacy CC fixture.
+        specs = [
+            {"name": "apply_budget_form", "description": "Apply the exact stored JSON parent user message; no model-supplied business arguments.",
+             "parameters": {"properties": {}, "type": "object"}},
+            {"name": "open_budget_form", "description": "Open current employee budgets. Optional JSON view filters affect display only.",
+             "parameters": {"properties": {"view_json": {"default": "{}", "type": "string"}}, "type": "object"}},
+        ]
+        actual_class = {"BaseModel": BaseModel, "Field": Field}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ImportFrom(module="__future__",
+            names=[ast.alias(name="annotations")], level=0), next(n for n in owner.body
+                if isinstance(n, ast.ClassDef) and n.name == "Tools")], type_ignores=[])),
+            "canonical_admin_tools_class", "exec"), actual_class)
+        module = actual_class["Tools"]()
+        tool_id = "employee_budget_admin"
+        content = (cls.here.parents[1] / "deploy/openwebui-budgets/admin_tools.py").read_text(encoding="utf8")
+        stored = SimpleNamespace(id=tool_id, user_id="fixture-admin", content=content, specs=copy.deepcopy(specs))
+        async def groups(*args, **kwargs): return []
+        async def models(ids):
+            assert ids == [tool_id]
+            return {tool_id: stored}
+        async def valves(selected):
+            assert selected == tool_id
+            return {"managed_model_ids": ["goal584-usage", "goal584-usage-absent", "goal584-usage-null"]}
+        env.update(inspect=inspect, get_type_hints=get_type_hints, get_args=get_args, partial=partial,
+            update_wrapper=update_wrapper, log=logging.getLogger("native_admin_tools"),
+            ENABLE_TOOLS=True, ENABLE_TOOL_SERVERS=True, BYPASS_ADMIN_ACCESS_CONTROL=False,
+            Groups=SimpleNamespace(get_groups_by_member_id=groups),
+            Tools=SimpleNamespace(get_tools_by_ids=models, get_tool_valves_by_id=valves),
+            get_tools_cache=lambda request: {tool_id: module},
+            get_tool_contents_cache=lambda request: {tool_id: content})
+        extract("utils/tools.py", {"get_tools", "get_async_tool_function_and_apply_extra_params"})
+        cls.native_tools = asyncio.run(env["get_tools"](SimpleNamespace(), [tool_id],
+            SimpleNamespace(id="fixture-admin", role="admin"), {"__user__": {"id": "fixture-admin", "role": "admin"}}))
+        middleware = ast.parse((cls.native / "utils/middleware.py").read_bytes())
+        assignments = [n for n in ast.walk(middleware) if isinstance(n, ast.Assign)
+            and any(isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name) and t.value.id == "form_data"
+                and isinstance(t.slice, ast.Constant) and t.slice.value == "tools" for t in n.targets)
+            and isinstance(n.value, ast.ListComp) and "tool.get" in ast.unparse(n.value)]
+        assert len(assignments) == 1
+        payload = {"form_data": {}, "tools_dict": cls.native_tools, "deferred": set()}
+        exec(compile(ast.fix_missing_locations(ast.Module(body=assignments, type_ignores=[])),
+            "native_middleware_tools", "exec"), payload)
+        cls.tools = payload["form_data"]["tools"]
         cls.env = env
         # Execute the actual canonical Tool result owner; no _load/auth/API claim.
         def load(name, path):
@@ -854,7 +900,7 @@ class AdminResponsesProviderTests(unittest.TestCase):
         result = actual["ActualResult"]._result(SimpleNamespace(identities={}, states={}, inspections={},
             config={}, labels={}, service=None, unknown_presence=None))
         cls.result_text, files, cls.embeds = asyncio.run(env["process_tool_result"](
-            None, OPEN_NAME, result, "local"))
+            None, "open_budget_form", result, "local"))
         assert files == [] and len(cls.embeds) == 1 and 'data-budget-editor="v1"' in cls.embeds[0]
         assert json.loads(cls.result_text) == cls.results["opened"] and "<html" not in cls.result_text
         middleware = ast.parse((cls.native / "utils/middleware.py").read_bytes())
@@ -914,7 +960,7 @@ class AdminResponsesProviderTests(unittest.TestCase):
         self.assertEqual((len(self.skill.strip()), hashlib.sha256(self.skill.strip().encode()).hexdigest()),
                          (MOCK.ADMIN_SKILL_CHARS, MOCK.ADMIN_SKILL_SHA256))
         for tool in self.tools:
-            function = tool["function"]; name = function["name"].removeprefix("employee_budget_admin_")
+            function = tool["function"]; name = function["name"]
             method = self.methods[name]
             self.assertEqual({a.arg for a in method.args.args if a.arg != "self" and not a.arg.startswith("__")},
                              set(function["parameters"]["properties"]))
@@ -924,10 +970,37 @@ class AdminResponsesProviderTests(unittest.TestCase):
         changed = self.first(); changed["instructions"] = changed["instructions"].replace(self.skill.strip(), self.skill.strip()[:-1])
         self.assertEqual(self.send(changed)[0], 400)
 
+    def test_native_local_tool_factory_preserves_plain_names_and_reserved_parameters(self):
+        self.assertEqual(set(self.native_tools), {"open_budget_form", "apply_budget_form"})
+        for name, tool in self.native_tools.items():
+            self.assertEqual(tool["spec"]["name"], name)
+            self.assertEqual(tool["tool_id"], "employee_budget_admin")
+            self.assertEqual(type(tool["callable"].__function__.__self__).__name__, "Tools")
+            self.assertFalse(any(p.startswith("__") for p in tool["spec"]["parameters"]["properties"]))
+            self.assertEqual(tool["callable"].__extra_params__["__user__"]["id"], "fixture-admin")
+            self.assertEqual(tool["spec"]["description"], ast.get_docstring(self.methods[name]))
+        first = self.first()
+        self.assertEqual({tool["name"] for tool in first["tools"]}, set(self.native_tools))
+        self.assertTrue(all(tool["strict"] is False for tool in first["tools"]))
+        self.assertIn(self.skill.strip(), first["instructions"])
+        self.assertEqual(self.send(first)[0], 200)
+
+    def test_legacy_prefixed_schema_and_call_name_are_not_native_local_admin_names(self):
+        first = self.first(); prefixed = copy.deepcopy(first)
+        for tool in prefixed["tools"]: tool["name"] = "employee_budget_admin_" + tool["name"]
+        self.assertEqual(self.send(prefixed)[0], 400)
+        self.assertEqual(MOCK.REQUESTS, [])
+        code, emitted = self.send(first); self.assertEqual(code, 200)
+        second = self.second(first, emitted); forged = copy.deepcopy(second)
+        forged["input"][-2]["name"] = "employee_budget_admin_open_budget_form"
+        self.assertEqual(self.send(forged)[0], 400)
+        self.assertEqual(len(MOCK.REQUESTS), 1)
+        self.assertEqual(self.send(second)[0], 200)
+
     def test_native_two_rounds_preserve_context_and_full_known_usage(self):
         first = self.first(); before = copy.deepcopy(first)
         code, emitted = self.send(first); self.assertEqual(code, 200)
-        self.assertEqual(emitted["output"][0]["name"], OPEN_NAME)
+        self.assertEqual(emitted["output"][0]["name"], "open_budget_form")
         self.assertEqual(json.loads(emitted["output"][0]["arguments"]), {"view_json": "{}"})
         second = self.second(first, emitted); code, final = self.send(second)
         self.assertEqual(code, 200); self.assertEqual(final["output"][0]["content"][0]["text"], "Proof")
@@ -953,7 +1026,7 @@ class AdminResponsesProviderTests(unittest.TestCase):
 
     def test_schema_business_argument_or_missing_full_tool_changes_are_rejected(self):
         mutations = (lambda p:p["tools"].pop(), lambda p:p["tools"][0].update(description="shortened"),
-            lambda p:p["tools"][0]["parameters"].update(properties={}),
+            lambda p:next(t for t in p["tools"] if t["name"] == "open_budget_form")["parameters"].update(properties={}),
             lambda p:p["tools"][0]["parameters"]["properties"].update(budget_usd={"type": "number"}),
             lambda p:p["tools"][0].update(strict=True), lambda p:p["tools"][0]["parameters"].update(required=["view_json"]))
         for mutate in mutations:
@@ -965,7 +1038,7 @@ class AdminResponsesProviderTests(unittest.TestCase):
         first = self.first(); _, emitted = self.send(first); second = self.second(first, emitted)
         mutations = (lambda p:p["input"][-1].update(call_id="foreign-call"),
             lambda p:p["input"][-1].update(output=json.dumps({"status": "success", "message": "Invented visible form"})),
-            lambda p:p["input"][-2].update(name=APPLY_NAME),
+            lambda p:p["input"][-2].update(name="apply_budget_form"),
             lambda p:p["input"][-2].update(arguments="{}"),
             lambda p:p.update(instructions=p["instructions"] + " changed context"),
             lambda p:p["input"].append(copy.deepcopy(p["input"][-1])),
@@ -991,7 +1064,7 @@ class AdminResponsesProviderTests(unittest.TestCase):
         first = self.first(); _, emitted = self.send(first); second = self.second(first, emitted)
         tape = copy.deepcopy(MOCK.REQUESTS)
         self.assertEqual(MOCK.admin_responses_step(first, MOCK.responses_input(first), prior_requests=[]),
-                         (OPEN_NAME, {"view_json": "{}"}))
+                         ("open_budget_form", {"view_json": "{}"}))
         self.assertEqual(MOCK.admin_responses_step(second, MOCK.responses_input(second), prior_requests=tape), (None, None))
         self.assertEqual(tape, MOCK.REQUESTS)
         mutations = (lambda t:t[0]["response"]["output"][0].update(call_id="not-returned"),

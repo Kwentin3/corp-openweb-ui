@@ -51,8 +51,8 @@ ADMIN_SKILL_CHARS = 644
 ADMIN_SKILL_SHA256 = "dd2fb064b58185c14914329be2039a9a64037015eea4c4d84e71e11495f5272d"
 ADMIN_OPEN_RESULT_SHA256 = "5b731ba169b28c8fcfbab0fcf0683e61f03ffa521a8dcd8db58b6ea2d820ec8a"
 ADMIN_TOOL_DESCRIPTIONS = {
-    "employee_budget_admin_open_budget_form": "09f93264ab85e2c80cc867d52e02728e1d73039202558fa52964cb64c6bee4ad",
-    "employee_budget_admin_apply_budget_form": "37706724827d53d6fcf181c2912f2bdd346a0e083cab74ce82b40e410a9ef583",
+    "open_budget_form": "09f93264ab85e2c80cc867d52e02728e1d73039202558fa52964cb64c6bee4ad",
+    "apply_budget_form": "37706724827d53d6fcf181c2912f2bdd346a0e083cab74ce82b40e410a9ef583",
 }
 RESPONSES_MAX_OUTPUT_TOKENS = 16
 STATE_LOCK = threading.Lock()
@@ -307,12 +307,12 @@ def admin_responses_step(payload, values, *, prior_requests=None):
         raise ValueError("Unexpected admin prior context")
     continuation = values[len(prefix):]
     if not continuation:
-        return "employee_budget_admin_open_budget_form", {"view_json": "{}"}
+        return "open_budget_form", {"view_json": "{}"}
     if (len(continuation) != 2 or continuation[0].get("type") != "function_call"
             or continuation[1].get("type") != "function_call_output"):
         raise ValueError("Unexpected admin continuation rounds")
     call, output = continuation
-    if (call["name"] != "employee_budget_admin_open_budget_form"
+    if (call["name"] != "open_budget_form"
             or json.loads(call["arguments"]) != {"view_json": "{}"} or output["call_id"] != call["call_id"]
             or hashlib.sha256(json.dumps(json.loads(output["output"]), sort_keys=True,
                 separators=(",", ":"), ensure_ascii=False).encode()).hexdigest() != ADMIN_OPEN_RESULT_SHA256):

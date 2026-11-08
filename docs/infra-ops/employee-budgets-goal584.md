@@ -8,6 +8,54 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office90, завершён:**
+[run42501761986](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42501761986),
+exact head `bc85bcb576abac1a514e127a243a11b7902a9b92`, job128795836486,
+dispatch16:48:33UTC, terminal FAILURE на14/browser,1–13SUCCESS,15SKIPPED,
+diagnostics/cleanup/uploadSUCCESS. Живого job нет. Remote reasoning ref
+fast-forward опубликован ровноbc85bcb5. Оба worktrees сведены на этот commit;
+перед push12paths сверены с Git и друг с другом,11frozenLFpins совпали, оба clean.
+Workflow rawWindows6e6bc7c9 и Git/LFa84ed388 различены; source identity подтверждена.
+Это первый runtime с reviewed source-bound admin failure diagnostic. Opt-in
+Terminal source и negative provider grammar включены в код, но Terminal service
+не активирован, negative quota Send не добавлен: прежний strict-six runtime.
+Artifact13625917117 получен один раз:1180640B/91unique/SHA256
+`51a06b5797f0f59d94cbf1c7c327653a2d90404ccd54a448538f9a78309dcb71`.
+Root fullreader ordinary/continuation/build/source/cleanup PASS54build/72pins,
+45guard/19auth/1CLI0skip,5images удалены/no taskresources. Actual render и
+continuation PNG просмотрены: полный DOCX, Download/.20/chat.80 видимы.
+Новая lifecycle diagnostic собрана:wait_editor, correlated answer done=true,
+error_present=true,tasks0, output/tool/embed unavailable; это не незавершённая
+background task. Logs91/93/94 подтверждают synthetic-provider Responses400
+`Invalid bounded synthetic Responses request` для goal584-usage/no fallback.
+Native main1713 хранит error в content, поэтому прежний message/detail hint не
+виден. Exact rejected wire/predicate/first-vs-second в ZIP не экспортированы.
+
+Конкретный installed-source mismatch воспроизведён отдельно до правки: actual90
+native_specs → actual native get_tools/wrapper → middleware tools assignment →
+native Responses converter сохраняют plain apply_budget_form/open_budget_form.
+Prefix tool_id добавляется только при коллизии, а preset содержит один Tool.
+Новый Responses fixture ошибочно требовал employee_budget_admin_* из legacyCC
+prototype. На том же полном first context (738instructions/644Skill/options/input)
+смена только native schemas вызывает exact `Canonical admin tools missing` и
+тот же400 до begin_record. Это deterministic source proof, не captured failedwire.
+Узкий fixture-only fix готов в DELIVERY/mock_provider.py+existingtest:
+ровно4name literals,48PASS0skip/external[], root independently48PASS.
+Existing prototype теперь получает actualnativefactoryschemas; prefixed foreign
+names и подмена correlated continuation отклоняются. До fix red400!=200 сохранён.
+Native get_tool_specs/langchain локально не исполнялся: exactactual90 DBspecs —
+явные DB/cache leaves, серверное schema generation уже содержится в receipt.
+legacyCC, полный Skill/schema/nonce/history guard и product/core не меняются.
+Evidence `office90-review/`, `office90-admin-triage/`,
+`office90-admin-native-names-{fix,review}/`.
+
+Параллельные обязательные срезы REASONING: Terminal nativeprovision3files
+(existing API/actor/Solprofile clone/readonly Tool mount+privatekey opt-in,
+без activation/workflow/финансовых writes); explicit-zero6files/3owners —
+native callback/sanitizer подтверждают Usage0, strictreader пока unavailable,
+нужна exactly-one native success/allow telemetry после signed row checks.
+Default7API/6GUI и absent/null сохраняются; source/runtime ещё не приняты.
+GOAL active, full acceptance отсутствует.
 **Последний прогон Office89, завершён:**
 [run42498156345](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42498156345),
 head `860631719d13e02cea03186314fee3aa1aa6b7a4`, job128784883233,
