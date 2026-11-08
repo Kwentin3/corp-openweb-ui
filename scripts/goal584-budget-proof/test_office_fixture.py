@@ -1352,5 +1352,29 @@ class OfficePrepareTests(unittest.TestCase):
             self.assertFalse(fixture.output.exists())
 
 
+class DelegatedOfficeConfigTests(unittest.TestCase):
+    def test_explicit_scenario_keeps_every_legacy_descriptor_and_setting(self):
+        original = (Path(__file__).with_name('litellm_config.yaml')).read_bytes()
+        before = yaml.safe_load(office.prepare_usage_guard_config(original))
+        after = yaml.safe_load(office.prepare_delegated_office_config(original))
+        rows = after.pop('model_list')
+        self.assertEqual(rows[:-2], before.pop('model_list'))
+        self.assertEqual(after, before)
+        self.assertEqual([r['model_name'] for r in rows[-2:]], ['gpt-6.1-sol', 'gpt-6.1-terra'])
+        for row, output, rate in zip(rows[-2:], (12000, 6000), (.01, .001)):
+            info = row['model_info']
+            self.assertIs(info['supports_native_streaming'], False)
+            self.assertEqual(info['max_output_tokens'], output)
+            self.assertEqual(info['max_tokens'], info['max_input_tokens'] + output)
+            self.assertEqual((info['input_cost_per_token'], info['output_cost_per_token']), (rate, 2 * rate))
+            self.assertEqual(info['owui_pricing']['deployment_id'], info['id'])
+
+    def test_opt_in_does_not_mutate_global_office_or_pricing_composition(self):
+        original = Path(__file__).with_name('litellm_config.yaml').read_bytes()
+        frozen = office.prepare_usage_guard_config(original)
+        office.prepare_delegated_office_config(original)
+        self.assertEqual(office.prepare_usage_guard_config(original), frozen)
+
+
 if __name__ == '__main__':
     unittest.main()

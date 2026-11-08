@@ -46,6 +46,14 @@ TASK_FLAGS = (
     "ENABLE_AUTOCOMPLETE_GENERATION", "ENABLE_SEARCH_QUERY_GENERATION",
     "ENABLE_RETRIEVAL_QUERY_GENERATION", "ENABLE_VOICE_MODE_PROMPT",
 )
+DELEGATION_TOOL_ID = "corporate_document_delegation"
+DELEGATION_TOOL_SHA256 = "790de1a09eea5467ad7f87568f20c00099f7ca8c8ef1b946e55799d742c45fbe"
+DELEGATION_PROFILES_SHA256 = "a263c69f1fae32c7eed7d1dbfcd7b3a720dc631e18717d17b543c4d8a0af5232"
+DELEGATION_VALVES = {"DEFAULT_MODEL": "corporate-office-worker", "AVAILABLE_TOOL_IDS": "server:officecli",
+    "EXCLUDED_TOOL_IDS": "", "MAX_ITERATIONS": 12, "MAX_PARALLEL_AGENTS": 1,
+    "APPLY_INLET_FILTERS": True, "ENABLE_CONTEXT_COMPACTION": False, "LARGE_TOOL_RESULT_MODE": "raw",
+    "ITERATION_NOTE_ROLE": "user", "DEBUG": False, "ENABLE_FILE_TOOLS": True,
+    "ENABLE_KNOWLEDGE_TOOLS": True, "ENABLE_SKILLS_TOOLS": True}
 
 
 class WebUI:
@@ -111,6 +119,32 @@ class WebUI:
         require(record.get("id") == model_id and record.get("write_access") is True,
                 "Native model readback did not return the writable fixture model")
         return record
+
+    def upload_delegated_source(self, token: str, raw: bytes) -> dict:
+        """One finite multipart upload through native Files, never a storage write."""
+        require(isinstance(raw, bytes) and 0 < len(raw) <= 128 * 1024, "Delegated source outside bound")
+        boundary = "goal584-" + uuid.uuid4().hex
+        body = ("--" + boundary + '\r\nContent-Disposition: form-data; name="file"; '
+            'filename="goal584-delegated-source.docx"\r\nContent-Type: '
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n").encode()
+        body += raw + ("\r\n--" + boundary + "--\r\n").encode()
+        request = Request(WEBUI_URL + "/api/v1/files/?process=false", method="POST", data=body,
+            headers={"Authorization": "Bearer " + token, "Content-Type": "multipart/form-data; boundary=" + boundary})
+        with self.opener.open(request, timeout=20) as response:
+            encoded = response.read(4 * 1024 * 1024 + 1)
+            require(response.code == 200 and len(encoded) <= 4 * 1024 * 1024, "Delegated native upload failed")
+        result = json.loads(encoded)
+        require(isinstance(result, dict), "Delegated native File malformed")
+        return result
+
+    def file_content(self, token: str, file_id: str) -> bytes:
+        require(str(uuid.UUID(file_id)) == file_id, "Delegated native File ID malformed")
+        request = Request(WEBUI_URL + "/api/v1/files/" + file_id + "/content",
+                          headers={"Authorization": "Bearer " + token})
+        with self.opener.open(request, timeout=20) as response:
+            raw = response.read(4 * 1024 * 1024 + 1)
+            require(response.code == 200 and 0 < len(raw) <= 4 * 1024 * 1024, "Delegated native download failed")
+        return raw
 
 
 def builtin_tool_capability(record: dict) -> dict:
@@ -626,6 +660,188 @@ def office_setup(webui: WebUI, common: dict, path: Path) -> dict:
         "actor_id": actor["id"], "source_sha256": source_hash(source), "handoff_sha256": sha256(path.read_bytes()).hexdigest()}}
 
 
+def delegated_source_docx() -> bytes:
+    """Finite synthetic data; native Files/Office own persistence and editing."""
+    from io import BytesIO
+    from zipfile import ZipFile, ZipInfo
+    parts = {
+        '[Content_Types].xml': '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+            '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>',
+        '_rels/.rels': '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+        'word/document.xml': '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>'
+            '<w:p><w:r><w:t>Employee: {{employee}}</w:t></w:r></w:p>'
+            '<w:p><w:r><w:t>Case: {{case}}</w:t></w:r></w:p>'
+            '<w:p><w:r><w:t>FIXED CLAUSE: preserve this sentence.</w:t></w:r></w:p>'
+            '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4000"/></w:tblGrid>'
+            '<w:tr><w:tc><w:tcPr/><w:p><w:r><w:t>FIXED TABLE</w:t></w:r></w:p></w:tc></w:tr></w:tbl>'
+            '<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter"/></w:sectPr></w:body></w:document>',
+        'word/_rels/document.xml.rels': '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>',
+        'word/footer1.xml': '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            '<w:p><w:r><w:t>FIXED FOOTER: GOAL584 synthetic only.</w:t></w:r></w:p></w:ftr>',
+    }
+    stream = BytesIO()
+    with ZipFile(stream, 'w') as package:
+        for name, content in parts.items():
+            package.writestr(ZipInfo(name, (2020, 1, 1, 0, 0, 0)), content.encode('utf-8'))
+    return stream.getvalue()
+
+
+def delegated_skill_content(file_id: str, source_sha256: str) -> str:
+    require(str(uuid.UUID(file_id)) == file_id and len(source_sha256) == 64
+            and all(c in '0123456789abcdef' for c in source_sha256), 'Delegated source binding malformed')
+    return ("# GOAL584 synthetic two-field Office copy\n\n"
+        "This is the COMPLETE synthetic template instruction. No other fields or business facts exist.\n"
+        f"Native source File ID: {file_id}\nNative source SHA256: {source_sha256}\n\n"
+        "Required field map (each occurs exactly once):\n"
+        "- employee: paragraph with exact text Employee: {{employee}}. Replace with Employee: Ada Example.\n"
+        "- case: paragraph with exact text Case: {{case}}. Replace with Case: G584-2026.\n\n"
+        "Load the installed word guide once. Inspect the actual original and discover its real paragraph paths. "
+        "Edit a COPY with apply_office_batch; never recreate or overwrite the source. "
+        "Preserve FIXED CLAUSE: preserve this sentence., the FIXED TABLE and its structure, and "
+        "FIXED FOOTER: GOAL584 synthetic only. No omitted/repeated fields or substitutions are allowed. "
+        "Inspect the result: both exact values, fixed text/table/footer, no placeholders. "
+        "Render the actual result_file_id as docx/grid2 and assess the actual image. "
+        "Return that native result_file_id/download_url and honest checks. No binary/base64 belongs in this Skill.\n")
+
+
+def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_source: Path) -> dict:
+    """Explicit synthetic phase; no inference or replacement model-history owner."""
+    import asyncio
+    from dataclasses import asdict
+    from aiohttp import ClientSession
+    from employee_budget_admin_client import BudgetAdminClient
+    from provision_cost_display import FILTER_ID, add_model_meta, grant_set
+    from prove_service_tasks import response
+
+    require(state.get('stage') == 'setup_complete' and state.get('office_setup')
+            and 'office_delegation_setup' not in state, 'Delegated setup requires fresh Office state')
+    require(0 < tool_source.stat().st_size <= 4 * 1024 * 1024
+            and 0 < profiles_source.stat().st_size <= 128 * 1024, 'Delegated source input exceeds existing bounds')
+    tool = tool_source.read_bytes()
+    raw_profiles = profiles_source.read_bytes().replace(b'\r\n', b'\n')
+    require(sha256(tool).hexdigest() == DELEGATION_TOOL_SHA256
+            and sha256(raw_profiles).hexdigest() == DELEGATION_PROFILES_SHA256, 'Delegated Tool/profile source differs')
+    profiles = {v['id']: v for v in json.loads(raw_profiles)}
+    parent, worker = copy.deepcopy(profiles['corporate-documents']), copy.deepcopy(profiles['corporate-office-worker'])
+    parent['base_model_id'] = 'gpt-6.1-sol'
+    require(parent['params']['max_tokens'] == 12000 and worker['params']['max_tokens'] == 6000
+            and worker['base_model_id'] == 'gpt-6.1-terra', 'Delegated profile parameters differ')
+    admin = state['admin']; webui.session(admin, 'admin')
+    native = native_client(); info = native.ok('GET', '/model/info')['data']
+    for alias, wire, deployment, output, rate_in, rate_out in (
+            ('gpt-6.1-sol', 'goal584-fake-delegated-parent', 'goal584-delegated-parent', 12000, '.01', '.02'),
+            ('gpt-6.1-terra', 'goal584-fake-delegated-worker', 'goal584-delegated-worker', 6000, '.001', '.002')):
+        rows = [r for r in info if r.get('model_name') == alias]
+        require(len(rows) == 1, 'Delegated native alias missing/ambiguous')
+        params, desc = rows[0]['litellm_params'], rows[0]['model_info']
+        require(params.get('model') == 'openai/' + wire and params.get('api_base') == 'http://provider:8000/v1'
+                and desc.get('id') == deployment and desc.get('mode') == 'responses'
+                and desc.get('supports_native_streaming') is False and desc.get('max_input_tokens') == 32768
+                and desc.get('max_output_tokens') == output and desc.get('max_tokens') == 32768 + output
+                and desc.get('supports_reasoning') is True and desc.get('supports_function_calling') is True
+                and close_amount(desc.get('input_cost_per_token'), Decimal(rate_in))
+                and close_amount(desc.get('output_cost_per_token'), Decimal(rate_out)), 'Delegated native descriptor differs')
+    connections = webui.ok('GET', '/openai/config', token=admin['token'])
+    requested = copy.deepcopy(connections); config = requested['OPENAI_API_CONFIGS']['0']
+    require(requested['OPENAI_API_BASE_URLS'][0] == 'http://proxy:4000/v1'
+            and config['api_type'] == 'responses' and config['auth_type'] == 'bearer'
+            and not set(('gpt-6.1-sol', 'gpt-6.1-terra')) & set(config['model_ids']), 'Delegated managed connection differs')
+    gateway = os.environ.get('OWUI_BUDGET_GATEWAY_SECRET', '')
+    require(gateway and gateway == requested['OPENAI_API_KEYS'][0], 'Delegated gateway authority differs')
+    status, tools = response(webui, 'GET', '/api/v1/tools/', admin['token'])
+    require(status == 200 and isinstance(tools, list) and all(t.get('id') != DELEGATION_TOOL_ID for t in tools),
+            'Delegated Tool already installed/unavailable')
+    for profile in (parent, worker):
+        status, _ = response(webui, 'GET', '/api/v1/models/model?' + urlencode({'id': profile['id']}), admin['token'])
+        require(status in (401, 404), 'Delegated Workspace Model already exists')
+    current = copy.deepcopy(state)
+    selected = {'stage': 'preparing', 'journal': [], 'tool_source_sha256': DELEGATION_TOOL_SHA256,
+                'profiles_source_sha256': DELEGATION_PROFILES_SHA256}
+    current['office_delegation_setup'] = selected
+    write_private(path, current)
+    def before(stage, body=None):
+        selected['journal'].append({'stage': stage, 'body': copy.deepcopy(body), 'returned': False})
+        write_private(path, current)
+    def post(route, body):
+        webui.session(admin, 'admin'); before(route, body)
+        result = webui.ok('POST', route, token=admin['token'], body=body)
+        selected['journal'][-1].update(returned=True, response=copy.deepcopy(result)); write_private(path, current)
+        return result
+    email, password = 'delegated-' + uuid.uuid4().hex + '@example.invalid', 'Aa1!' + secrets.token_urlsafe(32)
+    actor = account_from_response(post('/api/v1/auths/add', {'name': 'Synthetic delegated employee',
+        'email': email, 'password': password, 'role': 'user'}), email, password, 'user')
+    require(actor['id'] not in {u['id'] for u in [admin, *state['users']]}, 'Delegated actor collision')
+    selected['actor'] = actor
+    write_private(path, current)
+    config['model_ids'].extend(('gpt-6.1-sol', 'gpt-6.1-terra'))
+    post('/openai/config/update', requested)
+    require(webui.ok('GET', '/openai/config', token=admin['token']) == requested, 'Delegated connection readback differs')
+    selected['models'] = {}
+    for profile in (parent, worker):
+        profile['access_grants'] = [{'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}]
+        post('/api/v1/models/create', profile)
+        saved = webui.model(admin['token'], profile['id'])
+        require(all(saved.get(k) == profile[k] for k in ('id', 'base_model_id', 'params', 'meta', 'is_active'))
+                and grant_set(saved) == grant_set(profile), 'Delegated native profile differs')
+        before('attach-mandatory-budget-filter', {'model': profile['id']})
+        selected['models'][profile['id']] = add_model_meta(webui, current, profile['id'], 'filterIds', FILTER_ID)
+        selected['journal'][-1]['returned'] = True
+    post('/api/v1/tools/create', {'id': DELEGATION_TOOL_ID, 'name': 'Synthetic corporate delegation',
+        'content': tool.decode('utf-8'), 'meta': {}, 'access_grants': [
+            {'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}]})
+    route = '/api/v1/tools/id/' + DELEGATION_TOOL_ID
+    defaults = webui.ok('GET', route + '/valves', token=admin['token'])
+    valves = {k: False if k.startswith('ENABLE_') else v for k, v in defaults.items()}; valves.update(DELEGATION_VALVES)
+    post(route + '/valves/update', valves)
+    actual = webui.ok('GET', route, token=admin['token'])
+    require(sha256(actual['content'].encode()).hexdigest() == DELEGATION_TOOL_SHA256
+            and webui.ok('GET', route + '/valves', token=admin['token']) == valves, 'Delegated Tool source/Valves differ')
+    source = delegated_source_docx(); before('upload-native-synthetic-source')
+    file = webui.upload_delegated_source(actor['token'], source)
+    selected['source_file'] = file; write_private(path, current)
+    require(file.get('user_id') == actor['id'] and webui.file_content(actor['token'], file['id']) == source,
+            'Delegated native source owner/bytes differ')
+    selected['journal'][-1]['returned'] = True
+    body = {'id': 'goal584-delegated-' + uuid.uuid4().hex, 'name': 'GOAL584 synthetic two-field template',
+        'description': 'Complete synthetic two-field Office template; native source and fixed content.',
+        'content': delegated_skill_content(file['id'], sha256(source).hexdigest()), 'is_active': True,
+        'access_grants': [{'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}]}
+    skill = post('/api/v1/skills/create', body)
+    readable = webui.ok('GET', '/api/v1/skills/id/' + skill['id'], token=actor['token'])
+    require(readable.get('content') == body['content'] and readable.get('version_id') == skill.get('version_id')
+            and bool(readable.get('version_id')) and readable.get('is_active') is True, 'Delegated complete Skill/version differs')
+    selected.update(skill=readable, source_sha256=sha256(source).hexdigest(), tool_valves=valves)
+    async def initialize():
+        async def guard():
+            webui.session(admin, 'admin')
+            require(webui.ok('GET', '/openai/config', token=admin['token']) == requested, 'Delegated connection changed before budget write')
+            require(native.ok('GET', '/model/info')['data'] == info
+                    and all(webui.model(admin['token'], name) == saved for name, saved in selected['models'].items()),
+                    'Delegated native model changed before budget write')
+            before('initialize-two-personal-assignments')
+        async with ClientSession(trust_env=False) as session:
+            client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)['operator_token'])
+            result = await client.initialize_employee(actor['id'], (('gpt-6.1-sol', Decimal(1000)),
+                ('gpt-6.1-terra', Decimal(1000))), Decimal(2000), gateway, before_write=guard)
+            require(await client.read_employee(actor['id'], ('gpt-6.1-sol', 'gpt-6.1-terra')) == result,
+                    'Delegated two-assignment readback differs')
+            return json.loads(json.dumps(asdict(result), default=str))
+    selected['budget'] = asyncio.run(initialize())
+    for entry in selected['journal']:
+        if entry['stage'] == 'initialize-two-personal-assignments': entry['returned'] = True
+    selected['stage'] = 'readback_ready'; write_private(path, current)
+    return {'office_delegation_setup': {'status': 'readback_ready', 'inference_issued': False,
+        'native_office_accepted': False, 'tool_source_sha256': DELEGATION_TOOL_SHA256,
+        'source_sha256': selected['source_sha256'], 'skill_content_sha256': sha256(readable['content'].encode()).hexdigest(),
+        'handoff_sha256': sha256(path.read_bytes()).hexdigest()}}
+
+
 def office_service_readback(webui: WebUI, state: dict, path: Path, phase: str) -> dict:
     """Read prepared native configuration; no inference or configuration writes.
 
@@ -771,17 +987,19 @@ def office_service_setup(webui: WebUI, state: dict, path: Path) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "raise", "plainchat",
-        "office-service-baseline", "office-service-current", "office-setup", "office-service-setup"))
+        "office-service-baseline", "office-service-current", "office-setup", "office-service-setup", "office-delegation-setup"))
     parser.add_argument("--private-state", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--office-state", type=Path)
+    parser.add_argument("--delegation-tool-source", type=Path)
+    parser.add_argument("--delegation-profiles-source", type=Path)
     args = parser.parse_args()
     receipt = {"schema": 1, "proof": "goal584-real-webui-native-provisioning", "phase": args.phase,
                "passed": False, "not_qualified": ["management_GUI", "service_classification", "paid_provider"],
                "started_at_utc": datetime.now(timezone.utc).isoformat()}
     if args.phase in ("office-service-baseline", "office-service-current"):
         receipt.update(readback_only=True, native_office_accepted=False)
-    if args.phase in ("office-setup", "office-service-setup"):
+    if args.phase in ("office-setup", "office-service-setup", "office-delegation-setup"):
         receipt.update(inference_issued=False, native_office_accepted=False)
     receipt_path_valid = False
     try:
@@ -793,11 +1011,17 @@ def main() -> int:
                 OPERATOR_STATE.resolve(), args.office_state.resolve()}) == 4, "Office setup requires a separate new private handoff")
         webui = WebUI()
         state = setup(args, webui) if args.phase == "setup" else read_private(args.private_state)
+        if args.phase == "office-delegation-setup":
+            require(args.delegation_tool_source is not None and args.delegation_profiles_source is not None,
+                    "Delegated setup requires exact source inputs")
         if args.phase == "raise":
             raise_caps(state)
         if args.phase == "plainchat":
             receipt["plainchat_control"] = plainchat(webui, state)
-        observed = (office_setup(webui, state, args.office_state) if args.phase == "office-setup" else
+        observed = (office_delegation_setup(webui, state, args.private_state,
+                tool_source=args.delegation_tool_source, profiles_source=args.delegation_profiles_source)
+            if args.phase == "office-delegation-setup" else
+            office_setup(webui, state, args.office_state) if args.phase == "office-setup" else
             office_service_setup(webui, state, args.private_state) if args.phase == "office-service-setup" else
             office_service_readback(webui, state, args.private_state, args.phase)
             if args.phase in ("office-service-baseline", "office-service-current") else snapshot(webui, state))

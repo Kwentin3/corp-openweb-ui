@@ -71,12 +71,31 @@ jobs:
               subprocess.run(['docker','build','--platform=linux/amd64','--iidfile',str(iid),'-f',str(dockerfile),'--build-arg','OFFICECLI_IMAGE='+office['tag'],'-t',tag,str(source)],stdout=log,stderr=subprocess.STDOUT,check=True)
           assert inspect()==office['id'];image=iid.read_text().strip();assert re.fullmatch('sha256:[0-9a-f]{64}',image)
           evidence.update(qualification_image_id=image,stage='qualification_readback');save()
-          readback="import hashlib,importlib.metadata,json,pathlib; r=pathlib.Path('/app/officecli_openapi_proof'); lock=pathlib.Path('/app/requirements.lock'); versions={n:importlib.metadata.version(n) for n in ('openpyxl','pytest','aiohttp')}; print(json.dumps({'modules':{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(observation['modules']))+"},'binary_sha256':hashlib.sha256(pathlib.Path('/usr/local/bin/officecli').read_bytes()).hexdigest(),'lock_sha256':hashlib.sha256(lock.read_bytes()).hexdigest(),'production_lock_matches':all(importlib.metadata.version(n)==v for n,v in (line.split('==') for line in lock.read_text().splitlines() if line and not line.startswith('#'))),'test_dependencies':versions}))"
+          readback="import hashlib,importlib.metadata,json,pathlib; from dataclasses import asdict; from officecli_openapi_proof.config import load_settings; from officecli_openapi_proof.officecli import SubprocessOfficeCliExecutor; r=pathlib.Path('/app/officecli_openapi_proof'); lock=pathlib.Path('/app/requirements.lock'); settings=load_settings(); guide=SubprocessOfficeCliExecutor(settings).run('load_skill','word'); versions={n:importlib.metadata.version(n) for n in ('openpyxl','pytest','aiohttp')}; print(json.dumps({'modules':{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(observation['modules']))+"},'binary_sha256':hashlib.sha256(pathlib.Path('/usr/local/bin/officecli').read_bytes()).hexdigest(),'lock_sha256':hashlib.sha256(lock.read_bytes()).hexdigest(),'production_lock_matches':all(importlib.metadata.version(n)==v for n,v in (line.split('==') for line in lock.read_text().splitlines() if line and not line.startswith('#'))),'test_dependencies':versions,'office_version':settings.expected_version,'word_guide':asdict(guide)}))"
           common=['docker','run','--rm','--init','--network=none','--read-only','--memory=1g','--pids-limit=256','--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--label','goal584.owner='+os.environ['OWNED']]
-          actual=json.loads(subprocess.check_output(common+['--name',os.environ['OWNED']+'-readback','--entrypoint','python',image,'-B','-c',readback],text=True))
+          actual=json.loads(subprocess.check_output(common+['--name',os.environ['OWNED']+'-readback','--entrypoint','python',image,'-B','-c',readback],text=True,stderr=subprocess.PIPE))
+          guide=actual.pop('word_guide');version=actual.pop('office_version')
           evidence.update(readback=actual);save()
           assert actual['modules']==observation['modules'] and actual['binary_sha256']==observation['binary_sha256'] and actual['production_lock_matches']
           assert actual['lock_sha256']==hashlib.sha256((source/'services/officecli-openapi-proof/requirements.lock').read_bytes()).hexdigest()
+          assert version==observation['version']=='1.0.152'
+          assert set(guide)=={'command','text','content_sha256','auto_resident_disabled','diagnostics'}
+          assert guide['command']==['/usr/local/bin/officecli','load_skill','word'] and guide['auto_resident_disabled'] is True
+          assert isinstance(guide['text'],str) and guide['text'] and isinstance(guide['diagnostics'],str)
+          content=guide['text'].encode('utf8');assert hashlib.sha256(content).hexdigest()==guide['content_sha256']
+          owned_root=root.resolve();assert owned_root.parent==Path(os.environ['RUNNER_TEMP']).resolve() and owned_root.name==os.environ['OWNED']+'-build'
+          packet={'schema':1,'source_commit':os.environ['GITHUB_SHA'],'office_image_id':office['id'],
+              'qualification_image_id':image,'version':version,'modules':actual['modules'],
+              'binary_sha256':actual['binary_sha256'],'output':guide}
+          private_guide=json.dumps(packet,ensure_ascii=False,sort_keys=True).encode('utf8')
+          guide_path=owned_root/'office-word-guide.private.json'
+          fd=os.open(guide_path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+          with os.fdopen(fd,'wb') as handle:handle.write(private_guide)
+          assert guide_path.read_bytes()==private_guide
+          evidence['word_guide']={'command':guide['command'],'content_sha256':guide['content_sha256'],
+              'text_bytes':len(content),'packet_sha256':hashlib.sha256(private_guide).hexdigest(),
+              'packet_bytes':len(private_guide),'image_id':image,'binary_sha256':actual['binary_sha256'],
+              'modules':actual['modules'],'version':version};save()
           evidence.update(stage='preflight');save()
           target='DiscoveryQualification.test_saved_note_uses_the_same_real_cli_import_and_refuses_a_changed_source'
           with (out/'preflight.log').open('wb') as log:
@@ -111,6 +130,15 @@ jobs:
               fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
               with os.fdopen(fd,'wb') as handle:handle.write(data)
               assert path.read_bytes()==data
+          guide_root=Path(os.environ['BUILD_ROOT']).resolve()
+          assert guide_root.parent==Path(os.environ['RUNNER_TEMP']).resolve() and guide_root.name==os.environ['OWNED']+'-build'
+          guide_source=guide_root/'office-word-guide.private.json';assert guide_source.is_file() and not guide_source.is_symlink()
+          qualification=json.loads((Path(os.environ['OUTPUT'])/'qualification.safe.json').read_text())
+          assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
+          guide_bytes=guide_source.read_bytes();guide_sha=qualification['word_guide']['packet_sha256']
+          assert hashlib.sha256(guide_bytes).hexdigest()==guide_sha
+          write(private/'office-word-guide.private.json',guide_bytes)
+          assert hashlib.sha256((private/'office-word-guide.private.json').read_bytes()).hexdigest()==guide_sha
           write(config,raw)
           cache=private/'native-tokenizers';assets=prepare_native_tokenizers(cache)
           (Path(os.environ['OUTPUT'])/'tokenizers.safe.json').write_text(json.dumps(assets,indent=2)+'\n')
@@ -759,9 +787,25 @@ jobs:
           remaining_containers=[value for value in containers if run(['container','inspect',value]).returncode==0]
           remaining_images=[value for value in images if run(['image','inspect',value]).returncode==0]
           reachable=run(['info','--format','{{.ServerVersion}}']).returncode==0
+          guide_remaining=None;guide_error=None
+          if teardown_ok and not remaining_containers:
+              try:
+                  temp=Path(os.environ['RUNNER_TEMP']).resolve();owned_root=root.resolve()
+                  private=Path(os.environ.get('PROOF_PRIVATE_DIR',str(temp/(project+'-private')))).resolve()
+                  assert owned_root.parent==private.parent==temp and owned_root.name==project+'-build' and private.name==project+'-private'
+                  guide_remaining=[]
+                  for label,directory in (('original',owned_root),('copy',private)):
+                      path=directory/'office-word-guide.private.json'
+                      assert path.resolve().parent==directory and not path.is_symlink()
+                      if path.exists():
+                          assert path.is_file();path.unlink()
+                      if path.exists():guide_remaining.append(label)
+              except (AssertionError,OSError,RuntimeError) as error:
+                  guide_error=type(error).__name__;guide_remaining=None
           safe={'schema':1,'docker_reachable':reachable,'compose_down_returncode':down,'compose_remaining':residual,'container_remove_returncodes':removed_containers,'image_remove_returncodes':removed_images,'remaining_containers':remaining_containers,'remaining_images':remaining_images,'invalid_iid_files':invalid,'container_inventory_failed':inventory_failed,'build_cache_removed':False,'native_office_accepted':False}
+          safe.update(word_guide_remaining=guide_remaining,word_guide_cleanup_error=guide_error)
           (out/'cleanup.safe.json').write_text(json.dumps(safe,indent=2)+'\n')
-          assert reachable and teardown_ok and not remaining_containers and not remaining_images and not invalid,'Task cleanup incomplete'
+          assert reachable and teardown_ok and not remaining_containers and not remaining_images and not invalid and guide_remaining==[],'Task cleanup incomplete'
           PY
       - name: Retain bounded build provenance and preflight diagnostics
         if: always() && env.TASK_PREPARED == 'true'
