@@ -51,6 +51,12 @@ GET добавляет share_mode=continue и user_id/user к обоим user-me
 credentials/oversize/wrongphase/success/missingreceipt/duplicate не экспортируются;
 publisher_step различает entry/return и restoration. Новый dispatch возможен после
 source freeze/review; successful publication по-прежнему требует runtime evidence.
+Publication fix d3544b26 и diagnostic a8dccd78 интегрированы в65ea8f45 без конфликтов.
+Root повторил15/15 focused publication/provision tests,0skip/errors/network;
+LF provisionb6356e0f/test32cc850a.8diagnostic helper cases тоже PASS. Product/native
+publisher/профили/маршруты/финансовые validators не менялись; следующий candidate
+включает только этот readback fix и безопасный failure export. Auth/admin source
+ниже остался шестью unstaged файлами REASONING и в этот candidate не включён.
 Evidence: `office83-review/`, `office83-native-office-review/`,
 `office83-publication-triage/`.
 
