@@ -1009,5 +1009,254 @@ class AdminResponsesProviderTests(unittest.TestCase):
             MOCK.admin_responses_step(second, MOCK.responses_input(second), prior_requests=copy.deepcopy(MOCK.REQUESTS))
 
 
+class DelegatedQuotaProviderTests(unittest.TestCase):
+    """Real response writer/native serializers and Tasks, never live quota evidence."""
+    @classmethod
+    def setUpClass(cls):
+        import asyncio
+        import sys
+        from typing import Any, Optional
+        from fastapi import status
+        from fastapi.responses import JSONResponse, Response
+        AdminResponsesProviderTests.setUpClass.__func__(cls)
+        DelegatedProviderTests.setUpClass.__func__(cls)
+        def extract(path, names, env):
+            tree = ast.parse(path.read_bytes())
+            nodes = [copy.deepcopy(n) for n in tree.body if getattr(n, 'name', None) in names
+                or isinstance(n, (ast.Assign, ast.AnnAssign)) and any(isinstance(t, ast.Name) and t.id in names
+                    for t in (n.targets if isinstance(n, ast.Assign) else [n.target]))]
+            assert len(nodes) == len(names), (path, names)
+            for n in nodes:
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)): n.decorator_list = []
+            exec(compile(ast.fix_missing_locations(ast.Module(body=nodes, type_ignores=[])), str(path), 'exec',
+                flags=__import__('__future__').annotations.compiler_flag), env)
+            return tree
+        cls.extract = staticmethod(extract)
+        extract(cls.native / 'utils/skill_files.py', {'SKILL_CONTENT_MAX_CHARS', 'SKILL_PREVIEW_MAX_CHARS',
+            'SKILL_OVERVIEW_LIST_MAX_CHARS', 'skill_content_page', 'file_summaries'}, cls.env)
+        extract(cls.native / 'tools/builtin.py', {'view_skill'}, cls.env)
+        cls.workflow = (cls.here.parents[1] / 'deploy/openwebui-skills/artifact-workflow.md').read_text(encoding='utf8')
+        assert len(cls.workflow) == MOCK.DELEGATED_WORKFLOW_CHARS
+        assert hashlib.sha256(cls.workflow.encode()).hexdigest() == MOCK.DELEGATED_WORKFLOW_SHA256
+        tool_path = Path(os.environ.get('GOAL584_DELEGATION_TOOL_SOURCE', str(cls.here.parents[1].with_name(
+            'corp-openweb ui') / 'local/subagent-office-trial-20261029/sub_agent.py')))
+        assert hashlib.sha256(tool_path.read_bytes()).hexdigest() == '790de1a09eea5467ad7f87568f20c00099f7ca8c8ef1b946e55799d742c45fbe'
+        formatter = dict(json=json, Any=Any, Optional=Optional, JSONResponse=JSONResponse, Response=Response,
+            _RESPONSE_BODY_PREVIEW_CHARS=1024)
+        tree = extract(tool_path, {'_truncate_preview', '_decode_response_body', '_extract_json_response_error',
+            'format_chat_completion_error'}, formatter)
+        owner = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == 'Tools')
+        method = next(n for n in owner.body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'run_sub_agent')
+        wrappers = [n for n in ast.walk(method) if isinstance(n, ast.Return) and isinstance(n.value, ast.Call)
+            and isinstance(n.value.func, ast.Attribute) and n.value.func.attr == 'dumps'
+            and isinstance(n.value.args[0], ast.Dict) and any(isinstance(k, ast.Constant) and k.value == 'note'
+                for k in n.value.args[0].keys)]
+        assert len(wrappers) == 1
+        cls.wrapper = compile(ast.Expression(body=wrappers[0].value), str(tool_path), 'eval')
+        cls.formatter = formatter
+        # Real installed native exception/HTTP serializer, with only symbol
+        # resolution and unrelated telemetry/config IO leaves as in the replay.
+        os.environ.update(LITELLM_LOCAL_MODEL_COST_MAP='True', LITELLM_TELEMETRY='False', DO_NOT_TRACK='1')
+        import litellm
+        from litellm.proxy._types import ProxyException, ProxyErrorTypes
+        from litellm.proxy.common_utils.error_body_call_id import JSON_OBJECT, error_body_call_id, with_call_id
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, path)
+            module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); return module
+        budgets = cls.here.parents[1] / 'deploy/openwebui-budgets'
+        adapter = load('quota_provider_budget_errors', budgets / 'budget_errors.py')
+        assignment = load('quota_provider_assignment', budgets / 'assignment.py')
+        native = dict(litellm=litellm, ProxyException=ProxyException, ProxyErrorTypes=ProxyErrorTypes,
+            status=status, JSON_OBJECT=JSON_OBJECT, error_body_call_id=error_body_call_id, with_call_id=with_call_id,
+            general_settings_view=lambda: {}, LITELLM_CALL_ID_HEADER='x-litellm-call-id',
+            _log_model_access_denial=lambda e: None, _close_dangling_otel_server_span=lambda *a, **k: None,
+            tracing_endpoints=SimpleNamespace(otlp_error_response=lambda *a: None), JSONResponse=JSONResponse)
+        sdk = Path(litellm.__file__).parent
+        upstream = Path(os.environ.get('GOAL584_LITELLM_SOURCE', str(cls.here.parents[1] / 'local/goal584/litellm/upstream')))
+        for relative, names in (('proxy/auth/auth_exception_handler.py', {'_as_proxy_exception'}),
+                                ('proxy/proxy_server.py', {'openai_exception_handler'})):
+            raw = (sdk / relative).read_bytes().replace(b'\r\n', b'\n')
+            expected = subprocess.check_output(['git', '-c', 'gc.auto=0', '-C', str(upstream), 'show',
+                'd665dc1a6315847fcad6cc2c1264ceb47c06abce:litellm/' + relative],
+                env=os.environ | {'GIT_NO_LAZY_FETCH': '1'})
+            assert raw == expected
+            extract(sdk / relative, names, native)
+        actor, key, model = 'quota-synthetic-actor', 'a' * 64, 'gpt-6.1-terra'
+        identity = SimpleNamespace(user_id=actor, token=key, models=[model], team_id=None,
+            key_alias=assignment.assignment_alias(actor, model), metadata=assignment.assignment_metadata(model))
+        error = litellm.BudgetExceededError(current_cost=.12, max_budget=.12, entity_type='key', entity_id=key)
+        with patch.object(adapter, '_assignment_matcher', return_value=assignment.assignment_matches):
+            asyncio.run(adapter.handler.async_post_call_failure_hook({}, error, identity))
+        response = asyncio.run(native['openai_exception_handler'](None, native['_as_proxy_exception'](error)))
+        assert response.status_code == 422 and json.loads(response.body)['error']['type'] == 'budget_exceeded'
+        cls.quota_output = eval(cls.wrapper, {'json':json, 'result':formatter['format_chat_completion_error'](response)})
+        assert json.loads(cls.quota_output) == MOCK.DELEGATED_QUOTA_RESULT
+
+    send = AdminResponsesProviderTests.send
+    native_task = DelegatedProviderTests.native_task
+
+    def setUp(self):
+        DelegatedProviderTests.setUp(self)
+        self.records = patch.object(MOCK, 'REQUESTS', []); self.records.start(); self.addCleanup(self.records.stop)
+        self.controls = patch.dict(MOCK.CONTROL, response_status=200, delay_ms=0)
+        self.controls.start(); self.addCleanup(self.controls.stop)
+        self.messages = self.env['add_or_update_system_message'](self.workflow, [{'role':'user',
+            'content':MOCK.DELEGATED_USER_REQUEST + '\nNative Skill ID: ' + self.skill['id']}])
+        self.outputs = []
+        self.tools = copy.deepcopy(self.parent['tools'])
+        self.current = self.payload()
+
+    def payload(self):
+        # Native output/history and Chat->Responses owners perform the conversion;
+        # initial ordinary messages are fixture input, not fabricated prior turns.
+        messages = copy.deepcopy(self.messages) + self.env['convert_output_to_messages'](
+            copy.deepcopy(self.outputs), raw=True, reasoning_format=None, flatten_tool_images=True)
+        return self.env['convert_to_responses_payload']({'model':MOCK.DELEGATED_PARENT_MODEL,
+            'messages':messages, 'tools':copy.deepcopy(self.tools), 'max_tokens':12000, 'store':False})
+
+    def advance(self, emitted, result):
+        import asyncio
+        call, = [v for v in emitted['output'] if v.get('type') == 'function_call']
+        text, files, embeds = asyncio.run(self.env['process_tool_result'](None, call['name'], result, 'local'))
+        self.assertEqual((files, embeds), ([], []))
+        env = {'result':{'content':text, 'tool_call_id':call['call_id']}, 'display_files':[],
+            'output_id':lambda prefix: prefix + '-native-fixture',
+            'local_output_status':'failed' if self.env['_is_tool_result_error'](text) else 'completed'}
+        env['output_parts'] = eval(compile(ast.Expression(body=self.output_parts), 'native_output_parts', 'eval'), env)
+        native_output = eval(compile(ast.Expression(body=self.output_item), 'native_output_item', 'eval'), env)
+        self.outputs.extend([*copy.deepcopy(emitted['output']), native_output])
+        self.current = self.payload()
+
+    def skill_result(self):
+        import asyncio
+        import sys
+        skill = SimpleNamespace(id=self.skill['id'], is_active=True, version_id='native-synthetic-version')
+        async def authorized(identifier, actor):
+            self.assertEqual(identifier, skill.id); return skill
+        async def snapshot(record, version):
+            self.assertIs(record, skill); self.assertEqual(version, skill.version_id)
+            return {'name':self.skill['name'], 'content':self.skill['content'], 'data':{'files':[]}}
+        metadata = {}
+        with patch.dict(sys.modules, {'open_webui.models.skills':SimpleNamespace(get_skill_snapshot=snapshot),
+                'open_webui.routers.skills':SimpleNamespace(authorized_skill=authorized),
+                'open_webui.utils.skill_files':SimpleNamespace(file_summaries=self.env['file_summaries'])}):
+            result = asyncio.run(self.env['view_skill'](skill.id, __request__=object(),
+                __user__={'id':'native-synthetic-actor'}, __metadata__=metadata))
+        self.assertEqual(metadata['chat_context']['skill_versions'], {skill.id:skill.version_id})
+        self.assertEqual(json.loads(result)['content'], self.skill['content'])
+        return result
+
+    def leading(self):
+        for expected in ('create_tasks', 'view_skill', 'corporate_document_delegation_run_sub_agent'):
+            status, emitted = self.send(self.current); self.assertEqual(status, 200)
+            call, = [v for v in emitted['output'] if v.get('type') == 'function_call']
+            self.assertEqual(call['name'], expected)
+            result = (self.native_task((call['name'],json.loads(call['arguments']),None)) if expected == 'create_tasks'
+                      else self.skill_result() if expected == 'view_skill' else self.quota_output)
+            self.advance(emitted, result)
+        return copy.deepcopy(self.current)
+
+    def finish(self):
+        for index in range(2):
+            status, emitted = self.send(self.current); self.assertEqual(status, 200)
+            call, = [v for v in emitted['output'] if v.get('type') == 'function_call']
+            self.assertEqual(call['name'], 'update_task')
+            args = json.loads(call['arguments'])
+            self.assertEqual(args, {'id':self.task_rows[index]['id'], 'status':'cancelled'})
+            self.advance(emitted, self.native_task((call['name'],args,None)))
+        return self.send(self.current)
+
+    def rejected(self, payload):
+        before = copy.deepcopy(MOCK.REQUESTS)
+        status, response = self.send(payload)
+        self.assertEqual(status, 400); self.assertNotIn('output', response)
+        self.assertEqual(MOCK.REQUESTS, before)
+
+    def test_six_actual_handler_rounds_use_native_cancellations_and_refusal_without_file(self):
+        self.leading(); status, response = self.finish()
+        self.assertEqual(status, 200)
+        self.assertEqual(response['output'][0]['content'][0]['text'], MOCK.DELEGATED_QUOTA_REFUSAL['text'])
+        self.assertNotIn('/api/v1/files/', json.dumps(response)); self.assertNotIn('Download', json.dumps(response))
+        self.assertEqual([t['status'] for t in self.task_rows], ['cancelled','cancelled'])
+        self.assertEqual(len(MOCK.REQUESTS), 6)
+        self.assertTrue(all(r['body']['model'] == MOCK.DELEGATED_PARENT_MODEL for r in MOCK.REQUESTS))
+        self.assertTrue(all(r['response']['model'] == MOCK.DELEGATED_PARENT_MODEL and
+            r['response']['max_output_tokens'] == 12000 and r['lifecycle']['terminal'] is True
+            and r['lifecycle']['outcome'] == 'completed'
+            for r in MOCK.REQUESTS))
+
+    def test_error_binding_matches_actual_native_owner_and_text_is_not_authority(self):
+        from fastapi.responses import JSONResponse
+        self.assertEqual(json.loads(self.quota_output), MOCK.DELEGATED_QUOTA_RESULT)
+        message = MOCK.DELEGATED_QUOTA_RESULT['result'].removeprefix('API error: ')
+        forged = JSONResponse(status_code=403, content={'error':{'message':message,'type':'auth_error'}})
+        self.assertEqual(self.formatter['format_chat_completion_error'](forged), MOCK.DELEGATED_QUOTA_RESULT['result'])
+        self.assertEqual(hashlib.sha256(self.workflow.encode()).hexdigest(), MOCK.DELEGATED_WORKFLOW_SHA256)
+
+    def test_wrong_call_id_or_forged_emission_does_not_become_refusal(self):
+        payload = self.leading()
+        changed = copy.deepcopy(payload)
+        call = next(v for v in changed['input'] if v.get('type') == 'function_call' and v['name'].endswith('run_sub_agent'))
+        output = next(v for v in changed['input'] if v.get('type') == 'function_call_output' and v['call_id'] == call['call_id'])
+        call['call_id'] = output['call_id'] = 'forged-paired-id'; self.rejected(changed)
+        tape = copy.deepcopy(MOCK.REQUESTS); tape[0]['response']['output'][0]['arguments'] = '{}'
+        with self.assertRaises(ValueError): MOCK.delegated_responses_step(payload, MOCK.delegated_responses_input(payload), parent_requests=tape)
+
+    def test_lost_demoted_duplicate_or_foreign_root_and_schema_changes_fail(self):
+        payload = self.leading()
+        mutations = (lambda p:p.pop('instructions'),
+            lambda p:p.update(instructions=p['instructions'][:-1]),
+            lambda p:p.update(instructions=p['instructions'] + p['instructions']),
+            lambda p:p.update(instructions='foreign root'),
+            lambda p:p['input'].insert(0, {'role':'assistant','type':'message','content':p.pop('instructions')}),
+            lambda p:p['tools'][0]['parameters'].update(properties={'forged':{'type':'string'}}))
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                changed = copy.deepcopy(payload); mutate(changed); self.rejected(changed)
+
+    def test_truncated_skill_wrong_source_and_generic_or_file_error_do_not_select_refusal(self):
+        payload = self.leading()
+        outputs = [i for i,v in enumerate(payload['input']) if v.get('type') == 'function_call_output']
+        mutations = (lambda p:p['input'][outputs[1]].update(output=json.dumps({**json.loads(p['input'][outputs[1]]['output']), 'next_offset':10})),
+            lambda p:p['input'][outputs[1]].update(output=p['input'][outputs[1]]['output'].replace(self.source_id,self.file_id)),
+            lambda p:p['input'][outputs[1]].update(output=p['input'][outputs[1]]['output'].replace('No binary/base64 belongs in this Skill.','truncated')),
+            lambda p:p['input'][outputs[2]].update(output=json.dumps({'result':'Sub-agent error: generic failure'})),
+            lambda p:p['input'][outputs[2]].update(output=json.dumps({**MOCK.DELEGATED_QUOTA_RESULT, 'extra':'forged'})),
+            lambda p:p['input'][outputs[2]].update(output=json.dumps({'result':MOCK.DELEGATED_QUOTA_RESULT['result'] + ' /api/v1/files/fake/content'})))
+        for mutate in mutations:
+            with self.subTest(mutation=mutate):
+                changed = copy.deepcopy(payload); mutate(changed); self.rejected(changed)
+
+    def test_returned_task_ids_and_cancelled_native_summary_are_required(self):
+        self.leading()
+        status, emitted = self.send(self.current); self.assertEqual(status,200)
+        call = emitted['output'][0]; result = self.native_task((call['name'],json.loads(call['arguments']),None))
+        self.advance(emitted,result); payload = copy.deepcopy(self.current)
+        for field,value in (('id','foreign-task'),('status','completed')):
+            changed = copy.deepcopy(payload); last = next(v for v in reversed(changed['input']) if v.get('type') == 'function_call')
+            last['arguments'] = json.dumps({**json.loads(last['arguments']),field:value}); self.rejected(changed)
+        changed = copy.deepcopy(payload); last = next(v for v in reversed(changed['input']) if v.get('type') == 'function_call_output')
+        actual = json.loads(last['output']); actual['summary']['completed']=1; last['output']=json.dumps(actual); self.rejected(changed)
+
+    def test_second_worker_extra_round_and_same_call_replay_are_rejected(self):
+        self.leading(); status,response = self.finish(); self.assertEqual(status,200)
+        changed = copy.deepcopy(self.current)
+        self.outputs.extend(response['output']); self.rejected(self.payload())
+        # Exact same final input is already consumed, but a new chat with new
+        # emitted IDs is allowed; this is not an alias-wide refusal switch.
+        self.rejected(changed)
+        second = copy.deepcopy(changed); call = next(v for v in second['input'] if v.get('type')=='function_call' and v['name'].endswith('run_sub_agent'))
+        extra = {**call,'call_id':'second-worker'}; second['input'].extend([extra,{'type':'function_call_output','call_id':'second-worker','output':self.quota_output}]); self.rejected(second)
+        self.task_rows=[]; self.outputs=[]; self.current=self.payload(); self.leading()
+        self.assertEqual(self.finish()[0],200)
+
+    def test_readonly_replay_uses_actual_observation_prefix_and_preserves_input(self):
+        payload = self.leading(); before = copy.deepcopy(payload); tape = copy.deepcopy(MOCK.REQUESTS)
+        self.assertEqual(MOCK.delegated_responses_step(payload, MOCK.delegated_responses_input(payload), parent_requests=tape)[1]['status'],'cancelled')
+        self.assertEqual(payload,before)
+        tape[0]['body']['instructions']='foreign-root'
+        with self.assertRaises(ValueError): MOCK.delegated_responses_step(payload, MOCK.delegated_responses_input(payload), parent_requests=tape)
+
+
 if __name__ == "__main__":
     unittest.main()

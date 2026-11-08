@@ -30,6 +30,17 @@ DELEGATED_PARENT_MODEL = "goal584-fake-delegated-parent"
 DELEGATED_WORKER_MODEL = "goal584-fake-delegated-worker"
 DELEGATED_USER_REQUEST = ("Fill the synthetic template for employee Ada Example and case G584-2026. "
     "Use the current native Skill, delegate once, and return the checked copy.")
+# Stand-only presentation bindings; native denial authority belongs to the collector.
+# Checked against budget_errors.MODEL_MESSAGE and the unchanged community Tool.
+DELEGATED_QUOTA_RESULT = {
+    'note': 'The user does NOT see this result directly - only you (the main agent) can see it.',
+    'result': 'API error: Недостаточно бюджета этой модели для запроса. Уменьшите запрос, '
+              'выберите другую разрешённую модель или обратитесь к администратору.'}
+DELEGATED_QUOTA_REFUSAL = {'kind': 'quota_refusal', 'text':
+    'Лимит модели сотрудника исчерпан. Заполнение документа не завершено. Обратитесь к администратору.'}
+DELEGATED_WORKFLOW_HEADER = '# Работа с несколькими частями и выдача артефакта'
+DELEGATED_WORKFLOW_CHARS = 13640
+DELEGATED_WORKFLOW_SHA256 = 'c3abf17750e03a943e1b98c6ae0efd24e0d8b297e5b3b1bb6953181723c6a14d'
 USAGE_MODELS = ("goal584-fake-usage", "goal584-fake-usage-absent", "goal584-fake-usage-null")
 # Standalone fixture bindings, checked against the canonical source in tests:
 # provision_admin.SKILL.strip(), prove_admin_browser.INTENT, admin_tools.Tools.
@@ -490,6 +501,54 @@ def delegated_responses_input(payload):
     return values
 
 
+def _delegated_quota_context(payload, values, calls, skill, parent_requests):
+    """Bind presentation-only refusal to actual prior emissions, never quota policy.
+
+    Explicit read-only replay supplies observations BEFORE the current request.
+    Full native key/actor/root/HTTP evidence remains the collector's obligation.
+    """
+    def text(item):
+        value = item.get('content', '')
+        return value if isinstance(value, str) else ''.join(v['text'] for v in value)
+    messages = [v for v in values if v.get('type', 'message') == 'message']
+    contexts = [(payload.get('instructions', ''), True)] + [
+        (text(v), v.get('role') in ('system', 'developer')) for v in messages]
+    matches = [(v.replace('\r\n', '\n'), privileged) for v, privileged in contexts
+               if DELEGATED_WORKFLOW_HEADER in v]
+    if (len(matches) != 1 or not matches[0][1] or matches[0][0].count(DELEGATED_WORKFLOW_HEADER) != 1
+            or hashlib.sha256(matches[0][0][matches[0][0].index(DELEGATED_WORKFLOW_HEADER):][
+                :DELEGATED_WORKFLOW_CHARS].encode()).hexdigest() != DELEGATED_WORKFLOW_SHA256):
+        raise ValueError('Full delegated quota workflow missing or demoted')
+    users = [i for i, v in enumerate(values) if v.get('role') == 'user']
+    if (len(users) != 1 or text(values[users[0]]) != DELEGATED_USER_REQUEST + '\nNative Skill ID: ' + skill['id']
+            or any(v.get('type', 'message') == 'message' for v in values[users[0] + 1:])):
+        raise ValueError('Delegated quota request or continuation differs')
+    if parent_requests is None:
+        with STATE_LOCK:
+            parent_requests = copy.deepcopy(REQUESTS)
+    if not isinstance(parent_requests, list): raise ValueError('Invalid delegated observation tape')
+    for call in calls:
+        emitted = []
+        for record in parent_requests:
+            body, response = record.get('body', {}), record.get('response', {})
+            if body.get('model') != DELEGATED_PARENT_MODEL: continue
+            if body == payload and any(v.get('type') == 'message' for v in response.get('output', [])):
+                raise ValueError('Delegated quota refusal already emitted for this call')
+            for item in response.get('output', []):
+                if item.get('type') == 'function_call' and item.get('call_id') == call['call_id']:
+                    emitted.append((body, response, item, record))
+        if len(emitted) != 1: raise ValueError('Delegated quota call was not actually emitted')
+        body, response, item, record = emitted[0]
+        if (record.get('route') != '/v1/responses' or response.get('id') != record.get('id')
+                or record.get('lifecycle', {}).get('terminal') is not True
+                or record.get('lifecycle', {}).get('outcome') != 'completed'
+                or {k: v for k, v in body.items() if k != 'input'} != {k: v for k, v in payload.items() if k != 'input'}
+                or not isinstance(body.get('input'), list) or values[:len(body['input'])] != body['input']
+                or any(item.get(k) != call.get(k) for k in ('call_id', 'name', 'arguments'))
+                or call.get('id', item.get('id')) != item.get('id')):
+            raise ValueError('Delegated quota emitted context differs')
+
+
 def delegated_responses_step(payload, values, *, parent_requests=None):
     """Simulate only the declared model choices; native Tool owns the loop/context."""
     def text(item):
@@ -551,6 +610,24 @@ def delegated_responses_step(payload, values, *, parent_requests=None):
             return names[2], {'prompt': json.dumps(packet, ensure_ascii=False), 'description': 'Fill the synthetic Office copy'}, None
         if json.loads(json.loads(calls[2]['arguments'])['prompt']) != packet:
             raise ValueError('Delegated task packet lost native Skill/source/facts')
+        worker_result = json.loads(results[2]['output'])
+        if (isinstance(worker_result.get('result'), str) and worker_result['result'].startswith('API error:')
+                and worker_result != DELEGATED_QUOTA_RESULT):
+            raise ValueError('Unexpected delegated error presentation')
+        if json.loads(results[2]['output']) == DELEGATED_QUOTA_RESULT:
+            _delegated_quota_context(payload, values, calls, skill, parent_requests)
+            expected_tasks = copy.deepcopy(tasks)
+            for i, (call, result) in enumerate(zip(calls[3:], results[3:])):
+                if json.loads(call['arguments']) != {'id': tasks[i]['id'], 'status': 'cancelled'}:
+                    raise ValueError('Native returned quota Task id/status differs')
+                expected_tasks[i]['status'] = 'cancelled'
+                updated = json.loads(result['output'])
+                if (updated.get('tasks') != expected_tasks or updated.get('summary') != {
+                        'total': 2, 'pending': 1 - i, 'in_progress': 0, 'completed': 0, 'cancelled': i + 1}):
+                    raise ValueError('Native Task cancellation missing')
+            if len(calls) < len(names):
+                return names[len(calls)], {'id': tasks[len(calls) - 3]['id'], 'status': 'cancelled'}, None
+            return None, None, copy.deepcopy(DELEGATED_QUOTA_REFUSAL)
         result = json.loads(results[2]['output']).get('result')
         if not isinstance(result, str): raise ValueError('Delegated native worker result missing')
         ids = set(re.findall(r'/api/v1/files/([A-Za-z0-9-]{1,128})/content', result))
@@ -899,7 +976,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             output.append({"id": "msg_" + uuid.uuid4().hex, "type": "message", "status": "completed", "role": "assistant",
                 "content": [{"type": "output_text", "text": json.dumps({"follow_ups": ["Prepare a PDF copy of the document.",
-                    "Create an Excel version of the table.", "Draft a short email to accompany the file."]}) if office_service else "[Download](/api/v1/files/" + selection[2] + "/content)" if office or delegated else "Proof", "annotations": []}]})
+                    "Create an Excel version of the table.", "Draft a short email to accompany the file."]}) if office_service else DELEGATED_QUOTA_REFUSAL['text'] if delegated and selection[2] == DELEGATED_QUOTA_REFUSAL else "[Download](/api/v1/files/" + selection[2] + "/content)" if office or delegated else "Proof", "annotations": []}]})
         result = {"id": record["id"], "object": "response", "created_at": record["created"], "status": "completed",
             "error": None, "incomplete_details": None, "instructions": payload.get("instructions"),
             "model": payload['model'] if delegated else OFFICE_SERVICE_MODEL if office_service else OFFICE_MODEL if office else payload["model"] if usage_profile else RESPONSES_MODEL, "output": output, "usage": record["usage"],
