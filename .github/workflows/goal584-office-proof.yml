@@ -483,199 +483,6 @@ jobs:
           finally:
               signal.alarm(0)
           PY
-      - name: Verify one ordinary delegated Office Send and native personal accounting
-        timeout-minutes: 8
-        run: |
-          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
-          import base64,hashlib,json,os,signal,subprocess,sys
-          from pathlib import Path
-          sys.path.insert(0,'scripts/goal584-budget-proof')
-          from office_fixture import OfficeFixture
-          from prove_gateway_auth import write_private
-          from prove_native_budgets import ProofError
-          from prove_pricing_browser import no_credentials
-          from prove_pricing_snapshots import private_credentials
-          from prove_office_delegation_browser import PACKET, failure_projection, run
-          from prove_office_compatibility import _nodes,digest
-          from playwright.sync_api import sync_playwright
-          signal.alarm(420)
-          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
-          env_file=Path(os.environ['PROOF_ENV_FILE']);revision=os.environ['GITHUB_SHA']
-          secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
-              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
-          fixture=OfficeFixture(env_file,out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
-          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
-          stage='prior_acceptance';baseline_ready=False;diagnostic_collected=False;artifacts_collected=False
-          observed=raw=provider=None
-          def credentials():
-              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
-                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
-          def public(name,value):
-              credentials();no_credentials(value,fixture.secrets)
-              (out/(name+'.safe.json')).write_text(json.dumps(value,indent=2,allow_nan=False)+'\n',encoding='utf8')
-          def readback(phase):
-              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
-                  '/proof/prove_office_delegation_readback.py','--phase',phase],capture_output=True,timeout=100)
-              assert 0<len(result.stdout)<=2*1024*1024,'Delegated Office safe readback exceeded bound'
-              packet=json.loads(result.stdout);public('office-delegation-'+phase,packet)
-              assert result.returncode==0 and packet.get('passed') is True,'Delegated Office native readback failed'
-              assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_delegation_readback.py').read_bytes()).hexdigest()
-              assert packet.get('native_office_accepted') is False
-              return packet
-          def setup_diagnostic():
-              # Export only the existing failed receipt and bounded publication progress.
-              _,receipt=fixture._office_private('office-delegation-setup.safe.json')
-              assert receipt.get('phase')=='office-delegation-setup' and receipt.get('passed') is False
-              _,state=fixture._office_private('office-state.private.json')
-              selected=state.get('office_delegation_setup',{})
-              publication=selected.get('publication',{});published=publication.get('receipt',{})
-              journal=selected.get('journal',[]);last=journal[-1] if journal else {}
-              publisher_steps=[entry for entry in journal if entry.get('stage')=='native-publish-template']
-              assert len(publisher_steps)<=1
-              packet={'schema':1,'passed':False,'native_office_accepted':False,
-                  'failure':receipt.get('failure'),'publication_stage':publication.get('stage'),
-                  'config_restored':publication.get('config_restored'),
-                  'last_step':{key:last.get(key) for key in ('stage','returned')},
-                  'publisher_step':{'present':bool(publisher_steps),
-                      'returned':publisher_steps[0].get('returned') if publisher_steps else None},
-                  'publisher':{key:published.get(key) for key in ('status','attempted_step','completed_steps','error')}}
-              assert len(json.dumps(packet,allow_nan=False).encode())<=4096
-              public('office-delegation-setup-failure',packet)
-              return True
-          def collect_artifacts():
-              assert isinstance(observed,dict) and isinstance(raw,dict) and isinstance(provider,dict)
-              workers=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-delegated-worker']
-              calls=[item for row in workers for item in row['response']['output']
-                  if item.get('type')=='function_call' and item.get('name')=='render_office_file']
-              assert len(calls)==1,'Delegated Office render call differs'
-              results=[item for row in workers for item in row['body']['input']
-                  if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id']]
-              # A result is replayed on later requests; use the final native worker packet.
-              result=next(item for item in workers[-1]['body']['input']
-                  if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id'])
-              assert results and all(item==result for item in results),'Delegated Office render result changed'
-              images=[item['image_url'] for item in _nodes(result['output']) if item.get('type')=='input_image']
-              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
-              png=base64.b64decode(images[0].partition(',')[2],validate=True)
-              files={key:Path(raw['paths'][key]) for key in ('browser','native','screenshot')}
-              assert all(path.resolve().parent==private.resolve() and not path.is_symlink() for path in files.values())
-              document=files['browser'].read_bytes();native=files['native'].read_bytes();screenshot=files['screenshot'].read_bytes()
-              assert all(0<len(data)<=8*1024*1024 for data in (document,native,png,screenshot))
-              assert document==native and hashlib.sha256(document).hexdigest()==observed['docx_sha256']
-              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256']
-              assert png.startswith(b'\x89PNG\r\n\x1a\n') and screenshot.startswith(b'\x89PNG\r\n\x1a\n')
-              (out/'office-delegation.docx').write_bytes(document)
-              (out/'office-delegation-render.png').write_bytes(png)
-              (out/'office-delegation-browser.png').write_bytes(screenshot)
-              return {'docx_sha256':hashlib.sha256(document).hexdigest(),'docx_bytes':len(document),
-                  'render_sha256':hashlib.sha256(png).hexdigest(),'render_bytes':len(png),
-                  'screenshot_sha256':hashlib.sha256(screenshot).hexdigest(),'screenshot_bytes':len(screenshot)}
-          try:
-              assert json.loads((out/'office-continuation.safe.json').read_text()).get('passed') is True
-              credentials()
-              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
-              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
-              network,=networks.values();base='http://'+network['IPAddress']+':8080'
-              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
-              stage='runtime_binding';fixture.running_readback(base,build,revision)
-              stage='source_binding'
-              source_root=Path('scripts/goal584-budget-proof')
-              mounted_paths={name:source_root/name for name in ('prove_office_delegation_readback.py','mock_provider.py')}
-              mounted_paths.update({'corporate_templates.py':Path('deploy/openwebui-tools/corporate_templates.py'),
-                  'corporate_template_models.json':Path('deploy/openwebui-tools/corporate_template_models.json'),
-                  'artifact-workflow.md':Path('deploy/openwebui-skills/artifact-workflow.md')})
-              host_paths={'prove_office_delegation_browser.py':source_root/'prove_office_delegation_browser.py'}
-              source_hashes=lambda paths:{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in paths.items()}
-              mounted_sources=source_hashes(mounted_paths);host_sources=source_hashes(host_paths)
-              code='import hashlib,json,pathlib;import prove_office_delegation_readback as r;r.dependencies();print(json.dumps({"mounted_source_sha256":{n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(tuple(mounted_paths))+'},"capacity_owner":r.capacity_observations([],{})}))'
-              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_delegation_sources',timeout=45)
-              assert sources['mounted_source_sha256']==mounted_sources and sources['capacity_owner']['calls']==[]
-              public('office-delegation-source',{'schema':1,'passed':True,'source_commit':revision,
-                  'host_source_sha256':host_sources,**sources})
-              stage='setup'
-              setup=fixture.command_json(['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy','python','-B',
-                  '/proof/provision_webui.py','--phase','office-delegation-setup',
-                  '--private-state','/proof-private/office-state.private.json',
-                  '--receipt','/proof-private/office-delegation-setup.safe.json',
-                  '--delegation-tool-source','/proof-private/sub_agent.py',
-                  '--delegation-profiles-source','/proof/corporate_template_models.json'],'office_delegation_setup',timeout=180)
-              credentials()
-              assert setup.get('passed') is True and setup.get('phase')=='office-delegation-setup'
-              assert fixture._office_private('office-delegation-setup.safe.json')[1]==setup
-              assert setup['office_delegation_setup']['inference_issued'] is False
-              public('office-delegation-setup',setup)
-              stage='baseline';readback('baseline');baseline_ready=True
-              stage='ordinary_send'
-              with sync_playwright() as playwright:
-                  browser=playwright.chromium.launch(channel='chrome',headless=True)
-                  try: observed,raw=run(browser,fixture,base,build,revision)
-                  finally: browser.close()
-              assert fixture._office_private('office-delegation-browser.private.json')[1]==raw
-              no_credentials(observed,fixture.secrets)
-              stage='native_context'
-              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
-                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_delegation_provider')
-              primary=[row for row in provider['requests'] if row['body']['model'] in
-                  ('goal584-fake-delegated-parent','goal584-fake-delegated-worker')]
-              parents=[row for row in primary if row['body']['model']=='goal584-fake-delegated-parent']
-              workers=[row for row in primary if row['body']['model']=='goal584-fake-delegated-worker']
-              assert len(primary)==12 and len(parents)==len(workers)==6,'Delegated Office personal dispatch count differs'
-              ids=[row['id'] for row in primary];assert len(set(ids))==12
-              reasoning=[[item for item in row['response']['output'] if item.get('type')=='reasoning'] for row in parents]
-              packets=[fixture.native_context(base,build,revision,reasoning[start:start+4]) for start in range(0,len(reasoning),4)]
-              qualification_raw=(private/'office-qualification.safe.json').read_bytes();qualification=json.loads(qualification_raw)
-              assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
-              assert qualification_raw==(out/'qualification.safe.json').read_bytes()
-              context={'schema':1,'packets':packets,'provider_ids':ids,'binding':{
-                  'word_guide_binding':qualification['word_guide'],'source_commit':revision,
-                  'qualification_receipt_sha256':hashlib.sha256(qualification_raw).hexdigest()}}
-              write_private(private/'office-delegation-native-context.private.json',context)
-              public('office-delegation-context',{'schema':1,'personal_provider_calls':len(ids),
-                  'native_packet_sha256':[digest(packet) for packet in packets],
-                  'qualification_receipt_sha256':context['binding']['qualification_receipt_sha256']})
-              stage='diagnostic';readback('diagnostic');diagnostic_collected=True
-              stage='artifacts';artifacts=collect_artifacts();artifacts_collected=True
-              stage='native_finance';financial=readback('verify')
-              assert source_hashes(mounted_paths)==mounted_sources and source_hashes(host_paths)==host_sources,'Delegated Office source changed'
-              public('office-delegation-browser',observed)
-              public('office-delegation-artifact',{'schema':1,'native_office_accepted':False,**artifacts})
-              public('office-delegation',{'schema':1,'passed':True,'stage':'bounded_native_delegation',
-                  'native_office_accepted':False,'browser':observed,'financial':financial,'artifact':artifacts,
-                  'limits':['independent artifact review pending','no paid external or production acceptance',
-                      'worker encrypted reasoning compared with current native baseline']})
-          except Exception as error:
-              failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,'error_class':type(error).__name__}
-              if stage=='ordinary_send':
-                  lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
-                  try:
-                      _,pending=fixture._office_private(PACKET)
-                      assert pending.get('browser_source_sha256')==host_sources['prove_office_delegation_browser.py']
-                      lifecycle=failure_projection(pending)
-                      assert len(json.dumps(lifecycle,allow_nan=False).encode())<=4096
-                      no_credentials(lifecycle,fixture.secrets)
-                  except Exception:
-                      lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
-                  public('office-delegation-lifecycle',lifecycle)
-                  failure['lifecycle_diagnostic_collected']=lifecycle.get('collected') is True
-              if stage=='setup':
-                  failure['setup_diagnostic_collected']=False
-                  try: failure['setup_diagnostic_collected']=setup_diagnostic()
-                  except Exception: pass
-              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
-                  try: no_credentials({'message':str(error)},fixture.secrets)
-                  except (AssertionError,ProofError): pass
-                  else: failure['failure']=str(error)
-              if baseline_ready and not diagnostic_collected:
-                  try: readback('diagnostic');diagnostic_collected=True
-                  except Exception: pass
-              if not artifacts_collected and provider is not None:
-                  try: collect_artifacts();artifacts_collected=True
-                  except Exception: pass
-              failure.update(wire_diagnostic_collected=diagnostic_collected,artifact_diagnostic_collected=artifacts_collected)
-              public('office-delegation',failure)
-              raise SystemExit(1)
-          finally: signal.alarm(0)
-          PY
       - name: Verify native key block and signed gateway denial
         timeout-minutes: 3
         run: |
@@ -1037,6 +844,199 @@ jobs:
                   'error_class':type(error).__name__,'whole_goal_accepted':False,'production_accepted':False})
               raise SystemExit(1) from None
           finally: signal.setitimer(signal.ITIMER_REAL,0)
+          PY
+      - name: Verify one ordinary delegated Office Send and native personal accounting
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import base64,hashlib,json,os,signal,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_native_budgets import ProofError
+          from prove_pricing_browser import no_credentials
+          from prove_pricing_snapshots import private_credentials
+          from prove_office_delegation_browser import PACKET, failure_projection, run
+          from prove_office_compatibility import _nodes,digest
+          from playwright.sync_api import sync_playwright
+          signal.alarm(420)
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          env_file=Path(os.environ['PROOF_ENV_FILE']);revision=os.environ['GITHUB_SHA']
+          secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(env_file,out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          stage='prior_acceptance';baseline_ready=False;diagnostic_collected=False;artifacts_collected=False
+          observed=raw=provider=None
+          def credentials():
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          def public(name,value):
+              credentials();no_credentials(value,fixture.secrets)
+              (out/(name+'.safe.json')).write_text(json.dumps(value,indent=2,allow_nan=False)+'\n',encoding='utf8')
+          def readback(phase):
+              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
+                  '/proof/prove_office_delegation_readback.py','--phase',phase],capture_output=True,timeout=100)
+              assert 0<len(result.stdout)<=2*1024*1024,'Delegated Office safe readback exceeded bound'
+              packet=json.loads(result.stdout);public('office-delegation-'+phase,packet)
+              assert result.returncode==0 and packet.get('passed') is True,'Delegated Office native readback failed'
+              assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_delegation_readback.py').read_bytes()).hexdigest()
+              assert packet.get('native_office_accepted') is False
+              return packet
+          def setup_diagnostic():
+              # Export only the existing failed receipt and bounded publication progress.
+              _,receipt=fixture._office_private('office-delegation-setup.safe.json')
+              assert receipt.get('phase')=='office-delegation-setup' and receipt.get('passed') is False
+              _,state=fixture._office_private('office-state.private.json')
+              selected=state.get('office_delegation_setup',{})
+              publication=selected.get('publication',{});published=publication.get('receipt',{})
+              journal=selected.get('journal',[]);last=journal[-1] if journal else {}
+              publisher_steps=[entry for entry in journal if entry.get('stage')=='native-publish-template']
+              assert len(publisher_steps)<=1
+              packet={'schema':1,'passed':False,'native_office_accepted':False,
+                  'failure':receipt.get('failure'),'publication_stage':publication.get('stage'),
+                  'config_restored':publication.get('config_restored'),
+                  'last_step':{key:last.get(key) for key in ('stage','returned')},
+                  'publisher_step':{'present':bool(publisher_steps),
+                      'returned':publisher_steps[0].get('returned') if publisher_steps else None},
+                  'publisher':{key:published.get(key) for key in ('status','attempted_step','completed_steps','error')}}
+              assert len(json.dumps(packet,allow_nan=False).encode())<=4096
+              public('office-delegation-setup-failure',packet)
+              return True
+          def collect_artifacts():
+              assert isinstance(observed,dict) and isinstance(raw,dict) and isinstance(provider,dict)
+              workers=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-delegated-worker']
+              calls=[item for row in workers for item in row['response']['output']
+                  if item.get('type')=='function_call' and item.get('name')=='render_office_file']
+              assert len(calls)==1,'Delegated Office render call differs'
+              results=[item for row in workers for item in row['body']['input']
+                  if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id']]
+              # A result is replayed on later requests; use the final native worker packet.
+              result=next(item for item in workers[-1]['body']['input']
+                  if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id'])
+              assert results and all(item==result for item in results),'Delegated Office render result changed'
+              images=[item['image_url'] for item in _nodes(result['output']) if item.get('type')=='input_image']
+              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
+              png=base64.b64decode(images[0].partition(',')[2],validate=True)
+              files={key:Path(raw['paths'][key]) for key in ('browser','native','screenshot')}
+              assert all(path.resolve().parent==private.resolve() and not path.is_symlink() for path in files.values())
+              document=files['browser'].read_bytes();native=files['native'].read_bytes();screenshot=files['screenshot'].read_bytes()
+              assert all(0<len(data)<=8*1024*1024 for data in (document,native,png,screenshot))
+              assert document==native and hashlib.sha256(document).hexdigest()==observed['docx_sha256']
+              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256']
+              assert png.startswith(b'\x89PNG\r\n\x1a\n') and screenshot.startswith(b'\x89PNG\r\n\x1a\n')
+              (out/'office-delegation.docx').write_bytes(document)
+              (out/'office-delegation-render.png').write_bytes(png)
+              (out/'office-delegation-browser.png').write_bytes(screenshot)
+              return {'docx_sha256':hashlib.sha256(document).hexdigest(),'docx_bytes':len(document),
+                  'render_sha256':hashlib.sha256(png).hexdigest(),'render_bytes':len(png),
+                  'screenshot_sha256':hashlib.sha256(screenshot).hexdigest(),'screenshot_bytes':len(screenshot)}
+          try:
+              assert json.loads((out/'office-continuation.safe.json').read_text()).get('passed') is True
+              credentials()
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+              stage='runtime_binding';fixture.running_readback(base,build,revision)
+              stage='source_binding'
+              source_root=Path('scripts/goal584-budget-proof')
+              mounted_paths={name:source_root/name for name in ('prove_office_delegation_readback.py','mock_provider.py')}
+              mounted_paths.update({'corporate_templates.py':Path('deploy/openwebui-tools/corporate_templates.py'),
+                  'corporate_template_models.json':Path('deploy/openwebui-tools/corporate_template_models.json'),
+                  'artifact-workflow.md':Path('deploy/openwebui-skills/artifact-workflow.md')})
+              host_paths={'prove_office_delegation_browser.py':source_root/'prove_office_delegation_browser.py'}
+              source_hashes=lambda paths:{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in paths.items()}
+              mounted_sources=source_hashes(mounted_paths);host_sources=source_hashes(host_paths)
+              code='import hashlib,json,pathlib;import prove_office_delegation_readback as r;r.dependencies();print(json.dumps({"mounted_source_sha256":{n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(tuple(mounted_paths))+'},"capacity_owner":r.capacity_observations([],{})}))'
+              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_delegation_sources',timeout=45)
+              assert sources['mounted_source_sha256']==mounted_sources and sources['capacity_owner']['calls']==[]
+              public('office-delegation-source',{'schema':1,'passed':True,'source_commit':revision,
+                  'host_source_sha256':host_sources,**sources})
+              stage='setup'
+              setup=fixture.command_json(['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy','python','-B',
+                  '/proof/provision_webui.py','--phase','office-delegation-setup',
+                  '--private-state','/proof-private/office-state.private.json',
+                  '--receipt','/proof-private/office-delegation-setup.safe.json',
+                  '--delegation-tool-source','/proof-private/sub_agent.py',
+                  '--delegation-profiles-source','/proof/corporate_template_models.json'],'office_delegation_setup',timeout=180)
+              credentials()
+              assert setup.get('passed') is True and setup.get('phase')=='office-delegation-setup'
+              assert fixture._office_private('office-delegation-setup.safe.json')[1]==setup
+              assert setup['office_delegation_setup']['inference_issued'] is False
+              public('office-delegation-setup',setup)
+              stage='baseline';readback('baseline');baseline_ready=True
+              stage='ordinary_send'
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,raw=run(browser,fixture,base,build,revision)
+                  finally: browser.close()
+              assert fixture._office_private('office-delegation-browser.private.json')[1]==raw
+              no_credentials(observed,fixture.secrets)
+              stage='native_context'
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_delegation_provider')
+              primary=[row for row in provider['requests'] if row['body']['model'] in
+                  ('goal584-fake-delegated-parent','goal584-fake-delegated-worker')]
+              parents=[row for row in primary if row['body']['model']=='goal584-fake-delegated-parent']
+              workers=[row for row in primary if row['body']['model']=='goal584-fake-delegated-worker']
+              assert len(primary)==12 and len(parents)==len(workers)==6,'Delegated Office personal dispatch count differs'
+              ids=[row['id'] for row in primary];assert len(set(ids))==12
+              reasoning=[[item for item in row['response']['output'] if item.get('type')=='reasoning'] for row in parents]
+              packets=[fixture.native_context(base,build,revision,reasoning[start:start+4]) for start in range(0,len(reasoning),4)]
+              qualification_raw=(private/'office-qualification.safe.json').read_bytes();qualification=json.loads(qualification_raw)
+              assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
+              assert qualification_raw==(out/'qualification.safe.json').read_bytes()
+              context={'schema':1,'packets':packets,'provider_ids':ids,'binding':{
+                  'word_guide_binding':qualification['word_guide'],'source_commit':revision,
+                  'qualification_receipt_sha256':hashlib.sha256(qualification_raw).hexdigest()}}
+              write_private(private/'office-delegation-native-context.private.json',context)
+              public('office-delegation-context',{'schema':1,'personal_provider_calls':len(ids),
+                  'native_packet_sha256':[digest(packet) for packet in packets],
+                  'qualification_receipt_sha256':context['binding']['qualification_receipt_sha256']})
+              stage='diagnostic';readback('diagnostic');diagnostic_collected=True
+              stage='artifacts';artifacts=collect_artifacts();artifacts_collected=True
+              stage='native_finance';financial=readback('verify')
+              assert source_hashes(mounted_paths)==mounted_sources and source_hashes(host_paths)==host_sources,'Delegated Office source changed'
+              public('office-delegation-browser',observed)
+              public('office-delegation-artifact',{'schema':1,'native_office_accepted':False,**artifacts})
+              public('office-delegation',{'schema':1,'passed':True,'stage':'bounded_native_delegation',
+                  'native_office_accepted':False,'browser':observed,'financial':financial,'artifact':artifacts,
+                  'limits':['independent artifact review pending','no paid external or production acceptance',
+                      'worker encrypted reasoning compared with current native baseline']})
+          except Exception as error:
+              failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,'error_class':type(error).__name__}
+              if stage=='ordinary_send':
+                  lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
+                  try:
+                      _,pending=fixture._office_private(PACKET)
+                      assert pending.get('browser_source_sha256')==host_sources['prove_office_delegation_browser.py']
+                      lifecycle=failure_projection(pending)
+                      assert len(json.dumps(lifecycle,allow_nan=False).encode())<=4096
+                      no_credentials(lifecycle,fixture.secrets)
+                  except Exception:
+                      lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
+                  public('office-delegation-lifecycle',lifecycle)
+                  failure['lifecycle_diagnostic_collected']=lifecycle.get('collected') is True
+              if stage=='setup':
+                  failure['setup_diagnostic_collected']=False
+                  try: failure['setup_diagnostic_collected']=setup_diagnostic()
+                  except Exception: pass
+              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
+                  try: no_credentials({'message':str(error)},fixture.secrets)
+                  except (AssertionError,ProofError): pass
+                  else: failure['failure']=str(error)
+              if baseline_ready and not diagnostic_collected:
+                  try: readback('diagnostic');diagnostic_collected=True
+                  except Exception: pass
+              if not artifacts_collected and provider is not None:
+                  try: collect_artifacts();artifacts_collected=True
+                  except Exception: pass
+              failure.update(wire_diagnostic_collected=diagnostic_collected,artifact_diagnostic_collected=artifacts_collected)
+              public('office-delegation',failure)
+              raise SystemExit(1)
+          finally: signal.alarm(0)
           PY
       - name: Retain bounded sanitized stand diagnostics before cleanup
         if: failure() && env.PROOF_ENV_FILE != ''
