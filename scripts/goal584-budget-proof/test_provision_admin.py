@@ -1,14 +1,23 @@
 """Bounded orchestration rehearsal, not native server/runtime acceptance."""
 import ast
+import asyncio
 import copy
+from contextlib import redirect_stdout
 from dataclasses import replace
+from datetime import datetime, timezone
 from decimal import Decimal
 import hashlib
 import importlib.util
+import json
+from io import StringIO
+import os
 from pathlib import Path
+import stat
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 
 HERE = Path(__file__).resolve().parent
@@ -347,6 +356,255 @@ class ProvisionAdminTests(unittest.TestCase):
             with self.subTest(message=message):
                 self.probe(denial_message=message, expect_failure=True)
         self.probe(denial_type="auth_error", expect_failure=True)
+
+
+class UnknownAdminProvisionTests(unittest.TestCase):
+    """Actual installer/readback/client over reused finite native HTTP leaves."""
+    def setUp(self):
+        from test_unknown_usage_policy import Wire, Response, P
+        self.U, self.Response, self.wire = P, Response, Wire()
+        for item in self.wire.models: item['model_info']['supports_native_streaming'] = False
+        temp = TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        self.private = Path(temp.name) / 'private'; self.private.mkdir(mode=0o700)
+        import prove_gateway_auth as private_owner
+        if os.name == 'nt':
+            self.enterContext(patch.object(private_owner.stat, 'S_IMODE', side_effect=lambda m: 0o700 if stat.S_ISDIR(m) else 0o600))
+        self.path, self.handoff = self.private / 'admin.private.json', self.private / 'accounts.private.json'
+        operator = self.private / 'operator.private.json'
+        p.write_private(operator, {'schema': 1, 'operator_token': self.wire.operator})
+        self.enterContext(patch.object(p, 'OPERATOR_STATE', operator))
+        self.enterContext(patch.object(sys.modules['provision_webui'], 'OPERATOR_STATE', operator))
+        self.enterContext(patch.object(p, 'SOURCE', BUDGETS / 'admin_tools.py'))
+        self.enterContext(patch.dict(os.environ, OWUI_BUDGET_GATEWAY_SECRET=self.wire.gateway))
+        self.enterContext(patch.object(p, 'ClientSession', self.wire.session))
+        self.enterContext(patch.object(N, 'build_opener', return_value=self.wire))
+        self.common = {'schema': 1, 'stage': 'setup_complete', 'started_at_utc': '2026-01-01T00:00:00+00:00',
+            'admin': {'id': IDS[2], 'token': 'old-admin-session'}, 'users': [
+                {'id': uid, 'token': 'old-user-' + uid} for uid in IDS[:2]],
+            'native_keys': [{'key': 'sk-old-private-' + str(i)} for i in range(4)],
+            'cost_display': {'stage': 'setup_complete'}, 'cost_reader': {'key': self.wire.viewer}}
+        self.office = {'stage': 'setup_complete', 'admin': copy.deepcopy(self.common['admin']),
+                       'users': [{'id': IDS[3], 'token': 'office-user-session'}]}
+        self.unknown = {'stage': 'setup_complete', 'admin': copy.deepcopy(self.common['admin']),
+                        'users': [{'id': IDS[4], 'token': 'unknown-user-session'}], 'unknown_gui_setup': {'models': {}}}
+        self.new_id, self.new_token = IDS[5], 'new-admin-private-session'
+        actors = [self.common['admin'], *self.common['users'], *self.office['users'], *self.unknown['users']]
+        self.accounts = {a['token']: (a['id'], 'admin' if a is self.common['admin'] else 'user') for a in actors}
+        self.directory = {uid: {'id': uid, 'name': uid, 'email': uid + '@example.invalid', 'role': role, 'info': {}}
+                          for uid, role in self.accounts.values()}
+        self.workspace = {alias: {'id': alias, 'name': alias, 'base_model_id': None, 'is_active': True,
+            'params': {'max_tokens': 16, 'custom_params': {'store': False}}, 'meta': {'filterIds': [p.FILTER_ID]},
+            'access_grants': [{'principal_type': 'user', 'principal_id': IDS[4], 'permission': 'read'}],
+            'user_id': IDS[2], 'write_access': True} for alias in self.U.ALIASES}
+        self.unknown['unknown_gui_setup']['models'] = copy.deepcopy(self.workspace)
+        self.valves = {'ledger_base_url': 'http://proxy:4000', 'ledger_read_key': self.wire.viewer,
+                       'read_wait_seconds': 8.0, 'default_budget_template': None, 'unrelated': {'keep': True}}
+        self.functions = {p.FILTER_ID: {'id': p.FILTER_ID, 'user_id': IDS[2], 'updated_at': 1, 'type': 'filter',
+            'content': 'untouched-cost-owner', 'is_active': True, 'meta': {'toggle': False}}}
+        self.tools, self.skills, self.calls, self.fault = {}, {}, [], None
+        self.webui = p.WebUI(); self.webui.opener = self
+        self.loop = asyncio.new_event_loop(); self.addCleanup(self.loop.close)
+        async def seed():
+            async with self.wire.session(trust_env=False) as session:
+                client = p.BudgetAdminClient(session, p.PROXY_URL, self.wire.operator)
+                async def guard(): pass
+                for actor in [*self.common['users'], *self.office['users'], *self.unknown['users']]:
+                    models = self.U.ALIASES if actor['id'] == IDS[4] else (self.U.ALIASES[0],)
+                    budget = await client.initialize_employee(actor['id'], tuple((m, Decimal(2)) for m in models),
+                        Decimal(2 * len(models)), self.wire.gateway, before_write=guard)
+            native = p.native_client(); native.started_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+            return self.U.snapshot(native, budget)
+        self.unknown['unknown_gui_verification'] = {'stage': 'verified', 'native': self.loop.run_until_complete(seed())}
+        self.before = copy.deepcopy((self.common, self.office, self.unknown, self.wire.users, self.wire.keys))
+        self.wire.requests.clear()
+
+    def open(self, request, timeout):
+        body = json.loads(request.data) if request.data else None
+        status, value = self.handle(request.get_method(), request.full_url, dict(request.header_items()), body)
+        return self.Response(status, value)
+
+    def handle(self, method, url, headers, body):
+        parsed = urlsplit(url); route = parsed.path
+        if route == '/api/version': return 200, {'version': '0.12.2'}
+        token = {k.lower(): v for k, v in headers.items()}['authorization'].removeprefix('Bearer ')
+        uid, role = self.accounts[token]
+        self.calls.append((method, route, copy.deepcopy(body)))
+        if self.fault:
+            failure = self.fault(method, route, body)
+            if failure: return failure
+        if route == '/api/v1/auths/': return 200, {'id': uid, 'role': role}
+        if route == '/api/v1/auths/add':
+            assert body['role'] == 'admin' and role == 'admin'
+            self.accounts[self.new_token] = (self.new_id, 'admin')
+            self.directory[self.new_id] = {'id': self.new_id, 'name': body['name'], 'email': body['email'], 'role': 'admin', 'info': None}
+            return 200, {'id': self.new_id, 'token': self.new_token, 'role': 'admin'}
+        if route == '/api/v1/users/all': return 200, {'users': list(self.directory.values()), 'total': len(self.directory)}
+        if route == '/api/models':
+            return 200, {'data': [{'id': mid, 'info': copy.deepcopy(row)} for mid, row in self.workspace.items()
+                if role == 'admin' or ('user', uid, 'read') in p.grant_set(row)]}
+        if route == '/api/v1/models/model':
+            row = self.workspace.get(parse_qs(parsed.query)['id'][0])
+            return (404, {}) if row is None else (200, row) if role == 'admin' else (401, {})
+        if route == '/api/v1/models/create':
+            assert body['id'] not in self.workspace
+            self.workspace[body['id']] = copy.deepcopy(body) | {'user_id': uid, 'write_access': True}
+            return 200, self.workspace[body['id']]
+        if route == '/api/v1/tools/create':
+            assert body['id'] not in self.tools
+            self.tools[body['id']] = copy.deepcopy(body) | {'user_id': uid, 'write_access': True,
+                'specs': [{'name': 'open_budget_form', 'parameters': {'properties': {'view_json': {'type': 'string', 'default': '{}'}}}},
+                          {'name': 'apply_budget_form', 'parameters': {'properties': {}}}]}
+            return 200, self.tools[body['id']]
+        if route.startswith('/api/v1/tools/id/'):
+            if role != 'admin': return 401, {}
+            tool = self.tools.get(p.TOOL_ID)
+            if tool is None: return 404, {}
+            if route.endswith('/valves/update'): tool['valves'] = copy.deepcopy(body); return 200, body
+            return 200, tool['valves'] if route.endswith('/valves') else tool
+        if route == '/api/v1/skills/create':
+            assert body['id'] not in self.skills
+            self.skills[body['id']] = copy.deepcopy(body) | {'user_id': uid, 'write_access': True}
+            return 200, self.skills[body['id']]
+        if route.startswith('/api/v1/skills/id/'):
+            return (401, {}) if role != 'admin' else (200, self.skills[p.SKILL_ID]) if p.SKILL_ID in self.skills else (404, {})
+        if route == '/api/v1/functions/export':
+            return 200, [dict(v, valves=copy.deepcopy(self.valves)) for v in self.functions.values()]
+        if route.startswith('/api/v1/functions/id/'):
+            if route.endswith('/valves/update'):
+                self.valves = copy.deepcopy(body); self.functions[p.FILTER_ID]['updated_at'] = 2
+                return 200, body
+            return 200, self.valves if route.endswith('/valves') else self.functions[p.FILTER_ID]
+        values = {'/openai/config': {'connection': 'preserve'}, '/api/v1/tasks/config': {'native': 'preserve'},
+                  '/api/v1/chats/config': {'chat': 'preserve'}, '/api/v1/configs/tool_servers': {'office': 'preserve'}}
+        assert method == 'GET' and route in values, (method, route)
+        return 200, copy.deepcopy(values[route])
+
+    def setup_admin(self):
+        return self.loop.run_until_complete(p.unknown_setup(self.webui, self.common, self.office, self.unknown, self.path, self.handoff))
+
+    def test_real_clients_install_readback_known_only_and_preserve_all_existing_state(self):
+        safe = self.setup_admin(); selected = p.read_private(self.path); accounts = p.read_private(self.handoff)
+        self.assertEqual(selected['stage'], 'setup_complete')
+        self.assertEqual(safe['employee_ids'], [IDS[4]])
+        self.assertEqual(accounts['employee_ids'], [IDS[4]])
+        self.assertEqual(set(accounts['admin']), {'id', 'email', 'password'})
+        self.assertEqual(self.wire.users[self.new_id]['models'], [self.U.ALIASES[0]])
+        self.assertEqual(self.wire.users[self.new_id]['max_budget'], 2)
+        self.assertEqual(self.tools[p.TOOL_ID]['valves']['managed_model_ids'], list(self.U.ALIASES))
+        self.assertEqual(self.workspace[p.MODEL_ID]['base_model_id'], self.U.ALIASES[0])
+        self.assertEqual(self.valves['default_budget_template'], None)
+        self.assertEqual(self.valves['unrelated'], {'keep': True})
+        self.assertEqual(self.valves['ledger_admin_key'], self.wire.operator)
+        self.assertEqual((self.common, self.office, self.unknown), self.before[:3])
+        self.assertEqual({k: v for k, v in self.wire.users.items() if k != self.new_id}, self.before[3])
+        self.assertEqual({k: v for k, v in self.wire.keys.items() if v['user_id'] != self.new_id}, self.before[4])
+        self.assertFalse(self.wire.attempts or self.wire.physical)
+        self.assertNotIn(self.new_token, json.dumps(safe))
+        self.assertNotIn(self.wire.operator, json.dumps(safe))
+        p.unknown_snapshot(self.webui, self.common, self.office, self.unknown, selected)
+
+    def test_optin_cli_handoff_and_safe_receipt_use_separate_state_without_legacy_snapshot(self):
+        office_path = Path('/proof-private/office-state.private.json')
+        unknown_path = Path('/proof-private/unknown-usage-gui-state.private.json')
+        actual_read = p.read_private
+        def read(path):
+            if path == p.STATE: return copy.deepcopy(self.common)
+            if path == office_path: return copy.deepcopy(self.office)
+            if path == unknown_path: return copy.deepcopy(self.unknown)
+            return actual_read(path)
+        receipt = self.private / 'setup.safe.json'
+        args = ['provision_admin.py', '--phase', 'unknown-setup', '--private-state', str(p.STATE),
+            '--office-state', str(office_path), '--unknown-state', str(unknown_path),
+            '--admin-unknown-state', str(self.path), '--browser-accounts', str(self.handoff), '--receipt', str(receipt)]
+        output = StringIO()
+        with patch.object(p, 'UNKNOWN_ADMIN_STATE', self.path), patch.object(p, 'UNKNOWN_ADMIN_ACCOUNTS', self.handoff), \
+             patch.object(p, 'read_private', side_effect=read), patch.object(p, 'WebUI', return_value=self.webui), \
+             patch.object(p, 'snapshot', side_effect=AssertionError('Legacy snapshot must not run')), \
+             patch.object(sys, 'argv', args), redirect_stdout(output):
+            self.assertEqual(p.main(), 0, output.getvalue())
+        safe = json.loads(output.getvalue())
+        self.assertEqual((safe['phase'], safe['stage'], safe['passed']), ('unknown-setup', 'setup_complete', True))
+        self.assertEqual(actual_read(receipt), safe)
+        self.assertNotIn(self.new_token, output.getvalue())
+        self.assertNotIn(self.wire.operator, output.getvalue())
+        self.assertEqual((self.common, self.office, self.unknown), self.before[:3])
+
+    def test_legacy_cli_cannot_accept_new_fixture_inputs(self):
+        args = ['provision_admin.py', '--phase', 'snapshot', '--private-state', str(p.STATE),
+                '--receipt', str(self.private / 'forbidden.safe.json'), '--office-state', '/proof-private/office-state.private.json']
+        with patch.object(sys, 'argv', args), redirect_stdout(StringIO()) as output:
+            self.assertEqual(p.main(), 1)
+        self.assertIn('opt-in only', json.loads(output.getvalue())['failure'])
+        self.assertEqual(self.calls, [])
+
+    def test_unverified_or_drifted_unknown_fixture_rejects_before_any_post(self):
+        self.unknown['unknown_gui_verification']['stage'] = 'reading_native'
+        with self.assertRaises(p.ProofError): self.setup_admin()
+        self.assertFalse(any(m == 'POST' for m, _, _ in self.calls))
+        self.assertFalse(self.path.exists())
+
+    def test_absent_default_template_remains_absent_after_credential_install(self):
+        self.valves.pop('default_budget_template')
+        self.setup_admin()
+        self.assertNotIn('default_budget_template', self.valves)
+
+    def test_snapshot_retains_service_changes_separately_without_relaxing_personal_preservation(self):
+        service_id = '00000007-1111-4111-8111-111111111111'
+        async def seed_service():
+            async with self.wire.session(trust_env=False) as session:
+                client = p.BudgetAdminClient(session, p.PROXY_URL, self.wire.operator)
+                async def guard(): pass
+                await client.initialize_employee(service_id, ((self.U.ALIASES[0], Decimal(2)),),
+                    Decimal(2), self.wire.gateway, before_write=guard)
+        self.loop.run_until_complete(seed_service())
+        self.valves['service_payer_id'] = service_id
+        self.setup_admin(); selected = p.read_private(self.path)
+        self.assertNotIn(service_id, selected['initial']['old'])
+        self.assertIsNotNone(selected['initial']['service'])
+        self.wire.users[service_id]['spend'] = .166  # Raw counter IO change, not financial qualification.
+        safe = p.unknown_snapshot(self.webui, self.common, self.office, self.unknown, selected)
+        self.assertTrue(safe['service_observed_separately'])
+        self.assertEqual(selected['observation']['service']['snapshot']['user']['spend'], .166)
+        self.assertEqual(selected['observation']['unknown'], selected['initial']['unknown'])
+
+    def test_existing_resource_or_unproven_absence_rejects_before_writes(self):
+        for status in (200, 401, 403, 500):
+            self.calls.clear()
+            self.fault = lambda method, route, body: (status, {}) if route == '/api/v1/tools/id/' + p.TOOL_ID else None
+            with self.subTest(status=status), self.assertRaises(p.ProofError): self.setup_admin()
+            self.assertFalse(any(m == 'POST' for m, _, _ in self.calls))
+
+    def test_prior_management_key_or_profile_drift_cannot_be_overwritten(self):
+        for kind in ('key', 'profile', 'verified_snapshot'):
+            before = copy.deepcopy((self.valves, self.workspace, self.unknown))
+            if kind == 'key': self.valves['ledger_admin_key'] = 'sk-another-existing-owner'
+            elif kind == 'profile': self.workspace[self.U.ALIASES[0]]['params']['max_tokens'] = 999
+            else: self.unknown['unknown_gui_verification']['native']['rows'] = [{'request_id': 'not-current'}]
+            with self.subTest(kind=kind), self.assertRaises(p.ProofError): self.setup_admin()
+            self.assertFalse(any(m == 'POST' for m, _, _ in self.calls))
+            self.valves, self.workspace, self.unknown = before
+
+    def test_partial_install_is_private_failed_nonresumable_without_repair(self):
+        self.fault = lambda method, route, body: (500, {}) if route == '/api/v1/skills/create' else None
+        with self.assertRaises(p.ProofError): self.setup_admin()
+        selected = p.read_private(self.path)
+        self.assertEqual(selected['stage'], 'setup_failed')
+        self.assertIn(self.new_id, self.wire.users)
+        self.assertFalse(self.handoff.exists())
+        self.calls.clear()
+        with self.assertRaises(p.ProofError): self.setup_admin()
+        self.assertEqual(self.calls, [])
+
+    def test_snapshot_rejects_personal_role_acl_and_counter_drift(self):
+        self.setup_admin(); selected = p.read_private(self.path)
+        for kind in ('role', 'acl', 'counter'):
+            before = copy.deepcopy((self.directory, self.workspace, self.wire.users))
+            if kind == 'role': self.directory[IDS[4]]['role'] = 'admin'
+            elif kind == 'acl': self.workspace[self.U.ALIASES[0]]['access_grants'] = []
+            else: self.wire.users[IDS[4]]['spend'] = 1
+            with self.subTest(kind=kind), self.assertRaises(p.ProofError):
+                p.unknown_snapshot(self.webui, self.common, self.office, self.unknown, selected)
+            self.directory, self.workspace, self.wire.users = before
 
 
 class BudgetFeedbackContractTests(unittest.TestCase):

@@ -12,11 +12,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import copy
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -41,6 +42,8 @@ TOOL_ID = "employee_budget_admin"
 SKILL_ID = "goal584-budget-admin-guide"
 MODEL_ID = "goal584-budget-admin"
 SOURCE = Path("/proof/budgets/admin_tools.py")
+UNKNOWN_ADMIN_STATE = Path('/proof-private/admin-unknown-state.private.json')
+UNKNOWN_ADMIN_ACCOUNTS = Path('/proof-private/admin-unknown-accounts.private.json')
 SKILL = """# Employee budget administration
 
 For a request to view or configure employee budgets, call open_budget_form.
@@ -114,7 +117,8 @@ def filter_admin_key(webui, state, *, install=False):
     require(after == expected, "Native Filter management key readback changed or lost existing Valves")
 
 
-def installation(webui, state):
+def installation(webui, state, *, managed_model_ids=MODELS, base_model_id=None, user_catalogs=None):
+    base_model_id = MODELS[0] if base_model_id is None else base_model_id
     admin, fixture = state["admin"], state["admin_fixture"]
     expected_grants = {("user", admin["id"], "read")}
     tool = webui.ok("GET", "/api/v1/tools/id/" + TOOL_ID, token=admin["token"])
@@ -132,7 +136,7 @@ def installation(webui, state):
             and methods["apply_budget_form"].get("parameters", {}).get("properties") == {},
             "Native admin Tool exposed business/reserved arguments")
     valves = webui.ok("GET", "/api/v1/tools/id/" + TOOL_ID + "/valves", token=admin["token"])
-    require(valves == {"managed_model_ids": list(MODELS), "employee_limit": 100},
+    require(valves == {"managed_model_ids": list(managed_model_ids), "employee_limit": 100},
             "Native Tool Valves contain credentials or differ from the public configuration")
     filter_admin_key(webui, state)
     skill = webui.ok("GET", "/api/v1/skills/id/" + SKILL_ID, token=admin["token"])
@@ -146,18 +150,18 @@ def installation(webui, state):
             and function.get("meta", {}).get("toggle") is False, "Mandatory native cost Filter is unavailable")
     access = []
     for user in state["users"]:
-        catalog = webui.catalog(user)
+        catalog = webui.catalog(user) if user_catalogs is None else {'model_ids': sorted(user_catalogs[user['id']])}
         access.append({"user_id": user["id"], "model_ids": catalog["model_ids"],
                        "tool_status": denied_admin_get(webui, user["token"], "/api/v1/tools/id/" + TOOL_ID),
                        "tool_valves_status": denied_admin_get(webui, user["token"], "/api/v1/tools/id/" + TOOL_ID + "/valves"),
                        "skill_status": denied_admin_get(webui, user["token"], "/api/v1/skills/id/" + SKILL_ID),
                        "preset_status": denied_admin_get(webui, user["token"], "/api/v1/models/model?id=" + MODEL_ID)})
     return {"tool_id": TOOL_ID, "source_sha256": fixture["source_sha256"], "admin_only": True,
-            "native_specs": specs, "valves_readback": True, "managed_model_ids": list(MODELS),
+            "native_specs": specs, "valves_readback": True, "managed_model_ids": list(managed_model_ids),
             "management_credential_owner": "Function/" + FILTER_ID,
             "management_key_readback": True, "tool_valves_secret_free": True,
             "skill_id": SKILL_ID, "skill_sha256": source_hash(SKILL), "skill_active": True,
-            "model_id": MODEL_ID, "base_model_id": MODELS[0], "builtin_tools": False,
+            "model_id": MODEL_ID, "base_model_id": base_model_id, "builtin_tools": False,
             "filter_ids": [FILTER_ID], "tool_ids": [TOOL_ID], "skill_ids": [SKILL_ID],
             "employee_access": access}
 
@@ -188,28 +192,7 @@ def setup(webui, state, path):
         state["admin_budgetnative_keys"].append({"user_id": admin["id"], "model": model,
                                                "key_alias": alias, "key": key})
         write_private(path, state)
-    grants = [{"principal_type": "user", "principal_id": admin["id"], "permission": "read"}]
-    webui.ok("POST", "/api/v1/tools/create", token=admin["token"], body={"id": TOOL_ID,
-             "name": "Employee budget administration", "content": source, "meta": {}, "access_grants": grants})
-    filter_admin_key(webui, state, install=True)
-    webui.ok("POST", "/api/v1/tools/id/" + TOOL_ID + "/valves/update", token=admin["token"],
-             body={"managed_model_ids": list(MODELS), "employee_limit": 100})
-    webui.ok("POST", "/api/v1/skills/create", token=admin["token"], body={"id": SKILL_ID,
-             "name": "Employee budget administration guide", "description": "Native form and confirmation workflow",
-             "content": SKILL, "meta": {}, "is_active": True, "access_grants": grants})
-    base = webui.model(admin["token"], MODELS[0])
-    preset = {"id": MODEL_ID, "base_model_id": MODELS[0], "name": "Employee budgets",
-              "meta": {"capabilities": {"builtin_tools": False}, "filterIds": [FILTER_ID],
-                       "toolIds": [TOOL_ID], "skillIds": [SKILL_ID]},
-              "params": copy.deepcopy(base["params"]), "access_grants": grants, "is_active": True}
-    webui.ok("POST", "/api/v1/models/create", token=admin["token"], body=preset)
-    # Native ModelMeta may materialize defaults. Preserve actual fields for future drift checks.
-    actual_preset = model_body(webui.model(admin["token"], MODEL_ID))
-    require(actual_preset["base_model_id"] == MODELS[0] and actual_preset["is_active"] is True
-            and actual_preset["params"] == preset["params"] and grant_set(actual_preset) == grant_set(preset)
-            and all(actual_preset["meta"].get(k) == v for k, v in preset["meta"].items()),
-            "Native admin preset did not retain requested fields")
-    state["admin_fixture"]["preset"] = actual_preset
+    state["admin_fixture"]["preset"] = install_resources(webui, state, source)
     after = read_states(state)
     require(after[:2] == before and staff_profiles(webui, state) == profiles,
             "Admin setup changed existing staff state or native model profiles")
@@ -222,6 +205,228 @@ def setup(webui, state, path):
     installation(webui, state)
     state["admin_fixture"]["stage"] = "setup_complete"
     write_private(path, state)
+
+
+def install_resources(webui, state, source, *, managed_model_ids=MODELS, base_model_id=None):
+    """Single canonical Tool/Skill/preset installer; callers own fresh scope."""
+    base_model_id = MODELS[0] if base_model_id is None else base_model_id
+    admin = state['admin']
+    grants = [{"principal_type": "user", "principal_id": admin["id"], "permission": "read"}]
+    webui.ok("POST", "/api/v1/tools/create", token=admin["token"], body={"id": TOOL_ID,
+             "name": "Employee budget administration", "content": source, "meta": {}, "access_grants": grants})
+    filter_admin_key(webui, state, install=True)
+    webui.ok("POST", "/api/v1/tools/id/" + TOOL_ID + "/valves/update", token=admin["token"],
+             body={"managed_model_ids": list(managed_model_ids), "employee_limit": 100})
+    webui.ok("POST", "/api/v1/skills/create", token=admin["token"], body={"id": SKILL_ID,
+             "name": "Employee budget administration guide", "description": "Native form and confirmation workflow",
+             "content": SKILL, "meta": {}, "is_active": True, "access_grants": grants})
+    base = webui.model(admin["token"], base_model_id)
+    preset = {"id": MODEL_ID, "base_model_id": base_model_id, "name": "Employee budgets",
+              "meta": {"capabilities": {"builtin_tools": False}, "filterIds": [FILTER_ID],
+                       "toolIds": [TOOL_ID], "skillIds": [SKILL_ID]},
+              "params": copy.deepcopy(base["params"]), "access_grants": grants, "is_active": True}
+    webui.ok("POST", "/api/v1/models/create", token=admin["token"], body=preset)
+    # Native ModelMeta may materialize defaults. Preserve actual fields for future drift checks.
+    actual_preset = model_body(webui.model(admin["token"], MODEL_ID))
+    require(actual_preset["base_model_id"] == base_model_id and actual_preset["is_active"] is True
+            and actual_preset["params"] == preset["params"] and grant_set(actual_preset) == grant_set(preset)
+            and all(actual_preset["meta"].get(k) == v for k, v in preset["meta"].items()),
+            "Native admin preset did not retain requested fields")
+    return actual_preset
+
+
+def unknown_inputs(common, office, unknown):
+    from prove_unknown_usage_policy import ALIASES
+    require(common.get('stage') == office.get('stage') == unknown.get('stage') == 'setup_complete'
+            and len(common.get('users', [])) == 2 and len(common.get('native_keys', [])) == 4
+            and common.get('cost_display', {}).get('stage') == 'setup_complete'
+            and office.get('admin') == unknown.get('admin') == common.get('admin')
+            and len(office.get('users', [])) == len(unknown.get('users', [])) == 1
+            and unknown.get('unknown_gui_verification', {}).get('stage') == 'verified'
+            and isinstance(unknown['unknown_gui_verification'].get('native'), dict)
+            and set(unknown.get('unknown_gui_setup', {}).get('models', {})) == set(ALIASES),
+            'Admin unknown setup requires the actual verified ordinary-user fixture')
+    actors = [common['admin'], *common['users'], *office['users'], *unknown['users']]
+    if common.get('role_probe_control'): actors.append(common['role_probe_control'])
+    require(len({a['id'] for a in actors}) == len(actors), 'Admin unknown fixture actors collide')
+    return actors
+
+
+def unknown_webui_state(webui, common, office, unknown):
+    """Raw native technical preservation readback, not a financial projection."""
+    from prove_service_tasks import response
+    admin = common['admin']
+    actors = unknown_inputs(common, office, unknown)
+    get = lambda route: webui.ok('GET', route, token=admin['token'])
+    directory = get('/api/v1/users/all')
+    rows = directory.get('users')
+    require(isinstance(rows, list) and len(rows) <= 100 and directory.get('total') == len(rows)
+            and len({r.get('id') for r in rows}) == len(rows), 'Admin unknown directory incomplete')
+    directory = {r['id']: {k: r.get(k) for k in ('id', 'name', 'email', 'role', 'info')} for r in rows}
+    catalogs = {}
+    for actor in actors:
+        role = 'admin' if actor['id'] in {admin['id'], common.get('role_probe_control', {}).get('id')} else 'user'
+        webui.session(actor, role)
+        require(directory.get(actor['id'], {}).get('role') == role, 'Admin unknown native role drift')
+        data = webui.ok('GET', '/api/models?refresh=true', token=actor['token']).get('data')
+        require(isinstance(data, list) and len(data) <= 100 and all(isinstance(r.get('id'), str) for r in data)
+                and len({r['id'] for r in data}) == len(data), 'Admin unknown catalog incomplete')
+        catalogs[actor['id']] = {r['id']: r for r in data}
+    status, functions = response(webui, 'GET', '/api/v1/functions/export?include_valves=true', admin['token'])
+    require(status == 200 and isinstance(functions, list) and all(isinstance(r.get('id'), str) for r in functions)
+            and len({r['id'] for r in functions}) == len(functions), 'Admin unknown Function export unavailable')
+    models = {mid: webui.model(admin['token'], mid) for mid, row in catalogs[admin['id']].items()
+              if (row.get('info') or {}).get('id') == mid and mid != MODEL_ID}
+    return {'directory': directory, 'catalogs': catalogs, 'models': models,
+        'functions': {r['id']: r for r in functions},
+        'valves': get('/api/v1/functions/id/' + FILTER_ID + '/valves'),
+        'connections': get('/openai/config'), 'tasks': get('/api/v1/tasks/config'),
+        'chat_config': get('/api/v1/chats/config'), 'tool_servers': get('/api/v1/configs/tool_servers')}
+
+
+async def unknown_observation(webui, common, office, unknown, selected=None):
+    """Reuse actual existing native DTO/history owners; keep service separate."""
+    import prove_unknown_usage_policy as U
+    from prove_unknown_usage_gui import old_accounts, wire_json
+    unknown_inputs(common, office, unknown)
+    native = native_client()
+    native.started_at = datetime.fromisoformat(common['started_at_utc'])
+    operator = read_private(OPERATOR_STATE)['operator_token']
+    async with ClientSession(trust_env=False) as session:
+        client = BudgetAdminClient(session, PROXY_URL, operator)
+        old = await old_accounts(client, native, common, office, webui)
+        actor = unknown['users'][0]
+        budget = await client.read_employee(actor['id'], U.ALIASES)
+        result = {'unknown': {'budget': wire_json(asdict(budget)), 'native': U.snapshot(native, budget)}, 'old': old}
+        if selected is not None:
+            own = await client.read_employee(selected['admin']['id'], (U.ALIASES[0],))
+            result['own'] = {'budget': wire_json(asdict(own)), 'native': U.snapshot(native, own)}
+    result['route_sha256'] = U.routing(native, buffered=True)
+    result['model_info'] = [row for row in native.ok('GET', '/model/info')['data'] if row.get('model_name') in U.ALIASES]
+    valves = webui.ok('GET', '/api/v1/functions/id/' + FILTER_ID + '/valves', token=common['admin']['token'])
+    payer = valves.get('service_payer_id')
+    require(not payer or payer in old, 'Admin unknown service owner missing')
+    result['service'] = result['old'].pop(payer) if payer else None
+    return result
+
+
+def unknown_view(common, selected):
+    return {**common, 'admin': selected['admin'], 'users': [], 'admin_fixture': selected['admin_fixture']}
+
+
+def unknown_preserved(before, after, *, new_admin=None, installing=False):
+    expected = copy.deepcopy(before)
+    if installing:
+        expected['directory'][new_admin['id']] = after['directory'].get(new_admin['id'])
+        require(isinstance(expected['directory'][new_admin['id']], dict)
+                and expected['directory'][new_admin['id']].get('role') == 'admin'
+                and expected['directory'][new_admin['id']].get('email') == new_admin['email'],
+                'New admin native identity/role differs')
+        operator = read_private(OPERATOR_STATE)['operator_token']
+        expected['valves']['ledger_admin_key'] = operator
+        old_filter, current = expected['functions'][FILTER_ID], after['functions'][FILTER_ID]
+        old_filter['valves'] = expected['valves']
+        require(type(current.get('updated_at')) is int and current['updated_at'] >= old_filter['updated_at'],
+                'Native Function update timestamp differs')
+        old_filter['updated_at'] = current['updated_at']
+        for uid, catalog in expected['catalogs'].items():
+            if expected['directory'][uid]['role'] == 'admin':
+                require(MODEL_ID in after['catalogs'][uid], 'Native admin cannot discover canonical preset')
+                catalog[MODEL_ID] = after['catalogs'][uid][MODEL_ID]
+    require(after == expected, 'Admin unknown setup/readback changed existing native state')
+
+
+async def unknown_setup(webui, common, office, unknown, path, handoff):
+    from prove_service_tasks import response
+    from prove_unknown_usage_policy import ALIASES
+    actors = unknown_inputs(common, office, unknown)
+    require(not path.exists() and handoff is not None and not handoff.exists(), 'Admin unknown setup needs fresh private outputs')
+    source = SOURCE.read_text(encoding='utf-8')
+    require(0 < len(source.encode()) <= 128 * 1024, 'Admin Tool source exceeds fixture bounds')
+    gateway = os.environ.get('OWUI_BUDGET_GATEWAY_SECRET', '')
+    require(bool(gateway) and not any(c.isspace() for c in gateway), 'Admin unknown gateway missing')
+    for route in ('/api/v1/tools/id/' + TOOL_ID, '/api/v1/skills/id/' + SKILL_ID,
+                  '/api/v1/models/model?id=' + MODEL_ID):
+        require(response(webui, 'GET', route, common['admin']['token'])[0] == 404,
+                'Canonical admin resource exists or absence unproven')
+    before = unknown_webui_state(webui, common, office, unknown)
+    require(all(before['models'].get(alias) == unknown['unknown_gui_setup']['models'][alias] for alias in ALIASES),
+            'Admin unknown Workspace profiles differ from the verified fixture')
+    require(before['valves'].get('ledger_admin_key') in (None, '', read_private(OPERATOR_STATE)['operator_token']),
+            'Existing management credential cannot be replaced by admin fixture')
+    initial = await unknown_observation(webui, common, office, unknown)
+    require(initial['unknown']['native'] == unknown['unknown_gui_verification']['native'],
+            'Admin initial unknown rows differ from the verified GUI witness')
+    selected = {'schema': 1, 'stage': 'installing', 'actor_id': unknown['users'][0]['id'],
+        'managed_model_ids': list(ALIASES), 'known_model_id': ALIASES[0], 'before': before,
+        'initial': initial, 'admin_fixture': {'source_sha256': source_hash(source)}, 'journal': []}
+    write_private(path, selected)
+    try:
+        email, password = 'admin-unknown-' + secrets.token_hex(12) + '@example.com', 'Aa1!' + secrets.token_urlsafe(32)
+        result = webui.ok('POST', '/api/v1/auths/add', token=common['admin']['token'],
+            body={'name': 'Unknown usage budget administrator', 'email': email, 'password': password, 'role': 'admin'})
+        selected['admin'] = account_from_response(result, email, password, 'admin')
+        require(selected['admin']['id'] not in {a['id'] for a in actors}, 'Admin unknown identity collided')
+        write_private(path, selected)
+        async def guard():
+            webui.session(common['admin'], 'admin'); webui.session(selected['admin'], 'admin')
+            selected['journal'].append('native-initialization-before-write'); write_private(path, selected)
+        async with ClientSession(trust_env=False) as session:
+            client = BudgetAdminClient(session, PROXY_URL, read_private(OPERATOR_STATE)['operator_token'])
+            own = await client.initialize_employee(selected['admin']['id'], ((ALIASES[0], Decimal(2)),),
+                                                   Decimal(2), gateway, before_write=guard)
+            require(await client.read_employee(own.user_id, (ALIASES[0],)) == own, 'New admin native budget readback differs')
+        selected['admin_fixture']['preset'] = install_resources(webui, unknown_view(common, selected), source,
+            managed_model_ids=ALIASES, base_model_id=ALIASES[0])
+        observed = await unknown_observation(webui, common, office, unknown, selected)
+        require({k: v for k, v in observed.items() if k != 'own'} == initial,
+                'Admin setup changed existing personal/service budgets or history')
+        own = observed['own']['budget']
+        require(own['user_id'] == selected['admin']['id'] and Decimal(own['max_budget']) == Decimal(2)
+                and Decimal(own['spend']) == 0 and len(own['models']) == 1
+                and own['models'][0]['model'] == ALIASES[0] and Decimal(own['models'][0]['max_budget']) == Decimal(2),
+                'New admin native budget differs from the known-only synthetic assignment')
+        after = unknown_webui_state(webui, common, office, unknown)
+        unknown_preserved(before, after, new_admin=selected['admin'], installing=True)
+        selected.update(protected=after, observation=observed, stage='setup_complete')
+        receipt = unknown_snapshot(webui, common, office, unknown, selected, observed=observed)
+        write_private(path, selected)
+        write_private(handoff, {'schema': 1, 'admin': {k: selected['admin'][k] for k in ('id', 'email', 'password')},
+            'model_id': MODEL_ID, 'tool_id': TOOL_ID, 'skill_id': SKILL_ID, 'actor_id': selected['actor_id'],
+            'managed_model_ids': list(ALIASES), 'employee_ids': receipt['employee_ids']})
+        return receipt
+    except Exception:
+        selected['stage'] = 'setup_failed'; write_private(path, selected)
+        raise
+
+
+def unknown_snapshot(webui, common, office, unknown, selected, *, observed=None):
+    from prove_unknown_usage_policy import ALIASES
+    unknown_inputs(common, office, unknown)
+    require(selected.get('stage') == 'setup_complete' and selected.get('actor_id') == unknown['users'][0]['id']
+            and selected.get('managed_model_ids') == list(ALIASES) and selected.get('known_model_id') == ALIASES[0],
+            'Admin unknown private identity/model handoff differs')
+    webui.session(selected['admin'], 'admin')
+    observed = asyncio.run(unknown_observation(webui, common, office, unknown, selected)) if observed is None else observed
+    require(observed['unknown'] == selected['initial']['unknown'] and observed['old'] == selected['initial']['old'],
+            'Admin unknown readback changed existing personal budgets/history')
+    current = unknown_webui_state(webui, common, office, unknown)
+    unknown_preserved(selected['protected'], current)
+    actor = selected['actor_id']
+    require(current['directory'][actor]['role'] == 'user'
+            and set(ALIASES) <= set(current['catalogs'][actor])
+            and all(not (set(catalog) & set(ALIASES)) for uid, catalog in current['catalogs'].items()
+                    if uid != actor and current['directory'][uid]['role'] == 'user'), 'Prepared native employee roster differs')
+    selected['observation'] = observed
+    view = unknown_view(common, selected)
+    view['users'] = [*common['users'], *office['users'], *unknown['users']]
+    installed = installation(webui, view, managed_model_ids=ALIASES, base_model_id=ALIASES[0],
+                             user_catalogs=current['catalogs'])
+    return {'admin_id': selected['admin']['id'], 'actor_id': actor, 'employee_ids': [actor],
+        'stage': 'setup_complete',
+        'installation': installed, 'existing_personal_unchanged': True,
+        'service_observed_separately': observed['service'] is not None,
+        'native_acceptance': False}
 
 
 def positive_logs(native, state):
@@ -472,23 +677,38 @@ def role_probe(webui, state, path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "hash-probe", "native-probe", "role-probe",
-                                                          "bootstrap-setup", "bootstrap-snapshot"))
+                                                          "bootstrap-setup", "bootstrap-snapshot", "unknown-setup", "unknown-snapshot"))
     parser.add_argument("--private-state", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--browser-accounts", type=Path)
+    parser.add_argument('--office-state', type=Path)
+    parser.add_argument('--unknown-state', type=Path)
+    parser.add_argument('--admin-unknown-state', type=Path)
     args = parser.parse_args()
     receipt = {"schema": 1, "proof": "goal584-native-admin-provisioning", "phase": args.phase,
                "passed": False, "started_at_utc": datetime.now(timezone.utc).isoformat(),
                "not_qualified": ["admin_GUI_in_this_script", "production", "paid_provider"]}
-    state, credentials, output_valid = {}, [], False
+    state, selected, credentials, output_valid = {}, {}, [], False
     try:
         require(args.private_state.resolve() == STATE.resolve(), "Admin provisioning requires the fixed private state")
         paths = [args.private_state.resolve(), args.receipt.resolve(), OPERATOR_STATE.resolve()]
         if args.browser_accounts:
             paths.append(args.browser_accounts.resolve())
+        unknown_phase = args.phase in ('unknown-setup', 'unknown-snapshot')
+        if unknown_phase:
+            require(args.office_state == Path('/proof-private/office-state.private.json')
+                    and args.unknown_state == Path('/proof-private/unknown-usage-gui-state.private.json')
+                    and args.admin_unknown_state == UNKNOWN_ADMIN_STATE,
+                    'Admin unknown provisioning requires fixed separate private inputs')
+            require(args.browser_accounts == UNKNOWN_ADMIN_ACCOUNTS if args.phase == 'unknown-setup'
+                    else args.browser_accounts is None, 'Admin unknown browser handoff is setup-only and fixed')
+            paths += [args.office_state.resolve(), args.unknown_state.resolve(), args.admin_unknown_state.resolve()]
+        else:
+            require(args.office_state is None and args.unknown_state is None and args.admin_unknown_state is None,
+                    'Unknown fixture inputs are opt-in only')
         require(len(set(paths)) == len(paths), "Private state/handoff and receipt paths must be separate")
         output_valid = True
-        require(args.browser_accounts is None or args.phase in ("setup", "bootstrap-setup"), "Browser handoff is setup-only")
+        require(args.browser_accounts is None or args.phase in ("setup", "bootstrap-setup", 'unknown-setup'), "Browser handoff is setup-only")
         state = read_private(args.private_state)
         credentials.append(read_private(OPERATOR_STATE)["operator_token"])
         require(state.get("stage") == "setup_complete" and len(state.get("users", [])) == 2
@@ -497,21 +717,33 @@ def main():
         webui = WebUI()
         require(webui.ok("GET", "/api/version").get("version") == "0.12.2", "WebUI version differs from fixture")
         webui.session(state["admin"], "admin")
-        if args.phase == "setup":
+        if unknown_phase:
+            office, unknown = read_private(args.office_state), read_private(args.unknown_state)
+            credentials += secret_values(office) + secret_values(unknown)
+            if args.phase == 'unknown-setup':
+                receipt.update(asyncio.run(unknown_setup(webui, state, office, unknown, args.admin_unknown_state, args.browser_accounts)))
+                selected = read_private(args.admin_unknown_state)
+            else:
+                selected = read_private(args.admin_unknown_state)
+                receipt.update(unknown_snapshot(webui, state, office, unknown, selected))
+                write_private(args.admin_unknown_state, selected)
+        elif args.phase == "setup":
             setup(webui, state, args.private_state)
             if args.browser_accounts:
                 require(not args.browser_accounts.exists(), "Browser admin handoff must be a new private file")
                 write_private(args.browser_accounts, {"schema": 1, "admin": {
                     field: state["admin"][field] for field in ("id", "email", "password")},
                     "model_id": MODEL_ID, "tool_id": TOOL_ID, "skill_id": SKILL_ID})
-        require(state.get("admin_fixture", {}).get("stage") == "setup_complete", "Admin installation is incomplete")
+        if not unknown_phase:
+            require(state.get("admin_fixture", {}).get("stage") == "setup_complete", "Admin installation is incomplete")
         if args.phase in ("hash-probe", "native-probe"):
             receipt["native_probe"] = native_probe(state, deny=args.phase == "native-probe")
         elif args.phase == "role-probe":
             receipt["role_probe"] = role_probe(webui, state, args.private_state)
         elif args.phase == "bootstrap-setup":
             bootstrap_setup(webui, state, args.private_state, args.browser_accounts)
-        receipt.update(bootstrap_snapshot(webui, state) if args.phase.startswith("bootstrap-") else snapshot(webui, state))
+        if not unknown_phase:
+            receipt.update(bootstrap_snapshot(webui, state) if args.phase.startswith("bootstrap-") else snapshot(webui, state))
         receipt["passed"] = True
     except ProofError as error:
         receipt["failure"] = str(error)
@@ -524,6 +756,7 @@ def main():
     credentials += secret_values(state) + [entry["key"] for entry in state.get("admin_budgetnative_keys", [])]
     credentials += [state.get("role_probe_control", {}).get(field) for field in ("password", "token")]
     credentials += [state.get("bootstrap_fixture", {}).get("employee", {}).get(field) for field in ("password", "token")]
+    credentials += secret_values(selected)
     if any(value and value in rendered for value in credentials) or re.search(r"eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", rendered):
         receipt = {"schema": 1, "proof": "goal584-native-admin-provisioning", "phase": args.phase,
                    "passed": False, "failure": "Unsafe credential-bearing receipt suppressed"}
