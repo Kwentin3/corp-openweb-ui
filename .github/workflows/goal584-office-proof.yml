@@ -286,6 +286,10 @@ jobs:
                   '/proof/prove_office_readback.py','--phase',phase],capture_output=True,timeout=100)
               assert len(result.stdout)<=2*1024*1024,'Office safe readback exceeded bound'
               packet=json.loads(result.stdout);public('office-'+phase,packet)
+              # Public duplicate-wire export is optional; full private finance validation remains mandatory.
+              if phase=='diagnostic' and packet.get('failure_code')=='office_diagnostic_bound':
+                  assert result.returncode==1 and packet.get('passed') is False and packet.get('native_office_accepted') is False
+                  return packet
               assert result.returncode==0 and packet.get('passed') is True,'Office native readback failed'
               assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
               return packet
@@ -334,7 +338,7 @@ jobs:
               reasoning=[[item for item in row['response']['output'] if item['type']=='reasoning'] for row in primary]
               packet=fixture.native_context(base,build,os.environ['GITHUB_SHA'],reasoning)
               write_private(private/'office-native-context.private.json',packet)
-              stage='wire_diagnostic';readback('diagnostic');wire_diagnostic_collected=True
+              stage='wire_diagnostic';wire_diagnostic_collected=readback('diagnostic').get('passed') is True
               stage='native_finance';financial=readback('verify')
               stage='artifact'
               checked=artifacts()
@@ -353,7 +357,7 @@ jobs:
               # Observe unchanged synthetic wires before teardown; diagnostic
               # failure must never replace the original qualification failure.
               if not wire_diagnostic_collected:
-                  try: readback('diagnostic');wire_diagnostic_collected=True
+                  try: wire_diagnostic_collected=readback('diagnostic').get('passed') is True
                   except Exception: pass
               failure['wire_diagnostic_collected']=wire_diagnostic_collected
               if stage!='artifact':
@@ -402,6 +406,10 @@ jobs:
                   assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
                   assert result.returncode==0,'Office continuation exit disagrees with successful packet'
               public('office-'+phase,packet)
+              # Keep the explicit export failure; never substitute it for private finance acceptance.
+              if phase=='continuation-diagnostic' and packet.get('failure_code')=='office_diagnostic_bound':
+                  assert result.returncode==1 and packet.get('passed') is False and packet.get('native_office_accepted') is False
+                  return packet
               assert result.returncode==0 and packet.get('passed') is True,'Office continuation readback failed'
               return packet
           try:
@@ -453,7 +461,7 @@ jobs:
                   try: observed,_=run_saved_continuation(browser,fixture,base,build,revision)
                   finally: browser.close()
               public('office-continuation-browser',observed)
-              stage='continuation_diagnostic';readback('continuation-diagnostic');diagnostic_collected=True
+              stage='continuation_diagnostic';diagnostic_collected=readback('continuation-diagnostic').get('passed') is True
               stage='continuation_finance';financial=readback('continuation-verify')
               public('office-continuation',{'schema':1,'passed':True,'stage':'bounded_saved_continuation',
                   'native_office_accepted':False,'sources':sources,'browser':observed,'financial':financial,
@@ -467,7 +475,7 @@ jobs:
                   except (AssertionError,ProofError): pass
                   else: failure['failure']=str(error)
               if baseline_ready and not diagnostic_collected:
-                  try: readback('continuation-diagnostic');diagnostic_collected=True
+                  try: diagnostic_collected=readback('continuation-diagnostic').get('passed') is True
                   except Exception: pass
               failure['wire_diagnostic_collected']=diagnostic_collected
               public('office-continuation',failure)

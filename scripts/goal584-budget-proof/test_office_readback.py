@@ -458,6 +458,68 @@ def test_workflow_diagnostic_runs_before_verify_and_failure_collection_preserves
     assert ('office-artifact' in collected) is artifact_available
 
 
+@pytest.mark.parametrize('continuation', [False, True])
+@pytest.mark.parametrize('outcome', [
+    'known_bound', 'success', 'different_failure', 'bad_exit', 'bad_passed',
+    'bad_acceptance', 'finance_failure',
+])
+def test_public_diagnostic_bound_keeps_private_finance_mandatory(monkeypatch, continuation, outcome):
+    workflow = yaml.safe_load((T.ROOT / '.github/workflows/goal584-office-proof.yml').read_bytes())
+    prefix = 'Verify saved reasoning' if continuation else 'Prepare Office and verify'
+    step = next(s for s in workflow['jobs']['office-build-proof']['steps']
+                if s.get('name', '').startswith(prefix))
+    code = step['run'].split("<<'PY'\n", 1)[1].rsplit('\nPY', 1)[0]
+    tree = ast.parse(code)
+    helper = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'readback')
+    main = next(n for n in tree.body if isinstance(n, ast.Try))
+    diagnostic_phase = 'continuation-diagnostic' if continuation else 'diagnostic'
+    finance_phase = 'continuation-verify' if continuation else 'verify'
+    collected_name = 'diagnostic_collected' if continuation else 'wire_diagnostic_collected'
+    selected = [n for n in main.body if isinstance(n, ast.Assign) and
+                any(isinstance(t, ast.Name) and t.id in (collected_name, 'financial') for t in n.targets)]
+    assert len(selected) == 2
+    source = T.ROOT / 'scripts/goal584-budget-proof/prove_office_readback.py'
+    source_hash = T.hashlib.sha256(source.read_bytes()).hexdigest()
+    calls, public = [], {}
+
+    def native_cli(command, **kwargs):
+        phase = command[-1]
+        calls.append(phase)
+        if phase == diagnostic_phase:
+            packet = dict(phase=phase, passed=outcome == 'success', native_office_accepted=False)
+            exit_code = 0 if outcome == 'success' else 1
+            if outcome == 'success': packet['source_sha256'] = source_hash
+            else: packet['failure_code'] = 'office_diagnostic_bound'
+            if outcome == 'different_failure': packet['failure_code'] = 'office_diagnostic_prior_context'
+            if outcome == 'bad_exit': exit_code = 0
+            if outcome == 'bad_passed': packet['passed'] = True; packet['source_sha256'] = source_hash
+            if outcome == 'bad_acceptance': packet['native_office_accepted'] = True
+        else:
+            assert phase == finance_phase
+            packet = dict(phase=phase, passed=outcome != 'finance_failure',
+                          source_sha256=source_hash, native_office_accepted=False)
+            exit_code = 1 if outcome == 'finance_failure' else 0
+        return SimpleNamespace(returncode=exit_code, stdout=json.dumps(packet).encode())
+
+    namespace = dict(json=json, hashlib=T.hashlib, Path=T.Path,
+        fixture=SimpleNamespace(command=['existing-native-cli']),
+        subprocess=SimpleNamespace(run=native_cli),
+        public=lambda name, packet: public.update({name: packet}))
+    monkeypatch.chdir(T.ROOT)
+    exec(compile(ast.Module(body=[helper], type_ignores=[]), 'actual-workflow-readback', 'exec'), namespace)
+    run = compile(ast.Module(body=selected, type_ignores=[]), 'actual-workflow-diagnostic-and-finance', 'exec')
+    if outcome in ('known_bound', 'success'):
+        exec(run, namespace)
+        assert calls == [diagnostic_phase, finance_phase]
+        assert namespace['financial']['passed'] is True
+        assert namespace[collected_name] is (outcome == 'success')
+        assert public['office-' + diagnostic_phase]['passed'] is (outcome == 'success')
+    else:
+        with pytest.raises(AssertionError): exec(run, namespace)
+        assert calls == ([diagnostic_phase, finance_phase] if outcome == 'finance_failure' else [diagnostic_phase])
+        assert 'financial' not in namespace
+
+
 class HttpResult:
     code, headers = 200, {}
     def __init__(self, payload): self.raw = json.dumps(payload).encode()

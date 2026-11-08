@@ -8,6 +8,52 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Актуальное выполнение08.11:** existing Office workflow406918033 запущен ровно
+один раз на `50564cdc1b6475fccf58a9fff86288495895ee81`:
+[run42461666692](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42461666692),
+job128672073437, workflow_dispatch. Оба рабочих дерева содержат этот кандидат;
+reasoning branch опубликован, draft PR585 не обновлялся. Предыдущий ход — verified
+wait; текущий дал terminalFAILURE: steps1–8SUCCESS,9FAILED,10–14SKIPPED,
+diagnostic15/cleanup16/upload17SUCCESS. Artifact13609948400 загружен один раз:
+753126B/63members, API digest совпал с raw ZIP SHA256
+`7a9255aff050c17d86f8d4cfe2ae587c356fd694dca15f75202061184964d4ce`.
+Root и independent reader подтвердили45native guard/19auth/1actualCLI без skips,
+69exactGit source pins и уборку5images/containers/volumes/networks/guide copies;
+build cache намеренно сохранён. Raw Word guide private, его содержание/capacity
+на этом этапе не принято; qualification фиксирует actual42586textB.
+Срез проверяет реальную native цепочку leading Sol → community worker Terra,
+полный source/Skill/Tasks/guide и SAME native ledger/cost. Синтетический provider
+не доказывает качество реальной модели или реальные цены. Read-only подготовка
+следующих Terra quota/CC interruption проверок выполняется отдельно; исходники
+исполнявшегося кандидата сохранены. Ни production, ни рабочие маршруты не меняются.
+
+Установленная причина остановки9 — только `office_diagnostic_bound`: полный
+public wire diagnostic с дублирующими projections превысил1MiB. Ordinary browser
+получил terminal answer, Download/DOCX, cost status и foreignFile404; actual PNG
+и DOCX просмотрены root. Финансовый verify ещё не запускался, его успешность не
+заявлена. Новый source fix ограничен workflow+tests: лишь exact diagnostic bound
+с exit1/passedFalse/nativeAcceptedFalse сохраняется как failed public packet и
+не мешает обязательному private full-input/finance verify. collected остаётсяFalse,
+другие diagnostic errors и любой finance error остаются fatal. Сам collector,
+1MiB limit, full native context, финансовые validators и продуктовый код неизменны.
+Root22focused tests PASS и independent22PASS. Расширенный запуск79PASS/12FAIL/
+6setupERROR был без existing Playwright site; все18 прошли отдельно после указания
+его реального пути, без изменения ожиданий. Итого97unique cases покрыты зелёными
+проверками, не одним97PASS запуском. Следующий шаг — source freeze и один новый
+existing-workflow dispatch после terminal предыдущего. Evidence: `office82-review/`,
+`office82-native-review/`; mandatory runtime finance и delegated11 ещё открыты.
+
+Read-only следующие срезы: actual quota denial должен различать native ранний
+auth отказ и поздний reservation; current fakeparent success-only grammar после
+worker API error не доказывает terminal denial. Native CC cancel seam до
+settlement в reviewed logging/cache/hooks не найден; core patch не добавлялся.
+Admin form пока не проецирует durable unknown marker из SAME cost-readback owner;
+native scalar spend/blocked сами по себе этого не доказывают. Эти обязательные
+пункты не закрыты: `delegated-office-quota-next/`, `cc-stream-native-next/`,
+`admin-unknown-next/`. Полный GOAL по-прежнему включает Terminal и final coherent CI.
+
+Исторические абзацы ниже описывают последовательные срезы; актуальный статус
+запуска — в этом абзаце, утверждения прежних срезов «не запускался» его не заменяют.
 Current deliverya7172226 дополнительно содержит component-qualified перевод
 native blocked error; этот новый текст ещё не проверен в actual GUI.
 PR585 остаётся draft/open/unmerged на опубликованном head78.
