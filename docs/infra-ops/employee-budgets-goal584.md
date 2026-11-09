@@ -8,6 +8,54 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office100, завершён:**
+[run42614301865](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42614301865),
+job129150238789, workflow406918033, exact head
+`6b19967b397a6b965b2cb3fa68dc076265f0e5e8`, dispatch09.11 12:06:53UTC.
+Exact5file commit/source readback7/7/clean worktree PASS, remote reasoning ref
+fast-forward сверён. Office99 terminal/owned cleanup PASS; это единственный новый
+workflow_dispatch, не rerun. TerminalFAIL15/native_finance с другим кодом
+`office_delegation_native_context`;1–14SUCCESS,16/17SKIPPED,18diag19cleanup20uploadSUCCESS.
+Живого CI нет, rerun не делался, до cap restriction дело не дошло. Scope тот же:
+positive Office/finance/artifact → negative refusal → cap restore/owned cleanup;
+при positiveFAIL negative пропускается. Bounds55min/manual12:51:53UTC/hard13:01:53UTC,
+те же20GiB disk/6GiB RAM/7GiB Docker preflight, six services5.875GiB/4.25CPU/1728PIDs,
+component1GiB/256PIDs. Native addressed stop:
+`gh run cancel 42614301865 --repo Kwentin3/corp-openweb-ui`, затем exact job
+terminal/actual cleanup/remaining participants; timeout не означает завершение.
+LTS/Terminal не активированы, production/paid/рабочие маршруты не менялись.
+Technical receipt `local/goal584/office100-review/run.safe.json`. Artifact13672098495
+скачан один раз1496580B/104unique/SHA256
+`0fe0fa6c8ece85e66208332d1fed3b08d287a94e47afe671bdf9651a16feb210`.
+Rootfullreader54build/72pins/45guard+22auth+1CLI0skip/5image cleanup PASS;
+independent admin/source/PNG/cleanup PASS, delegation NOT_ACCEPTED, quota NEEDS_EVIDENCE.
+Native diagnostic13provider/13auth, context12personal/2native packets, exception
+DOCX/render/browser exports есть; отдельных positive qualification receipts нет.
+Из пяти native_context conditions точный failed operand не сохранён, поэтому
+не объявляется наблюдённым. Адресная source triage: native tools.py1285 генерирует
+required через list(set(...)), native_context packets получаются в разных Python
+процессах, R сравнивает их строго; existing verify_schemas уже учитывает unordered
+required keyword. Перед новым CI — bounded genuine two-process proof, затем
+минимальный consumer fix через того же владельца и точные static failure codes,
+без новых raw logs/journals/fields. Source triage/проверка ещё не runtime acceptance.
+Evidence `office100-review/`, `office100-native-context-triage/`. Runtime/GOAL НЕ ПРИНЯТЫ.
+
+**Подготовка Office101:** genuine native seed0/1 processes дали одинаковые14schemas
+с различием ТОЛЬКО в порядке required у7operations; old6bRED/newPASS на SAME
+полном6Sol+6Terra/Skill/source/Tool/image input. Первые seed1/2 совпали; их failed
+witness/process сохранены. R теперь использует существующий verify_schemas в
+обе стороны через representation-only adapter; полнота/уникальность names и все
+материальные поля сохраняются, нового normalizer нет. Пять прежних context guards
+получили отдельные static failure codes в существующем receipt, без raw данных.
+31 focused PASS/0skip/61.656s,42PIDs terminal; wrapper1 только BLOCKED urllib3 local
+IPv6 import probe, внешних connect/DNS нет. Final exactold→actualnew replay
+2.578s/audit0/4PIDs terminal. Context fixture и все42 прежних tests/helpers AST
+не изменены;27 иных production owners exact. Independent source review GO для
+одного isolated CI. Exact actual100 failed operand остаётся неизвестным.
+Следующий шаг — coherent3file commit/source readback/push и один workflow;
+финансовую приёмку и negative/cap restore должны доказать actual receipts.
+Evidence `office100-native-context-{fix,review}/`, `office101-review/`.
+
 **Последний прогон Office99, завершён:**
 [run42610570002](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42610570002),
 job129137619497, workflow406918033, exact head
@@ -59,8 +107,10 @@ connect/DNS нет. Отдельный final causal replay3.281s/audit0/9PIDs te
 наблюдённым, runtime/финансовая приёмка не подменяются source replay.
 В коммерческом описании уточнён уже выбранный native submit → user message →
 server auth; исправлены две устаревшие ссылки на редакцию4. Готовность поставки,
-смета и полномочия не расширены. Следующий шаг — exact5file commit/readback/push
-и один existing workflow; source/artifact readers переиспользуются. Evidence —
+смета и полномочия не расширены. Exact5file commit/readback/push выполнены как
+`6b19967b`, один existing workflow запущен выше; source/artifact readers
+переиспользуются. Следующий шаг — actual terminal intake и independent acceptance.
+Evidence —
 `office99-provider-response-{fix,review}/`, `office100-review/`.
 
 **Подготовка Office99:** объединяются принятые image carrier fix `64d14563`

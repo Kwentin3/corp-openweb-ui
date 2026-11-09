@@ -305,21 +305,27 @@ def capacity_observations(rows, declared):
 def verify_context(groups, office, browser, context, d, provider_requests, *, quota=False):
     setup = selected(office); actor = setup['actor']['id']; chat, answer = browser['chat_id'], browser['answer_id']
     require(context.get('schema') == 1 and isinstance(context.get('packets'), list) and context['packets'],
-            'office_delegation_native_context')
+            'office_delegation_native_context_shape')
     personal = [c for m in MODELS for c in groups[m]]
     require(set(context['provider_ids']) == {c['provider']['id'] for c in personal}
-            and len(context['provider_ids']) == (6 if quota else 12), 'office_delegation_native_context')
+            and len(context['provider_ids']) == (6 if quota else 12), 'office_delegation_native_context_provider_ids')
     cases, specs = {}, None
     for packet in context['packets']:
         convert = existing.native_converter(packet, office)
-        if specs is not None: require(specs == packet['native_specs'], 'office_delegation_native_context')
+        if specs is not None:
+            try:
+                for actual, expected in ((specs, packet['native_specs']), (packet['native_specs'], specs)):
+                    proof.verify_schemas([{'type': 'function', **spec, 'strict': spec.get('strict', False)}
+                                          for spec in actual], expected)
+            except ProofError:
+                raise ProofError('office_delegation_native_context_specs') from None
         specs = packet['native_specs']
         for case in packet['reasoning_cases']:
             key = proof.digest(case['input_reasoning']); converted = convert({'messages': [{'role': 'assistant', 'output': case['input_reasoning']}]})['input']
-            require(key not in cases or cases[key] == converted, 'office_delegation_native_context')
+            require(key not in cases or cases[key] == converted, 'office_delegation_native_context_reasoning_duplicate')
             cases[key] = converted
     expected_cases = {proof.digest([v for v in c['provider']['response']['output'] if v.get('type') == 'reasoning']) for c in groups[MODELS[0]]}
-    require(set(cases) == expected_cases, 'office_delegation_native_context')
+    require(set(cases) == expected_cases, 'office_delegation_native_context_cases')
     skill = setup['skill']['content']; workflow = office['office_setup']['workflow_skill']['content']
     require(sha256(workflow.encode()).hexdigest() == d['WORKFLOW_SKILL_SHA256'], 'office_delegation_workflow_source')
     for group_index, model in enumerate(MODELS):

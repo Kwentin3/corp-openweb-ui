@@ -567,6 +567,65 @@ def test_context_composes_actual_native_tasks_serializer_full_skill_and_actual_p
 
 
 
+
+def test_native_context_accepts_independent_native_schema_processes_and_preserves_strict_invariants(monkeypatch,tmp_path):
+    import os,subprocess
+    # Fresh processes execute the producer's own schema expressions using the
+    # pinned native helpers and real14-operation OpenAPI; no schema substitute.
+    code="""import ast,contextlib,io,json,pathlib
+with contextlib.redirect_stdout(io.StringIO()):
+ import test_office_compatibility as n
+ tools,router,_=n.native.__wrapped__()
+ schema=n.create_app(n.CliIO()).openapi()
+ tree=ast.parse((n.ROOT/'scripts/goal584-budget-proof/office_fixture.py').read_bytes())
+ cls=next(v for v in tree.body if isinstance(v,ast.ClassDef) and v.name=='OfficeFixture')
+ method=next(v for v in cls.body if getattr(v,'name',None)=='native_context')
+ source=next(v.value.value for v in method.body if isinstance(v,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='code' for t in v.targets))
+ scope=next(v for v in ast.parse(source).body if isinstance(v,ast.With))
+ statements=[v for v in scope.body if isinstance(v,ast.Assign) and any(isinstance(t,ast.Name) and t.id in ('specs','cases') for t in v.targets)]
+ assert len(statements)==2
+ namespace={'p':{'openapi':schema,'reasoning_cases':[[]]},'convert_openapi_to_tool_payload':tools['convert_openapi_to_tool_payload'],'clean_openai_tool_schema':tools['clean_openai_tool_schema'],'convert_to_responses_payload':router['convert_to_responses_payload']}
+ exec(compile(ast.Module(body=statements,type_ignores=[]),'actual-native-context-producer','exec'),namespace)
+print(json.dumps({'specs':namespace['specs'],'cases':namespace['cases'],'source':n.P.digest(schema)}))
+"""
+    packets=[]
+    for seed in ('0','1'):
+        result=subprocess.run([sys.executable,'-B','-c',code],capture_output=True,timeout=20,
+            env=os.environ|{'PYTHONHASHSEED':seed,'PYTHONPATH':os.pathsep.join(sys.path),'PYTHONDONTWRITEBYTECODE':'1'})
+        assert result.returncode==0,result.stderr.decode(errors='replace')
+        packets.append(json.loads(result.stdout))
+    assert packets[0]['source']==packets[1]['source'] and packets[0]['cases']==packets[1]['cases']
+    assert len(packets[0]['specs'])==len(packets[1]['specs'])==14 and packets[0]['specs']!=packets[1]['specs']
+    values=context_case(monkeypatch,tmp_path);groups,office,browser,context,d,tape=values
+    assert packets[0]['source']==R.proof.digest(office['office_setup']['openapi'])
+    for packet,observed in zip(context['packets'],packets):packet['native_specs']=observed['specs']
+    before=copy.deepcopy((groups,context))
+    scopes=R.verify_context(*values)
+    assert {m:len(v) for m,v in scopes.items()}==dict.fromkeys(R.MODELS,6)
+    assert (groups,context)==before
+    for mutation in ('missing','extra','duplicate','description','required','parameter'):
+        changed=copy.deepcopy(context);specs=changed['packets'][1]['native_specs']
+        if mutation=='missing':specs.pop()
+        elif mutation=='extra':specs.append(dict(specs[-1],name='unrelated-native-operation'))
+        elif mutation=='duplicate':specs.append(copy.deepcopy(specs[-1]))
+        elif mutation=='description':specs[0]['description']='different schema'
+        elif mutation=='required':specs[0]['parameters']['required'].append('missing-required-field')
+        else:specs[0]['parameters']['properties']['unrelated']={'type':'string'}
+        with pytest.raises(N.ProofError,match='^office_delegation_native_context_specs$'):
+            R.verify_context(groups,office,browser,changed,d,tape)
+    for mutation,code in (('shape','shape'),('ids','provider_ids'),('duplicate','reasoning_duplicate'),('missing','cases')):
+        changed=copy.deepcopy(context)
+        if mutation=='shape':changed['schema']=2
+        elif mutation=='ids':changed['provider_ids'][0]=changed['provider_ids'][1]
+        elif mutation=='duplicate':
+            case=copy.deepcopy(changed['packets'][0]['reasoning_cases'][0]);case['native_input']=[{'type':'reasoning','encrypted_content':'different'}]
+            changed['packets'][1]['reasoning_cases'].append(case)
+        else:changed['packets'][1]['reasoning_cases'].pop()
+        with pytest.raises(N.ProofError,match='^office_delegation_native_context_'+code+'$'):
+            R.verify_context(groups,office,browser,changed,d,tape)
+    assert (groups,context)==before
+
+
 def test_context_accepts_native_profile_store_omission_and_rejects_explicit_invalid_provider_contract(monkeypatch,tmp_path):
     values = context_case(monkeypatch,tmp_path)
     groups = values[0]; before = copy.deepcopy(groups)
