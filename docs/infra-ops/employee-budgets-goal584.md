@@ -8,7 +8,22 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Последний прогон Office96, завершён:**
+**Текущий прогон Office97:**
+[run42594587668](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42594587668),
+workflow406918033, exacthead `f5567ab1aeea5366ac7aaa5a63e9caa311a52a93`,
+job129084036661, dispatch09.11 09:35:21UTC. Единственный новый run, step4buildLIVE;
+предыдущие96 и LTScomponent1 terminal/ownedcleanupPASS. Remote reasoning ref
+fast-forward на exactf5567ab1, только2reviewedfixturefiles+canonicaldocs с190d.
+Цель — full positive delegated Sol6/Terra6/service1/Tasks/Skill/context/FileACL/
+finance после2nativeREADgrants, прежние gates1–14 сохранены. LTS/quota-negative/
+Terminal не активированы. Bounds55min; manual control cancel10:20:21UTC (45min),
+hard10:30:21UTC. Preflight20GiB disk/6GiB RAM/7GiB Docker; six services
+5.875GiB/4.25CPU/1728PIDs, component1GiB/256PIDs, прежние phasebounds unchanged.
+Native addressed stop `gh run cancel 42594587668`, затем exact job terminal и
+actual owned cleanup/remainingparticipants; timeout/возврат команды не доказывает
+завершение. Не дублировать live run. Результат97 пока НЕ ПРИНЯТ.
+
+**Последний завершённый прогон Office96:**
 [run42589040860](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42589040860),
 exact head `190d7d8a0711023512f3537b6595faa37de895e6`, workflow406918033,
 job129065841193, dispatch09.11 08:51:59UTC, terminalFAIL15/ordinary_send,
