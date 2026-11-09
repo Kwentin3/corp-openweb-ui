@@ -160,6 +160,23 @@ manifestSHA `fe8efb112cd8f53b1fefbadae6a695a01be56a59a2def2df41243a2d5905bed6`.
 Это local source preparation, не tracked version/build/route change. Остались
 explicit selection в existing artifact owners, exact image export/cold imports,
 genuine CC callback/Logging/SLP component и отдельный native runtime proof.
+Artifact selection source изолирован в worktree `corp-openweb-ui-goal584-lts`,
+branch `agent/goal584-lts-native`, base4241466e:6files,31+15+3source checksPASS;
+independent review выполняется, actual image/cold imports/runtime НЕ выполнены.
+Перед будущим image launch обязателен native addressed stop/participant readback:
+generated Docker command пока без name/cidfile, --rm не доказывает завершение.
+
+Negative Office source изолирован в `corp-openweb-ui-goal584-quota`, branch
+`agent/goal584-office-quota`, base4241466e:4existingfiles, opt-in only.
+Первый79PASS freeze признан непринятым из-за host Playwright import из proxy;
+исправляется pure-validator composition в existing owners, оба artifact closure
+(host без aiohttp / proxy без Playwright) обязательны до review.
+Current source-required trace28capture+negative8=36 превышает old32; новый
+quota-baseline обязан отказать ДО capwrite, до отдельного finite bound/wiring.
+4MiB hard byte limit сохранён, полного actual capture byte evidence ещё нет.
+Terminal4primary+service1 →41 — только условный будущий бюджет, не runtime trace.
+Эти worktrees/ignored evidence сохранены для обязательной приёмки, не для deploy.
+Evidence `quota-negative-{scope,source}/`, `lts1083-artifact-selection-{source,review}/`.
 
 Обязательные остатки: принять admin verify и изменение лимита из Rich UI;
 доказать полный delegated Office context/расход и Terra quota refusal;
