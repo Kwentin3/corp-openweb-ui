@@ -499,5 +499,96 @@ class DelegatedBrowserTests(unittest.TestCase):
                 self.assertIsNone(safe); self.assertIsNotNone(error)
 
 
+def run_native_artifact_host_tail(directory, *, mutation=None, workflow=None):
+    """Real final context/finance owners and exact workflow tail; native IO leaves."""
+    import pytest
+    import yaml
+    import test_office_delegation_readback as T
+    import prove_office_delegation_readback as R
+    root=HERE.parents[1]
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        data=T.complete_case(directory,monkeypatch)
+        private=directory.resolve();out=private/'output';out.mkdir()
+        paths={key:(private/name).resolve() for key,name in data['browser']['paths'].items()}
+        worker=next(row for row in reversed(data['provider']['requests']) if row['body']['model']==R.WIRES[R.MODELS[1]])
+        render_call=R.task_pairs(worker['body'])[-1][0]
+        png,_=R.select_render_image(worker['body'],render_call,file_id=data['browser']['file_id'])
+        paths['screenshot']=private/'screenshot.png';paths['screenshot'].write_bytes(png)
+        observed={'file_id':data['browser']['file_id'],'docx_sha256':hashlib.sha256(paths['browser'].read_bytes()).hexdigest(),
+            'screenshot_sha256':hashlib.sha256(png).hexdigest()}
+        publications={};events=[]
+        def public(name,packet):
+            B.no_credentials(packet,[]);publications[name]=copy.deepcopy(packet)
+        def readback(phase):
+            events.append(phase)
+            packet={'passed':True,'phase':phase,'native_office_accepted':False}
+            if phase=='verify':packet.update(R.verify(**data))
+            else:
+                assert phase=='diagnostic'
+                packet.update(provider_added=len(data['provider']['requests']),auth_added=len(data['captured']['requests']))
+            public('office-delegation-'+phase,packet)
+            return packet
+        source_root=root/'scripts/goal584-budget-proof'
+        mounted_paths={name:source_root/name for name in ('prove_office_delegation_readback.py','mock_provider.py')}
+        mounted_paths.update({'corporate_templates.py':root/'deploy/openwebui-tools/corporate_templates.py',
+            'corporate_template_models.json':root/'deploy/openwebui-tools/corporate_template_models.json',
+            'artifact-workflow.md':root/'deploy/openwebui-skills/artifact-workflow.md'})
+        host_paths={'prove_office_delegation_browser.py':source_root/'prove_office_delegation_browser.py'}
+        source_hashes=lambda paths:{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in paths.items()}
+        namespace=dict(Path=Path,base64=base64,hashlib=hashlib,json=json,_nodes=R.proof._nodes,digest=R.proof.digest,
+            select_render_image=R.select_render_image,private=private,out=out,observed=observed,
+            raw={'paths':{key:str(path) for key,path in paths.items()}},provider=data['provider'],
+            readback=readback,public=public,source_hashes=source_hashes,mounted_paths=mounted_paths,host_paths=host_paths,
+            mounted_sources=source_hashes(mounted_paths),host_sources=source_hashes(host_paths),
+            stage='diagnostic',baseline_ready=True,diagnostic_collected=False,artifacts_collected=False,
+            ProofError=T.N.ProofError,no_credentials=B.no_credentials,fixture=SimpleNamespace(secrets=[]),
+            signal=SimpleNamespace(alarm=lambda value:None))
+        if mutation=='screenshot_bytes':paths['screenshot'].write_bytes(b'swapped-private-screenshot')
+        elif mutation=='private_path':namespace['raw']['paths']['screenshot']=str(private.parent/'unowned.png')
+        elif mutation=='native_bytes':paths['native'].write_bytes(b'swapped-private-document')
+        elif mutation=='wrong_role':worker['body']['input'][-1]['role']='assistant'
+        text=workflow or (root/'.github/workflows/goal584-office-proof.yml').read_text(encoding='utf8')
+        run=next(step['run'] for job in yaml.safe_load(text)['jobs'].values() for step in job['steps']
+            if step.get('name')=='Verify one ordinary delegated Office Send and native personal accounting')
+        source=run.partition("<<'PY'\n")[2].rsplit('\nPY',1)[0]
+        tree=ast.parse(source)
+        collector=next(n for n in tree.body if getattr(n,'name',None)=='collect_artifacts')
+        guarded=next(n for n in tree.body if isinstance(n,ast.Try))
+        start=next(i for i,n in enumerate(guarded.body) if isinstance(n,ast.Assign)
+            and any(getattr(t,'id',None)=='stage' for t in n.targets) and isinstance(n.value,ast.Constant)
+            and n.value.value=='diagnostic')
+        tail=ast.Try(body=guarded.body[start:],handlers=guarded.handlers,orelse=guarded.orelse,finalbody=guarded.finalbody)
+        error=None
+        try:exec(compile(ast.fix_missing_locations(ast.Module(body=[collector,tail],type_ignores=[])),
+            'actual-native-delegated-artifact-host-tail','exec'),namespace)
+        except SystemExit as caught:error=caught.code
+        return publications,{path.name:path.read_bytes() for path in out.iterdir()},error,events
+
+
+class NativeArtifactHostTailTests(unittest.TestCase):
+    def test_actual_native_context_finance_then_same_selector_exports_all_public_artifacts(self):
+        with TemporaryDirectory() as directory:
+            packets,files,error,events=run_native_artifact_host_tail(Path(directory))
+        self.assertIsNone(error);self.assertEqual(events,['diagnostic','verify'])
+        self.assertTrue(packets['office-delegation']['passed'])
+        self.assertEqual(set(files),{'office-delegation.docx','office-delegation-render.png','office-delegation-browser.png'})
+        financial=packets['office-delegation-verify']
+        self.assertEqual(financial['personal']['gpt-6.1-sol']['native_spend_delta_usd'],'1.20')
+        self.assertEqual(financial['personal']['gpt-6.1-terra']['native_spend_delta_usd'],'.12')
+        self.assertEqual(financial['service']['native_spend_delta_usd'],'.20')
+        self.assertFalse(packets['office-delegation']['native_office_accepted'])
+
+    def test_artifact_failures_still_exit_fatal_and_preserve_prior_genuine_financial_result(self):
+        for mutation in ('screenshot_bytes','private_path','native_bytes','wrong_role'):
+            with self.subTest(mutation=mutation),TemporaryDirectory() as directory:
+                packets,files,error,events=run_native_artifact_host_tail(Path(directory),mutation=mutation)
+                self.assertEqual(error,1);self.assertFalse(packets['office-delegation']['passed'])
+                self.assertFalse(files)
+                self.assertTrue(packets['office-delegation']['failure'])
+                if mutation in ('screenshot_bytes','private_path'):
+                    self.assertTrue(packets['office-delegation-verify']['passed'])
+                else:self.assertNotIn('office-delegation-verify',packets)
+
+
 if __name__ == '__main__':
     unittest.main()

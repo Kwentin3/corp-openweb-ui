@@ -167,6 +167,40 @@ def task_pairs(wire):
     return pairs
 
 
+def select_render_image(wire, render_call, *, file_id):
+    """Read the pinned Tool's native render continuation without rewriting it."""
+    pairs = task_pairs(wire)
+    require(len(pairs) == 5 and isinstance(render_call, dict)
+            and render_call.get('name') == 'render_office_file'
+            and sum(c.get('name') == 'render_office_file' for c, _ in pairs) == 1,
+            'office_delegation_render_call')
+    call, result = pairs[-1]
+    require(all(call.get(k) == render_call.get(k) for k in ('call_id', 'name', 'arguments'))
+            and json.loads(call['arguments']) == {'file_id': file_id, 'format': 'docx', 'grid': 2}
+            and result.get('output') == 'render_office_file: Image file read successfully.',
+            'office_delegation_render_binding')
+    items = wire['input']; index = items.index(result)
+    require(index > 0 and items[index - 1] == call and len(items) == index + 2,
+            'office_delegation_render_suffix')
+    carrier = items[index + 1]; parts = carrier.get('content')
+    require(set(carrier) == {'type', 'role', 'content'} and carrier['type'] == 'message'
+            and carrier['role'] == 'user' and isinstance(parts, list) and len(parts) == 3
+            and parts[0] == {'type': 'input_text', 'text': 'Here are the images from the tool results above. Please analyze them.'}
+            and parts[2] == {'type': 'input_text', 'text': '\n\n[Iteration 6/12]'}
+            and isinstance(parts[1], dict) and set(parts[1]) == {'type', 'image_url', 'detail'}
+            and parts[1]['type'] == 'input_image' and parts[1]['detail'] == 'auto'
+            and isinstance(parts[1]['image_url'], str) and parts[1]['image_url'].startswith('data:image/png;base64,')
+            and len(parts[1]['image_url']) <= 12 * 1024 * 1024
+            and sum(v.get('type') == 'input_image' for v in proof._nodes(items)) == 1,
+            'office_delegation_render_carrier')
+    try: png = base64.b64decode(parts[1]['image_url'].partition(',')[2], validate=True)
+    except (ValueError, TypeError):
+        require(False, 'office_delegation_png')
+    require(24 <= len(png) <= 8 * 1024 * 1024 and png.startswith(b'\x89PNG\r\n\x1a\n')
+            and png[12:16] == b'IHDR', 'office_delegation_png')
+    return png, carrier
+
+
 def verify_guide(actual, browser, context):
     """Join actual Tool text to the existing source-bound CLI qualification."""
     for path in (GUIDE, QUALIFICATION):
@@ -347,10 +381,7 @@ def verify_context(groups, office, browser, context, d, provider_requests):
                     for value in ('Employee: Ada Example', 'Case: G584-2026', 'FIXED CLAUSE: preserve this sentence.', 'FIXED TABLE')),
             'office_delegation_result_inspection')
     require(json.loads(wp[4][0]['arguments']) == {'file_id': browser['file_id'], 'format': 'docx', 'grid': 2}, 'office_delegation_render')
-    pngs = [n['image_url'] for n in proof._nodes(wp[4][1]['output']) if n.get('type') == 'input_image']
-    require(len(pngs) == 1 and pngs[0].startswith('data:image/png;base64,'), 'office_delegation_png')
-    png = base64.b64decode(pngs[0].partition(',')[2], validate=True)
-    require(len(png) >= 24 and png.startswith(b'\x89PNG\r\n\x1a\n') and png[12:16] == b'IHDR', 'office_delegation_png')
+    select_render_image(worker, wp[4][0], file_id=browser['file_id'])
     return {m: {c['provider']['id']: c['verified_cost_scope'] for c in groups[m]} for m in MODELS}
 
 

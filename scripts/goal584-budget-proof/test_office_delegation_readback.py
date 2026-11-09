@@ -1,5 +1,6 @@
 """Offline actual-source/bytes checks; native HTTP is an explicit IO leaf."""
 import copy
+import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
@@ -210,7 +211,7 @@ def test_cli_error_does_not_export_raw_private_exception(monkeypatch, capsys):
 
 
 def context_case(monkeypatch, tmp_path):
-    """Actual provider grammar, native Tasks and pinned serializer; Office IO leaves."""
+    """Actual provider/Tasks/media/send-loop/serializer owners; Office IO leaves."""
     import io
     import test_mock_provider as provider_test
     import test_office_compatibility as native_test
@@ -232,9 +233,12 @@ def context_case(monkeypatch, tmp_path):
     office['office_setup'] = {'workflow_skill': {'content': workflow}, 'openapi': {}}
     office['office_delegation_setup'].update(skill=case.skill, source_file={'id': case.source_id}, source_sha256=R.sha256(provision.delegated_source_docx()).hexdigest())
     with provider_test.patch.object(native_test, 'NATIVE', source):
-        _, router, _ = native_test.native.__wrapped__()
-    native_worker_tools = router['convert_to_responses_payload']({'messages': [], 'tools': [
-        {'type': 'function', 'function': {k: v for k, v in s.items() if k != 'type'}} for s in case.office_tools]})['tools']
+        _, router, media = native_test.native.__wrapped__()
+    tool_path = Path(__import__('os').environ.get('GOAL584_COMMUNITY_TOOL_SOURCE', str(root.with_name('corp-openweb ui') /
+        'local/subagent-office-trial-20261029/sub_agent.py')))
+    tool_raw = tool_path.read_bytes(); assert R.sha256(tool_raw).hexdigest() == provision.DELEGATION_TOOL_SHA256
+    spec = importlib.util.spec_from_file_location('delegated_image_actual_pinned_tool', tool_path)
+    tool = importlib.util.module_from_spec(spec);sys.modules[spec.name]=tool;spec.loader.exec_module(tool)
     # Use the same actual serializer/native schema owner as the runtime packet.
     # OpenAPI source digest is a separate bound input; no schema is guessed.
     office['office_setup']['openapi'] = native_test.create_app(native_test.CliIO()).openapi()
@@ -271,14 +275,47 @@ def context_case(monkeypatch, tmp_path):
         elif index == 1: result = case.skill
         else:
             packet = json.loads(args['prompt'])
-            worker = dict(model=provider_test.MOCK.DELEGATED_WORKER_MODEL, max_output_tokens=6000, stream=False, store=False,
-                tools=copy.deepcopy(native_worker_tools), input=[dict(type='message', role='developer', content=case.skill['content']),
-                                                          dict(type='message', role='user', content=json.dumps(packet))])
-            for j in range(6):
-                child = dispatch(worker, R.MODELS[1])
-                if j < 5:
-                    leaf = worker_leaf_results[j]
-                    append_response(worker, child, json.loads(leaf) if isinstance(leaf, str) else leaf, False)
+            async def worker_turns():
+                from starlette.requests import Request
+                request = Request({'type':'http','method':'POST','path':'/api/chat/completions','headers':[],
+                    'state':{},'app':SimpleNamespace(state=SimpleNamespace(MODELS={}))})
+                pipeline=dict(model={'id':'corporate-office-worker'},model_id='corporate-office-worker',
+                    process=None,functions=[],context=None,supports_context=False,supports_request=False)
+                tools={s['name']:{'spec':{k:v for k,v in s.items() if k!='type'},'type':'external'} for s in case.office_tools}
+                requests=tool.AgentRequests(tools,{'__request__':request,'__metadata__':{'chat_context':{},'filter_ids':[]}})
+                messages=await requests.prepare(pipeline,request,dict(model='corporate-office-worker',stream=False,
+                    max_tokens=6000,store=False,messages=[dict(role='developer',content=case.skill['content']),
+                                                        dict(role='user',content=json.dumps(packet))]))
+                run=tool._LoopRunState(compaction=tool.LoopCompactionOptions(enabled=False),
+                    large_results=tool.LargeToolResultOptions(mode='raw'),encoder=None,encoder_ready=False,filter_identity=None)
+                async def send(**kwargs):
+                    form=copy.deepcopy(kwargs['form_data']);form.pop('metadata',None)
+                    payload=router['convert_to_responses_payload'](form)
+                    payload['model']=provider_test.MOCK.DELEGATED_WORKER_MODEL
+                    return dispatch(payload,R.MODELS[1])
+                for j in range(6):
+                    error,child,_,_=await tool._send_loop_request(run,generate_chat_completion=send,request=request,
+                        user_obj=None,model_id='corporate-office-worker',agent_requests=requests,filter_pipeline=pipeline,
+                        current_messages=messages,trailing_message={'role':'user','content':f'[Iteration {j+1}/12]'},
+                        merge_trailing_into_last_user=True,metadata={'task':'sub_agent','sub_agent_iteration':j+1,'filter_ids':[]},
+                        check_reader=True,neutralize_tool_choice=False)
+                    assert error is None
+                    if j==5: break
+                    call=next(v for v in child['output'] if v.get('type')=='function_call')
+                    leaf=worker_leaf_results[j]
+                    if j==4:
+                        from PIL import Image
+                        png=BytesIO();Image.new('RGB',(3,2),'white').save(png,format='PNG')
+                        leaf='data:image/png;base64,'+__import__('base64').b64encode(png.getvalue()).decode()
+                    else: leaf=json.loads(leaf) if isinstance(leaf,str) else leaf
+                    text,files,embeds=await media['process_tool_result'](None,call['name'],(leaf,{}),'external')
+                    images,display=await tool.split_tool_result_files(files)
+                    assert not embeds and not display
+                    messages.extend([dict(role='assistant',content='',tool_calls=[dict(id=call['call_id'],type='function',
+                        function={'name':call['name'],'arguments':call['arguments']})]),
+                        dict(role='tool',tool_call_id=call['call_id'],content=text if isinstance(text,str) else json.dumps(text))])
+                    tool.append_tool_result_images(messages,images)
+            asyncio.run(worker_turns())
             result = {'result': '[Download](/api/v1/files/' + case.file_id + '/content)'}
         append_response(case.parent, response, result, True)
     cases = [[v for v in c['provider']['response']['output'] if v.get('type') == 'reasoning'] for c in groups[R.MODELS[0]]]
@@ -311,10 +348,58 @@ def context_case(monkeypatch, tmp_path):
     return groups, office, browser, context, d, physical
 
 
+def test_shared_reader_selector_cold_import_needs_no_host_or_proxy_transport_package():
+    import os, subprocess
+    code="""import importlib.abc,sys
+class AbsentOptionalTransport(importlib.abc.MetaPathFinder):
+ def find_spec(self,fullname,path=None,target=None):
+  if fullname.split('.')[0] in ('aiohttp','playwright','litellm'):
+   raise ImportError('Optional transport unavailable')
+sys.meta_path.insert(0,AbsentOptionalTransport())
+import prove_office_delegation_readback as reader
+assert callable(reader.select_render_image)
+"""
+    result=subprocess.run([sys.executable,'-B','-c',code],capture_output=True,timeout=15,
+        env=os.environ|{'PYTHONPATH':str(Path(__file__).resolve().parent),'PYTHONDONTWRITEBYTECODE':'1'})
+    assert result.returncode==0,result.stderr.decode(errors='replace')
+
+
 def test_context_composes_actual_native_tasks_serializer_full_skill_and_actual_provider_tape(monkeypatch, tmp_path):
     values = context_case(monkeypatch, tmp_path)
     scopes = R.verify_context(*values)
     assert {m: len(v) for m, v in scopes.items()} == dict.fromkeys(R.MODELS, 6)
+
+
+def test_native_render_selector_returns_actual_adjacent_carrier_and_preserves_full_input(monkeypatch,tmp_path):
+    groups,*_=context_case(monkeypatch,tmp_path)
+    wire=groups[R.MODELS[1]][-1]['wire_before_auth'];before=copy.deepcopy(wire)
+    call=next(v for v in groups[R.MODELS[1]][-2]['provider']['response']['output'] if v.get('type')=='function_call')
+    png,carrier=R.select_render_image(wire,call,file_id=json.loads(call['arguments'])['file_id'])
+    assert carrier is wire['input'][-1] and wire==before
+    assert carrier['content'][-1]=={'type':'input_text','text':'\n\n[Iteration 6/12]'}
+    from officecli_openapi_proof.rendering import checked_png
+    assert checked_png(png)==png
+
+
+@pytest.mark.parametrize('mutation',['earlier_image','wrong_call','wrong_role','extra_part','extra_tail',
+    'wrong_file','image_json','wrong_notice','invalid_bytes','duplicate_result','external_url'])
+def test_native_render_selector_rejects_unbound_images_and_context_drift(monkeypatch,tmp_path,mutation):
+    groups,*_=context_case(monkeypatch,tmp_path)
+    wire=groups[R.MODELS[1]][-1]['wire_before_auth'];call=copy.deepcopy(next(v for v in
+        groups[R.MODELS[1]][-2]['provider']['response']['output'] if v.get('type')=='function_call'))
+    file_id=json.loads(call['arguments'])['file_id'];carrier=wire['input'][-1]
+    if mutation=='earlier_image':wire['input'].insert(1,copy.deepcopy(carrier))
+    elif mutation=='wrong_call':call['call_id']='foreign-call'
+    elif mutation=='wrong_role':carrier['role']='assistant'
+    elif mutation=='extra_part':carrier['content'].append({'type':'input_text','text':'unrelated'})
+    elif mutation=='extra_tail':wire['input'].append({'type':'message','role':'user','content':'unrelated'})
+    elif mutation=='wrong_file':file_id=str(uuid4())
+    elif mutation=='image_json':wire['input'][-2]['output']=json.dumps(carrier['content'])
+    elif mutation=='wrong_notice':carrier['content'][-1]['text']='\n\n[Iteration 5/12]'
+    elif mutation=='invalid_bytes':carrier['content'][1]['image_url']='data:image/png;base64,'+__import__('base64').b64encode(b'swapped-document-bytes').decode()
+    elif mutation=='duplicate_result':wire['input'].insert(-1,copy.deepcopy(wire['input'][-2]))
+    else:carrier['content'][1]['image_url']='https://unowned.invalid/image.png'
+    with pytest.raises(N.ProofError):R.select_render_image(wire,call,file_id=file_id)
 
 
 @pytest.mark.parametrize('mutation', ['skill_loss', 'duplicate_skill', 'root_tail', 'task_alias', 'guide_loss', 'native_case_loss', 'guide_packet', 'guide_qualification'])

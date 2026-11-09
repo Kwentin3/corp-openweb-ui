@@ -877,7 +877,8 @@ jobs:
           from prove_pricing_browser import no_credentials
           from prove_pricing_snapshots import private_credentials
           from prove_office_delegation_browser import PACKET, failure_projection, run
-          from prove_office_compatibility import _nodes,digest
+          from prove_office_compatibility import digest
+          from prove_office_delegation_readback import select_render_image
           from playwright.sync_api import sync_playwright
           signal.alarm(420)
           private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
@@ -924,7 +925,7 @@ jobs:
               public('office-delegation-setup-failure',packet)
               return True
           def collect_artifacts():
-              assert isinstance(observed,dict) and isinstance(raw,dict) and isinstance(provider,dict)
+              assert isinstance(observed,dict) and isinstance(raw,dict) and isinstance(provider,dict),'Delegated Office artifact packets differ'
               workers=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-delegated-worker']
               calls=[item for row in workers for item in row['response']['output']
                   if item.get('type')=='function_call' and item.get('name')=='render_office_file']
@@ -935,16 +936,14 @@ jobs:
               result=next(item for item in workers[-1]['body']['input']
                   if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id'])
               assert results and all(item==result for item in results),'Delegated Office render result changed'
-              images=[item['image_url'] for item in _nodes(result['output']) if item.get('type')=='input_image']
-              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
-              png=base64.b64decode(images[0].partition(',')[2],validate=True)
+              png,_=select_render_image(workers[-1]['body'],calls[0],file_id=observed['file_id'])
               files={key:Path(raw['paths'][key]) for key in ('browser','native','screenshot')}
-              assert all(path.resolve().parent==private.resolve() and not path.is_symlink() for path in files.values())
+              assert all(path.resolve().parent==private.resolve() and not path.is_symlink() for path in files.values()),'Delegated Office artifact paths differ'
               document=files['browser'].read_bytes();native=files['native'].read_bytes();screenshot=files['screenshot'].read_bytes()
-              assert all(0<len(data)<=8*1024*1024 for data in (document,native,png,screenshot))
-              assert document==native and hashlib.sha256(document).hexdigest()==observed['docx_sha256']
-              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256']
-              assert png.startswith(b'\x89PNG\r\n\x1a\n') and screenshot.startswith(b'\x89PNG\r\n\x1a\n')
+              assert all(0<len(data)<=8*1024*1024 for data in (document,native,png,screenshot)),'Delegated Office artifact byte bound differs'
+              assert document==native and hashlib.sha256(document).hexdigest()==observed['docx_sha256'],'Delegated Office document hash differs'
+              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256'],'Delegated Office screenshot hash differs'
+              assert png.startswith(b'\x89PNG\r\n\x1a\n') and screenshot.startswith(b'\x89PNG\r\n\x1a\n'),'Delegated Office artifact PNG differs'
               (out/'office-delegation.docx').write_bytes(document)
               (out/'office-delegation-render.png').write_bytes(png)
               (out/'office-delegation-browser.png').write_bytes(screenshot)
@@ -1015,8 +1014,8 @@ jobs:
                   'native_packet_sha256':[digest(packet) for packet in packets],
                   'qualification_receipt_sha256':context['binding']['qualification_receipt_sha256']})
               stage='diagnostic';readback('diagnostic');diagnostic_collected=True
-              stage='artifacts';artifacts=collect_artifacts();artifacts_collected=True
               stage='native_finance';financial=readback('verify')
+              stage='artifacts';artifacts=collect_artifacts();artifacts_collected=True
               assert source_hashes(mounted_paths)==mounted_sources and source_hashes(host_paths)==host_sources,'Delegated Office source changed'
               public('office-delegation-browser',observed)
               public('office-delegation-artifact',{'schema':1,'native_office_accepted':False,**artifacts})
