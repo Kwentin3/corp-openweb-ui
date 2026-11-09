@@ -968,9 +968,25 @@ def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
     before = dict(provider={'requests': []}, capture={'requests': []}, descriptors={},
                   finance=dict(personal={}, raw_owners={actor: {}, payer: {}, 'old-owner': {}}, service={}))
     after = dict(personal={}, raw_owners=copy.deepcopy(before['finance']['raw_owners']), service={})
+    from litellm.responses.utils import ResponsesAPIRequestUtils
+    from litellm.types.llms.openai import ResponsesAPIResponse
+    import litellm
+    from typing import Final
+    source=sys.modules[type(tariff_owner).__module__]
+    assert Path(sys.modules[ResponsesAPIRequestUtils.__module__].__file__).read_bytes().replace(b'\r\n',b'\n').decode()==source.source('responses/utils.py')
+    spend_id_owner={'Final':Final,'CallTypes':litellm.CallTypes}
+    source.execute(source.selected('proxy/spend_tracking/spend_tracking_utils.py',{'get_spend_logs_id'}),spend_id_owner)
     def row(provider_id, scope, model, wire, deployment, token, spend, response):
         snapshots = native_tariff_capture(deployments[model],response=response)
-        return dict(request_id=provider_id, model='openai/' + wire, model_group=model, model_id=deployment, status='success',
+        request_id=provider_id
+        if model==R.MODELS[1]:
+            # Same native typed-response branch as nonstream aresponses; buffered
+            # parent and accepted service fixture retain their existing IDs.
+            native_response=ResponsesAPIRequestUtils._update_responses_api_response_id_with_model_id(
+                ResponsesAPIResponse.model_validate(copy.deepcopy(response)),custom_llm_provider='openai',
+                litellm_metadata={'model_info':copy.deepcopy(deployments[model]['model_info'])})
+            request_id=spend_id_owner['get_spend_logs_id']('aresponses',native_response.model_dump(),{})
+        return dict(request_id=request_id, model='openai/' + wire, model_group=model, model_id=deployment, status='success',
             user=scope['user_id'], api_key=token, session_id=chat, spend=spend, prompt_tokens=10, completion_tokens=5, total_tokens=15,
             metadata={'spend_logs_metadata': {'owui_budget': copy.deepcopy(scope), **snapshots}})
     for model, delta, spend, token in zip(R.MODELS, (1.20, .12), (.20, .02), ('a' * 64, 'b' * 64)):
@@ -1014,11 +1030,43 @@ def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
 
 def test_complete_collector_uses_actual_task_context_scope_rates_sdk_cost_and_artifact_owners(tmp_path, monkeypatch):
     data = complete_case(tmp_path, monkeypatch)
+    original = copy.deepcopy({k:v for k,v in data.items() if k != 'd'})
     result = R.verify(**data)
     assert result['personal']['gpt-6.1-sol']['native_spend_delta_usd'] == '1.20'
     assert result['personal']['gpt-6.1-terra']['native_spend_delta_usd'] == '.12'
     assert result['service']['physical_calls'] == 1 and result['provider_calls'] == 13
     assert result['cost_status_provisional'] is True
+    assert {k:v for k,v in data.items() if k != 'd'} == original
+
+
+def test_native_worker_row_ids_keep_strict_provider_model_and_scope_binding(tmp_path, monkeypatch):
+    from litellm.responses.utils import ResponsesAPIRequestUtils
+    from litellm.types.llms.openai import ResponsesAPIResponse
+    data=complete_case(tmp_path,monkeypatch)
+    rows=data['after']['personal'][R.MODELS[1]]['rows'];original=copy.deepcopy(rows)
+    decode=data['d']['ResponsesAPIRequestUtils']._decode_responses_api_response_id
+    by_provider={v['id']:v['response'] for v in data['provider']['requests']}
+    for row in rows:
+        decoded=decode(row['request_id'])
+        assert decoded['custom_llm_provider']=='openai' and decoded['model_id']==R.DEPLOYMENTS[R.MODELS[1]]
+        assert decoded['response_id'] in by_provider
+    assert all(decode(v['request_id'])['model_id'] is None for v in data['after']['personal'][R.MODELS[0]]['rows'])
+    for mutation in ('raw_id','wrong_provider','wrong_encoded_model','foreign_provider','duplicate','row_model'):
+        rows[:]=copy.deepcopy(original);row=rows[-1];provider_id=decode(row['request_id'])['response_id']
+        if mutation=='raw_id':row['request_id']=provider_id
+        elif mutation=='row_model':row['model_id']=R.DEPLOYMENTS[R.MODELS[0]]
+        elif mutation=='duplicate':row['request_id']=rows[-2]['request_id']
+        else:
+            response=copy.deepcopy(by_provider[provider_id])
+            if mutation=='foreign_provider':response['id']='resp_'+uuid4().hex
+            native=ResponsesAPIRequestUtils._update_responses_api_response_id_with_model_id(
+                ResponsesAPIResponse.model_validate(response),
+                custom_llm_provider='anthropic' if mutation=='wrong_provider' else 'openai',
+                litellm_metadata={'model_info':{'id':R.DEPLOYMENTS[R.MODELS[0]] if mutation=='wrong_encoded_model' else R.DEPLOYMENTS[R.MODELS[1]]}})
+            row['request_id']=native.id
+        with pytest.raises(N.ProofError):R.verify(**data)
+    rows[:]=original
+    assert R.verify(**data)['provider_calls']==13
 
 
 @pytest.mark.parametrize('mutation', ['worker_nonce', 'worker_key', 'worker_row_missing', 'shared_counter', 'saved_reasoning', 'tariff'])
@@ -1173,7 +1221,8 @@ def test_tariff_source_complete_collector_uses_prepared_terms_and_native_snapsho
         for mode,reason in (('missing_usage','usage_unconfirmed'),('invalid_declaration','declaration')):
             selected=copy.deepcopy(deployments[model])
             if mode=='invalid_declaration':selected['model_info']['owui_pricing']={'deployment_id':selected['model_info']['id']}
-            response=next(v['response'] for v in data['provider']['requests'] if v['id']==row['request_id'])
+            provider_id=data['d']['ResponsesAPIRequestUtils']._decode_responses_api_response_id(row['request_id'])['response_id']
+            response=next(v['response'] for v in data['provider']['requests'] if v['id']==provider_id)
             observed=native_tariff_capture(selected,usage=mode!='missing_usage',response=response)
             assert observed['owui_billed_token_rates']['availability']=='available'
             row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']=observed['owui_tariff_descriptor']

@@ -8,6 +8,95 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office104, завершён:**
+[run42641298163](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42641298163),
+job129242800868, workflow406918033, exact head
+`b30f516e0fdf735a024f9be6c7d0e58b4f29fe1a`, dispatch09.11 15:06:41UTC.
+Coherent4file commit/source readback11/11/clean worktree PASS; remote reasoning ref
+fast-forward сверён. Office103 terminal/owned cleanup PASS, других live runs перед
+одним новым dispatch не было; это не rerun. TerminalFAIL15/native_finance:
+`office_row_dispatch_binding`;1–14SUCCESS,16negative/17recoverySKIPPED,
+18diagnostics/19cleanup/20uploadSUCCESS, живого CI нет.
+Обязательны47native guard tests/0skip, затем те же positive Office/context/artifact/
+finance → negative Terra refusal → cap restore/owned cleanup gates; при positiveFAIL
+negative пропускается. Bounds55min/manual15:51:41UTC/hard16:01:41UTC;
+preflight20GiB disk/6GiB RAM/7GiB Docker, six services5.875GiB/4.25CPU/1728PIDs,
+component1GiB/256PIDs unchanged. Native addressed stop
+`gh run cancel 42641298163 --repo Kwentin3/corp-openweb-ui`, затем exact job terminal/
+actual cleanup/remaining participants; timeout не означает завершение.
+LTS/Terminal/production/paid/рабочие маршруты не активированы/не менялись.
+Artifact13684939757 скачан один раз1489816B/104unique/SHA256
+`22b059c240508a26953c97e2d342b0a0bd6543be6a86235554d7fdd1f281b458`;
+private URL удалён. Rootfull54build/72pins/47guard18.245s+22auth+1CLI0skip/5images
+cleanup PASS. Independent admin/source/PNG/cleanup PASS, delegation NOT_ACCEPTED,
+все quota gates NEEDS_EVIDENCE; cap не ограничивался. Diagnostic13provider/13auth,
+12personal context, actual failed row/model не экспортированы. Поэтому полная
+двухмодельная finance/tariff приёмка и source→actual row attribution не заявлены.
+Genuine bounded producer witness нашёл отдельный consumer mismatch: actualRouter
+→sameLogging SLP→native get_spend_logs_id даёт parentstreamTrue rawID и worker
+streamFalse encoded(openai,worker-deployment)ID. R.calls выбирает transport по
+модели правильно, R.verify ошибочно всегда передаёт buffered. Нативный P verifier
+уже поддерживает оба пути; ослабление P/service binding не требуется.
+Probe1PASS9.78s/42PIDs terminal, wrapper1 только blocked IPv6 import bind; первые
+HTTP-leaf signature и delayed-SLP observation ошибки сохранены.
+Разрешён и заморожен2file fix R/testR: одна transport selector строка + fixture с
+genuine native worker ID producer. OldRED9.99s на полном input сохранён; targeted
+10PASS28.81s, затем только necessary decoded tariff-lookup test1PASS10.13s. SAMEinput
+oldRED/newPASS/immutable input, оба файла+7neighbor pins pre/post неизменны.
+Все45/80/46PIDs terminal; pytest0/0skip, outer auditwrapper1 не скрывается.
+LF R e69ba89331fcf409d3f5486c26bd90cbe49013dd2a97e40ca4fd86b398d6e177,
+test1f2469a850c2fa572a0991760814556845da09be00777e65b3c585f6fbae693d;
+freeze6970eab9a9eac2e6002381a7ba00828e7be3110e96c65b8cde548613737812b8.
+P/service/core/guard/auth/routes и финансовые ограничения не меняются. Independent
+SOURCE review GO: freeze/diff/rawLF/copies/7pins сверены, own AST подтверждает весь
+R как baseline после возврата одного transport аргумента; ID/financial negatives
+сохранены. Следующий шаг — coherent3file commit/readback12pins/push и один existing
+isolated Office105 workflow. Readers `office105-review/` подготовлены; Known0
+candidate не переносится и не смешивается с этой приёмкой.
+Receipts `office104-review/`, `office104-row-binding-{triage,fix,review}/`.
+Runtime/GOAL НЕ ПРИНЯТЫ.
+
+**Known0: отдельный текущий SOURCE slice, до integration/runtime не принят.**
+Рабочая копия `corp-openweb-ui-goal584-zero-current`, branch
+`agent/goal584-zero-current`, exact base `b30f516e0fdf735a024f9be6c7d0e58b4f29fe1a`.
+Создана чистой отдельно от delivery/Office104; прежний rejected reasoning zero WIP
+сохранён и не переносится. Evidence только `DELIVERY/local/goal584/known-zero-current/`.
+Уборка native Git worktree/branch после принятой integration и сохранения evidence;
+при незавершённом candidate сохраняется с явным следующим шагом.
+Результат — различать настоящий computed0 и UNKNOWN/default0 в current covered
+calls и retained post-activation Details/reload через тот же native SpendLogs.
+Owner map: raw Usage → existing UnknownUsageGuard strict native receipt → publisher;
+native cost/breakdown/rates/protected terms → existing Logging/Router + PricingSnapshot
+→ optional native_zero_confirmed в existing rate snapshot → CostReadback zero eligibility;
+CostReadback aggregation → прежние Filter/Action/UI без изменений.
+Publisher остаётся владельцем native calculation observation, reader — row eligibility;
+schema adaptation в существующем prove_pricing_snapshots только representation.
+Новый расчёт денег, журнал, epoch/key namespace, UI/client/router не создаются.
+Разрешены ровно6existing files: pricing_snapshot.py/его test, cost_readback.py/его test,
+prove_pricing_snapshots.py/его test. Existing _billing_categories total0 может быть
+принят только при same-owner raw Usage/native-cost qualification; default zero
+нельзя разрешить общим снятием условия. Prospective pre-call owner очищает caller
+reserved snapshot до возможного раннего выхода; hook публикует qualification
+только при фактическом computed0, согласованном native breakdown/rates/terms и
+strict successful Usage receipt. Marker alone, None, failed/not-run/unknown не proof.
+Positive branch/coverage/dedup/history/ACL и existing callers сохраняются; optional
+field compatibility проверяется у реального strict rate parser. После source freeze
+обязательны independent review и current DB/GUI retained-read acceptance.
+No legacy reconstruction/universal forged-zero migration gate: commercial scope
+исключает старые/удалённые чаты; unqualified legacy row в claimed total остаётся
+UNKNOWN. Это не разрешение доверять произвольным импортированным marker.
+Supporting proposal `office103-review/known-zero-minimal-slice.md`; source coding
+не меняет frozen Office104 commit, production/paid/working routes не затрагиваются.
+Known0 six-file candidate заморожен отдельно:108PASS/0skip15.313s, после узкого
+re-entry/rawcostNone correction только4focusedPASS/0skip10.781s; all6pre/post hashes
+сверены, все50/40PIDs terminal, no outbound. Publisher→actual native sanitizer/row
+→current/later reader component chain проверена, включая explicit0 и free rates;
+default0/None/malformed Usage не квалифицированы. До review обнаружен конкретный
+positive-consumer compatibility gap: новый native_zero keyword ломает прежний
+testR _capture_descriptor spy. Author исправляет within6file owner seam, сохраняя
+positive invocation contract; первый freeze/evidence сохраняются. Candidate НЕ
+ПРИНЯТ, не перенесён в delivery, actual DB/GUI retained-reload acceptance впереди.
+
 **Последний прогон Office103, завершён:**
 [run42635916163](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42635916163),
 job129223905229, workflow406918033, exact head

@@ -534,7 +534,7 @@ def verify(before, after, provider, captured, saved, browser, context, office, c
         finance[model] = proof.verify_finance(before['finance']['personal'][model], after['personal'][model],
             calls_by_provider=scopes[model], actor=actor, key_hash=key, chat_id=chat, answer_id=answer,
             model=model, wire_model=WIRES[model], deployment_id=DEPLOYMENTS[model], expected_calls=6,
-            provider_transport='buffered', expected_call_spend=Decimal(price), input_rate=Decimal(rate_in),
+            provider_transport='buffered' if model == MODELS[0] else 'native', expected_call_spend=Decimal(price), input_rate=Decimal(rate_in),
             output_rate=Decimal(rate_out), user_spend_delta=Decimal('1.32'), validate_scope=d['validate_persisted_scope'],
             validate_rates=d['validate_snapshot'], decode_response_id=d['ResponsesAPIRequestUtils']._decode_responses_api_response_id)
         descriptor = before['descriptors'][model]['model_info']['owui_pricing']
