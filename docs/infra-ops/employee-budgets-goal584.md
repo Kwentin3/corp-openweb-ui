@@ -8,16 +8,48 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Office93 запущен 09.11 06:23:32UTC:**
+**Последний прогон Office93, завершён:**
 [run42572740432](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42572740432),
 exact head `4241466e0d40a34d0046b209125ca3efe28c355b`, workflow_dispatch,
-job129013590757, native status=in_progress/step4 на последней проверке.
-Это один run после reviewed compound-operands
-diagnostic и prospective pricing gate. Terminal не активирован, unsafe zero
-WIP не включён, production/paid API/working routes не меняются.
-Следующий шаг — terminal result/source-bound artifact и actual compound operands;
-финансовые/context predicates остаются обязательными. До terminal не rerun.
-**Последний прогон Office92, завершён:**
+job129013590757, dispatch09.11 06:23:32UTC; terminal FAILURE14/verify,
+1–13SUCCESS,15SKIPPED, diagnostics/cleanup/uploadSUCCESS. Живого CI нет.
+Exact failure `admin_unknown_dispatch_count`: actual physical_requests=2,
+captured_requests=2,synthetic=true,control_unchanged=true. К моменту snapshot
+видны2primary и нет ожидаемого provider service. Конкретная причина найдена
+в actual runtime logs: same browser admin получил native base_model_read_denied
+для goal584-budget-admin → goal584-usage; Functions затем логирует
+Service task could not be verified(native_task_unavailable). Service Pipe был
+вызван, значит flags/scheduler для этого attempt не являются причиной.
+Native check_model_access/has_base_model_access требует owner/READ на registered
+base даже у admin; current freshadmin не имеет этого явного grant.
+Fixture fix готов: только freshadmin READ на source base и target gpt-6-luna.
+Actual native ACL+Pipe replay: preset-only deny; base-only target deny;
+оба READ →1dispatch leaf, прежние actors сохраняют доступ.28testsPASS,
+independent review PASS/ещё28PASS0skip/network; owner/grants/params/meta сохранены,
+private journal/readback и partial fail/nonresume проверены. Источник изменений
+только provision_admin.py+existingtest, без product policy/route change.
+ServicePipe/product policy/global bypass не меняются. Настройка нового pricing gate совместима с обычными admitted
+вызовами; native-image selected auth22tests PASS,45guard+1CLI0skip.
+True server opt-in отказ на реальном DB admission отдельно ещё не квалифицирован.
+Artifact13654112586 скачан один раз:1175134B/92unique/SHA256
+`3efb981d3f636ddc6845a985be10d27fc8699bc51d7f3d829f7601bd5d9b3ad6`.
+Root full reader PASS54build/72sourcepins; ordinary/continuation и cleanup5images
+подтверждены. Reader ожидает22auth на основании reviewed3newmethods, а не19.
+Предыдущие native saved-browser predicates проходят, admin financial/context
+после failing partition не выполняются. Terminal/unsafe zero не активированы,
+production/paid API/working routes не меняются. Evidence `office93-review/`,
+`office93-admin-service-triage/`. Следующий шаг — native ACL source+target replay,
+один existing94run на reviewed fixture fix; без weakening.
+До94 зафиксированы пределы и lifecycle: existing workflow55min/step-specific
+timeouts; preflight20GiB disk/6GiB RAM/7GiB Docker; прежние6services суммарно
+5.875GiB memory/4.25CPU/1728PIDs, native component container1GiB/256PIDs.
+Наблюдение — exact run/job native state; адресная остановка — gh run cancel
+только этого ID. После остановки нужны terminal job и task-owned cleanup receipt
+(OWNED labels/project и actual image IDs); без receipt очистка явно unconfirmed.
+Контрольная адресная отмена при45min оставляет10min до job timeout для cleanup.
+Возврат/таймаут инструмента не означает окончания, новый конфликтующий run не
+запускается до terminal. Production/чужие ресурсы не затрагиваются.
+**Предыдущий прогон Office92, завершён:**
 [run42570216965](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42570216965),
 exact head `80cf8dd861276c5aecb694aca79486a981f20c72`, job129005636486,
 dispatch09.11 05:57:33UTC, terminal FAILURE на14/verify,1–13SUCCESS,
@@ -108,6 +140,14 @@ Manifest/config metadata official image проверены: exact revision со�
 patch требует механической смены соседнего контекста. Image installed bytes,
 новый guard/callback, native dependencies и runtime не квалифицированы.
 Evidence `lts1083-qualification-scope/`, `lts1083-artifact-scope/`.
+Local candidate bundle `lts1083-calendar-candidate/` теперь подготовлен:
+existing validate_delta/compile/git apply+reverse PASS, ровно2replacement AST
+совпадают с approved1.105 outcome; adjacent native decorator сохранён.
+PatchSHA `a33b486864668f60f8b82d2dc5d88fa9ccbe06e4a67339d791d98b110e67488d`,
+manifestSHA `fe8efb112cd8f53b1fefbadae6a695a01be56a59a2def2df41243a2d5905bed6`.
+Это local source preparation, не tracked version/build/route change. Остались
+explicit selection в existing artifact owners, exact image export/cold imports,
+genuine CC callback/Logging/SLP component и отдельный native runtime proof.
 
 Обязательные остатки: принять admin verify и изменение лимита из Rich UI;
 доказать полный delegated Office context/расход и Terra quota refusal;

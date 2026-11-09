@@ -2,6 +2,7 @@
 import ast
 import asyncio
 import copy
+import datetime as datetime_module
 from contextlib import redirect_stdout
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from decimal import Decimal
 import hashlib
 import importlib.util
 import json
+import logging
 from io import StringIO
 import os
 from pathlib import Path
@@ -16,7 +18,8 @@ import stat
 import sys
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from types import ModuleType, SimpleNamespace
+from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -40,6 +43,33 @@ load("employee_budget_admin_client", BUDGETS / "admin_client.py")
 p = load("goal584_provision_admin_under_test", HERE / "provision_admin.py")
 import prove_native_budgets as N
 IDS = [f"{n:08d}-1111-4111-8111-111111111111" for n in range(1, 7)]
+
+
+def native_admin_access_owners():
+    """Exact pinned native UserModel and source/base access owners; DB remains IO."""
+    from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator
+    root = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT',
+        str(HERE.parents[1] / 'local/goal584/cost-display/open-webui/backend/open_webui')))
+    if not root.exists(): root = Path('/app/backend/open_webui')
+    namespace = dict(BaseModel=BaseModel, Field=Field, ConfigDict=ConfigDict, model_validator=model_validator,
+        field_validator=field_validator, datetime=datetime_module, log=logging.getLogger('native-admin-access-proof'))
+    sources = (
+        ('models/users.py', '143e949b172252c45ae1cbe7d5f7bfc3460375fa49b203f4dbc36c6128d68bc3',
+         {'UserSettings', '_DEFAULT_PROFILE_IMAGE_URL', 'UserModel'}),
+        ('utils/access_control/__init__.py', 'aed18ea3b7788597a8b4eaf741d32e07b0244bc390ab792e44bda611d324b568',
+         {'has_base_model_access'}),
+        ('utils/models.py', '20d6ad7ef8d62b521cf46d2224ac4ff83998dadbfcb90d7105da3c14cc468690', {'check_model_access'}),
+    )
+    for relative, pin, names in sources:
+        raw = (root / relative).read_bytes().replace(b'\r\n', b'\n')
+        assert hashlib.sha256(raw).hexdigest() == pin, relative
+        nodes = [node for node in ast.parse(raw).body if getattr(node, 'name', None) in names
+            or isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in names for t in node.targets)]
+        assert len(nodes) == len(names), relative
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), str(root / relative), 'exec',
+             flags=__import__('__future__').annotations.compiler_flag), namespace)
+    namespace['UserModel'].model_rebuild(_types_namespace=namespace)
+    return namespace
 
 
 def fixture():
@@ -384,7 +414,8 @@ class UnknownAdminProvisionTests(unittest.TestCase):
             'native_keys': [{'key': 'sk-old-private-' + str(i)} for i in range(4)],
             'cost_display': {'stage': 'setup_complete'}, 'cost_reader': {'key': self.wire.viewer}}
         self.office = {'stage': 'setup_complete', 'admin': copy.deepcopy(self.common['admin']),
-                       'users': [{'id': IDS[3], 'token': 'office-user-session'}]}
+                       'users': [{'id': IDS[3], 'token': 'office-user-session'}],
+                       'service_fixture': {'target_model_id': 'gpt-6-luna'}}
         self.unknown = {'stage': 'setup_complete', 'admin': copy.deepcopy(self.common['admin']),
                         'users': [{'id': IDS[4], 'token': 'unknown-user-session'}], 'unknown_gui_setup': {'models': {}}}
         self.new_id, self.new_token = IDS[5], 'new-admin-private-session'
@@ -395,8 +426,12 @@ class UnknownAdminProvisionTests(unittest.TestCase):
         self.workspace = {alias: {'id': alias, 'name': alias, 'base_model_id': None, 'is_active': True,
             'params': {'max_tokens': 16, 'custom_params': {'store': False}}, 'meta': {'filterIds': [p.FILTER_ID]},
             'access_grants': [{'principal_type': 'user', 'principal_id': IDS[4], 'permission': 'read'}],
-            'user_id': IDS[2], 'write_access': True} for alias in self.U.ALIASES}
+            'user_id': IDS[2], 'write_access': True, 'updated_at': 10, 'version_id': 'native-stable-revision'} for alias in self.U.ALIASES}
         self.unknown['unknown_gui_setup']['models'] = copy.deepcopy(self.workspace)
+        self.workspace['gpt-6-luna'] = {'id': 'gpt-6-luna', 'name': 'Office service target', 'base_model_id': None,
+            'is_active': True, 'params': {'max_tokens': 1000}, 'meta': {'capabilities': {'builtin_tools': False}},
+            'access_grants': [{'principal_type': 'user', 'principal_id': IDS[3], 'permission': 'read'}],
+            'user_id': IDS[2], 'write_access': True, 'updated_at': 10, 'version_id': 'native-stable-revision'}
         self.valves = {'ledger_base_url': 'http://proxy:4000', 'ledger_read_key': self.wire.viewer,
                        'read_wait_seconds': 8.0, 'default_budget_template': None, 'unrelated': {'keep': True}}
         self.functions = {p.FILTER_ID: {'id': p.FILTER_ID, 'user_id': IDS[2], 'updated_at': 1, 'type': 'filter',
@@ -448,6 +483,13 @@ class UnknownAdminProvisionTests(unittest.TestCase):
         if route == '/api/v1/models/create':
             assert body['id'] not in self.workspace
             self.workspace[body['id']] = copy.deepcopy(body) | {'user_id': uid, 'write_access': True}
+            return 200, self.workspace[body['id']]
+        if route == '/api/v1/models/model/update':
+            assert role == 'admin' and uid == self.workspace[body['id']]['user_id']
+            self.workspace[body['id']] = {**self.workspace[body['id']], **copy.deepcopy(body)}
+            self.workspace[body['id']]['updated_at'] = 20
+            self.workspace[body['id']]['access_grants'] = [{**grant, 'id': 'native-new-row-' + str(index),
+                'created_at': 20} for index, grant in enumerate(body['access_grants'])]
             return 200, self.workspace[body['id']]
         if route == '/api/v1/tools/create':
             assert body['id'] not in self.tools
@@ -503,6 +545,79 @@ class UnknownAdminProvisionTests(unittest.TestCase):
         self.assertNotIn(self.new_token, json.dumps(safe))
         self.assertNotIn(self.wire.operator, json.dumps(safe))
         p.unknown_snapshot(self.webui, self.common, self.office, self.unknown, selected)
+
+    def test_native_base_acl_and_pipe_binding_use_only_the_two_fixture_read_grants(self):
+        before = copy.deepcopy(self.workspace)
+        self.setup_admin(); selected = p.read_private(self.path)
+        allowed = (self.U.ALIASES[0], 'gpt-6-luna')
+        for mid, old in before.items():
+            wanted = p.model_body(old)
+            if mid in allowed:
+                wanted['access_grants'].append({'principal_type': 'user', 'principal_id': self.new_id, 'permission': 'read'})
+            self.assertEqual(p.model_grant_changes(wanted, p.model_body(self.workspace[mid])), [])
+            self.assertEqual(self.workspace[mid]['user_id'], old['user_id'])
+        journal = [step for step in selected['journal'] if isinstance(step, dict) and step.get('stage') == 'native-model-read-grant']
+        self.assertEqual([step['model_id'] for step in journal], list(allowed))
+        self.assertTrue(all(step['returned'] and step['readback'] == self.workspace[step['model_id']] for step in journal))
+        owners = native_admin_access_owners()
+        service = load('unknown_admin_actual_service_fixture', BUDGETS / 'tests/test_service_pipe.py')
+        async def native_proof():
+            for mode in ('before', 'base_only', 'after'):
+                rows = copy.deepcopy(self.workspace)
+                for mid in allowed:
+                    if mode == 'before' or mode == 'base_only' and mid == 'gpt-6-luna': rows[mid] = copy.deepcopy(before[mid])
+                case = service.ServicePipeTests(); await case.asyncSetUp()
+                try:
+                    user = owners['UserModel'](id=self.new_id, role='admin', name='Synthetic fresh admin',
+                        email='admin@example.invalid', last_active_at=1, updated_at=1, created_at=1)
+                    self.assertIs(type(user), owners['UserModel'])
+                    case.user = user
+                    case.users.get_user_by_id.side_effect = lambda uid: user if uid == self.new_id else None
+                    case.chat.user_id = self.new_id
+                    case.model['id'] = case.own_config['target_model_id'] = case.pipe.valves.target_model_id = 'gpt-6-luna'
+                    source = {'id': p.MODEL_ID, 'owned_by': 'openai', 'info': copy.deepcopy(rows[p.MODEL_ID])}
+                    case.request.app.state.MODELS = {p.MODEL_ID: source, 'gpt-6-luna': case.model}
+                    case.request.app.state.OPENAI_MODELS = {'gpt-6-luna': {'urlIdx': 2}}
+                    records = {mid: SimpleNamespace(**row) for mid, row in rows.items()}
+                    case.models.get_model_by_id.side_effect = lambda mid, **kwargs: records.get(mid)
+                    async def access_query(**kwargs):
+                        row = rows.get(kwargs['resource_id'], {})
+                        return ('user', kwargs['user_id'], 'read') in p.grant_set(row)
+                    access = SimpleNamespace(has_access=access_query)
+                    access_module = ModuleType('native_access_grants_io'); access_module.AccessGrants = access
+                    sys.modules['open_webui.models.access_grants'] = access_module
+                    owners.update(Models=case.models, AccessGrants=access,
+                        Groups=SimpleNamespace(get_groups_by_member_id=AsyncMock(return_value=[])))
+                    case.modules['open_webui.utils.models'].check_model_access = owners['check_model_access']
+                    case.background('follow_up_generation', source=source)
+                    case.request.state.metadata['user_id'] = self.new_id
+                    case.metadata['user_id'] = self.new_id
+                    if mode != 'after':
+                        with self.assertRaises(service.extension.ServiceTaskError) as caught:
+                            await case.invoke(__user__=user.model_dump(), __task__='follow_up_generation')
+                        self.assertEqual(caught.exception.code, 'native_task_unavailable')
+                        case.dispatch.assert_not_awaited()
+                    else:
+                        result = await case.invoke(__user__=user.model_dump(), __task__='follow_up_generation')
+                        self.assertIs(result, case.response); case.dispatch.assert_awaited_once()
+                        for uid, mid in ((IDS[4], self.U.ALIASES[0]), (IDS[3], 'gpt-6-luna')):
+                            old_user = owners['UserModel'](id=uid, role='user', name='Existing actor',
+                                email='actor@example.invalid', last_active_at=1, updated_at=1, created_at=1)
+                            await owners['check_model_access'](old_user, {'id': mid})
+                finally: case.doCleanups()
+        self.loop.run_until_complete(native_proof())
+
+    def test_read_grant_failure_retains_private_journal_and_cannot_resume(self):
+        self.fault = lambda method, route, body: (500, {}) if route == '/api/v1/models/model/update' else None
+        with self.assertRaises(p.ProofError): self.setup_admin()
+        selected = p.read_private(self.path)
+        self.assertEqual(selected['stage'], 'setup_failed')
+        self.assertEqual(selected['journal'][-1]['stage'], 'native-model-read-grant')
+        self.assertIs(selected['journal'][-1]['returned'], False)
+        self.assertFalse(self.handoff.exists())
+        self.calls.clear()
+        with self.assertRaises(p.ProofError): self.setup_admin()
+        self.assertEqual(self.calls, [])
 
     def test_optin_cli_handoff_and_safe_receipt_use_separate_state_without_legacy_snapshot(self):
         office_path = Path('/proof-private/office-state.private.json')
