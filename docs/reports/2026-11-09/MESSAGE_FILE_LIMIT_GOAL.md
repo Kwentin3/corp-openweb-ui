@@ -1,6 +1,6 @@
 # GOAL: десять новых файлов на сообщение
 
-Статус: frontend и продуктовый путь приняты; выпуск runtime image в работе.
+Статус: реализация и runtime image готовы; переключение production не выполнено.
 Действующий контракт уточнён пользователем 9 ноября 2026 года.
 
 ## Результат и границы
@@ -49,6 +49,9 @@ File, контекст, обработчики загрузки, media и сущ
 Не проводить тяжёлую сборку на production. Перезапуск и переключение production
 выполняются только при отдельно установленном разрешении. Перед таким шагом
 подготовить конкретный проверенный кандидат и откат.
+
+Последующий запрос пользователя «финаль пр.» разрешает финализацию и слияние
+проверенного PR. Переключение работающего портала остаётся отдельным шагом.
 
 ## Проверенное состояние и следующий шаг
 
@@ -121,18 +124,59 @@ digest и inspected image identity до публикации. Проверки �
 
 Оба workflow на `5c00b941` дважды завершились без создания jobs: GitHub указал
 `Internal server error` с correlation IDs. Это не результат выполнения тестов
-или сборки. Повтор того же commit уже выполнен; готового нового image пока нет.
+или сборки. После checkpoint на `9371da82` завершились успешно
+[полная frontend/runtime сборка и экспорт](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42674270372)
+и [Active CI](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42674270387).
+
+Финальный артефакт собран из CI merge commit
+`4a31d57d63aa34836af9cf7d0a62ca6a19394d9c`; build identity:
+`0732d1b888db11bf46a20c524980cb6d540f2c55898a89a093f3dc3d51b5f712`.
+После скачивания заново сверены все 4850 файлов, их размеры, SHA-256, полная
+опись и `_app/version.json`. Upstream commit, source archive, manifest входов
+и frontend source fingerprint совпадают с уже принятым через браузер кандидатом.
+Между ним и финальной сборкой исполняемые исходники не менялись; повтор дорогой
+модельной приёмки не нужен. Эквивалентность независимо проверена reviewer.
+
+Полный image artifact `13699567842` передан на сервер; размер ZIP 1849618458 байт,
+SHA-256 `2929f46ff76dbd7acdbc46af50d72ddb87d34e86a7f02b5a8e0ed9aaea0c59ba`.
+Проверены digest ZIP, точный набор трёх файлов, SHA256SUMS, source commit и backend
+receipt. Первый native `docker image load` превысил 240 секунд. Единственный
+повтор с пределом 600 секунд завершился успешным `Loaded image`; сборки на
+production нет. Фактически импортированный immutable image:
+`sha256:c5a750b34ae49fd37149e33f73a68e8f7707992507f6b435e85d8c8f29c72b8e`.
+Release tag: `corp-openwebui/0122:message-files-20261109`.
+
+RootFS и платформа точно совпали с CI receipt. Текущий Docker inspect опускает
+девять пустых legacy-полей: `Hostname`, `Domainname`, `Image` (пустые строки),
+`Tty`, `AttachStdin`, `AttachStdout`, `AttachStderr`, `OpenStdin`, `StdinOnce`
+(`false`). Допущено только отсутствие этих конкретных default-значений; остальные
+Config, Env и Cmd сравниваются строго. Ограниченный read-only/no-network контейнер
+проверил все 4850 frontend-файлов/build identity и 288 backend-файлов/SHA выше;
+после проверки удалён. Reviewer независимо проверил evidence и нормализацию.
 
 Нативный deployment owner подтверждён по container labels: прежние три Compose
 файла и защищённый `final-01/compose.env`; его image selector соответствует
 работающему image. Build identity в runtime env не переопределяется. Применять
 `launch_stage.py` к работающему production нельзя: он предназначен для first boot.
+Защищённая копия действующего selector/env и resolved Compose сохранена server-local;
+SHA-256 копии env совпал с исходным. Сравнение native Compose при выборе кандидата
+показало единственный diff: `/services/openwebui-0122/image`. Эта проверка повторена
+для точного immutable ID импортированного image, с тем же результатом. Конкретная команда
+отката с прежним immutable image сохранена в release receipt; reviewer проверил
+подготовку отката. Working image, StartedAt, RestartCount=0 и healthy не менялись.
 После разрешения использовать только существующий Compose owner с `--no-deps`,
 `--no-build`, `--pull never` для сервиса WebUI. Откат — прежний image selector на
 той же базе/volume; восстановление старой базы не требуется и не выполняется.
 
-Остаются: завершить CI image build/export, проверить и импортировать готовый
-image без сборки на production, подготовить защищённую копию selector и получить
-разрешение на переключение WebUI.
-После разрешённого переключения обязательна обычная пользовательская проверка.
-GOAL целиком не завершён. Следующий шаг — CI готового runtime image.
+Подтверждено отсутствие своих image-load процессов и проверочного контейнера;
+временная дублирующая ZIP-копия и generic candidate tag удалены. Проверенный
+runtime archive, release image, защищённый rollback и изолированная рабочая копия
+сохранены намеренно до решения о выпуске. Исходные browser/transport fixtures
+убраны; чужой WIP и исходный running image сохранены.
+
+Остаются: разрешение на краткое переключение работающего WebUI, само переключение
+через существующий Compose owner, обычная пользовательская проверка установленного
+build (10 + 10, отказ 11, доступ к прежним источникам), проверка healthy и уборка
+своих новых fixtures. После приёмки — безопасно закрыть временные ресурсы выпуска,
+сохранив принятые evidence и необходимый rollback.
+GOAL целиком не завершён. Следующий шаг — разрешение пользователя на переключение.
