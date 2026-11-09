@@ -25,6 +25,52 @@ import prove_unknown_usage_gui as C
 import prove_service_tasks as provider_owner
 
 
+def native_admin_observation(user, key, key_hash, rows):
+    """Exact native KeyInfo serialization and P.snapshot; DB/enrichment IO leaves."""
+    import ast
+    import importlib.util
+    from types import SimpleNamespace
+    from employee_budget_admin_contract import EmployeeBudget, ModelBudget
+    from employee_budget_assignment import assignment_alias, assignment_metadata
+    source_root = Path(os.environ.get('GOAL584_LITELLM_SOURCE_ROOT',
+        str(HERE.parents[1] / 'local/goal584/litellm/upstream')))
+    source = source_root / 'litellm/proxy/management_endpoints/key_management_endpoints.py'
+    if not source.is_file():
+        source = Path(importlib.util.find_spec('litellm').origin).parent / 'proxy/management_endpoints/key_management_endpoints.py'
+    raw = source.read_bytes().replace(b'\r\n', b'\n')
+    assert sha256(raw).hexdigest() == 'c9c644c2a93e20ef9d850454ddb4b23bf1db4823b66be415b9a13a5da045b4de'
+    owner = next(n for n in ast.parse(raw).body if isinstance(n, ast.AsyncFunctionDef) and n.name == 'info_key_fn')
+    statements = next(n.body for n in owner.body if isinstance(n, ast.Try))
+    selected = [n for n in statements if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)
+                and n.target.id in ('key_info_dict', 'key_token_hash')]
+    selected += [next(n for n in statements if isinstance(n, ast.Return))]
+    assert len(selected) == 3
+    function = ast.AsyncFunctionDef(name='native_projection', args=ast.arguments(posonlyargs=[], args=[],
+        kwonlyargs=[], kw_defaults=[], defaults=[]), body=selected, decorator_list=[])
+    record = copy.deepcopy(key)
+    alias, uid = record['models'][0], user['user_id']
+    record.update(key_alias=assignment_alias(uid, alias), metadata=assignment_metadata(alias), team_id=None)
+    async def attach(info, _): return info
+    namespace = dict(key=key_hash, key_info=SimpleNamespace(model_dump=lambda: {**copy.deepcopy(record), 'token': key_hash}),
+                     attach_object_permission_to_dict=attach, prisma_client=None)
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[function], type_ignores=[])), str(source), 'exec',
+        flags=__import__('__future__').annotations.compiler_flag), namespace)
+    payload = asyncio.run(namespace['native_projection']())
+    assert payload['key'] == key_hash and 'token' not in payload['info']
+    model = ModelBudget(alias, key_hash, record['key_alias'], Decimal(str(record['max_budget'])),
+        Decimal(str(record['spend'])), record['budget_duration'], record['budget_reset_at'], record.get('blocked'))
+    budget = EmployeeBudget(uid, Decimal(str(user['max_budget'])), Decimal(str(user['spend'])),
+        user['budget_duration'], user['budget_reset_at'], (model,))
+    def ok(method, route, *, query):
+        assert method == 'GET' and route == '/key/info' and query == {'key': key_hash}
+        return copy.deepcopy(payload)
+    native = SimpleNamespace(user_info=lambda actual: copy.deepcopy(user) if actual == uid else None,
+                             ok=ok, logs=lambda actual: copy.deepcopy(rows) if actual == uid else None)
+    snap = C.P.snapshot(native, budget)
+    assert 'token' not in snap['keys'][alias]
+    return {'budget': C.wire_json(C.asdict(budget)), 'snapshot': snap}
+
+
 class CollectorTests(unittest.TestCase):
     def setUp(self):
         setup_tests.UnknownGuiSetupTests.setUp(self)
@@ -576,9 +622,10 @@ class AdminCollectorTests(unittest.TestCase):
         cost = asyncio.run(read())
         user = {'user_id': data.admin, 'user_role': 'internal_user', 'models': [], 'max_budget': 2, 'spend': 0,
                 'budget_duration': '30d', 'budget_reset_at': '2026-12-01T00:00:00Z'}
-        key = {'token': data.key, 'user_id': data.admin, 'models': [C.P.ALIASES[0]], 'key_alias': 'native-known-assignment',
+        key = {'user_id': data.admin, 'models': [C.P.ALIASES[0]], 'key_alias': 'native-known-assignment',
                'budget_duration': '30d', 'budget_reset_at': '2026-12-01T00:00:00Z', 'spend': 0, 'max_budget': 2, 'blocked': False}
-        before = {'own': {'native': {'user': user, 'keys': {C.P.ALIASES[0]: key}, 'rows': []}},
+        actual = native_admin_observation(user, key, data.key, [])
+        before = {'own': {'budget': actual['budget'], 'native': actual['snapshot']},
                   'unknown': {'durable-marker': 'retained'}, 'old': {'staff': 'unchanged'}}
         after = copy.deepcopy(before); after['own']['native']['rows'] = rows
         after['own']['native']['user']['spend'] = after['own']['native']['keys'][C.P.ALIASES[0]]['spend'] = .332
@@ -591,13 +638,18 @@ class AdminCollectorTests(unittest.TestCase):
             C.admin_native(before, after, main, replace(cost, root_chat_id=str(uuid4())), **kwargs)
         with self.assertRaisesRegex(C.P.ProofError, 'cost_snapshot'):
             C.admin_native(before, after, main, replace(cost, root_answer_id=str(uuid4())), **kwargs)
-        for mutation in ('counter', 'foreign_scope', 'service_charge', 'old_marker', 'extra_row'):
+        for mutation in ('counter', 'foreign_scope', 'service_charge', 'old_marker', 'extra_row',
+                         'key_rotation', 'wrong_model', 'wrong_owner', 'duplicate_assignment'):
             changed, calls = copy.deepcopy(after), copy.deepcopy(main)
             if mutation == 'counter': changed['own']['native']['user']['spend'] = .4
             elif mutation == 'foreign_scope': calls[0]['verified_cost_scope']['user_id'] = str(uuid4())
             elif mutation == 'service_charge': calls[0]['verified_cost_scope']['category'] = 'service'
             elif mutation == 'old_marker': changed['unknown'] = {}
-            else: changed['own']['native']['rows'].append(copy.deepcopy(rows[0]))
+            elif mutation == 'extra_row': changed['own']['native']['rows'].append(copy.deepcopy(rows[0]))
+            elif mutation == 'key_rotation': changed['own']['budget']['models'][0]['key_hash'] = 'e' * 64
+            elif mutation == 'wrong_model': changed['own']['budget']['models'][0]['model'] = 'foreign-model'
+            elif mutation == 'wrong_owner': changed['own']['budget']['user_id'] = str(uuid4())
+            else: changed['own']['budget']['models'].append(copy.deepcopy(changed['own']['budget']['models'][0]))
             with self.subTest(mutation=mutation), self.assertRaises((C.P.ProofError, ProtocolError)):
                 C.admin_native(before, changed, calls, cost, **kwargs)
 
@@ -622,9 +674,11 @@ def test_admin_uses_existing_actual_native_service_finance_owner(component, monk
     from types import SimpleNamespace
     from mock_provider import ADMIN_USER_REQUEST
     before, after, terms = T.service_financial_fixture(component, monkeypatch)
-    # The shared finance fixture omits the native /key/info token field, which
-    # the whole-turn wire owner also binds to the observed authenticated key.
-    before['key']['token'] = after['key']['token'] = terms['key_hash']
+    raw_before = native_admin_observation(before['user'], before['key'], terms['key_hash'], before['rows'])
+    raw_after = native_admin_observation(after['user'], after['key'], terms['key_hash'], after['rows'])
+    retained = copy.deepcopy((raw_before, raw_after))
+    before, after = C.admin_service_finance(raw_before, raw_after)
+    assert (raw_before, raw_after) == retained
     call = copy.deepcopy(terms['dispatch'])
     wire = {'model': 'gpt-6-luna', 'input': [{'type': 'message', 'role': 'user', 'content': [
         {'type': 'input_text', 'text': ADMIN_USER_REQUEST}]}]}
@@ -643,6 +697,13 @@ def test_admin_uses_existing_actual_native_service_finance_owner(component, monk
     with pytest.raises(C.P.ProofError): R.verify_service_turn(call, before, changed, {'followUps': followups}, **kwargs)
     changed = copy.deepcopy(call); changed['verified_cost_scope']['actor_id'] = str(uuid4())
     with pytest.raises(C.P.ProofError): R.verify_service_turn(changed, before, after, {'followUps': followups}, **kwargs)
+    for mutation in ('key_rotation', 'wrong_model', 'wrong_owner', 'duplicate_assignment'):
+        changed = copy.deepcopy(raw_after)
+        if mutation == 'key_rotation': changed['budget']['models'][0]['key_hash'] = 'e' * 64
+        elif mutation == 'wrong_model': changed['budget']['models'][0]['model'] = 'foreign-model'
+        elif mutation == 'wrong_owner': changed['budget']['user_id'] = str(uuid4())
+        else: changed['budget']['models'].append(copy.deepcopy(changed['budget']['models'][0]))
+        with pytest.raises(C.P.ProofError): C.admin_service_finance(raw_before, changed)
 
 
 if __name__=='__main__':unittest.main()

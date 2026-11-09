@@ -8,19 +8,34 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Office94 запущен 09.11 07:14:53UTC:**
+**Последний прогон Office94, завершён:**
 [run42578096503](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42578096503),
 exact head `330a019faa29969517e93a17fad70e986fca4a56`, workflow_dispatch.
-Job129030276505, native status=in_progress на последней проверке.
-Это один run reviewed native
-source+target READ fixture fix после actual93 ACL diagnosis; предыдущие CI
-проверены terminal перед dispatch. Контрольная отмена exact42578096503 при
-07:59:53UTC, hard job timeout08:09:53UTC; отмена через
-`gh run cancel 42578096503 --repo Kwentin3/corp-openweb-ui`
-и затем native job/owned cleanup verification, без повторного конфликтующегоrun.
-Следующий шаг — terminal result и source-bound artifact; не считать source28
-тестов подтверждением browser/service/финансовой приёмки.
-**Последний прогон Office93, завершён:**
+Job129030276505, dispatch09.11 07:14:53UTC, terminal FAILURE14/verify,
+1–13SUCCESS,15SKIPPED, diagnostics/cleanup/uploadSUCCESS. Живого CI нет;
+запланированная45min отмена не потребовалась, cleanup подтверждён.
+Artifact13657090043 скачан один раз:1176074B/92unique/SHA256
+`32ae31ca6fa0133c23331848b173ff2e197192e3f1d2edd53ca09973e8a7eaa8`.
+Root full reader PASS54build/72sourcepins/45guard+22auth+1CLI0skip,
+ordinary/continuation/cleanup5images подтверждены. Native admin setup/browser
+прошли, но admin verify теперь KeyError/unavailable, не прежний count predicate.
+Raw missing key в safe receipt не раскрыт. Отдельно найден deterministic
+producer/consumer gap: pinned native /key/info удаляет info.token и возвращает
+запрошенный hash наверху; P.snapshot проверяет его по BudgetDTO и хранит rawinfo.
+admin_native ошибочно требует rawinfo.token; service finance view имеет ту же
+предпосылку. Узкий2file consumer fix готов: existing BudgetDTO hashes/строгая
+before-after assignment identity и service view adapter, без изменения raw
+snapshot/product ledger/provenance/financial guards.38testsPASS и independent
+reviewPASS/ещё38PASS0skip/network; legacyAST на тех же exactnative-shaped operands
+воспроизводит KeyError, candidate проходит. TestPID16484/children terminal,
+остаточных участников нет. Evidence `office94-admin-keyinfo-{fix,review}/`.
+Exact actual94 missing field отдельно не экспортирован: не выдавать source
+reproduction за captured traceback. Evidence `office94-review/`,
+`office94-admin-keyinfo-fix/`. Следующий шаг — native serialization rehearsal,
+один bounded95run на reviewed consumer fix. Bounds те же55min/6services;
+наблюдение exactnative run/job, адресная отмена при45min, terminal+owned cleanup
+readback обязательны. Перед dispatch предыдущие три runs подтверждены terminal.
+**Предыдущий прогон Office93, завершён:**
 [run42572740432](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42572740432),
 exact head `4241466e0d40a34d0046b209125ca3efe28c355b`, workflow_dispatch,
 job129013590757, dispatch09.11 06:23:32UTC; terminal FAILURE14/verify,
@@ -161,16 +176,20 @@ manifestSHA `fe8efb112cd8f53b1fefbadae6a695a01be56a59a2def2df41243a2d5905bed6`.
 explicit selection в existing artifact owners, exact image export/cold imports,
 genuine CC callback/Logging/SLP component и отдельный native runtime proof.
 Artifact selection source изолирован в worktree `corp-openweb-ui-goal584-lts`,
-branch `agent/goal584-lts-native`, base4241466e:6files,31+15+3source checksPASS;
-independent review выполняется, actual image/cold imports/runtime НЕ выполнены.
+branch `agent/goal584-lts-native`, commit083a173749139882ff85ed5023151bc56f8d3c8f:
+6files,31+15+3source checksPASS и independent31+15+3PASS, worktree clean.
+Это source/artifact acceptance; actual image/cold imports/runtime НЕ выполнены.
 Перед будущим image launch обязателен native addressed stop/participant readback:
 generated Docker command пока без name/cidfile, --rm не доказывает завершение.
 
 Negative Office source изолирован в `corp-openweb-ui-goal584-quota`, branch
-`agent/goal584-office-quota`, base4241466e:4existingfiles, opt-in only.
+`agent/goal584-office-quota`, commit313e955ba5ac7202626aa5bbbcef7e3fb0d58b32:
+4existingfiles, opt-in only; source/component accepted после independent review,
+79PASS+both cold imports и independent79+both coldPASS, worktree clean.
 Первый79PASS freeze признан непринятым из-за host Playwright import из proxy;
-исправляется pure-validator composition в existing owners, оба artifact closure
-(host без aiohttp / proxy без Playwright) обязательны до review.
+FINAL superseding freeze исправляет pure-validator composition в existing owners;
+host без aiohttp / proxy без Playwright проверены, old freeze сохранён unaccepted.
+Ни LTS, ни quota commits пока не merged/pushed в DELIVERY/runtime branch.
 Current source-required trace28capture+negative8=36 превышает old32; новый
 quota-baseline обязан отказать ДО capwrite, до отдельного finite bound/wiring.
 4MiB hard byte limit сохранён, полного actual capture byte evidence ещё нет.
