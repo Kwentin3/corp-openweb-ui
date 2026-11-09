@@ -209,6 +209,89 @@ def test_cli_error_does_not_export_raw_private_exception(monkeypatch, capsys):
     assert 'private-token' not in json.dumps(value)
 
 
+def test_quota_status_envelope_uses_actual_source_and_never_exports_private_result():
+    from prove_pricing_snapshots import no_credentials
+    data=native_io();state={'stage':'verified_readback','prepared_sha256':R.proof.digest(data.office),
+        'quota':{'stage':'baseline_ready','result':{'private':'sk-private-result-must-stay-in-journal'}}}
+    d={'read_private':lambda path:data.office if path==R.OFFICE else state,'no_credentials':no_credentials}
+    value=R.run('quota-status',d)
+    assert value['quota_present'] is True and value['quota_stage']=='baseline_ready'
+    assert value['source_sha256']==R.sha256(Path(R.__file__).read_bytes()).hexdigest()
+    assert value['native_office_accepted'] is False and 'result' not in value
+    assert 'private-result' not in json.dumps(value)
+
+
+@pytest.mark.parametrize('mode',['success','failed_complete','timeout','empty','wrong_source','wrong_phase','wrong_exit','accepted'])
+def test_attached_quota_phase_requires_real_owner_source_and_native_completion(monkeypatch,mode):
+    import subprocess
+    fixture=SimpleNamespace(command=['docker','compose','--project-name','owned'])
+    marks=[];events=[]
+    def leaf(command,**kwargs):
+        events.append(command)
+        assert command==fixture.command+['exec','-T','proxy','python','-B','/proof/prove_office_delegation_readback.py','--phase','quota-baseline']
+        assert kwargs=={'capture_output':True,'timeout':75}
+        if mode=='timeout':raise subprocess.TimeoutExpired(command,75)
+        value={'schema':1,'phase':'quota-baseline','passed':mode!='failed_complete','native_office_accepted':False,
+            'source_sha256':R.sha256(Path(R.__file__).read_bytes()).hexdigest()}
+        if mode=='wrong_source':value['source_sha256']='f'*64
+        if mode=='wrong_phase':value['phase']='quota-restore'
+        if mode=='accepted':value['native_office_accepted']=True
+        code=1 if mode in ('failed_complete','wrong_exit') else 0
+        return subprocess.CompletedProcess(command,code,b'' if mode=='empty' else json.dumps(value).encode())
+    monkeypatch.setattr(R.subprocess,'run',leaf)
+    if mode in ('success','failed_complete'):
+        packet=R.host_quota_phase(fixture,'quota-baseline',marks.append,timeout=75)
+        assert packet['passed'] is (mode=='success') and marks==[True,False]
+    else:
+        with pytest.raises(N.ProofError,match='mutation_unconfirmed'):
+            R.host_quota_phase(fixture,'quota-baseline',marks.append,timeout=75)
+        assert marks==[True]
+    assert len(events)==1
+
+
+@pytest.mark.parametrize('mutation',[None,'foreign_actor','positive_chat','foreign_owner','still_active','wrong_session'])
+def test_quiesce_uses_actual_webui_owner_preserves_pre_stop_and_never_claims_product_tasks(monkeypatch,tmp_path,mutation):
+    monkeypatch.setattr(R,'PRIVATE',tmp_path)
+    data=native_io();actor=data.actor;chat=str(uuid4());positive=str(uuid4())
+    data.office['office_delegation_setup']['actor']['token']='actor-IO-token'
+    packet={'actor_id':actor,'chat_id':chat}
+    if mutation=='foreign_actor':packet['actor_id']=data.old
+    if mutation=='positive_chat':packet['chat_id']=positive
+    (tmp_path/'office-delegation-quota.private.json').write_text(json.dumps(packet))
+    state={'browser':{'chat_id':positive},'quota':{'stage':'baseline_ready','journal':['restrict_readback']}}
+    active=['actual-native-background'];events=[];writes=[]
+    class Transport:
+        def open(self,request,timeout):
+            nonlocal active
+            path=urlsplit(request.full_url).path;method=request.get_method();events.append((method,path))
+            assert timeout==20 and request.headers['Authorization']=='Bearer actor-IO-token'
+            if path=='/api/v1/auths/':return HttpResult({'id':actor,'role':'admin' if mutation=='wrong_session' else 'user'})
+            if path=='/api/v1/chats/'+chat:
+                return HttpResult({'id':chat,'user_id':data.old if mutation=='foreign_owner' else actor,
+                    'tasks':[{'id':'real-task','status':'pending'}]})
+            if method=='POST':
+                assert path=='/api/tasks/chat/'+chat+'/stop'
+                assert writes[-1]['quota']['cleanup']['before']['task_ids']==['actual-native-background']
+                if mutation!='still_active':active=[]
+                return HttpResult({'status':True})
+            assert path=='/api/tasks/chat/'+chat
+            return HttpResult({'task_ids':active})
+    webui=provision.WebUI();webui.opener=Transport()
+    d={'read_private':lambda path:json.loads(path.read_text()),'WebUI':lambda:webui,
+       'write_private':lambda path,value:writes.append(copy.deepcopy(value))}
+    if mutation:
+        with pytest.raises(N.ProofError):R.quota_quiesce(state,data.office,d)
+    else:
+        R.quota_quiesce(state,data.office,d)
+        assert state['quota']['cleanup']['before']['task_ids']==['actual-native-background']
+        assert state['quota']['cleanup']['after']=={'task_ids':[]}
+        assert state['quota']['cleanup']['saved_chat']['tasks'][0]['status']=='pending'
+        assert state['quota']['journal'][-1]=='quiesce_readback'
+    if mutation in ('foreign_actor','positive_chat','foreign_owner','wrong_session'):
+        assert not any(method=='POST' for method,path in events)
+    assert all(path.endswith(chat) or path.endswith(chat+'/stop') or path=='/api/v1/auths/' for method,path in events)
+
+
 def context_case(monkeypatch, tmp_path, *, quota=False):
     """Actual provider grammar, native Tasks and pinned serializer; Office IO leaves."""
     import io
@@ -428,8 +511,9 @@ def test_quota_denial_join_uses_actual_gateway_signed_native_422_not_an_illustra
     import test_capture_webui_auth as C
     from unittest.mock import patch
     groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True)
-    harness=C.CaptureContextsTests();asyncio.run(harness.asyncSetUp())
+    harness=C.CaptureContextsTests();module_guard=patch.dict(sys.modules);module_guard.start()
     try:
+        asyncio.run(harness.asyncSetUp())
         owner,req,invoke,proxy,errors,events,error_type=harness.native_denial()
         carrier=req.data['litellm_metadata']; req.data.clear()
         wire=copy.deepcopy(browser['denied_wire']);wire['model']=R.MODELS[1]
@@ -438,7 +522,7 @@ def test_quota_denial_join_uses_actual_gateway_signed_native_422_not_an_illustra
             with pytest.raises(error_type) as caught:asyncio.run(C.C.gateway_auth(req,owner.SECRET))
         assert caught.value is errors[0] and len([v for v in events if v[0]=='validate'])==1
         denied=C.C._read_locked()['requests'][0]
-    finally:harness.doCleanups()
+    finally:harness.doCleanups();module_guard.stop()
     actor,chat,answer=owner.USER,owner.ROOT_CHAT,owner.ROOT_ANSWER
     office['office_delegation_setup']['actor']['id']=actor
     for model in office['office_delegation_setup']['budget']['models']:
@@ -604,3 +688,119 @@ def test_complete_collector_rejects_financial_and_saved_context_divergence(tmp_p
     elif mutation == 'saved_reasoning': data['saved']['chat']['history']['messages'][data['browser']['answer_id']]['output'].pop()
     else: row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']['descriptor'] = {'deployment_id': 'wrong-terms'}
     with pytest.raises(N.ProofError): R.verify(**data)
+
+
+def quota_workflow():
+    import ast,yaml
+    path=Path(__file__).resolve().parents[2]/'.github/workflows/goal584-office-proof.yml'
+    workflow=yaml.safe_load(path.read_text(encoding='utf8'))
+    steps=workflow['jobs']['office-build-proof']['steps']
+    step=next(v for v in steps if v.get('name')=='Verify one exhausted Terra refusal after accepted positive delegation')
+    source=step['run'].split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]
+    return workflow,steps,ast.parse(source)
+
+
+def test_workflow_adds_only_bounded_negative_and_recovery_steps_after_unchanged_positive():
+    import ast,subprocess,yaml
+    root=Path(__file__).resolve().parents[2];workflow,steps,tree=quota_workflow()
+    old=yaml.safe_load(subprocess.check_output(['git','-c','gc.auto=0','show',
+        '66835414cf354bfd3e0933ade51855a271aae312:.github/workflows/goal584-office-proof.yml'],cwd=root,timeout=5))
+    names={'Verify one exhausted Terra refusal after accepted positive delegation',
+           'Recover only a completed quota mutation before owned Compose teardown'}
+    remaining=copy.deepcopy(workflow);remaining['jobs']['office-build-proof']['steps']=[v for v in steps if v.get('name') not in names]
+    assert remaining==old
+    positive=next(i for i,v in enumerate(steps) if v.get('name')=='Verify one ordinary delegated Office Send and native personal accounting')
+    assert steps[positive+1]['name'] in names and steps[positive+1]['timeout-minutes']==8
+    assert steps[positive+2]['name']=='Recover only a completed quota mutation before owned Compose teardown'
+    assert steps[positive+2]['timeout-minutes']==2 and 'always()' in steps[positive+2]['if']
+    assert workflow['jobs']['office-build-proof']['timeout-minutes']==55
+    main=next(n for n in tree.body if isinstance(n,ast.Try));body=ast.unparse(main)
+    assert body.index("setting('QUOTA_RESTORE_ARMED', True)")<body.index("baseline = phase(stage)")
+    assert "run(browser, fixture, base, build, revision, quota=True)" in body
+    assert 'browser.close()' in body and 'host_quota_restore(phase)' in body
+
+
+def test_actual_context_heredoc_uses_six_real_parent_inputs_and_native_batches_4_plus_2(monkeypatch,tmp_path):
+    import ast,hashlib
+    groups,office,browser,context,d,physical=context_case(monkeypatch,tmp_path,quota=True)
+    assert len(physical)==6
+    _,_,tree=quota_workflow();node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='collect_context')
+    prefix={'synthetic':True,'control':{'unchanged':True},'requests':[{'id':'prior','body':{'keep':'whole prefix'}}]}
+    service={'id':'actual-service-transport-leaf','body':{'model':'goal584-fake-office-service'}}
+    provider=dict(prefix,requests=copy.deepcopy(prefix['requests']+physical+[service]));original=copy.deepcopy(provider)
+    qualification=R.QUALIFICATION.read_bytes();output=tmp_path/'output';output.mkdir();(output/'qualification.safe.json').write_bytes(qualification)
+    batches=[];written=[];public=[]
+    expected=[[v for v in row['response']['output'] if v.get('type')=='reasoning'] for row in physical]
+    def native_context(base,build,revision,cases):
+        start=sum(len(v) for v in batches);assert cases==expected[start:start+4]
+        batches.append(copy.deepcopy(cases));return context['packets'][len(batches)-1]
+    namespace={'fixture':SimpleNamespace(native_context=native_context),'private':tmp_path,'out':output,
+        'base':'http://native-IO-leaf:8080','build':{'bound':'existing artifact IO'},'revision':'f'*40,
+        'digest':R.proof.digest,'hashlib':hashlib,'json':json,
+        'write_private':lambda path,value:written.append((path,copy.deepcopy(value))),
+        'public':lambda name,value:public.append((name,value))}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),'<actual-workflow-context>','exec'),namespace)
+    baseline={'provider_prefix_count':1,'provider_prefix_sha256':R.proof.digest(prefix)}
+    namespace['collect_context'](provider,baseline)
+    assert [len(v) for v in batches]==[4,2] and provider==original
+    result=written[-1][1]
+    assert written[-1][0].name=='office-delegation-quota-context.private.json'
+    assert result['provider_ids']==[v['id'] for v in physical] and result['packets']==context['packets']
+    assert result['binding']==context['binding'] and public[-1][1]['personal_provider_calls']==6
+    for mutation in ('prefix','worker','duplicate'):
+        changed=copy.deepcopy(provider)
+        if mutation=='prefix':changed['requests'][0]['body']['keep']='changed'
+        elif mutation=='worker':changed['requests'][-1]['body']['model']='goal584-fake-delegated-worker'
+        else:changed['requests'][2]['id']=changed['requests'][1]['id']
+        count=len(written)
+        with pytest.raises(AssertionError):namespace['collect_context'](changed,baseline)
+        assert len(written)==count
+
+
+@pytest.mark.parametrize('mode',['success','baseline_failed_complete','baseline_timeout','verify_timeout','quiesce_failed','browser_unclosed'])
+def test_actual_host_finally_never_restores_an_unconfirmed_mutation_or_accepts_failed_cleanup(monkeypatch,tmp_path,mode):
+    import ast,hashlib,subprocess,time
+    _,steps,tree=quota_workflow()
+    events=[];published=[];timer=object();timer_events=[];envfile=tmp_path/'github-env';envfile.touch()
+    monkeypatch.setenv('GITHUB_ENV',str(envfile))
+    def leaf(command,**kwargs):
+        phase=command[-1];events.append(phase)
+        if mode=='baseline_timeout' and phase=='quota-baseline' or mode=='verify_timeout' and phase=='quota-verify':
+            raise subprocess.TimeoutExpired(command,kwargs['timeout'])
+        passed=not(mode=='baseline_failed_complete' and phase=='quota-baseline' or mode=='quiesce_failed' and phase=='quota-quiesce')
+        value={'schema':1,'phase':phase,'passed':passed,'native_office_accepted':False,
+            'source_sha256':R.sha256(Path(R.__file__).read_bytes()).hexdigest(),'quota_present':True,
+            'quota_stage':'restored' if phase=='quota-restore' else 'baseline_ready'}
+        return subprocess.CompletedProcess(command,0 if passed else 1,json.dumps(value).encode())
+    monkeypatch.setattr(R.subprocess,'run',leaf)
+    namespace={'Path':Path,'os':__import__('os'),'json':json,'hashlib':hashlib,'time':time,
+        'signal':SimpleNamespace(ITIMER_REAL=timer,setitimer=lambda kind,value:timer_events.append((kind,value))),
+        'quota_owner':R,'fixture':SimpleNamespace(command=['docker','compose']),
+        'stage':'quota-baseline','armed':True,'unconfirmed':False,'browser_closed':mode!='browser_unclosed',
+        'restored':False,'deadline':time.monotonic()+300,'observed':{'external_browser_leaf':True},
+        'public':lambda name,value:published.append((name,value))}
+    functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in ('setting','mutation','phase')]
+    exec(compile(ast.Module(body=functions,type_ignores=[]),'<actual-workflow-phase-functions>','exec'),namespace)
+    main=copy.deepcopy(next(n for n in tree.body if isinstance(n,ast.Try)))
+    # Only the browser/source-preparation IO work is replaced. The exception,
+    # finally, marker, attached phase helper and final acceptance are actual.
+    main.body=ast.parse("baseline=phase('quota-baseline')\nfinancial=phase('quota-verify')").body
+    tail=tree.body[tree.body.index(next(n for n in tree.body if isinstance(n,ast.Try)))+1:]
+    program=compile(ast.fix_missing_locations(ast.Module(body=[main,*tail],type_ignores=[])),'<actual-workflow-finally>','exec')
+    if mode=='success':exec(program,namespace)
+    else:
+        with pytest.raises((AssertionError,N.ProofError)):exec(program,namespace)
+    if mode in ('baseline_timeout','verify_timeout','browser_unclosed'):
+        assert 'quota-restore' not in events and 'quota-quiesce' not in events
+    elif mode=='quiesce_failed':assert events[-2:]==['quota-status','quota-quiesce'] and 'quota-restore' not in events
+    else:assert events[-3:]==['quota-status','quota-quiesce','quota-restore']
+    accepted=[v for name,v in published if name=='office-delegation-quota' and v.get('passed') is True]
+    assert bool(accepted) is (mode=='success')
+    assert timer_events==[(timer,140),(timer,0)]
+    if mode in ('baseline_timeout','verify_timeout'):
+        assert namespace['unconfirmed'] is True and envfile.read_text().splitlines()[-1]=='QUOTA_MUTATION_UNCONFIRMED=true'
+    recovery=next(v for v in steps if v.get('name')=='Recover only a completed quota mutation before owned Compose teardown')['run']
+    guard=next(n for n in ast.parse(recovery.split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]).body if isinstance(n,ast.Assert))
+    with pytest.raises(AssertionError):
+        exec(compile(ast.Module(body=[guard],type_ignores=[]),'<actual-always-recovery-guard>','exec'),
+            {'os':SimpleNamespace(environ={'QUOTA_MUTATION_UNCONFIRMED':'true','QUOTA_BROWSER_CLOSED':'true'})})

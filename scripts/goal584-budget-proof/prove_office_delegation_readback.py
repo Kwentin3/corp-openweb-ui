@@ -16,6 +16,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import re
+import subprocess
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -36,6 +37,42 @@ WIRES = dict(zip(MODELS, ('goal584-fake-delegated-parent', 'goal584-fake-delegat
 DEPLOYMENTS = dict(zip(MODELS, ('goal584-delegated-parent', 'goal584-delegated-worker')))
 ORDER = (('create_tasks', 'view_skill', 'run_sub_agent', 'update_task', 'update_task'),
          ('load_officecli_skill', 'inspect_office_document', 'apply_office_batch', 'inspect_office_document', 'render_office_file'))
+QUOTA_PHASES = ('quota-baseline', 'quota-status', 'quota-quiesce', 'quota-verify', 'quota-restore')
+
+
+def host_quota_phase(fixture, phase, mutation, *, timeout=80):
+    """One fixed attached quota phase; client timeout never authorizes a second write."""
+    require(phase in QUOTA_PHASES and 0 < timeout <= 100, 'office_quota_host_phase')
+    mutation(True)
+    try:
+        result = subprocess.run(fixture.command + ['exec', '-T', 'proxy', 'python', '-B',
+            '/proof/prove_office_delegation_readback.py', '--phase', phase], capture_output=True, timeout=timeout)
+        require(0 < len(result.stdout) <= 64 * 1024, 'office_quota_native_completion')
+        packet = json.loads(result.stdout)
+        require(isinstance(packet, dict) and type(packet.get('schema')) is int and packet['schema'] == 1
+                and packet.get('phase') == phase and type(packet.get('passed')) is bool
+                and packet.get('source_sha256') == sha256(Path(__file__).read_bytes()).hexdigest()
+                and packet.get('native_office_accepted') is False
+                and result.returncode == (0 if packet['passed'] else 1), 'office_quota_native_completion')
+    except BaseException:
+        # The owning Compose teardown is the remaining participant stop. It is
+        # not cap restoration evidence; no retry/second cap write is authorized.
+        raise ProofError('office_quota_mutation_unconfirmed') from None
+    mutation(False)
+    return packet
+
+
+def host_quota_restore(phase):
+    """Order existing native journal/readback owners, without reading root-owned state on host."""
+    status = phase('quota-status')
+    require(status.get('passed') is True and type(status.get('quota_present')) is bool, 'office_quota_restore_status')
+    if not status['quota_present']:
+        return {'required': False, 'confirmed': True}
+    quiescent = phase('quota-quiesce')
+    require(quiescent.get('passed') is True, 'office_quota_restore_quiescence')
+    restored = phase('quota-restore')
+    require(restored.get('passed') is True and restored.get('quota_stage') == 'restored', 'office_quota_restore_readback')
+    return {'required': True, 'confirmed': True, 'quota_stage': 'restored'}
 
 
 def dependencies():
@@ -662,9 +699,43 @@ def quota_restore(state, native, office, d):
     q['stage']='restored'; q['journal'].append('restore_readback'); quota_save(state,d)
 
 
+def quota_quiesce(state, office, d):
+    """Stop only this failed/finished negative chat; never replace product Task evidence."""
+    from prove_pricing_snapshots import canonical_id
+    q = state['quota']; packet_path = PRIVATE/'office-delegation-quota.private.json'
+    if not packet_path.exists():
+        q['cleanup'] = {'packet_present': False}; quota_save(state, d)
+        return
+    packet = d['read_private'](packet_path); setup = selected(office)
+    chat = canonical_id(packet.get('chat_id')); actor = setup['actor']
+    require(packet.get('actor_id') == actor['id'] and chat != state['browser']['chat_id'], 'office_quota_cleanup_identity')
+    webui = d['WebUI'](); webui.session(actor, 'user')
+    saved = webui.ok('GET', '/api/v1/chats/'+chat, token=actor['token'])
+    require(saved.get('id') == chat and saved.get('user_id') == actor['id'], 'office_quota_cleanup_owner')
+    active = webui.ok('GET', '/api/tasks/chat/'+chat, token=actor['token'])
+    require(isinstance(active.get('task_ids'), list), 'office_quota_cleanup_tasks')
+    q['cleanup'] = {'packet_present': True, 'chat_id': chat, 'before': active, 'saved_chat': saved}
+    q['journal'].append('quiesce_before_stop'); quota_save(state, d)
+    if active['task_ids']:
+        q['cleanup']['stop'] = webui.ok('POST', '/api/tasks/chat/'+chat+'/stop', token=actor['token'])
+        quota_save(state, d)
+    observed = webui.ok('GET', '/api/tasks/chat/'+chat, token=actor['token'])
+    q['cleanup']['after'] = observed; quota_save(state, d)
+    require(observed.get('task_ids') == [], 'office_quota_cleanup_active')
+    q['journal'].append('quiesce_readback'); quota_save(state, d)
+
+
 def quota_run(phase, d):
     office=d['read_private'](OFFICE); setup=selected(office); state=d['read_private'](STATE)
     require(state.get('stage') == 'verified_readback' and state.get('prepared_sha256') == proof.digest(office), 'office_quota_positive_required')
+    if phase == 'quota-status':
+        q = state.get('quota')
+        return dict(schema=1, phase=phase, passed=True, native_office_accepted=False,
+                    quota_present=isinstance(q, dict), quota_stage=q.get('stage') if isinstance(q, dict) else None)
+    if phase == 'quota-quiesce':
+        require(isinstance(state.get('quota'), dict), 'office_quota_not_ready')
+        quota_quiesce(state, office, d)
+        return dict(schema=1, phase=phase, passed=True, native_office_accepted=False, quota_stage=state['quota']['stage'])
     native=d['native_client'](d['read_private'](COMMON)); native.started_at=datetime.fromisoformat(state['history_start_utc'])
     def observe():
         with d['capture'].capture_lock(): captured=d['capture']._read_locked()
@@ -733,11 +804,19 @@ def quota_run(phase, d):
             except BaseException:
                 q['stage']='restore_failed'; quota_save(state,d)
                 raise
-    return dict(schema=1,phase=phase,passed=True,native_office_accepted=False,quota_stage=state['quota']['stage'])
+    result = dict(schema=1,phase=phase,passed=True,native_office_accepted=False,quota_stage=state['quota']['stage'])
+    if phase == 'quota-baseline':
+        result.update(provider_prefix_count=len(state['quota']['provider']['requests']),
+                      provider_prefix_sha256=proof.digest(state['quota']['provider']))
+    return result
 
 
 def run(phase, d):
-    if phase.startswith('quota-'): return quota_run(phase,d)
+    if phase.startswith('quota-'):
+        result = quota_run(phase,d)
+        result['source_sha256'] = sha256(Path(__file__).read_bytes()).hexdigest()
+        d['no_credentials'](result)
+        return result
     common, office = d['read_private'](COMMON), d['read_private'](OFFICE); setup = selected(office)
     native = d['native_client'](common); operator = d['read_private'](d['OPERATOR_STATE'])
     native.started_at = min(datetime.fromisoformat(common['started_at_utc']), datetime.fromisoformat(operator['started_at'])) - timedelta(minutes=1)
@@ -807,12 +886,13 @@ def run(phase, d):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--phase', choices=('baseline', 'diagnostic', 'verify', 'quota-baseline', 'quota-verify', 'quota-restore'), required=True)
+    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--phase', choices=('baseline', 'diagnostic', 'verify', *QUOTA_PHASES), required=True)
     args = parser.parse_args()
     try: result = run(args.phase, dependencies())
     except Exception as error:
         code = str(error) if isinstance(error, ProofError) else ''
         result = dict(schema=1, phase=args.phase, passed=False, native_office_accepted=False,
+                      source_sha256=sha256(Path(__file__).read_bytes()).hexdigest(),
                       failure_code=code if re.fullmatch(r'office_[a-z_]+', code) else 'office_delegation_readback_failed')
     print(json.dumps(result, allow_nan=False)); return 0 if result['passed'] else 1
 

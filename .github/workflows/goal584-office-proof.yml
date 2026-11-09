@@ -1057,6 +1057,166 @@ jobs:
               raise SystemExit(1)
           finally: signal.alarm(0)
           PY
+      - name: Verify one exhausted Terra refusal after accepted positive delegation
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,signal,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          import prove_office_delegation_readback as quota_owner
+          from prove_office_delegation_browser import run
+          from prove_office_compatibility import digest
+          from playwright.sync_api import sync_playwright
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT']);revision=os.environ['GITHUB_SHA']
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          stage='positive_acceptance';armed=False;unconfirmed=False;browser_closed=True;restored=False
+          deadline=time.monotonic()+300
+          def timed_out(*args): raise TimeoutError('office_quota_host_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.signal(signal.SIGTERM,timed_out);signal.signal(signal.SIGINT,timed_out)
+          signal.setitimer(signal.ITIMER_REAL,300)
+          def setting(name,value):
+              with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:handle.write(name+'='+str(value).lower()+'\n')
+          def mutation(value):
+              global unconfirmed
+              unconfirmed=value;setting('QUOTA_MUTATION_UNCONFIRMED',value)
+          def public(name,value):
+              for name_private in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name_private)[1]))
+              no_credentials(value,fixture.secrets)
+              raw=json.dumps(value,indent=2,allow_nan=False).encode();assert len(raw)<=64*1024
+              (out/(name+'.safe.json')).write_bytes(raw+b'\n')
+          def phase(name):
+              remaining=deadline-time.monotonic();assert remaining>0,'office_quota_host_deadline'
+              limits={'quota-status':10,'quota-quiesce':60,'quota-restore':75,'quota-baseline':75,'quota-verify':90}
+              packet=quota_owner.host_quota_phase(fixture,name,mutation,timeout=min(limits[name],remaining))
+              public('office-delegation-'+name,packet)
+              assert packet['passed'] is True,'office_quota_native_phase_failed'
+              return packet
+          def collect_context(provider,baseline):
+              count=baseline['provider_prefix_count']
+              assert type(count) is int and 0<=count<=len(provider['requests'])
+              prefix=dict(provider,requests=provider['requests'][:count])
+              assert digest(prefix)==baseline['provider_prefix_sha256'],'office_quota_provider_prefix'
+              suffix=provider['requests'][count:]
+              parents=[row for row in suffix if row['body']['model']=='goal584-fake-delegated-parent']
+              service=[row for row in suffix if row['body']['model']=='goal584-fake-office-service']
+              assert len(suffix)==7 and len(parents)==6 and len(service)==1,'office_quota_provider_suffix'
+              ids=[row['id'] for row in parents];assert len(set(ids))==6
+              reasoning=[[item for item in row['response']['output'] if item.get('type')=='reasoning'] for row in parents]
+              packets=[fixture.native_context(base,build,revision,reasoning[start:start+4]) for start in (0,4)]
+              qualification_raw=(private/'office-qualification.safe.json').read_bytes();qualification=json.loads(qualification_raw)
+              assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
+              assert qualification_raw==(out/'qualification.safe.json').read_bytes()
+              context={'schema':1,'packets':packets,'provider_ids':ids,'binding':{
+                  'word_guide_binding':qualification['word_guide'],'source_commit':revision,
+                  'qualification_receipt_sha256':hashlib.sha256(qualification_raw).hexdigest()}}
+              write_private(private/'office-delegation-quota-context.private.json',context)
+              public('office-delegation-quota-context',{'schema':1,'passed':True,'native_office_accepted':False,
+                  'personal_provider_calls':6,'native_packet_sha256':[digest(packet) for packet in packets],
+                  'qualification_receipt_sha256':context['binding']['qualification_receipt_sha256']})
+          try:
+              accepted=json.loads((out/'office-delegation.safe.json').read_text())
+              assert accepted.get('passed') is True and accepted.get('stage')=='bounded_native_delegation'
+              assert accepted.get('financial',{}).get('passed') is True
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=10).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=10))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+              fixture.running_readback(base,build,revision)
+              stage='source_binding'
+              source_root=Path('scripts/goal584-budget-proof')
+              mounted_paths={name:source_root/name for name in ('prove_office_delegation_readback.py','mock_provider.py','capture_webui_auth.py')}
+              mounted_paths.update({'corporate_templates.py':Path('deploy/openwebui-tools/corporate_templates.py'),
+                  'corporate_template_models.json':Path('deploy/openwebui-tools/corporate_template_models.json'),
+                  'artifact-workflow.md':Path('deploy/openwebui-skills/artifact-workflow.md')})
+              host_paths={name:source_root/name for name in ('prove_office_delegation_browser.py','office_fixture.py')}
+              host_paths['goal584-office-proof.yml']=Path('.github/workflows/goal584-office-proof.yml')
+              hashes=lambda paths:{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in paths.items()}
+              mounted_sources=hashes(mounted_paths);host_sources=hashes(host_paths)
+              code='import hashlib,json,pathlib;import prove_office_delegation_readback as r;d=r.dependencies();print(json.dumps({"mounted_source_sha256":{n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(tuple(mounted_paths))+'},"MAX_RECORDS":d["capture"].MAX_RECORDS,"MAX_BYTES":d["capture"].MAX_BYTES,"capacity_owner":r.capacity_observations([],{})}))'
+              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_quota_sources',timeout=30)
+              assert sources['mounted_source_sha256']==mounted_sources and sources['MAX_RECORDS']==36 and sources['MAX_BYTES']==4*1024*1024
+              assert sources['capacity_owner']['calls']==[]
+              public('office-delegation-quota-source',{'schema':1,'passed':True,'source_commit':revision,
+                  'host_source_sha256':host_sources,**sources})
+              setting('QUOTA_RESTORE_ARMED',True);armed=True;setting('QUOTA_BROWSER_CLOSED',True)
+              stage='quota-baseline';baseline=phase(stage)
+              stage='ordinary_negative_send'
+              with sync_playwright() as playwright:
+                  setting('QUOTA_BROWSER_CLOSED',False);browser_closed=False
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,raw=run(browser,fixture,base,build,revision,quota=True)
+                  finally:
+                      browser.close();browser_closed=True;setting('QUOTA_BROWSER_CLOSED',True)
+              assert fixture._office_private('office-delegation-quota.private.json')[1]==raw
+              stage='native_context'
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_quota_provider',timeout=15)
+              collect_context(provider,baseline)
+              stage='quota-verify';financial=phase(stage)
+              assert hashes(mounted_paths)==mounted_sources and hashes(host_paths)==host_sources,'office_quota_source_changed'
+              public('office-delegation-quota-browser',observed)
+          except BaseException as error:
+              public('office-delegation-quota',{'schema':1,'passed':False,'native_office_accepted':False,
+                  'stage':stage,'error_class':type(error).__name__,'mutation_unconfirmed':unconfirmed})
+              raise
+          finally:
+              deadline=time.monotonic()+140;signal.setitimer(signal.ITIMER_REAL,140)
+              try:
+                  if armed:
+                      assert not unconfirmed and browser_closed,'office_quota_restoration_unconfirmed'
+                      recovery=quota_owner.host_quota_restore(phase);restored=recovery['confirmed']
+                      setting('QUOTA_RESTORE_CONFIRMED',restored)
+                      public('office-delegation-quota-restore',{'schema':1,'native_office_accepted':False,**recovery})
+              finally:signal.setitimer(signal.ITIMER_REAL,0)
+          assert restored,'office_quota_restoration_unconfirmed'
+          public('office-delegation-quota',{'schema':1,'passed':True,'native_office_accepted':False,
+              'stage':'bounded_native_quota_refusal','browser':observed,'financial':financial,'restoration_confirmed':True})
+          PY
+      - name: Recover only a completed quota mutation before owned Compose teardown
+        if: always() && env.QUOTA_RESTORE_ARMED == 'true'
+        timeout-minutes: 2
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import json,os,signal,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          import prove_office_delegation_readback as quota_owner
+          out=Path(os.environ['OUTPUT']);private=Path(os.environ['PROOF_PRIVATE_DIR'])
+          if os.environ.get('QUOTA_RESTORE_CONFIRMED')=='true':raise SystemExit(0)
+          assert os.environ.get('QUOTA_MUTATION_UNCONFIRMED')!='true' and os.environ.get('QUOTA_BROWSER_CLOSED')=='true','office_quota_restoration_unconfirmed'
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,[])
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+              fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          deadline=time.monotonic()+100
+          def timed_out(*args):raise TimeoutError('office_quota_recovery_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.setitimer(signal.ITIMER_REAL,100)
+          def mutation(value):
+              with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:handle.write('QUOTA_MUTATION_UNCONFIRMED='+str(value).lower()+'\n')
+          def phase(name):
+              remaining=deadline-time.monotonic();assert remaining>0
+              packet=quota_owner.host_quota_phase(fixture,name,mutation,timeout=min(45,remaining))
+              no_credentials(packet,fixture.secrets)
+              (out/('office-delegation-'+name+'-recovery.safe.json')).write_text(json.dumps(packet,indent=2)+'\n')
+              assert packet['passed'] is True
+              return packet
+          try:
+              result=quota_owner.host_quota_restore(phase)
+              no_credentials(result,fixture.secrets)
+              (out/'office-delegation-quota-recovery.safe.json').write_text(json.dumps({'schema':1,'native_office_accepted':False,**result},indent=2)+'\n')
+              assert result['confirmed'] is True
+          finally:signal.setitimer(signal.ITIMER_REAL,0)
+          PY
       - name: Retain bounded sanitized stand diagnostics before cleanup
         if: failure() && env.PROOF_ENV_FILE != ''
         timeout-minutes: 2

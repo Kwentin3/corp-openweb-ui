@@ -231,10 +231,11 @@ class DelegatedBrowserTests(unittest.TestCase):
                     if os.name != 'nt': self.assertEqual(Path(path).stat().st_mode & 0o777, 0o600)
                 for value in (SECRET, 'actor-token', 'other-token', browser.skill['content'], B.DELEGATED_USER_REQUEST, browser.cost):
                     self.assertNotIn(value, json.dumps(safe, ensure_ascii=False))
-            elif (private/B.PACKET).exists():
-                packet = json.loads((private/B.PACKET).read_text(encoding='utf8'))
+            elif (private/('office-delegation-quota.private.json' if quota else B.PACKET)).exists():
+                packet = json.loads((private/('office-delegation-quota.private.json' if quota else B.PACKET)).read_text(encoding='utf8'))
                 self.assertIn(packet['status'], ('observing', 'failed'))
-                self.assertLessEqual((private/B.PACKET).stat().st_size, packet_limit or B.MAX_BYTES)
+                self.assertLessEqual((private/('office-delegation-quota.private.json' if quota else B.PACKET)).stat().st_size,
+                                     packet_limit or B.MAX_BYTES)
                 public = B.failure_projection(packet)
                 B.no_credentials(public, fixture.secrets)
                 for value in (SECRET, 'actor-token', 'other-token', browser.skill['content'],
@@ -252,6 +253,16 @@ class DelegatedBrowserTests(unittest.TestCase):
     def test_quota_rejects_unaccepted_positive_before_send(self):
         safe,packet,error,browser=self.exercise(quota=True,positive_stage='baseline')
         self.assertIsNone(safe);self.assertIsNotNone(error);self.assertEqual(browser.sends,0)
+
+    def test_quota_failure_retains_owned_chat_and_pre_stop_pending_tasks_for_recovery(self):
+        def pending(world,state,receipt):
+            world.tasks[0]['status']='pending';world.running_tasks=['native-still-running']
+        safe,packet,error,browser=self.exercise(pending,quota=True,clock=[0,181])
+        self.assertIsNone(safe);self.assertEqual(str(error),'delegated_browser_lifecycle_timeout')
+        self.assertEqual((packet['actor_id'],packet['chat_id']),(ACTOR,CHAT))
+        self.assertEqual(packet['native_tasks'][0]['status'],'pending')
+        self.assertEqual(packet['native_running']['task_ids'],['native-still-running'])
+        self.assertFalse(packet.get('terminal_persisted',False));self.assertEqual(browser.downloads,0)
 
     def test_quota_pending_tasks_or_background_cannot_finish_and_file_or_other_refusal_fail(self):
         for kind in ('pending','completed','active','file','text','source'):
