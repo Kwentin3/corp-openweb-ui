@@ -387,8 +387,22 @@ def verify_context(groups, office, browser, context, d, provider_requests, *, qu
                 require(all(current_call[k] == previous_call[k] for k in ('call_id', 'name', 'arguments')),
                         'office_delegation_tool_result_binding')
                 if group_index == 0:
-                    reasoning = cases[proof.digest([v for v in raw if v.get('type') == 'reasoning'])]
-                    require(wire['input'][len(previous):] == reasoning + [current_call, result], 'office_delegation_native_continuation')
+                    raw_reasoning = [v for v in raw if v.get('type') == 'reasoning']
+                    reasoning = cases[proof.digest(raw_reasoning)] if raw_reasoning else []
+                    actual, expected = wire['input'][len(previous):], reasoning + [current_call, result]
+                    if actual != expected:
+                        shapes = {}
+                        for label, items in (('actual', actual), ('expected', expected)):
+                            shapes[label] = {'count': len(items), 'sha256': proof.digest(items),
+                                'types': [v.get('type') if v.get('type') in ('message', 'reasoning', 'function_call', 'function_call_output') else 'other' for v in items],
+                                'empty_text_message': any(v.get('type') == 'message' and (v.get('content') == ''
+                                    or isinstance(v.get('content'), list) and all(isinstance(part, dict)
+                                        and part.get('type') in ('input_text', 'output_text') and part.get('text') == ''
+                                        for part in v['content'])) for v in items)}
+                        error = ProofError('office_delegation_native_continuation')
+                        error.office_continuation_diagnostic = dict(schema=1, model=model, turn=index + 1, **shapes,
+                            first_difference=next((i for i, (a, e) in enumerate(zip(actual, expected)) if a != e), min(len(actual), len(expected))))
+                        raise error
     parent = groups[MODELS[0]][-1]['wire_before_auth']
     pp = task_pairs(parent)
     created = json.loads(pp[0][1]['output']); require(len(created['tasks']) == 2 and any(t['status'] in ('pending', 'in_progress') for t in created['tasks']),
@@ -968,12 +982,47 @@ def run(phase, d):
 def main():
     parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--phase', choices=('baseline', 'diagnostic', 'verify', *QUOTA_PHASES), required=True)
     args = parser.parse_args()
-    try: result = run(args.phase, dependencies())
+    d = None
+    try:
+        d = dependencies()
+        result = run(args.phase, d)
     except Exception as error:
         code = str(error) if isinstance(error, ProofError) else ''
         result = dict(schema=1, phase=args.phase, passed=False, native_office_accepted=False,
                       source_sha256=sha256(Path(__file__).read_bytes()).hexdigest(),
                       failure_code=code if re.fullmatch(r'office_[a-z_]+', code) else 'office_delegation_readback_failed')
+        diagnostic = getattr(error, 'office_continuation_diagnostic', None)
+        if code == 'office_delegation_native_continuation' and d is not None and isinstance(diagnostic, dict):
+            try:
+                require(type(diagnostic) is dict and all(type(k) is str for k in diagnostic)
+                        and set(diagnostic) == {'schema', 'model', 'turn', 'actual', 'expected', 'first_difference'},
+                        'office_continuation_diagnostic_shape')
+                public = {'schema': diagnostic['schema'], 'model': diagnostic['model'], 'turn': diagnostic['turn'],
+                          'actual': {}, 'expected': {}, 'first_difference': diagnostic['first_difference']}
+                require(type(public['schema']) is int and public['schema'] == 1
+                        and type(public['model']) is str and public['model'] in MODELS
+                        and type(public['turn']) is int and 1 <= public['turn'] <= 6
+                        and type(public['first_difference']) is int and 0 <= public['first_difference'] <= 128,
+                        'office_continuation_diagnostic_shape')
+                for label in ('actual', 'expected'):
+                    shape = diagnostic[label]
+                    require(type(shape) is dict and all(type(k) is str for k in shape)
+                            and set(shape) == {'count', 'sha256', 'types', 'empty_text_message'}
+                            and type(shape['types']) is list, 'office_continuation_diagnostic_shape')
+                    shape = {'count': shape['count'], 'sha256': shape['sha256'], 'types': list(shape['types']),
+                             'empty_text_message': shape['empty_text_message']}
+                    require(type(shape['count']) is int and 0 <= shape['count'] <= 128
+                            and len(shape['types']) == shape['count']
+                            and all(type(v) is str and v in ('message', 'reasoning', 'function_call', 'function_call_output', 'other') for v in shape['types'])
+                            and type(shape['sha256']) is str and re.fullmatch(r'[0-9a-f]{64}', shape['sha256'])
+                            and type(shape['empty_text_message']) is bool, 'office_continuation_diagnostic_shape')
+                    public[label] = shape
+                require(len(json.dumps(public, allow_nan=False).encode()) <= 16 * 1024, 'office_continuation_diagnostic_bound')
+                d['no_credentials'](public)
+            except Exception:
+                pass  # Preserve the original failure, never export an unsafe diagnostic.
+            else:
+                result['continuation_diagnostic'] = public
     print(json.dumps(result, allow_nan=False)); return 0 if result['passed'] else 1
 
 

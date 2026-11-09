@@ -8,6 +8,65 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office101, завершён:**
+[run42618508638](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42618508638),
+job129164320066, workflow406918033, exact head
+`d7504a1450fc3b64a1421773a1406d463dae85cc`, dispatch09.11 12:37:04UTC.
+Exact3file commit/source readback7/7/clean worktree PASS, remote reasoning ref
+fast-forward сверён. Office100 terminal/owned cleanup PASS, нового live run до
+этого не было; это один новый workflow_dispatch, не rerun. TerminalFAIL15/native_finance,
+новый precise failure_code `office_delegation_native_continuation`;1–14SUCCESS,
+16/17SKIPPED,18diag19cleanup20uploadSUCCESS, живого CI нет. Те же
+positive Office/finance/artifact → negative refusal → cap
+restore/owned cleanup gates; при positiveFAIL negative пропускается. Bounds55min,
+manual13:22:04UTC/hard13:32:04UTC; preflight20GiB disk/6GiB RAM/7GiB Docker,
+six services5.875GiB/4.25CPU/1728PIDs, component1GiB/256PIDs unchanged.
+Native addressed stop `gh run cancel 42618508638 --repo Kwentin3/corp-openweb-ui`,
+затем exact job terminal/actual cleanup/remaining participants; timeout не означает
+завершение. LTS/Terminal/production/paid/рабочие маршруты не активированы/не менялись.
+Technical receipt `local/goal584/office101-review/run.safe.json`. Artifact13676985738
+скачан один раз1494450B/104unique/SHA256
+`62f9fe6b38f9626673a937e9e511f6934a4dbe6877f69f73c88e2b60e9c56c43`.
+Rootfullreader54build/72pins/45guard+22auth+1CLI0skip/5images cleanup PASS;
+independent admin/source/PNG/cleanup PASS, delegation NOT_ACCEPTED, quota NEEDS_EVIDENCE.
+Diagnostic13provider/13auth/context12personal, exception DOCX/render/browser есть,
+positive qualification receipts отсутствуют. Временный cap не ограничивался.
+Source triage воспроизвёл ещё одну ложную предпосылку consumer/fixture: raw parent
+profiles не задают include/effort, fixture добавляла include; при отсутствии
+reasoning bare converter([]) даёт blank assistant, complete native suffix — только
+function_call/function_call_output. Existing ordinary checker уже использует
+if reasoning else[]. Genuine full native output→messages→process/sanitize/normalize
+→Responses proof5.094s/3PIDs terminal/audit0: oldRED/newproposalPASS для default
+и opaque variant с сохранённым encrypted content. Actual101 private operands не
+восстановлены; точный default режим не выдаётся за наблюдённый факт.
+Следующий SOURCE slice разрешён только R/testR: reuse existing no-reasoning
+semantics, actual-profile fixture плюс явный opaque variant; маленькая failure-only
+suffix types/counts/hashes projection<=16KiB в существующем failed CLI receipt.
+Без raw prompts/results/keys, новых logs/journals/services/SLP fields и full13-wire
+dump; host2MiB bound/финансовые условия остаются. Source freeze/review перед CI.
+Evidence `office101-review/`, `office101-native-continuation-triage/`.
+Runtime/GOAL НЕ ПРИНЯТЫ.
+
+**Подготовка Office102:** no-reasoning consumer correction и полный native parent
+fixture готовы. Default actual-profile nooverride даёт2native suffix items без
+phantom empty assistant; explicitopaque variant сохраняет encrypted reasoning.
+В SAME COMPLETE collector13calls(6+6+1): exactoldd750 defaultRED/newPASS, opaque
+old/newPASS, input unchanged; causal replay4.922s/audit0/12PIDs terminal.
+35focusedPASS/0skip/76.282s,46PIDs terminal; wrapper1 только BLOCKED urllib3 IPv6
+capability probe. Finance/run/quota/restore owners AST exact. Маленькая failure-only
+projection<=16KiB содержит толькоfixedmodel/turn/types/counts/hashes/empty flags;
+существующий credential screen и host2MiB bound сохранены. Source review выявил
+необходимостьliteralDTOдляmalformed Python error attributes (не product incident).
+Отдельная tinycorrection/main-only:4privacy/success-parityPASS/3.359s/wrapper0/
+audit0/6PIDs terminal, original35freeze неизменён; private sentinel4cases больше
+не экспортируется. Independent review finalGO для одного isolatedCI, без повторов.
+FinalLF R551c71407da97eba43718fd6f0aa3fc880b582a0345839bbb95e1c5be7693645,
+test6670da1289f3d5a033ba5354044f7912941ed7f650e14e484e1e81dfe8692d9e.
+Actual101 failed operands не восстановлены; новыйruntime обязателен.
+Следующий шаг — coherent3file commit/readback/push и одинexistingworkflow;
+readers переиспользуются. Evidence `office101-native-continuation-{fix,review}/`,
+`office102-review/`.
+
 **Последний прогон Office100, завершён:**
 [run42614301865](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42614301865),
 job129150238789, workflow406918033, exact head
@@ -52,7 +111,8 @@ IPv6 import probe, внешних connect/DNS нет. Final exactold→actualnew
 2.578s/audit0/4PIDs terminal. Context fixture и все42 прежних tests/helpers AST
 не изменены;27 иных production owners exact. Independent source review GO для
 одного isolated CI. Exact actual100 failed operand остаётся неизвестным.
-Следующий шаг — coherent3file commit/source readback/push и один workflow;
+Coherent3file commit/source readback/push выполнены как `d7504a14`, один workflow
+запущен выше. Следующий шаг — actual terminal intake и independent acceptance;
 финансовую приёмку и negative/cap restore должны доказать actual receipts.
 Evidence `office100-native-context-{fix,review}/`, `office101-review/`.
 

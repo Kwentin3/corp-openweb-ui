@@ -377,7 +377,7 @@ def test_quiesce_uses_actual_webui_owner_preserves_pre_stop_and_never_claims_pro
     assert all(path.endswith(chat) or path.endswith(chat+'/stop') or path=='/api/v1/auths/' for method,path in events)
 
 
-def context_case(monkeypatch, tmp_path, *, quota=False):
+def context_case(monkeypatch, tmp_path, *, quota=False, encrypted_reasoning=False):
     """Actual provider/Tasks/media/send-loop/serializer owners; Office IO leaves."""
     import io
     import test_mock_provider as provider_test
@@ -399,14 +399,16 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
     params_owner = native_test.native_owner('utils/payload.py',
         {'remove_open_webui_params', 'apply_model_params_to_body', 'apply_model_params_to_body_openai'},
         namespace={'Callable': Callable})
+    content_owner = native_test.native_owner('utils/middleware.py', {'tool_result_content'})
     profiles_raw = (root / 'deploy/openwebui-tools/corporate_template_models.json').read_bytes().replace(b'\r\n', b'\n')
     assert R.sha256(profiles_raw).hexdigest() == provision.DELEGATION_PROFILES_SHA256
     profiles = {v['id']: v for v in json.loads(profiles_raw)}
     def profile_form(profile_id, form):
         params = copy.deepcopy(profiles[profile_id]['params']); params.pop('system', None)
+        if encrypted_reasoning and profile_id == 'corporate-documents': params['include'] = ['reasoning.encrypted_content']
         return params_owner['apply_model_params_to_body_openai'](params, form)
     case.parent = router['convert_to_responses_payload'](profile_form('corporate-documents', {
-        'model': case.parent['model'], 'tools': case.parent['tools'], 'include': ['reasoning.encrypted_content'],
+        'model': case.parent['model'], 'tools': case.parent['tools'],
         'messages': [{'role': 'developer', 'content': workflow + '\n' + case.skill['id']},
                      {'role': 'user', 'content': provider_test.MOCK.DELEGATED_USER_REQUEST}]}))
     if quota:
@@ -442,13 +444,17 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
         groups[model].append(dict(wire_before_auth=wire, provider=p, verified_cost_scope=scope,
             auth_user_id=actor, auth_key_hash=('a' if model == R.MODELS[0] else 'b') * 64))
         return response
-    def append_response(payload, response, result, preserve_reasoning):
-        raw = response['output']; call = next(v for v in raw if v.get('type') == 'function_call')
-        if preserve_reasoning:
-            reasoning = [v for v in raw if v.get('type') == 'reasoning']
-            payload['input'].extend(router['convert_to_responses_payload']({'messages': [{'role': 'assistant', 'output': reasoning}]})['input'])
-        payload['input'].append({k: call[k] for k in ('type', 'call_id', 'name', 'arguments')})
-        payload['input'].append(dict(type='function_call_output', call_id=call['call_id'], output=result if isinstance(result, list) else json.dumps(result)))
+    def append_response(payload, response, result):
+        output = copy.deepcopy(response['output'])
+        call = next(v for v in output if v.get('type') == 'function_call')
+        output.append({'type': 'function_call_output', 'call_id': call['call_id'],
+                       'output': [{'type': 'input_text', 'text': content_owner['tool_result_content'](result)}]})
+        options = {'reasoning_format': 'responses', 'flatten_tool_images': False}
+        messages = router['convert_output_to_messages'](output, raw=True, **options)
+        messages = router['process_messages_with_output'](messages, **options)
+        messages = router['sanitize_tool_pairs'](messages)
+        form = router['normalize_messages_for_model']({'messages': messages})
+        payload['input'].extend(router['convert_to_responses_payload'](form)['input'])
     for index in range(6):
         response = dispatch(case.parent, R.MODELS[0])
         if index == 5: break
@@ -467,7 +473,7 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
                         {'role': 'user', 'content': json.dumps(packet)}]}))
                 provider_test.DelegatedQuotaProviderTests.setUpClass()
                 result=json.loads(provider_test.DelegatedQuotaProviderTests.quota_output)
-                append_response(case.parent,response,result,True)
+                append_response(case.parent,response,result)
                 continue
             async def worker_turns():
                 from starlette.requests import Request
@@ -512,13 +518,13 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
                     tool.append_tool_result_images(messages,images)
             asyncio.run(worker_turns())
             result = {'result': '[Download](/api/v1/files/' + case.file_id + '/content)'}
-        append_response(case.parent, response, result, True)
+        append_response(case.parent, response, result)
     cases = [[v for v in c['provider']['response']['output'] if v.get('type') == 'reasoning'] for c in groups[R.MODELS[0]]]
     specs = [dict(s) for s in case.office_tools]
     for s in specs: s.pop('type')
     packets = [dict(schema=1, module_sha256={k: R.proof.WEBUI_MODULES[k] for k in ('utils/tools.py', 'routers/openai.py')},
         source_body_sha256=R.proof.digest(office['office_setup']['openapi']), native_specs=specs,
-        reasoning_cases=[dict(input_reasoning=v, native_input=router['convert_to_responses_payload']({'messages': [{'role': 'assistant', 'output': v}]})['input']) for v in cases[i:i + 4]])
+        reasoning_cases=[dict(input_reasoning=v, native_input=router['convert_to_responses_payload']({'messages': [{'role': 'assistant', 'output': v}]})['input']) for v in {R.proof.digest(v): v for v in cases[i:i + 4]}.values()])
         for i in range(0, len(cases), 4)]
     context = dict(schema=1, packets=packets, provider_ids=[c['provider']['id'] for m in R.MODELS for c in groups[m]])
     browser = dict(chat_id=chat, answer_id=answer, file_id=case.file_id, stored_chat={'tasks': case.task_rows})
@@ -564,6 +570,9 @@ def test_context_composes_actual_native_tasks_serializer_full_skill_and_actual_p
     values = context_case(monkeypatch, tmp_path)
     scopes = R.verify_context(*values)
     assert {m: len(v) for m, v in scopes.items()} == dict.fromkeys(R.MODELS, 6)
+    assert all('include' not in c['wire_before_auth'] and 'reasoning' not in c['wire_before_auth']
+               and not any(v.get('type') == 'reasoning' for v in c['provider']['response']['output'])
+               for c in values[0][R.MODELS[0]])
 
 
 
@@ -596,7 +605,7 @@ print(json.dumps({'specs':namespace['specs'],'cases':namespace['cases'],'source'
         packets.append(json.loads(result.stdout))
     assert packets[0]['source']==packets[1]['source'] and packets[0]['cases']==packets[1]['cases']
     assert len(packets[0]['specs'])==len(packets[1]['specs'])==14 and packets[0]['specs']!=packets[1]['specs']
-    values=context_case(monkeypatch,tmp_path);groups,office,browser,context,d,tape=values
+    values=context_case(monkeypatch,tmp_path, encrypted_reasoning=True);groups,office,browser,context,d,tape=values
     assert packets[0]['source']==R.proof.digest(office['office_setup']['openapi'])
     for packet,observed in zip(context['packets'],packets):packet['native_specs']=observed['specs']
     before=copy.deepcopy((groups,context))
@@ -686,7 +695,7 @@ def test_native_render_selector_rejects_unbound_images_and_context_drift(monkeyp
 
 
 def test_quota_context_uses_actual_native_error_formatter_tasks_and_all_six_parent_inputs(monkeypatch,tmp_path):
-    groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True)
+    groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True, encrypted_reasoning=True)
     scopes=R.verify_context(groups,office,browser,context,d,tape,quota=True)
     assert len(tape)==6 and len(scopes[R.MODELS[0]])==6 and groups[R.MODELS[1]]==[]
     assert [v['status'] for v in browser['stored_chat']['tasks']]==['cancelled','cancelled']
@@ -831,7 +840,7 @@ def test_quota_denial_join_uses_actual_gateway_signed_native_422_not_an_illustra
 
 @pytest.mark.parametrize('mutation', ['skill_loss', 'duplicate_skill', 'root_tail', 'task_alias', 'guide_loss', 'native_case_loss', 'guide_packet', 'guide_qualification'])
 def test_real_owner_context_composition_rejects_material_omissions(monkeypatch, tmp_path, mutation):
-    groups, office, browser, context, d, tape = context_case(monkeypatch, tmp_path)
+    groups, office, browser, context, d, tape = context_case(monkeypatch, tmp_path, encrypted_reasoning=True)
     if mutation in ('skill_loss', 'duplicate_skill'):
         wire = groups[R.MODELS[1]][0]['wire_before_auth']
         wire['input'][0]['content'] = '' if mutation == 'skill_loss' else office['office_delegation_setup']['skill']['content'] * 2
@@ -847,13 +856,13 @@ def test_real_owner_context_composition_rejects_material_omissions(monkeypatch, 
         R.verify_context(groups, office, browser, context, d, tape)
 
 
-def complete_case(tmp_path, monkeypatch):
+def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
     """Complete collector composition with actual domain owners and raw IO data."""
     import ast
     import test_office_compatibility as native_test
     import prove_pricing_snapshots as pricing
     from types import ModuleType
-    groups, office, browser, context, d, tape = context_case(monkeypatch, tmp_path)
+    groups, office, browser, context, d, tape = context_case(monkeypatch, tmp_path, encrypted_reasoning=encrypted_reasoning)
     source, _, artifact, _ = artifact_case(tmp_path, monkeypatch)
     browser.update(artifact)
     actor = office['office_delegation_setup']['actor']['id']; payer = office['service_fixture']['payer_id']
@@ -951,7 +960,7 @@ def test_complete_collector_uses_actual_task_context_scope_rates_sdk_cost_and_ar
 
 @pytest.mark.parametrize('mutation', ['worker_nonce', 'worker_key', 'worker_row_missing', 'shared_counter', 'saved_reasoning', 'tariff'])
 def test_complete_collector_rejects_financial_and_saved_context_divergence(tmp_path, monkeypatch, mutation):
-    data = complete_case(tmp_path, monkeypatch)
+    data = complete_case(tmp_path, monkeypatch, encrypted_reasoning=mutation == 'saved_reasoning')
     row = data['after']['personal']['gpt-6.1-terra']['rows'][-1]
     if mutation == 'worker_nonce': row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
     elif mutation == 'worker_key': row['api_key'] = 'a' * 64
@@ -960,6 +969,118 @@ def test_complete_collector_rejects_financial_and_saved_context_divergence(tmp_p
     elif mutation == 'saved_reasoning': data['saved']['chat']['history']['messages'][data['browser']['answer_id']]['output'].pop()
     else: row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']['descriptor'] = {'deployment_id': 'wrong-terms'}
     with pytest.raises(N.ProofError): R.verify(**data)
+
+
+
+def test_parent_native_full_output_explicit_opaque_complete_collector_and_strict_suffix(monkeypatch,tmp_path):
+    data=complete_case(tmp_path,monkeypatch,encrypted_reasoning=True)
+    result=R.verify(**data)
+    assert result['provider_calls']==13 and result['personal'][R.MODELS[0]]['physical_calls']==6
+    groups=R.calls(data['before'],data['provider'],data['captured']);original=copy.deepcopy(groups)
+    parent=groups[R.MODELS[0]]
+    assert all(c['wire_before_auth']['include']==['reasoning.encrypted_content'] for c in parent)
+    first=parent[1]['wire_before_auth']['input'][len(parent[0]['wire_before_auth']['input']):]
+    assert [v['type'] for v in first]==['reasoning','function_call','function_call_output']
+    raw=next(v for v in parent[0]['provider']['response']['output'] if v.get('type')=='reasoning')
+    assert first[0]['encrypted_content']==raw['encrypted_content']
+    for mutation in ('lost','corrupt','extra_empty'):
+        changed=copy.deepcopy(groups);items=changed[R.MODELS[0]][1]['wire_before_auth']['input']
+        index=next(i for i,v in enumerate(items) if v.get('type')=='reasoning')
+        if mutation=='lost':items.pop(index)
+        elif mutation=='corrupt':items[index]['encrypted_content']='different opaque value'
+        else:items.append({'type':'message','role':'assistant','content':[{'type':'output_text','text':''}]})
+        with pytest.raises(N.ProofError,match='^office_delegation_native_continuation$') as caught:
+            R.verify_context(changed,data['office'],data['browser'],data['context'],data['d'],data['provider']['requests'])
+        diagnostic=caught.value.office_continuation_diagnostic
+        assert diagnostic['model']==R.MODELS[0] and diagnostic['turn']==2
+        assert diagnostic['actual']['sha256']!=diagnostic['expected']['sha256']
+        assert len(json.dumps(diagnostic).encode())<=16*1024 and 'opaque value' not in json.dumps(diagnostic)
+    assert groups==original
+
+
+def test_cli_continuation_failure_projects_genuine_suffix_and_keeps_success_shape(monkeypatch,tmp_path,capsys):
+    from prove_pricing_snapshots import no_credentials
+    values=context_case(monkeypatch,tmp_path);groups=values[0]
+    groups[R.MODELS[0]][1]['wire_before_auth']['input'].append(
+        {'type':'message','role':'assistant','content':[{'type':'output_text','text':''}]})
+    with pytest.raises(N.ProofError,match='^office_delegation_native_continuation$') as caught:R.verify_context(*values)
+    error=caught.value;screened=[]
+    def screen(value):no_credentials(value);screened.append(copy.deepcopy(value))
+    monkeypatch.setattr(R,'dependencies',lambda:{'no_credentials':screen})
+    monkeypatch.setattr(R,'run',lambda *args:(_ for _ in ()).throw(error))
+    monkeypatch.setattr(sys,'argv',['readback','--phase','verify'])
+    assert R.main()==1
+    value=json.loads(capsys.readouterr().out);diagnostic=value['continuation_diagnostic']
+    assert value['failure_code']=='office_delegation_native_continuation' and value['passed'] is False
+    assert value['source_sha256']==R.sha256(Path(R.__file__).read_bytes()).hexdigest()
+    assert diagnostic['actual']['types']==['function_call','function_call_output','message']
+    assert diagnostic['expected']['types']==['function_call','function_call_output']
+    assert diagnostic['actual']['count']==3 and diagnostic['expected']['count']==2 and diagnostic['first_difference']==2
+    assert diagnostic['actual']['empty_text_message'] is True and diagnostic['expected']['empty_text_message'] is False
+    assert screened==[diagnostic]
+    success={'schema':1,'phase':'verify','passed':True,'native_office_accepted':False,'existing':'unchanged'}
+    monkeypatch.setattr(R,'run',lambda *args:success)
+    assert R.main()==0 and json.loads(capsys.readouterr().out)==success
+
+
+def test_cli_continuation_diagnostic_drops_private_or_malformed_error_attributes(monkeypatch,capsys):
+    from prove_pricing_snapshots import no_credentials
+    shape={'count':0,'types':[],'sha256':R.proof.digest([]),'empty_text_message':False}
+    valid=dict(schema=1,model=R.MODELS[0],turn=2,actual=shape,expected=copy.deepcopy(shape),first_difference=0)
+    monkeypatch.setattr(R,'dependencies',lambda:{'no_credentials':no_credentials})
+    monkeypatch.setattr(sys,'argv',['readback','--phase','verify'])
+    for mutation in ('extra','model','type','hash','turn','unexpected_error','credential_screen'):
+        diagnostic=copy.deepcopy(valid)
+        if mutation=='extra':diagnostic['raw_prompt']='private-source-sentinel'
+        elif mutation=='model':diagnostic['model']='private-source-sentinel'
+        elif mutation=='type':diagnostic['actual'].update(count=1,types=['private-source-sentinel'])
+        elif mutation=='hash':diagnostic['actual']['sha256']='sk-private-token-sentinel'
+        elif mutation=='turn':diagnostic['turn']=True
+        error=(RuntimeError('private-source-sentinel') if mutation=='unexpected_error' else N.ProofError('office_delegation_native_continuation'))
+        error.office_continuation_diagnostic=diagnostic
+        if mutation=='credential_screen':
+            monkeypatch.setattr(R,'dependencies',lambda:{'no_credentials':lambda value:no_credentials(value,(R.MODELS[0],))})
+        monkeypatch.setattr(R,'run',lambda *args:(_ for _ in ()).throw(error))
+        assert R.main()==1
+        value=json.loads(capsys.readouterr().out)
+        assert 'continuation_diagnostic' not in value and 'private-source' not in json.dumps(value) and 'sk-private' not in json.dumps(value)
+
+
+
+def test_cli_continuation_projection_rejects_hostile_string_subclasses_and_copies_plain_values(monkeypatch,capsys):
+    from prove_pricing_snapshots import no_credentials
+    class Hostile(str):
+        def __new__(cls,raw,alias):
+            value=str.__new__(cls,raw);value.alias=alias;return value
+        def __hash__(self):return hash(self.alias)
+        def __eq__(self,other):return other==self.alias
+    shape={'count':0,'types':[],'sha256':R.proof.digest([]),'empty_text_message':False}
+    valid=dict(schema=1,model=R.MODELS[0],turn=2,actual=shape,expected=copy.deepcopy(shape),first_difference=0)
+    monkeypatch.setattr(R,'dependencies',lambda:{'no_credentials':no_credentials})
+    monkeypatch.setattr(sys,'argv',['readback','--phase','verify'])
+    for mutation in ('key','nested_key','model','type','hash'):
+        diagnostic=copy.deepcopy(valid)
+        if mutation=='key':diagnostic={Hostile('private-subclass-sentinel','model') if k=='model' else k:v for k,v in diagnostic.items()}
+        elif mutation=='nested_key':diagnostic['actual']={Hostile('private-subclass-sentinel','count') if k=='count' else k:v for k,v in diagnostic['actual'].items()}
+        elif mutation=='model':diagnostic['model']=Hostile('private-subclass-sentinel',R.MODELS[0])
+        elif mutation=='type':diagnostic['actual'].update(count=1,types=[Hostile('private-subclass-sentinel','message')])
+        else:diagnostic['actual']['sha256']=Hostile('a'*64,'a'*64)
+        error=N.ProofError('office_delegation_native_continuation');error.office_continuation_diagnostic=diagnostic
+        monkeypatch.setattr(R,'run',lambda *args:(_ for _ in ()).throw(error))
+        assert R.main()==1
+        value=capsys.readouterr().out
+        assert 'private-subclass-sentinel' not in value and 'continuation_diagnostic' not in json.loads(value)
+    diagnostic=copy.deepcopy(valid);error.office_continuation_diagnostic=diagnostic
+    def screen(public):
+        assert public is not diagnostic and public['actual'] is not diagnostic['actual']
+        assert public['actual']['types'] is not diagnostic['actual']['types']
+        no_credentials(public)
+        diagnostic['model']='private-mutated-after-validation'
+        diagnostic['actual']['types'].append('private-mutated-after-validation')
+    monkeypatch.setattr(R,'dependencies',lambda:{'no_credentials':screen})
+    assert R.main()==1
+    value=json.loads(capsys.readouterr().out)
+    assert value['continuation_diagnostic']==valid and 'private-mutated' not in json.dumps(value)
 
 
 def quota_workflow():
