@@ -8,6 +8,18 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Office94 запущен 09.11 07:14:53UTC:**
+[run42578096503](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42578096503),
+exact head `330a019faa29969517e93a17fad70e986fca4a56`, workflow_dispatch.
+Job129030276505, native status=in_progress на последней проверке.
+Это один run reviewed native
+source+target READ fixture fix после actual93 ACL diagnosis; предыдущие CI
+проверены terminal перед dispatch. Контрольная отмена exact42578096503 при
+07:59:53UTC, hard job timeout08:09:53UTC; отмена через
+`gh run cancel 42578096503 --repo Kwentin3/corp-openweb-ui`
+и затем native job/owned cleanup verification, без повторного конфликтующегоrun.
+Следующий шаг — terminal result и source-bound artifact; не считать source28
+тестов подтверждением browser/service/финансовой приёмки.
 **Последний прогон Office93, завершён:**
 [run42572740432](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42572740432),
 exact head `4241466e0d40a34d0046b209125ca3efe28c355b`, workflow_dispatch,
