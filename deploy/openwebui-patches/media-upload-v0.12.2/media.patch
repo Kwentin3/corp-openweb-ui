@@ -161,3 +161,70 @@
  					fileItem.id = uploadedFile.id;
  					fileItem.collection_name =
  						uploadedFile?.meta?.collection_name || uploadedFile?.collection_name;
+--- a/src/lib/components/chat/Chat.svelte
++++ b/src/lib/components/chat/Chat.svelte
+@@ -3034,7 +3034,7 @@
+ 		}
+ 
+ 		processingQueueChats.add(targetChatId);
+-		const queuedMessages = [...queue];
++		const queuedMessages = queue.slice(0, 1);
+ 		const queuedMessageIds = new Set(queuedMessages.map((m) => m.id));
+ 		try {
+ 			const combinedPrompt = queuedMessages.map((m) => m.prompt).join('\n\n');
+@@ -3052,8 +3052,13 @@
+ 				...q,
+ 				[targetChatId]: [...queuedMessages, ...(q[targetChatId] ?? [])]
+ 			}));
++			return;
+ 		} finally {
+ 			processingQueueChats.delete(targetChatId);
++		}
++		// Completion can arrive while submitPrompt still holds the queue lock.
++		if ($chatId === targetChatId) {
++			await processNextInQueue(targetChatId);
+ 		}
+ 	};
+ 
+@@ -3736,7 +3741,7 @@
+ 
+ 		if (
+ 			($config?.file?.max_count ?? null) !== null &&
+-			files.length + chatFiles.length > $config?.file?.max_count
++			files.length > $config?.file?.max_count
+ 		) {
+ 			toast.error(
+ 				$i18n.t(`You can only chat with a maximum of {{maxCount}} file(s) at a time.`, {
+--- a/src/lib/i18n/locales/en-US/translation.json
++++ b/src/lib/i18n/locales/en-US/translation.json
+@@ -3965,7 +3965,7 @@
+ 	"You": "",
+ 	"You are a sub-agent...": "",
+ 	"You are currently using a trial license. Please contact support to upgrade your license.": "",
+-	"You can only chat with a maximum of {{maxCount}} file(s) at a time.": "",
++	"You can only chat with a maximum of {{maxCount}} file(s) at a time.": "You can attach up to {{maxCount}} new files per message.",
+ 	"You cannot upload an empty file.": "",
+ 	"You do not have permission to edit this model": "",
+ 	"You do not have permission to edit this prompt.": "",
+--- a/src/lib/i18n/locales/ru-RU/translation.json
++++ b/src/lib/i18n/locales/ru-RU/translation.json
+@@ -4003,7 +4003,7 @@
+ 	"You": "Вы",
+ 	"You are a sub-agent...": "Вы — субагент...",
+ 	"You are currently using a trial license. Please contact support to upgrade your license.": "В настоящее время вы используете пробную лицензию. Пожалуйста, обратитесь в службу поддержки для обновления вашей лицензии.",
+-	"You can only chat with a maximum of {{maxCount}} file(s) at a time.": "Одновременно вы можете общаться только с максимальным количеством файлов {{maxCount}}.",
++	"You can only chat with a maximum of {{maxCount}} file(s) at a time.": "К одному сообщению можно прикрепить не более {{maxCount}} новых файлов.",
+ 	"You cannot upload an empty file.": "Вы не можете загрузить пустой файл.",
+ 	"You do not have permission to edit this model": "У вас нет прав на редактирование этой модели",
+ 	"You do not have permission to edit this prompt.": "У вас нет прав на редактирование этого промпта.",
+--- a/vite.config.ts
++++ b/vite.config.ts
+@@ -29,7 +29,7 @@
+ 		APP_BUILD_CHANNEL: JSON.stringify(buildInfo.channel)
+ 	},
+ 	build: {
+-		sourcemap: true
++		sourcemap: false
+ 	},
+ 	server: {
+ 		proxy: {

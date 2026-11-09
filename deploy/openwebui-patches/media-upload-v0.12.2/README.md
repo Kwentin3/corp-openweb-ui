@@ -18,6 +18,15 @@ mixed states and local edits before any write. Reapplying is harmless.
 - The native frontend status stream still owns waiting. When it completes,
   refresh the authoritative File, retain native warnings and expose a failed
   media-preparation state. Copy final filename/size into the normal attachment.
+- The configured attachment count applies to **new files per message**. With
+  `file.max_count=10`, each next message can attach another ten files; existing
+  chat sources and message history remain available. The native upload guard
+  already counts only the current draft. The Send guard now does the same.
+  Native queued messages drain one at a time, keeping their prompts/files
+  separate. A successful submission rechecks the queue after unlocking for
+  completion events received early; a thrown submission restores its item
+  without an immediate retry, and navigation leaves the old chat queue intact.
+  Existing English/Russian limit feedback names the per-message scope.
 
 Media preparation, same-ID replacement, retries and source cleanup remain in
 the existing `stage2_media_intake` Event Function. STT remains in the existing
@@ -31,15 +40,23 @@ stream returns status/error, not refreshed filename/size. Recheck these gaps on
 the next upstream update and remove the corresponding changes when equivalent
 native behavior has passed the same product checks.
 
+The per-message adaptation does not change server count settings, upload or
+processing concurrency, or active jobs. Other locales retain their upstream
+wording. Remove the Send/queue/translation changes when upstream implements
+the same per-message contract and passes the focused behavior checks below.
+
 ## Required build metadata
 
-`manifest.json` records pristine/patched hashes of the four affected files and
+`manifest.json` records pristine/patched hashes of the eight affected files and
 official `package.json`, `package-lock.json` and `Dockerfile` hashes.
 
 - Upstream declares Node `>=18.13.0 <=22.x.x`, npm `>=6.0.0`; its Dockerfile
   selects `node:22-alpine3.20`. Qualify with **Node 22** and record the exact
   Node/npm versions and container digest. Upstream does not pin one npm patch
   version. Preserve its lockfile and `npm ci --force` command.
+- The pinned `vite.config.ts` disables first-party build source maps, preserving
+  the shipped frontend artifact policy. Native public vendor maps may remain;
+  this does not change package dependencies or the upstream build command.
 - Upstream's backend uses Python **3.11**; this package's installer/verifiers
   use only the Python 3.11 standard library. No OpenWebUI, database, ML, npm or
   provider import is needed for local backend checks.
@@ -63,9 +80,10 @@ python /repo/deploy/openwebui-patches/media-upload-v0.12.2/apply_media.py /work/
 python /repo/deploy/openwebui-patches/media-upload-v0.12.2/apply_media.py /work/openwebui-0122
 python /repo/deploy/openwebui-patches/media-upload-v0.12.2/verify_backend.py /work/openwebui-0122
 node /repo/deploy/openwebui-patches/media-upload-v0.12.2/verify_frontend.mjs /work/openwebui-0122
+node /repo/deploy/openwebui-patches/media-upload-v0.12.2/verify_message_file_limit.mjs /work/openwebui-0122
 ```
 
-The installer checks all four exact source hashes before mutation. A checked
+The installer checks all exact source hashes before mutation. A checked
 source tree need not contain `.git` (for example, an extracted image); source
 hashes establish this overlay's applicability. The release owner must separately
 bind the full upstream checkout/image to the pinned commit/digest.
@@ -78,6 +96,15 @@ non-local fallback, claimed/unclaimed File handoff, process=false/synchronous
 fallback, extension checks and max-size cleanup. Native persistence/config,
 extension-loading and background-task boundaries use fixtures. These checks
 do not prove real authorization, conversion, DB migration or browser behavior.
+
+`verify_message_file_limit.mjs` checks candidate hashes, extracts the actual
+native upload, Send, submission and queue handler bodies, and executes them.
+It checks 10/11 new files, fresh ten after 20 historical files, the next turn's
+retained sources, separate queued batches, early completion, thrown submission
+restoration without immediate retry, navigation and all-queue upload readiness.
+Only UI, upload and `sendMessage` transport boundaries use fixtures. This is
+local behavior evidence; a Svelte build, browser flow and actual provider input
+still require release acceptance.
 
 ## Build the frontend from the patched v0.12.2 checkout
 
@@ -139,6 +166,17 @@ The package author's initial evidence was limited to local installer/backend
 checks. Subsequent integration built and qualified the exact frontend/runtime,
 native migration and ordinary-user media workflow; see the
 [accepted production release](../../../docs/infra-ops/openwebui-0122-cutover.md).
+
+For the per-message change, [Message file limit frontend CI](../../../.github/workflows/message-file-limit.yml)
+builds the complete frontend and existing pinned runtime outside production.
+The image check requires the deployed backend's 288 Python files to match and
+the complete frontend manifest/build identity to verify. Its exported archive
+must contain all legacy and transitive OCI references with valid sizes/digests.
+An incomplete image archive is not a deployable release even if `docker save`
+returns success. Match the loaded image's configuration, ordered RootFS diff IDs
+and file receipts; an OCI manifest ID and a legacy config ID may differ.
+Production activation is a separate targeted Compose update after approval;
+retain the prior immutable image and image-selector file for rollback.
 
 The concrete prepare-before-Send, same-ID attachment workflow was added to the
 [existing upstream discussion](https://github.com/open-webui/open-webui/discussions/24239#discussioncomment-18949752).
