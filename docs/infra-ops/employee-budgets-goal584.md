@@ -8,19 +8,29 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Текущий прогон Office96:**
+**Последний прогон Office96, завершён:**
 [run42589040860](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42589040860),
 exact head `190d7d8a0711023512f3537b6595faa37de895e6`, workflow406918033,
-job129065841193, dispatch09.11 08:51:59UTC. На09:00UTC in_progress, build/CLI
-preflight SUCCESS, native derivative build выполняется. Один запуск, без rerun.
-Проверяет reviewed host PNG export на actual Linux/Pillow11.3 и затем delegated
-Office; LTS/negative-quota/Terminal не включены. Bounds55min, manual control cancel
-09:36:59UTC (45min), hard timeout09:46:59UTC; наблюдаем exact job.
-При остановке native `gh run cancel 42589040860`, затем terminal job и owned cleanup
-receipt/остатки обязательны; возврат команды/таймаут не означает завершения.
-Остаются прежние preflight20GiB disk/6GiB RAM/7GiB Docker, phase limits,
-six services5.875GiB/4.25CPU/1728PIDs, component1GiB/256PIDs и cleanup actual IDs.
-Результат96 и actual admin pixels пока НЕ ПРИНЯТЫ.
+job129065841193, dispatch09.11 08:51:59UTC, terminalFAIL15/ordinary_send,
+1–14SUCCESS,16–18diagnostics/cleanup/uploadSUCCESS; живого CI нет, повтор не запускался.
+Reviewed host export прошёл actual Linux/Pillow11.3. Native admin verify и host
+complete:2personal/.332, service1/.20/new raw row1, saved embed/unknown employee.
+Independent reader32Gitpins,4maps/adminpresence/twoPNG/cleanupPASS; ROOT просмотрел
+обе actualPNG: unknown primary, remaining unconfirmed, known model не blocked,
+absent/null blocked, budget/shares/apply видимы. HTML/rawDB остаются private;
+independent raw replay не заявлен. Это принятие узкого admin unknown slice.
+Artifact13661392459 скачан один раз:1409738B/100unique/SHA256
+`8f0b01f7dd3f2b2a32a1db405ecf3745a7af3579eea0e41597a19d7ad2678917`.
+Root fullreader PASS54build/72pins/45guard+22auth+1CLI0skip, ordinary/continuation,
+5images joinedcleanup;2containers/5images removalcodes0, owned остатков нет.
+Office delegation НЕ ПРИНЯТА: lifecycle180s timeout, actual receipt показывает
+answer_done=true,2Taskscompleted,budgetstatusdone,nativetasks0,DOCX1,followUpsnull;
+diagnostic12provider/12auth — не доказательство требуемых13/финансов/context.
+Причина отсутствующего follow-up пока не установлена, таймаут не увеличиваем.
+Следующий шаг — source/native service-task ACL/trigger triage относительно
+успешного ordinary/admin paths. LTS/quota/Terminal в96не включены. Evidence
+`office96-review/`, `office96-delegation-triage/` (последний разбор в работе).
+Прежние phase/resource bounds и native cancel/terminal+ownedcleanup rule сохранены.
 
 **Последний завершённый прогон Office95:**
 [run42582340806](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42582340806),
