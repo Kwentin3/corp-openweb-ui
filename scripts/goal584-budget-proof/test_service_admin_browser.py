@@ -1,18 +1,88 @@
 """Rehearse separate admin reporting costs against native-shaped artifacts."""
 import copy
+import ast
 from decimal import Decimal
+import hashlib
 import json
 from pathlib import Path
 import sys
 import subprocess
 import tempfile
 import unittest
+from io import BytesIO
 from unittest.mock import patch
 from uuid import uuid4
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import prove_service_admin_browser as B
+
+
+def admin_post_verify_tree(workflow):
+    """Actual workflow tail/catch and existing trusted/public helpers, no native IO."""
+    block=next(b for b in workflow.split('      - name: ')[1:] if b.startswith('Verify the native admin form'))
+    embedded=block.split("<<'PY'\n",1)[1].rsplit('\n          PY',1)[0]
+    tree=ast.parse('\n'.join(line[10:] for line in embedded.splitlines()))
+    helpers=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in ('trusted','public')]
+    guarded=next(n for n in tree.body if isinstance(n,ast.Try) and any(
+        isinstance(v,ast.Constant) and v.value=='admin-unknown-host' for v in ast.walk(n)))
+    start=next(i for i,n in enumerate(guarded.body) if isinstance(n,ast.Assign) and any(
+        isinstance(t,ast.Name) and t.id=='stage' for t in n.targets) and isinstance(n.value,ast.Constant) and n.value.value=='verify')
+    return ast.Module(body=[*helpers,ast.Try(body=guarded.body[start:],handlers=guarded.handlers,orelse=[],finalbody=[])],type_ignores=[])
+
+
+def run_admin_post_verify(directory, png, *, workflow=None, verified=None, build=None, mutation=None):
+    """Native receipt/browser screenshots are IO leaves; execute the actual host tail."""
+    from prove_pricing_snapshots import no_credentials
+    repository=HERE.parents[1]
+    revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repository,text=True).strip()
+    # A Linux workflow consumes Git LF bytes; materialize that exact source on Windows.
+    root=(directory/'source').resolve();package=root/'services/officecli-openapi-proof/officecli_openapi_proof'
+    package.mkdir(parents=True)
+    for name in ('__init__.py','rendering.py','officecli.py','config.py'):
+        relative='services/officecli-openapi-proof/officecli_openapi_proof/'+name
+        (package/name).write_bytes(subprocess.check_output(['git','-c','gc.auto=0','show',revision+':'+relative],
+            cwd=repository,timeout=15,env=__import__('os').environ|{'GIT_NO_LAZY_FETCH':'1'}))
+    private,out=directory/'private',directory/'output';private.mkdir();out.mkdir()
+    paths={key:private/(key+'.png') for key in ('page_screenshot','employee_screenshot')}
+    for path in paths.values():path.write_bytes(png)
+    packet={'paths':{key:str(path) for key,path in paths.items()},
+        'screenshot_sha256':{key:hashlib.sha256(png).hexdigest() for key in paths}}
+    build=copy.deepcopy(build) if build is not None else {'office':{'modules':{'rendering.py':hashlib.sha256(
+        (root/'services/officecli-openapi-proof/officecli_openapi_proof/rendering.py').read_bytes()).hexdigest()}}}
+    if mutation=='hash':packet['screenshot_sha256']['page_screenshot']='0'*64
+    elif mutation=='path':
+        outside=directory/'outside.png';outside.write_bytes(png);packet['paths']['page_screenshot']=str(outside)
+    elif mutation=='owner_hash':build['office']['modules']['rendering.py']='0'*64
+    fixture=type('HostTailIO',(),{'secrets':[]})()
+    receipt=verified or {'passed':True,'status':'verified','personal_calls':2,'personal_cost_usd':'.332',
+        'native_saved_embed_verified':True,'unknown_employee_verified':True,
+        'whole_goal_accepted':False,'production_accepted':False,'unknown_cost_finality':False}
+    def native(arguments,label,timeout=120,require_passed=True,host_owner=True):
+        assert arguments==['/proof/prove_unknown_usage_gui.py','--phase','admin-verify']
+        assert label=='admin-unknown-verify' and timeout==150 and host_owner is False
+        assert receipt.get('passed') is True
+        return copy.deepcopy(receipt)
+    namespace=dict(root=root,private=private,out=out,packet=packet,build=build,native=native,fixture=fixture,
+        source=repository/'scripts/goal584-budget-proof',revision=revision,
+        closure={'source_sha256':{'reviewed.py':'a'*64}},credentials=lambda:None,no_credentials=no_credentials,
+        Path=Path,json=json,hashlib=hashlib,subprocess=subprocess,os=__import__('os'),sys=sys,stage='verify')
+    code=compile(ast.fix_missing_locations(admin_post_verify_tree(workflow or (
+        repository/'.github/workflows/goal584-office-proof.yml').read_text(encoding='utf-8'))),'actual-admin-post-verify','exec')
+    error=None
+    old_path=sys.path[:]
+    old_modules={key:value for key,value in sys.modules.items() if key.split('.')[0]=='officecli_openapi_proof'}
+    for key in old_modules:del sys.modules[key]
+    try:
+        try:exec(code,namespace)
+        except SystemExit as caught:error=caught.code
+    finally:
+        sys.path[:]=old_path
+        for key in list(sys.modules):
+            if key.split('.')[0]=='officecli_openapi_proof':del sys.modules[key]
+        sys.modules.update(old_modules)
+    result=json.loads((out/'admin-unknown-host.safe.json').read_text(encoding='utf-8'))
+    return result,out,error
 
 
 def packet():
@@ -448,6 +518,32 @@ class UnknownAdminFailureTests(unittest.TestCase):
             self.assertIs(public['admin-unknown-host']['lifecycle_diagnostic_collected'],expected)
             self.assertIs(public['admin-unknown-host']['passed'],False)
             self.assertNotIn('private-secret',json.dumps(public))
+
+
+class UnknownAdminPostVerifyTests(unittest.TestCase):
+    def png(self):
+        from PIL import Image
+        stream=BytesIO();Image.new('RGB',(16,16),'white').save(stream,format='PNG');return stream.getvalue()
+
+    def test_actual_host_tail_uses_firstparty_png_owner_and_exports_both_verified_hashes(self):
+        png=self.png()
+        with tempfile.TemporaryDirectory() as directory:
+            result,out,error=run_admin_post_verify(Path(directory),png)
+            self.assertIsNone(error);self.assertIs(result['passed'],True)
+            self.assertEqual(result['stage'],'complete');self.assertEqual(result['personal_cost_usd'],'.332')
+            for label in ('page','employee'):
+                self.assertEqual((out/('office-admin-unknown-'+label+'.png')).read_bytes(),png)
+            self.assertFalse(result['whole_goal_accepted'] or result['production_accepted'] or result['unknown_cost_finality'])
+
+    def test_actual_host_tail_keeps_png_hash_path_and_owner_guards_fatal(self):
+        for mutation in ('malformed','hash','path','owner_hash'):
+            with self.subTest(mutation=mutation),tempfile.TemporaryDirectory() as directory:
+                png=b'\x89PNG\r\n\x1a\nheader-only' if mutation=='malformed' else self.png()
+                result,out,error=run_admin_post_verify(Path(directory),png,mutation=mutation)
+                self.assertEqual(error,1);self.assertIs(result['passed'],False)
+                self.assertEqual(result['stage'],'verify')
+                self.assertEqual(result['error_class'],'OfficeCliFailure' if mutation=='malformed' else 'AssertionError')
+                self.assertFalse((out/'office-admin-unknown-page.png').exists())
 
 
 if __name__ == "__main__":

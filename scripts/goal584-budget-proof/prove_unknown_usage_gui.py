@@ -474,6 +474,31 @@ def admin_browser(packet, saved, selected):
     return chat, answer, final, rows
 
 
+def admin_assignment_keys(budget, native):
+    models = budget['models']
+    keys = {m['model']: m['key_hash'] for m in models}
+    require(len(keys) == len(models) == len(native['keys']) and set(keys) == set(native['keys'])
+            and budget['user_id'] == native['user']['user_id']
+            and all(isinstance(key, str) and re.fullmatch(r'[0-9a-f]{64}', key) for key in keys.values())
+            and len(set(keys.values())) == len(keys)
+            and all(native['keys'][m['model']]['user_id'] == budget['user_id']
+                    and native['keys'][m['model']]['models'] == [m['model']]
+                    and native['keys'][m['model']]['key_alias'] == m['key_alias'] for m in models),
+            'admin_unknown_assignment_identity')
+    return keys
+
+
+def admin_service_finance(before, after):
+    keys = admin_assignment_keys(before['budget'], before['snapshot'])
+    require(keys == admin_assignment_keys(after['budget'], after['snapshot'])
+            and set(keys) == {'gpt-6-luna'}
+            and before['budget']['user_id'] == after['budget']['user_id'], 'admin_unknown_service_assignment')
+    def project(value):
+        snap = value['snapshot']
+        return {'user': snap['user'], 'key': {**snap['keys']['gpt-6-luna'], 'token': keys['gpt-6-luna']}, 'rows': snap['rows']}
+    return project(before), project(after)
+
+
 def admin_native(before, after, main, cost, *, admin, chat, answer):
     """Reconcile native identity/cardinality/counters against the existing cost owner."""
     require(cost.user_id == admin and cost.root_chat_id == chat and cost.root_answer_id == answer
@@ -483,7 +508,11 @@ def admin_native(before, after, main, cost, *, admin, chat, answer):
     first, current = before['own']['native'], after['own']['native']
     require(after['unknown'] == before['unknown'] and after['old'] == before['old']
             and P.protected(current) == P.protected(first), 'admin_unknown_native_preservation')
-    key = first['keys'][P.ALIASES[0]]['token']
+    keys = admin_assignment_keys(before['own']['budget'], first)
+    require(keys == admin_assignment_keys(after['own']['budget'], current) and set(keys) == {P.ALIASES[0]}
+            and before['own']['budget']['user_id'] == after['own']['budget']['user_id'] == admin,
+            'admin_unknown_personal_assignment')
+    key = keys[P.ALIASES[0]]
     scopes = []
     for call in main:
         scope = P.validate_persisted_scope(call['verified_cost_scope'])
@@ -583,10 +612,6 @@ async def execute_admin(phase):
         service_budget = await client.read_service(office['service_fixture']['payer_id'])
     after = await observation()
     # Service accounting remains the existing independent native owner.
-    def service_finance(value):
-        snap = value['snapshot']; keys = list(snap['keys'].values())
-        require(len(keys) == 1, 'admin_unknown_service_assignment')
-        return {'user': snap['user'], 'key': keys[0], 'rows': snap['rows']}
     def settled_admin():
         current = copy.deepcopy(after)
         current['own']['native'] = P.snapshot(native, own_budget)
@@ -594,8 +619,9 @@ async def execute_admin(phase):
         state['last_observation']['native'] = current; P.fixture.write_private(ADMIN_STATE, state)
         try:
             admin_native(state['observation'], current, main, cost, admin=selected['admin']['id'], chat=chat, answer=answer)
-            task = office_reader.verify_service_turn(service, service_finance(state['observation']['service']),
-                service_finance(current['service']), final, actor=selected['admin']['id'], payer=office['service_fixture']['payer_id'],
+            service_before, service_after = admin_service_finance(state['observation']['service'], current['service'])
+            task = office_reader.verify_service_turn(service, service_before, service_after,
+                final, actor=selected['admin']['id'], payer=office['service_fixture']['payer_id'],
                 chat=chat, descriptor=state['descriptor'], d=d, expected_user_request=intent)
         except P.ProofError as error:
             code = str(error)

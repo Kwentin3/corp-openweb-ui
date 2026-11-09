@@ -830,7 +830,12 @@ jobs:
               assert verified.get('status')=='verified' and verified.get('personal_calls')==2 and verified.get('personal_cost_usd')=='.332'
               assert verified.get('native_saved_embed_verified') is True and verified.get('unknown_employee_verified') is True
               assert all(verified.get(key) is False for key in ('whole_goal_accepted','production_accepted','unknown_cost_finality'))
-              from prove_office_compatibility import checked_png
+              office_source=root/'services/officecli-openapi-proof'
+              sys.path.insert(0,str(office_source))
+              from officecli_openapi_proof.rendering import checked_png
+              png_owner=Path(sys.modules[checked_png.__module__].__file__).resolve()
+              assert png_owner==(office_source/'officecli_openapi_proof/rendering.py').resolve()
+              assert trusted(png_owner)==build['office']['modules']['rendering.py']
               for key,label in (('page_screenshot','page'),('employee_screenshot','employee')):
                   path=Path(packet['paths'][key]);assert path.resolve().parent==private.resolve() and not path.is_symlink()
                   raw=path.read_bytes();checked_png(raw)

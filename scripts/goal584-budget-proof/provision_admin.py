@@ -331,11 +331,60 @@ def unknown_preserved(before, after, *, new_admin=None, installing=False):
         require(type(current.get('updated_at')) is int and current['updated_at'] >= old_filter['updated_at'],
                 'Native Function update timestamp differs')
         old_filter['updated_at'] = current['updated_at']
+        from prove_unknown_usage_policy import ALIASES
+        for mid in (ALIASES[0], 'gpt-6-luna'):
+            original, current = expected['models'][mid], after['models'][mid]
+            wanted = model_body(original)
+            wanted['access_grants'].append({'principal_type': 'user', 'principal_id': new_admin['id'], 'permission': 'read'})
+            require(not model_grant_changes(wanted, model_body(current)), 'Admin source/target read grant changed model fields')
+            allowed = copy.deepcopy(original)
+            allowed['access_grants'] = current['access_grants']
+            if 'updated_at' in original:
+                require(type(current.get('updated_at')) is int and current['updated_at'] >= original['updated_at'],
+                        'Admin source/target model update timestamp differs')
+                allowed['updated_at'] = current['updated_at']
+            require(current == allowed, 'Admin source/target read grant changed model owner or native state')
+            expected['models'][mid] = allowed
+            for uid, catalog in expected['catalogs'].items():
+                if mid not in catalog: continue
+                info = catalog[mid].get('info', {})
+                observed_info = after['catalogs'][uid][mid].get('info', {})
+                if 'access_grants' in info:
+                    require(grant_set(observed_info) == grant_set(current), 'Admin source/target catalog grants differ')
+                    info['access_grants'] = observed_info['access_grants']
+                if 'updated_at' in info: info['updated_at'] = current['updated_at']
         for uid, catalog in expected['catalogs'].items():
             if expected['directory'][uid]['role'] == 'admin':
                 require(MODEL_ID in after['catalogs'][uid], 'Native admin cannot discover canonical preset')
                 catalog[MODEL_ID] = after['catalogs'][uid][MODEL_ID]
     require(after == expected, 'Admin unknown setup/readback changed existing native state')
+
+
+def unknown_admin_read_grants(webui, common, office, selected, before, path):
+    """Prepare only the fresh stand admin's existing native source/target reads."""
+    from prove_unknown_usage_policy import ALIASES
+    require(office.get('service_fixture', {}).get('target_model_id') == 'gpt-6-luna',
+            'Admin follow-up requires the prepared canonical Office service target')
+    owner = common['admin']
+    webui.session(owner, 'admin')
+    for mid in (ALIASES[0], 'gpt-6-luna'):
+        original = webui.model(owner['token'], mid)
+        require(original == before['models'].get(mid) and original.get('user_id') == owner['id'],
+                'Admin source/target read grant requires the unchanged native owner')
+        grant = {'principal_type': 'user', 'principal_id': selected['admin']['id'], 'permission': 'read'}
+        require(('user', selected['admin']['id'], 'read') not in grant_set(original),
+                'Fresh admin already has a source/target read grant')
+        wanted = model_body(original)
+        wanted['access_grants'].append(grant)
+        entry = {'stage': 'native-model-read-grant', 'model_id': mid, 'original': original,
+                 'requested': wanted, 'returned': False}
+        selected['journal'].append(entry); write_private(path, selected)
+        webui.ok('POST', '/api/v1/models/model/update', token=owner['token'], body=wanted)
+        observed = webui.model(owner['token'], mid)
+        require(observed.get('user_id') == original['user_id']
+                and not model_grant_changes(wanted, model_body(observed)),
+                'Admin source/target native read grant changed owner or model fields')
+        entry.update(returned=True, readback=observed); write_private(path, selected)
 
 
 async def unknown_setup(webui, common, office, unknown, path, handoff):
@@ -370,6 +419,7 @@ async def unknown_setup(webui, common, office, unknown, path, handoff):
         selected['admin'] = account_from_response(result, email, password, 'admin')
         require(selected['admin']['id'] not in {a['id'] for a in actors}, 'Admin unknown identity collided')
         write_private(path, selected)
+        unknown_admin_read_grants(webui, common, office, selected, before, path)
         async def guard():
             webui.session(common['admin'], 'admin'); webui.session(selected['admin'], 'admin')
             selected['journal'].append('native-initialization-before-write'); write_private(path, selected)
