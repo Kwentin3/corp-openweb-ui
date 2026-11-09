@@ -8,18 +8,30 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Office95 запущен 09.11 07:55:14UTC:**
+**Последний прогон Office95, завершён:**
 [run42582340806](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42582340806),
 exact head `0cbf19af5e83ca45f6f23465b3043d211d9d1052`, workflow_dispatch,
-job129043834678, native status=in_progress/step4 на последней проверке.
-Это один run после reviewed
-native KeyInfo/BudgetDTO consumer correction; old READ grants сохранены,
-LTS/quota isolation commits не включены. Следующий шаг — наблюдать этот же
-run/job до terminal, source-bound artifact/readback и owned cleanup verification.
-Контрольная адресная отмена08:40:14UTC, hard job timeout08:50:14UTC:
-`gh run cancel 42582340806 --repo Kwentin3/corp-openweb-ui`, затем проверить
-terminal и остаточных task-owned участников/cleanup; без receipt unconfirmed.
-Source38+independent38 не являются full runtime/financial acceptance.
+job129043834678, dispatch09.11 07:55:14UTC; terminalFAIL14/HOSTpostverify,
+1–13SUCCESS,15SKIPPED, diagnostics/cleanup/uploadSUCCESS; живого CI нет.
+Native admin-verify ПЕРВЫЙ РАЗ passed=true/status=verified:2personal/.332,
+service1/.20/new raw row1, native saved embed/unknown employee проверены.
+Это source-bound native financial/context receipt, не независимый raw DB replay
+и не whole-GOAL acceptance. Artifact13657604841 скачан один раз:
+1182553B/92unique/SHA256
+`6fc4f6080072f4b62617195a45c3b875ef95283288fa29bd40b57448f0ecb237`.
+Root reader PASS54build/72pins/45guard+22auth+1CLI0skip; ordinary/continuation
+и cleanup5images/no taskresources подтверждены. Ключевой consumer fix прошёл
+реальный native path. Host затем ImportError: workflow импортировал checked_png
+из compat, где этот symbol существует только внутри другой функции.
+Узкий2file workflow/test fix использует real Office rendering owner + его Git/
+build hash и сохраняет все PNG/source/financial/fatal guards, без новых deps.
+23testsPASS и independent23PASS, old actual tail→ImportError/new→2exports.
+Local Pillow12 вместо CI11.3 явно unverified; source/Office owner неизменён,
+exact Linux pins и ACTUAL admin pixels96 ещё обязательны. Admin PNG95 не
+экспортировались. Evidence `office95-review/`, `office95-host-png-{fix,review}/`.
+Следующий шаг — один bounded96run на reviewed host fix. Bounds55min/45min
+control cancel/exactjob observation/ownedcleanupverification сохраняются;
+перед dispatch предыдущие3runs подтверждены terminal, никаких duplicated runs.
 **Последний прогон Office94, завершён:**
 [run42578096503](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42578096503),
 exact head `330a019faa29969517e93a17fad70e986fca4a56`, workflow_dispatch.
