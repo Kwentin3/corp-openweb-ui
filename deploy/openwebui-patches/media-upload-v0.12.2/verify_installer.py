@@ -42,7 +42,7 @@ def verify(source):
         restore()
         apply_media.apply(root, check=True)
         assert snapshot() == originals
-        passed.append('check-only preserves all four files')
+        passed.append(f'check-only preserves all {len(originals)} files')
         apply_media.apply(root)
         candidates = snapshot()
         assert all(hashlib.sha256(data).hexdigest() == manifest['files'][p]['candidate_sha256']

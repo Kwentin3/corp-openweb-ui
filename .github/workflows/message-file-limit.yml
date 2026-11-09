@@ -1,0 +1,123 @@
+name: Message file limit frontend
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - deploy/openwebui-patches/media-upload-v0.12.2/**
+      - deploy/openwebui-upgrade-0122/make_runtime_context.py
+      - .github/workflows/message-file-limit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: message-file-limit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      UPSTREAM_SOURCE: ${{ runner.temp }}/openwebui-0122
+      FRONTEND_RECEIPT: ${{ runner.temp }}/message-file-limit-frontend
+      RUNTIME_CONTEXT: ${{ runner.temp }}/message-file-limit-runtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.19.0'
+
+      - name: Verify the exact upstream installer and message behavior
+        run: |
+          git -c core.autocrlf=false clone --depth 1 --branch v0.12.2 https://github.com/open-webui/open-webui.git "$UPSTREAM_SOURCE"
+          test "$(git -C "$UPSTREAM_SOURCE" rev-parse HEAD)" = 6a18585ff4c2e5f6805f682222cfbc46dc669ef8
+          overlay=deploy/openwebui-patches/media-upload-v0.12.2
+          python "$overlay/verify_installer.py" "$UPSTREAM_SOURCE"
+          python "$overlay/apply_media.py" "$UPSTREAM_SOURCE"
+          node "$overlay/verify_frontend.mjs" "$UPSTREAM_SOURCE"
+          node "$overlay/verify_message_file_limit.mjs" "$UPSTREAM_SOURCE"
+          python - <<'PY'
+          import hashlib, os, pathlib
+          overlay = pathlib.Path('deploy/openwebui-patches/media-upload-v0.12.2/manifest.json')
+          identity = hashlib.sha256(os.environ['GITHUB_SHA'].encode() + overlay.read_bytes()).hexdigest()
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('APP_BUILD_HASH=' + identity + '\n')
+              output.write('APP_BUILD_CHANNEL=stable\n')
+          PY
+
+      - name: Install the unchanged native frontend dependencies
+        working-directory: ${{ env.UPSTREAM_SOURCE }}
+        run: timeout --signal=TERM --kill-after=30s 8m npm ci --force
+
+      - name: Build the complete native frontend
+        working-directory: ${{ env.UPSTREAM_SOURCE }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          node --version
+          npm --version
+          free -m
+          timeout --signal=TERM --kill-after=30s 18m /usr/bin/time -v npm run build
+
+      - name: Bind the complete artifact to its reviewed inputs
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
+          source = pathlib.Path(os.environ['UPSTREAM_SOURCE'])
+          build = source / 'build'
+          overlay = pathlib.Path('deploy/openwebui-patches/media-upload-v0.12.2/manifest.json')
+          receipt_root = pathlib.Path(os.environ['FRONTEND_RECEIPT'])
+          receipt_root.mkdir()
+          files = {}
+          for path in sorted(build.rglob('*')):
+              if path.is_file():
+                  assert not path.is_symlink(), path
+                  files[path.relative_to(build).as_posix()] = {
+                      'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+                      'bytes': path.stat().st_size,
+                  }
+          assert files and 'index.html' in files
+          manifest = (json.dumps(files, indent=2) + '\n').encode()
+          (receipt_root / 'frontend-files.json').write_bytes(manifest)
+          inputs = json.loads(overlay.read_text())
+          receipt = {
+              'upstream_version': '0.12.2',
+              'upstream_commit': inputs['upstream_commit'],
+              'build_identity': os.environ['APP_BUILD_HASH'],
+              'source_commit': os.environ['GITHUB_SHA'],
+              'native_build_command': 'npm run build',
+              'source_archive_sha256': hashlib.sha256(subprocess.check_output(['git', '-C', str(source), 'archive', 'HEAD'])).hexdigest(),
+              'input_receipt_sha256': hashlib.sha256(overlay.read_bytes()).hexdigest(),
+              'frontend_sources_sha256': hashlib.sha256(json.dumps(inputs['files'], sort_keys=True).encode()).hexdigest(),
+              'artifact_sha256': hashlib.sha256(json.dumps(files, sort_keys=True).encode()).hexdigest(),
+              'build_files': len(files),
+              'build_uncompressed_bytes': sum(item['bytes'] for item in files.values()),
+              'build_files_manifest_sha256': hashlib.sha256(manifest).hexdigest(),
+              'native_build_success': True,
+              'sourcemap': False,
+              'build_directory': str(build),
+          }
+          assert not any(name.startswith('_app/') and name.endswith('.map') for name in files), 'Unexpected first-party source map'
+          (receipt_root / 'frontend-artifact-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          PY
+          python deploy/openwebui-upgrade-0122/make_runtime_context.py --frontend "$FRONTEND_RECEIPT" --output "$RUNTIME_CONTEXT"
+          git rev-parse HEAD > "$RUNTIME_CONTEXT/source-commit.txt"
+
+      - name: Retain the qualified runtime context
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: message-file-limit-runtime-${{ github.sha }}
+          path: ${{ env.RUNTIME_CONTEXT }}
+          compression-level: 1
+          retention-days: 3
+          if-no-files-found: error

@@ -1,4 +1,4 @@
-"""Apply the four accepted media integration changes to exact v0.12.2 sources.
+"""Apply the accepted media and per-message file adaptations to exact v0.12.2.
 
 No media preparation or transcription logic belongs in this overlay. Native
 Files, storage, processing status, Events and the draft queue retain ownership.
@@ -117,6 +117,41 @@ export const getFileProcessStatus''')
 					fileItem.name = uploadedFile.filename ?? fileItem.name;
 					fileItem.size = uploadedFile.meta?.size ?? fileItem.size;
 					fileItem.id = uploadedFile.id;''')
+
+    if relative == 'src/lib/components/chat/Chat.svelte':
+        source = replace_once(source,
+            'files.length + chatFiles.length > $config?.file?.max_count',
+            'files.length > $config?.file?.max_count')
+        source = replace_once(source, 'const queuedMessages = [...queue];',
+                              'const queuedMessages = queue.slice(0, 1);')
+        return replace_once(source, '''				[targetChatId]: [...queuedMessages, ...(q[targetChatId] ?? [])]
+			}));
+		} finally {
+			processingQueueChats.delete(targetChatId);
+		}
+	};''', '''				[targetChatId]: [...queuedMessages, ...(q[targetChatId] ?? [])]
+			}));
+			return;
+		} finally {
+			processingQueueChats.delete(targetChatId);
+		}
+		// Completion can arrive while submitPrompt still holds the queue lock.
+		if ($chatId === targetChatId) {
+			await processNextInQueue(targetChatId);
+		}
+	};''')
+
+    limit_key = 'You can only chat with a maximum of {{maxCount}} file(s) at a time.'
+    if relative == 'src/lib/i18n/locales/en-US/translation.json':
+        return replace_once(source, f'"{limit_key}": "",',
+                            f'"{limit_key}": "You can attach up to {{{{maxCount}}}} new files per message.",')
+    if relative == 'src/lib/i18n/locales/ru-RU/translation.json':
+        return replace_once(source,
+            f'"{limit_key}": "Одновременно вы можете общаться только с максимальным количеством файлов {{{{maxCount}}}}.",',
+            f'"{limit_key}": "К одному сообщению можно прикрепить не более {{{{maxCount}}}} новых файлов.",')
+    if relative == 'vite.config.ts':
+        return replace_once(source, '\tbuild: {\n\t\tsourcemap: true\n\t},',
+                            '\tbuild: {\n\t\tsourcemap: false\n\t},')
     raise ValueError(f'Unsupported media source: {relative}')
 
 
@@ -144,6 +179,8 @@ def apply(root: Path, *, check: bool = False, backend_only: bool = False) -> str
             raise RuntimeError(f'Installer differs from reviewed result: {relative}')
         if relative.endswith('.py'):
             ast.parse(candidate, filename=relative)
+        elif relative.endswith('.json'):
+            json.loads(candidate)
         staged[path] = candidate
     if len(states) != 1:
         raise RuntimeError('Mixed patch state; do not partially apply or guess')
