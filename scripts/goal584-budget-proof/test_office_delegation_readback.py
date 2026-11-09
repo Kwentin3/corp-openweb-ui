@@ -210,7 +210,174 @@ def test_cli_error_does_not_export_raw_private_exception(monkeypatch, capsys):
     assert 'private-token' not in json.dumps(value)
 
 
-def context_case(monkeypatch, tmp_path):
+def test_quota_status_envelope_uses_actual_source_and_never_exports_private_result():
+    from prove_pricing_snapshots import no_credentials
+    data=native_io();state={'stage':'verified_readback','prepared_sha256':R.proof.digest(data.office),
+        'quota':{'stage':'baseline_ready','result':{'private':'sk-private-result-must-stay-in-journal'}}}
+    d={'read_private':lambda path:data.office if path==R.OFFICE else state,'no_credentials':no_credentials}
+    value=R.run('quota-status',d)
+    assert value['quota_present'] is True and value['quota_stage']=='baseline_ready'
+    assert value['source_sha256']==R.sha256(Path(R.__file__).read_bytes()).hexdigest()
+    assert value['native_office_accepted'] is False and 'result' not in value
+    assert 'private-result' not in json.dumps(value)
+
+
+def quota_public_case(monkeypatch,tmp_path):
+    from test_capture_webui_auth import C
+    data=native_io();data.people[data.actor]['spend']=1.32
+    data.keys[data.actor][0]['spend']=1.2;data.keys[data.actor][1]['spend']=.12
+    original=R.inventory(data.native,data.office);worker=original['personal'][R.MODELS[1]]['key']
+    data.keys[data.actor][1]['max_budget']=.12
+    restricted=R.inventory(data.native,data.office,worker_cap=Decimal('.12'))
+    R.quota_cap_only(original,restricted,worker['token'],Decimal('.12'))
+    data.keys[data.actor][1]['max_budget']=1000
+    restored=R.inventory(data.native,data.office)
+    R.quota_cap_only(restricted,restored,worker['token'],Decimal(1000))
+    q={'stage':'restored','original_cap':str(worker['max_budget']),'restricted_cap':str(worker['spend']),
+       'finance':restricted,'restored_inventory':restored,
+       'journal':['restrict_pre_write','restrict_returned','restrict_readback','restore_pre_write','restore_readback']}
+    monkeypatch.setattr(C,'CAPTURE',tmp_path/'capture.private.json')
+    for index in range(36):C._append({'body':{'index':index,'input':'Приватный контекст не экспортировать'}})
+    return q,C,data
+
+
+def test_quota_public_readback_uses_native_inventory_and_actual_serialized_capture(monkeypatch,tmp_path):
+    q,capture,data=quota_public_case(monkeypatch,tmp_path)
+    with capture.capture_lock():
+        observed=capture._read_locked()
+        capture.CAPTURE.write_bytes(json.dumps(observed,ensure_ascii=False,indent=1).encode('utf8')+b'\n')
+    raw=capture.CAPTURE.read_bytes();before=copy.deepcopy(q)
+    value=R.quota_public_readback(q,capture)
+    assert q==before and value['worker']=={'original_cap_usd':'1000','restricted_cap_usd':'0.12',
+        'restriction_readback_complete':True,'restricted_readback':{'cap_usd':'0.12','spend_usd':'0.12'},
+        'restored_readback':{'cap_usd':'1000','spend_usd':'0.12'},'restoration_complete':True}
+    assert value['capture']=={'total_records':36,'serialized_bytes':len(raw),'sha256':R.sha256(raw).hexdigest(),
+        'max_records':36,'max_bytes':4*1024*1024}
+    assert len(raw)>len(raw.decode('utf8')) and 'verified' not in value
+    assert all(secret not in json.dumps(value) for secret in (data.actor,data.payer,'Приватный контекст'))
+
+
+def test_quota_public_readback_allowlists_existing_verified_summary_and_phase_envelope(monkeypatch,tmp_path):
+    import ast
+    from prove_pricing_snapshots import no_credentials
+    q,capture,data=quota_public_case(monkeypatch,tmp_path)
+    verified=R.verify(**complete_case(tmp_path,monkeypatch))
+    # Reuse the exact existing quota result producer; finance comes from the
+    # actual native/context/SDK/rate collector, not another summary assembler.
+    tree=ast.parse(Path(R.__file__).read_bytes())
+    producer=next(n for n in tree.body if getattr(n,'name',None)=='verify_quota')
+    returned=next(n for n in reversed(producer.body) if isinstance(n,ast.Return))
+    q['result']=eval(compile(ast.Expression(returned.value),'<existing-quota-result-producer>','eval'),
+        {'finance':verified['personal'][R.MODELS[0]],'service':verified['service'],'added':[],
+         'cost':{'error':'usage_unavailable'},'status':{'private':'raw status must remain private'}})
+    q['result']['raw_wire']={'authorization':'sk-secret-raw-not-for-public'}
+    q['result']['personal']['token']='sk-secret-nested-not-for-public'
+    q['private_journal_copy']='private-password-sentinel'
+    state={'quota':q};seen=[]
+    monkeypatch.setattr(R,'quota_run',lambda phase,d:dict(schema=1,phase=phase,passed=True,native_office_accepted=False))
+    def safe(value):no_credentials(value,('private-password-sentinel',));seen.append(copy.deepcopy(value))
+    packet=R.run('quota-verify',{'read_private':lambda path:state,'capture':capture,'no_credentials':safe})
+    value=packet['quota_readback']['verified']
+    assert value['personal']=={'physical_calls':6,'new_raw_rows':6,'native_spend_delta_usd':'1.20'}
+    assert value['service']=={'physical_calls':1,'new_raw_rows':1,'native_spend_delta_usd':'.20'}
+    assert (value['native_denial_status'],value['worker_provider_calls'],value['provider_calls'],value['captured_attempts'])==(422,0,7,8)
+    assert value['row_absence_is_not_zero_cost_proof'] is True and value['worker_expense_final'] is False
+    assert 'result' not in packet and not any(text in json.dumps(packet) for text in ('sk-secret','private-password','raw status'))
+    assert seen==[packet] and packet['source_sha256']==R.sha256(Path(R.__file__).read_bytes()).hexdigest()
+
+
+def test_quota_public_readback_rejects_missing_or_inconsistent_actual_restore_facts(monkeypatch,tmp_path):
+    q,capture,_=quota_public_case(monkeypatch,tmp_path)
+    for change in (lambda value:value.pop('restored_inventory'),
+                   lambda value:value['restored_inventory']['personal'][R.MODELS[1]]['key'].update(max_budget=999),
+                   lambda value:value['restored_inventory']['personal'][R.MODELS[1]]['key'].update(spend=.13),
+                   lambda value:value['journal'].remove('restore_readback'),
+                   lambda value:value['finance']['personal'][R.MODELS[1]]['key'].update(max_budget=.13)):
+        changed=copy.deepcopy(q);change(changed)
+        with pytest.raises(N.ProofError):R.quota_public_readback(changed,capture)
+
+
+def test_quota_public_readback_keeps_actual_capture_owner_count_and_byte_limits(monkeypatch,tmp_path):
+    q,capture,_=quota_public_case(monkeypatch,tmp_path)
+    original=capture.CAPTURE.read_bytes()
+    for raw in (json.dumps({'schema':1,'requests':[{}]*37}).encode(),original+b' '*(capture.MAX_BYTES+1-len(original))):
+        capture.CAPTURE.write_bytes(raw)
+        with pytest.raises(RuntimeError):R.quota_public_readback(q,capture)
+        assert capture.CAPTURE.read_bytes()==raw
+
+
+@pytest.mark.parametrize('mode',['success','failed_complete','timeout','empty','wrong_source','wrong_phase','wrong_exit','accepted'])
+def test_attached_quota_phase_requires_real_owner_source_and_native_completion(monkeypatch,mode):
+    import subprocess
+    fixture=SimpleNamespace(command=['docker','compose','--project-name','owned'])
+    marks=[];events=[]
+    def leaf(command,**kwargs):
+        events.append(command)
+        assert command==fixture.command+['exec','-T','proxy','python','-B','/proof/prove_office_delegation_readback.py','--phase','quota-baseline']
+        assert kwargs=={'capture_output':True,'timeout':75}
+        if mode=='timeout':raise subprocess.TimeoutExpired(command,75)
+        value={'schema':1,'phase':'quota-baseline','passed':mode!='failed_complete','native_office_accepted':False,
+            'source_sha256':R.sha256(Path(R.__file__).read_bytes()).hexdigest()}
+        if mode=='wrong_source':value['source_sha256']='f'*64
+        if mode=='wrong_phase':value['phase']='quota-restore'
+        if mode=='accepted':value['native_office_accepted']=True
+        code=1 if mode in ('failed_complete','wrong_exit') else 0
+        return subprocess.CompletedProcess(command,code,b'' if mode=='empty' else json.dumps(value).encode())
+    monkeypatch.setattr(R.subprocess,'run',leaf)
+    if mode in ('success','failed_complete'):
+        packet=R.host_quota_phase(fixture,'quota-baseline',marks.append,timeout=75)
+        assert packet['passed'] is (mode=='success') and marks==[True,False]
+    else:
+        with pytest.raises(N.ProofError,match='mutation_unconfirmed'):
+            R.host_quota_phase(fixture,'quota-baseline',marks.append,timeout=75)
+        assert marks==[True]
+    assert len(events)==1
+
+
+@pytest.mark.parametrize('mutation',[None,'foreign_actor','positive_chat','foreign_owner','still_active','wrong_session'])
+def test_quiesce_uses_actual_webui_owner_preserves_pre_stop_and_never_claims_product_tasks(monkeypatch,tmp_path,mutation):
+    monkeypatch.setattr(R,'PRIVATE',tmp_path)
+    data=native_io();actor=data.actor;chat=str(uuid4());positive=str(uuid4())
+    data.office['office_delegation_setup']['actor']['token']='actor-IO-token'
+    packet={'actor_id':actor,'chat_id':chat}
+    if mutation=='foreign_actor':packet['actor_id']=data.old
+    if mutation=='positive_chat':packet['chat_id']=positive
+    (tmp_path/'office-delegation-quota.private.json').write_text(json.dumps(packet))
+    state={'browser':{'chat_id':positive},'quota':{'stage':'baseline_ready','journal':['restrict_readback']}}
+    active=['actual-native-background'];events=[];writes=[]
+    class Transport:
+        def open(self,request,timeout):
+            nonlocal active
+            path=urlsplit(request.full_url).path;method=request.get_method();events.append((method,path))
+            assert timeout==20 and request.headers['Authorization']=='Bearer actor-IO-token'
+            if path=='/api/v1/auths/':return HttpResult({'id':actor,'role':'admin' if mutation=='wrong_session' else 'user'})
+            if path=='/api/v1/chats/'+chat:
+                return HttpResult({'id':chat,'user_id':data.old if mutation=='foreign_owner' else actor,
+                    'tasks':[{'id':'real-task','status':'pending'}]})
+            if method=='POST':
+                assert path=='/api/tasks/chat/'+chat+'/stop'
+                assert writes[-1]['quota']['cleanup']['before']['task_ids']==['actual-native-background']
+                if mutation!='still_active':active=[]
+                return HttpResult({'status':True})
+            assert path=='/api/tasks/chat/'+chat
+            return HttpResult({'task_ids':active})
+    webui=provision.WebUI();webui.opener=Transport()
+    d={'read_private':lambda path:json.loads(path.read_text()),'WebUI':lambda:webui,
+       'write_private':lambda path,value:writes.append(copy.deepcopy(value))}
+    if mutation:
+        with pytest.raises(N.ProofError):R.quota_quiesce(state,data.office,d)
+    else:
+        R.quota_quiesce(state,data.office,d)
+        assert state['quota']['cleanup']['before']['task_ids']==['actual-native-background']
+        assert state['quota']['cleanup']['after']=={'task_ids':[]}
+        assert state['quota']['cleanup']['saved_chat']['tasks'][0]['status']=='pending'
+        assert state['quota']['journal'][-1]=='quiesce_readback'
+    if mutation in ('foreign_actor','positive_chat','foreign_owner','wrong_session'):
+        assert not any(method=='POST' for method,path in events)
+    assert all(path.endswith(chat) or path.endswith(chat+'/stop') or path=='/api/v1/auths/' for method,path in events)
+
+
+def context_case(monkeypatch, tmp_path, *, quota=False):
     """Actual provider/Tasks/media/send-loop/serializer owners; Office IO leaves."""
     import io
     import test_mock_provider as provider_test
@@ -228,6 +395,10 @@ def context_case(monkeypatch, tmp_path):
     workflow = (root / 'deploy/openwebui-skills/artifact-workflow.md').read_text(encoding='utf-8')
     case.parent['input'][0].update(role='developer', content=[{'type': 'input_text', 'text': workflow + '\n' + case.skill['id']}])
     case.parent.update(store=False, include=['reasoning.encrypted_content'])
+    if quota:
+        for message in case.parent['input']:
+            if message.get('role')=='user':
+                message['content']=[{'type':'input_text','text':provider_test.MOCK.DELEGATED_USER_REQUEST+'\nNative Skill ID: '+case.skill['id']}]
     actor, chat, answer = [str(uuid4()) for _ in range(3)]
     office = prepared(actor, str(uuid4()))
     office['office_setup'] = {'workflow_skill': {'content': workflow}, 'openapi': {}}
@@ -275,6 +446,18 @@ def context_case(monkeypatch, tmp_path):
         elif index == 1: result = case.skill
         else:
             packet = json.loads(args['prompt'])
+            if quota:
+                native_worker_tools = router['convert_to_responses_payload']({'messages': [], 'tools': [{'type': 'function', 'function': {k: v for k, v in s.items() if k != 'type'}} for s in case.office_tools]})['tools']
+                worker = dict(model=provider_test.MOCK.DELEGATED_WORKER_MODEL, max_output_tokens=6000, stream=False, store=False,
+                    tools=copy.deepcopy(native_worker_tools), input=[dict(type='message', role='developer', content=case.skill['content']),
+                                                              dict(type='message', role='user', content=json.dumps(packet))])
+                provider_test.DelegatedQuotaProviderTests.setUpClass()
+                result=json.loads(provider_test.DelegatedQuotaProviderTests.quota_output)
+                worker['input']=router['convert_to_responses_payload']({'messages':[
+                    {'role':'developer','content':workflow+'\n'+case.skill['content']},
+                    {'role':'user','content':json.dumps(packet)}]})['input']
+                append_response(case.parent,response,result,True)
+                continue
             async def worker_turns():
                 from starlette.requests import Request
                 request = Request({'type':'http','method':'POST','path':'/api/chat/completions','headers':[],
@@ -327,6 +510,7 @@ def context_case(monkeypatch, tmp_path):
         for i in range(0, len(cases), 4)]
     context = dict(schema=1, packets=packets, provider_ids=[c['provider']['id'] for m in R.MODELS for c in groups[m]])
     browser = dict(chat_id=chat, answer_id=answer, file_id=case.file_id, stored_chat={'tasks': case.task_rows})
+    if quota: browser['denied_wire']=worker
     guide = json.loads(worker_leaf_results[0])
     guide_packet = dict(schema=1, source_commit='f' * 40, office_image_id='sha256:' + 'a' * 64,
         qualification_image_id='sha256:' + 'b' * 64, version='1.0.152', modules={'officecli.py': 'c' * 64}, binary_sha256='d' * 64,
@@ -400,6 +584,150 @@ def test_native_render_selector_rejects_unbound_images_and_context_drift(monkeyp
     elif mutation=='duplicate_result':wire['input'].insert(-1,copy.deepcopy(wire['input'][-2]))
     else:carrier['content'][1]['image_url']='https://unowned.invalid/image.png'
     with pytest.raises(N.ProofError):R.select_render_image(wire,call,file_id=file_id)
+
+
+def test_quota_context_uses_actual_native_error_formatter_tasks_and_all_six_parent_inputs(monkeypatch,tmp_path):
+    groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True)
+    scopes=R.verify_context(groups,office,browser,context,d,tape,quota=True)
+    assert len(tape)==6 and len(scopes[R.MODELS[0]])==6 and groups[R.MODELS[1]]==[]
+    assert [v['status'] for v in browser['stored_chat']['tasks']]==['cancelled','cancelled']
+    assert '/api/v1/files/' not in json.dumps(tape[-1]['response'])
+    for mutation in ('last_result','cancelled_id','root','reasoning'):
+        changed=copy.deepcopy(groups); packets=copy.deepcopy(context)
+        if mutation=='last_result': changed[R.MODELS[0]][-1]['wire_before_auth']['input'][-1]['output']='{}'
+        elif mutation=='cancelled_id': changed[R.MODELS[0]][4]['wire_before_auth']['input'][-2]['arguments']='{"id":"wrong","status":"cancelled"}'
+        elif mutation=='root':changed[R.MODELS[0]][0]['wire_before_auth']['input'][0]['content']='root marker only'
+        else:packets['packets'][0]['reasoning_cases'].pop()
+        with pytest.raises((N.ProofError,ValueError)):
+            R.verify_context(changed,office,browser,packets,d,tape,quota=True)
+
+
+def test_quota_cap_only_uses_native_protected_fields_and_preserves_all_owner_rows_and_counters():
+    data=native_io();before=R.inventory(data.native,data.office)
+    worker=before['personal'][R.MODELS[1]]['key'];key_hash=worker['token']
+    data.keys[data.actor][1]['max_budget']=.12
+    after=R.inventory(data.native,data.office,worker_cap=Decimal('.12'))
+    R.quota_cap_only(before,after,key_hash,Decimal('.12'))
+    for mutation in ('spend','old_row','other_cap','blocked','missing_owner'):
+        changed=copy.deepcopy(after)
+        if mutation=='spend':changed['raw_owners'][data.actor]['user']['spend']=.1
+        elif mutation=='old_row':changed['raw_owners'][data.old]['rows']=[]
+        elif mutation=='other_cap':changed['raw_owners'][data.old]['keys'][0]['max_budget']=2
+        elif mutation=='blocked':changed['raw_owners'][data.actor]['keys'][1]['blocked']=True
+        else:changed['raw_owners'].pop(data.old)
+        with pytest.raises(N.ProofError):R.quota_cap_only(before,changed,key_hash,Decimal('.12'))
+
+
+def test_quota_baseline_native_api_sets_actual_spend_and_verify_failure_finally_restores_only_cap(monkeypatch,tmp_path):
+    import contextlib
+    from test_native_key_block import Response
+    monkeypatch.setattr(R,'PRIVATE',tmp_path)
+    data=native_io();data.people[data.actor]['spend']=1.32
+    data.keys[data.actor][0]['spend']=1.2;data.keys[data.actor][1]['spend']=.12
+    initial=R.inventory(data.native,data.office);provider={'synthetic':True,'control':{},'requests':[]};captured={'requests':[]}
+    state={'stage':'verified_readback','prepared_sha256':R.proof.digest(data.office),
+        'history_start_utc':datetime.now(timezone.utc).isoformat(),'provider_after':provider,'capture_after':captured,
+        'after':copy.deepcopy(initial),'descriptors':{}}
+    posts=[];writes=[]
+    class Session:
+        def __init__(self,**kwargs):assert kwargs=={'trust_env':False}
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        def request(self,method,url,**kwargs):
+            assert (method,url)==('POST','http://proxy:4000/key/update')
+            assert kwargs['allow_redirects'] is False and kwargs['headers']=={'Authorization':'Bearer sk-local-operator'}
+            body=kwargs['json'];assert set(body)=={'key','max_budget'} and body['key']=='b'*64
+            posts.append(copy.deepcopy(body));data.keys[data.actor][1]['max_budget']=body['max_budget']
+            return Response(200,{'key':'b'*64})
+    def read(path):
+        if path==R.OFFICE:return data.office
+        if path==R.STATE:return state
+        if Path(path).name=='operator':return {'operator_token':'sk-local-operator'}
+        if path==R.COMMON:return {}
+        raise RuntimeError('Missing actual browser packet IO leaf')
+    d={'read_private':read,'write_private':lambda path,value:writes.append(copy.deepcopy(value)),
+        'native_client':lambda common:data.native,'provider':lambda:copy.deepcopy(provider),
+        'capture':SimpleNamespace(MAX_RECORDS=32,capture_lock=contextlib.nullcontext,_read_locked=lambda:copy.deepcopy(captured)),
+        'ClientSession':Session,'OPERATOR_STATE':Path('operator')}
+    result=R.quota_run('quota-baseline',d)
+    assert result['quota_stage']=='baseline_ready' and posts==[{'key':'b'*64,'max_budget':.12}]
+    assert R.amount(data.keys[data.actor][1]['spend'])==Decimal('.12')
+    with pytest.raises(RuntimeError,match='Missing actual browser packet'):R.quota_run('quota-verify',d)
+    assert state['quota']['stage']=='restored' and posts[-1]=={'key':'b'*64,'max_budget':1000.0}
+    count=len(posts);assert R.quota_run('quota-restore',d)['quota_stage']=='restored'
+    assert len(posts)==count
+    R.quota_cap_only(initial,R.inventory(data.native,data.office),'b'*64,Decimal(1000))
+    assert any(v['quota']['journal']==['restrict_pre_write'] for v in writes)
+    # No existing full-tape prefix may be truncated to fit the current limit.
+    state.pop('quota');captured['requests']=[{'body':{'preserved':i}} for i in range(28)]
+    state['capture_after']=copy.deepcopy(captured);before=len(posts)
+    with pytest.raises(N.ProofError,match='capture_capacity'):R.quota_run('quota-baseline',d)
+    assert len(posts)==before and 'quota' not in state and len(captured['requests'])==28
+
+
+def test_quota_restore_refuses_active_native_tasks_before_any_budget_write(monkeypatch,tmp_path):
+    monkeypatch.setattr(R,'PRIVATE',tmp_path)
+    packet={'chat_id':str(uuid4())};(tmp_path/'office-delegation-quota.private.json').write_text(json.dumps(packet))
+    actor,payer=str(uuid4()),str(uuid4());reads=[]
+    class WebUI:
+        def ok(self,method,path,**kwargs):
+            reads.append((method,path));return {'task_ids':['actual-native-running-task']}
+    office=prepared(actor,payer);office['office_delegation_setup']['actor']['token']='actor-IO-token'
+    state={'quota':{'stage':'baseline_ready','original_cap':'1000','restricted_cap':'.12'}}
+    with pytest.raises(N.ProofError,match='restore_background_active'):
+        R.quota_restore(state,None,office,{'read_private':lambda path:packet,'WebUI':WebUI})
+    assert reads==[('GET','/api/tasks/chat/'+packet['chat_id'])]
+
+
+def test_quota_denial_join_uses_actual_gateway_signed_native_422_not_an_illustrated_envelope(monkeypatch,tmp_path):
+    import asyncio,sys
+    import test_capture_webui_auth as C
+    from unittest.mock import patch
+    groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True)
+    harness=C.CaptureContextsTests();module_guard=patch.dict(sys.modules);module_guard.start()
+    try:
+        asyncio.run(harness.asyncSetUp())
+        owner,req,invoke,proxy,errors,events,error_type=harness.native_denial()
+        carrier=req.data['litellm_metadata']; req.data.clear()
+        wire=copy.deepcopy(browser['denied_wire']);wire['model']=R.MODELS[1]
+        req.data.update(wire,litellm_metadata=carrier)
+        with patch.object(C.C,'product_auth',return_value=invoke),patch.object(C.C,'product_denial_reader',return_value=owner.auth.personal_key_budget_denial),patch.dict(sys.modules,{'litellm.proxy.proxy_server':proxy}):
+            with pytest.raises(error_type) as caught:asyncio.run(C.C.gateway_auth(req,owner.SECRET))
+        assert caught.value is errors[0] and len([v for v in events if v[0]=='validate'])==1
+        denied=C.C._read_locked()['requests'][0]
+    finally:harness.doCleanups();module_guard.stop()
+    actor,chat,answer=owner.USER,owner.ROOT_CHAT,owner.ROOT_ANSWER
+    office['office_delegation_setup']['actor']['id']=actor
+    for model in office['office_delegation_setup']['budget']['models']:
+        model['key_hash']=('b' if model['model']==R.MODELS[0] else 'a')*64
+    browser.update(chat_id=chat,answer_id=answer)
+    rows=[]
+    for call in groups[R.MODELS[0]]:
+        call['verified_cost_scope'].update(user_id=actor,chat_id=chat,root_chat_id=chat,answer_id=answer,root_answer_id=answer)
+        rows.append(dict(body=call['wire_before_auth'],body_after_auth=copy.deepcopy(call['wire_before_auth']),route='/responses',
+            verified_cost_scope=call['verified_cost_scope'],native_auth_user_id=actor,native_auth_key_hash='b'*64,
+            attestation_present_before=True,provenance_removed_after=True))
+    rows.insert(3,denied)
+    service_wire={'model':'gpt-6-luna','input':[],'store':False,'stream':False}
+    service_body=R.proof.expected_provider_body(service_wire,'goal584-fake-office-service')
+    service={'id':'source-service-IO-leaf','body':service_body,'lifecycle':{'terminal':True,'outcome':'completed'}}
+    rows.append(dict(body=service_wire,body_after_auth=copy.deepcopy(service_wire),route='/responses',
+        verified_cost_scope={'call_id':str(uuid4())},native_auth_user_id='service-IO-leaf',native_auth_key_hash='c'*64,
+        attestation_present_before=True,provenance_removed_after=True))
+    before={'provider':{'synthetic':True,'control':{},'requests':[]},'capture':{'requests':[]},
+        'finance':{'personal':{R.MODELS[1]:{'key':{'token':'a'*64}}}}}
+    provider={'synthetic':True,'control':{},'requests':[*tape,service]};captured={'requests':rows}
+    joined,actual=R.quota_calls(before,provider,captured,office,browser,d)
+    assert actual==denied and len(joined[R.MODELS[0]])==6
+    for mutation in ('missing','wrong_key','status','root','worker_dispatch'):
+        altered=copy.deepcopy(captured);physical=copy.deepcopy(provider);row=altered['requests'][3]
+        if mutation=='missing':row.pop('native_budget_denial')
+        elif mutation=='wrong_key':row['native_budget_denial']['key_hash']='d'*64
+        elif mutation=='status':row['auth_failure']['status_code']=403
+        elif mutation=='root':row['native_budget_denial']['scope']['root_chat_id']=str(uuid4())
+        else:physical['requests'][-1]['body']['model']=R.WIRES[R.MODELS[1]]
+        with pytest.raises((N.ProofError,ValueError)):
+            R.quota_calls(before,physical,altered,office,browser,d)
 
 
 @pytest.mark.parametrize('mutation', ['skill_loss', 'duplicate_skill', 'root_tail', 'task_alias', 'guide_loss', 'native_case_loss', 'guide_packet', 'guide_qualification'])
@@ -533,3 +861,119 @@ def test_complete_collector_rejects_financial_and_saved_context_divergence(tmp_p
     elif mutation == 'saved_reasoning': data['saved']['chat']['history']['messages'][data['browser']['answer_id']]['output'].pop()
     else: row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']['descriptor'] = {'deployment_id': 'wrong-terms'}
     with pytest.raises(N.ProofError): R.verify(**data)
+
+
+def quota_workflow():
+    import ast,yaml
+    path=Path(__file__).resolve().parents[2]/'.github/workflows/goal584-office-proof.yml'
+    workflow=yaml.safe_load(path.read_text(encoding='utf8'))
+    steps=workflow['jobs']['office-build-proof']['steps']
+    step=next(v for v in steps if v.get('name')=='Verify one exhausted Terra refusal after accepted positive delegation')
+    source=step['run'].split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]
+    return workflow,steps,ast.parse(source)
+
+
+def test_workflow_adds_only_bounded_negative_and_recovery_steps_after_unchanged_positive():
+    import ast,subprocess,yaml
+    root=Path(__file__).resolve().parents[2];workflow,steps,tree=quota_workflow()
+    old=yaml.safe_load(subprocess.check_output(['git','-c','gc.auto=0','show',
+        '64d145639d33854697a95497bb6d15ceeec74aa6:.github/workflows/goal584-office-proof.yml'],cwd=root,timeout=5))
+    names={'Verify one exhausted Terra refusal after accepted positive delegation',
+           'Recover only a completed quota mutation before owned Compose teardown'}
+    remaining=copy.deepcopy(workflow);remaining['jobs']['office-build-proof']['steps']=[v for v in steps if v.get('name') not in names]
+    assert remaining==old
+    positive=next(i for i,v in enumerate(steps) if v.get('name')=='Verify one ordinary delegated Office Send and native personal accounting')
+    assert steps[positive+1]['name'] in names and steps[positive+1]['timeout-minutes']==8
+    assert steps[positive+2]['name']=='Recover only a completed quota mutation before owned Compose teardown'
+    assert steps[positive+2]['timeout-minutes']==2 and 'always()' in steps[positive+2]['if']
+    assert workflow['jobs']['office-build-proof']['timeout-minutes']==55
+    main=next(n for n in tree.body if isinstance(n,ast.Try));body=ast.unparse(main)
+    assert body.index("setting('QUOTA_RESTORE_ARMED', True)")<body.index("baseline = phase(stage)")
+    assert "run(browser, fixture, base, build, revision, quota=True)" in body
+    assert 'browser.close()' in body and 'host_quota_restore(phase)' in body
+
+
+def test_actual_context_heredoc_uses_six_real_parent_inputs_and_native_batches_4_plus_2(monkeypatch,tmp_path):
+    import ast,hashlib
+    groups,office,browser,context,d,physical=context_case(monkeypatch,tmp_path,quota=True)
+    assert len(physical)==6
+    _,_,tree=quota_workflow();node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='collect_context')
+    prefix={'synthetic':True,'control':{'unchanged':True},'requests':[{'id':'prior','body':{'keep':'whole prefix'}}]}
+    service={'id':'actual-service-transport-leaf','body':{'model':'goal584-fake-office-service'}}
+    provider=dict(prefix,requests=copy.deepcopy(prefix['requests']+physical+[service]));original=copy.deepcopy(provider)
+    qualification=R.QUALIFICATION.read_bytes();output=tmp_path/'output';output.mkdir();(output/'qualification.safe.json').write_bytes(qualification)
+    batches=[];written=[];public=[]
+    expected=[[v for v in row['response']['output'] if v.get('type')=='reasoning'] for row in physical]
+    def native_context(base,build,revision,cases):
+        start=sum(len(v) for v in batches);assert cases==expected[start:start+4]
+        batches.append(copy.deepcopy(cases));return context['packets'][len(batches)-1]
+    namespace={'fixture':SimpleNamespace(native_context=native_context),'private':tmp_path,'out':output,
+        'base':'http://native-IO-leaf:8080','build':{'bound':'existing artifact IO'},'revision':'f'*40,
+        'digest':R.proof.digest,'hashlib':hashlib,'json':json,
+        'write_private':lambda path,value:written.append((path,copy.deepcopy(value))),
+        'public':lambda name,value:public.append((name,value))}
+    exec(compile(ast.Module(body=[node],type_ignores=[]),'<actual-workflow-context>','exec'),namespace)
+    baseline={'provider_prefix_count':1,'provider_prefix_sha256':R.proof.digest(prefix)}
+    namespace['collect_context'](provider,baseline)
+    assert [len(v) for v in batches]==[4,2] and provider==original
+    result=written[-1][1]
+    assert written[-1][0].name=='office-delegation-quota-context.private.json'
+    assert result['provider_ids']==[v['id'] for v in physical] and result['packets']==context['packets']
+    assert result['binding']==context['binding'] and public[-1][1]['personal_provider_calls']==6
+    for mutation in ('prefix','worker','duplicate'):
+        changed=copy.deepcopy(provider)
+        if mutation=='prefix':changed['requests'][0]['body']['keep']='changed'
+        elif mutation=='worker':changed['requests'][-1]['body']['model']='goal584-fake-delegated-worker'
+        else:changed['requests'][2]['id']=changed['requests'][1]['id']
+        count=len(written)
+        with pytest.raises(AssertionError):namespace['collect_context'](changed,baseline)
+        assert len(written)==count
+
+
+@pytest.mark.parametrize('mode',['success','baseline_failed_complete','baseline_timeout','verify_timeout','quiesce_failed','browser_unclosed'])
+def test_actual_host_finally_never_restores_an_unconfirmed_mutation_or_accepts_failed_cleanup(monkeypatch,tmp_path,mode):
+    import ast,hashlib,subprocess,time
+    _,steps,tree=quota_workflow()
+    events=[];published=[];timer=object();timer_events=[];envfile=tmp_path/'github-env';envfile.touch()
+    monkeypatch.setenv('GITHUB_ENV',str(envfile))
+    def leaf(command,**kwargs):
+        phase=command[-1];events.append(phase)
+        if mode=='baseline_timeout' and phase=='quota-baseline' or mode=='verify_timeout' and phase=='quota-verify':
+            raise subprocess.TimeoutExpired(command,kwargs['timeout'])
+        passed=not(mode=='baseline_failed_complete' and phase=='quota-baseline' or mode=='quiesce_failed' and phase=='quota-quiesce')
+        value={'schema':1,'phase':phase,'passed':passed,'native_office_accepted':False,
+            'source_sha256':R.sha256(Path(R.__file__).read_bytes()).hexdigest(),'quota_present':True,
+            'quota_stage':'restored' if phase=='quota-restore' else 'baseline_ready'}
+        return subprocess.CompletedProcess(command,0 if passed else 1,json.dumps(value).encode())
+    monkeypatch.setattr(R.subprocess,'run',leaf)
+    namespace={'Path':Path,'os':__import__('os'),'json':json,'hashlib':hashlib,'time':time,
+        'signal':SimpleNamespace(ITIMER_REAL=timer,setitimer=lambda kind,value:timer_events.append((kind,value))),
+        'quota_owner':R,'fixture':SimpleNamespace(command=['docker','compose']),
+        'stage':'quota-baseline','armed':True,'unconfirmed':False,'browser_closed':mode!='browser_unclosed',
+        'restored':False,'deadline':time.monotonic()+300,'observed':{'external_browser_leaf':True},
+        'public':lambda name,value:published.append((name,value))}
+    functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in ('setting','mutation','phase')]
+    exec(compile(ast.Module(body=functions,type_ignores=[]),'<actual-workflow-phase-functions>','exec'),namespace)
+    main=copy.deepcopy(next(n for n in tree.body if isinstance(n,ast.Try)))
+    # Only the browser/source-preparation IO work is replaced. The exception,
+    # finally, marker, attached phase helper and final acceptance are actual.
+    main.body=ast.parse("baseline=phase('quota-baseline')\nfinancial=phase('quota-verify')").body
+    tail=tree.body[tree.body.index(next(n for n in tree.body if isinstance(n,ast.Try)))+1:]
+    program=compile(ast.fix_missing_locations(ast.Module(body=[main,*tail],type_ignores=[])),'<actual-workflow-finally>','exec')
+    if mode=='success':exec(program,namespace)
+    else:
+        with pytest.raises((AssertionError,N.ProofError)):exec(program,namespace)
+    if mode in ('baseline_timeout','verify_timeout','browser_unclosed'):
+        assert 'quota-restore' not in events and 'quota-quiesce' not in events
+    elif mode=='quiesce_failed':assert events[-2:]==['quota-status','quota-quiesce'] and 'quota-restore' not in events
+    else:assert events[-3:]==['quota-status','quota-quiesce','quota-restore']
+    accepted=[v for name,v in published if name=='office-delegation-quota' and v.get('passed') is True]
+    assert bool(accepted) is (mode=='success')
+    assert timer_events==[(timer,140),(timer,0)]
+    if mode in ('baseline_timeout','verify_timeout'):
+        assert namespace['unconfirmed'] is True and envfile.read_text().splitlines()[-1]=='QUOTA_MUTATION_UNCONFIRMED=true'
+    recovery=next(v for v in steps if v.get('name')=='Recover only a completed quota mutation before owned Compose teardown')['run']
+    guard=next(n for n in ast.parse(recovery.split("<<'PY'\n",1)[1].rsplit('\nPY',1)[0]).body if isinstance(n,ast.Assert))
+    with pytest.raises(AssertionError):
+        exec(compile(ast.Module(body=[guard],type_ignores=[]),'<actual-always-recovery-guard>','exec'),
+            {'os':SimpleNamespace(environ={'QUOTA_MUTATION_UNCONFIRMED':'true','QUOTA_BROWSER_CLOSED':'true'})})

@@ -68,7 +68,7 @@ class Expect:
         assert name == 'aria-label' and value == 'Selected model: Корпоративные документы'
     def to_contain_text(self, value, **kwargs):
         world = self.locator.page.world
-        assert value == world.cost and world.cost_visible
+        assert value in (world.cost, world.answer()['content']) and world.cost_visible
 
 
 class Page:
@@ -110,6 +110,8 @@ class Context:
         if url == BASE + '/api/v1/files/' + SOURCE + '/content':
             world.source_reads += 1
             return Response(body=world.source_bytes if world.source_reads == 1 else world.source_after)
+        if url == BASE + '/api/v1/files/' + SOURCE:
+            return Response({'id':SOURCE,'user_id':ACTOR,'meta':{'name':'source.docx'}})
         if url == BASE + '/api/v1/chats/' + CHAT:
             world.chat_reads += 1
             chat = copy.deepcopy(world.form['chat'])
@@ -131,7 +133,7 @@ class Browser:
     def __init__(self):
         self.actor = {'id': ACTOR, 'email': 'delegated@example.invalid', 'password': SECRET, 'token': 'actor-token'}
         self.other = {'id': OTHER, 'email': 'other@example.invalid', 'password': SECRET, 'token': 'other-token'}
-        self.contexts = []; self.sends = self.downloads = self.chat_reads = self.source_reads = 0
+        self.contexts = []; self.sends = self.downloads = self.chat_reads = self.source_reads = 0; self.quota=False
         self.created_contexts = 0
         self.foreign_reads = []; self.role = 'user'; self.ack_status = 200; self.foreign_status = 404
         self.raw_ack = json.dumps({'chat_id': CHAT}).encode(); self.ack_error = None
@@ -152,6 +154,11 @@ class Browser:
         self.created_contexts += 1
         self.contexts.append(context); return context
     def answer(self):
+        if self.quota:
+            from mock_provider import DELEGATED_QUOTA_REFUSAL
+            return {'id':ANSWER,'parentId':USER,'role':'assistant','model':B.MODEL,'done':True,
+                'content':DELEGATED_QUOTA_REFUSAL['text'],'followUps':self.followups,'files':[],
+                'statusHistory':[{'action':'employee_budget_cost','done':True,'description':self.cost}]}
         return {'id': ANSWER, 'parentId': USER, 'role': 'assistant', 'done': True,
             'content': '[Download](/api/v1/files/' + FILE + '/content)', 'followUps': self.followups,
             'statusHistory': [{'action': 'employee_budget_cost', 'done': True, 'description': self.cost}],
@@ -173,11 +180,14 @@ class DelegatedBrowserTests(unittest.TestCase):
         self.assertEqual(native_form['chat']['messages'], [])
         self.assertEqual(native_form['chat']['models'], [B.MODEL])
 
-    def exercise(self, mutation=None, clock=None, packet_limit=None, writer=None):
+    def exercise(self, mutation=None, clock=None, packet_limit=None, writer=None, *, quota=False, positive_stage='verified_readback'):
         with TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
             root = Path(directory); private = root/'private'; private.mkdir(mode=0o700)
             fixture = B.OfficeFixture(root/'env', root/'output', root/'config', private, [SECRET, 'actor-token', 'other-token'])
             browser = Browser()
+            if quota:
+                browser.quota=True
+                browser.tasks=[{'id':str(i),'content':'Unfinished document work','status':'cancelled'} for i in (1,2)]
             state = {'schema': 1, 'stage': 'setup_complete', 'admin': {'id': ADMIN}, 'users': [{'id': OTHER}],
                 'office_delegation_setup': {'stage': 'readback_ready', 'actor': browser.actor, 'skill': browser.skill,
                     'source_file': {'id': SOURCE}, 'source_sha256': hashlib.sha256(browser.source_bytes).hexdigest(),
@@ -191,6 +201,9 @@ class DelegatedBrowserTests(unittest.TestCase):
                     {'schema': 1, 'users': [browser.other]}), ('office-delegation-setup.safe.json', receipt)):
                 target = private/name; target.write_text(json.dumps(value), encoding='utf8'); target.chmod(0o600)
             original = (private/'office-state.private.json').read_bytes()
+            if quota:
+                (private/'office-delegation-readback.private.json').write_text(json.dumps({
+                    'schema':1,'stage':positive_stage,'prepared_sha256':B.digest(state),'quota':{'stage':'baseline_ready'}}),encoding='utf8')
             stack.enter_context(patch.object(B, 'expect', Expect))
             stack.enter_context(patch.object(login_owner, 'expect', Expect))
             running = stack.enter_context(patch.object(B.OfficeFixture, 'running_readback',
@@ -203,7 +216,7 @@ class DelegatedBrowserTests(unittest.TestCase):
                 stack.enter_context(patch.object(private_owner, 'private_parent'))
             safe = packet = error = None; stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
-                try: safe, packet = B.run(browser, fixture, BASE, {'bound': 'builder'}, 'accepted-revision')
+                try: safe, packet = B.run(browser, fixture, BASE, {'bound': 'builder'}, 'accepted-revision',quota=quota)
                 except Exception as caught: error = caught
             self.assertEqual(stdout.getvalue(), '')
             self.assertTrue(all(context.closed for context in browser.contexts if context not in inherited_contexts))
@@ -212,22 +225,57 @@ class DelegatedBrowserTests(unittest.TestCase):
             running.assert_called_once_with(BASE, {'bound': 'builder'}, 'accepted-revision')
             self.assertFalse(fixture.output.exists())
             if safe:
-                self.assertEqual(json.loads((private/B.PACKET).read_text(encoding='utf8')), packet)
+                self.assertEqual(json.loads((private/('office-delegation-quota.private.json' if quota else B.PACKET)).read_text(encoding='utf8')), packet)
                 for path in packet['paths'].values():
                     self.assertEqual(Path(path).resolve().parent, private.resolve())
                     if os.name != 'nt': self.assertEqual(Path(path).stat().st_mode & 0o777, 0o600)
                 for value in (SECRET, 'actor-token', 'other-token', browser.skill['content'], B.DELEGATED_USER_REQUEST, browser.cost):
                     self.assertNotIn(value, json.dumps(safe, ensure_ascii=False))
-            elif (private/B.PACKET).exists():
-                packet = json.loads((private/B.PACKET).read_text(encoding='utf8'))
+            elif (private/('office-delegation-quota.private.json' if quota else B.PACKET)).exists():
+                packet = json.loads((private/('office-delegation-quota.private.json' if quota else B.PACKET)).read_text(encoding='utf8'))
                 self.assertIn(packet['status'], ('observing', 'failed'))
-                self.assertLessEqual((private/B.PACKET).stat().st_size, packet_limit or B.MAX_BYTES)
+                self.assertLessEqual((private/('office-delegation-quota.private.json' if quota else B.PACKET)).stat().st_size,
+                                     packet_limit or B.MAX_BYTES)
                 public = B.failure_projection(packet)
                 B.no_credentials(public, fixture.secrets)
                 for value in (SECRET, 'actor-token', 'other-token', browser.skill['content'],
                               B.DELEGATED_USER_REQUEST, browser.cost, ACTOR, CHAT, USER, ANSWER, SOURCE):
                     self.assertNotIn(value, json.dumps(public, ensure_ascii=False))
             return safe, packet, error, browser
+
+    def test_quota_one_send_two_cancelled_tasks_source_preserved_and_no_download(self):
+        safe,packet,error,browser=self.exercise(quota=True)
+        self.assertIsNone(error);self.assertTrue(safe['quota_refusal'])
+        self.assertEqual((browser.sends,browser.downloads,len(browser.foreign_reads)),(1,0,0))
+        self.assertEqual([t['status'] for t in packet['stored_chat']['tasks']],['cancelled','cancelled'])
+        self.assertNotIn('file_id',packet);self.assertEqual(packet['native_running']['task_ids'],[])
+
+    def test_quota_rejects_unaccepted_positive_before_send(self):
+        safe,packet,error,browser=self.exercise(quota=True,positive_stage='baseline')
+        self.assertIsNone(safe);self.assertIsNotNone(error);self.assertEqual(browser.sends,0)
+
+    def test_quota_failure_retains_owned_chat_and_pre_stop_pending_tasks_for_recovery(self):
+        def pending(world,state,receipt):
+            world.tasks[0]['status']='pending';world.running_tasks=['native-still-running']
+        safe,packet,error,browser=self.exercise(pending,quota=True,clock=[0,181])
+        self.assertIsNone(safe);self.assertEqual(str(error),'delegated_browser_lifecycle_timeout')
+        self.assertEqual((packet['actor_id'],packet['chat_id']),(ACTOR,CHAT))
+        self.assertEqual(packet['native_tasks'][0]['status'],'pending')
+        self.assertEqual(packet['native_running']['task_ids'],['native-still-running'])
+        self.assertFalse(packet.get('terminal_persisted',False));self.assertEqual(browser.downloads,0)
+
+    def test_quota_pending_tasks_or_background_cannot_finish_and_file_or_other_refusal_fail(self):
+        for kind in ('pending','completed','active','file','text','source'):
+            def mutate(world,state,receipt):
+                if kind in ('pending','completed'):world.tasks[0]['status']=kind
+                elif kind=='active':world.running_tasks=['actual-running-task']
+                elif kind=='source':world.source_after=b'changed actual source bytes'
+                else:
+                    world.saved_mutation=lambda value:value['chat']['history']['messages'][ANSWER].update(
+                        {'files':[{'type':'file','id':FILE}]} if kind=='file' else {'content':'Completed successfully'})
+            with self.subTest(kind=kind):
+                safe,packet,error,world=self.exercise(mutate,quota=True,clock=[0,181])
+                self.assertIsNone(safe);self.assertIsNotNone(error);self.assertEqual(world.downloads,0)
 
     def test_failure_projection_reports_each_actual_lifecycle_none_gate(self):
         def answer_change(change):

@@ -153,7 +153,10 @@ def check_submission(sent, chat_id, request):
     return native_id(user.get('id')), native_id(sent.get('id'))
 
 
-def observed_answer(stored, actor_id, chat_id, user_id, answer_id, request):
+def observed_answer(stored, actor_id, chat_id, user_id, answer_id, request, *, quota=False):
+    if quota:
+        from prove_office_delegation_readback import quota_answer
+        return quota_answer(stored,actor_id,chat_id,user_id,answer_id,request)
     require(isinstance(stored, dict) and stored.get('id') == chat_id and stored.get('user_id') == actor_id,
             'delegated_browser_chat_owner')
     messages = stored.get('chat', {}).get('history', {}).get('messages', {})
@@ -190,7 +193,7 @@ def observed_answer(stored, actor_id, chat_id, user_id, answer_id, request):
     return answer, statuses[-1]
 
 
-def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revision):
+def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revision, *, quota=False):
     running = fixture.running_readback(base_url, build_receipt, expected_revision)
     office_raw, state = fixture._office_private('office-state.private.json')
     _, common = fixture._office_private('webui-state.private.json')
@@ -201,6 +204,12 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             and prepared.get('inference_issued') is False and prepared.get('native_office_accepted') is False,
             'delegated_browser_not_prepared')
     actor, skill = selected['actor'], selected['skill']
+    if quota:
+        _, accepted = fixture._office_private('office-delegation-readback.private.json')
+        require(accepted.get('stage') == 'verified_readback'
+                and accepted.get('prepared_sha256') == digest(state)
+                and accepted.get('quota', {}).get('stage') == 'baseline_ready',
+                'delegated_browser_quota_not_prepared')
     actor_id, source_id = native_id(actor['id']), native_id(selected['source_file']['id'])
     require(actor_id not in {entry['id'] for entry in [state['admin'], *state['users']]},
             'delegated_browser_actor_not_fresh')
@@ -212,9 +221,9 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             and profile.get('meta', {}).get('builtinTools', {}).get('tasks') is True
             and isinstance(profile.get('name'), str) and bool(profile['name']),
             'delegated_browser_parent_profile')
-    paths = {name: fixture.private / ('office-delegation-browser.' + suffix) for name, suffix in
+    paths = {name: fixture.private / ('office-delegation-' + ('quota' if quota else 'browser') + '.' + suffix) for name, suffix in
              (('browser', 'docx'), ('native', 'native.docx'), ('screenshot', 'png'))}
-    packet_path = fixture.private / PACKET
+    packet_path = fixture.private / ('office-delegation-quota.private.json' if quota else PACKET)
     require(all(not path.exists() and not path.is_symlink() and path.resolve().parent == fixture.private.resolve()
                 for path in [*paths.values(), packet_path]), 'delegated_browser_output_conflict')
     private_parent(packet_path)
@@ -239,6 +248,7 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
                 and hashlib.sha256(before).hexdigest() == selected.get('source_sha256'),
                 'delegated_browser_source_before')
         native_skill = get('/api/v1/skills/id/' + skill['id']).json()
+        source_metadata = get('/api/v1/files/' + source_id).json() if quota else None
         checkpoint['native_skill'] = native_skill
         require(all(native_skill.get(key) == skill.get(key) for key in ('id', 'content', 'version_id', 'is_active'))
                 and native_skill.get('is_active') is True and bool(native_skill.get('version_id')),
@@ -293,7 +303,7 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             stored = get('/api/v1/chats/' + chat_id).json()
             checkpoint['stored_chat'] = stored
             checkpoint['native_tasks'] = stored.get('tasks') if isinstance(stored, dict) else None
-            observed = observed_answer(stored, actor_id, chat_id, user_id, answer_id, request)
+            observed = observed_answer(stored, actor_id, chat_id, user_id, answer_id, request, quota=quota)
             active = get('/api/tasks/chat/' + chat_id).json()
             checkpoint.update(background_tasks=active, native_running=active)
             require(isinstance(active.get('task_ids'), list), 'delegated_browser_background_tasks_shape')
@@ -301,6 +311,29 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             require(time.monotonic() < deadline, 'delegated_browser_lifecycle_timeout')
             page.wait_for_timeout(250)
         answer, cost_status = observed
+        if quota:
+            require(get(source_path).body() == before
+                    and get('/api/v1/files/' + source_id).json() == source_metadata
+                    and get('/api/v1/skills/id/' + skill['id']).json() == native_skill,
+                    'delegated_browser_source_changed')
+            card = page.locator('#message-' + answer_id)
+            expect(card).to_contain_text(answer['content'], timeout=25_000)
+            expect(card).to_contain_text(cost_status['description'], timeout=25_000)
+            page.screenshot(path=str(paths['screenshot']), full_page=False); paths['screenshot'].chmod(0o600)
+            private = dict(checkpoint, schema=1, actor_id=actor_id, chat_id=chat_id, answer_id=answer_id,
+                user_message_id=user_id, source_file_id=source_id, skill_id=skill['id'],
+                submission=sent, submission_status=response.status, acknowledgement=acknowledgement,
+                stored_chat=stored, native_running=active, cost_status=cost_status,
+                source_before_sha256=hashlib.sha256(before).hexdigest(),
+                source_after_sha256=hashlib.sha256(before).hexdigest(), source_metadata=source_metadata,
+                native_skill=native_skill, paths={'screenshot':str(paths['screenshot'])}, status='observed')
+            require(len(json.dumps(private, allow_nan=False).encode()) <= MAX_BYTES, 'delegated_browser_packet_bound')
+            write_private(packet_path, private)
+            safe = dict(schema=1, status='browser_observed', native_office_accepted=False, ordinary_sends=1,
+                quota_refusal=True, tasks_cancelled=2, background_tasks_empty=True, source_unchanged=True,
+                screenshot_sha256=hashlib.sha256(paths['screenshot'].read_bytes()).hexdigest())
+            no_credentials(safe, fixture.secrets)
+            return safe, private
         checkpoint['phase'] = 'artifact'
         files = [value for value in answer.get('files', []) if isinstance(value, dict) and value.get('type') == 'file'
                  and value.get('content_type') == DOCX]

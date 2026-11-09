@@ -340,7 +340,8 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         async def native_validate(**kwargs):
             self.assertEqual(kwargs['valid_token'].user_id, owner.USER)
             self.assertEqual(kwargs['valid_token'].models, [target])
-            return SimpleNamespace(user_id=owner.USER, api_key='a' * 64, budget_reservation=None, team_id=None)
+            return SimpleNamespace(user_id=owner.USER, api_key='a' * 64, budget_reservation=None, team_id=None,
+                                   metadata={}, team_metadata={})
         invoke, _, _, events = owner.ServiceGatewayTests().run_gateway(
             task='', token=token, required=True, assignment_user=owner.USER, assignment_model=target,
             body_model=target, native_model=target, key_hash='a' * 64, native_validate=native_validate,
@@ -1009,11 +1010,19 @@ class CaptureContextsTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(C.CAPTURE.with_name(C.CAPTURE.name + ".lock").exists())
 
     async def test_record_limit_and_file_bounds_are_enforced_before_overwriting_valid_state(self):
-        for index in range(32):
-            C._append({"body": {"index": index}})
-        before = C.CAPTURE.read_bytes()
-        with self.assertRaisesRegex(RuntimeError, "bound exceeded"):
-            C._append({"body": {"index": 32}})
+        authenticated = []
+        async def auth(request, api_key):
+            authenticated.append(request.index)
+            return SimpleNamespace(user_id=request.scope["user_id"], team_id=None)
+        with patch.object(C, "product_auth", return_value=auth):
+            for index in range(36):
+                await C.gateway_auth(self.request(index), "native-secret")
+            self.assertEqual(authenticated, list(range(36)))
+            self.assertEqual(len(self.read()["requests"]), 36)
+            before = C.CAPTURE.read_bytes()
+            with self.assertRaisesRegex(RuntimeError, "bound exceeded"):
+                await C.gateway_auth(self.request(36), "native-secret")
+            self.assertEqual(authenticated, list(range(36)), "Attempt 37 must fail before native auth")
         self.assertEqual(C.CAPTURE.read_bytes(), before)
         with self.assertRaisesRegex(RuntimeError, "byte bound exceeded"):
             C.save({"schema": 1, "requests": [{"body": "x" * C.MAX_BYTES}]})

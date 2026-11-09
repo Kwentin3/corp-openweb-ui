@@ -8,6 +8,32 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Подготовка Office99:** объединяются принятые image carrier fix `64d14563`
+и quota/capture/host wiring `c652f9ca`. Конфликт тестовой fixture разрешён с
+сохранением genuine native positive path и отдельного parent-only quota path.
+Исправлены две ошибки интеграции: binding worker после quota early-return и
+опорная ревизия проверки сохранности workflow. На этих точных семи исходниках
+155 PASS / 0 failures / 0 skips, hashes неизменны, дочерние процессы завершены.
+Исходный wrapper exit 1 сохранён: audit запретил локальный IPv6 capability probe
+`urllib3.util.connection._has_ipv6('::1')`; отдельная диагностика 118 PASS
+сохранила точный stack/address, внешних connect/DNS нет. Capture-only 37 PASS
+без сетевых попыток. Это source/component evidence, не runtime-приёмка.
+Независимая подготовка artifact reader выявила, что результаты negative finance,
+точные cap readbacks и фактический размер capture оставались private и исчезли бы
+при teardown. Добавлена allowlisted projection этих существующих readbacks в
+текущий safe phase receipt: 42 строки production adapter и 84 строки тестов;
+бизнес-логика, capture/restore owners и границы стенда сохранены. Четыре focused
+checks PASS / 0 skips / 0 network, 10 native PIDs terminal. Baseline review —
+15 joins и два cold imports PASS; отдельный projection review — 12 joins PASS,
+GO для одного isolated CI. Старые 28 test functions и phase/finance/restore AST
+сохранены; прежние 155 не объявляются проверкой изменённых байтов. Установлены
+точные final LF pins: readback `5c9315a024264cdaf1f5ec821278ae00135b4bd72ff08d893e2af4a05a0f8d0a`,
+test `7f58d01042c3380882f993068433a4146cfb2aec59e8df8eff16637285b0ad24`.
+CI99 ещё не запущен; следующий шаг — commit/push проверенных восьми файлов и один
+existing Office workflow, positive gates перед negative. Evidence —
+`local/goal584/office99-source-integration/`; bounded reader готов в
+`local/goal584/office99-review/`, root/independent reports имеют разные имена.
+
 **Последний прогон Office98, завершён:**
 [run42598638607](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42598638607),
 workflow406918033, exacthead `fb1e46f6092efe118c62df72d03459078f02996b`,
@@ -372,6 +398,9 @@ sanitizerвместоотдельногоnativeguardrailstrip; normalizedUsageco
 sourceprobe разрешены; profileНЕПРИНЯТ/неmerged/неактивирован. Не добавлять
 CoreUsagepatch/newclient/transport/HMAC/newfield/journal илиforcedvalidzeroUNKNOWN
 радиобходаR2. Firstfreeze/evidence retained; `lts1083-usage-candidate-review/`.
+Повторный read-only review `followup-current.md` подтвердил: четыре raw/LF hashes
+совпадают с первым freeze, исправления R1 нет, R2 остаётся недоказанным. Эта ветка
+не включается в Office99 whole-answer profile и не задерживает его проверку.
 
 Negative Office source изолирован в `corp-openweb-ui-goal584-quota`, branch
 `agent/goal584-office-quota`, commit313e955ba5ac7202626aa5bbbcef7e3fb0d58b32:
