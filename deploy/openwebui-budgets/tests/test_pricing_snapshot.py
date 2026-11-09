@@ -500,7 +500,7 @@ class PricingSnapshotTests(unittest.TestCase):
         cases = [{**base, "prompt_tokens_details": {field: 1}} for field in
                  ("audio_tokens", "image_tokens", "video_tokens", "cache_write_tokens", "web_search_requests", "tool_use_tokens")]
         cases += [{**base, "completion_tokens_details": {"audio_tokens": 1}},
-                  {**base, "server_tool_use": {"web_search_requests": 1}}, {**base, "cost": .5}]
+                  {**base, "server_tool_use": {"web_search_requests": 1}}, {**base, "unknown_billing": .5}]
         for usage in cases:
             owner, _, _, modules, _ = self.responses_owner()
             self.assertEqual(self.capture_protected(owner, modules, result={"usage": usage}), self.unknown_descriptor("usage_categories"))
@@ -512,6 +512,42 @@ class PricingSnapshotTests(unittest.TestCase):
             self.assertEqual(self.capture_protected(owner, modules, result=SimpleNamespace(usage=self.responses_usage())),
                              self.unknown_descriptor("extra_billing"))
             self.assertEqual(owner.cost_breakdown, before)
+
+    def test_native_usage_cost_is_only_monetary_metadata_and_never_prices_tokens(self):
+        for cost in (None, 0, 0., .2, 999999):
+            for native in (False, True):
+                with self.subTest(cost=cost, native=native):
+                    owner, router, _, modules, _ = self.protected_owner()
+                    usage = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15, "cost": cost}
+                    if native:
+                        usage = self.native["Usage"](**usage)
+                    result = SimpleNamespace(usage=usage)
+                    before = copy.deepcopy(usage)
+                    costs = copy.deepcopy(owner.cost_breakdown)
+                    observed = self.capture_protected(owner, modules, result=result)
+                    self.assertEqual(observed, {"schema": 1, "availability": "available", "descriptor":
+                                     router.model_list[0]["model_info"][self.adapter.DESCRIPTOR_KEY]})
+                    self.assertEqual(owner.cost_breakdown, costs)
+                    self.assertEqual(usage, before)
+                    self.assertIs(result.usage, usage)
+
+    def test_invalid_usage_cost_and_other_categories_still_fail_closed(self):
+        class NumericSubclass(float):
+            pass
+        base = {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+        invalid = [{**base, "cost": cost} for cost in
+                   (True, False, -1, -.2, float("nan"), float("inf"), -float("inf"),
+                    "private-cost", {}, [], NumericSubclass(.2))]
+        invalid += [{**base, "cost": .2, field: value} for field, value in
+                    (("unknown_billing", 1), ("response_cost", .2), ("server_tool_use", {"web_search_requests": 1}))]
+        invalid += [{**base, "cost": .2, "prompt_tokens_details": {"cached_tokens": 1}},
+                    {**base, "cost": .2, "completion_tokens_details": {"reasoning_tokens": 1}},
+                    {**base, "cost": .2, "completion_tokens_details": {"audio_tokens": 1}}]
+        for usage in invalid:
+            with self.subTest(usage=usage):
+                owner, _, _, modules, _ = self.protected_owner()
+                self.assertEqual(self.capture_protected(owner, modules, result={"usage": usage}),
+                                 self.unknown_descriptor("usage_categories"))
 
     def test_used_rates_must_be_explicit_protected_and_match_native_billing(self):
         for field in ("cache_read_input_token_cost", "output_cost_per_reasoning_token"):

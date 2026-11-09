@@ -8,6 +8,76 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office103, завершён:**
+[run42635916163](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42635916163),
+job129223905229, workflow406918033, exact head
+`67642f87fe5c0981f57b647a9a5cc6054bcfb6f5`, dispatch09.11 14:33:55UTC.
+Coherent5file commit/source readback9/9/clean worktree PASS; remote reasoning ref
+fast-forward сверён. Office102 terminal/owned cleanup PASS; перед новым dispatch
+живого run не было, запуск один, не rerun. TerminalFAIL15/native_finance:
+`office_delegation_tariff_source_usage_categories`. Steps1–14SUCCESS,
+16negative/17recoverySKIPPED,18diagnostics/19cleanup/20uploadSUCCESS; живого CI нет.
+Обязательны47native guard tests/0skip (host32PASS15SKIP не заменяет их), затем
+те же positive Office/context/artifact/finance → negative refusal → cap restore/
+owned cleanup gates. При positiveFAIL negative пропускается. Нативные тарифные
+UNKNOWN причины теперь выводятся через существующий фиксированный failure_code.
+Bounds55min/manual15:18:55UTC/hard15:28:55UTC; preflight20GiB disk/6GiB RAM/7GiB
+Docker; six services5.875GiB/4.25CPU/1728PIDs/component1GiB/256PIDs unchanged.
+Native addressed stop `gh run cancel 42635916163 --repo Kwentin3/corp-openweb-ui`,
+затем exact job terminal/actual cleanup/remaining participants; timeout не означает
+завершение. LTS/Terminal/production/paid/рабочие маршруты не активированы/не менялись.
+Artifact13683972786 скачан один раз1497921B/104unique/SHA256
+`8d8d7b6a9651c4b8e551a5ad0a4042d8f72a7446cb3b1e204968d898361a75b5`;
+private URL удалён. Первый intake KeyError до network.open из-за имени JSON key
+сохранён в fetch-first.safe.json; после исправления url выполнена одна загрузкаZIP.
+Rootfullreader54build/72pins/47guard14.363s+22auth+1CLI0skip/5images cleanup PASS.
+Independent intake admin/source/ordinary DOCX/render/PNG/cleanup PASS; это закрывает
+host15skip boundary только для current-image component. Delegation NOT_ACCEPTED,
+quota NEEDS_EVIDENCE;13provider/13auth/context12personal, exception artifact exports
+есть, qualification receipts отсутствуют. Временный cap не ограничивался.
+Receipts/readers `local/goal584/office103-review/`, independent-acceptance.md.
+Адресный producer replay нашёл source gap: native _stamp_responses_usage_cost
+добавляет monetary usage.cost; native normalizer сохраняет его, наш category
+classifier ошибочно считает положительный cost дополнительной billing category.
+SAME current mock→real Router registration→same Logging native calculator0.20
+→native stamp/assembly→тот же callback даёт UNKNOWN/usage_categories; только
+удаление cost из comparison copy даёт valid categories. Probe1PASS12.26s,
+42PIDs terminal, wrapper1 только blocked IPv6 import probe; первый bareLogging
+без native rate registration failure сохранён. Actual103 private operand не
+экспортирован; подтверждён causal source producer, не полный private replay.
+Следующий SOURCE slice разрешён только pricing_snapshot.py/test_pricing_snapshot.py/
+test_office_delegation_readback.py: признать только известный native cost как
+finite nonnegative monetary scalar, не использовать его для расчёта цены;
+остальные неизвестные billing categories остаются запрещены. Исправить parent
+fixture, пропускавшую native stamp через logging_obj=None. Никаких изменений
+core/guard/auth/R/ledger/routes. Freeze/focused evidence/review до следующего CI.
+Этот3file SOURCE slice готов и независимо принят: production меняет только
+_billing_categories (8line delta), testR только native_tariff_capture с реальным
+Router/native cost stamp; прежний pricing test исправляет лишь ошибочную
+cost→unknown_billing предпосылку, плюс2newscalar tests. First2collectorPASS+
+7pricing setup FAIL/16.344s из-за старого отсутствующего cached batch Gitobject
+сохранены; существующий SHA/blob-checked override даёт pricing8PASS/0skip/4.515s/
+audit0, collectors не повторялись. Все75/40PIDs соответствующих запусков terminal.
+Отдельный SAME native assembled object: exactold676 classifier RED/usage_categories,
+new AVAILABLE; actual native cost before/stamped/after0.20, input/Usage unchanged.
+Comparison1PASS/10.18s (runner11.422s),41PIDs terminal; wrapper1 только blocked
+urllib3 IPv6 import bind. Первый comparison observation AttributeError при чтении
+cost у уже-нормализованного dict сохранён, исправлен только ignored getter.
+Inherited test hash receipts покрывают7Office owners, а не оба pricing files;
+immediate3file prelaunch hash check не выполнен. Immutable freeze/post3file readback
+и actual imported adapter file hash сверены; эта граница не скрывается.
+LF publisher72a7aa7356ac293658f75ad703c5f637074636009a6324209cefc7f5e14874b9,
+pricingtest1245749d31e0088fdf48d31ede329c0487186e459b577a048d87890cf660b64c,
+testR33606aa90b0f5cacf43f7b8da7b696644b1aab4a87043c4cec7d3f89b15544ca;
+freeze7d645f07cf5f0dc0cff2c75827b8f0c3043e2d4dd2d9c3c956f5854377ca97d5.
+Independent review GO/readback/AST и comparison addendum готовы. Следующий шаг —
+coherent4file commit/readback11pins/push и один existing isolated Office104 workflow;
+readers `office104-review/` подготовлены, native guard47/0skip остаётся обязательным.
+Known0/Terminal/data-preserving rollback supporting proposals в office103-review
+не реализованы и не меняют текущий candidate/принятые границы.
+Evidence `office103-tariff-usage-{triage,fix,review}/`.
+Runtime/GOAL НЕ ПРИНЯТЫ.
+
 **Последний прогон Office102, завершён:**
 [run42626209901](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42626209901),
 job129190556487, workflow406918033, exact head

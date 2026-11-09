@@ -136,7 +136,13 @@ def _billing_categories(result):
                 return None, "usage_categories"
             if key in used:
                 used[key] = value
-    core = {"prompt_tokens", "completion_tokens", "total_tokens", "prompt_tokens_details", "completion_tokens_details"}
+    # Native Responses streaming stamps this monetary scalar before normalizing
+    # Usage. It is not a token category or a source of billed rates.
+    cost = usage.get("cost")
+    if cost is not None and (type(cost) not in (int, float) or cost < 0
+                             or (type(cost) is float and not math.isfinite(cost))):
+        return None, "usage_categories"
+    core = {"prompt_tokens", "completion_tokens", "total_tokens", "prompt_tokens_details", "completion_tokens_details", "cost"}
     if any(value is not None and not (type(value) in (int, float) and value == 0)
            for key, value in usage.items() if key not in core):
         return None, "usage_categories"

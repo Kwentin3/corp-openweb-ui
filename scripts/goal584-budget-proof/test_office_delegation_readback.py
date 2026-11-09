@@ -886,6 +886,7 @@ def native_tariff_capture(deployment, *, usage=True, response=None):
     if deployment['model_name']==R.MODELS[0]:
         import ast
         from datetime import datetime
+        from litellm import Router
         from litellm.litellm_core_utils.litellm_logging import Logging
         from litellm.types.llms.openai import ResponsesAPIResponse
         from litellm.responses.streaming_iterator import build_synthetic_response_events
@@ -894,7 +895,17 @@ def native_tariff_capture(deployment, *, usage=True, response=None):
         assert response is not None
         raw=copy.deepcopy(response)
         if not usage:raw['usage']=None
-        terminal=build_synthetic_response_events(transformed=ResponsesAPIResponse.model_validate(raw),logging_obj=None,chunk_size=5)[-1]
+        # Register the real prepared rates before the native buffered iterator
+        # stamps its monetary Usage.cost; normalization alone misses this owner.
+        router=Router(model_list=[copy.deepcopy(deployment)])
+        logging=Logging(model=deployment['litellm_params']['model'],messages=[],stream=True,call_type='aresponses',
+            start_time=datetime.now(),litellm_call_id='synthetic-native-tariff',function_id='synthetic-native-tariff')
+        logging.litellm_params=owner.litellm_params
+        logging.optional_params={}
+        logging.model_call_details.update(litellm_params=owner.litellm_params,custom_llm_provider='openai')
+        terminal=build_synthetic_response_events(transformed=ResponsesAPIResponse.model_validate(raw),logging_obj=logging,chunk_size=5)[-1]
+        if usage:
+            assert type(terminal.response.usage.cost) is float and terminal.response.usage.cost == .20
         owner.stream=True
         terminal=Logging._transform_usage_objects(owner,result=terminal)
         assembled=Logging._get_assembled_streaming_response(owner,result=terminal,start_time=datetime.now(),
