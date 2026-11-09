@@ -318,6 +318,66 @@ class AdminReceiptTests(unittest.TestCase):
         self.assertEqual(result['failure'], 'admin_unknown_contract_failed')
         self.assertNotIn(private_error, json.dumps(result))
         self.assertEqual(C.P.fixture.read_private(C.ADMIN_STATE)['admin_unknown_error']['message'], private_error)
+        self.assertEqual(result['failure_code'], 'unavailable')
+        self.assertEqual(result['error_class'], 'ProofError')
+
+    def test_actual_main_catch_exports_reviewed_require_service_and_typed_codes_without_acceptance(self):
+        for make, value, category in (
+                (C.P.ProofError, 'admin_unknown_saved_parent', 'ProofError'),
+                (C.P.ProofError, 'office_service_native_spend_delta', 'ProofError'),
+                (C.P.ProofError, 'office_delegation_provider_join', 'ProofError'),
+                (C.P.CostReadError, 'usage_unavailable', 'CostReadError'),
+                (C.P.BudgetAdminError, 'native_http_403', 'BudgetAdminError')):
+            with self.subTest(value=value):
+                if make is C.P.ProofError:
+                    try:C.require(False, value)
+                    except C.P.ProofError as caught:error=caught
+                else:error=make(value)
+                code,result=self.invoke('admin-verify',error=error)
+                self.assertEqual(code,1);self.assertFalse(result['passed'])
+                self.assertEqual(result['failure'],'admin_unknown_contract_failed')
+                self.assertEqual(result['failure_code'],value);self.assertEqual(result['error_class'],category)
+                self.assertEqual(C.P.fixture.read_private(C.ADMIN_STATE)['admin_unknown_error']['message'],str(error))
+
+    def test_hostile_messages_never_promote_prefix_text_or_fake_typed_codes(self):
+        private='sk-private-sentinel-012345678901234567890123456789'
+        values=('admin_unknown_unreviewed_predicate', 'admin_unknown_saved_parent '+private,
+            'https://private.invalid/'+str(uuid4()), 'amount=0.332 '+str(uuid4()),
+            json.dumps({'failure_code':'admin_unknown_saved_parent','secret':private}))
+        for message in values:
+            with self.subTest(message=message):
+                code,result=self.invoke('admin-verify',error=C.P.ProofError(message))
+                self.assertEqual(code,1);self.assertEqual(result['failure_code'],'unavailable')
+                self.assertNotIn(message,json.dumps(result))
+                self.assertEqual(C.P.fixture.read_private(C.ADMIN_STATE)['admin_unknown_error']['message'],message)
+        fake=type('PRIVATE_CLASS_'+private,(Exception,),{})('admin_unknown_saved_parent')
+        fake.code='usage_unavailable'
+        self.assertEqual(C.admin_failure_fields(fake),{'failure_code':'unavailable','error_class':'unavailable'})
+        for error in (C.P.ProofError(['admin_unknown_saved_parent']), C.P.ProofError('admin_unknown_saved_parent',private),
+                      KeyError('admin_unknown_saved_parent'), ValueError('admin_unknown_saved_parent')):
+            self.assertEqual(C.admin_failure_fields(error)['failure_code'],'unavailable')
+        typed=C.P.CostReadError('usage_unavailable');typed.code={'secret':private}
+        self.assertEqual(C.admin_failure_fields(typed),{'failure_code':'unavailable','error_class':'CostReadError'})
+        del typed.code
+        self.assertEqual(C.admin_failure_fields(typed)['failure_code'],'unavailable')
+        typed=C.P.BudgetAdminError('invalid_native_response');typed.code='native_http_403 '+private
+        self.assertEqual(C.admin_failure_fields(typed)['failure_code'],'unavailable')
+
+    def test_nonadmin_main_failure_receipt_shape_is_exactly_legacy(self):
+        temp=TemporaryDirectory();self.addCleanup(temp.cleanup);private=Path(temp.name)
+        if os.name=='nt':
+            import prove_gateway_auth as private_owner
+            self.enterContext(patch.object(private_owner.stat,'S_IMODE',side_effect=lambda mode:0o700 if stat.S_ISDIR(mode) else 0o600))
+        self.enterContext(patch.object(C,'PRIVATE',private))
+        self.enterContext(patch.object(C,'STATE',private/'legacy.private.json'))
+        C.P.fixture.write_private(C.STATE,{'schema':1,'legacy':'untouched'})
+        async def execute(phase):
+            self.assertEqual(phase,'verify');C.require(False,'unknown_gui_caps_or_policy')
+        output=io.StringIO()
+        with patch.object(sys,'argv',['proof','--phase','verify']),patch.object(C,'execute',execute),redirect_stdout(output):
+            self.assertEqual(C.main(),1)
+        self.assertEqual(json.loads(output.getvalue()),{'schema':1,'proof':C.PROOF,'passed':False,'phase':'verify',
+            'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False,'failure':'unknown_gui_contract_failed'})
 
     def test_native_source_closure_only_reads_consumed_source_files(self):
         import provision_admin

@@ -1,6 +1,6 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Текущая запись работы, 08.11.2026. Источник требований и полномочий —
+Текущая запись работы, 09.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
 [редакция 5](../commercial/planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md).
@@ -8,7 +8,56 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Последний прогон Office90, завершён:**
+**Последний прогон Office91, завершён:**
+[run42504785997](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42504785997),
+exact head `855e017996f0d272e63558f1fefc525d45355ae1`, job128804966515,
+dispatch08.11 17:24:10UTC, terminal FAILURE на14/verify;1–13SUCCESS,
+15SKIPPED, diagnostics/cleanup/uploadSUCCESS. Живого job нет.
+После исправления четырёх имён в synthetic Responses fixture браузер впервые
+наблюдает эту форму: ordinarySend1, сохранённый terminal answer, Tasks пусты;
+unknown employee/model expense и blocked labels соответствуют native keys.
+Это подтверждает открытие формы, но не финансовую приёмку: admin-verify
+passed=false/admin_unknown_contract_failed, конкретный predicate пока неизвестен.
+HTML/PNG этой формы после verify failure не экспортируются; независимого
+просмотра её пикселей не было. Artifact13627107313 скачан один раз:
+1181741B/92unique/SHA256
+`a8d43f9c488d25dfdee549b9fc499eadbb67f4226814eee98cc2b025259ae19c`.
+Root reader:54build/72sourcepins,45guard/19auth/1CLI0skip,
+ordinary3personal/.60+service.20, continuation1personal/.20+service.20;
+cleanup5images/no taskresources. Evidence `office91-review/`.
+
+DELIVERY HEAD `8b431dfa8de9029d61e17ebc6063c6fee1ebc3d3` дополнительно содержит
+проверенный opt-in Terminal provisioning:69testsPASS и independent69PASS,
+три файла, без активации Terminal/workflow/финансовых writes.
+REASONING HEAD `dc14f3462016da6f1992ce05fae76d6e33354c6a` содержит тот же
+Terminal slice; branches пока различаются fixture names fix. Не смешивать
+непринятый zero-usage WIP с DELIVERY.
+
+Следующий узкий срез — только публичный static failure_code/error_class в
+existing admin collector; passed=false/fatal/private raw error сохраняются.
+Два source files заморожены:27testsPASS; independent review PASS и ещё27PASS,
+без fail/error/skip; root проверил diff и сохранение actual predicates.
+Default six-GUI и financial/context predicates не меняются. Следующий шаг —
+один existing workflow run на точном commit для выявления actual91 predicate.
+Evidence `admin-native-failure-code-{source,review}/`.
+
+Explicit-zero six-file candidate НЕ ПРИНЯТ: independent review воспроизвёл
+подделку success marker через native server key/team client-pricing opt-in
+и guard opt-out.129green component tests не доказывают доверенность нуля;
+accepted reader по-прежнему возвращает unavailable. Исследуется узкий запрет
+такого opt-in на существующем managed gateway, до provider, без нового ledger
+или core patch. Evidence `explicit-zero-native-review/`, `zero-trust-remedy/`.
+Latest native LiteLLM1.108.3 source изменил stream cleanup ordering; это реальный
+кандидат на отдельную стендовую qualification, но не runtime acceptance и не
+основание считать streaming Usage/cancel закрытыми.
+
+Обязательные остатки: принять admin verify и изменение лимита из Rich UI;
+доказать полный delegated Office context/расход и Terra quota refusal;
+native Terminal flow/File ACL; trusted zero и unknown stream/cancel policy;
+согласованный финальный стендовый прогон, install/rollback и customer handoff.
+Production/paid API/рабочие маршруты не меняются; GOAL остаётся active.
+
+**Предыдущий прогон Office90, завершён:**
 [run42501761986](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42501761986),
 exact head `bc85bcb576abac1a514e127a243a11b7902a9b92`, job128795836486,
 dispatch16:48:33UTC, terminal FAILURE на14/browser,1–13SUCCESS,15SKIPPED,

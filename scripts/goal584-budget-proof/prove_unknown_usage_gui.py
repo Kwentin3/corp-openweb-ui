@@ -44,6 +44,63 @@ EXTRA_SOURCES = {n: Path(__file__).with_name(n) for n in
 require = P.require
 wire_json = lambda value: json.loads(json.dumps(value, default=str, allow_nan=False))
 
+# Explicit public diagnostics only. Unknown/new codes stay private until reviewed.
+ADMIN_PUBLIC_PROOF_CODES = frozenset({
+    'admin_unknown_background_active', 'admin_unknown_baseline_changed', 'admin_unknown_baseline_exists',
+    'admin_unknown_browser_packet', 'admin_unknown_capture_capacity', 'admin_unknown_cost_snapshot',
+    'admin_unknown_dispatch_count', 'admin_unknown_dispatch_model', 'admin_unknown_dispatch_partition',
+    'admin_unknown_duplicate_dispatch', 'admin_unknown_fresh_payer', 'admin_unknown_native_cardinality',
+    'admin_unknown_native_counter', 'admin_unknown_native_preservation', 'admin_unknown_native_tool_output',
+    'admin_unknown_personal_scope', 'admin_unknown_primary_provider', 'admin_unknown_prior_context',
+    'admin_unknown_render_counter', 'admin_unknown_render_model_counter', 'admin_unknown_saved_binding',
+    'admin_unknown_saved_embed', 'admin_unknown_saved_parent', 'admin_unknown_saved_rows', 'admin_unknown_saved_tool',
+    'admin_unknown_service_assignment', 'admin_unknown_terminal_context', 'admin_unknown_tool_context_binding',
+    'admin_unknown_tool_context_count', 'admin_unknown_tool_result_binding',
+    'office_delegation_auth_context', 'office_delegation_provider_join',
+    'office_continuation_service_context', 'office_saved_followups', 'office_service_wire',
+    'office_buffered_client_stream', 'office_buffered_profile', 'office_provider_transport',
+    'office_service_caps_changed', 'office_service_dispatch_binding', 'office_service_dispatch_observation',
+    'office_service_duplicate_row', 'office_service_native_spend_delta', 'office_service_old_row_changed',
+    'office_service_owner', 'office_service_rates', 'office_service_raw_rows', 'office_service_row_count',
+    'office_service_row_identity_usage_cost', 'office_service_tariff_source',
+})
+ADMIN_PUBLIC_COST_CODES = frozenset({
+    'accounting_unavailable', 'duplicate_request_id', 'foreign_answer', 'foreign_scope', 'incomplete_pagination',
+    'invalid_attribution', 'invalid_configuration', 'invalid_observation_range', 'invalid_pagination',
+    'invalid_row', 'invalid_scope', 'invalid_spend', 'invalid_usage', 'response_too_large',
+    'spend_api_unavailable', 'usage_unavailable',
+})
+ADMIN_PUBLIC_BUDGET_CODES = frozenset({
+    'duplicate_assignment', 'duplicate_key', 'foreign_assignment', 'incomplete_pagination', 'invalid_assignment',
+    'invalid_cap', 'invalid_configuration', 'invalid_employee', 'invalid_key_hash', 'invalid_models',
+    'invalid_native_amount', 'invalid_native_response', 'invalid_user_id', 'missing_assignment',
+    'native_response_too_large', 'native_transport', 'service_configuration_changed', 'unsupported_assignment',
+    'native_http_400', 'native_http_401', 'native_http_403', 'native_http_404', 'native_http_409',
+    'native_http_422', 'native_http_429', 'native_http_500', 'native_http_502', 'native_http_503', 'native_http_504',
+})
+
+
+def admin_failure_fields(error):
+    """Represent a known failure; never authorize acceptance or expose raw text."""
+    code = None
+    if isinstance(error, P.CostReadError):
+        category, allowed = 'CostReadError', ADMIN_PUBLIC_COST_CODES
+    elif isinstance(error, P.BudgetAdminError):
+        category, allowed = 'BudgetAdminError', ADMIN_PUBLIC_BUDGET_CODES
+    else:
+        category = {P.ProofError: 'ProofError', AssertionError: 'AssertionError', ValueError: 'ValueError',
+                    TypeError: 'TypeError', KeyError: 'KeyError', TimeoutError: 'TimeoutError'}.get(type(error), 'unavailable')
+        allowed = ADMIN_PUBLIC_PROOF_CODES
+        if type(error) in (P.ProofError, AssertionError) and len(error.args) == 1:
+            code = error.args[0]
+    if category in ('CostReadError', 'BudgetAdminError'):
+        try:
+            code = error.code
+        except Exception:
+            pass
+    return {'failure_code': code if type(code) is str and code in allowed else 'unavailable',
+            'error_class': category}
+
 
 def canonical(value):
     try: valid = isinstance(value, str) and str(UUID(value)) == value
@@ -558,6 +615,7 @@ def main():
             state['admin_unknown_error' if admin_phase else 'unknown_gui_error']={'type':type(error).__name__,'message':str(error)[:8192] if admin_phase else str(error)}
             P.fixture.write_private(failure_path,state)
         result.update(passed=False,failure='admin_unknown_contract_failed' if admin_phase else 'unknown_gui_contract_failed')
+        if admin_phase: result.update(admin_failure_fields(error))
     P.no_credentials(result)
     if available:P.fixture.write_private(target,result)
     print(json.dumps(result,indent=2,allow_nan=False));return 0 if result['passed'] else 1
