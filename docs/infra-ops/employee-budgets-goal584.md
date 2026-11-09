@@ -8,11 +8,25 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Последний прогон Office95, завершён:**
+**Текущий прогон Office96:**
+[run42589040860](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42589040860),
+exact head `190d7d8a0711023512f3537b6595faa37de895e6`, workflow406918033,
+job129065841193, dispatch09.11 08:51:59UTC. На09:00UTC in_progress, build/CLI
+preflight SUCCESS, native derivative build выполняется. Один запуск, без rerun.
+Проверяет reviewed host PNG export на actual Linux/Pillow11.3 и затем delegated
+Office; LTS/negative-quota/Terminal не включены. Bounds55min, manual control cancel
+09:36:59UTC (45min), hard timeout09:46:59UTC; наблюдаем exact job.
+При остановке native `gh run cancel 42589040860`, затем terminal job и owned cleanup
+receipt/остатки обязательны; возврат команды/таймаут не означает завершения.
+Остаются прежние preflight20GiB disk/6GiB RAM/7GiB Docker, phase limits,
+six services5.875GiB/4.25CPU/1728PIDs, component1GiB/256PIDs и cleanup actual IDs.
+Результат96 и actual admin pixels пока НЕ ПРИНЯТЫ.
+
+**Последний завершённый прогон Office95:**
 [run42582340806](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42582340806),
 exact head `0cbf19af5e83ca45f6f23465b3043d211d9d1052`, workflow_dispatch,
 job129043834678, dispatch09.11 07:55:14UTC; terminalFAIL14/HOSTpostverify,
-1–13SUCCESS,15SKIPPED, diagnostics/cleanup/uploadSUCCESS; живого CI нет.
+1–13SUCCESS,15SKIPPED, diagnostics/cleanup/uploadSUCCESS; этот запуск terminal.
 Native admin-verify ПЕРВЫЙ РАЗ passed=true/status=verified:2personal/.332,
 service1/.20/new raw row1, native saved embed/unknown employee проверены.
 Это source-bound native financial/context receipt, не независимый raw DB replay
@@ -29,7 +43,7 @@ build hash и сохраняет все PNG/source/financial/fatal guards, бе�
 Local Pillow12 вместо CI11.3 явно unverified; source/Office owner неизменён,
 exact Linux pins и ACTUAL admin pixels96 ещё обязательны. Admin PNG95 не
 экспортировались. Evidence `office95-review/`, `office95-host-png-{fix,review}/`.
-Следующий шаг — один bounded96run на reviewed host fix. Bounds55min/45min
+Следующий шаг — приёмка единственного bounded96run на reviewed host fix. Bounds55min/45min
 control cancel/exactjob observation/ownedcleanupverification сохраняются;
 перед dispatch предыдущие3runs подтверждены terminal, никаких duplicated runs.
 **Последний прогон Office94, завершён:**
@@ -203,8 +217,19 @@ Artifact selection source изолирован в worktree `corp-openweb-ui-goal
 branch `agent/goal584-lts-native`, commit083a173749139882ff85ed5023151bc56f8d3c8f:
 6files,31+15+3source checksPASS и independent31+15+3PASS, worktree clean.
 Это source/artifact acceptance; actual image/cold imports/runtime НЕ выполнены.
-Перед будущим image launch обязателен native addressed stop/participant readback:
-generated Docker command пока без name/cidfile, --rm не доказывает завершение.
+Дополнительный accepted SOURCE commit46ac5e6f91b625134c391682b55586f49fc0cb56:
+existing builder/test (2files) закрепляет name/owner-rolelabels/CID/preflight,
+90s execution/120s total с26s cleanup reserve, exact inspect/stop/rm и final
+name/owner/CID absence.58PASS и independent58PASS, owned test/Git PIDs terminal.
+Это закрывает только TEST container lifecycle; export/build/final readback ещё
+не квалифицированы. Evidence `lts1083-test-container-lifecycle-{source,review}/`.
+Следующий узкий SOURCE slice — manual components-only в SAME native workflow:
+actual pinned base →5exports→approved patch/AST→native tests, без derivative build,
+DB/provider/WebUI. Default/PR105 jobs сохраняются. Outer owner — disposable
+GitHub-hosted VM с native workflow cancel; daemon completion после client timeout
+не объявляется подтверждённым. Bounds/job selection/export cleanup и component
+receipt готовятся отдельно; image/CI launch ещё не выполнен. Scope:
+`lts1083-ci-scope/report.md`. Это не новый Usage core patch и не whole-GOAL gate.
 
 Negative Office source изолирован в `corp-openweb-ui-goal584-quota`, branch
 `agent/goal584-office-quota`, commit313e955ba5ac7202626aa5bbbcef7e3fb0d58b32:
