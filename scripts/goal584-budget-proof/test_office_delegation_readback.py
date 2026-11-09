@@ -209,7 +209,7 @@ def test_cli_error_does_not_export_raw_private_exception(monkeypatch, capsys):
     assert 'private-token' not in json.dumps(value)
 
 
-def context_case(monkeypatch, tmp_path):
+def context_case(monkeypatch, tmp_path, *, quota=False):
     """Actual provider grammar, native Tasks and pinned serializer; Office IO leaves."""
     import io
     import test_mock_provider as provider_test
@@ -227,6 +227,10 @@ def context_case(monkeypatch, tmp_path):
     workflow = (root / 'deploy/openwebui-skills/artifact-workflow.md').read_text(encoding='utf-8')
     case.parent['input'][0].update(role='developer', content=[{'type': 'input_text', 'text': workflow + '\n' + case.skill['id']}])
     case.parent.update(store=False, include=['reasoning.encrypted_content'])
+    if quota:
+        for message in case.parent['input']:
+            if message.get('role')=='user':
+                message['content']=[{'type':'input_text','text':provider_test.MOCK.DELEGATED_USER_REQUEST+'\nNative Skill ID: '+case.skill['id']}]
     actor, chat, answer = [str(uuid4()) for _ in range(3)]
     office = prepared(actor, str(uuid4()))
     office['office_setup'] = {'workflow_skill': {'content': workflow}, 'openapi': {}}
@@ -274,6 +278,14 @@ def context_case(monkeypatch, tmp_path):
             worker = dict(model=provider_test.MOCK.DELEGATED_WORKER_MODEL, max_output_tokens=6000, stream=False, store=False,
                 tools=copy.deepcopy(native_worker_tools), input=[dict(type='message', role='developer', content=case.skill['content']),
                                                           dict(type='message', role='user', content=json.dumps(packet))])
+            if quota:
+                provider_test.DelegatedQuotaProviderTests.setUpClass()
+                result=json.loads(provider_test.DelegatedQuotaProviderTests.quota_output)
+                worker['input']=router['convert_to_responses_payload']({'messages':[
+                    {'role':'developer','content':workflow+'\n'+case.skill['content']},
+                    {'role':'user','content':json.dumps(packet)}]})['input']
+                append_response(case.parent,response,result,True)
+                continue
             for j in range(6):
                 child = dispatch(worker, R.MODELS[1])
                 if j < 5:
@@ -290,6 +302,7 @@ def context_case(monkeypatch, tmp_path):
         for i in range(0, len(cases), 4)]
     context = dict(schema=1, packets=packets, provider_ids=[c['provider']['id'] for m in R.MODELS for c in groups[m]])
     browser = dict(chat_id=chat, answer_id=answer, file_id=case.file_id, stored_chat={'tasks': case.task_rows})
+    if quota: browser['denied_wire']=worker
     guide = json.loads(worker_leaf_results[0])
     guide_packet = dict(schema=1, source_commit='f' * 40, office_image_id='sha256:' + 'a' * 64,
         qualification_image_id='sha256:' + 'b' * 64, version='1.0.152', modules={'officecli.py': 'c' * 64}, binary_sha256='d' * 64,
@@ -315,6 +328,149 @@ def test_context_composes_actual_native_tasks_serializer_full_skill_and_actual_p
     values = context_case(monkeypatch, tmp_path)
     scopes = R.verify_context(*values)
     assert {m: len(v) for m, v in scopes.items()} == dict.fromkeys(R.MODELS, 6)
+
+
+def test_quota_context_uses_actual_native_error_formatter_tasks_and_all_six_parent_inputs(monkeypatch,tmp_path):
+    groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True)
+    scopes=R.verify_context(groups,office,browser,context,d,tape,quota=True)
+    assert len(tape)==6 and len(scopes[R.MODELS[0]])==6 and groups[R.MODELS[1]]==[]
+    assert [v['status'] for v in browser['stored_chat']['tasks']]==['cancelled','cancelled']
+    assert '/api/v1/files/' not in json.dumps(tape[-1]['response'])
+    for mutation in ('last_result','cancelled_id','root','reasoning'):
+        changed=copy.deepcopy(groups); packets=copy.deepcopy(context)
+        if mutation=='last_result': changed[R.MODELS[0]][-1]['wire_before_auth']['input'][-1]['output']='{}'
+        elif mutation=='cancelled_id': changed[R.MODELS[0]][4]['wire_before_auth']['input'][-2]['arguments']='{"id":"wrong","status":"cancelled"}'
+        elif mutation=='root':changed[R.MODELS[0]][0]['wire_before_auth']['input'][0]['content']='root marker only'
+        else:packets['packets'][0]['reasoning_cases'].pop()
+        with pytest.raises((N.ProofError,ValueError)):
+            R.verify_context(changed,office,browser,packets,d,tape,quota=True)
+
+
+def test_quota_cap_only_uses_native_protected_fields_and_preserves_all_owner_rows_and_counters():
+    data=native_io();before=R.inventory(data.native,data.office)
+    worker=before['personal'][R.MODELS[1]]['key'];key_hash=worker['token']
+    data.keys[data.actor][1]['max_budget']=.12
+    after=R.inventory(data.native,data.office,worker_cap=Decimal('.12'))
+    R.quota_cap_only(before,after,key_hash,Decimal('.12'))
+    for mutation in ('spend','old_row','other_cap','blocked','missing_owner'):
+        changed=copy.deepcopy(after)
+        if mutation=='spend':changed['raw_owners'][data.actor]['user']['spend']=.1
+        elif mutation=='old_row':changed['raw_owners'][data.old]['rows']=[]
+        elif mutation=='other_cap':changed['raw_owners'][data.old]['keys'][0]['max_budget']=2
+        elif mutation=='blocked':changed['raw_owners'][data.actor]['keys'][1]['blocked']=True
+        else:changed['raw_owners'].pop(data.old)
+        with pytest.raises(N.ProofError):R.quota_cap_only(before,changed,key_hash,Decimal('.12'))
+
+
+def test_quota_baseline_native_api_sets_actual_spend_and_verify_failure_finally_restores_only_cap(monkeypatch,tmp_path):
+    import contextlib
+    from test_native_key_block import Response
+    monkeypatch.setattr(R,'PRIVATE',tmp_path)
+    data=native_io();data.people[data.actor]['spend']=1.32
+    data.keys[data.actor][0]['spend']=1.2;data.keys[data.actor][1]['spend']=.12
+    initial=R.inventory(data.native,data.office);provider={'synthetic':True,'control':{},'requests':[]};captured={'requests':[]}
+    state={'stage':'verified_readback','prepared_sha256':R.proof.digest(data.office),
+        'history_start_utc':datetime.now(timezone.utc).isoformat(),'provider_after':provider,'capture_after':captured,
+        'after':copy.deepcopy(initial),'descriptors':{}}
+    posts=[];writes=[]
+    class Session:
+        def __init__(self,**kwargs):assert kwargs=={'trust_env':False}
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        def request(self,method,url,**kwargs):
+            assert (method,url)==('POST','http://proxy:4000/key/update')
+            assert kwargs['allow_redirects'] is False and kwargs['headers']=={'Authorization':'Bearer sk-local-operator'}
+            body=kwargs['json'];assert set(body)=={'key','max_budget'} and body['key']=='b'*64
+            posts.append(copy.deepcopy(body));data.keys[data.actor][1]['max_budget']=body['max_budget']
+            return Response(200,{'key':'b'*64})
+    def read(path):
+        if path==R.OFFICE:return data.office
+        if path==R.STATE:return state
+        if Path(path).name=='operator':return {'operator_token':'sk-local-operator'}
+        if path==R.COMMON:return {}
+        raise RuntimeError('Missing actual browser packet IO leaf')
+    d={'read_private':read,'write_private':lambda path,value:writes.append(copy.deepcopy(value)),
+        'native_client':lambda common:data.native,'provider':lambda:copy.deepcopy(provider),
+        'capture':SimpleNamespace(MAX_RECORDS=32,capture_lock=contextlib.nullcontext,_read_locked=lambda:copy.deepcopy(captured)),
+        'ClientSession':Session,'OPERATOR_STATE':Path('operator')}
+    result=R.quota_run('quota-baseline',d)
+    assert result['quota_stage']=='baseline_ready' and posts==[{'key':'b'*64,'max_budget':.12}]
+    assert R.amount(data.keys[data.actor][1]['spend'])==Decimal('.12')
+    with pytest.raises(RuntimeError,match='Missing actual browser packet'):R.quota_run('quota-verify',d)
+    assert state['quota']['stage']=='restored' and posts[-1]=={'key':'b'*64,'max_budget':1000.0}
+    count=len(posts);assert R.quota_run('quota-restore',d)['quota_stage']=='restored'
+    assert len(posts)==count
+    R.quota_cap_only(initial,R.inventory(data.native,data.office),'b'*64,Decimal(1000))
+    assert any(v['quota']['journal']==['restrict_pre_write'] for v in writes)
+    # No existing full-tape prefix may be truncated to fit the current limit.
+    state.pop('quota');captured['requests']=[{'body':{'preserved':i}} for i in range(28)]
+    state['capture_after']=copy.deepcopy(captured);before=len(posts)
+    with pytest.raises(N.ProofError,match='capture_capacity'):R.quota_run('quota-baseline',d)
+    assert len(posts)==before and 'quota' not in state and len(captured['requests'])==28
+
+
+def test_quota_restore_refuses_active_native_tasks_before_any_budget_write(monkeypatch,tmp_path):
+    monkeypatch.setattr(R,'PRIVATE',tmp_path)
+    packet={'chat_id':str(uuid4())};(tmp_path/'office-delegation-quota.private.json').write_text(json.dumps(packet))
+    actor,payer=str(uuid4()),str(uuid4());reads=[]
+    class WebUI:
+        def ok(self,method,path,**kwargs):
+            reads.append((method,path));return {'task_ids':['actual-native-running-task']}
+    office=prepared(actor,payer);office['office_delegation_setup']['actor']['token']='actor-IO-token'
+    state={'quota':{'stage':'baseline_ready','original_cap':'1000','restricted_cap':'.12'}}
+    with pytest.raises(N.ProofError,match='restore_background_active'):
+        R.quota_restore(state,None,office,{'read_private':lambda path:packet,'WebUI':WebUI})
+    assert reads==[('GET','/api/tasks/chat/'+packet['chat_id'])]
+
+
+def test_quota_denial_join_uses_actual_gateway_signed_native_422_not_an_illustrated_envelope(monkeypatch,tmp_path):
+    import asyncio,sys
+    import test_capture_webui_auth as C
+    from unittest.mock import patch
+    groups,office,browser,context,d,tape=context_case(monkeypatch,tmp_path,quota=True)
+    harness=C.CaptureContextsTests();asyncio.run(harness.asyncSetUp())
+    try:
+        owner,req,invoke,proxy,errors,events,error_type=harness.native_denial()
+        carrier=req.data['litellm_metadata']; req.data.clear()
+        wire=copy.deepcopy(browser['denied_wire']);wire['model']=R.MODELS[1]
+        req.data.update(wire,litellm_metadata=carrier)
+        with patch.object(C.C,'product_auth',return_value=invoke),patch.object(C.C,'product_denial_reader',return_value=owner.auth.personal_key_budget_denial),patch.dict(sys.modules,{'litellm.proxy.proxy_server':proxy}):
+            with pytest.raises(error_type) as caught:asyncio.run(C.C.gateway_auth(req,owner.SECRET))
+        assert caught.value is errors[0] and len([v for v in events if v[0]=='validate'])==1
+        denied=C.C._read_locked()['requests'][0]
+    finally:harness.doCleanups()
+    actor,chat,answer=owner.USER,owner.ROOT_CHAT,owner.ROOT_ANSWER
+    office['office_delegation_setup']['actor']['id']=actor
+    for model in office['office_delegation_setup']['budget']['models']:
+        model['key_hash']=('b' if model['model']==R.MODELS[0] else 'a')*64
+    browser.update(chat_id=chat,answer_id=answer)
+    rows=[]
+    for call in groups[R.MODELS[0]]:
+        call['verified_cost_scope'].update(user_id=actor,chat_id=chat,root_chat_id=chat,answer_id=answer,root_answer_id=answer)
+        rows.append(dict(body=call['wire_before_auth'],body_after_auth=copy.deepcopy(call['wire_before_auth']),route='/responses',
+            verified_cost_scope=call['verified_cost_scope'],native_auth_user_id=actor,native_auth_key_hash='b'*64,
+            attestation_present_before=True,provenance_removed_after=True))
+    rows.insert(3,denied)
+    service_wire={'model':'gpt-6-luna','input':[],'store':False,'stream':False}
+    service_body=R.proof.expected_provider_body(service_wire,'goal584-fake-office-service')
+    service={'id':'source-service-IO-leaf','body':service_body,'lifecycle':{'terminal':True,'outcome':'completed'}}
+    rows.append(dict(body=service_wire,body_after_auth=copy.deepcopy(service_wire),route='/responses',
+        verified_cost_scope={'call_id':str(uuid4())},native_auth_user_id='service-IO-leaf',native_auth_key_hash='c'*64,
+        attestation_present_before=True,provenance_removed_after=True))
+    before={'provider':{'synthetic':True,'control':{},'requests':[]},'capture':{'requests':[]},
+        'finance':{'personal':{R.MODELS[1]:{'key':{'token':'a'*64}}}}}
+    provider={'synthetic':True,'control':{},'requests':[*tape,service]};captured={'requests':rows}
+    joined,actual=R.quota_calls(before,provider,captured,office,browser,d)
+    assert actual==denied and len(joined[R.MODELS[0]])==6
+    for mutation in ('missing','wrong_key','status','root','worker_dispatch'):
+        altered=copy.deepcopy(captured);physical=copy.deepcopy(provider);row=altered['requests'][3]
+        if mutation=='missing':row.pop('native_budget_denial')
+        elif mutation=='wrong_key':row['native_budget_denial']['key_hash']='d'*64
+        elif mutation=='status':row['auth_failure']['status_code']=403
+        elif mutation=='root':row['native_budget_denial']['scope']['root_chat_id']=str(uuid4())
+        else:physical['requests'][-1]['body']['model']=R.WIRES[R.MODELS[1]]
+        with pytest.raises((N.ProofError,ValueError)):
+            R.quota_calls(before,physical,altered,office,browser,d)
 
 
 @pytest.mark.parametrize('mutation', ['skill_loss', 'duplicate_skill', 'root_tail', 'task_alias', 'guide_loss', 'native_case_loss', 'guide_packet', 'guide_qualification'])
