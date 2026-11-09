@@ -333,7 +333,7 @@ def verify_context(groups, office, browser, context, d, provider_requests, *, qu
                     and scope['model'] == model and scope['user_id'] == actor and scope['category'] == 'personal'
                     and scope['chat_id'] == scope['root_chat_id'] == chat
                     and scope['answer_id'] == scope['root_answer_id'] == answer, 'office_delegation_scope')
-            require(wire.get('store') is False and not wire.get('previous_response_id') and not wire.get('background', False)
+            require(wire.get('store', False) is False and not wire.get('previous_response_id') and not wire.get('background', False)
                     and p['route'] == '/v1/responses' and p['usage'] == p['response']['usage'] == proof.USAGE
                     and p['response']['id'] == p['id'] and p['response']['model'] == WIRES[model]
                     and p['response']['status'] == 'completed' and p['lifecycle'] == {'terminal': True, 'outcome': 'completed'},

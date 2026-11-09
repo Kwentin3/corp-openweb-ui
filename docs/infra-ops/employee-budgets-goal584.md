@@ -8,6 +8,61 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office99, завершён:**
+[run42610570002](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42610570002),
+job129137619497, workflow406918033, exact head
+`8ea48d87615451471d19b021315caba6501a2bee`, dispatch09.11 11:37:53UTC.
+Перед запуском remote reasoning ref сверён с exact head; Office98 terminal,
+owned cleanup подтверждён. Это один новый workflow_dispatch, не rerun.
+Terminal FAILURE на15/native_finance: `office_delegation_provider_response`.
+Steps1–14SUCCESS,16negative/17recoverySKIPPED,18diagnostics/19cleanup/20uploadSUCCESS.
+Живого CI нет, rerun не делался; до временного ограничения Terra дело не дошло.
+Positive delegated Office artifact и native finance должны пройти до ограничения
+Terra. Native quota cap-only restore, recovery guard и owned Compose/image cleanup
+обязательны; без них acceptance нет.
+Bounds55min/manual cancel12:22:53UTC/hard12:32:53UTC, unchanged preflight
+20GiB disk/6GiB RAM/7GiB Docker, six services5.875GiB/4.25CPU/1728PIDs,
+component1GiB/256PIDs. Addressed stop:
+`gh run cancel 42610570002 --repo Kwentin3/corp-openweb-ui`, затем exact job
+terminal и actual owned cleanup/remaining participant readback. Возврат команды
+или timeout не доказывает завершение; live run не дублировать. LTS/Terminal не
+активированы, production/paid API/рабочие маршруты не менялись. Technical receipt
+`local/goal584/office99-review/run.safe.json`; runtime/GOAL пока НЕ ПРИНЯТЫ.
+Artifact13670248474 скачан один раз:1498486B/104unique/SHA256
+`3cf5d817a6c708c0950fc1130cfbafa6d32fa3a0a495c957ea4636ef618f7674`.
+Root fullreader54build/72pins/45guard+22auth+1CLI0skip/5images cleanup PASS.
+Independent admin/source/twoPNG/cleanup PASS; delegation NOT_ACCEPTED, quota
+NEEDS_EVIDENCE. Provider/auth diagnostic13/13, personal context12 и два native
+packet hashes есть. После exception export собраны actual delegated DOCX,
+render PNG и browser PNG; отдельные artifact/browser safe qualification receipts
+отсутствуют. Root просмотрел actual render и browser: Ada/G584-2026/fixed text,
+Download, Tasks, follow-ups и provisional $1.32 показаны. Это не финансовая
+приёмка и не доказательство final expense.
+Адресная source triage выявила расхождение: consumer требует explicit store=False,
+raw принятые delegated profiles store не задают, native converter его не добавляет,
+existing provider owner допускает omitted store. Fixture вручную добавляла False.
+Конкретный первый operand actual99 не экспортирован; genuine native producer
+replay подтвердил source mismatch перед узким consumer/test
+correction. Models/core/финансовые owners не меняются. Evidence —
+`office99-review/`, `office99-provider-response-triage/`.
+
+**Подготовка Office100:** source consumer correction готов к одному isolated CI:
+production diff — только `wire.get('store', False) is False`, как допускает
+existing provider owner. Fixture использует реальные pinned native params applier
+и Responses converter для parent/worker/denied-worker; ручной store=False убран.
+На SAME полном native-profile6Sol+6Terra/Skill/source/Tool/image input старый exact8ea
+RED, новый PASS; explicitFalse принят, invalid/остальные15mutants отклонены.
+Затронутый R module93PASS/0skip/65.031s, hashes неизменны, все60 PIDs terminal;
+wrapper1 сохранён только из-за BLOCKED urllib3 local IPv6 import probe, внешних
+connect/DNS нет. Отдельный final causal replay3.281s/audit0/9PIDs terminal.
+Независимый source review — GO; actual99 first failed operand не объявляется
+наблюдённым, runtime/финансовая приёмка не подменяются source replay.
+В коммерческом описании уточнён уже выбранный native submit → user message →
+server auth; исправлены две устаревшие ссылки на редакцию4. Готовность поставки,
+смета и полномочия не расширены. Следующий шаг — exact5file commit/readback/push
+и один existing workflow; source/artifact readers переиспользуются. Evidence —
+`office99-provider-response-{fix,review}/`, `office100-review/`.
+
 **Подготовка Office99:** объединяются принятые image carrier fix `64d14563`
 и quota/capture/host wiring `c652f9ca`. Конфликт тестовой fixture разрешён с
 сохранением genuine native positive path и отдельного parent-only quota path.
@@ -29,8 +84,10 @@ GO для одного isolated CI. Старые 28 test functions и phase/fina
 сохранены; прежние 155 не объявляются проверкой изменённых байтов. Установлены
 точные final LF pins: readback `5c9315a024264cdaf1f5ec821278ae00135b4bd72ff08d893e2af4a05a0f8d0a`,
 test `7f58d01042c3380882f993068433a4146cfb2aec59e8df8eff16637285b0ad24`.
-CI99 ещё не запущен; следующий шаг — commit/push проверенных восьми файлов и один
-existing Office workflow, positive gates перед negative. Evidence —
+Проверенные восемь файлов committed как merge `8ea48d87`, затем source/Git LF
+readback7/7 и clean worktree PASS; remote reasoning ref fast-forward подтверждён.
+Единственный existing Office workflow запущен выше, positive gates перед negative.
+Terminal artifact intake и независимые bounded readers выполнены выше. Evidence —
 `local/goal584/office99-source-integration/`; bounded reader готов в
 `local/goal584/office99-review/`, root/independent reports имеют разные имена.
 

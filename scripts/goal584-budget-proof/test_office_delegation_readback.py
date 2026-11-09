@@ -393,8 +393,22 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
     worker_leaf_results = [r['output'] for r in worker_complete['input'] if r.get('type') == 'function_call_output']
     case = provider_test.DelegatedProviderTests(); case.setUp()
     workflow = (root / 'deploy/openwebui-skills/artifact-workflow.md').read_text(encoding='utf-8')
-    case.parent['input'][0].update(role='developer', content=[{'type': 'input_text', 'text': workflow + '\n' + case.skill['id']}])
-    case.parent.update(store=False, include=['reasoning.encrypted_content'])
+    with provider_test.patch.object(native_test, 'NATIVE', source):
+        _, router, media = native_test.native.__wrapped__()
+    from collections.abc import Callable
+    params_owner = native_test.native_owner('utils/payload.py',
+        {'remove_open_webui_params', 'apply_model_params_to_body', 'apply_model_params_to_body_openai'},
+        namespace={'Callable': Callable})
+    profiles_raw = (root / 'deploy/openwebui-tools/corporate_template_models.json').read_bytes().replace(b'\r\n', b'\n')
+    assert R.sha256(profiles_raw).hexdigest() == provision.DELEGATION_PROFILES_SHA256
+    profiles = {v['id']: v for v in json.loads(profiles_raw)}
+    def profile_form(profile_id, form):
+        params = copy.deepcopy(profiles[profile_id]['params']); params.pop('system', None)
+        return params_owner['apply_model_params_to_body_openai'](params, form)
+    case.parent = router['convert_to_responses_payload'](profile_form('corporate-documents', {
+        'model': case.parent['model'], 'tools': case.parent['tools'], 'include': ['reasoning.encrypted_content'],
+        'messages': [{'role': 'developer', 'content': workflow + '\n' + case.skill['id']},
+                     {'role': 'user', 'content': provider_test.MOCK.DELEGATED_USER_REQUEST}]}))
     if quota:
         for message in case.parent['input']:
             if message.get('role')=='user':
@@ -403,8 +417,6 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
     office = prepared(actor, str(uuid4()))
     office['office_setup'] = {'workflow_skill': {'content': workflow}, 'openapi': {}}
     office['office_delegation_setup'].update(skill=case.skill, source_file={'id': case.source_id}, source_sha256=R.sha256(provision.delegated_source_docx()).hexdigest())
-    with provider_test.patch.object(native_test, 'NATIVE', source):
-        _, router, media = native_test.native.__wrapped__()
     tool_path = Path(__import__('os').environ.get('GOAL584_COMMUNITY_TOOL_SOURCE', str(root.with_name('corp-openweb ui') /
         'local/subagent-office-trial-20261029/sub_agent.py')))
     tool_raw = tool_path.read_bytes(); assert R.sha256(tool_raw).hexdigest() == provision.DELEGATION_TOOL_SHA256
@@ -448,14 +460,13 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
             packet = json.loads(args['prompt'])
             if quota:
                 native_worker_tools = router['convert_to_responses_payload']({'messages': [], 'tools': [{'type': 'function', 'function': {k: v for k, v in s.items() if k != 'type'}} for s in case.office_tools]})['tools']
-                worker = dict(model=provider_test.MOCK.DELEGATED_WORKER_MODEL, max_output_tokens=6000, stream=False, store=False,
-                    tools=copy.deepcopy(native_worker_tools), input=[dict(type='message', role='developer', content=case.skill['content']),
-                                                              dict(type='message', role='user', content=json.dumps(packet))])
+                worker = router['convert_to_responses_payload'](profile_form('corporate-office-worker', {
+                    'model': provider_test.MOCK.DELEGATED_WORKER_MODEL, 'stream': False,
+                    'tools': copy.deepcopy(native_worker_tools), 'messages': [
+                        {'role': 'developer', 'content': workflow + '\n' + case.skill['content']},
+                        {'role': 'user', 'content': json.dumps(packet)}]}))
                 provider_test.DelegatedQuotaProviderTests.setUpClass()
                 result=json.loads(provider_test.DelegatedQuotaProviderTests.quota_output)
-                worker['input']=router['convert_to_responses_payload']({'messages':[
-                    {'role':'developer','content':workflow+'\n'+case.skill['content']},
-                    {'role':'user','content':json.dumps(packet)}]})['input']
                 append_response(case.parent,response,result,True)
                 continue
             async def worker_turns():
@@ -466,9 +477,10 @@ def context_case(monkeypatch, tmp_path, *, quota=False):
                     process=None,functions=[],context=None,supports_context=False,supports_request=False)
                 tools={s['name']:{'spec':{k:v for k,v in s.items() if k!='type'},'type':'external'} for s in case.office_tools}
                 requests=tool.AgentRequests(tools,{'__request__':request,'__metadata__':{'chat_context':{},'filter_ids':[]}})
-                messages=await requests.prepare(pipeline,request,dict(model='corporate-office-worker',stream=False,
-                    max_tokens=6000,store=False,messages=[dict(role='developer',content=case.skill['content']),
-                                                        dict(role='user',content=json.dumps(packet))]))
+                messages=await requests.prepare(pipeline,request,profile_form('corporate-office-worker',
+                    dict(model='corporate-office-worker',stream=False,
+                         messages=[dict(role='developer',content=case.skill['content']),
+                                   dict(role='user',content=json.dumps(packet))])))
                 run=tool._LoopRunState(compaction=tool.LoopCompactionOptions(enabled=False),
                     large_results=tool.LargeToolResultOptions(mode='raw'),encoder=None,encoder_ready=False,filter_identity=None)
                 async def send(**kwargs):
@@ -552,6 +564,34 @@ def test_context_composes_actual_native_tasks_serializer_full_skill_and_actual_p
     values = context_case(monkeypatch, tmp_path)
     scopes = R.verify_context(*values)
     assert {m: len(v) for m, v in scopes.items()} == dict.fromkeys(R.MODELS, 6)
+
+
+
+def test_context_accepts_native_profile_store_omission_and_rejects_explicit_invalid_provider_contract(monkeypatch,tmp_path):
+    values = context_case(monkeypatch,tmp_path)
+    groups = values[0]; before = copy.deepcopy(groups)
+    assert all('store' not in call['wire_before_auth'] and 'store' not in call['provider']['body']
+               for model in R.MODELS for call in groups[model])
+    assert R.verify_context(*values) and groups == before
+    explicit = copy.deepcopy(groups)
+    for model in R.MODELS:
+        for call in explicit[model]: call['wire_before_auth']['store'] = False
+    assert R.verify_context(explicit,*values[1:])
+    changes = [lambda c,v=value:c['wire_before_auth'].update(store=v) for value in (True,None,0,1,'false','')]
+    changes += [lambda c:c['wire_before_auth'].update(previous_response_id='unrelated-response'),
+                lambda c:c['wire_before_auth'].update(background=True),
+                lambda c:c['provider'].update(route='/v1/chat/completions'),
+                lambda c:c['provider'].update(usage=None),
+                lambda c:c['provider']['response'].update(usage=None),
+                lambda c:c['provider']['response'].update(id='foreign-provider'),
+                lambda c:c['provider']['response'].update(model='foreign-model'),
+                lambda c:c['provider']['response'].update(status='in_progress'),
+                lambda c:c['provider'].update(lifecycle={'terminal':False,'outcome':'completed'})]
+    for change in changes:
+        changed = copy.deepcopy(groups); change(changed[R.MODELS[0]][0])
+        with pytest.raises(N.ProofError,match='^office_delegation_provider_response$'):
+            R.verify_context(changed,*values[1:])
+    assert groups == before
 
 
 def test_native_render_selector_returns_actual_adjacent_carrier_and_preserves_full_input(monkeypatch,tmp_path):
