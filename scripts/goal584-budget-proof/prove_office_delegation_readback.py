@@ -540,8 +540,14 @@ def verify(before, after, provider, captured, saved, browser, context, office, c
         descriptor = before['descriptors'][model]['model_info']['owui_pricing']
         for row in after['personal'][model]['rows']:
             metadata = json.loads(row['metadata']) if isinstance(row['metadata'], str) else row['metadata']
-            require(metadata['spend_logs_metadata']['owui_tariff_descriptor'] == {
-                'schema': 1, 'availability': 'available', 'descriptor': descriptor}, 'office_delegation_tariff_source')
+            snapshot = metadata['spend_logs_metadata']['owui_tariff_descriptor']
+            if isinstance(snapshot, dict) and snapshot.get('availability') == 'unknown' and snapshot.get('descriptor') is None:
+                from pricing_snapshot import DESCRIPTOR_UNKNOWN_REASONS
+                reason = snapshot.get('reason')
+                if type(reason) is str and reason in DESCRIPTOR_UNKNOWN_REASONS:
+                    raise ProofError('office_delegation_tariff_source_' + reason)
+            require(snapshot == {'schema': 1, 'availability': 'available', 'descriptor': descriptor},
+                    'office_delegation_tariff_source')
     service = existing.verify_service_turn(groups['gpt-6-luna'][0], before['finance']['service'], after['service'], final,
         actor=actor, payer=office['service_fixture']['payer_id'], chat=chat,
         descriptor=before['descriptors']['service']['model_info']['owui_pricing'], d=d)

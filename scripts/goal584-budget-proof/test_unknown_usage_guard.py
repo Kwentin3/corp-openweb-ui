@@ -48,6 +48,8 @@ from litellm.types.utils import PROMPT_CARRYING_GUARDRAIL_FIELDS, CustomPricingL
 
 NATIVE = Path(litellm.__file__).resolve().parent
 PINS = {
+    "llms/openai/responses/transformation.py": "7c6f3bea7678b76b6e99bc5b4c499eef9aead8947a6a81e534dc5e42c84bfc70",
+    "responses/utils.py": "7868c7db9bf7835249a4a8a2573559881f18cf5988c0c33e0dd599821648dc99",
     "integrations/custom_guardrail.py": "6ada6442281669b3623a1eca1f1bcb609e458e90e3d54a5273c18527f5cc0d70",
     "types/llms/openai.py": "99ce22ba2bb83dc37d9afb423ef2a6cf919a9cafca834eaad833c4a795088fdd",
     "proxy/_types.py": "2ef3c788ab6267bd3ba8bcaf336712cba9f67d49256bdfeb0a516c5de1525500",
@@ -98,6 +100,26 @@ CONTROLS = selected("proxy/litellm_pre_call_utils.py", {
         "verbose_proxy_logger": SimpleNamespace(debug=lambda *a: None)})
 
 
+def native_responses_origin(data):
+    """Execute the actual proxy's call-ID/setup assignments, with request IO only."""
+    from litellm.constants import MAX_LITELLM_CALL_ID_LENGTH
+    owner = tree("proxy/common_request_processing.py")
+    method = next(n for n in ast.walk(owner) if isinstance(n, ast.AsyncFunctionDef)
+                  and n.name == "common_processing_pre_call_logic")
+    statements = [n for n in method.body if isinstance(n, ast.Assign) and
+                  ast.unparse(n.targets[0]) in ("self.data['litellm_call_id']", "(logging_obj, self.data)",
+                                               "self.data['litellm_logging_obj']")]
+    assert len(statements) == 3
+    namespace = selected("proxy/common_request_processing.py", {"resolve_litellm_call_id"},
+        {"uuid": __import__('uuid'), "MAX_LITELLM_CALL_ID_LENGTH": MAX_LITELLM_CALL_ID_LENGTH})
+    native = SimpleNamespace(data={k: v for k, v in data.items() if k != "litellm_logging_obj"})
+    namespace.update(self=native, request=SimpleNamespace(headers={}), litellm=litellm,
+                     route_type="aresponses", start_time=datetime.now())
+    exec(compile(ast.Module(body=statements, type_ignores=[]), "pinned-proxy-call-origin", "exec"), namespace)
+    assert native.data['litellm_call_id'] == native.data['litellm_logging_obj'].litellm_call_id
+    return native.data
+
+
 class UnknownUsageTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.wire = Wire()
@@ -140,13 +162,17 @@ class UnknownUsageTests(unittest.IsolatedAsyncioTestCase):
         self.before = copy.deepcopy((self.wire.user, self.wire.key))
 
     def response(self, usage="missing"):
-        values = {"id": "opaque-provider-response-not-decoded", "created_at": 1, "model": "provider/opaque-model-id",
+        import httpx
+        from litellm.llms.openai.responses.transformation import OpenAIResponsesAPIConfig
+        values = {"id": "opaque-provider-response-not-decoded", "object": "response", "created_at": 1, "model": "provider/opaque-model-id",
             "status": "completed", "output": [
                 {"type": "reasoning", "id": "rs_final", "encrypted_content": "opaque-output", "summary": []},
                 {"type": "function_call", "call_id": "call_new", "name": "render", "arguments": "{}"},
                 {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "private answer"}]}]}
-        if usage != "missing": values["usage"] = usage
-        return ResponsesAPIResponse(**values)
+        if usage != "missing": values["usage"] = usage.model_dump() if isinstance(usage, ResponseAPIUsage) else usage
+        self.data = native_responses_origin(self.data)
+        return OpenAIResponsesAPIConfig().transform_response_api_response(model=values['model'],
+            raw_response=httpx.Response(200, json=values), logging_obj=self.data['litellm_logging_obj'])
 
     async def invoke(self, response):
         return await self.guard.async_post_call_success_hook(data=self.data, user_api_key_dict=self.auth, response=response)
@@ -218,6 +244,70 @@ class UnknownUsageTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(response.model_dump(), before)
                 entry = self.entry(); self.assertEqual(entry["guardrail_action"], "allow")
                 self.assertEqual(entry["violation_categories"], []); self.assertEqual(entry["guardrail_status"], "success")
+        self.operator.assert_not_called(); self.assertFalse(self.wire.requests)
+
+    async def test_genuine_responses_parser_rejects_incomplete_and_coerced_raw_counters(self):
+        valid = {'input_tokens': 2, 'output_tokens': 3, 'total_tokens': 5}
+        cases = ['missing', None, {}, [], 0]
+        for key in valid:
+            partial = dict(valid); partial.pop(key); cases.append(partial)
+            for value in (None, True, '2', 2.0, -1, []):
+                cases.append(dict(valid, **{key: value}))
+        cases.append(dict(valid, total_tokens=6))
+        for usage in cases:
+            with self.subTest(usage=usage):
+                self.wire.key['blocked'] = False; self.wire.requests.clear(); self.operator.reset_mock()
+                self.data['litellm_metadata'].pop('standard_logging_guardrail_information', None)
+                response = self.response(usage)
+                log = self.data['litellm_logging_obj']
+                raw_before = log.model_call_details['original_response']
+                response_before = response.model_dump()
+                context = copy.deepcopy({k: v for k, v in self.data.items() if k != 'litellm_logging_obj'})
+                if isinstance(usage, dict) and (not set(valid) <= set(usage) or any(usage.get(k) is None for k in valid)):
+                    self.assertIsInstance(response.usage, dict)  # Genuine model_construct fallback.
+                self.assertIs(await self.invoke(response), response)
+                self.assertEqual(self.entry()['guardrail_action'], 'block')
+                self.assertEqual(response.model_dump(), response_before)
+                self.assertEqual(log.model_call_details['original_response'], raw_before)
+                after = copy.deepcopy({k: v for k, v in self.data.items() if k != 'litellm_logging_obj'})
+                after['litellm_metadata'].pop('standard_logging_guardrail_information', None)
+                self.assertEqual(after, context)
+                self.assert_finance_unchanged()
+
+    async def test_responses_raw_origin_requires_same_native_logging_call_and_response(self):
+        from litellm.responses.utils import ResponsesAPIRequestUtils
+        for mutation in ('missing', 'mapping', 'call_id', 'call_type', 'details', 'raw_dict', 'bad_json', 'list', 'id', 'counter'):
+            with self.subTest(mutation=mutation):
+                self.wire.key['blocked'] = False; self.wire.requests.clear(); self.operator.reset_mock()
+                self.data['litellm_metadata'].pop('standard_logging_guardrail_information', None)
+                response = self.response({'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0})
+                log = self.data['litellm_logging_obj']; original = log.model_call_details['original_response']
+                self.data['litellm_metadata']['original_response'] = original  # Never an origin.
+                if mutation == 'missing': self.data.pop('litellm_logging_obj')
+                elif mutation == 'mapping': self.data['litellm_logging_obj'] = {'original_response': original}
+                elif mutation == 'call_id': self.data['litellm_call_id'] = 'foreign-call'
+                elif mutation == 'call_type': log.call_type = 'acompletion'
+                elif mutation == 'details': log.model_call_details = None
+                elif mutation == 'raw_dict': log.model_call_details['original_response'] = json.loads(original)
+                elif mutation == 'bad_json': log.model_call_details['original_response'] = 'invalid-json'
+                elif mutation == 'list': log.model_call_details['original_response'] = '[]'
+                else:
+                    raw = json.loads(original)
+                    if mutation == 'id': raw['id'] = 'foreign-response'
+                    else: raw['usage']['input_tokens'] = 1; raw['usage']['total_tokens'] = 1
+                    log.model_call_details['original_response'] = json.dumps(raw)
+                before = response.model_dump(); input_before = copy.deepcopy(self.data['input'])
+                self.assertIs(await self.invoke(response), response)
+                self.assertEqual(self.entry()['guardrail_action'], 'block')
+                self.assertEqual(response.model_dump(), before); self.assertEqual(self.data['input'], input_before)
+                self.assert_finance_unchanged()
+        self.data['litellm_metadata'].pop('standard_logging_guardrail_information', None)
+        response = self.response({'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0})
+        response.id = ResponsesAPIRequestUtils._build_responses_api_response_id(
+            response_id=response.id, model_id='actual-deployment', custom_llm_provider='openai')
+        self.wire.requests.clear(); self.operator.reset_mock()
+        self.assertIs(await self.invoke(response), response)
+        self.assertEqual(self.entry()['guardrail_action'], 'allow')
         self.operator.assert_not_called(); self.assertFalse(self.wire.requests)
 
     async def test_stream_and_chat_completion_self_record_safe_not_run(self):
@@ -657,12 +747,14 @@ class BufferedNativeUsageTests(unittest.IsolatedAsyncioTestCase):
         leaf=Leaf()
         with patch.object(owner,"get_async_httpx_client",return_value=leaf):
             iterator=await self.router.aresponses(model=self.model,input=copy.deepcopy(self.data["input"]),
-                stream=True,litellm_metadata=copy.deepcopy(self.data["litellm_metadata"]))
+                stream=True,litellm_metadata=copy.deepcopy(self.data["litellm_metadata"]),
+                litellm_call_id=self.data['litellm_call_id'],litellm_logging_obj=self.data['litellm_logging_obj'])
         self.assertEqual(leaf.calls,1);log=leaf.log
         self.assertIsInstance(iterator,self.iterator)
         self.assertIn("FallbackResponsesStreamWrapper",type(iterator).__qualname__)
         self.assertIsNone(iterator.completed_response)
         self.assertIs(iterator.logging_obj,log)
+        self.assertEqual(self.data['litellm_call_id'],log.litellm_call_id)
         self.full_reference=self.config().transform_response_api_response(model="goal584-fake-office",
             raw_response=httpx.Response(200,json=raw),logging_obj=log)
         # This is exactly the native post-call assignment, from the SAME Router.

@@ -15,6 +15,7 @@ from fastapi import HTTPException
 from litellm.integrations.custom_guardrail import CustomGuardrail, log_guardrail_information
 from litellm.litellm_core_utils.litellm_logging import Logging
 from litellm.proxy._types import UserAPIKeyAuth
+from litellm.responses.utils import ResponsesAPIRequestUtils
 from litellm.types.guardrails import GuardrailEventHooks
 from litellm.types.llms.openai import ResponsesAPIResponse
 from litellm.types.utils import ModelResponse
@@ -162,9 +163,38 @@ class UnknownUsageGuard(CustomGuardrail):
                         for key in ("prompt_tokens", "completion_tokens", "total_tokens"))
                 and usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"])
 
+    @staticmethod
+    def _responses_usage_available(data, response):
+        # Native validation can coerce counters, or retain an unvalidated dict.
+        # Only the same call's original HTTP response preserves raw presence/types.
+        log = data.get("litellm_logging_obj")
+        if (not isinstance(log, Logging) or getattr(log, "call_type", None) not in ("responses", "aresponses")
+                or not isinstance(data.get("litellm_call_id"), str) or not data["litellm_call_id"]
+                or getattr(log, "litellm_call_id", None) != data["litellm_call_id"]):
+            return False
+        details = getattr(log, "model_call_details", None)
+        original = details.get("original_response") if isinstance(details, dict) else None
+        if not isinstance(original, str) or not isinstance(response.id, str) or not response.id:
+            return False
+        try:
+            raw = json.loads(original)
+            if (not isinstance(raw, dict) or raw.get("object") != "response"
+                    or not isinstance(raw.get("id"), str) or not raw["id"]
+                    or raw["id"] != ResponsesAPIRequestUtils.decode_previous_response_id_to_original_previous_response_id(response.id)):
+                return False
+            usage = raw.get("usage")
+            fields = ("input_tokens", "output_tokens", "total_tokens")
+            return (isinstance(usage, dict)
+                    and all(type(usage.get(key)) is int and usage[key] >= 0 for key in fields)
+                    and usage["total_tokens"] == usage["input_tokens"] + usage["output_tokens"]
+                    and response.usage is not None
+                    and all(response.usage.get(key) == usage[key] for key in fields))
+        except (ValueError, TypeError, AttributeError, KeyError, RecursionError):
+            return False
+
     async def _apply_policy(self, data, user_api_key_dict, response):
         cc = isinstance(response, ModelResponse)
-        if not cc and response.usage is not None:  # Explicit zero is known Usage, not absence.
+        if not cc and self._responses_usage_available(data, response):
             self._record(data, "allow")
             return response
         auth = user_api_key_dict

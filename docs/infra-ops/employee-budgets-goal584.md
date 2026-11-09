@@ -8,6 +8,98 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Последний прогон Office102, завершён:**
+[run42626209901](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42626209901),
+job129190556487, workflow406918033, exact head
+`efce5d4947134d0317ee4443d0fa46c6f5b14d57`, dispatch09.11 13:31:23UTC.
+Exact3file commit/source readback7/7/clean worktree PASS; remote reasoning ref
+fast-forward сверён. Office101 terminal/owned cleanup PASS, живой run не
+дублировался; это один новый workflow_dispatch, не rerun. TerminalFAIL15/native_finance:
+`office_delegation_tariff_source`. Steps1–14SUCCESS,16negative/17recoverySKIPPED,
+18diagnostics/19cleanup/20uploadSUCCESS; текущего запуска CI нет.
+Те же positive Office/context/artifact/finance → negative refusal
+→ cap restore/owned cleanup gates; при positiveFAIL negative пропускается.
+Bounds55min/manual14:16:23UTC/hard14:26:23UTC, preflight20GiB disk/6GiB RAM/7GiB
+Docker, six services5.875GiB/4.25CPU/1728PIDs/component1GiB/256PIDs unchanged.
+Native addressed stop `gh run cancel 42626209901 --repo Kwentin3/corp-openweb-ui`,
+затем exact job terminal/actual cleanup/remaining participants; timeout не означает
+завершение. LTS/Terminal/production/paid/рабочие маршруты не активированы/не менялись.
+Technical receipt `local/goal584/office102-review/run.safe.json`. Artifact13679751877
+скачан один раз1497053B/104unique/SHA256
+`acb50a59a08d31cc06b0ed286e09a040d2194f516b2cb8802bd528bf43d46a62`;
+private download URL удалён. Rootfullreader54build/72pins/45guard+22auth+1CLI0skip/
+5images cleanup PASS. Diagnostic13provider/13auth, actual delegated DOCX/render/browser
+сохранены; root просмотрел PNG: заполненный шаблон Ada/G584-2026, фиксированные
+части и footer сохранены, Tasks/Download/follow-ups и provisional$1.32 видимы.
+Отдельных positive qualification receipts нет; финансовая приёмка делегирования
+не завершена. Continuation guards пройдены до следующего tariff_source guard;
+реальные сравниваемые private operands не сохранены. Временный cap не ограничивался,
+negative quota не проверена. Owned containers/volumes/networks/images отсутствуют.
+Independent intake NEEDS_EVIDENCE: admin/source/PNG/cleanup PASS, delegation
+NOT_ACCEPTED, все quota gates NEEDS_EVIDENCE, процессов reader/inspection0.
+Противоречий с root receipt нет. Bounded remaining-verifier source preflight не
+нашёл других достоверных расхождений после tariff guard; actual operands это не
+заменяет. Collector fixture вручную создаёт AVAILABLE с неполной декларацией,
+обходя настоящий строгий producer; source triage не выдаётся за actual102 cause.
+Следующий шаг — один existing isolated workflow на едином проверенном commit
+двух source slices ниже; точная причина actual102 пока неизвестна. Приёмка:
+47native guard tests/0skip, positive delegated context/artifact/finance,
+затем negative refusal/cap restore и owned cleanup; при positiveFAIL negative
+пропускается. До source proof и review CI не запускается.
+Runtime/GOAL НЕ ПРИНЯТЫ.
+
+**Два текущих узких SOURCE slice после Office102:**
+R/testR сохраняют точное AVAILABLE tariff equality; complete collector fixture
+получает полную10field declaration из существующей stand config и snapshot
+настоящего callback. Fixed UNKNOWN reason из существующего callback allowlist
+возвращается через прежний failure_code; новые DTO/logs/financial rules не нужны.
+Producer component4.110s/audit0/39PIDs terminal: full declarations Sol/Terra/service
+AVAILABLE, прежняя1field fixture UNKNOWN/declaration, missing Usage
+UNKNOWN/usage_unconfirmed; actual102 reason остаётся неизвестным.
+Независимый native source разбор также подтвердил отдельный текущий дефект guard:
+Responses usage!=None допускает fallback dict с missing/null counters и DTO coercion.
+Разрешён только existing unknown_usage_guard/test_unknown_usage_guard SOURCE slice:
+те же native Logging/raw HTTP + required counter types/sum/response identity;
+explicit0/positive сохраняются, unknown идёт по прежнему model-block пути.
+CC/stream controller/routes/service bypass/reader/prices/core не меняются.
+Это не реализация zero eligibility в reader и не новый Usage core patch.
+Перед одним новым isolated CI обязательны focused evidence/freeze/review обоих
+кандидатов; runtime acceptance ими не заменяется.
+Guard candidate заморожен:32PASS/0FAIL/15SKIP/17.188s, все6PIDs terminal;
+wrapper1 только BLOCKED urllib3 IPv6 import bind, без connect/DNS. Пропущены
+13buffered и2native-proxy-CC проверки из-за inherited cold import; это не47PASS.
+Primary independent source readback/AST review GO для isolated image verification:
+только новый raw Usage helper и прежний Responses earlyallow predicate, остальные
+методы неизменны. LF guard7968f26f84bdba012161c8b4628bc846212e699182a34a7a4719d0bd6fe335d9,
+test07f697ed6a91589def956c3170351c48d292bbccd8a7286a190354f77afb06af.
+В текущем Linux image обязательны47tests/0skip перед GUI; прежний reader45 должен
+быть адресно обновлён к точному source/test delta. Evidence
+`office102-responses-required-usage-{fix,review}/`. Tariff candidate также заморожен:
+first targeted9PASS/1FAIL/0skip/30.875s; ошибка только в новом spy — callable
+original затенён snapshot dict. Сохранён initialRED, исправлены ровно2reference
+на original_capture; repaired1PASS/0skip/10.844s, другие9/source owners не
+перезапускались и не менялись. Оба process trees terminal, import IPv6 probe
+блокирован/отмечен отдельно от test failure. Genuine fixture теперь включает
+6parent streamTrue typed terminal → native Logging usage/assembly → actual
+kwargs assignment → тот же callback;7worker/service nonstream snapshots также
+producer-owned. Это source component, не actual proxy runtime.
+LF R201a2647bbfa5b63fb17d83b80e34539cd3a7e2f3e6c275b4691c40d52a4676a,
+testda0becefcb21d4bdf0eff9b7b31f64f609ffc3b8bfdebc363d7e44d74333a8d2;
+freeze c291d1d2e51d97ba467df089439eb31cf5926a33832ce5096570e0dd475a8671.
+Independent final tariff review GO: source/copies/freeze/diff/AST сверены,
+R existing verify-only, testR existing complete_case-only плюс2helpers/2tests;
+остальные quota/finance/service/context/artifact owners неизменны. Оба source
+slices готовы к integration/readback/push и одному isolated CI; additional
+unmodified suites не перезапускаются. Intake readers подготовлены в
+`office103-review/`, включая47guard вместо45 по точному добавлению2tests.
+Evidence `office102-tariff-source-{fix,review}/`.
+Дальнейший known0 reader/history, Terminal, финальная coherent verification и
+install/data-preserving rollback/admin handoff остаются обязательными и не приняты.
+Существующие proof cleanup down --volumes не являются rollback поставки;
+бюджетный PostgreSQL не покрыт старым portal-only backup.sh.
+Supporting evidence `office102-tariff-source-triage/`,
+`office102-review/{current-zero-native-facts,responses-required-usage-slice,delivery-handoff-inventory}.md`.
+
 **Последний прогон Office101, завершён:**
 [run42618508638](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42618508638),
 job129164320066, workflow406918033, exact head
@@ -63,7 +155,8 @@ audit0/6PIDs terminal, original35freeze неизменён; private sentinel4cas
 FinalLF R551c71407da97eba43718fd6f0aa3fc880b582a0345839bbb95e1c5be7693645,
 test6670da1289f3d5a033ba5354044f7912941ed7f650e14e484e1e81dfe8692d9e.
 Actual101 failed operands не восстановлены; новыйruntime обязателен.
-Следующий шаг — coherent3file commit/readback/push и одинexistingworkflow;
+Coherent3file commit/readback/push выполнены как `efce5d49`, одинexistingworkflow
+запущен выше. Следующий шаг — actual terminal intake и independent acceptance;
 readers переиспользуются. Evidence `office101-native-continuation-{fix,review}/`,
 `office102-review/`.
 

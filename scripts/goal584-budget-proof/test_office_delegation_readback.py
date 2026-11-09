@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
+from functools import lru_cache
 import importlib.util
 import json
 from pathlib import Path
@@ -856,12 +857,67 @@ def test_real_owner_context_composition_rejects_material_omissions(monkeypatch, 
         R.verify_context(groups, office, browser, context, d, tape)
 
 
+
+@lru_cache(maxsize=1)
+def native_tariff_fixture():
+    """Existing pinned callback/native Router/Logging/row-metadata source owners."""
+    import os,subprocess,yaml
+    from unittest.mock import patch
+    import office_fixture
+    root=Path(__file__).resolve().parents[2]
+    path=root/'deploy/openwebui-budgets/tests/test_pricing_snapshot.py'
+    spec=importlib.util.spec_from_file_location('office_existing_native_tariff_source',path)
+    module=importlib.util.module_from_spec(spec);sys.modules[spec.name]=module
+    extra=root/'local/goal584/native-pricing-source/batch_utils.py'
+    options=({'GOAL584_LITELLM_BATCH_UTILS_SOURCE':str(extra)}
+        if extra.is_file() and 'GOAL584_LITELLM_BATCH_UTILS_SOURCE' not in os.environ else {})
+    with patch.dict(os.environ,options):
+        spec.loader.exec_module(module);module.PricingSnapshotTests.setUpClass()
+    original=subprocess.check_output(['git','show','HEAD:scripts/goal584-budget-proof/litellm_config.yaml'],cwd=root,timeout=5)
+    prepared=yaml.safe_load(office_fixture.prepare_delegated_office_config(original))
+    return module.PricingSnapshotTests(),{v['model_name']:v for v in prepared['model_list']}
+
+
+def native_tariff_capture(deployment, *, usage=True, response=None):
+    case,_=native_tariff_fixture()
+    owner,_,_,modules,_=case.protected_owner(deployment=deployment,call_type='aresponses')
+    case.price(owner,deployment['model_info']['input_cost_per_token'])
+    result=case.billing_result() if usage else {'usage':None}
+    if deployment['model_name']==R.MODELS[0]:
+        import ast
+        from datetime import datetime
+        from litellm.litellm_core_utils.litellm_logging import Logging
+        from litellm.types.llms.openai import ResponsesAPIResponse
+        from litellm.responses.streaming_iterator import build_synthetic_response_events
+        source=sys.modules[type(case).__module__]
+        assert Path(sys.modules[Logging.__module__].__file__).read_bytes().replace(b'\r\n',b'\n').decode()==source.source('litellm_core_utils/litellm_logging.py')
+        assert response is not None
+        raw=copy.deepcopy(response)
+        if not usage:raw['usage']=None
+        terminal=build_synthetic_response_events(transformed=ResponsesAPIResponse.model_validate(raw),logging_obj=None,chunk_size=5)[-1]
+        owner.stream=True
+        terminal=Logging._transform_usage_objects(owner,result=terminal)
+        assembled=Logging._get_assembled_streaming_response(owner,result=terminal,start_time=datetime.now(),
+            end_time=datetime.now(),is_async=True,streaming_chunks=[])
+        lifecycle=next(n for n in source.PricingSnapshotTests.logging_source.body if getattr(n,'name',None)=='_async_success_handler_body')
+        assignment=next(n for n in ast.walk(lifecycle) if isinstance(n,ast.Assign)
+            and isinstance(n.value,ast.Name) and n.value.id=='complete_streaming_response'
+            and any(isinstance(t,ast.Subscript) and isinstance(t.slice,ast.Constant)
+                    and t.slice.value=='async_complete_streaming_response' for t in n.targets))
+        source.execute([assignment],{'self':owner,'complete_streaming_response':assembled})
+        # Wrong result usage intentionally verifies that the streaming hook uses
+        # the actual native assembled response in kwargs, not this argument.
+        result={'usage':None}
+    case.capture_protected(owner,modules,result=result)
+    metadata=case.native['get_litellm_metadata_from_kwargs'](owner.model_call_details)
+    persisted=case.native['_get_spend_logs_metadata'](metadata)['spend_logs_metadata']
+    return {key:copy.deepcopy(persisted[key]) for key in ('owui_billed_token_rates','owui_tariff_descriptor')}
+
+
 def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
     """Complete collector composition with actual domain owners and raw IO data."""
-    import ast
     import test_office_compatibility as native_test
     import prove_pricing_snapshots as pricing
-    from types import ModuleType
     groups, office, browser, context, d, tape = context_case(monkeypatch, tmp_path, encrypted_reasoning=encrypted_reasoning)
     source, _, artifact, _ = artifact_case(tmp_path, monkeypatch)
     browser.update(artifact)
@@ -885,10 +941,8 @@ def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
             user_message=dict(id=user_id, role='user', content=text, parentId=None)), acknowledgement={'chat_id': chat},
         native_file=dict(id=file_id, user_id=actor, meta={'name': 'goal584-delegated.docx'}))
     root = Path(__file__).resolve().parents[2]
-    fields = ast.literal_eval(next(n.value for n in ast.parse((root / 'deploy/openwebui-budgets/pricing_snapshot.py').read_bytes()).body
-        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'RATE_FIELDS' for t in n.targets)))
-    representation = ModuleType('pricing_snapshot'); representation.RATE_FIELDS = fields
-    monkeypatch.setitem(sys.modules, 'pricing_snapshot', representation)
+    tariff_owner, deployments = native_tariff_fixture()
+    monkeypatch.setitem(sys.modules, 'pricing_snapshot', tariff_owner.adapter)
     monkeypatch.setattr(native_test, 'LLM', root.with_name('corp-openweb-ui-goal584') / 'local/goal584/litellm/upstream')
     decode = native_test.sdk_decoder()
     d.update(validate_snapshot=pricing.validate_snapshot, validate_persisted_service_scope=provenance.validate_persisted_service_scope,
@@ -903,18 +957,16 @@ def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
     before = dict(provider={'requests': []}, capture={'requests': []}, descriptors={},
                   finance=dict(personal={}, raw_owners={actor: {}, payer: {}, 'old-owner': {}}, service={}))
     after = dict(personal={}, raw_owners=copy.deepcopy(before['finance']['raw_owners']), service={})
-    def row(provider_id, scope, model, wire, deployment, token, spend, rates, descriptor):
-        values = {k: None for k in fields}; values.update(input_cost_per_token=rates[0], output_cost_per_token=rates[1])
+    def row(provider_id, scope, model, wire, deployment, token, spend, response):
+        snapshots = native_tariff_capture(deployments[model],response=response)
         return dict(request_id=provider_id, model='openai/' + wire, model_group=model, model_id=deployment, status='success',
             user=scope['user_id'], api_key=token, session_id=chat, spend=spend, prompt_tokens=10, completion_tokens=5, total_tokens=15,
-            metadata={'spend_logs_metadata': {'owui_budget': copy.deepcopy(scope),
-                'owui_billed_token_rates': dict(schema=1, availability='partial', observed_at_utc='2026-11-08T00:00:00Z', rates=values),
-                'owui_tariff_descriptor': dict(schema=1, availability='available', descriptor=descriptor)}})
-    for model, delta, spend, rates, token in zip(R.MODELS, (1.20, .12), (.20, .02), ((.01, .02), (.001, .002)), ('a' * 64, 'b' * 64)):
-        descriptor = {'deployment_id': R.DEPLOYMENTS[model]}; before['descriptors'][model] = {'model_info': {'owui_pricing': descriptor}}
+            metadata={'spend_logs_metadata': {'owui_budget': copy.deepcopy(scope), **snapshots}})
+    for model, delta, spend, token in zip(R.MODELS, (1.20, .12), (.20, .02), ('a' * 64, 'b' * 64)):
+        descriptor = copy.deepcopy(deployments[model]['model_info']['owui_pricing']); before['descriptors'][model] = {'model_info': {'owui_pricing': descriptor}}
         original = dict(user=user(actor), key=key(actor, model, token), rows=[], old_payers={'old-owner': {'rows': [{'request_id': 'old-zero', 'spend': 0}]}})
         current = copy.deepcopy(original); current['user']['spend'] = 1.32; current['key']['spend'] = delta
-        current['rows'] = [row(c['provider']['id'], c['verified_cost_scope'], model, R.WIRES[model], R.DEPLOYMENTS[model], token, spend, rates, descriptor) for c in groups[model]]
+        current['rows'] = [row(c['provider']['id'], c['verified_cost_scope'], model, R.WIRES[model], R.DEPLOYMENTS[model], token, spend, c['provider']['response']) for c in groups[model]]
         before['finance']['personal'][model], after['personal'][model] = original, current
     service_scope = dict(schema=1, category='service', model='gpt-6-luna', task='follow_up_generation',
                          user_id=payer, actor_id=actor, chat_id=chat, call_id=str(uuid4()))
@@ -926,8 +978,8 @@ def complete_case(tmp_path, monkeypatch, *, encrypted_reasoning=False):
         lifecycle={'terminal': True, 'outcome': 'completed'})
     original = dict(user=user(payer), key=key(payer, 'gpt-6-luna', 'c' * 64), rows=[])
     current = copy.deepcopy(original); current['user']['spend'] = current['key']['spend'] = .20
-    descriptor = {'deployment_id': 'goal584-office-service'}; before['descriptors']['service'] = {'model_info': {'owui_pricing': descriptor}}
-    service_row = row(service_id, service_scope, 'gpt-6-luna', 'goal584-fake-office-service', 'goal584-office-service', 'c' * 64, .20, (.01, .02), descriptor)
+    descriptor = copy.deepcopy(deployments['gpt-6-luna']['model_info']['owui_pricing']); before['descriptors']['service'] = {'model_info': {'owui_pricing': descriptor}}
+    service_row = row(service_id, service_scope, 'gpt-6-luna', 'goal584-fake-office-service', 'goal584-office-service', 'c' * 64, .20, service_provider['response'])
     service_row['session_id'] = 'owui-service:' + chat; current['rows'] = [service_row]
     before['finance']['service'], after['service'] = original, current
     capture = {'requests': []}; provider = {'requests': []}
@@ -1081,6 +1133,64 @@ def test_cli_continuation_projection_rejects_hostile_string_subclasses_and_copie
     assert R.main()==1
     value=json.loads(capsys.readouterr().out)
     assert value['continuation_diagnostic']==valid and 'private-mutated' not in json.dumps(value)
+
+
+
+def test_tariff_source_complete_collector_uses_prepared_terms_and_native_snapshot_producer(monkeypatch,tmp_path):
+    case,deployments=native_tariff_fixture();captured=[];original_capture=case.adapter._capture_descriptor
+    def observe(owner,params,metadata,proxy_auth,auth_route,result=None):
+        if owner.stream:
+            assert result is owner.model_call_details['async_complete_streaming_response']
+            assert result.usage is None or isinstance(result.usage,dict)
+        captured.append(owner.stream)
+        return original_capture(owner,params,metadata,proxy_auth,auth_route,result)
+    monkeypatch.setattr(case.adapter,'_capture_descriptor',observe)
+    data=complete_case(tmp_path,monkeypatch)
+    assert captured.count(True)==6 and captured.count(False)==7
+    assert R.verify(**data)['provider_calls']==13
+    for model,key in ((R.MODELS[0],R.MODELS[0]),(R.MODELS[1],R.MODELS[1]),('gpt-6-luna','service')):
+        declared=deployments[model]['model_info']['owui_pricing']
+        assert len(declared)==10 and case.adapter._descriptor(declared)==declared
+        rows=data['after']['service']['rows'] if key=='service' else data['after']['personal'][key]['rows']
+        for row in rows:
+            metadata=row['metadata']['spend_logs_metadata']
+            assert metadata['owui_tariff_descriptor']=={'schema':1,'availability':'available','descriptor':declared}
+            assert metadata['owui_billed_token_rates']['availability']=='available'
+    before=copy.deepcopy(data['after'])
+    for model in R.MODELS:
+        row=data['after']['personal'][model]['rows'][0];original=row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']
+        for mode,reason in (('missing_usage','usage_unconfirmed'),('invalid_declaration','declaration')):
+            selected=copy.deepcopy(deployments[model])
+            if mode=='invalid_declaration':selected['model_info']['owui_pricing']={'deployment_id':selected['model_info']['id']}
+            response=next(v['response'] for v in data['provider']['requests'] if v['id']==row['request_id'])
+            observed=native_tariff_capture(selected,usage=mode!='missing_usage',response=response)
+            assert observed['owui_billed_token_rates']['availability']=='available'
+            row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']=observed['owui_tariff_descriptor']
+            with pytest.raises(N.ProofError,match='^office_delegation_tariff_source_'+reason+'$'):R.verify(**data)
+        row['metadata']['spend_logs_metadata']['owui_tariff_descriptor']=original
+    assert data['after']==before
+
+
+def test_tariff_source_fixed_unknown_codes_and_generic_mismatch_never_echo_private_values(monkeypatch,tmp_path,capsys):
+    data=complete_case(tmp_path,monkeypatch);case,_=native_tariff_fixture()
+    row=data['after']['personal'][R.MODELS[0]]['rows'][0];spend=row['metadata']['spend_logs_metadata']
+    original=copy.deepcopy(spend['owui_tariff_descriptor'])
+    for reason in case.adapter.DESCRIPTOR_UNKNOWN_REASONS:
+        spend['owui_tariff_descriptor']={'schema':1,'availability':'unknown','descriptor':None,'reason':reason}
+        with pytest.raises(N.ProofError,match='^office_delegation_tariff_source_'+reason+'$'):R.verify(**data)
+    for malformed in ({'schema':1,'availability':'unknown','descriptor':None,'reason':'private-source-sentinel'},
+                      {'schema':1,'availability':'unknown','descriptor':None,'reason':None},
+                      {'schema':1,'availability':'available','descriptor':dict(original['descriptor'],source_ref='different-terms')}):
+        spend['owui_tariff_descriptor']=malformed
+        with pytest.raises(N.ProofError,match='^office_delegation_tariff_source$') as caught:R.verify(**data)
+        error=caught.value
+        monkeypatch.setattr(R,'dependencies',lambda:{})
+        monkeypatch.setattr(R,'run',lambda *args:(_ for _ in ()).throw(error))
+        monkeypatch.setattr(sys,'argv',['readback','--phase','verify'])
+        assert R.main()==1
+        value=capsys.readouterr().out
+        assert json.loads(value)['failure_code']=='office_delegation_tariff_source' and 'private-source-sentinel' not in value
+    spend['owui_tariff_descriptor']=original
 
 
 def quota_workflow():
