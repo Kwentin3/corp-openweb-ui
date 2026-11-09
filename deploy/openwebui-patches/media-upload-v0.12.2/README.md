@@ -167,6 +167,17 @@ checks. Subsequent integration built and qualified the exact frontend/runtime,
 native migration and ordinary-user media workflow; see the
 [accepted production release](../../../docs/infra-ops/openwebui-0122-cutover.md).
 
+For the per-message change, [Message file limit frontend CI](../../../.github/workflows/message-file-limit.yml)
+builds the complete frontend and existing pinned runtime outside production.
+The image check requires the deployed backend's 288 Python files to match and
+the complete frontend manifest/build identity to verify. Its exported archive
+must contain all legacy and transitive OCI references with valid sizes/digests.
+An incomplete image archive is not a deployable release even if `docker save`
+returns success. Match the loaded image's configuration, ordered RootFS diff IDs
+and file receipts; an OCI manifest ID and a legacy config ID may differ.
+Production activation is a separate targeted Compose update after approval;
+retain the prior immutable image and image-selector file for rollback.
+
 The concrete prepare-before-Send, same-ID attachment workflow was added to the
 [existing upstream discussion](https://github.com/open-webui/open-webui/discussions/24239#discussioncomment-18949752).
 It asks whether an existing native seam can replace this adaptation and explains
