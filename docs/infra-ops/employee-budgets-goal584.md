@@ -8,6 +8,77 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
+**Следующий этап Office106: diagnostic-only, готов к одному изолированному запуску.**
+Два файла P/testP: прежние четыре predicates `office_row_dispatch_binding`
+разделены на фиксированные kind_native/kind_buffered/provider/duplicate/scope
+коды. Порядок, observed.add и весь остальной AST production-модуля сохранены;
+новых допустимых ID, crypto, raw diagnostic fields и финансовых правил нет.
+Root независимо сверил frozen raw/LF, восстановил прежний whole-module AST,
+проверил неизменность R/testR/guard/publisher и evidence завершения процессов.
+12PASS/0skip, pytest0/wrapper0, network0;54PIDs/25handles terminal.
+Evidence `local/goal584/office105-row-binding-diagnostic/`, включая
+`root-review.safe.json`; это SOURCE_GO_DIAGNOSTIC_ONLY, runtime ещё не принят.
+Поставка: только P/testP и эта запись; Known0/Terminal/docstring в неё не входят.
+После coherent commit/readback13pins/remote FF — один existing Office workflow,
+те же55min/manual45min/resource caps/positive→negative→restore→cleanup;
+точные run/head/deadlines фиксируются после native dispatch. Office105 terminal
+и cleanup подтверждены; перед запуском повторно исключить конфликтующий live run.
+
+**Параллельные ограниченные source slices (не активированы).**
+Known0 шесть файлов получили независимый SOURCE_GO; совместимость исходной
+шестиаргументной `_capture_descriptor` восстановлена. Финальные5PASS/0skip,
+6file pre/post pins/78PIDs terminal; evidence
+`known-zero-current/positive-consumer-correction/`, `known-zero-current-review/`.
+Integration с текущим collector и actual DB/GUI zero/retained reload ещё нужны.
+Отдельная рабочая копия `corp-openweb-ui-goal584-terminal`, branch
+`agent/goal584-terminal-native`, base43e97d8746e1fbbfdf85fe459654758a5a08e794:
+три файла workflow/office_fixture/test_office_fixture для bootstrap и наблюдения
+штатного Terminal-контекста без inference. Второй агент владеет только docstring
+`admin_tools.open_budget_form`: native function→Pydantic schema и parse_view
+проверены; full LangChain formatter отсутствует в cache и не проверен.
+Evidence только в DELIVERY `terminal-bootstrap-context/`, `admin-view-docstring-fix/`;
+runtime/CI/провайдер не запускались. После принятой integration и сохранения
+evidence — native Git cleanup дерева/ветки; до этого source WIP сохраняется.
+Terminal runtime/команда/файл/ACL/полный model context/finance и R7 language→GUI
+приёмка остаются обязательными. GOAL остаётся в работе.
+
+**Последний прогон Office105, завершён:**
+[run42648691707](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42648691707),
+job129268837230, workflow406918033, exact head
+`43e97d8746e1fbbfdf85fe459654758a5a08e794`, dispatch09.11 15:50:29UTC.
+Coherent3file commit/source readback12/12/clean worktree PASS; remote reasoning ref
+fast-forward сверён. Office104 terminal/owned cleanup PASS; перед одним новым
+dispatch не было других live runs; rerun не делался. TerminalFAIL15/native_finance:
+снова `office_row_dispatch_binding`;1–14SUCCESS,16negative/17recoverySKIPPED,
+18diagnostics/19cleanup/20uploadSUCCESS; живого CI нет. Обязательны47native guard
+tests/0skip, затем прежние positive Office/
+context/artifact/finance → negative Terra refusal → cap restore/owned cleanup;
+при positiveFAIL negative пропускается. Bounds55min/manual16:35:29UTC/
+hard16:45:29UTC; preflight20GiB disk/6GiB RAM/7GiB Docker, six services5.875GiB/
+4.25CPU/1728PIDs/component1GiB/256PIDs unchanged. Native addressed stop
+`gh run cancel 42648691707 --repo Kwentin3/corp-openweb-ui`, затем exact job terminal/
+actual cleanup/remaining participants; timeout не означает завершение.
+Known0 candidate не включён; LTS/Terminal/production/paid/рабочие маршруты не
+активированы/не менялись. Receipts/readers `local/goal584/office105-review/`.
+Artifact13689263865 скачан один раз1504057B/104unique/SHA256
+`09df1321576e42e1de8a176e890b748cf2f00bd2bdc14a4deefcd657436f576b`;
+private URL удалён. Rootfull54build/72pins/47guard11.134s+22auth+1CLI0skip/5images
+cleanup PASS. Independent admin/source/PNG/cleanup PASS, delegation NOT_ACCEPTED,
+quota NEEDS_EVIDENCE; cap не ограничивался. Nativeverify sourcee69ba893…,
+13provider/13auth observations; failed row/model/conjunct приватно не экспортированы.
+Предыдущий Router probe не покрывал real proxy ResponsesIDSecurity: штатный hook
+меняет advertised IDs in-place с auth/master-key context, а простой routing-ID
+decoder не снимает этот managed wrapper. Proxy posthook/deferredlogging порядок
+отличается от bareRouter. Это подтверждённая пропущенная source boundary, но не
+доказательство конкретной actual105 причины или право принимать arbitraryopaqueID.
+Следующий разрешённый2file slice P/testP — только разделить четыре прежних require
+conjuncts на fixedkind_native/kind_buffered/provider/duplicate/scope failure codes,
+с тем же порядком/observed.add/всеми финансовыми predicates. Ни одного нового
+допустимого representation/crypto bypass/DTO/rawdiagnostic field. Точный новый
+runtime failure code нужен перед следующей функциональной поправкой.
+Evidence `office105-row-binding-triage/`, `office105-row-binding-diagnostic/`.
+Runtime/GOAL НЕ ПРИНЯТЫ.
+
 **Последний прогон Office104, завершён:**
 [run42641298163](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42641298163),
 job129242800868, workflow406918033, exact head

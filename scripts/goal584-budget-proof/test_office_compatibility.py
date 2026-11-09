@@ -1112,6 +1112,48 @@ def test_buffered_finance_joins_native_raw_id_to_exact_row_deployment_scope_and_
         P.verify_finance(before, after, **{**kwargs, 'provider_transport': 'native'})
 
 
+@pytest.mark.parametrize('transport,mutation,code', [
+    ('native','kind','kind_native'), ('buffered','kind','kind_buffered'),
+    ('native','provider','provider'), ('buffered','provider','provider'),
+    ('native','scope','scope'), ('buffered','scope','scope'),
+    ('native','duplicate','duplicate'),
+])
+def test_finance_binding_diagnostic_identifies_exact_existing_conjunct_without_mutation(
+        component, monkeypatch, transport, mutation, code):
+    source_transport = ('buffered' if transport == 'native' else 'native') if mutation == 'kind' else transport
+    before, after, kwargs = (buffered_financial_fixture(component, monkeypatch, 3) if source_transport == 'buffered'
+                             else financial_fixture(component, monkeypatch))
+    kwargs['provider_transport'] = transport
+    retained = {row['request_id'] for row in before['rows']}
+    rows = [row for row in after['rows'] if row['request_id'] not in retained]
+    row = rows[-1]
+    provider = kwargs['decode_response_id'](row['request_id'])['response_id']
+    if mutation == 'provider':
+        kwargs['calls_by_provider']['resp_unobserved'] = kwargs['calls_by_provider'].pop(provider)
+    elif mutation == 'scope':
+        row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
+    elif mutation == 'duplicate':
+        # Distinct raw row IDs, same decoded dispatch through the actual SDK.
+        # Avoid the earlier duplicate-raw-row guard masking this conjunct.
+        row['request_id'] = rows[0]['request_id'] + ' '
+        assert len({v['request_id'] for v in after['rows']}) == len(after['rows'])
+        assert kwargs['decode_response_id'](row['request_id']) == kwargs['decode_response_id'](rows[0]['request_id'])
+    original = copy.deepcopy((before, after, kwargs))
+    with pytest.raises(P.ProofError, match='^office_row_dispatch_binding_' + code + '$'):
+        P.verify_finance(before, after, **kwargs)
+    assert (before, after, kwargs) == original
+
+
+@pytest.mark.parametrize('transport', ['native', 'buffered'])
+def test_finance_binding_diagnostic_success_keeps_result_and_input_unchanged(component, monkeypatch, transport):
+    before, after, kwargs = (buffered_financial_fixture(component, monkeypatch, 3) if transport == 'buffered'
+                             else financial_fixture(component, monkeypatch))
+    original = copy.deepcopy((before, after, kwargs))
+    assert P.verify_finance(before, after, **kwargs) == {
+        'physical_calls': 3, 'new_raw_rows': 3, 'native_spend_delta_usd': '.60'}
+    assert (before, after, kwargs) == original
+
+
 @pytest.mark.parametrize('count', [1, 3])
 @pytest.mark.parametrize('mutation', ['encoded_id', 'partial_provider', 'partial_model', 'model', 'provider',
     'scope', 'scope_map', 'duplicate', 'missing', 'old_row', 'old_payer', 'cap', 'counter', 'usage', 'spend', 'rate'])

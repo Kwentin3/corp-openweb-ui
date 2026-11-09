@@ -690,9 +690,11 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
         binding = (decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
                    if provider_transport == "native" else decoded["custom_llm_provider"] is None
                    and decoded["model_id"] is None and row.get("model_id") == deployment_id)
-        require(binding
-                and provider in calls_by_provider and provider not in observed and scope == calls_by_provider[provider],
-                "office_row_dispatch_binding")
+        require(binding, "office_row_dispatch_binding_kind_native" if provider_transport == "native"
+                else "office_row_dispatch_binding_kind_buffered")
+        require(provider in calls_by_provider, "office_row_dispatch_binding_provider")
+        require(provider not in observed, "office_row_dispatch_binding_duplicate")
+        require(scope == calls_by_provider[provider], "office_row_dispatch_binding_scope")
         observed.add(provider)
         require(scope["user_id"] == row.get("user") == actor and scope["model"] == row.get("model_group") == model
                 and scope["chat_id"] == scope["root_chat_id"] == row.get("session_id") == chat_id
