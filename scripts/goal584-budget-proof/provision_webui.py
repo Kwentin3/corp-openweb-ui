@@ -910,7 +910,8 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     from dataclasses import asdict
     from aiohttp import ClientSession
     from employee_budget_admin_client import BudgetAdminClient
-    from provision_cost_display import FILTER_ID, add_model_meta, grant_set
+    from provision_cost_display import FILTER_ID, add_model_meta, grant_set, model_body
+    from provision_admin import model_grant_changes
     from prove_service_tasks import response
     import types
 
@@ -1063,6 +1064,30 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
     selected['budget'] = asyncio.run(initialize())
     for entry in selected['journal']:
         if entry['stage'] == 'initialize-two-personal-assignments': entry['returned'] = True
+    require(state.get('office_service_setup', {}).get('stage') == 'readback_ready'
+            and state.get('service_fixture', {}).get('target_model_id') == 'gpt-6-luna',
+            'Delegated follow-up requires the existing Office service target')
+    selected['service_models'] = {}
+    for mid in ('employee_budget_service', 'gpt-6-luna'):
+        original = webui.model(admin['token'], mid)
+        require(original.get('user_id') == admin['id'] and original.get('is_active') is True,
+                'Delegated service read grant requires the existing native owner')
+        grant = {'principal_type': 'user', 'principal_id': actor['id'], 'permission': 'read'}
+        require(('user', actor['id'], 'read') not in grant_set(original),
+                'Fresh delegated actor already has a service read grant')
+        selected['service_models'][mid] = {'before': original}
+        wanted = model_body(original); wanted['access_grants'].append(grant)
+        post('/api/v1/models/model/update', wanted)
+        observed = webui.model(admin['token'], mid)
+        require(not model_grant_changes(wanted, model_body(observed)),
+                'Delegated service read grant changed native model fields')
+        allowed = copy.deepcopy(original)
+        for field in ('access_grants', 'updated_at'):
+            if field in observed: allowed[field] = observed[field]
+        require(observed == allowed, 'Delegated service read grant changed native owner or state')
+        selected['service_models'][mid]['after'] = observed
+        selected['journal'][-1]['readback'] = observed
+        write_private(path, current)
     webui.session(actor, 'user')
     catalog = webui.ok('GET', '/api/models?refresh=true', token=actor['token']).get('data')
     require(isinstance(catalog, list) and all(isinstance(row, dict) for row in catalog),
@@ -1080,6 +1105,15 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
             if base_id is None:
                 require(row.get('urlIdx') == 0, 'Delegated actor base connection index differs')
             visible[model_id] = row
+    for mid, records in selected['service_models'].items():
+        matches = [row for row in catalog if row.get('id') == mid]
+        require(len(matches) == 1 and matches[0].get('owned_by') == 'openai'
+                and (bool(matches[0].get('pipe')) if mid == 'employee_budget_service' else
+                     not matches[0].get('pipe') and not matches[0].get('arena'))
+                and matches[0].get('info', {}).get('id') == mid
+                and not model_grant_changes(model_body(records['after']), model_body(matches[0]['info'])),
+                'Delegated actor service catalog binding differs')
+        visible[mid] = matches[0]
     selected['actor_catalog'] = visible
     selected['stage'] = 'readback_ready'; write_private(path, current)
     return {'office_delegation_setup': {'status': 'readback_ready', 'inference_issued': False,

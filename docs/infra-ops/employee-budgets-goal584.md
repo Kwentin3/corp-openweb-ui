@@ -27,9 +27,21 @@ Office delegation НЕ ПРИНЯТА: lifecycle180s timeout, actual receipt п�
 answer_done=true,2Taskscompleted,budgetstatusdone,nativetasks0,DOCX1,followUpsnull;
 diagnostic12provider/12auth — не доказательство требуемых13/финансов/context.
 Причина отсутствующего follow-up пока не установлена, таймаут не увеличиваем.
-Следующий шаг — source/native service-task ACL/trigger triage относительно
-успешного ordinary/admin paths. LTS/quota/Terminal в96не включены. Evidence
+Установлен отдельный deterministic source/fixture gap: fresh delegated employee
+не имел READ на employee_budget_service wrapper и gpt-6-luna target. Actual
+native UserModel/utils.chat/functions/check_model_access/Pipe replay:
+wrapper denied→wrapper-only target denied→после2READ ровно1signedservice dispatch;
+old actor allowed/foreign denied. Это необходимая fixture correction, не доказанный
+первый rejection atom96. Узкий2file provision/test fix acceptedSOURCE:24PASS и
+independent24PASS0skip/network, all69oldtestmethodsASTidentical, otherprovisionAST
+unchanged. Existing native owner/post/journal/model-body/grant preservation и
+actorcatalogreadback; product/financial/Tasks/Skill/Tool/context/timeout unchanged.
+LFprovision `f64d5cc60bb81a69622e57191647196ebb137de010ee617abdc1ba6315b79c2d`,
+LFtest `d009339b8d02e6d6128d08d79518232375d7f8a203ccc024136a2f4b56c55c3f`.
+Owned test/child/stdlib OS-read PIDs terminal/absent. Следующий шаг — один97run
+на coherent source после commit/push, без rerun старого96. LTS/quota/Terminal в96не включены. Evidence
 `office96-review/`, `office96-delegation-triage/` (последний разбор в работе).
+Source/review `office96-delegation-acl-{fix,review}/`.
 Прежние phase/resource bounds и native cancel/terminal+ownedcleanup rule сохранены.
 
 **Последний завершённый прогон Office95:**
@@ -233,13 +245,34 @@ existing builder/test (2files) закрепляет name/owner-rolelabels/CID/pr
 name/owner/CID absence.58PASS и independent58PASS, owned test/Git PIDs terminal.
 Это закрывает только TEST container lifecycle; export/build/final readback ещё
 не квалифицированы. Evidence `lts1083-test-container-lifecycle-{source,review}/`.
-Следующий узкий SOURCE slice — manual components-only в SAME native workflow:
-actual pinned base →5exports→approved patch/AST→native tests, без derivative build,
-DB/provider/WebUI. Default/PR105 jobs сохраняются. Outer owner — disposable
-GitHub-hosted VM с native workflow cancel; daemon completion после client timeout
-не объявляется подтверждённым. Bounds/job selection/export cleanup и component
-receipt готовятся отдельно; image/CI launch ещё не выполнен. Scope:
-`lts1083-ci-scope/report.md`. Это не новый Usage core patch и не whole-GOAL gate.
+Accepted source commit9e2d631f142f8adb16bfcdf578d0fc64f1cef08b — manual
+components-only в SAME native workflow: actual pinned base →5exports→approved
+patch/AST→native tests, без derivative build/DB/provider/WebUI.3existingfiles,
+79PASS0skip и independent79PASS0skip, stdlibcoldimportPASS, owned PIDs terminal.
+Default/PR105 jobs сохраняются. Outer owner — disposable GitHub-hosted VM с
+native workflow cancel; daemon completion после client timeout не подтверждается.
+Единственный [LTS component run42592939625](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42592939625)
+workflow_dispatch09.11 09:22:31UTC exact9e2d631f; job129078669734 terminalSUCCESS,
+actual native24tests/0skip/11.954s, normal export/test cleanupCONFIRMED_ABSENT
+в component и alwayscleanup receipts;3fulljobsSKIPPED. Artifact13661693152
+скачан один раз2089B/4unique/SHA256
+`f3b8992e176aba982c2228dd33b3652b37d9e001fdecb41341c709f4e7d1891c`.
+Explicit input qualification=lts-1.108.3-components, branch agent/goal584-lts-native. Office96
+перед dispatch terminal/ownedcleanupPASS, конфликтующего heavy run нет.
+Bounds: job18min, manual control cancel09:34:31UTC (12min), hard09:40:31UTC;
+driver480s, pull180s+inspect10s, export240/270s, tests90/120s, alwayscleanup50s.
+Preflight8GiB disk/2GiB RAM; one container1GiB/1CPU/256PIDs/tmpfs128MiB, no network,
+readonly, --pull never после exact digest pull. Stop native `gh run cancel
+42592939625`, затем exact job terminal + ownedparticipant/cleanup receipt;
+неподтверждённая daemon/VM остановка остаётся явной, без повторного запуска.
+Root прочёл4actualreceipts: pinned genuine base/5exports/approved patch/7GitLFpins,
+normal cleanup/resources соответствуют; independent artifact reviewPASS,24actual
+test names/OK и7GitLFpins совпали. Component run/native helpers/normal owned
+cleanup ПРИНЯТЫ, дополнительный repeat для неизменённых inputs не требуется.
+Cancellation/failure-daemon/VM teardown не испытаны. Component receipt не
+derivative native-build.json и не whole-GOAL gate. Scope/source/review evidence:
+`lts1083-ci-{scope,source,review}/`, actual `lts1083-ci-runtime1/`.
+Новый Usage core patch не добавлялся; stream/Logging/SLP qualification остаётся.
 
 Negative Office source изолирован в `corp-openweb-ui-goal584-quota`, branch
 `agent/goal584-office-quota`, commit313e955ba5ac7202626aa5bbbcef7e3fb0d58b32:
