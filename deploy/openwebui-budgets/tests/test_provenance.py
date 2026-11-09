@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import copy
+from functools import lru_cache
 import importlib.util
 import json
 import logging
@@ -596,7 +597,8 @@ class ServiceGatewayTests(unittest.TestCase):
                     fresh_blocked=False, fresh_db_failure=False, assignment_model=MODEL,
                     key_hash="synthetic-key-hash", identity_token=None, native_validate=None,
                     native_budget_error=None, actual_request=None, supplied_data=None,
-                    route="/v1/chat/completions", return_invocation=False):
+                    route="/v1/chat/completions", return_invocation=False,
+                    validated_metadata=None, validated_team_metadata=None):
         assignment = load("gateway_assignment_under_test", HERE.parents[1] / "assignment.py")
         events = []
         row = SimpleNamespace(user_id=assignment_user, team_id=None, models=[assignment_model],
@@ -630,7 +632,8 @@ class ServiceGatewayTests(unittest.TestCase):
             if native_validate is not None:
                 return await native_validate(**kwargs)
             return SimpleNamespace(user_id=assignment_user if validated_user is None else validated_user,
-                                   budget_reservation=None)
+                                   budget_reservation=None, metadata=validated_metadata or {},
+                                   team_metadata=validated_team_metadata or {})
         data = {"model": body_model, "messages": [{"role": "user", "content": "actual task context"}],
                 "metadata": {"payer_id": USER, "task": task or ""}}
         if token is not None:
@@ -664,6 +667,7 @@ class ServiceGatewayTests(unittest.TestCase):
                      "get_instance_fn": symbol, "get_chain_id_from_headers": lambda headers: None,
                      "metadata_variable_name_for_route": lambda path: "litellm_metadata" if 'responses' in path else "metadata",
                      "_get_anthropic_session_id_from_metadata": lambda metadata: None,
+                     "_key_or_team_allows_client_pricing_override": native_pricing_override_owner(),
                      "IdentityStore": Store, "get_key_object": get_key_object,
                      "validate_resolved_virtual_key": validate,
                      "hash_token": lambda secret: "native-hash"}
@@ -684,6 +688,60 @@ class ServiceGatewayTests(unittest.TestCase):
         except HTTPException as exc:
             return exc, events, data
         return result, events, data
+
+    def test_managed_scopes_reject_native_key_or_team_pricing_optin(self):
+        tasks = ("", "sub_agent", "title_generation", "tags_generation", "follow_up_generation")
+        for task in tasks:
+            service = task not in ("", "sub_agent")
+            payer = OTHER if service else USER
+            token = (protocol.encode_service_call(SECRET, user_id=USER, payer_id=payer,
+                chat_id=CHAT, model=MODEL, task=task) if service else call())
+            for route in ("/v1/chat/completions", "/v1/responses"):
+                for key_flag, team_flag in ((True, False), (False, True), (True, True)):
+                    req = request(((auth.USER_ID_HEADER, USER), (auth.TASK_HEADER, task)))
+                    with self.subTest(task=task, route=route, key=key_flag, team=team_flag):
+                        result, events, data = self.run_gateway(token=token, task=task,
+                            assignment_user=payer, required=True, actual_request=req, route=route,
+                            validated_metadata={"allow_client_pricing_override": key_flag},
+                            validated_team_metadata={"allow_client_pricing_override": team_flag})
+                        self.assertIsInstance(result, HTTPException)
+                        self.assertEqual((result.status_code, result.detail),
+                            (403, "Managed budget scopes require server-owned pricing"))
+                        self.assertEqual(sum(name == "validate" for name, _ in events), 1)
+                        self.assertEqual(sum(name == "fresh" for name, _ in events), 1)
+                        self.assertEqual(data["messages"], [{"role": "user", "content": "actual task context"}])
+                        self.assertIsNone(auth.personal_key_budget_denial(req, result))
+
+    def test_managed_nonoptin_uses_exact_native_true_semantics_and_ignores_client_flag(self):
+        for flag in (None, False, "true", 1):
+            data = {"model": MODEL, "messages": [{"role": "user", "content": "actual task context"}],
+                "litellm_metadata": {"owui_budget_provenance": call(),
+                    "allow_client_pricing_override": True,
+                    "user_api_key_metadata": {"allow_client_pricing_override": True}}}
+            with self.subTest(flag=flag):
+                result, events, body = self.run_gateway(task="", assignment_user=USER,
+                    required=True, supplied_data=data,
+                    validated_metadata={"allow_client_pricing_override": flag},
+                    validated_team_metadata={"allow_client_pricing_override": flag})
+                self.assertNotIsInstance(result, HTTPException)
+                self.assertIsNone(result.budget_reservation)
+                self.assertEqual(sum(name == "validate" for name, _ in events), 1)
+                self.assertEqual(body["metadata"]["spend_logs_metadata"]["owui_budget"]["category"], "personal")
+                self.assertEqual(body["messages"], [{"role": "user", "content": "actual task context"}])
+
+    def test_unsigned_routes_keep_native_pricing_optin_and_cannot_acquire_managed_scope(self):
+        for api_key, llm_route in ((SECRET, True), ("sk-native-test", True), ("sk-native-test", False)):
+            for source in ("validated_metadata", "validated_team_metadata"):
+                data = {"model": MODEL, "litellm_metadata": {"spend_logs_metadata": {
+                    "owui_budget": {"category": "personal", "user_id": USER}}}}
+                with self.subTest(native=api_key != SECRET, inference=llm_route, source=source):
+                    result, events, body = self.run_gateway(task="", assignment_user=USER,
+                        api_key=api_key, llm_route=llm_route, supplied_data=data,
+                        **{source: {"allow_client_pricing_override": True}})
+                    self.assertNotIsInstance(result, HTTPException)
+                    self.assertIsNone(result.budget_reservation)
+                    self.assertEqual(sum(name == "validate" for name, _ in events), 1)
+                    self.assertNotIn("owui_budget", body["litellm_metadata"]["spend_logs_metadata"])
 
     def test_valid_signed_service_selects_payer_before_lookup_and_validates_once(self):
         token = protocol.encode_service_call(SECRET, user_id=USER, payer_id=OTHER, chat_id=CHAT,
@@ -835,6 +893,7 @@ def native_owner_source(relative):
     import hashlib
     import subprocess
     pins = {'litellm/exceptions.py': 'd4a4b46afc48d97c2bde978b04d348b4ce2fb039af009f565178d85fba71aa64',
+            'litellm/proxy/litellm_pre_call_utils.py': '8cb60a5bb2e3d521dce4ded40020b02106d821837b0928a8e36c6dbede4b82c8',
             'litellm/proxy/auth/auth_checks.py': '3dd17fd821a4d762248670fc993c1e8e0ae038ce3268ce2e84e870debcd27d4d',
             'litellm/proxy/types_utils/utils.py': '22a8c416668fe17df4e221613abbeeaa70704a8f2b307697cdde4b1ba0ef08e8'}
     try:
@@ -848,6 +907,21 @@ def native_owner_source(relative):
             env=os.environ | {'GIT_NO_LAZY_FETCH': '1'}, timeout=15)
     assert hashlib.sha256(raw).hexdigest() == pins[relative]
     return ast.parse(raw)
+
+
+@lru_cache(maxsize=1)
+def native_pricing_override_owner():
+    """Execute the pinned native key/team decision, not duplicated flag logic."""
+    tree = native_owner_source('litellm/proxy/litellm_pre_call_utils.py')
+    names = {'_ALLOW_CLIENT_PRICING_OVERRIDE_METADATA_KEY',
+             '_key_or_team_metadata_flag_is_true', '_key_or_team_allows_client_pricing_override'}
+    nodes = [node for node in tree.body if getattr(node, 'name', None) in names
+             or isinstance(node, ast.AnnAssign) and getattr(node.target, 'id', None) in names]
+    assert len(nodes) == len(names)
+    namespace = {}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), 'native-pricing-override-source', 'exec',
+                 flags=__import__('__future__').annotations.compiler_flag), namespace)
+    return namespace['_key_or_team_allows_client_pricing_override']
 
 
 def native_quota_owners():

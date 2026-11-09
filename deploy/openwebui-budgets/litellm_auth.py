@@ -264,7 +264,8 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     from litellm.proxy.auth.user_api_key_auth import validate_resolved_virtual_key
     from litellm.proxy.common_utils.http_parsing_utils import _read_request_body, _safe_set_request_parsed_body
     from litellm.proxy.litellm_pre_call_utils import (
-        _get_anthropic_session_id_from_metadata, get_chain_id_from_headers, metadata_variable_name_for_route,
+        _get_anthropic_session_id_from_metadata, _key_or_team_allows_client_pricing_override,
+        get_chain_id_from_headers, metadata_variable_name_for_route,
     )
     from litellm.proxy.types_utils.utils import get_instance_fn
     from litellm.proxy.db.exception_handler import PrismaDBExceptionHandler
@@ -409,6 +410,11 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
     _require(auth.budget_reservation is None, 503, "Native validation unexpectedly reserved budget")
     if shared_gateway:
         _require(auth.user_id == user_id, 403, "Validated native payer does not match its assignment")
+    # Managed calls use server-owned prices and native-written guardrail receipts.
+    # Reuse the same final key/team eligibility decision as native pre-call setup.
+    if validated_scope is not None:
+        _require(not _key_or_team_allows_client_pricing_override(auth), 403,
+                 "Managed budget scopes require server-owned pricing")
     if not task and RouteChecks.is_llm_api_route(route):
         _require_declared_buffered_profile(request, request_data, auth, proxy_server.llm_router, route)
     return auth
