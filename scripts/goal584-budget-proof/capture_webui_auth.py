@@ -16,7 +16,7 @@ from uuid import UUID, uuid4
 
 
 CAPTURE = Path("/proof-private/webui-gateway-context.private.json")
-MAX_RECORDS = 32
+MAX_RECORDS = 36
 MAX_BYTES = 4 * 1024 * 1024
 FIELDS = (
     "model", "messages", "input", "tools", "tool_choice", "functions", "function_call",
