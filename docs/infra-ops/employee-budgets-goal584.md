@@ -8,7 +8,35 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Последний прогон Office91, завершён:**
+**Последний прогон Office92, завершён:**
+[run42570216965](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42570216965),
+exact head `80cf8dd861276c5aecb694aca79486a981f20c72`, job129005636486,
+dispatch09.11 05:57:33UTC, terminal FAILURE на14/verify,1–13SUCCESS,
+15SKIPPED, diagnostics/cleanup/uploadSUCCESS; живого job нет.
+Новая диагностика установила exact `admin_unknown_dispatch_count` / ProofError:
+предыдущие native saved-browser predicates прошли, расход/context пока не приняты.
+Compound predicate проверяет synthetic=true, неизменность CONTROL и ровно3
+provider/auth suffix records (ожидание2personal+1service). Код не различает
+эти conjuncts: actual operands/причина исследуются, predicate не ослаблен.
+Terminal не активирован, zero WIP не включён.
+Artifact13653033313 скачан один раз:1177284B/92unique/SHA256
+`228edc605ebc99f1ca1bcbc2a7f5bd7705fc656b4055c91e0af3f2d7c59c16d4`.
+Root full reader PASS54build/72sourcepins/45guard+19auth+1CLI0skip,
+ordinary/continuation и cleanup подтверждены. Первый reader отказал на старых
+source-only provisioning pins; adapter обновлён на reviewed Terminal69 hashes,
+точные checks сохранены. Evidence `office92-review/`, `office92-admin-count-triage/`.
+
+Prospective pricing eligibility gate принят отдельно: REASONING17fb9985 →
+DELIVERY `8c89cd0c2a51a5d174378ad2044d4c18c14f6bce`, ровно2files.
+Existing gateway использует actual native helper по final auth и local decoded
+scope; signed personal/worker/service pricing opt-in отвергается до return.
+53tests+6native component PASS, independent53+6PASS, прежние50tests AST intact.
+Unsigned/control/context/reservation/denial witness сохранены. В Office92 этой
+правки ещё нет; full native admission/writer runtime остаётся обязательным.
+Исторический forged-zero counterexample не исправлен; six-file reader WIP не
+включён. Evidence `zero-trust-remedy-{source,review}/`.
+
+**Предыдущий прогон Office91, завершён:**
 [run42504785997](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42504785997),
 exact head `855e017996f0d272e63558f1fefc525d45355ae1`, job128804966515,
 dispatch08.11 17:24:10UTC, terminal FAILURE на14/verify;1–13SUCCESS,
@@ -26,30 +54,38 @@ Root reader:54build/72sourcepins,45guard/19auth/1CLI0skip,
 ordinary3personal/.60+service.20, continuation1personal/.20+service.20;
 cleanup5images/no taskresources. Evidence `office91-review/`.
 
-DELIVERY HEAD `8b431dfa8de9029d61e17ebc6063c6fee1ebc3d3` дополнительно содержит
+DELIVERY commit `8b431dfa8de9029d61e17ebc6063c6fee1ebc3d3` дополнительно содержит
 проверенный opt-in Terminal provisioning:69testsPASS и independent69PASS,
 три файла, без активации Terminal/workflow/финансовых writes.
-REASONING HEAD `dc14f3462016da6f1992ce05fae76d6e33354c6a` содержит тот же
-Terminal slice; branches пока различаются fixture names fix. Не смешивать
+REASONING HEAD `17fb99851aba49c646182c31077f8554ca84d74d` содержит тот же
+Terminal slice и pricing gate; branches пока различаются fixture names fix
+и admin diagnostic. Не смешивать
 непринятый zero-usage WIP с DELIVERY.
 
-Следующий узкий срез — только публичный static failure_code/error_class в
+Принятый диагностический срез — только публичный static failure_code/error_class в
 existing admin collector; passed=false/fatal/private raw error сохраняются.
 Два source files заморожены:27testsPASS; independent review PASS и ещё27PASS,
 без fail/error/skip; root проверил diff и сохранение actual predicates.
-Default six-GUI и financial/context predicates не меняются. Следующий шаг —
-один existing workflow run на точном commit для выявления actual91 predicate.
+Default six-GUI и financial/context predicates не меняются. Office92 выявил
+actual dispatch-count predicate; следующий шаг — доказать actual operands/причину.
 Evidence `admin-native-failure-code-{source,review}/`.
 
 Explicit-zero six-file candidate НЕ ПРИНЯТ: independent review воспроизвёл
 подделку success marker через native server key/team client-pricing opt-in
 и guard opt-out.129green component tests не доказывают доверенность нуля;
-accepted reader по-прежнему возвращает unavailable. Исследуется узкий запрет
-такого opt-in на существующем managed gateway, до provider, без нового ledger
-или core patch. Evidence `explicit-zero-native-review/`, `zero-trust-remedy/`.
+accepted reader по-прежнему возвращает unavailable. Prospective запрет такого
+opt-in принят на existing managed gateway без нового ledger/core patch;
+историческая доверенность нуля остаётся открыта.
+Evidence `explicit-zero-native-review/`, `zero-trust-remedy/`.
 Latest native LiteLLM1.108.3 source изменил stream cleanup ordering; это реальный
 кандидат на отдельную стендовую qualification, но не runtime acceptance и не
-основание считать streaming Usage/cancel закрытыми.
+основание считать streaming Usage/cancel закрытыми. Root разрешил подготовку
+именно изолированной qualification этой версии, сохраняя old default.
+Manifest/config metadata official image проверены: exact revision совпал,
+слои не скачивались; calendar target functions и lock/DB helpers AST-identical,
+patch требует механической смены соседнего контекста. Image installed bytes,
+новый guard/callback, native dependencies и runtime не квалифицированы.
+Evidence `lts1083-qualification-scope/`, `lts1083-artifact-scope/`.
 
 Обязательные остатки: принять admin verify и изменение лимита из Rich UI;
 доказать полный delegated Office context/расход и Terra quota refusal;
