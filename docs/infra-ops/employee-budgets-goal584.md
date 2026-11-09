@@ -8,11 +8,12 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Текущий прогон Office97:**
+**Последний прогон Office97, завершён:**
 [run42594587668](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42594587668),
 workflow406918033, exacthead `f5567ab1aeea5366ac7aaa5a63e9caa311a52a93`,
-job129084036661, dispatch09.11 09:35:21UTC. Единственный новый run, step4buildLIVE;
-предыдущие96 и LTScomponent1 terminal/ownedcleanupPASS. Remote reasoning ref
+job129084036661, dispatch09.11 09:35:21UTC, terminalFAIL15/setup,
+1–14SUCCESS,diagnostics/cleanup/uploadSUCCESS; живого CI нет, rerun не делался.
+Предыдущие96 и LTScomponent1 terminal/ownedcleanupPASS. Remote reasoning ref
 fast-forward на exactf5567ab1, только2reviewedfixturefiles+canonicaldocs с190d.
 Цель — full positive delegated Sol6/Terra6/service1/Tasks/Skill/context/FileACL/
 finance после2nativeREADgrants, прежние gates1–14 сохранены. LTS/quota-negative/
@@ -21,7 +22,30 @@ hard10:30:21UTC. Preflight20GiB disk/6GiB RAM/7GiB Docker; six services
 5.875GiB/4.25CPU/1728PIDs, component1GiB/256PIDs, прежние phasebounds unchanged.
 Native addressed stop `gh run cancel 42594587668`, затем exact job terminal и
 actual owned cleanup/remainingparticipants; timeout/возврат команды не доказывает
-завершение. Не дублировать live run. Результат97 пока НЕ ПРИНЯТ.
+завершение. Не дублировать live run. Artifact13663163294 скачан один раз:
+1405414B/97unique/SHA256
+`635bc86aa3de1f57511b537f96e654a80fe03d1a407b2d0f84c0d92dd9fb42be`.
+Rootfullreader54build/72pins/45guard+22auth+1CLI0skipPASS, ordinary/continuation
+и5imagescleanup подтверждены; independent admin/maps/twoPNG/cleanupPASS32pins.
+Новый отказ — 'Delegated actor service catalog binding differs' после обоих
+native model updates returned=true. Делегированный запрос ещё не запускался.
+Sourcegap в нашей новойfixtureguard: actor-public catalog ошибочно сравнивался
+с full admineditableDTO. Native get_all_models/public_model_params/main.get_models
+скрываютparams/profile_image_url и нормализуютpublicmeta. Это ложная предпосылка
+проверки, не подтверждение неправильных прав/биллинга. Новый2file consumerfix
+готовится через genuine public producer RED→PASS, rawadminpreservation остаётся
+строгой. Source consumerfix принят после26PASS и independent26PASS0skip/network:
+genuine native ModelModel/Meta/Params/AccessGrant schemas +full get_all_models/
+get_filtered_models/main.get_models/public_model_params заменили inventedrawcopy.
+OLDpredicate RED сохранён. ProductionAST ONLYservicecatalogloop, rawadminguards
+identical, all73oldtestmethodsASTidentical;11coherentpublicmutants отклонены.
+LFprovision `941cdc29e5d9b808dbb76fe5c43397d970dcfd7b940b6a8e47342ff2eb413b07`,
+LFtest `fd065822be2942ea8e6a7cbfd305491e0df99a92ac5d5655c0f1086f8f1a9484`.
+Freshstand models.default_metadata={} подтверждён defaultconfig/noenv override;
+futureglobalmetadata augmentation не квалифицирована. Owned tests/children
+terminal/absent. Следующий шаг — один98run послеcoherentcommit/push, безrerun97.
+Evidence `office97-review/`, `office97-service-catalog-{fix,review}/`.
+Delegation97 НЕ ПРИНЯТА; actualprivatecatalogdifferentfield не экспортирован.
 
 **Последний завершённый прогон Office96:**
 [run42589040860](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42589040860),
@@ -55,7 +79,7 @@ LFprovision `f64d5cc60bb81a69622e57191647196ebb137de010ee617abdc1ba6315b79c2d`,
 LFtest `d009339b8d02e6d6128d08d79518232375d7f8a203ccc024136a2f4b56c55c3f`.
 Owned test/child/stdlib OS-read PIDs terminal/absent. Следующий шаг — один97run
 на coherent source после commit/push, без rerun старого96. LTS/quota/Terminal в96не включены. Evidence
-`office96-review/`, `office96-delegation-triage/` (последний разбор в работе).
+`office96-review/`; detailed source разбор в `office96-delegation-acl-fix/`.
 Source/review `office96-delegation-acl-{fix,review}/`.
 Прежние phase/resource bounds и native cancel/terminal+ownedcleanup rule сохранены.
 
@@ -288,6 +312,20 @@ Cancellation/failure-daemon/VM teardown не испытаны. Component receipt
 derivative native-build.json и не whole-GOAL gate. Scope/source/review evidence:
 `lts1083-ci-{scope,source,review}/`, actual `lts1083-ci-runtime1/`.
 Новый Usage core patch не добавлялся; stream/Logging/SLP qualification остаётся.
+Latest native source review `lts1083-native-usage-seam/report.md`: exact official
+b7dRouter/Logging/CustomGuardrail blobs/size/SHA verified. Iterator-only покрывает
+normal/cancel, но timeout/prefirst failure может построитьSLP доoutercatch.
+Предпосылка 'SLP должен ждать nativeblockcommit' исправлена: expense observation
+и фактический nativekeyblock — разные authority, UNKNOWN не означаетblockconfirmed.
+Root разрешил4existingfile SOURCE candidate в LTSworktree9e2d: sameguard pre_call+
+iterator+nativefailurecallback, one server-created request-owned observation и
+trustedauth/Loggingbinding, freezeafterSLP, existingtargetblock/readback, readerUNKNOWN
+безfinalzero. Old105defaults/routes/pins/strictrowchecks сохраняются; historicalzero
+не квалифицирован и REASONING6dirtyfiles не merged.9finite genuineRouter/Logging/
+proxy/SLP cases incltimeoutgatedclose/prefirst/blockreadfail; noSDKspoof/corepatch/
+newledger/journal/routechange. Это source в работе, actualLTS9НЕВЫПОЛНЕНЫ;
+fullLTSgatewayadmission/derivative остаются отдельными непринятыми gates.
+Evidence `lts1083-usage-candidate-source/` готовится; accepted floor24 не повторять.
 
 Negative Office source изолирован в `corp-openweb-ui-goal584-quota`, branch
 `agent/goal584-office-quota`, commit313e955ba5ac7202626aa5bbbcef7e3fb0d58b32:
@@ -299,6 +337,14 @@ host без aiohttp / proxy без Playwright проверены, old freeze с�
 Ни LTS, ни quota commits пока не merged/pushed в DELIVERY/runtime branch.
 Current source-required trace28capture+negative8=36 превышает old32; новый
 quota-baseline обязан отказать ДО capwrite, до отдельного finite bound/wiring.
+Finitecapture source accepted вQUOTA commita2ee02773ae2d01007b419e327b4b7a19569647f:
+2files, productionAST ONLYMAX_RECORDS32→36,4acceptedquotafiles неизменны.
+37PASS0skip, independent source reviewGO безненужногоповтора;36accepted/37denied
+beforeauth/tapeunchanged,4MiB/locks/prefixes сохранены, all67PIDs/28handles terminal.
+InheritedauthIOstub отсутствовали metadata/team_metadata дляrealpricinghelper;
+SAMEtestfixture исправлена, first34PASS/3errors сохранены. Это не productauthfix.
+SOURCE не merged/pushedвDELIVERY, negativeworkflow/context/finallyrestore/runtime
+не активированы. Evidence `quota-capture36-{source,review}/`.
 4MiB hard byte limit сохранён, полного actual capture byte evidence ещё нет.
 Terminal4primary+service1 →41 — только условный будущий бюджет, не runtime trace.
 Эти worktrees/ignored evidence сохранены для обязательной приёмки, не для deploy.

@@ -1107,11 +1107,22 @@ def office_delegation_setup(webui, state, path, *, tool_source: Path, profiles_s
             visible[model_id] = row
     for mid, records in selected['service_models'].items():
         matches = [row for row in catalog if row.get('id') == mid]
+        row = matches[0] if len(matches) == 1 else {}
+        info, expected = row.get('info', {}), records['after']
+        # Native catalog publishes public params/meta; admin rows above own full context.
         require(len(matches) == 1 and matches[0].get('owned_by') == 'openai'
-                and (bool(matches[0].get('pipe')) if mid == 'employee_budget_service' else
-                     not matches[0].get('pipe') and not matches[0].get('arena'))
-                and matches[0].get('info', {}).get('id') == mid
-                and not model_grant_changes(model_body(records['after']), model_body(matches[0]['info'])),
+                and not row.get('arena') and row.get('name') == expected['name']
+                and (isinstance(row.get('pipe'), dict) and row['pipe'].get('type') == 'pipe'
+                     if mid == 'employee_budget_service' else not row.get('pipe') and row.get('urlIdx') == 0)
+                and isinstance(info, dict) and all(key in info and info[key] == expected[key]
+                    for key in ('id', 'user_id', 'base_model_id', 'name', 'is_active'))
+                and type(info['is_active']) is bool
+                and isinstance(info.get('meta'), dict) and info.get('params') == {}
+                and all(info['meta'].get(key) == expected['meta'].get(key)
+                    for key in ('capabilities', 'filterIds', 'toolIds', 'skillIds'))
+                and isinstance(info.get('access_grants'), list)
+                and grant_set(info) == grant_set(expected)
+                and len(info['access_grants']) == len(expected['access_grants']),
                 'Delegated actor service catalog binding differs')
         visible[mid] = matches[0]
     selected['actor_catalog'] = visible

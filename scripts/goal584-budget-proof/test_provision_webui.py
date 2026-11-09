@@ -1,5 +1,6 @@
 """Bounded native HTTP clock and administrator creation-order fixture checks."""
 import copy
+from functools import lru_cache
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from email.utils import format_datetime
@@ -1309,6 +1310,91 @@ class DelegatedPublicationTests(unittest.TestCase):
         self.assertEqual(selected['publication']['stage'], 'restore_failed')
 
 
+@lru_cache(maxsize=1)
+def native_delegated_catalog_owners():
+    """Pinned public producers and native schemas; API/DB IO stays external."""
+    import ast, hashlib, logging, re
+    from typing import Annotated, Any, Literal
+    from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationInfo, field_validator, model_validator
+    root = Path(os.environ.get('GOAL584_NATIVE_SOURCE_ROOT', str(HERE.parents[1]/
+        'local/goal584/cost-display/open-webui/backend/open_webui')))
+    if not root.exists(): root = Path('/app/backend/open_webui')
+    pins = {'main.py':'72b5a4e804ea01930df40e56fa75b904c93601d952f197508ceb70b81feadbf3',
+        'models/models.py':'55803c3caddb71e06c87c5c289be415568d5d1294a374770403f3c467a5dedce',
+        'models/access_grants.py':'8887a1b25fb041f73bcc5696bc57765f8c07c0cd3ab3f4eb6cb8f139e7ccfe71',
+        'utils/models.py':'20d6ad7ef8d62b521cf46d2224ac4ff83998dadbfcb90d7105da3c14cc468690',
+        'socket/utils.py':'999400b4db4b82ecd24b65891bab5d6d1b8ea93f60f2fa6b8c74f7394ee3959d',
+        'utils/chat_variables.py':'5e899dd4cdb84916bbc21de47b1c55f6a1ef1f820c722a4fd4354458ca9614d1'}
+    trees = {}
+    for relative,pin in pins.items():
+        raw = (root/relative).read_bytes().replace(b'\r\n',b'\n')
+        assert hashlib.sha256(raw).hexdigest() == pin, relative
+        trees[relative] = ast.parse(raw)
+    namespace = dict(BaseModel=BaseModel,ConfigDict=ConfigDict,Field=Field,JsonValue=JsonValue,
+        ValidationInfo=ValidationInfo,field_validator=field_validator,model_validator=model_validator,
+        Annotated=Annotated,Any=Any,Literal=Literal,re=re,copy=copy,logging=logging,
+        log=logging.getLogger('native-delegated-catalog'))
+    def load(relative,names,target):
+        nodes = [copy.deepcopy(n) for n in trees[relative].body if getattr(n,'name',None) in names
+            or isinstance(n,(ast.Assign,ast.AnnAssign)) and any(getattr(t,'id',None) in names
+                for t in (n.targets if isinstance(n,ast.Assign) else [n.target]))]
+        assert len(nodes)==len(names),(relative,names)
+        for node in nodes:
+            if isinstance(node,ast.AsyncFunctionDef) and node.name=='get_models':
+                node.decorator_list=[]
+                # Route dependency injection is not executed: pass the genuine
+                # native UserModel explicitly to this unmodified endpoint body.
+                node.args.defaults=[ast.Constant(False),ast.Constant(None)]
+        exec(compile(ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[])),str(root/relative),'exec',
+            flags=__import__('__future__').annotations.compiler_flag),target)
+    load('models/access_grants.py',{'AccessGrantModel'},namespace)
+    model_names={'normalize_model_tags','strip_extracted_content_from_model_knowledge','ModelControlKey',
+        'ModelControlOption','ModelControl','ModelParams','ModelVoice','ModelAvatarAnimation','ModelAvatarGesture',
+        'ModelVoiceAvatar','ModelMeta','ModelModel'}
+    load('models/models.py',model_names,namespace)
+    for name in model_names:
+        value=namespace[name]
+        if isinstance(value,type) and issubclass(value,BaseModel): value.model_rebuild(_types_namespace=namespace)
+    load('socket/utils.py',{'RedisDict'},namespace)
+    load('utils/chat_variables.py',{'CHAT_VARIABLE_KEY_RE','CHAT_VARIABLE_ANY_RE','ChatVariablesError',
+        'get_chat_variables_schema','collect_chat_variable_fields'},namespace)
+    load('utils/models.py',{'public_model_params'},namespace)
+    namespace['load']=load
+    return namespace
+
+
+def native_delegated_catalog(rows, actor):
+    """Full native get_all_models/get_models bodies; real native ACL decisions."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from test_provision_admin import native_admin_access_owners
+    owners=native_delegated_catalog_owners();namespace=dict(owners)
+    records=[owners['ModelModel'](**copy.deepcopy(row)) for row in rows.values()]
+    user=native_admin_access_owners()['UserModel'](id=actor,role='user',name='Synthetic delegated actor',
+        email='actor@example.invalid',last_active_at=1,updated_at=1,created_at=1)
+    bases=[{'id':mid,'name':mid,'owned_by':'openai',
+        **({'pipe':{'type':'pipe'}} if mid=='employee_budget_service' else {'urlIdx':0})}
+        for mid,row in rows.items() if row['base_model_id'] is None]
+    async def accessible(**kw):
+        assert kw['resource_type']=='model' and kw['permission']=='read'
+        from provision_cost_display import grant_set
+        return {mid for mid in kw['resource_ids'] if ('user',kw['user_id'],'read') in grant_set(rows[mid])}
+    namespace.update(ENABLE_FUNCTIONS=True,BYPASS_MODEL_ACCESS_CONTROL=False,BYPASS_ADMIN_ACCESS_CONTROL=False,
+        Config=SimpleNamespace(get_many=AsyncMock(return_value={}),get=AsyncMock(return_value=None)),
+        Models=SimpleNamespace(get_all_models=AsyncMock(return_value=records)),
+        Functions=SimpleNamespace(get_active_function_ids_by_type=AsyncMock(return_value=[]),
+            get_functions_by_ids=AsyncMock(return_value=[]),get_function_valves_by_ids=AsyncMock(return_value={})),
+        Groups=SimpleNamespace(get_groups_by_member_id=AsyncMock(return_value=[])),
+        AccessGrants=SimpleNamespace(get_accessible_resource_ids=accessible),
+        get_all_base_models=AsyncMock(return_value=bases),get_functions_cache=lambda request:{})
+    owners['load']('utils/models.py',{'get_all_models','get_filtered_models'},namespace)
+    owners['load']('main.py',{'get_models'},namespace)
+    request=SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(MODELS={},BASE_MODELS=[],redis=None)))
+    result=asyncio.run(namespace['get_models'](request,user=user))
+    return {row['id']:row for row in result['data']}
+
+
 class DelegatedProvisionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -1433,6 +1519,40 @@ class DelegatedProvisionTests(unittest.TestCase):
             with self.subTest(mutate=mutate):
                 self.exercise_delegated_setup(alter_catalog=mutate,expect_failure='Delegated actor service catalog')
 
+    def test_native_public_catalog_projects_private_fields_without_changing_raw_context(self):
+        from provision_admin import model_grant_changes
+        fixture=self.exercise_delegated_setup(return_fixture=True)
+        rows=copy.deepcopy(fixture['rows'])
+        rows['gpt-6-luna']['params'].update(system='Raw source instruction',temperature=.17,
+            custom_params={'native_extra':{'preserve':['full',1]}})
+        before=copy.deepcopy(rows)
+        catalog=native_delegated_catalog(rows,fixture['actor'])
+        self.assertEqual(rows,before)
+        for mid in ('employee_budget_service','gpt-6-luna'):
+            raw,public=rows[mid],catalog[mid]['info']
+            self.assertIn('profile_image_url',raw['meta'])
+            self.assertNotIn('profile_image_url',public['meta'])
+            self.assertEqual(public['params'],{})
+            self.assertEqual(public['base_model_id'],raw['base_model_id'])
+            self.assertEqual(public['user_id'],raw['user_id'])
+            self.assertEqual(__import__('provision_cost_display').grant_set(public),
+                             __import__('provision_cost_display').grant_set(raw))
+            self.assertIn('meta',model_grant_changes(raw,public))
+        self.assertEqual(rows['gpt-6-luna']['params'],before['gpt-6-luna']['params'])
+
+    def test_native_public_service_catalog_rejects_identity_schema_grant_and_type_drift(self):
+        changes=(lambda row: row.update(owned_by='ollama'),lambda row: row.update(arena=True),
+            lambda row: row['info'].update(user_id=CONTROL),lambda row: row['info'].pop('base_model_id'),
+            lambda row: row['info'].update(base_model_id='foreign'),lambda row: row['info'].update(name='foreign'),
+            lambda row: row['info'].update(is_active=1),lambda row: row['info']['access_grants'].pop(),
+            lambda row: row['info']['access_grants'].append(copy.deepcopy(row['info']['access_grants'][0])),
+            lambda row: row['info']['meta']['capabilities'].update(builtin_tools=True),
+            lambda row: row['info']['meta'].update(filterIds=['foreign']))
+        for change in changes:
+            with self.subTest(change=change):
+                self.exercise_delegated_setup(alter_catalog=lambda rows:change(rows['gpt-6-luna']),
+                    expect_failure='Delegated actor service catalog')
+
     def exercise_delegated_setup(self, *, base_absence=404, alter_catalog=None, expect_failure=None,
                                  return_fixture=False, alter_service=None, alter_update=None):
         """Real provision/client/private owners; explicit native HTTP/config leaves."""
@@ -1467,9 +1587,13 @@ class DelegatedProvisionTests(unittest.TestCase):
         import prove_service_tasks as service
         def seed_post(route, body):
             self.assertEqual(route, '/api/v1/models/create')
-            rows[body['id']] = copy.deepcopy(body) | {'user_id': OWNER, 'write_access': True,
-                'created_at': 100, 'updated_at': 101}
+            rows[body['id']] = model_record(copy.deepcopy(body) | {'user_id':OWNER,'created_at':100,'updated_at':101})
             return copy.deepcopy(rows[body['id']])
+        def model_record(value):
+            owners=native_delegated_catalog_owners();value=copy.deepcopy(value)
+            value['access_grants']=[{'id':str(P.uuid.uuid4()),'resource_type':'model','resource_id':value['id'],
+                'created_at':100,**grant} for grant in value['access_grants']]
+            return owners['ModelModel'](**value).model_dump() | {'write_access':True}
         seed = SimpleNamespace(model=lambda token, mid: copy.deepcopy(rows[mid]),
             session=lambda account, role: self.assertEqual((account, role), (admin, 'admin')),
             ok=lambda method, route, *, token, body: seed_post(route, body))
@@ -1513,7 +1637,7 @@ class DelegatedProvisionTests(unittest.TestCase):
                 if path == '/openai/config/update': config = copy.deepcopy(body); return Response(200, config)
                 if path == '/api/v1/models/create' or path == '/api/v1/models/model/update':
                     original = copy.deepcopy(rows.get(body['id'],{}))
-                    rows[body['id']] = {'created_at':100,'updated_at':101} | original | copy.deepcopy(body) | {'user_id': OWNER, 'write_access': True}
+                    rows[body['id']] = model_record({'created_at':100,'updated_at':101} | original | copy.deepcopy(body) | {'user_id':OWNER})
                     if path.endswith('/update'): rows[body['id']]['updated_at'] = original['updated_at']+1
                     if path.endswith('/update') and alter_update and body['id'] in ('employee_budget_service','gpt-6-luna'):
                         alter_update(rows[body['id']])
@@ -1523,10 +1647,7 @@ class DelegatedProvisionTests(unittest.TestCase):
                     return Response(200, rows[identifier]) if identifier in rows else Response(
                         base_absence if identifier in ('gpt-6.1-sol', 'gpt-6.1-terra') else 404, {})
                 if path == '/api/models':
-                    catalog = {mid: {'id': mid, 'info': copy.deepcopy(row), 'owned_by': 'openai',
-                        **({'pipe': {'type': 'pipe'}} if mid == service.FUNCTION_ID else
-                           {'urlIdx': 0} if row['base_model_id'] is None else {'preset': True})}
-                        for mid, row in rows.items() if ('user', actor, 'read') in service.grant_set(row)}
+                    catalog = native_delegated_catalog(rows,actor)
                     if alter_catalog: alter_catalog(catalog)
                     return Response(200, {'data': list(catalog.values())})
                 if path == '/api/v1/tools/': return Response(200, [])
@@ -1610,8 +1731,8 @@ class DelegatedProvisionTests(unittest.TestCase):
                 self.assertIsNone(rows[alias]['base_model_id'])
                 self.assertEqual(rows[alias]['params'], {'max_tokens': output})
                 self.assertEqual(rows[alias]['meta']['filterIds'], ['employee_budget_cost'])
-                self.assertEqual(rows[alias]['access_grants'], [
-                    {'principal_type': 'user', 'principal_id': actor, 'permission': 'read'}])
+                self.assertEqual(service.grant_set(rows[alias]),{('user',actor,'read')})
+                self.assertEqual(len(rows[alias]['access_grants']),1)
                 self.assertEqual(rows[profile]['base_model_id'], alias)
             if return_fixture:
                 return {'before': service_before, 'rows': copy.deepcopy(rows), 'saved': saved,
