@@ -98,8 +98,22 @@ def admin_failure_fields(error):
             code = error.code
         except Exception:
             pass
-    return {'failure_code': code if type(code) is str and code in allowed else 'unavailable',
-            'error_class': category}
+    result = {'failure_code': code if type(code) is str and code in allowed else 'unavailable',
+              'error_class': category}
+    if type(error) is P.ProofError and result['failure_code'] == 'admin_unknown_dispatch_count':
+        observed = getattr(error, '_admin_unknown_dispatch', None)
+        if (type(observed) is dict
+                and set(observed) == {'physical_requests', 'captured_requests', 'synthetic', 'control_unchanged'}
+                and all(type(observed[key]) is int and 0 <= observed[key] <= 4096
+                        for key in ('physical_requests', 'captured_requests'))
+                and all(type(observed[key]) is bool for key in ('synthetic', 'control_unchanged'))):
+            result['dispatch_observation'] = {
+                'physical_requests': observed['physical_requests'],
+                'captured_requests': observed['captured_requests'],
+                'synthetic': observed['synthetic'],
+                'control_unchanged': observed['control_unchanged'],
+            }
+    return result
 
 
 def canonical(value):
@@ -386,8 +400,15 @@ def admin_calls(before, provider, captured):
         require(current['requests'][:len(before[name]['requests'])] == before[name]['requests'], 'admin_unknown_prior_context')
     physical = provider['requests'][len(before['provider']['requests']):]
     observed = captured['requests'][len(before['capture']['requests']):]
-    require(provider.get('synthetic') is True and provider.get('control') == before['provider'].get('control')
-            and len(physical) == len(observed) == 3, 'admin_unknown_dispatch_count')
+    try:
+        require(provider.get('synthetic') is True and provider.get('control') == before['provider'].get('control')
+                and len(physical) == len(observed) == 3, 'admin_unknown_dispatch_count')
+    except P.ProofError as error:
+        # Already-read operands only; no payload, identity, money or extra IO.
+        error._admin_unknown_dispatch = {'physical_requests': len(physical), 'captured_requests': len(observed),
+            'synthetic': provider.get('synthetic') is True,
+            'control_unchanged': provider.get('control') == before['provider'].get('control')}
+        raise
     main, service, used, nonces = [], [], set(), set()
     for row in observed:
         model = row['body'].get('model')

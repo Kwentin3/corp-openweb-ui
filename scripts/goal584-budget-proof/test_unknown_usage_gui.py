@@ -339,6 +339,54 @@ class AdminReceiptTests(unittest.TestCase):
                 self.assertEqual(result['failure_code'],value);self.assertEqual(result['error_class'],category)
                 self.assertEqual(C.P.fixture.read_private(C.ADMIN_STATE)['admin_unknown_error']['message'],str(error))
 
+    def test_actual_dispatch_failure_exports_only_existing_suffix_counts_and_boolean_operands(self):
+        for physical, captured, synthetic, unchanged in ((2, 2, True, True), (3, 2, True, True),
+                (3, 3, False, True), (3, 3, True, False)):
+            before = {'provider': {'requests': [], 'control': {}}, 'capture': {'requests': []}}
+            provider = {'requests': [{}] * physical, 'synthetic': synthetic,
+                        'control': {} if unchanged else {'private': 'omitted'}}
+            with self.subTest(physical=physical, captured=captured, synthetic=synthetic, unchanged=unchanged):
+                try: C.admin_calls(before, provider, {'requests': [{}] * captured})
+                except C.P.ProofError as error:
+                    self.assertEqual(str(error), 'admin_unknown_dispatch_count')
+                    code, result = self.invoke('admin-verify', error=error)
+                else: self.fail('Existing fatal compound predicate must reject')
+                self.assertEqual(code, 1); self.assertIs(result['passed'], False)
+                self.assertEqual(result['failure_code'], 'admin_unknown_dispatch_count')
+                self.assertEqual(result['dispatch_observation'], {'physical_requests': physical,
+                    'captured_requests': captured, 'synthetic': synthetic, 'control_unchanged': unchanged})
+                self.assertNotIn('omitted', json.dumps(result))
+
+    def test_dispatch_observation_rejects_hostile_shapes_values_and_other_failure_codes(self):
+        valid = {'physical_requests': 2, 'captured_requests': 2, 'synthetic': True, 'control_unchanged': True}
+        hostile = [None, [], {}, {**valid, 'private': 'sk-private-observation-sentinel'}]
+        for field in ('physical_requests', 'captured_requests'):
+            hostile.extend({**valid, field: value} for value in (True, -1, 4097, 2.0, float('nan'),
+                float('inf'), 'private', {}, []))
+        for field in ('synthetic', 'control_unchanged'):
+            hostile.extend({**valid, field: value} for value in (0, 1, 'true', None, {}, []))
+        for value in hostile:
+            error = C.P.ProofError('admin_unknown_dispatch_count'); error._admin_unknown_dispatch = value
+            with self.subTest(value=repr(value)):
+                self.assertEqual(C.admin_failure_fields(error),
+                    {'failure_code': 'admin_unknown_dispatch_count', 'error_class': 'ProofError'})
+        for error in (C.P.ProofError('admin_unknown_saved_parent'), AssertionError('admin_unknown_dispatch_count'),
+                      C.P.ProofError('admin_unknown_dispatch_count', 'private')):
+            error._admin_unknown_dispatch = valid
+            self.assertNotIn('dispatch_observation', C.admin_failure_fields(error))
+        class HostileKey(str):
+            def __new__(cls): return str.__new__(cls, 'sk-private-key-sentinel')
+            def __hash__(self): return hash('physical_requests')
+            def __eq__(self, other): return other == 'physical_requests'
+        error = C.P.ProofError('admin_unknown_dispatch_count')
+        error._admin_unknown_dispatch = {HostileKey(): 2, 'captured_requests': 2,
+            'synthetic': True, 'control_unchanged': True}
+        code, result = self.invoke('admin-verify', error=error)
+        self.assertEqual(code, 1); self.assertIs(result['passed'], False)
+        self.assertEqual(result['dispatch_observation'], valid)
+        self.assertTrue(all(type(key) is str for key in result['dispatch_observation']))
+        self.assertNotIn('sk-private-key-sentinel', json.dumps(result))
+
     def test_hostile_messages_never_promote_prefix_text_or_fake_typed_codes(self):
         private='sk-private-sentinel-012345678901234567890123456789'
         values=('admin_unknown_unreviewed_predicate', 'admin_unknown_saved_parent '+private,

@@ -25,6 +25,19 @@ Root full reader PASS54build/72sourcepins/45guard+19auth+1CLI0skip,
 ordinary/continuation и cleanup подтверждены. Первый reader отказал на старых
 source-only provisioning pins; adapter обновлён на reviewed Terminal69 hashes,
 точные checks сохранены. Evidence `office92-review/`, `office92-admin-count-triage/`.
+Actual operands в92ZIP/logs отсутствуют; source TaskConfig объясняет ожидаемый
+follow-up, но не доказывает его фактическую отправку. Подготовлен двухфайловый
+failure-only вывод двух suffix counts и bool synthetic/control_unchanged,
+без новых HTTP/raw payload/IDs/money и без изменения require.29collector tests
+PASS; unchanged fixture9 также прошли до последней правки public projection.
+Independent review выявил hostile str-key в dict.copy; projection исправлена
+на четыре фиксированных литерала, counterexample закреплён,29PASS повторены.
+Independent review финальных bytes PASS,29tests ещё раз PASS0skip/network;
+HostileKey counterexample закрыт, старый blocked receipt сохранён.
+Следующий шаг — один existing workflow run на coherent commit, включая
+prospective pricing gate (его native selected class теперь22tests вместо19).
+Evidence `office92-admin-count-review/`; ожидание3/partition/financial gates
+и fatal outcome сохранены, причина92 пока неизвестна.
 
 Prospective pricing eligibility gate принят отдельно: REASONING17fb9985 →
 DELIVERY `8c89cd0c2a51a5d174378ad2044d4c18c14f6bce`, ровно2files.
