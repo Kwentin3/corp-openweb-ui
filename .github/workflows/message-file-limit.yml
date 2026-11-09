@@ -21,9 +21,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      UPSTREAM_SOURCE: ${{ runner.temp }}/openwebui-0122
-      FRONTEND_RECEIPT: ${{ runner.temp }}/message-file-limit-frontend
-      RUNTIME_CONTEXT: ${{ runner.temp }}/message-file-limit-runtime
+      UPSTREAM_SOURCE: ${{ github.workspace }}/local/message-limit-ci/upstream
+      FRONTEND_RECEIPT: ${{ github.workspace }}/local/message-limit-ci/frontend
+      RUNTIME_CONTEXT: ${{ github.workspace }}/local/message-limit-ci/runtime
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
