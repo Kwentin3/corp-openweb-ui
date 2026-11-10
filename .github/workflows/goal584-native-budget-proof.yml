@@ -71,6 +71,7 @@ jobs:
               proxy_env=private/'proxy-budget.env'
               proxy_env.write_text('TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\nCUSTOM_TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\n')
               proxy_env.chmod(0o600);paths['PROOF_PROXY_ENV_FILE']=str(proxy_env)
+              paths['PROOF_PROXY_WORKDIR']='/proof'
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
               for key, value in paths.items():
                   handle.write(f'{key}={value}\n')
@@ -990,7 +991,7 @@ jobs:
               services=['proxy']
               if os.environ['ACCEPTANCE_PROFILE']!='stream-ledger':
                   command += ['-f', 'compose/goal584.webui-proof.yml'];services += ['webui']
-              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', *services], capture_output=True, text=True,timeout=30)
+              result = subprocess.run(command + ['logs', '--no-color', '--tail', '200', *services], capture_output=True, text=True,timeout=30)
               output = result.stdout + result.stderr
               for line in env_file.read_text(encoding='utf-8').splitlines():
                   output = output.replace(line.split('=', 1)[1], '[redacted]')
