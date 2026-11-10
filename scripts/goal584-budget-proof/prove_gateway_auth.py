@@ -510,11 +510,22 @@ async def file_service(args, state, gateway, receipt):
                     observed = await asyncio.wait_for(admin.read_service(payer), timeout=5)
                     native_window()
                     found = []
-                    for row in native.logs(payer):
+                    rows = native.logs(payer)
+                    unscoped = 0
+                    for row in rows:
                         metadata = row.get("metadata") or {}
                         if isinstance(metadata, str): metadata = json.loads(metadata)
-                        scope = metadata.get("spend_logs_metadata", {}).get("owui_budget", {})
+                        # Native denial rows may have spend_logs_metadata=null.
+                        # Only a dict carrying this call_id is a candidate; the
+                        # full required scope/row assertion below stays exact.
+                        spend_metadata = metadata.get("spend_logs_metadata") if isinstance(metadata, dict) else None
+                        scope = spend_metadata.get("owui_budget") if isinstance(spend_metadata, dict) else None
+                        if not isinstance(scope, dict):
+                            unscoped += 1
+                            continue
                         if scope.get("call_id") == claims["jti"]: found.append((row, metadata, scope))
+                    receipt["last_storage_observation"] = {"rows": len(rows), "matching_rows": len(found),
+                        "unscoped_rows": unscoped, "unknown": unknown}
                     target = next(m for m in observed.models if m.model == alias)
                     if found and (target.blocked is True if unknown else
                                   observed.spend == cost and target.spend == cost):
@@ -554,6 +565,7 @@ async def file_service(args, state, gateway, receipt):
                     and all(not baseline["control"].get(k) for k in
                         ("tool_round", "admin_mode", "title_mode", "native_tasks_mode", "delay_ms",
                          "before_first_chunk_delay_ms", "after_first_chunk_delay_ms")), "file_service_fresh_provider")
+                receipt["stage"] = "provisioning"
                 budget = await asyncio.wait_for(admin.initialize_employee(payer,
                     tuple((a, Decimal(1)) for a in aliases), Decimal(2), gateway, before_write=routing), timeout=5)
                 employee = await asyncio.wait_for(admin.initialize_employee(actor,
@@ -561,6 +573,7 @@ async def file_service(args, state, gateway, receipt):
                 before_user, before_keys = snapshot(payer, budget)
                 employee_user, employee_keys = snapshot(actor, employee)
                 native_window();require(not native.logs(payer) and not native.logs(actor), "file_service_fresh_history")
+                receipt["stage"] = "known_call"
                 status, result, claims = request(aliases[0])
                 usage = result.get("usage") or {}
                 require(status == 200 and all(type(usage.get(k)) is int and usage[k] == v for k, v in
@@ -568,20 +581,25 @@ async def file_service(args, state, gateway, receipt):
                     and usage.get("input_tokens_details", {}).get("cached_tokens") == 6
                     and usage.get("output_tokens_details", {}).get("reasoning_tokens") == 2,
                     "file_service_known_response_usage")
+                receipt["stage"] = "known_settlement"
                 known = await settled(aliases[0], claims, budget)
                 require(known == replace(budget, spend=cost, models=tuple(
                     replace(m, spend=cost) if m.model == aliases[0] else m for m in budget.models)),
                     "file_service_known_native_counters")
                 require(len((await provider())["requests"]) == 1, "file_service_known_dispatch")
+                receipt["stage"] = "cap_denial"
                 cap_changed = True
                 await asyncio.wait_for(admin.set_user_cap(payer, Decimal(0)), timeout=5)
                 status, denied, _ = request(aliases[0])
                 require(status == BUDGET_EXCEEDED_STATUS and denied.get("error", {}).get("type") == "budget_exceeded"
                     and len((await provider())["requests"]) == 1, "file_service_cap_denial_dispatched")
+                receipt["stage"] = "cap_restore"
                 await asyncio.wait_for(admin.set_user_cap(payer, Decimal(2)), timeout=5)
                 cap_changed = False
+                receipt["stage"] = "absent_call"
                 status, result, claims = request(aliases[1])
                 require(status == 200, "file_service_absent_response")
+                receipt["stage"] = "absent_settlement"
                 observed = await settled(aliases[1], claims, budget, unknown=True)
                 target = next(m for m in observed.models if m.model == aliases[1])
                 require(observed.spend >= known.spend and target.spend >= next(
@@ -589,6 +607,7 @@ async def file_service(args, state, gateway, receipt):
                 require(observed == replace(known, spend=observed.spend, models=tuple(
                     replace(m, blocked=True, spend=target.spend) if m.model == aliases[1] else m for m in known.models)),
                     "file_service_only_platform_target_changed")
+                receipt["stage"] = "blocked_repeat_denial"
                 status, denied, _ = request(aliases[1])
                 require(status == 401 and denied.get("error", {}).get("type") == "auth_error",
                         "file_service_blocked_key_denial")
@@ -601,6 +620,7 @@ async def file_service(args, state, gateway, receipt):
                 require(observations[1].get("usage") is None
                     and isinstance(observations[1].get("response"), dict)
                     and "usage" not in observations[1]["response"], "file_service_raw_usage_not_absent")
+                receipt["stage"] = "preservation_readback"
                 after_user, after_keys = snapshot(payer, budget)
                 for alias in aliases:
                     expected = protected_r(before_user, before_keys[alias])
@@ -675,7 +695,11 @@ def main():
         receipt["failure"] = str(error)
     except Exception as error:
         # Never render arbitrary API, URL, local-state or exception data containing keys.
+        import traceback
         receipt["failure"] = "Unexpected gateway proof error: " + type(error).__name__
+        receipt["failure_frames"] = [{"file": Path(frame.filename).name, "function": frame.name,
+                                       "line": frame.lineno}
+                                      for frame in traceback.extract_tb(error.__traceback__)[-8:]]
     receipt["finished_at_utc"] = datetime.now(timezone.utc).isoformat()
     rendered = json.dumps(receipt, indent=2, allow_nan=False)
     args.receipt.parent.mkdir(parents=True, exist_ok=True)
