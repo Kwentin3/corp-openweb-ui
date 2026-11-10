@@ -74,6 +74,22 @@ litellm_settings:
 должны быть квалифицированы отдельно. Не переносить отсюда Redis password/port,
 если реальное подключение использует иной native вариант.
 
+Для согласованного **стендового** streaming-кандидата `stream-usage-v1.105.1`
+список callbacks имеет следующий вид:
+
+```yaml
+callbacks: [budget_errors.handler, pricing_snapshot.handler, budget_runtime.responses_handler, budget_runtime.cc_stream_handler]
+```
+
+Эти два Usage callbacks экспортирует тот же `budget_runtime.py`, с тем же
+protected operator key. Responses peer сохраняет существующий buffered-upstream
+профиль и native WebUI SSE/Tools; CC peer читает исходный признак Usage из
+проверенного патча. Точный образ собирается существующим
+`scripts/goal584-budget-proof/build_native_floor_image.py --variant stream-usage-v1.105.1`
+с отдельными абсолютными `--context` и `--receipt` на подготовленном стенде.
+Builder проверяет base digest, native3/SDK8 source hashes и сохраняет immutable IID.
+Разрешение на этот патч ограничено стендом; production activation согласуется отдельно.
+
 ## Подключение и проверка
 
 В существующем protected Compose env задать `EMPLOYEE_BUDGET_LITELLM_IMAGE`,

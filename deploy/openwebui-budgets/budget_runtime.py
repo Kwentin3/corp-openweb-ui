@@ -6,7 +6,7 @@ Validate it at registration and retrieve it again for native management access.
 
 import os
 
-from unknown_usage_guard import UnknownUsageGuard
+from unknown_usage_guard import CCStreamUsageGuard, ResponsesUsageGuard, UnknownUsageGuard
 
 
 def operator_key() -> str:
@@ -18,3 +18,5 @@ def operator_key() -> str:
 
 operator_key()
 handler = UnknownUsageGuard(operator_key=operator_key, base_url="http://127.0.0.1:4000")
+responses_handler = ResponsesUsageGuard(operator_key=operator_key, base_url="http://127.0.0.1:4000")
+cc_stream_handler = CCStreamUsageGuard(operator_key=operator_key, base_url="http://127.0.0.1:4000")

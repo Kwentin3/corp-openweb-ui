@@ -1062,9 +1062,16 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
         BufferedNativeUsageTests.setUp(self)
         self.stream_request = copy.deepcopy(self.data)
         self.addCleanup(self.router.reset)
-        self.guard = G.CCStreamUsageGuard(self.operator, base_url="http://127.0.0.1:4000")
-        self.enterContext(patch.object(litellm, "callbacks", [
-            G.ResponsesUsageGuard(self.operator, base_url="http://127.0.0.1:4000"), self.guard]))
+        from litellm.proxy.types_utils.utils import get_instance_fn
+        self.enterContext(patch.dict(os.environ, {"OWUI_BUDGET_OPERATOR_KEY": self.wire.operator}))
+        cached_runtime = sys.modules.get("budget_runtime")
+        source = str(BUDGETS / "budget_runtime.py")
+        responses = get_instance_fn("budget_runtime.responses_handler", config_file_path=source)
+        self.guard = get_instance_fn("budget_runtime.cc_stream_handler", config_file_path=source)
+        self.assertIs(sys.modules.get("budget_runtime"), cached_runtime)
+        self.assertIs(type(responses), G.ResponsesUsageGuard)
+        self.assertIs(type(self.guard), G.CCStreamUsageGuard)
+        self.enterContext(patch.object(litellm, "callbacks", [responses, self.guard]))
         self.auth.request_route = "/v1/chat/completions"
         self.native_failure = self.enterContext(patch.object(self.proxy_instance, "post_call_failure_hook",
             wraps=self.proxy_instance.post_call_failure_hook))
@@ -1146,7 +1153,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
     async def test_raw_zero_and_missing_usage_follow_native_deferred_policy(self):
         for kind in ("known", "zero", "absent"):
             with self.subTest(kind=kind):
-                self.wire.key["blocked"] = False; self.wire.requests.clear(); self.operator.reset_mock()
+                self.wire.key["blocked"] = False; self.wire.requests.clear()
                 self.queued.clear(); self.successes.clear(); self.failures.clear()
                 iterator, log, state = await self.routed_stream(kind)
                 events = [event async for event in self.outer(iterator)]
@@ -1163,7 +1170,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(records), 1)
                 if kind in ("known", "zero"):
                     self.assertEqual(records[0]["guardrail_action"], "allow")
-                    self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+                    self.assertFalse(self.wire.requests)
                 else: self.assert_targeted_block()
 
     async def test_actual_sdk_cancel_preserves_refund_and_confirms_targeted_block(self):
@@ -1194,7 +1201,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 self.stream_request = copy.deepcopy(seed)
                 if optout:
                     self.stream_request["litellm_metadata"]["user_api_key_metadata"]["disable_global_guardrails"] = True
-                self.wire.key["blocked"] = False; self.wire.requests.clear(); self.operator.reset_mock()
+                self.wire.key["blocked"] = False; self.wire.requests.clear()
                 self.native_failure.reset_mock(); self.cancel_release.reset_mock()
                 iterator, _, state = await self.routed_stream("absent", stop="error")
                 events = [event async for event in self.outer(iterator)]
@@ -1202,7 +1209,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(state["closed"]); self.cancel_release.assert_not_awaited()
                 self.native_failure.assert_awaited_once()
                 if optout:
-                    self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+                    self.assertFalse(self.wire.requests)
                     self.assertEqual((self.wire.user, self.wire.key), self.before)
                     self.assertNotIn("standard_logging_guardrail_information", self.data["litellm_metadata"])
                 else: self.assert_targeted_block()

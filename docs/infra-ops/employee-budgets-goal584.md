@@ -162,6 +162,28 @@ CC failure использует существующий native should_run_guard
 SHAb58315d247f855ca31a8ddb621101d70327ccf78b3fadbf5babdc05e3c019b55.
 Скачан1раз/privateURL удалён; exact-run containers0, builtIID удалён.
 
+[Run42806131855](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42806131855)
+на8eb3ad06 завершён SUCCESS:3новых CC methods,12.194s, включая positive/zero/missing,
+cancel до/после первого chunk, error/admin optout. Actual SDK/Router/Logging,
+request/tools/stream сохранены, block/readback адресует только employee/model,
+native refund/dispatch ownership сохранён. Это component acceptance с fixture
+auth/admin/storage leaves; новой DB/UI приёмкой он не является. Root сверил
+10build source hashes с Git blobs точного commit, native3targets/SDK8 и удалённый
+IIDsha256:5b3a4b8a02b91540399abf5a13c9e743d493c9e7659a191edb78ac9db59f429e.
+Actual Linux/Git-LF streammanifestSHA20dc1df2d351d8b38ae4a4ce4c6347e4af1f56516ba66421437a6edf5af20748;
+2f781c13 выше — raw Windows CRLF того же JSON, а не хэш Linux-артефакта.
+Artifact13758557469,7214B/5members,
+SHA68ff38e22b14112ef3253d92a56471a15f826f2ef71b9ce4d9b1671723ca2bab,
+скачан1раз/privateURL удалён; owned containers0, image удалён.
+Native failure writer source принимает BaseException и принудительно маркирует
+failure; reader отвергает числовой0 такой строки. Actual cancel DB row не
+наблюдалась; повторного журнала или synthetic response не создаётся.
+
+Финальная упаковка добавляет только2exports в существующий budget_runtime;
+старый handler сохранён. Последняя компонентная проверка должна выбирать новые
+exports через actual native get_instance_fn, чтобы проверить именно поставляемую
+регистрацию, а не собранные отдельно fixture объекты. Core/image/SDK не меняются.
+
 ## Поставка и обязательные оставшиеся шаги
 
 Подготовлены20строк budget_runtime.py, opt-in
