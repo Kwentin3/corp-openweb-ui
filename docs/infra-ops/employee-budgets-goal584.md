@@ -184,6 +184,34 @@ failure; reader отвергает числовой0 такой строки. Ac
 exports через actual native get_instance_fn, чтобы проверить именно поставляемую
 регистрацию, а не собранные отдельно fixture объекты. Core/image/SDK не меняются.
 
+Финальная регистрация принята: run42807487227 наfadd434b SUCCESS,3methods9.411s.
+Тест выбирает именно budget_runtime.responses_handler/cc_stream_handler через
+native config loader, с protected operator environment; исходный handler сохранён.
+Root сверил10build source hashes с Git, SDK/native hashes и actual IID
+sha256:b1c69ec4134e3254524b1ec605726a6e8f15e084b101156e4f2a39f9054850c6.
+Artifact13760370849,7217B/5members,
+SHA1879887016196c048a99b5148b16c2f257e143f880b68e4ad64d7915b0cfdbf4.
+Скачан1раз/privateURL удалён, owned containers0, image удалён.
+
+Native Compose merge принят в run42811133630 на659f21dc, Compose2.38.2.
+Сохранены5существующих services, data/networks/security/limits,9proxy/8WebUI
+readonly bindings; env_file append/override и config target replacement подтверждены.
+Это чтение synthetic config: без сборок, запуска services или model calls.
+Artifact13761629068,1662B/2members,
+SHA5889a58afa7a17a00e4f6d1200960118e7061792fecc5bc598bf276b19594b64,
+скачан1раз/privateURL удалён, owned containers0. Предыдущий run42810567660 FAIL
+относился к verifier KeyError: native JSON опускает false create_host_path;
+checker теперь использует native zero-value semantics, продукт не менялся.
+Локальный официальный CLI download отклонён automatic approval review
+«blocked by policy»; использован уже установленный CI client, нового binary нет.
+
+WebUI reuse: все8alias sources и4resource bodies совпадают с actualKnown0 ee885845.
+Filter/Details/reload/ACL на том же пути повторно не проверялись. Known0 использовал
+FULL0.12.2 base10e6a78…/builtIID61ad7a7a…, а не любой stock/slim image.
+Пять admin aliases не имеют отдельного current WebUI cold-import receipt;
+source closure закрыта, новых внешних dependencies нет. Это явная граница reuse,
+не утверждение фактической установки или равенства будущего release image.
+
 ## Поставка и обязательные оставшиеся шаги
 
 Подготовлены20строк budget_runtime.py, opt-in
@@ -198,8 +226,8 @@ Budget Functions не установлены; DB/custom_auth/callbacks LiteLLM �
 Общий бюджетный контур не активирован; финансовый ущерб не установлен.
 Маршруты/caps/services/modelcalls не менялись. Native browser лишь синхронизировал timezone.
 
-1. Закрыть generic streaming unknown policy, включая ошибки и прерывание, на стенде;
-   сохранить уже принятые known/zero/Responses и общий owner.
+1. Разрешённый новый streaming-срез закрыт на уровне actual native component,
+   включая ошибки/прерывание/регистрацию. Production и новая DB/UI приёмка не заявлены.
 2. Достаточно подтвердить форму → учёт/отображение → отказ/восстановление на
    текущей композиции, применяя старые evidence в их границах. Native48 доказывает
    enforcement/recovery, actual427929 — child→тот же employee/model key.
@@ -208,8 +236,10 @@ Budget Functions не установлены; DB/custom_auth/callbacks LiteLLM �
    Это обоснованный вывод по композиции evidence, не PASS пропущенного Terra-negative.
    Отдельный дорогой Office-negative не становится условием готовности без новой
    изменённой границы или явного требования к worker error UI. Оно не наблюдалось.
-3. Подготовить единую сборку/профиль маршрутов и проверить installation/rollback;
-   сохранить DB/Redis/SpendLogs/keys, согласовать production cutover отдельно.
+3. Комплект исходников, native build, overlay и installation/rollback подготовлен;
+   native merge проверен. До реальной установки нужны согласованные exact image,
+   DB/Redis/control-plane identities, каталог/цены/лимиты и сохранённые Valves/ACL.
+   Их наличие и установка на target не проверены; production cutover отдельный.
 4. Сохранить полезный WIP/evidence и убрать свои временные ресурсы в пределах допусков.
    Последние CI terminal/cleanup0. Автоматическая проверка дважды отклонила удаление
    owned artifact-bookkeeping-proof/pytest-owned: «blocked by policy», иных причин нет.
