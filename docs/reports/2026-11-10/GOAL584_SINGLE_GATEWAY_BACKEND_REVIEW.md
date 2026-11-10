@@ -1,6 +1,9 @@
 # GOAL584: серверный путь через LiteLLM
 
 10.11.2026. **Согласованный backend source/stand GOAL завершён.**
+Позднейший [backend closeout](GOAL584_BACKEND_CLOSEOUT.md) добавил employee-self
+monthly API и закрыл описанный ниже пробел просмотра; этот отчёт сохраняет
+исторический срез предыдущего этапа.
 База3095c506, рабочая ветка agent/goal584-single-gateway. Текущая запись и остатки —
 [employee-budgets-goal584.md](../../infra-ops/employee-budgets-goal584.md).
 GUI, production cutover, платные API и реальные финансовые изменения исключены.

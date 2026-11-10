@@ -1,6 +1,6 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Актуальная запись на 10.11.2026. **В работе: завершение backend до продуктовой GUI-приёмки.**
+Актуальная запись на 10.11.2026. **Backend завершён и принят через native API; GUI — следующий этап.**
 Предыдущая поставка исходников/стенда принята на3095c506; production не менялся.
 Источник: [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 [Ограниченный аудит](../reports/2026-11-09/GOAL584_KISS_AUDIT.md).
@@ -38,11 +38,20 @@ MAIN и независимые WIP/worktrees сохранены; новая ко
 | Адресный аудит backend / native read seam | Выбран штатный Event/API seam OpenWebUI0.12.2. Найдена и исправлена лишняя зависимость admin platform card от chat Pipe target для OCR-only конфигурации |
 | Просмотр собственного/выбранного бюджета | Реализован native authenticated GET, повторная self/admin проверка, существующие native readers/projection и общий unknown witness reader; source reviews PASS |
 | Подключение3 | Подтверждено одним bounded read-only metadata query: официальный DeepSeek, CC, enabled, dynamic discovery; provider calls/config writes0. Managed projection обязана учитывать его каталог, отключения нет |
-| API-приёмка | Локально95 focused tests PASS3.95s; component auth IO явно doubled. Подготовлен bounded monthly-api профиль existing stand + prebuilt native WebUI, без GUI/inference; actual run ещё не принят |
-| Закрытие этапа | Актуализировать этот record/отчёт, подтвердить принятый artifact и убрать принадлежащие этапу временные ресурсы |
+| API-приёмка | Локально95 focused tests PASS3.95s; actual native API42872143425 PASS: real JWT self/admin/foreign/pending/demotion, native set/read20→30 и12/8→18/12, native period, GET nonmutating, inference0 |
+| Закрытие этапа | Candidate28c35d20 принят:38 Git source hashes,5 mounted modules,2 native Function sources,5 healthy service images; owned containers/volumes/networks0 и generated image удалён |
 
-Следующий шаг: проверить coherent candidate/profile и запустить один ограниченный
-native API smoke; прочитать сам результат/identity и cleanup перед закрытием этапа.
+Кандидат `28c35d20`, принят ограниченный native API smoke
+[42872143425](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42872143425).
+Проверены artifacts и фактические значения/отказы, а не только CI status. Worker6.01s;
+provider dispatch0. Unknown witness/in-flight revocation подтверждены адресными
+component checks и прежним native evidence; новый smoke не фабрикует историю.
+Известных незакрытых обязательных функциональных долгов backend после этого
+адресного аудита нет. Следующий этап — GUI-интеграция/продуктовая приёмка на
+согласованной среде. Production cutover, реальные тарифы/лимиты и эксплуатационные
+upstream/test-infrastructure задачи остаются отдельно.
+
+[Итог backend closeout](../reports/2026-11-10/GOAL584_BACKEND_CLOSEOUT.md).
 
 ## Предыдущий принятый этап: ревью и минимальный рефакторинг backend
 

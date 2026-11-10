@@ -1,6 +1,6 @@
 # GOAL584: завершение backend перед GUI
 
-10.11.2026. В работе; native API приёмка ещё не завершена.
+10.11.2026. **Backend этап принят; обязательного функционального остатка нет.**
 Каноническая задача: [employee-budgets-goal584.md](../../infra-ops/employee-budgets-goal584.md).
 База `e2d7bb73`, ветка `agent/goal584-backend-closeout`.
 
@@ -44,7 +44,7 @@ API показывает зарегистрированные native counters. `
 неизвестном расходе, unavailable не доказывает его отсутствие. Native keys, aliases,
 management credentials и private URLs в публичный JSON не выдаются. Ответ no-store.
 
-## Проверки и обязательный остаток
+## Проверки и фактическая приёмка
 
 95 адресных component/API tests PASS за3.95s: existing admin/policy/readback и новая
 Event route вместе в одном процессе; fresh-role/foreign-user denial, zero/unknown,
@@ -56,7 +56,27 @@ JWT/DB приёмка. Независимые source reviews API/shared owners: 
 один finite monthly-api профиль существующего стенда: четыре backend services плюс
 prebuilt stock WebUI0.12.2, без browser/frontend build и model inference. Пределы:
 job25min, worker90s, HTTP5s; полный workflow/pricing/calendar jobs пропускаются.
-Результат, source/image identity и фактическая уборка ещё должны быть прочитаны.
+[Actual run42872143425](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42872143425)
+на `28c35d20a6e5d0bf1b4bf2b65a7729aa9c1dd7ca` прошёл с первой попытки.
+API worker6.01s; model inference/provider dispatch0. Проверены сами artifacts:
+
+- Native JWT сотрудника возвращает только его бюджет; действующий администратор
+  читает выбранного сотрудника. Чужой доступ403, anonymous/pending401; после
+  реального понижения администратора чужой бюджет снова403.
+- Первый GET вернул20USD и model caps12/8, spend0 и остатки20/12/8. Existing native
+  cap policy изменила лимиты на30 и18/12; тот же HTTP GET сотрудника/администратора
+  вернул новые значения с прежним native reset `2026-12-01T00:00:00Z`/`1mo`.
+- Native user/key/SpendLogs snapshots и provider observations до/после GET совпали;
+  credentials/key hashes/aliases в JSON отсутствовали, ответ no-store.
+- Подтверждены38 Git source hashes,5 фактически смонтированных helper hashes,
+  source readback двух native Functions и pinned/native identity пяти healthy
+  сервисов. Always-cleanup: containers/volumes/networks0, generated image удалён.
+
+Новый smoke использует empty native history: zero counters остаются0, статус
+unknown evidence — unavailable. Положительный unknown witness и потеря роли
+внутри ожидающего запроса покрыты адресными component checks и прежним native
+evidence; новая история/расход не фабриковались. Этот прогон не называется GUI
+или новой Tool-confirmation приёмкой. Независимые source/artifact reviews: PASS.
 
 Прежние native billing, limits, unknown block, Office/Tools/reasoning доказательства
 переиспользуются на неизменённых владельцах. Продуктовый GUI-прогон, deployment,
