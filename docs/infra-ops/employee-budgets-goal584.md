@@ -1,6 +1,6 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Актуальная запись на 10.11.2026. **Выполнение возобновлено: пользователь выбрал служебный бюджет платформы для OCR.**
+Актуальная запись на 10.11.2026. **Этап ревью/рефакторинга принят в исходниках и на изолированном стенде.**
 Предыдущая поставка исходников/стенда принята на3095c506; production не менялся.
 Источник: [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 [Ограниченный аудит](../reports/2026-11-09/GOAL584_KISS_AUDIT.md).
@@ -28,24 +28,43 @@ MAIN и независимые WIP/worktrees сохраняются. Стары�
 
 | Срез | Состояние и следующий шаг |
 |---|---|
-| Маршруты/credentials/fallback | Source review и bounded runtime inventory завершены: прямой Responses, active OCR, inactive Broker; неполный signing у standalone loaders |
+| Маршруты/credentials/fallback | Source review и bounded runtime inventory завершены: прямой Responses, active OCR, inactive Broker. Source managed projection и signing OCR готовы; production не переключался |
 | Финансовый owner и права | Второго денежного owner в budget обвязке не найдено. Native данные баланса есть; employee-self monthly endpoint пока не реализован, UI отдельно |
 | Реестр патчей/upstream | [Реестр](patch-registry.md) готов, existing manifests не дублируются; известные official issue/PR проверены, safe drafts подготовлены без публикации |
 | Минимальные исправления/чистка | Managed mode существующего prepare_google_gateway.py готов; убраны legacy-only stream policy и скрытые credentials inactive slot. Responses config ограничен фактически квалифицированным buffered-upstream профилем |
-| Приёмка | 9 focused unittest/33 negative subcases PASS0.020s; независимый source readback Responses profile delta PASS; temporary dirs удалены. Новый CI/provider/GUI не запускался; OCR seam ещё не принят |
+| Приёмка | Config9/33negative, OCR/Pipe86, auth50+1optional skip, selected native guard6 PASS; source reviews PASS. Actual file-service native DB42863840738 принят, identity32Git hashes и cleanup подтверждены. Full-PDF native transform PASS; GUI исключён |
 
 Решение пользователя: active OCR оплачивает отдельный служебный бюджет платформы.
 Запустивший OCR пользователь остаётся actor для native проверки прав на файл
 (владелец, администратор или разрешённая запись); file ID — реальная resource scope,
 а не chat/answer ID. Личный бюджет сотрудника не используется для оплаты OCR.
-Обязательный остаток: подключить non-chat OCR через минимальную общую native boundary
-без потери raw Responses, проверить эту новую границу и завершить итоговую приёмку.
+Non-chat OCR подключён через существующие service provenance/common binding в
+кандидате `befedb20`; raw Responses/PDF и File ACL сохранены. Пройдены локальные
+проверки OCR/service Pipe, auth/provenance и выбранные native Usage guard проверки.
+Первый native DB прогон42862513323 подтвердил known Usage/стоимость0.166 и точную
+platform/File/actor связь, затем driver завершился AttributeError. Уборка подтверждена:
+containers/volumes/networks0, image удалён. В driver исправлена source-proven ошибка
+чтения nullable spend_logs_metadata в native unscoped rows; конкретный кадр первого
+падения не сохранён. Native auth/финансовый runtime не менялись после befedb20.
+Ограниченный native DB прогон
+[42863840738](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42863840738) на91717eb6
+принят по receipt и фактическим assertions:0.166USD/known Usage платформе с точными
+actor/File/model/key IDs; cap denial до provider dispatch; raw absent Usage →
+блокировка только нужного platform/model key → повторный401 без dispatch.
+Личные расходы/ключи сотрудника и контрольная модель сохранены. Всего2 synthetic
+provider dispatch; провайдер завершён, controls не менялись. Оба CI завершены;
+owned containers/volumes/networks0, generated images удалены. Сверены32 Git LF
+source hashes, manifest/native image identity и четыре healthy service images.
+Отдельный no-network replay actual WebUI converter/Form → native LiteLLM Responses
+transform сохранил полный двухстраничный PDF, instruction/schema/metadata/output
+limit/store/stream без изменений. Это проверка транспорта, не качества распознавания.
+Обязательного остатка в согласованном source/stand этапе нет. Следующий этап —
+продуктовая GUI-приёмка на согласованной среде; production cutover отдельно.
 Исходная принятая configuration-подготовка сохранена на3f3a9270; исторический blocked
 checkpoint0918d27b относится к уже снятому продуктовому вопросу. Повторно его не задавать.
-Неподписанный OCR должен fail closed до provider dispatch; это не готовая
-работа OCR после cutover. Следующий шаг — расширить существующий подписанный
-service scope реальным file ID, переиспользовать common service configuration и
-проверить новую границу адресно. При неизвестном расходе блокируется соответствующий
+Неподписанный OCR останавливается до provider dispatch. Новый подписанный service
+scope использует реальный file ID и common service configuration; новая граница
+проверяется отдельно от прежних принятых сценариев. При неизвестном расходе блокируется соответствующий
 native ключ модели служебного плательщика; личные ключи сотрудника не затрагиваются.
 Неизвестный connection3 подлежит классификации перед реальным включением;
 managed preparation уже отклоняет неоднозначные active entries.
@@ -55,7 +74,7 @@ managed preparation уже отклоняет неоднозначные active 
 не меняя request payload, WebUI stream или runtime callback. Прежние квалифицированные
 SDK/DB доказательства применимы к этому же профилю; новую broad-матрицу не запускать.
 
-[Предварительный backend-итог](../reports/2026-11-10/GOAL584_SINGLE_GATEWAY_BACKEND_REVIEW.md).
+[Итог backend-этапа](../reports/2026-11-10/GOAL584_SINGLE_GATEWAY_BACKEND_REVIEW.md).
 Служебные обзоры находятся в local/goal584/single-gateway/; это evidence, не второй план.
 
 ## Предыдущая принятая поставка

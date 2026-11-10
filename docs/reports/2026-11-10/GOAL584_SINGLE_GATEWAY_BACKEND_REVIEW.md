@@ -1,6 +1,6 @@
 # GOAL584: серверный путь через LiteLLM
 
-10.11.2026. **Ревью и config-preparation slice готовы; весь GOAL ещё не завершён.**
+10.11.2026. **Согласованный backend source/stand GOAL завершён.**
 База3095c506, рабочая ветка agent/goal584-single-gateway. Текущая запись и остатки —
 [employee-budgets-goal584.md](../../infra-ops/employee-budgets-goal584.md).
 GUI, production cutover, платные API и реальные финансовые изменения исключены.
@@ -78,8 +78,9 @@ provider override. WebUI SSE/Tools и содержимое запросов не
 catalog, exact approved config bytes, separated credentials, hidden inactive keys,
 однозначность aliases/цен и отсутствие apply/start. Native GET/Docker/POSIX metadata
 явно заменены boundary fixtures; реальные protected inputs не использовались.
-TemporaryDirectory автоматически удалены. Независимый source review: PASS только
-этого config-preparation slice. Новый CI/DB/provider/GUI прогон не запускался.
+TemporaryDirectory автоматически удалены. Независимый source review этого
+config-preparation slice: PASS. Новая native DB приёмка OCR описана ниже;
+GUI и платные provider calls не выполнялись.
 
 Модельный request body этот срез не принимает и не перестраивает. Прежние принятые
 доказательства native CC/Responses Usage, ledger/блокировки и delegate context
@@ -87,7 +88,7 @@ TemporaryDirectory автоматически удалены. Независим
 проверенным. Все факты нового runtime snapshot — configuration inventory,
 а не продуктовая приёмка нового маршрута.
 
-## Патчи и обязательный остаток
+## Патчи и серверная интеграция OCR
 
 [Реестр](../../infra-ops/patch-registry.md) ссылается на существующие manifests,
 installer/verifier owners, известные upstream issue/PR и условия снятия патчей.
@@ -114,7 +115,42 @@ optional pinned-native buffered admission skip в лёгком venv; шесть 
 Фактический converter/Form из pinned WebUI0.12.2 исполнен: PDF, instruction и schema
 сохранены, добавлен только carrier подписи. Внешние File/User/HTTP owners в этих
 проверках заменены явными fixtures; это не native DB или продуктовая GUI-приёмка.
-Остаток — ограниченная проверка новой финансовой связи на существующем стенде.
+Ограниченная проверка новой финансовой связи на существующем стенде принята.
+
+## Фактическая приёмка и пределы
+
+[Actual run42863840738](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42863840738),
+commit `91717eb64aef502cadcdacad0851043535ab0039`, LiteLLM1.105.1 с прежним
+`stream-usage-v1.105.1` вариантом. Поднят только существующий backend из четырёх
+сервисов: LiteLLM, PostgreSQL, Redis и искусственный провайдер. Полные pricing/calendar
+jobs и UI пропущены. Финансовая phase заняла7.33s, всего2 provider dispatch.
+
+- Known Usage10/5/15 дала native0.166USD на служебном user/key/model с точным
+  `document_ocr` File/actor scope; личный расход сотрудника не изменился.
+- Native cap0 дал отказ без нового dispatch. Лимит восстановлен штатным API.
+- У второго alias Usage отсутствовала в raw provider response. Существующая
+  policy пометила расход неизвестным и заблокировала только этот platform/model
+  key; повтор дал401 без dispatch. Личные ключи, контрольный alias и лимиты сохранены.
+- Проверены32 Git source hashes, manifest/native image identity и четыре healthy
+  service images. Provider terminal; containers/volumes/networks0 и generated image
+  удалён. Это прочитанные artifacts, а не вывод только из зелёного статуса CI.
+
+Первый run42862513323 подтвердил known начисление и упал в проверочном driver с
+AttributeError; его receipt сохранён, cleanup также0. Source review выявил
+неправильное чтение допустимого native `spend_logs_metadata=null` у unscoped rows.
+Исправлен только driver, точные scope/cost assertions сохранены; конкретный кадр
+первого падения не был записан. Повтор успешно обработал одну unscoped row.
+
+Отдельный no-network replay за3.94s исполнил настоящий LiteLLM Responses request
+transform на полном OCR payload после pinned WebUI converter/Form. PDF bytes,
+instruction/schema, metadata, output limit, store и stream сохранились точно;
+изменённых полей нет, outbound attempts0. Использован прежний blank-page PDF
+fixture: это доказательство сохранности входа, не качества распознавания.
+Финансовая phase использует конечный `Hi`, поэтому не называется полным OCR/GUI
+прогоном. Прежняя Office/Tools/reasoning приёмка переиспользована на неизменённых
+владельцах. Независимые source и actual artifact reviews: PASS.
+
+## Следующий этап
 
 Также до реального включения необходимо классифицировать connection3, подготовить
 approved native каталог/права/цены/лимиты и квалифицировать выбранный target.
