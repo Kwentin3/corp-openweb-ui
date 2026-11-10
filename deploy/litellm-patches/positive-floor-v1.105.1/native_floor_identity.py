@@ -16,7 +16,7 @@ BASE_REVISION = "d665dc1a6315847fcad6cc2c1264ceb47c06abce"
 VARIANT = "positive-floor-v1.105.1"
 STREAM_VARIANT = "stream-usage-v1.105.1"
 PROXY = "proxy/proxy_server.py"
-STREAM_TARGETS = frozenset({"llms/openai/openai.py", "proxy/common_request_processing.py", "proxy/utils.py"})
+STREAM_TARGETS = frozenset({"llms/openai/openai.py", "proxy/common_request_processing.py", "proxy/utils.py", PROXY})
 SDK_FILES = frozenset({"_version.py", "_types.py", "_models.py", "_base_client.py", "_streaming.py",
                        "_legacy_response.py", "types/chat/chat_completion_chunk.py", "types/completion_usage.py"})
 
@@ -55,10 +55,6 @@ def selected_hashes(pristine):
     expected = dict(pristine)
     if variant() == STREAM_VARIANT:
         manifest = load_stream_manifest()
-        if PROXY in expected:
-            floor = load_manifest()
-            assert expected[PROXY] == floor["original_sha256"], "Derivative applied to another native baseline"
-            expected[PROXY] = floor["patched_sha256"]
         for name, target in manifest["targets"].items():
             if name in expected:
                 assert expected[name] == target["original_sha256"], "Stream derivative baseline differs: " + name
@@ -79,6 +75,7 @@ def identity():
             "manifest_sha256": hashlib.sha256(Path(__file__).with_name("manifest.json").read_bytes()).hexdigest()}
     if variant() == STREAM_VARIANT:
         stream = load_stream_manifest()
+        result["proxy_sha256"] = stream["targets"][PROXY]["patched_sha256"]
         result["stream_manifest_sha256"] = stream_manifest_hash()
         result["stream_source_sha256"] = {name: target["patched_sha256"] for name, target in stream["targets"].items()}
         result["openai_version"] = stream["sdk"]["version"]
@@ -153,8 +150,11 @@ def load_stream_manifest():
     assert set(value["sdk"]) == {"version", "files_sha256"} and isinstance(value["sdk"]["version"], str)
     assert set(value["sdk"]["files_sha256"]) == SDK_FILES and set(value["targets"]) == STREAM_TARGETS
     hashes = [*value["patch_sha256"].values(), *value["sdk"]["files_sha256"].values()]
-    for target in value["targets"].values():
-        assert set(target) == {"original_sha256", "patched_sha256", "changed_functions", "added_functions", "signature_changes"}
+    for name, target in value["targets"].items():
+        expected = {"original_sha256", "patched_sha256", "changed_functions", "added_functions", "signature_changes"}
+        assert set(target) == expected | ({"floor_patched_sha256"} if name == PROXY else set())
+        if name == PROXY:
+            assert target["original_sha256"] == floor["original_sha256"] and target["floor_patched_sha256"] == floor["patched_sha256"]
         assert target["original_sha256"] != target["patched_sha256"]
         hashes.extend((target["original_sha256"], target["patched_sha256"]))
         for key in ("changed_functions", "added_functions", "signature_changes"):
@@ -173,8 +173,9 @@ def _verify_stream_build(receipt):
     assert receipt["schema"] == 1 and receipt["variant"] == STREAM_VARIANT
     assert receipt["base_image"] == BASE_IMAGE and receipt["base_revision"] == BASE_REVISION
     assert receipt["image_ref"] == receipt["image_id"] == image_ref()
-    for key in ("original_sha256", "patched_sha256", "patch_sha256", "native_export_sha256"):
+    for key in ("original_sha256", "patch_sha256", "native_export_sha256"):
         assert receipt[key] == floor[key]
+    assert receipt["patched_sha256"] == stream["targets"][PROXY]["patched_sha256"]
     assert receipt["stream_manifest_sha256"] == stream_manifest_hash()
     assert receipt["stream_source_sha256"] == {name: target["patched_sha256"] for name, target in stream["targets"].items()}
     assert receipt["openai_version"] == stream["sdk"]["version"] and receipt["openai_source_sha256"] == stream["sdk"]["files_sha256"]

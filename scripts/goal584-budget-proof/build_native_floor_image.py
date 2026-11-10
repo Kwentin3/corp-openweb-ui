@@ -87,7 +87,7 @@ def prepare(context, exported):
 
 
 def validate_stream_delta(before, after, target, declaration):
-    """Constrain only the three explicitly reviewed extension source files."""
+    """Constrain only the explicitly reviewed extension source files."""
     old, new = ast.parse(before), ast.parse(after)
     def functions(tree):
         result = {}
@@ -154,6 +154,9 @@ def prepare_stream(context, exported, stream):
     for name in (*("litellm/" + key for key in stream["targets"]),
                  *("openai/" + key for key in stream["sdk"]["files_sha256"])):
         path = context / name
+        if name == TARGET:
+            assert sha(path.read_bytes()) == stream["targets"][native_identity.PROXY]["floor_patched_sha256"]
+            continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(base64.b64decode(exported[name], validate=True))
     originals = {name: (context / "litellm" / name).read_bytes() for name in stream["targets"]}
@@ -191,6 +194,7 @@ def main():
                                 BASE_IMAGE, "-B", "-c", export, *paths], timeout=240)))
     manifest, original = prepare(args.context, {name: exported[name] for name in paths} if stream else exported)
     if stream:
+        (args.context / "floor-proxy_server.py").write_bytes((args.context / TARGET).read_bytes())
         prepare_stream(args.context, exported, stream)
     # Tests export companions under their original litellm/... paths. Keep the
     # pristine target separately; the build context target is now patched.
@@ -226,12 +230,14 @@ def main():
                   "assert all(hashlib.sha256((root/n).read_bytes()).hexdigest()==v[0] for n,v in extras.items());"
                   "assert all(hashlib.sha256(pathlib.Path(v[2]).read_bytes()).hexdigest()==v[1] for v in extras.values());"
                   "[compile(pathlib.Path(v[2]).read_bytes(),n,'exec') for n,v in extras.items()];")
-        install = "import hashlib,importlib.util,pathlib;" + prefix + install + ";[(root/n).write_bytes(pathlib.Path(v[2]).read_bytes()) for n,v in extras.items()];[pathlib.Path(v[2]).unlink() for v in extras.values()]"
+        install = ("import hashlib,importlib.util,pathlib;" + prefix + install
+                   + f";assert hashlib.sha256((root/{native_identity.PROXY!r}).read_bytes()).hexdigest()=={manifest['patched_sha256']!r}"
+                   + ";[(root/n).write_bytes(pathlib.Path(v[2]).read_bytes()) for n,v in extras.items()];[pathlib.Path(v[2]).unlink() for v in extras.values()]")
         extra_copy = "".join(f"COPY litellm/{name} {values[2]}\n" for name, values in extras.items())
         extra_copy += "COPY stream-usage-manifest.json /usr/share/doc/goal584-stream-usage/manifest.json\nCOPY LICENSE /usr/share/doc/goal584-stream-usage/LICENSE\n"
     dockerfile = (f"FROM {BASE_IMAGE}\n"
                   f"LABEL org.alpha-soft.goal584.native-variant={args.variant}\n"
-                  f"COPY {TARGET} /tmp/goal584-proxy_server.py\n"
+                  f"COPY {'floor-proxy_server.py' if stream else TARGET} /tmp/goal584-proxy_server.py\n"
                   "COPY LICENSE manifest.json /usr/share/doc/goal584-native-floor/\n"
                   + extra_copy +
                   "RUN python -B -c " + json.dumps(install) + "\n")
@@ -248,7 +254,8 @@ def main():
               "print(json.dumps({'proxy_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),"
               "'manifest':json.loads(pathlib.Path('/usr/share/doc/goal584-native-floor/manifest.json').read_text())}))")
     actual = json.loads(run(["docker", "run", "--rm", "--network", "none", "--entrypoint", "python", image_id, "-B", "-c", verify]))
-    assert actual == {"proxy_sha256": manifest["patched_sha256"], "manifest": manifest}
+    proxy_digest = stream["targets"][native_identity.PROXY]["patched_sha256"] if stream else manifest["patched_sha256"]
+    assert actual == {"proxy_sha256": proxy_digest, "manifest": manifest}
     receipt = {"schema": 1, "variant": args.variant, "base_revision": BASE_REVISION,
                "base_image": BASE_IMAGE, "image_ref": image_id, "image_id": image_id,
                "original_sha256": sha(original), "patched_sha256": actual["proxy_sha256"],

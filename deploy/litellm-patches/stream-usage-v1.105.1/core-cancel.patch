@@ -187,3 +187,29 @@
                              user_api_key_dict=user_api_key_dict,
                              original_exception=original_exception,
                              traceback_str=redacted_traceback_str,
+--- a/litellm/proxy/proxy_server.py
++++ b/litellm/proxy/proxy_server.py
+@@ -9880,6 +9880,7 @@
+     verbose_proxy_logger.debug("inside generator")
+     stream_completed = False
+     client_disconnected = False
++    stream_exception: BaseException | None = None
+     error_state: Final = ResponsesStreamErrorState() if responses_stream_errors else None
+     try:
+         error_message: str | None = None
+@@ -10058,7 +10059,8 @@
+         # OpenAI-compatible streams terminate with data: [DONE]; Google GenAI (?alt=sse) does not.
+         if not request_data.get("_litellm_skip_openai_stream_done"):
+             yield _OPENAI_STREAM_DONE_FRAME
+-    except (asyncio.CancelledError, GeneratorExit):
++    except (asyncio.CancelledError, GeneratorExit) as error:
++        stream_exception = error
+         # Client disconnected mid-stream. CancelledError / GeneratorExit are
+         # BaseException, so they bypass the success/failure logging callbacks
+         # that normally release the pre-call max_parallel_requests +1. Flag the
+@@ -10118,4 +10120,5 @@
+             client_disconnected=client_disconnected,
+             user_api_key_dict=user_api_key_dict,
+             proxy_logging_obj=proxy_logging_obj,
++            stream_exception=stream_exception,
+         )

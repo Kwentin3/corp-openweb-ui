@@ -6,7 +6,7 @@
   "floor_manifest_sha256": "1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b",
   "patch_sha256": {
     "raw-usage.patch": "9e77444f4e8a77e0ebc343861775c6a0748e28b58c3e95176ba3dd68a481fade",
-    "core-cancel.patch": "029e55760d4b35b7b6803e8ecefaef96edea5dd7e19c622e2d948c4e9898bfdf"
+    "core-cancel.patch": "bef330a2064ea9fa0e69c1a479354239f041014a846be46813e802209eb653cd"
   },
   "sdk": {
     "version": "2.33.0",
@@ -53,6 +53,16 @@
       "patched_sha256": "a360f0958fb5cb1d22acc5d73aff9d15b8d9b5e44c295e823ebc68f56c52edba",
       "changed_functions": [
         "ProxyLogging.post_call_failure_hook"
+      ],
+      "added_functions": [],
+      "signature_changes": []
+    },
+    "proxy/proxy_server.py": {
+      "original_sha256": "227a704e5c9e7bdd0569f80d520aa670bde32397d0983e165089c63dcb775b4e",
+      "floor_patched_sha256": "e354f6e96e245828e35cd3658cced6a78430571f7d7e8590b523e36c848f677e",
+      "patched_sha256": "3586258e788671353fea94d216568852cfb2eae76bcc13bec71bd9fdbd9cbf4f",
+      "changed_functions": [
+        "async_data_generator"
       ],
       "added_functions": [],
       "signature_changes": []
