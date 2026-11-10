@@ -69,9 +69,8 @@ jobs:
           }
           if os.environ['PROOF_NATIVE_VARIANT']=='stream-usage-v1.105.1':
               proxy_env=private/'proxy-budget.env'
-              proxy_env.write_text('TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\nCUSTOM_TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\n')
+              proxy_env.write_text('PYTHONPATH=/proof\nTIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\nCUSTOM_TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\n')
               proxy_env.chmod(0o600);paths['PROOF_PROXY_ENV_FILE']=str(proxy_env)
-              paths['PROOF_PROXY_WORKDIR']='/proof'
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
               for key, value in paths.items():
                   handle.write(f'{key}={value}\n')
