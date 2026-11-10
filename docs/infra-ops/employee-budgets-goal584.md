@@ -145,6 +145,23 @@ sdk.version/files_sha256 manifest. Core patch и запрос неизменны
 и не обновлялся. Повтор6case алгоритма не нужен; следующий5case native component
 проверяет actual image2.33. ManifestSHA2f781c13ecc1580e7f26af60c494bd3eecb1ff974b8bdada69af628263754ea4.
 
+Run42804096354 на7d147ee2 собрал и проверил exact variant/SDK2.33:
+IIDsha256:4e90449df1319c59512e251c6b2a538bc06d6429d24be7e7d662ec4b2c05a91b.
+Пять component methods выполнены17.005s; весь run FAIL. Legacy buffered Responses
+и nonstream CC PASS, actual CC read-error и cancel до первого chunk также прошли
+свои assertions. Cancel-after не дошёл до продукта: fixture повторно передал
+start_time из предыдущего failure request. EOS дошёл до правильного события,
+но fixture ожидал Responses worker queue вместо native CC async-success callback.
+Исправлены только fresh request snapshot и наблюдение Event существующего Sink;
+прежний timeout3s сохранён, private flags/callbacks не подменялись. Дополнительно
+CC failure использует существующий native should_run_guardrail (+2строки),
+чтобы сохранить protected admin optout; проверка добавлена в прежний error метод.
+В том же EOS методе добавлен positive40/8/48; новых test methods/framework нет.
+Следующий запуск повторяет только3новых CC methods;2legacy PASS используются
+на неизменном native image/source. Artifact13757218630,7774B/5members,
+SHAb58315d247f855ca31a8ddb621101d70327ccf78b3fadbf5babdc05e3c019b55.
+Скачан1раз/privateURL удалён; exact-run containers0, builtIID удалён.
+
 ## Поставка и обязательные оставшиеся шаги
 
 Подготовлены20строк budget_runtime.py, opt-in

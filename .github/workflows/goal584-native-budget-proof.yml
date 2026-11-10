@@ -137,9 +137,8 @@ jobs:
           subprocess.run(common+['--name',owner+'-cache','--mount','type=bind,source='+str(cache)+',target=/native-tokenizers',
               image,'-B','-c',"import tiktoken;[tiktoken.get_encoding(n) for n in ('cl100k_base','o200k_base')]"],
               check=True,timeout=75,stdout=subprocess.DEVNULL)
-          tests=['test_unknown_usage_guard.CCStreamNativeProxyTests',
-              'test_unknown_usage_guard.BufferedNativeUsageTests.test_known_and_explicit_zero_preserve_every_native_event_and_single_slp_marker',
-              'test_unknown_usage_guard.NonstreamCCNativeProxyTests.test_real_proxy_cc_policy_precedes_native_deferred_single_payload']
+          # Legacy Responses/nonstream controls passed on this same frozen native variant in run42804096354.
+          tests=['test_unknown_usage_guard.CCStreamNativeProxyTests']
           packet={'scope':'Pinned-image native component; fixture auth/admin HTTP leaves, no real DB/UI acceptance',
               'source_commit':os.environ['GITHUB_SHA'],'native_artifact':identity,'tests':tests,'passed':False,
               'tokenizer_sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in cache.iterdir() if p.is_file()}}

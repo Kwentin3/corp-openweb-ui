@@ -698,10 +698,12 @@ class BufferedNativeUsageTests(unittest.IsolatedAsyncioTestCase):
         self.enterContext(patch.object(self.server,"llm_router",self.router))
         from litellm.integrations.custom_logger import CustomLogger
         self.successes=[];self.failures=[]
+        self.success_logged=asyncio.Event()
         successes,failures=self.successes,self.failures
         class Sink(CustomLogger):
             async def async_log_success_event(inner,kwargs,response_obj,start_time,end_time):
                 successes.append(copy.deepcopy(kwargs["standard_logging_object"]))
+                self.success_logged.set()
             async def async_log_failure_event(inner,kwargs,response_obj,start_time,end_time):
                 failures.append(copy.deepcopy(kwargs["standard_logging_object"]))
         sink=Sink()
@@ -1055,10 +1057,10 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
     entry = UnknownUsageTests.entry
     assert_finance_unchanged = UnknownUsageTests.assert_finance_unchanged
     outer = BufferedNativeUsageTests.outer
-    flush = BufferedNativeUsageTests.flush
 
     def setUp(self):
         BufferedNativeUsageTests.setUp(self)
+        self.stream_request = copy.deepcopy(self.data)
         self.addCleanup(self.router.reset)
         self.guard = G.CCStreamUsageGuard(self.operator, base_url="http://127.0.0.1:4000")
         self.enterContext(patch.object(litellm, "callbacks", [
@@ -1070,8 +1072,8 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
     async def routed_stream(self, kind, *, stop=None):
         import httpx
         from litellm.llms.openai.openai import OpenAIChatCompletion
-        self.data.pop("input", None); self.data.pop("litellm_logging_obj", None)
-        self.data["litellm_metadata"].pop("standard_logging_guardrail_information", None)
+        self.data = copy.deepcopy(self.stream_request)
+        self.data.pop("input", None); self.success_logged.clear()
         self.data.update(stream=True, litellm_call_id=str(uuid4()), max_tokens=6000, temperature=0,
             stream_options={"include_usage": True}, messages=[
                 {"role": "system", "content": "Preserve the full source and native function schema."},
@@ -1093,6 +1095,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 "name": "inspect_native_file", "arguments": '{"file_id":"synthetic-source"}'}}]}, "finish_reason": None}]}
         final = {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
         if kind == "zero": final["usage"] = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        elif kind == "known": final["usage"] = {"prompt_tokens": 40, "completion_tokens": 8, "total_tokens": 48}
         state = {"entered": asyncio.Event(), "closed": False, "requests": [], "raw": [first, final]}
         class Body(httpx.AsyncByteStream):
             async def __aiter__(inner):
@@ -1141,7 +1144,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                             for method, path, *_ in self.wire.requests[committed + 1:]))
 
     async def test_raw_zero_and_missing_usage_follow_native_deferred_policy(self):
-        for kind in ("zero", "absent"):
+        for kind in ("known", "zero", "absent"):
             with self.subTest(kind=kind):
                 self.wire.key["blocked"] = False; self.wire.requests.clear(); self.operator.reset_mock()
                 self.queued.clear(); self.successes.clear(); self.failures.clear()
@@ -1151,11 +1154,14 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(any(choice.get("finish_reason") == "tool_calls" for event in events
                                     for choice in json.loads(event).get("choices", [])))
                 self.assertIs(self.data["litellm_logging_obj"], log)
-                await asyncio.wait_for(self.flush(), 3)
+                await asyncio.wait_for(self.success_logged.wait(), 3)
+                self.assertIsNone(log._on_deferred_stream_complete)
+                self.assertIsNone(log._deferred_stream_complete_args)
+                self.assertTrue(log.model_call_details["has_dispatched_final_stream_success"])
                 self.assertEqual(len(self.successes), 1); self.assertFalse(self.failures)
                 records = self.successes[0]["guardrail_information"]
                 self.assertEqual(len(records), 1)
-                if kind == "zero":
+                if kind in ("known", "zero"):
                     self.assertEqual(records[0]["guardrail_action"], "allow")
                     self.assertFalse(self.wire.requests); self.operator.assert_not_called()
                 else: self.assert_targeted_block()
@@ -1182,14 +1188,26 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 while self.queue: await asyncio.wait_for(self.queue.pop(0), 3)
 
     async def test_actual_sdk_read_error_preserves_context_and_confirms_targeted_block(self):
-        iterator, _, state = await self.routed_stream("absent", stop="error")
-        events = [event async for event in self.outer(iterator)]
-        self.assert_stream_context(events[0]); self.assertEqual(events[-1], "unexpected-error")
-        self.assert_targeted_block(); self.assertTrue(state["closed"])
-        self.cancel_release.assert_not_awaited()
-        self.native_failure.assert_awaited_once()
-        # Native failure rows can predate Usage policy telemetry and remain unknown.
-        while self.queue: await asyncio.wait_for(self.queue.pop(0), 3)
+        seed = copy.deepcopy(self.stream_request)
+        for optout in (False, True):
+            with self.subTest(optout=optout):
+                self.stream_request = copy.deepcopy(seed)
+                if optout:
+                    self.stream_request["litellm_metadata"]["user_api_key_metadata"]["disable_global_guardrails"] = True
+                self.wire.key["blocked"] = False; self.wire.requests.clear(); self.operator.reset_mock()
+                self.native_failure.reset_mock(); self.cancel_release.reset_mock()
+                iterator, _, state = await self.routed_stream("absent", stop="error")
+                events = [event async for event in self.outer(iterator)]
+                self.assert_stream_context(events[0]); self.assertEqual(events[-1], "unexpected-error")
+                self.assertTrue(state["closed"]); self.cancel_release.assert_not_awaited()
+                self.native_failure.assert_awaited_once()
+                if optout:
+                    self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+                    self.assertEqual((self.wire.user, self.wire.key), self.before)
+                    self.assertNotIn("standard_logging_guardrail_information", self.data["litellm_metadata"])
+                else: self.assert_targeted_block()
+                # Native failure rows can predate Usage policy telemetry and remain unknown.
+                while self.queue: await asyncio.wait_for(self.queue.pop(0), 3)
 
 
 if __name__ == "__main__":

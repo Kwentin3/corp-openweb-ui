@@ -320,6 +320,8 @@ class CCStreamUsageGuard(UnknownUsageGuard):
     ):
         if (not isinstance(request_data, dict) or request_data.get("stream") is not True
                 or getattr(user_api_key_dict, "request_route", None) not in CC_ROUTES
+                or not self.should_run_guardrail(
+                    data=request_data, event_type=GuardrailEventHooks.post_call)
                 or self._stream_attempt(request_data) is None):
             return None
         # A failed/cancelled transport cannot confirm a completed response,
