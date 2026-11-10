@@ -978,7 +978,7 @@ jobs:
 
       - name: Show bounded sanitized startup diagnostics on failure
         timeout-minutes: 2
-        if: (failure()) && env.STREAM_COMPONENT_ONLY != 'true'
+        if: failure() && (env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger')
         shell: bash
         run: |
           python - <<'PY'
@@ -986,14 +986,18 @@ jobs:
           from pathlib import Path
           env_file = Path(os.environ['PROOF_ENV_FILE'])
           if env_file.exists():
-              command = ['docker', 'compose', '--env-file', str(env_file), '-f', 'compose/goal584.native-budget-proof.yml', '-f', 'compose/goal584.webui-proof.yml']
-              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', 'proxy', 'webui'], capture_output=True, text=True)
+              command = ['docker', 'compose', '--env-file', str(env_file), '-f', 'compose/goal584.native-budget-proof.yml']
+              services=['proxy']
+              if os.environ['ACCEPTANCE_PROFILE']!='stream-ledger':
+                  command += ['-f', 'compose/goal584.webui-proof.yml'];services += ['webui']
+              result = subprocess.run(command + ['logs', '--no-color', '--tail', '80', *services], capture_output=True, text=True,timeout=30)
               output = result.stdout + result.stderr
               for line in env_file.read_text(encoding='utf-8').splitlines():
                   output = output.replace(line.split('=', 1)[1], '[redacted]')
               output = re.sub(r'sk-[A-Za-z0-9_-]+', '[synthetic-key-redacted]', output)
               output = re.sub(r'postgresql://[^\s]+', '[database-url-redacted]', output)
               output = re.sub(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', '[session-redacted]', output)
+              Path(os.environ['PROOF_OUTPUT_DIR'],'startup-diagnostics.log').write_text(output,encoding='utf-8')
               print(output)
           PY
 
