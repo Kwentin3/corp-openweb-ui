@@ -128,6 +128,23 @@ YAML/31embedded Python bodies/actionlint PASS; default inference bodies сохр
 Следующий шаг — закончить source qualification и один ограниченный запуск exact
 image. Новых ledger, журналов, SSE wrapper и тестовых framework не создавать.
 
+Первый короткий [run42803219466](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42803219466)
+на122b4078 завершён FAIL до patch/build/components: actual image содержит
+OpenAI2.33.0/Python3.13.16/HTTPX0.28.1, reference rehearsal использовал SDK2.54.
+Все3native исходника совпали; SDK version/pins не совпали. Upgrade не выполнялся.
+Cleanup exact-run containers0, builtIID отсутствует, иных backend/UI jobs не было.
+Artifact13757102706,1488B/2members,
+SHAc1001d581976407b3a895d8e5f0ebe081d81f5c61e76afbadada83961cad184d.
+ZIP скачан1раз, privateURL удалён. Следующий шаг — сверить официальный SDK2.33
+с actual8source hashes и адаптировать reference pins без обновления runtime.
+Сверка завершена: официальный PyPI wheel2.33.0 (1,162,695B,
+SHA03ac37d70e8c9e3a8124214e3afa785e2cbc12e627fbd98177a086ef2fd87ad5)
+побайтово совпал по всем8файлам с образом. Критические stream builder/parse/
+ModelBuilderProtocol и integer Usage AST совпали с reference2.54; изменены только
+sdk.version/files_sha256 manifest. Core patch и запрос неизменны, SDK не установлен
+и не обновлялся. Повтор6case алгоритма не нужен; следующий5case native component
+проверяет actual image2.33. ManifestSHA2f781c13ecc1580e7f26af60c494bd3eecb1ff974b8bdada69af628263754ea4.
+
 ## Поставка и обязательные оставшиеся шаги
 
 Подготовлены20строк budget_runtime.py, opt-in
@@ -144,8 +161,14 @@ Budget Functions не установлены; DB/custom_auth/callbacks LiteLLM �
 
 1. Закрыть generic streaming unknown policy, включая ошибки и прерывание, на стенде;
    сохранить уже принятые known/zero/Responses и общий owner.
-2. Достаточно подтвердить форму → учёт/отображение → отказ/восстановление и child
-   model quota на текущей композиции, применяя старые evidence в их границах.
+2. Достаточно подтвердить форму → учёт/отображение → отказ/восстановление на
+   текущей композиции, применяя старые evidence в их границах. Native48 доказывает
+   enforcement/recovery, actual427929 — child→тот же employee/model key.
+   Текущий auth выбирает child model key и вызывает тот же native validator;
+   BudgetExceededError пробрасывается. С positive run этот admission путь не менялся.
+   Это обоснованный вывод по композиции evidence, не PASS пропущенного Terra-negative.
+   Отдельный дорогой Office-negative не становится условием готовности без новой
+   изменённой границы или явного требования к worker error UI. Оно не наблюдалось.
 3. Подготовить единую сборку/профиль маршрутов и проверить installation/rollback;
    сохранить DB/Redis/SpendLogs/keys, согласовать production cutover отдельно.
 4. Сохранить полезный WIP/evidence и убрать свои временные ресурсы в пределах допусков.

@@ -9,16 +9,16 @@
     "core-cancel.patch": "029e55760d4b35b7b6803e8ecefaef96edea5dd7e19c622e2d948c4e9898bfdf"
   },
   "sdk": {
-    "version": "2.54.0",
+    "version": "2.33.0",
     "files_sha256": {
-      "_version.py": "3511ac1b34893071b3aeb10623e65562e4213cd711e01ed21c621987fe1f4f9f",
-      "_models.py": "a85b5516d8a03022ee8a615fab432fe0f78b500dc4c35d0707e80626d95c8d46",
-      "_base_client.py": "5539c83d01c27e1bbf1ad34e59cc872202feb6c8bf81b56fadbeeb2b81a3e869",
+      "_version.py": "3bdf6f8afedafaecd5ef85440eb3e4c85294a718b2e0caa1633377c28794801e",
+      "_models.py": "638d5bd38e344cf8525d77f01694fd53014b5287f4084313bca9ecb00d52c0e6",
+      "_base_client.py": "3ff1f84c4fd76d5cc0abb9e279da67265cada89b3beaf91a70cb053229a5622c",
       "_streaming.py": "3178ebb721f4ff3cda6d479520ba2bddcdc7096e2a99827c6a0bc150fe44534a",
-      "_legacy_response.py": "981fa9b6f77d323235833924fa7b85590157bddb2178504fe7bb531211e4f0ef",
-      "types/chat/chat_completion_chunk.py": "39b86b03d4ee5df11ceac3bf31f3be57a39a4c30071af58a4e928b80c22aeb48",
-      "types/completion_usage.py": "324038531e00674dcda7d234f0105815690622a0dfef10036fa87f91786c9d9e",
-      "_types.py": "3947cc81519a2390adb44798be0215c86068b99a318e95ef0e2215235323258f"
+      "_legacy_response.py": "3e8b0b618630fd20087d01095033fd5751ee1648325e4d1bb2a8b634ccd4d1ee",
+      "types/chat/chat_completion_chunk.py": "aeaf1d96302a9778c8442d7441cf61d2406e2a16ff26eec35c1c3a096337a270",
+      "types/completion_usage.py": "b22abc7f48e508fdc66051d0afc6737e57fe058c4e82013f3a3b6c1acf6eaf80",
+      "_types.py": "2743fd39baa1e0c1e61cdf9898329e568c3f59cda910e08180c4849431ce1bfc"
     }
   },
   "targets": {
