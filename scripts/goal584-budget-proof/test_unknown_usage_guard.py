@@ -323,6 +323,54 @@ class UnknownUsageTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(self.entry()["guardrail_status"], "not_run")
         self.operator.assert_not_called(); self.assertFalse(self.wire.requests)
 
+    def file_service_projection(self):
+        from provenance import encode_service_operation, decode_service_operation
+        actor, file_id = str(uuid4()), str(uuid4())
+        secret = "synthetic-file-service-provenance-secret" * 2
+        token = encode_service_operation(secret, user_id=actor, payer_id=self.uid,
+                                         file_id=file_id, model=self.model)
+        self.data["litellm_metadata"] = {"owui_budget_provenance": token}
+        req = Request({"type": "http", "method": "POST", "path": "/v1/responses", "headers": []})
+        auth_owner._apply_provenance(req, self.data, shared_gateway=True, required=True,
+            secret=secret, user_id=actor, model=self.model,
+            decoder=lambda token, secret, **scope: decode_service_operation(
+                token, secret, user_id=scope["user_id"], model=scope["model"]),
+            chain_id=None, metadata_slot="litellm_metadata", metadata_session_id=None, task="document_ocr")
+        scope = self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"]
+        self.assertEqual((scope["actor_id"], scope["user_id"], scope["file_id"]), (actor, self.uid, file_id))
+        self.assertNotIn("chat_id", scope)
+        return scope
+
+    async def test_unknown_file_service_blocks_platform_key_and_preserves_response_and_money(self):
+        scope = self.file_service_projection()
+        response = self.response(); before = response.model_dump()
+        self.assertIs(await self.invoke(response), response)
+        self.assertEqual(response.model_dump(), before)
+        self.assert_finance_unchanged()
+        self.assertEqual([(p, body) for method, p, body, *_ in self.wire.requests if method == "POST"],
+                         [("/key/block", {"key": self.key_hash})])
+        self.assertNotEqual(scope["actor_id"], self.auth.user_id)
+        self.assertEqual(self.entry()["guardrail_action"], "block")
+
+    async def test_known_zero_file_service_never_blocks_or_changes_native_counters(self):
+        self.file_service_projection()
+        response = self.response({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+        self.assertIs(await self.invoke(response), response)
+        self.assertEqual((self.wire.user, self.wire.key), self.before)
+        self.operator.assert_not_called()
+        self.assertEqual(self.entry()["guardrail_action"], "allow")
+
+    async def test_file_service_block_failure_and_foreign_payer_fail_closed(self):
+        self.file_service_projection()
+        self.wire.ignored_block = True
+        await self.failed()
+        self.assertFalse(self.wire.key["blocked"])
+        self.wire.requests.clear()
+        self.data["litellm_metadata"].pop("standard_logging_guardrail_information", None)
+        self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"]["user_id"] = str(uuid4())
+        await self.failed()
+        self.assertFalse(self.wire.requests)
+
     async def test_service_scope_is_not_personal_policy(self):
         self.scope = {"schema": 1, "category": "service", "user_id": self.uid, "actor_id": str(uuid4()),
             "chat_id": str(uuid4()), "call_id": str(uuid4()), "model": self.model, "task": "follow_up_generation"}

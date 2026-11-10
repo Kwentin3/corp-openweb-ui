@@ -21,6 +21,8 @@ Builder — [build_native_floor_image.py](../../scripts/goal584-budget-proof/bui
 patch. Его manifest связывает floor manifest, четыре native targets и восемь SDK
 files. Stock tag без этих проверок не равен принятому составному артефакту.
 Deployment и платные provider calls этой записью не разрешаются.
+Подготовленные [upstream drafts](../reports/2026-11-10/GOAL584_LITELLM_UPSTREAM_DRAFTS.md)
+содержат ограниченные воспроизведения; они ещё не опубликованы.
 
 ## Что проверено upstream и пределы поиска
 

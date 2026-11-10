@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import hashlib
 import io
 import json
@@ -416,12 +417,17 @@ class Event:
             if api_type == "responses":
                 # Preserve native provider status/refusal details: the generic
                 # completion helper projects them away in this pinned version.
-                form = ResponsesForm(**convert_to_responses_payload(payload))
+                # The native converter filters fields: sign its final payload,
+                # then retain the raw Responses owner and terminal semantics.
+                prepared, user = await self._budget_payload(nested, user, file.id,
+                    convert_to_responses_payload(payload))
+                form = ResponsesForm(**prepared)
                 response = await responses(nested, form, user=user)
             else:
                 from open_webui.utils.chat import generate_chat_completion
 
-                response = await generate_chat_completion(nested, payload, user, bypass_filter=False, bypass_system_prompt=True)
+                prepared, user = await self._budget_payload(nested, user, file.id, payload)
+                response = await generate_chat_completion(nested, prepared, user, bypass_filter=False, bypass_system_prompt=True)
             if not isinstance(response, dict):
                 if getattr(response, "status_code", 500) >= 400:
                     raise ValueError("Native provider request failed")
@@ -431,6 +437,10 @@ class Event:
             pages, usage = decode_ocr_response(response, count)
         except asyncio.CancelledError:
             raise
+        except HTTPException as exc:
+            if exc.status_code == 503 and exc.detail == "Managed OCR budget binding is unavailable":
+                raise
+            raise HTTPException(502, "PDF OCR failed or returned incomplete content") from exc
         except Exception as exc:
             # Do not put native upstream errors, raw PDF or model output into
             # public errors or adapter logs. The native provider owns diagnostics.
@@ -456,3 +466,37 @@ class Event:
             }
             for page in pages
         ]
+
+    async def _budget_payload(self, request, actor, file_id, payload):
+        """Sign file-bound platform work; preserve native model payload verbatim."""
+        try:
+            from employee_budget_provenance import encode_service_operation
+            from employee_budget_webui_model_binding import native_connection, service_configuration
+            from open_webui.env import VERSION
+            from open_webui.models.users import Users
+            from open_webui.utils.models import check_model_access
+
+            def require(condition, _code):
+                if not condition:
+                    raise ValueError("unavailable_ocr_budget_binding")
+
+            require(VERSION == "0.12.2", "version")
+            model = copy.deepcopy(request.app.state.MODELS.get(payload.get("model")))
+            require(isinstance(model, dict) and not model.get("pipe") and not model.get("pipeline"), "model")
+            user = await Users.get_user_by_id(actor.id)
+            require(user is not None and user.id == actor.id and user.role in {"user", "admin"}, "actor")
+            await check_model_access(user, model)
+            url, payer = await service_configuration(user.id, require=require)
+            secret, wire_model = await native_connection(payload, model, request, url, require=require)
+            prepared = copy.deepcopy(payload)
+            carrier = prepared.get("litellm_metadata")
+            require(carrier is None or isinstance(carrier, dict), "metadata")
+            carrier = dict(carrier or {})
+            carrier["owui_budget_provenance"] = encode_service_operation(secret,
+                user_id=user.id, payer_id=payer, file_id=file_id, model=wire_model)
+            prepared["litellm_metadata"] = carrier
+            return prepared, user
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            raise HTTPException(503, "Managed OCR budget binding is unavailable") from None

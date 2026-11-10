@@ -132,10 +132,15 @@ Default CC bootstrap остаётся исторической транспор�
 
 Перед включением подтвердить `direct.enable=false`, `ollama.enable=false`,
 native attachment/активность бюджетных Functions и service task binding.
-Низкоуровневый native model helper сам request Filters не запускает. Отдельный OCR
-внешнего загрузчика не имеет chat/answer root; до принятия его плательщика и
-подключения через общий owner он не квалифицирован для managed-профиля.
-Строгий gateway должен остановить неподписанный вызов до provider dispatch.
+Низкоуровневый native model helper сам request Filters не запускает. OCR внешнего
+загрузчика подписывает отдельную служебную операцию `document_ocr` с настоящими
+actor/File IDs через общие модули; chat/answer root для неё не создаётся. Плательщик —
+служебный бюджет платформы из common `service_payer_id`, не сотрудник. Нужны native
+назначение этого плательщика на OCR model alias и его лимит. Отсутствие конфигурации,
+неподходящий gateway/model или неподписанный вызов останавливают запрос до провайдера;
+прямого fallback нет. При неизвестной Usage блокируется соответствующий служебный
+ключ модели, личные ключи сотрудника сохраняются. Raw Responses и native File ACL
+сохраняются; новая обвязка не меняет содержимое PDF и инструкцию распознавания.
 Неактивные broker direct adapters требуют отдельного включения в общий путь
 перед активацией; наличие их файлов не означает работающий обход.
 
@@ -157,6 +162,7 @@ native Workspace/API ресурсы из выбранной поставки:
 | Details Action | `employee_budget_cost_details` / [cost_action.py](../../deploy/openwebui-budgets/cost_action.py) |
 | Admin Tool | admin-only Tool / [admin_tools.py](../../deploy/openwebui-budgets/admin_tools.py) |
 | Service tasks | `employee_budget_service` / [service_pipe.py](../../deploy/openwebui-budgets/service_pipe.py) для согласованных задач |
+| OCR Event | существующий OCR Function / [luna_pdf_ocr.py](../../deploy/openwebui-functions/luna_pdf_ocr.py), с общими budget modules |
 
 Проверить source/ACL readback, включить Filter/Action и, если используется,
 service Pipe; прочитать `is_active` обратно. Filter/Action прикрепить к согласованным
@@ -169,6 +175,14 @@ Tool Valves `managed_model_ids` содержат выбранные native Model
 проверить разрешения на исходную и целевую модель. Месячный шаблон задавать явно,
 не сбрасывая существующие назначения. Лимиты сотрудников задаются готовой формой
 с native подтверждением.
+
+OCR использует тот же common `service_payer_id` без зависимости от `target_model_id`
+служебного Pipe; выбранная OCR-модель остаётся прежней. Это отдельная операция над
+файлом, поэтому её расходы не добавляются к личной стоимости ответа/чата. В native
+Responses 0.12.2 `TASK` может быть пустым: служебного плательщика разрешает только
+проверенная подпись `document_ocr`, связанная с actor, File и точным model alias.
+Произвольные body metadata, старый chat-service token без TASK и неподписанный вызов
+такого разрешения не дают.
 
 Все согласованные LLM connections, включая Responses, должны использовать общий
 gateway bearer и native headers `X-OpenWebUI-User-Id: {{USER_ID}}`,

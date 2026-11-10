@@ -434,9 +434,201 @@ async def stream_ledger(args, state, gateway, receipt):
                     receipt.update(provider_control_restored=True, provider_terminal=True)
 
 
+async def file_service(args, state, gateway, receipt):
+    """Actual native finance seam with finite 'Hi'; no OCR/PDF recognition proof."""
+    import asyncio
+    import time
+    from dataclasses import replace
+    from uuid import uuid4
+    from aiohttp import ClientSession, ClientTimeout
+    from employee_budget_admin_client import BudgetAdminClient
+    from litellm_auth import PROVENANCE_FIELD, USER_ID_HEADER
+    from provenance import encode_service_operation, decode_service_operation, validate_persisted_service_scope
+    from prove_native_budgets import BUDGET_EXCEEDED_STATUS, protected_r
+
+    # First two added rows of prove_pricing_usage.configuration(base, 'v1').
+    # Fixed expected fixture terms, never an alternate runtime cost calculator.
+    aliases = ("goal584-usage", "goal584-usage-absent")
+    wires = ("goal584-fake-usage", "goal584-fake-usage-absent")
+    cost = Decimal(".166")
+    native = NativeProof(args.base_url, state["operator_token"], 5, receipt)
+    actor, payer, file_id = (str(uuid4()) for _ in range(3))
+    deadline = time.monotonic() + 90
+    receipt.update(stage="preflight", users=[actor, payer],
+        scope="actual_native_signed_file_service_finance_no_WebUI_or_OCR_recognition",
+        not_qualified=["actual_WebUI_File_ownership", "OCR_recognition", "full_PDF", "GUI", "production"],
+        provider_boundary="finite_nonstream_Hi_existing_synthetic_Responses_provider")
+    baseline = None
+    cap_changed = False
+    async with ClientSession(trust_env=False, timeout=ClientTimeout(total=5)) as session:
+        admin = BudgetAdminClient(session, args.base_url, state["operator_token"])
+
+        def native_window():
+            native.poll_deadline = min(deadline, time.monotonic() + 5)
+
+        async def provider():
+            async with session.get("http://provider:8000/__proof/requests", allow_redirects=False) as response:
+                raw = await response.content.read(2 * 1024 * 1024 + 1)
+                require(response.status == 200 and len(raw) <= 2 * 1024 * 1024, "file_service_provider_transport")
+                return json.loads(raw)
+
+        async def routing():
+            native_window()
+            rows = native.ok("GET", "/model/info").get("data", [])
+            for alias, wire in zip(aliases, wires):
+                found = [row for row in rows if row.get("model_name") == alias]
+                require(len(found) == 1, "file_service_ambiguous_route")
+                params, info = found[0].get("litellm_params", {}), found[0].get("model_info", {})
+                require(params.get("model") == "openai/" + wire
+                    and params.get("api_base") == "http://provider:8000/v1"
+                    and info.get("id") == alias + "-v1" and info.get("mode") == "responses"
+                    and all(info.get(k) == v for k, v in {
+                        "input_cost_per_token": .01, "output_cost_per_token": .02,
+                        "cache_read_input_token_cost": .001, "output_cost_per_reasoning_token": .03}.items()),
+                    "file_service_route_or_rates")
+
+        def snapshot(uid, budget):
+            native_window()
+            user = native.user_info(uid)
+            keys = {m.model: native.ok("GET", "/key/info", query={"key": m.key_hash})["info"] for m in budget.models}
+            return user, keys
+
+        def request(alias):
+            token = encode_service_operation(gateway, user_id=actor, payer_id=payer, file_id=file_id, model=alias)
+            claims = decode_service_operation(token, gateway, user_id=actor, model=alias)
+            body = {"model": alias, "input": "Hi", "max_output_tokens": 16, "store": False, "stream": False,
+                    "litellm_metadata": {PROVENANCE_FIELD: token}}
+            native_window()
+            # Raw native Responses has no TASK header; the signed operation selects service scope.
+            status, payload, _ = native.request("POST", "/v1/responses", token=gateway, body=body,
+                                               extra_headers={USER_ID_HEADER: actor})
+            return status, payload, claims
+
+        async def settled(alias, claims, budget, *, unknown=False):
+            async with asyncio.timeout(min(args.timeout, 30)):
+                while True:
+                    observed = await asyncio.wait_for(admin.read_service(payer), timeout=5)
+                    native_window()
+                    found = []
+                    for row in native.logs(payer):
+                        metadata = row.get("metadata") or {}
+                        if isinstance(metadata, str): metadata = json.loads(metadata)
+                        scope = metadata.get("spend_logs_metadata", {}).get("owui_budget", {})
+                        if scope.get("call_id") == claims["jti"]: found.append((row, metadata, scope))
+                    target = next(m for m in observed.models if m.model == alias)
+                    if found and (target.blocked is True if unknown else
+                                  observed.spend == cost and target.spend == cost):
+                        break
+                    await asyncio.sleep(.2)
+            require(len(found) == 1, "file_service_duplicate_row")
+            row, metadata, scope = found[0]
+            key_hash = next(m.key_hash for m in budget.models if m.model == alias)
+            require(validate_persisted_service_scope(scope) == {
+                "schema": 1, "user_id": payer, "actor_id": actor, "file_id": file_id,
+                "call_id": claims["jti"], "model": alias, "category": "service", "task": "document_ocr"}
+                and row.get("user") == payer and row.get("api_key") == key_hash
+                and row.get("model_group") == alias and row.get("model_id") == alias + "-v1"
+                and row.get("session_id") == "owui-service:file:" + file_id,
+                "file_service_native_row_binding")
+            own = [g for g in metadata.get("guardrail_information", []) if isinstance(g, dict)
+                   and g.get("guardrail_name") == "owui_budget_usage"]
+            if unknown:
+                require(len(own) == 1 and own[0].get("guardrail_action") == "block"
+                    and own[0].get("violation_categories") == ["usage_unavailable"], "file_service_unknown_marker")
+            else:
+                require(row.get("status") == "success" and close_amount(row.get("spend"), cost)
+                    and (row.get("prompt_tokens"), row.get("completion_tokens"), row.get("total_tokens")) == (10, 5, 15),
+                    "file_service_known_native_cost_usage")
+            receipt.setdefault("native_rows", []).append({"model": alias, "scope": scope, "key_hash": key_hash,
+                "full_row_sha256": hashlib.sha256(json.dumps(row, sort_keys=True).encode()).hexdigest(),
+                "outcome": "usage_unavailable" if unknown else "known_usage", **({} if unknown else {"spend_usd": str(cost)})})
+            return observed
+
+        try:
+            async with asyncio.timeout(90):
+                native_window();native.schema()
+                await routing()
+                baseline = await provider()
+                require(baseline.get("synthetic") is True and baseline.get("requests") == []
+                    and baseline.get("control", {}).get("response_status") in (None, 200)
+                    and all(not baseline["control"].get(k) for k in
+                        ("tool_round", "admin_mode", "title_mode", "native_tasks_mode", "delay_ms",
+                         "before_first_chunk_delay_ms", "after_first_chunk_delay_ms")), "file_service_fresh_provider")
+                budget = await asyncio.wait_for(admin.initialize_employee(payer,
+                    tuple((a, Decimal(1)) for a in aliases), Decimal(2), gateway, before_write=routing), timeout=5)
+                employee = await asyncio.wait_for(admin.initialize_employee(actor,
+                    tuple((a, Decimal(1)) for a in aliases), Decimal(2), gateway, before_write=routing), timeout=5)
+                before_user, before_keys = snapshot(payer, budget)
+                employee_user, employee_keys = snapshot(actor, employee)
+                native_window();require(not native.logs(payer) and not native.logs(actor), "file_service_fresh_history")
+                status, result, claims = request(aliases[0])
+                usage = result.get("usage") or {}
+                require(status == 200 and all(type(usage.get(k)) is int and usage[k] == v for k, v in
+                    {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}.items())
+                    and usage.get("input_tokens_details", {}).get("cached_tokens") == 6
+                    and usage.get("output_tokens_details", {}).get("reasoning_tokens") == 2,
+                    "file_service_known_response_usage")
+                known = await settled(aliases[0], claims, budget)
+                require(known == replace(budget, spend=cost, models=tuple(
+                    replace(m, spend=cost) if m.model == aliases[0] else m for m in budget.models)),
+                    "file_service_known_native_counters")
+                require(len((await provider())["requests"]) == 1, "file_service_known_dispatch")
+                cap_changed = True
+                await asyncio.wait_for(admin.set_user_cap(payer, Decimal(0)), timeout=5)
+                status, denied, _ = request(aliases[0])
+                require(status == BUDGET_EXCEEDED_STATUS and denied.get("error", {}).get("type") == "budget_exceeded"
+                    and len((await provider())["requests"]) == 1, "file_service_cap_denial_dispatched")
+                await asyncio.wait_for(admin.set_user_cap(payer, Decimal(2)), timeout=5)
+                cap_changed = False
+                status, result, claims = request(aliases[1])
+                require(status == 200, "file_service_absent_response")
+                observed = await settled(aliases[1], claims, budget, unknown=True)
+                target = next(m for m in observed.models if m.model == aliases[1])
+                require(observed.spend >= known.spend and target.spend >= next(
+                    m.spend for m in known.models if m.model == aliases[1]), "file_service_native_counters_decreased")
+                require(observed == replace(known, spend=observed.spend, models=tuple(
+                    replace(m, blocked=True, spend=target.spend) if m.model == aliases[1] else m for m in known.models)),
+                    "file_service_only_platform_target_changed")
+                status, denied, _ = request(aliases[1])
+                require(status == 401 and denied.get("error", {}).get("type") == "auth_error",
+                        "file_service_blocked_key_denial")
+                observations = (await provider())["requests"]
+                require(len(observations) == 2 and all(r.get("route") == "/v1/responses"
+                    and r.get("body", {}).get("model") == wire
+                    and r["body"].get("input") == "Hi" and r["body"].get("stream", False) is False
+                    and PROVENANCE_FIELD not in json.dumps(r["body"])
+                    for r, wire in zip(observations, wires)), "file_service_provider_boundary_or_denial_dispatch")
+                require(observations[1].get("usage") is None
+                    and isinstance(observations[1].get("response"), dict)
+                    and "usage" not in observations[1]["response"], "file_service_raw_usage_not_absent")
+                after_user, after_keys = snapshot(payer, budget)
+                for alias in aliases:
+                    expected = protected_r(before_user, before_keys[alias])
+                    if alias == aliases[1]: expected["key"]["blocked"] = True
+                    require(protected_r(after_user, after_keys[alias]) == expected, "file_service_caps_or_control_changed")
+                require(snapshot(actor, employee) == (employee_user, employee_keys)
+                    and await asyncio.wait_for(admin.read_service(actor), timeout=5) == employee,
+                    "file_service_employee_changed")
+                native_window();require(not native.logs(actor), "file_service_employee_charged")
+                receipt.update(stage="verified", known_call_cost_usd=str(cost), known_usage=[10, 5, 15],
+                    cap_denied_without_dispatch=True, unknown_blocks_only_platform_alias=True,
+                    repeat_denied_without_dispatch=True, employee_and_control_preserved=True, provider_dispatches=2)
+        finally:
+            async with asyncio.timeout(12):
+                if cap_changed:
+                    await asyncio.wait_for(admin.set_user_cap(payer, Decimal(2)), timeout=5)
+                    receipt["platform_cap_restored"] = True
+                if baseline is not None:
+                    final = await provider()
+                    require(final["control"] == baseline["control"] and all(
+                        r.get("lifecycle", {}).get("terminal") is True for r in final.get("requests", [])),
+                        "file_service_provider_not_terminal_or_control_changed")
+                    receipt.update(provider_controls_unchanged=True, provider_terminal=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("bootstrap", "run", "restart", "stream-ledger"))
+    parser.add_argument("--phase", required=True, choices=("bootstrap", "run", "restart", "stream-ledger", "file-service"))
     parser.add_argument("--private-state", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--base-url", default="http://127.0.0.1:4000")
@@ -454,16 +646,17 @@ def main():
         require(math.isfinite(args.timeout) and 1 <= args.timeout <= 120, "Invalid persistence timeout")
         require(args.private_state.resolve() != args.receipt.resolve(), "Private state and safe receipt must differ")
         master = os.environ.get("PROOF_MASTER_KEY")
-        require(bool(master) or args.phase == "stream-ledger", "PROOF_MASTER_KEY is required")
+        require(bool(master) or args.phase in ("stream-ledger", "file-service"), "PROOF_MASTER_KEY is required")
         if args.phase == "bootstrap":
             bootstrap(args, master, receipt)
-        elif args.phase == "stream-ledger":
+        elif args.phase in ("stream-ledger", "file-service"):
             import asyncio
             state = read_private(args.private_state)
             require(state.get("stage") == "bootstrap_complete", "Private proof state has the wrong phase")
             gateway = os.environ.get("OWUI_BUDGET_GATEWAY_SECRET")
             require(bool(gateway) and gateway != state.get("operator_token"), "A distinct gateway secret is required")
-            asyncio.run(stream_ledger(args, state, gateway, receipt))
+            phase = stream_ledger if args.phase == "stream-ledger" else file_service
+            asyncio.run(phase(args, state, gateway, receipt))
         else:
             state = read_private(args.private_state)
             required_stage = "bootstrap_complete" if args.phase == "run" else "run_complete"

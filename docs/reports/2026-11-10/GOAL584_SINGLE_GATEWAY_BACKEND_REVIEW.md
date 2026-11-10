@@ -93,14 +93,28 @@ TemporaryDirectory автоматически удалены. Независим
 installer/verifier owners, известные upstream issue/PR и условия снятия патчей.
 Для существующих OpenWebUI0.12.2 overlays отдельно отмечено source-build known /
 current runtime UNVERIFIED. Новых core patches этого GOAL нет.
-Подготовлены локальные безопасные upstream drafts; публикаций не было.
+Подготовлены [безопасные upstream drafts](GOAL584_LITELLM_UPSTREAM_DRAFTS.md);
+публикаций не было.
 
-**Нужен выбор плательщика OCR вне чата:** служебный бюджет платформы или личный
-бюджет загрузившего файл сотрудника. Нельзя выдавать file ID за chat/answer ID.
-После решения нужен минимальный общий способ авторизовать и учитывать standalone
-extraction с сохранением raw Responses/PDF contract, затем проверка этой границы.
-До этого strict gateway должен отказать неподписанному OCR до provider dispatch;
-это защита от обхода, но не готовая поддержка активного OCR после cutover.
+**Плательщик OCR выбран пользователем: служебный бюджет платформы.** В исходниках
+добавлена операция `document_ocr` к существующему подписанному service scope с
+реальным File ID и запустившим распознавание actor. Chat/answer root не создаётся.
+Common настройки платформы вынесены из service Pipe в уже существующий общий
+модуль; OCR и фоновые задачи читают одного владельца конфигурации. OCR сохраняет
+raw native Responses, File ACL и полный PDF/instruction/schema. Шлюз выбирает
+служебное native назначение по проверенной подписи, включая native Responses с
+пустым TASK; неподписанные и неподходящие вызовы не проходят к провайдеру.
+
+При неизвестной Usage существующая проверка блокирует соответствующий native
+ключ модели платформы. Личные ключи сотрудника и старые chat-service правила
+не меняются; отдельного расчёта денег, журнала или core patch не добавлено.
+Локально: 86 OCR/service Pipe тестов без пропусков; 50 provenance/auth PASS и один
+optional pinned-native buffered admission skip в лёгком venv; шесть выбранных
+проверок guard с настоящим LiteLLM1.105.1 PASS.
+Фактический converter/Form из pinned WebUI0.12.2 исполнен: PDF, instruction и schema
+сохранены, добавлен только carrier подписи. Внешние File/User/HTTP owners в этих
+проверках заменены явными fixtures; это не native DB или продуктовая GUI-приёмка.
+Остаток — ограниченная проверка новой финансовой связи на существующем стенде.
 
 Также до реального включения необходимо классифицировать connection3, подготовить
 approved native каталог/права/цены/лимиты и квалифицировать выбранный target.

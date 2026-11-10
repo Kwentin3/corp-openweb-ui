@@ -4,6 +4,28 @@ Check existing server model/cache/config owners; no catalog or inference calls.
 Callers retain their guards and receive the selected native key/wire model.
 """
 
+from uuid import UUID
+
+
+async def service_configuration(user_id, *, require):
+    """Common platform payer settings owned by employee_budget_cost Valves."""
+    from open_webui.models.functions import Functions
+    from open_webui.models.users import Users
+
+    common = await Functions.get_function_valves_by_id("employee_budget_cost")
+    require(isinstance(common, dict), "configuration_unavailable")
+    url, payer = common.get("ledger_base_url"), common.get("service_payer_id")
+    require(isinstance(url, str) and bool(url) and url == url.strip(), "invalid_configuration")
+    try:
+        valid = isinstance(payer, str) and str(UUID(payer)) == payer
+    except (ValueError, TypeError, AttributeError):
+        valid = False
+    require(valid and payer != user_id, "invalid_configuration")
+    # Absence is authoritative only when native Users succeeds. Another WebUI
+    # employee must never become the platform service counter.
+    require(await Users.get_user_by_id(payer) is None, "personal_payer_forbidden")
+    return url, payer
+
 
 async def native_connection(body, model, request, ledger_base_url, *, require):
     from open_webui.models.models import Models

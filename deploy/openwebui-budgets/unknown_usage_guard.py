@@ -1,4 +1,4 @@
-"""Native post-call primitive for unavailable personal Responses/nonstream CC Usage.
+"""Native post-call policy for unavailable personal/file-service model Usage.
 
 Registration/operator-key factory belong to the server composition root. This
 module never registers itself, prices a response, changes Usage or owns a ledger.
@@ -64,8 +64,8 @@ class UnknownUsageGuard(CustomGuardrail):
         if not scopes or any(scope != scopes[0] for scope in scopes):
             raise ValueError("unsupported_usage_guard_scope")
         if isinstance(scopes[0], dict) and scopes[0].get("category") == "service":
-            validate_persisted_service_scope(scopes[0])
-            return None
+            scope = validate_persisted_service_scope(scopes[0])
+            return scope if scope["task"] == "document_ocr" else None
         return validate_persisted_scope(scopes[0])
 
     @log_guardrail_information

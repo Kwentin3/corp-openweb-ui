@@ -46,6 +46,7 @@ CHAT = "3f1971cc-ecae-4544-9dcd-f04916c342ba"
 ANSWER = "5c493c1d-89fc-49b2-8707-0bf2fb31567a"
 ROOT_CHAT = "738b78d7-23ac-4696-8b58-7af9244eb44c"
 ROOT_ANSWER = "aaf0df2e-3fba-48d0-a55f-028a2f6eb854"
+FILE = "54a17b61-3e1d-4a64-93f8-390878c6a37d"
 MODEL = "goal584-a"
 
 
@@ -472,6 +473,50 @@ class ServiceProtocolTests(unittest.TestCase):
                     self.decode(call(), task=task)
 
 
+
+class ServiceOperationTests(unittest.TestCase):
+    def token(self, **changes):
+        return protocol.encode_service_operation(SECRET, **(dict(
+            user_id=USER, payer_id=OTHER, file_id=FILE, model=MODEL) | changes))
+
+    def test_file_service_is_exact_and_separate_from_chat_and_personal_contracts(self):
+        token = self.token()
+        claims = protocol.decode_service_operation(token, SECRET, user_id=USER, model=MODEL)
+        self.assertEqual((claims["sub"], claims["payer_id"], claims["file_id"], claims["task"]),
+                         (USER, OTHER, FILE, "document_ocr"))
+        self.assertEqual(set(claims), protocol._COMMON | {"payer_id", "file_id", "model", "task"})
+        self.assertEqual(protocol.SERVICE_TASKS, {"title_generation", "tags_generation", "follow_up_generation"})
+        scope = {"schema": 1, "user_id": OTHER, "actor_id": USER, "file_id": FILE,
+                 "call_id": claims["jti"], "model": MODEL, "category": "service", "task": "document_ocr"}
+        self.assertEqual(protocol.validate_persisted_service_scope(scope), scope)
+        for changed in (scope | {"chat_id": CHAT}, scope | {"file_id": "not-canonical"},
+                        scope | {"user_id": USER}, scope | {"task": "title_generation"}):
+            with self.subTest(scope=changed), self.assertRaises(protocol.ProtocolError):
+                protocol.validate_persisted_service_scope(changed)
+        for decode in (lambda: protocol.decode_call(token, SECRET, user_id=USER, model=MODEL),
+                       lambda: protocol.decode_service_call(token, SECRET, user_id=USER, model=MODEL, task="document_ocr"),
+                       lambda: protocol.decode_service_operation(protocol.encode_service_call(SECRET, user_id=USER,
+                           payer_id=OTHER, chat_id=CHAT, model=MODEL, task="title_generation"),
+                           SECRET, user_id=USER, model=MODEL)):
+            with self.assertRaises(protocol.ProtocolError):decode()
+
+    def test_file_service_rejects_invalid_signature_scope_identity_and_time(self):
+        token = self.token()
+        claims = protocol.decode_service_operation(token, SECRET, user_id=USER, model=MODEL)
+        for changes in ({"payer_id": USER}, {"file_id": FILE.upper()}, {"task": "title_generation"},
+                        {"ttl_seconds": 0}, {"ttl_seconds": protocol.CALL_TTL + 1}):
+            with self.subTest(changes=changes), self.assertRaises(protocol.ProtocolError):self.token(**changes)
+        for changes in ({"chat_id": CHAT}, {"answer_id": ANSWER}, {"file_id": "bad"}, {"schema": True},
+                        {"task": "unknown"}, {"aud": protocol.CALL_AUDIENCE}, {"exp": claims["iat"] - 1}):
+            bad = jwt.encode(claims | changes, SECRET, algorithm="HS256")
+            with self.subTest(changes=changes), self.assertRaises(protocol.ProtocolError):
+                protocol.decode_service_operation(bad, SECRET, user_id=USER, model=MODEL)
+        for args in ((token, SECRET + "wrong", USER, MODEL), (token, SECRET, OTHER, MODEL),
+                     (token, SECRET, USER, "foreign"), (token + "tampered", SECRET, USER, MODEL)):
+            with self.subTest(args=args[2:]), self.assertRaises(protocol.ProtocolError):
+                protocol.decode_service_operation(args[0], args[1], user_id=args[2], model=args[3])
+
+
 class ServiceBoundaryTests(unittest.TestCase):
     def token(self, **changes):
         fields = dict(user_id=USER, payer_id=OTHER, chat_id=CHAT, model=MODEL, task="title_generation")
@@ -758,6 +803,58 @@ class ServiceGatewayTests(unittest.TestCase):
         self.assertEqual(data["metadata"]["spend_logs_metadata"]["owui_budget"]["actor_id"], USER)
         self.assertEqual(data["messages"], [{"role": "user", "content": "actual task context"}])
         self.assertNotIn(token, json.dumps(data))
+
+    def test_signed_file_operation_without_task_header_selects_platform_and_preserves_provider_context(self):
+        token = protocol.encode_service_operation(SECRET, user_id=USER, payer_id=OTHER, file_id=FILE, model=MODEL)
+        for task in (None, "", "document_ocr"):
+            provider_metadata = {"task": "document_ocr", "file_id": FILE}
+            supplied = {"model": MODEL, "input": [{"role": "user", "content": [{"type": "input_file",
+                        "file_data": "data:application/pdf;base64,c3ludGhldGlj"}]}],
+                        "instructions": "exact OCR instruction", "text": {"format": {"type": "json_schema"}},
+                        "store": False, "stream": False, "metadata": provider_metadata.copy(),
+                        "litellm_metadata": {"owui_budget_provenance": token}}
+            result, events, data = self.run_gateway(token=token, task=task, route="/v1/responses", supplied_data=supplied)
+            with self.subTest(task=task):
+                self.assertNotIsInstance(result, HTTPException)
+                self.assertEqual(result.user_id, OTHER)
+                self.assertEqual(next(v for n, v in events if n == "assignment")["where"]["user_id"], OTHER)
+                self.assertEqual(sum(n == "validate" for n, _ in events), 1)
+                self.assertEqual(data["metadata"], provider_metadata)
+                self.assertEqual(data["instructions"], "exact OCR instruction")
+                self.assertFalse(data["store"])
+                scope = protocol.validate_persisted_service_scope(data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"])
+                self.assertEqual((scope["actor_id"], scope["user_id"], scope["file_id"]), (USER, OTHER, FILE))
+                self.assertNotIn("chat_id", scope)
+                self.assertNotIn("owui_budget_provenance", data["litellm_metadata"])
+                self.assertEqual(data["litellm_session_id"], "owui-service:file:" + FILE)
+
+    def test_file_operation_rejects_foreign_unsigned_chat_audience_and_stream_before_native_validation(self):
+        token = protocol.encode_service_operation(SECRET, user_id=USER, payer_id=OTHER, file_id=FILE, model=MODEL)
+        for kwargs in ({"token": "invalid"}, {"token": token, "actor": OTHER},
+                       {"token": token, "body_model": "foreign", "native_model": "foreign"},
+                       {"token": call()}, {"token": token, "task": "title_generation"},
+                       {"token": token, "task": "sub_agent"},
+                       {"token": token, "supplied_data": {"model": MODEL, "stream": True,
+                           "litellm_metadata": {"owui_budget_provenance": token}}}):
+            params = {"task": "document_ocr", "route": "/v1/responses"} | kwargs
+            result, events, _ = self.run_gateway(**params)
+            with self.subTest(params=kwargs):
+                self.assertIsInstance(result, HTTPException)
+                self.assertEqual(result.status_code, 403)
+                self.assertFalse(any(n == "validate" for n, _ in events))
+
+    def test_file_operation_runs_existing_buffered_profile_admission(self):
+        token = protocol.encode_service_operation(SECRET, user_id=USER, payer_id=OTHER, file_id=FILE, model=MODEL)
+        def admission(request, data, identity, router, route):
+            self.assertEqual((identity.user_id, route, data["stream"]), (OTHER, "/v1/responses", False))
+            raise HTTPException(503, "Synthetic native profile mismatch")
+        with patch.object(auth, "_require_declared_buffered_profile", admission):
+            result, events, _ = self.run_gateway(token=token, task=None, route="/v1/responses",
+                supplied_data={"model": MODEL, "stream": False,
+                               "litellm_metadata": {"owui_budget_provenance": token}})
+        self.assertIsInstance(result, HTTPException)
+        self.assertEqual((result.status_code, result.detail), (503, "Synthetic native profile mismatch"))
+        self.assertEqual(sum(n == "validate" for n, _ in events), 1)
 
     def test_raw_task_and_invalid_service_scope_fail_before_any_assignment(self):
         valid = protocol.encode_service_call(SECRET, user_id=USER, payer_id=OTHER, chat_id=CHAT,

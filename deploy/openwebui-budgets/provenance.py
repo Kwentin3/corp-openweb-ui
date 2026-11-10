@@ -55,7 +55,8 @@ def _model(model: object) -> None:
 
 def _validate(claims: dict, audience: str, limit: int) -> None:
     if audience == SERVICE_AUDIENCE:
-        ids, fields = _SERVICE_IDS, {"model", "task"}
+        ids = {"payer_id", "file_id"} if claims.get("task") == "document_ocr" else _SERVICE_IDS
+        fields = {"model", "task"}
     else:
         _check(audience in (CALL_AUDIENCE, ROOT_AUDIENCE))
         ids = _CALL_IDS if audience == CALL_AUDIENCE else _ROOT_IDS
@@ -71,7 +72,8 @@ def _validate(claims: dict, audience: str, limit: int) -> None:
     if audience in (CALL_AUDIENCE, SERVICE_AUDIENCE):
         _model(claims["model"])
     if audience == SERVICE_AUDIENCE:
-        _check(type(claims["task"]) is str and claims["task"] in SERVICE_TASKS
+        _check(type(claims["task"]) is str
+               and (claims["task"] == "document_ocr" or claims["task"] in SERVICE_TASKS)
                and claims["sub"] != claims["payer_id"])
 
 
@@ -88,10 +90,12 @@ def validate_persisted_scope(scope: object) -> dict:
 
 def validate_persisted_service_scope(scope: object) -> dict:
     """Separate service event representation; never invent an answer/root ID."""
-    ids = {"user_id", "actor_id", "chat_id", "call_id"}
+    resource = "file_id" if isinstance(scope, dict) and scope.get("task") == "document_ocr" else "chat_id"
+    ids = {"user_id", "actor_id", resource, "call_id"}
     _check(isinstance(scope, dict) and set(scope) == ids | {"schema", "model", "category", "task"})
     _check(type(scope["schema"]) is int and scope["schema"] == 1 and scope["category"] == "service"
-           and type(scope["task"]) is str and scope["task"] in SERVICE_TASKS)
+           and type(scope["task"]) is str
+           and (scope["task"] == "document_ocr" or scope["task"] in SERVICE_TASKS))
     for name in ids:
         _uuid(scope[name])
     _check(scope["user_id"] != scope["actor_id"])
@@ -162,7 +166,25 @@ def encode_service_call(secret: str, *, user_id: str, payer_id: str, chat_id: st
 
 def decode_service_call(token: str, secret: str, *, user_id: str, model: str, task: str) -> dict:
     claims = _decode(token, secret, SERVICE_AUDIENCE, CALL_TTL)
-    _check(claims["sub"] == user_id and claims["model"] == model and claims["task"] == task)
+    _check("chat_id" in claims and claims["sub"] == user_id
+           and claims["model"] == model and claims["task"] == task)
+    return claims
+
+
+
+def encode_service_operation(secret: str, *, user_id: str, payer_id: str, file_id: str,
+                             model: str, task: str = "document_ocr", now: int | None = None,
+                             ttl_seconds: int = CALL_TTL) -> str:
+    """Sign the existing platform service payer against a real non-chat file."""
+    return _encode(secret, audience=SERVICE_AUDIENCE, limit=CALL_TTL, user_id=user_id,
+                   scope={"payer_id": payer_id, "file_id": file_id, "model": model, "task": task},
+                   ttl_seconds=ttl_seconds, now=now)
+
+
+def decode_service_operation(token: str, secret: str, *, user_id: str, model: str) -> dict:
+    claims = _decode(token, secret, SERVICE_AUDIENCE, CALL_TTL)
+    _check(claims["task"] == "document_ocr" and "file_id" in claims
+           and claims["sub"] == user_id and claims["model"] == model)
     return claims
 
 

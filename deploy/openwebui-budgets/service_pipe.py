@@ -20,7 +20,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from employee_budget_provenance import SERVICE_TASKS
-from employee_budget_webui_model_binding import native_connection
+from employee_budget_webui_model_binding import native_connection, service_configuration
 
 
 FUNCTION_ID = "employee_budget_service"
@@ -117,20 +117,13 @@ async def authorized_actor(user_id, chat_id):
 
 async def configuration(user_id):
     from open_webui.models.functions import Functions
-    from open_webui.models.users import Users
 
     own = await Functions.get_function_valves_by_id(FUNCTION_ID)
-    common = await Functions.get_function_valves_by_id("employee_budget_cost")
-    require(isinstance(own, dict) and isinstance(common, dict), "configuration_unavailable")
-    target, url = own.get("target_model_id"), common.get("ledger_base_url")
+    require(isinstance(own, dict), "configuration_unavailable")
+    target = own.get("target_model_id")
     require(isinstance(target, str) and 0 < len(target) <= 256 and target == target.strip()
-            and all(ord(char) >= 32 for char in target)
-            and isinstance(url, str) and bool(url) and url == url.strip(), "invalid_configuration")
-    payer = canonical_id(common.get("service_payer_id"))
-    require(payer != user_id, "invalid_configuration")
-    # Native Users returns None only for an absent primary key; lookup errors
-    # propagate. Another WebUI employee must never become the service counter.
-    require(await Users.get_user_by_id(payer) is None, "personal_payer_forbidden")
+            and all(ord(char) >= 32 for char in target), "invalid_configuration")
+    url, payer = await service_configuration(user_id, require=require)
     return target, url, payer
 
 
