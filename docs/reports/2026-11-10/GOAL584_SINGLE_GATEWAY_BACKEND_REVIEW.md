@@ -62,9 +62,18 @@ legacy-only Usage callback мог пропустить CC streaming policy; об
 сохранить provider Authorization в headers; теперь pending config содержит только
 enable=false, исходный snapshot не меняется.
 
+Продолжение source review после6cf74f71 выявило B3: callbacks установлены, но
+Responses alias с отсутствующим/true supports_native_streaming проходил подготовку.
+Runtime guard для такого профиля записывает not_run; это подтверждено существующим
+native component case. Managed Responses теперь требует прежний квалифицированный
+OpenAI-compatible buffered-upstream профиль: mode=responses,
+supports_native_streaming=false, openai/<wire model> и отсутствие другого custom
+provider override. WebUI SSE/Tools и содержимое запросов не меняются. Проверка
+ограничена matched UI aliases, extra approved embedding/audio rows не затронуты.
+
 ## Проверки и границы доказательства
 
-8 focused unittest PASS, включая28 negative projection subcases, за0.020s.
+9 focused unittest PASS, включая33 negative projection subcases, за0.020s.
 Проверены all-enabled projection, protocol/prefix preservation, native-vs-Workspace
 catalog, exact approved config bytes, separated credentials, hidden inactive keys,
 однозначность aliases/цен и отсутствие apply/start. Native GET/Docker/POSIX metadata

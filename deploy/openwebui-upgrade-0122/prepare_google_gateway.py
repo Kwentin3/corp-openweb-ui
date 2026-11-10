@@ -304,7 +304,7 @@ def project_managed(source, models, inference_bearer, gateway_config):
                 and name not in approved and isinstance(params, dict)
                 and isinstance(params.get('model'), str) and bool(params['model'])
                 and '*' not in params['model'], 'Approved native model aliases must be explicit and unique')
-        approved[name] = info
+        approved[name] = (info, params)
     require(isinstance(models, dict) and isinstance(models.get('data'), list)
             and all(isinstance(item, dict) for item in models['data']), 'Unexpected native model catalog')
     catalogs, owners, wire_owners = {}, set(), set()
@@ -346,13 +346,20 @@ def project_managed(source, models, inference_bearer, gateway_config):
                 and (not configured or set(configured) == set(wires)), label + ' configured catalog differs')
         mode = 'responses' if config.get('api_type') == 'responses' else 'chat'
         for wire in wires:
-            require(wire and wire not in wire_owners and wire in approved and isinstance(approved[wire], dict)
-                    and approved[wire].get('mode') == mode,
+            require(wire and wire not in wire_owners and wire in approved,
                     label + ' has duplicate, unpriced or protocol-incompatible wire models')
-            require(all(type(approved[wire].get(field)) in (int, float)
-                        and math.isfinite(approved[wire][field]) and approved[wire][field] >= 0
+            info, params = approved[wire]
+            require(isinstance(info, dict) and info.get('mode') == mode,
+                    label + ' has duplicate, unpriced or protocol-incompatible wire models')
+            require(all(type(info.get(field)) in (int, float)
+                        and math.isfinite(info[field]) and info[field] >= 0
                         for field in ('input_cost_per_token', 'output_cost_per_token')),
                     label + ' requires approved native input/output token pricing')
+            if mode == 'responses':
+                require(info.get('supports_native_streaming') is False
+                        and params['model'].startswith('openai/')
+                        and params.get('custom_llm_provider') in (None, 'openai'),
+                        label + ' requires the qualified buffered OpenAI Responses profile')
             wire_owners.add(wire)
         headers = config.get('headers', {})
         require(isinstance(headers, dict) and all(isinstance(key, str) and isinstance(value, str)

@@ -31,8 +31,8 @@ MAIN и независимые WIP/worktrees сохраняются. Стары�
 | Маршруты/credentials/fallback | Source review и bounded runtime inventory завершены: прямой Responses, active OCR, inactive Broker; неполный signing у standalone loaders |
 | Финансовый owner и права | Второго денежного owner в budget обвязке не найдено. Native данные баланса есть; employee-self monthly endpoint пока не реализован, UI отдельно |
 | Реестр патчей/upstream | [Реестр](patch-registry.md) готов, existing manifests не дублируются; известные official issue/PR проверены, safe drafts подготовлены без публикации |
-| Минимальные исправления/чистка | Managed mode существующего prepare_google_gateway.py готов; source/config-only review PASS. Убраны legacy-only stream policy и скрытые credentials inactive slot |
-| Приёмка | 8 focused unittest/28 negative subcases PASS0.020s, temporary dirs удалены; новый CI/provider/GUI не запускался. OCR seam ещё не принят |
+| Минимальные исправления/чистка | Managed mode существующего prepare_google_gateway.py готов; убраны legacy-only stream policy и скрытые credentials inactive slot. Responses config ограничен фактически квалифицированным buffered-upstream профилем |
+| Приёмка | 9 focused unittest/33 negative subcases PASS0.020s; независимый source readback Responses profile delta PASS; temporary dirs удалены. Новый CI/provider/GUI не запускался; OCR seam ещё не принят |
 
 Обязательный остаток: определить плательщика active OCR без chat/answer root,
 подключить его через минимальную общую native boundary без потери raw Responses,
@@ -44,6 +44,11 @@ MAIN и независимые WIP/worktrees сохраняются. Стары�
 non-chat принадлежность через существующий native owner и проверить её адресно.
 Неизвестный connection3 подлежит классификации перед реальным включением;
 managed preparation уже отклоняет неоднозначные active entries.
+Продолжение после6cf74f71: обнаружен B3 — одного mode=responses/набора callbacks
+недостаточно: без supports_native_streaming=false native Responses policy отмечала
+проверку not_run. Подготовка теперь требует прежний принятый OpenAI buffered profile,
+не меняя request payload, WebUI stream или runtime callback. Прежние квалифицированные
+SDK/DB доказательства применимы к этому же профилю; новую broad-матрицу не запускать.
 
 [Предварительный backend-итог](../reports/2026-11-10/GOAL584_SINGLE_GATEWAY_BACKEND_REVIEW.md).
 Служебные обзоры находятся в local/goal584/single-gateway/; это evidence, не второй план.

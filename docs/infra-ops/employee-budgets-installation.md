@@ -113,6 +113,12 @@ CC generator в общий cleanup; исходный floor patch проверя�
 Env содержит разные master/operator/shared inference keys и native DATABASE_URL.
 Обязателен профиль обоих `budget_runtime.responses_handler` и
 `budget_runtime.cc_stream_handler`; legacy handler к этому списку не добавляется.
+Для managed Responses alias требуется уже квалифицированный native профиль:
+`model_info.mode=responses`, `supports_native_streaming=false` и
+`litellm_params.model=openai/<wire model>` без другого custom provider override.
+LiteLLM получает полный upstream HTTP response; WebUI сохраняет SSE/Tools.
+Подготовка отклоняет иной профиль, поскольку наличие callbacks само по себе
+не включает проверку Usage в неподдерживаемой streaming-ветке.
 
 Managed-подготовка читает native `/openai/models`, сохраняет API type Responses/CC,
 prefix и разрешённые metadata headers, направляет все enabled connection slots

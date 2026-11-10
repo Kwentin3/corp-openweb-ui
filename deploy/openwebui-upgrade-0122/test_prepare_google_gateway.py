@@ -36,6 +36,7 @@ def fixture():
                                     'database_url': 'os.environ/DATABASE_URL', 'custom_auth': 'litellm_auth.gateway_auth',
                                     'custom_auth_run_common_checks': True, 'fail_closed_budget_enforcement': True,
                                     'disable_spend_logs': False, 'missing_session_id': 'omit'}}
+    gateway['model_list'][0]['model_info']['supports_native_streaming'] = False
     return source, models, gateway
 
 
@@ -80,6 +81,21 @@ class ManagedProjection(unittest.TestCase):
         self.assertEqual(gateway, before)
         self.assertEqual(set(catalogs), {0, 1, 2, 4})
         self.assertNotIn('native-embedding-example', json.dumps(pending))
+
+    def test_responses_requires_qualified_buffered_native_profile(self):
+        changes = {
+            'missing': lambda row: row['model_info'].pop('supports_native_streaming'),
+            'native-stream': lambda row: row['model_info'].update(supports_native_streaming=True),
+            'null': lambda row: row['model_info'].update(supports_native_streaming=None),
+            'provider-model': lambda row: row['litellm_params'].update(model='azure/example'),
+            'provider-override': lambda row: row['litellm_params'].update(custom_llm_provider='azure'),
+        }
+        for name, change in changes.items():
+            with self.subTest(name=name):
+                source, models, gateway = fixture()
+                change(gateway['model_list'][0])
+                with self.assertRaisesRegex(RuntimeError, 'qualified buffered OpenAI Responses profile'):
+                    owner.project_managed(source, models, 'sk-inference-example', gateway)
 
     def test_unclassified_enabled_connection_cannot_survive(self):
         source, models, gateway = fixture()
