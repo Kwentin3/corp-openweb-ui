@@ -113,8 +113,36 @@ provider terminal, native cleanup0 containers/volumes/networks/images.
 Artifact13746955286/656031B/57members, SHA256
 5506830cb70a989d0bab5deb357ad65b87b55916ac1cca723fd3d41871689313;
 скачан один раз, private URL удалён. Evidence `runtime-known-zero-plainchat/`.
-Следующий CI не запущен; сначала разобрать existing producer/consumer contract,
-сохранив рабочий ответ и штатные финансовые проверки.
+Следующая попытка ниже выполнена после разбора existing producer/consumer
+contract, сохранив рабочий ответ и штатные финансовые проверки.
+
+После разбора native nonstream omission запущен ровно один изменённый кандидат:
+[run42784099623](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42784099623),
+source`ee885845456da4a6e19493c42c8a185fc4242125`,08:37:31UTC. Предыдущий run
+terminal/cleanup0;13sourcepins/clean/GitLF/remote ref сверены, других live runs нет.
+Bounds прежние; manual cancel09:22:31UTC/hard09:32:31UTC. Run завершён;
+metadata `runtime-known-zero-native-default/`, проверенный результат ниже.
+
+**Итог этого run: scoped ordinary CC/nonstream Known0 принят root и независимым
+reviewer по actual данным.** Native target row с spend/Usage0 и
+native_zero_confirmed=true, reader_confirmed_zero, обе Details, same-row reload,
+foreign chat401/Action404,3actual PNG, provider restoration/terminal и cleanup0
+подтверждены.13candidate/12runtime hashes совпали exactee885845.
+CI остаётся FAIL: case_passed=true, но finally берёт пустой submitted.chat_id
+нового чата и пропускает native_tasks_terminal. chat() ранее получил actual ID
+из ACK и дождался persistedDone/task_ids=[]; финальный сбой — bookkeeping.
+Source fix2строки использует actual call.chat_id, compile/остальнойAST/diff PASS;
+его новый runtime не запускался. Исходный receipt passed=false не переписан.
+Artifact13748167860/784053B/61members, SHA256
+7c90bace7293885e54b1c8a40077ab493b81f91d458ece2dda7249b65c780b2a;
+скачан1раз/privateURLудалён. Review `runtime-known-zero-native-default/independent-review.md`.
+Повтор ради зелёного статуса не нужен для уже доказанного продуктового факта.
+
+Reuse-аудит `reused-acceptance.md`: Native48 money/caps/admin write/retention и
+Office81 direct-parent accounting применимы в проверенных source boundaries.
+Office81 actual model gpt-5.4-mini, не Sol/Terra. Office106 сохраняет только
+delegation hashes/counts, без полных financial operands; независимый replay
+исправленного proof невозможен. Точный Sol+Terra cost/refusal остаётся непроверенным.
 
 Для общего streaming unknown-Usage10.11 задан один вопрос пользователю: разрешить
 узкую поправку сохранения исходного признака Usage до native нормализации только
@@ -123,6 +151,11 @@ Artifact13746955286/656031B/57members, SHA256
 values, ledger, budgets и маршруты не переписываются. Проверять на существующем
 сценарии known/zero/missing/null и прерывании, без нового стенда/framework.
 Ранее пользователь выбрал «без нового патча»; это разрешение не расширялось.
+Уточнение: ранее выбранный full-upstream buffered Responses в LiteLLM сохраняет
+native streaming/Tools WebUI и имеет scoped Office81 acceptance. Это другой режим,
+чем выключение stream в WebUI (последнее отключает native Tools). Новый вопрос
+касается generic streaming CC; необходимость нового патча для самого Office
+не установлена. Политика на всех рабочих моделях остаётся незакрытой.
 До ответа новые изменения ядра не выполняются. Независимая подготовка поставки
 в прежнем объёме разрешена. Разрешение на production не запрашивалось и не получено.
 
@@ -151,7 +184,8 @@ native Compose merge/interpolation и imports в actual image не провер�
 Это source-подготовка, не runtime acceptance/deployment. Evidence: release-overlay.safe.json,
 release-packaging-review.md. Новые CI/модели/контейнеры/remote probes не запускались.
 
-1. Доказать Known0 на настоящих DB/UI/Details/reload, сохранив UNKNOWN и права.
+1. Сохранить принятую Known0 опору при финальной поставке; повторять только при
+   изменении значимых входов/реализации. Положительный и UNKNOWN путь не сужать.
 2. Закрыть общую unknown policy на согласованных протоколах. Для CC streaming
    raw Usage теряет происхождение счётчиков; nonstream отключает native Tools.
    Готового установленного native решения пока нет; новый core patch не сделан.

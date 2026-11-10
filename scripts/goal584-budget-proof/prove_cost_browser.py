@@ -430,7 +430,7 @@ def run_known_zero(browser, fixture, base_url, accounts):
     armed = {"prompt_tokens": 0, "completion_tokens": 0, "delay_ms": 0, "tool_round": False,
              "admin_mode": False, "title_mode": False, "native_tasks_mode": False,
              "response_status": 200, "after_first_chunk_delay_ms": 0}
-    context = page = token = None
+    context = page = token = call = None
     submitted = []
     def timeout(_signum, _frame):
         raise TimeoutError("Known0 case exceeded four-minute bound")
@@ -557,7 +557,7 @@ def run_known_zero(browser, fixture, base_url, accounts):
         signal.signal(signal.SIGALRM, old_signal)
         try:
             if page is not None and token and submitted:
-                chat_id = submitted[0].get("chat_id")
+                chat_id = call["chat_id"] if call is not None else submitted[0].get("chat_id")
                 if chat_id:
                     path = base_url + "/api/tasks/chat/" + chat_id
                     headers = {"Authorization": "Bearer " + token}
