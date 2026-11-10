@@ -29,6 +29,14 @@ cost = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = cost
 SPEC.loader.exec_module(cost)
 
+if "employee_budget_admin_contract" not in sys.modules:
+    CONTRACT_SPEC = importlib.util.spec_from_file_location(
+        "employee_budget_admin_contract", Path(__file__).parents[1] / "admin_contract.py")
+    contract = importlib.util.module_from_spec(CONTRACT_SPEC)
+    sys.modules[CONTRACT_SPEC.name] = contract
+    CONTRACT_SPEC.loader.exec_module(contract)
+contract = sys.modules["employee_budget_admin_contract"]
+
 USER, CHAT, ANSWER, CHILD_CHAT, CHILD_ANSWER, OLD_ANSWER, OTHER_ANSWER, CALL, OTHER_USER, OTHER_CHAT = (
     str(uuid5(NAMESPACE_URL, name)) for name in
     ("user-1", "chat-1", "answer-1", "deleted-child", "child-answer", "old-regenerated-answer",
@@ -584,6 +592,12 @@ def admin_page(rows, *, number=1, total=None):
     return {**page(rows, number=number, total=total), "total_is_capped": False}
 
 
+def presence_state(models=("alias-a",)):
+    return contract.EmployeeBudget(USER, Decimal(10), Decimal(0), "1mo", "2026-12-01T00:00:00Z",
+        tuple(contract.ModelBudget(model, ASSIGNMENT, "native-alias-" + model,
+            Decimal(5), Decimal(0), "1mo", "2026-12-01T00:00:00Z", False) for model in models))
+
+
 class AdminUnknownPresenceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.requests, self.handler = [], None
@@ -607,6 +621,73 @@ class AdminUnknownPresenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.coverage, "observed_native_rows_only")
         self.assertFalse(hasattr(result, "known_subtotal"))
         self.assertFalse(hasattr(result, "observed_total_spend"))
+
+    async def test_shared_reader_preserves_actual_presence_only_witness_and_native_state(self):
+        states = {USER: presence_state()}
+        before = copy.deepcopy(states)
+        self.payload = admin_page([admin_row(unknown=True)])
+        observed = await cost.read_unknown_presence(self.session, base_url="http://native-fixture.invalid",
+            admin_key="synthetic-admin-only-key", states=states)
+        self.assertEqual(set(observed), {USER})
+        self.assertEqual(set(observed[USER]["alias-a"]), {"unknown_confirmed", "as_of"})
+        self.assertIs(observed[USER]["alias-a"]["unknown_confirmed"], True)
+        query = self.requests[-1][1]
+        self.assertEqual(query["api_key"], ASSIGNMENT)
+        self.assertEqual(query["start_date"], "1970-01-01 00:00:00")
+        self.assertEqual(query["sort_order"], "desc")
+        self.payload = admin_page([admin_row()])
+        unconfirmed = await cost.read_unknown_presence(self.session, base_url="http://native-fixture.invalid",
+            admin_key="synthetic-admin-only-key", states=states)
+        self.assertIs(unconfirmed[USER]["alias-a"]["unknown_confirmed"], False)
+        self.assertEqual(states, before)
+        self.assertFalse(self.session.closed)
+
+    async def test_shared_reader_never_runs_more_than_four_native_reads(self):
+        active = peak = 0
+        reached, release = asyncio.Event(), asyncio.Event()
+        async def serve(request):
+            nonlocal active, peak
+            active += 1; peak = max(active, peak)
+            if active == 4: reached.set()
+            try:
+                await release.wait()
+                return web.json_response(admin_page([]))
+            finally:
+                active -= 1
+        self.handler = serve
+        states = {USER: presence_state(tuple("alias-" + str(i) for i in range(6)))}
+        task = asyncio.create_task(cost.read_unknown_presence(self.session, base_url="http://native-fixture.invalid",
+            admin_key="synthetic-admin-only-key", states=states))
+        try:
+            await asyncio.wait_for(reached.wait(), 1)
+            self.assertEqual(len(self.requests), 4)
+        finally:
+            release.set()
+        observed = await asyncio.wait_for(task, 1)
+        self.assertEqual((peak, active, len(self.requests)), (4, 0, 6))
+        self.assertEqual(len(observed[USER]), 6)
+        self.assertTrue(all(v["unknown_confirmed"] is False for v in observed[USER].values()))
+
+    async def test_shared_deadline_retains_completed_witness_and_awaits_cancelled_reads(self):
+        active = 0
+        parked = asyncio.Event()
+        async def serve(request):
+            nonlocal active
+            active += 1
+            try:
+                if request.query["model_group"] == "alias-a":
+                    return web.json_response(admin_page([admin_row(unknown=True)]))
+                await parked.wait()
+            finally:
+                active -= 1
+        self.handler = serve
+        observed = await cost.read_unknown_presence(self.session, base_url="http://native-fixture.invalid",
+            admin_key="synthetic-admin-only-key", states={USER: presence_state(("alias-a", "alias-b"))},
+            timeout_seconds=.03)
+        self.assertEqual(set(observed[USER]), {"alias-a"})
+        self.assertIs(observed[USER]["alias-a"]["unknown_confirmed"], True)
+        self.assertEqual(active, 0)
+        self.assertFalse(self.session.closed)
 
     async def test_owned_unknown_after_known_and_unbound_audit_needs_no_money_or_usage(self):
         witness = admin_row("unknown", unknown=True)

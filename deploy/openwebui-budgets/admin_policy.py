@@ -309,8 +309,11 @@ def public_employee(identity, state, *, unknown_presence=None):
             "department": identity.get("department", ""), "revision": revision(state),
             "budget_usd": money(state.max_budget), "spend_usd": money(state.spend),
             "remaining_usd": money(state.max_budget - state.spend) if state.max_budget is not None else None,
+            "budget_duration": state.budget_duration, "budget_reset_at": state.budget_reset_at,
             "models": [{"id": model.model, "label": labels.get(model.model, model.model),
                         "cap_usd": money(model.max_budget), "spend_usd": money(model.spend),
+                        "remaining_usd": money(model.max_budget - model.spend) if model.max_budget is not None else None,
+                        "budget_duration": model.budget_duration, "budget_reset_at": model.budget_reset_at,
                         "blocked": model.blocked,
                         "share_percent": money(shares[model.model]) if model.model in shares else ""}
                        for model in sorted(state.models, key=lambda item: item.model)]}

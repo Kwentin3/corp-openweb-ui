@@ -161,6 +161,7 @@ native Workspace/API ресурсы из выбранной поставки:
 | Cost Filter | `employee_budget_cost` / [cost_filter.py](../../deploy/openwebui-budgets/cost_filter.py) |
 | Details Action | `employee_budget_cost_details` / [cost_action.py](../../deploy/openwebui-budgets/cost_action.py) |
 | Admin Tool | admin-only Tool / [admin_tools.py](../../deploy/openwebui-budgets/admin_tools.py) |
+| Monthly budget Event | `employee_budget_monthly_view` / [monthly_view.py](../../deploy/openwebui-budgets/monthly_view.py) |
 | Service tasks | `employee_budget_service` / [service_pipe.py](../../deploy/openwebui-budgets/service_pipe.py) для согласованных задач |
 | OCR Event | существующий OCR Function / [luna_pdf_ocr.py](../../deploy/openwebui-functions/luna_pdf_ocr.py), с общими budget modules |
 
@@ -175,6 +176,25 @@ Tool Valves `managed_model_ids` содержат выбранные native Model
 проверить разрешения на исходную и целевую модель. Месячный шаблон задавать явно,
 не сбрасывая существующие назначения. Лимиты сотрудников задаются готовой формой
 с native подтверждением.
+
+Для просмотра месячного бюджета установить и включить Event `employee_budget_monthly_view`
+через native Functions API, прочитать сохранённые source/type=`event`/`is_active=true`.
+Новых module mounts и отдельного credential не требуется: Event использует уже
+подключённые budget modules и common `ledger_base_url`/`ledger_admin_key`.
+
+`GET /api/v1/employee-budgets/monthly` возвращает бюджет текущего native authenticated
+user. Параметр `?user_id=<UUID>` другого сотрудника доступен только действующему
+администратору. Роль и целевой пользователь повторно проверяются перед выдачей;
+ответ `Cache-Control: no-store`. Клиенту не выдаются native key hashes, aliases и
+management credentials. GET не создаёт назначений и не меняет финансовые данные.
+Отсутствующая/противоречивая native конфигурация даёт безопасный отказ, не нулевой бюджет.
+
+Суммы — строковые десятичные native counters и проекция cap-minus-spend; это не
+гарантия допуска следующего запроса с учётом резервов. Период/следующий reset передаются
+из native user/model полей без пересчёта календаря. `expense_status=unknown` означает
+подтверждённый witness неизвестного расхода; `unavailable` не доказывает отсутствие
+такого расхода. `expense_observation_scope=assignment_history` явно отделяет этот
+ограниченный поиск истории текущего назначения от месячных counters.
 
 OCR использует тот же common `service_payer_id` без зависимости от `target_model_id`
 служебного Pipe; выбранная OCR-модель остаётся прежней. Это отдельная операция над

@@ -226,7 +226,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
             async def evidence(session, **kwargs):
                 original = await value(session, **kwargs)
                 return mutate(original) if kwargs['model'] == MODELS[1] else original
-            with self.subTest(mutate=mutate), patch.object(extension, 'read_admin_unknown_presence', side_effect=evidence):
+            with self.subTest(mutate=mutate), patch.object(readback, 'read_admin_unknown_presence', side_effect=evidence):
                 first = self.public_rows(await self.open())[0]
             self.assertEqual([m['expense_status'] for m in first['models']], ['unknown', 'unavailable'])
             self.assertEqual(first['expense_status'], 'unknown')
@@ -699,24 +699,30 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(set(uid for uid, _ in self.reads), {USER, USER2})
         self.assertEqual(self.writes, [])
 
-    async def test_service_footer_requires_fresh_native_target_membership(self):
+    async def test_service_footer_requires_native_monthly_state_without_chat_target_membership(self):
         self.service_footer()
-        self.states[OTHER] = replace(self.states[OTHER], models=(self.states[OTHER].models[1],))
-        with self.assertRaisesRegex(contract.BudgetAdminError, 'invalid_service_configuration'):
+        self.states[OTHER] = replace(self.states[OTHER], budget_duration=None,
+            models=(self.states[OTHER].models[1],))
+        with self.assertRaisesRegex(contract.BudgetAdminError, 'unsupported_budget_period'):
             await self.open()
         self.client.read_service.assert_awaited_once_with(OTHER)
         self.assertEqual(self.writes, [])
 
-    async def test_service_footer_still_binds_native_target_before_service_read(self):
+    async def test_ocr_only_platform_payer_without_chat_pipe_allows_admin_open_and_apply(self):
         self.service_footer()
-        async def connection(_):
-            return ('http://foreign.invalid/v1' if self.connection.await_count == 3 else URL + '/v1',
-                    'existing-gateway-secret', {})
-        self.connection.side_effect = connection
-        with self.assertRaisesRegex(contract.BudgetAdminError, 'gateway_configuration'):
-            await self.open()
-        self.client.read_service.assert_not_awaited()
-        self.assertEqual(self.writes, [])
+        self.functions.get_function_valves_by_id.side_effect = lambda fid: (
+            self.config if fid == 'employee_budget_cost' else None)
+        self.states[OTHER] = replace(self.states[OTHER], models=(self.states[OTHER].models[1],))
+        platform = copy.deepcopy(self.states[OTHER])
+        rendered = self.html(await self.open())
+        self.assertIn('data-service-spend>0.3</span>', rendered)
+        result = await self.apply(AsyncMock(return_value=True))
+        self.assertEqual(result[1]['status'], 'success')
+        self.assertEqual(self.states[USER].max_budget, Decimal(20))
+        self.assertEqual(self.states[OTHER], platform)
+        self.assertTrue(self.writes)
+        self.assertNotIn('employee_budget_service', [c.args[0]
+            for c in self.functions.get_function_valves_by_id.await_args_list])
 
     async def test_service_read_cannot_hide_revoked_native_admin_authority(self):
         self.service_footer()

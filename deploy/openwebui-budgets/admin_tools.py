@@ -8,8 +8,7 @@ description: Open a native budget form; apply only the exact stored JSON user tu
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from dataclasses import dataclass
 import copy
 import json
@@ -23,12 +22,11 @@ from employee_budget_admin_client import BudgetAdminClient
 from employee_budget_admin_contract import BudgetAdminError, EmployeeBudgetInspection
 import employee_budget_admin_policy as policy
 from employee_budget_admin_ui import render_editor
-from employee_budget_cost_readback import AdminUnknownPresence, read_admin_unknown_presence
+from employee_budget_cost_readback import read_unknown_presence
 from employee_budget_webui_model_binding import native_connection
 
 
 PRESENCE_READ_SECONDS = 5.0
-PRESENCE_CONCURRENCY = 4
 
 
 def require(condition, code):
@@ -180,14 +178,7 @@ class Tools:
         if payer:
             payer = canonical_id(payer)
             require(await Users.get_user_by_id(payer) is None, "personal_payer_forbidden")
-            service_config = await Functions.get_function_valves_by_id("employee_budget_service")
-            require(isinstance(service_config, dict), "service_configuration_unavailable")
-            target = service_config.get("target_model_id")
-            require(isinstance(target, str) and bool(target), "invalid_service_configuration")
-            model = request.app.state.MODELS.get(target)
-            _, wire = await native_connection({"model": target}, model, request, url, require=require)
             budget = await client.read_service(payer)
-            require(any(model.model == wire for model in budget.models), "invalid_service_configuration")
             policy.monthly(budget)
             service = {"label": "Служебные задачи и RAG", "budget_usd": policy.money(budget.max_budget),
                        "spend_usd": policy.money(budget.spend), "budget_reset_at": budget.budget_reset_at,
@@ -199,46 +190,15 @@ class Tools:
 
     @staticmethod
     async def _unknown_presence(session, url, key, identities, states):
-        """Bounded composition of existing native witnesses; never infer absence."""
-        observations = {uid: {} for uid in states}
-        start = datetime(1970, 1, 1, tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-        end = now.replace(microsecond=0) + timedelta(seconds=bool(now.microsecond))
-        semaphore = asyncio.Semaphore(PRESENCE_CONCURRENCY)
+        """Validate the admin directory before the shared presence-only read."""
         for uid, state in states.items():
             allowed = identities[uid]["models"]
             models = [model.model for model in state.models]
             require(state.user_id == uid and len(models) == len(set(models))
                     and set(models) == set(allowed), "invalid_models")
 
-        async def observe(uid, model):
-            try:
-                async with semaphore:
-                    value = await read_admin_unknown_presence(session, base_url=url, admin_key=key,
-                        user_id=uid, model=model.model, assignment_hash=model.key_hash,
-                        observation_start=start, observation_end=end,
-                        timeout_seconds=PRESENCE_READ_SECONDS, max_pages=2)
-                if (type(value) is AdminUnknownPresence and value.user_id == uid and value.model == model.model
-                        and value.observation_start == start and value.observation_end == end
-                        and type(value.unknown_confirmed) is bool and isinstance(value.as_of, datetime)
-                        and value.as_of.tzinfo is not None and value.as_of.utcoffset() == timedelta(0)):
-                    observations[uid][model.model] = {"unknown_confirmed": value.unknown_confirmed,
-                                                     "as_of": value.as_of.isoformat()}
-            except Exception:
-                # Read failure/unsupported evidence is unavailable, not known.
-                # No error body, raw row or native object identifier is public.
-                pass
-
-        tasks = [asyncio.create_task(observe(uid, model)) for uid, state in states.items() for model in state.models]
-        if tasks:
-            try:
-                await asyncio.wait(tasks, timeout=PRESENCE_READ_SECONDS)
-            finally:
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
-                await asyncio.gather(*tasks, return_exceptions=True)
-        return observations
+        return await read_unknown_presence(session, base_url=url, admin_key=key, states=states,
+                                           timeout_seconds=PRESENCE_READ_SECONDS, max_pages=2)
 
     @staticmethod
     def _result(data, *, view=None, status="", outcome="success"):

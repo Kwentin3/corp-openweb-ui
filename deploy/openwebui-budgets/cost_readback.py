@@ -23,18 +23,21 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, DecimalException, Inexact, localcontext
 import json
 import re
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
 from employee_budget_provenance import ProtocolError, validate_persisted_scope
+
+if TYPE_CHECKING:
+    from employee_budget_admin_contract import EmployeeBudget
 
 
 SESSION_ROUTE = "/spend/logs/session/ui"
@@ -473,6 +476,59 @@ async def read_cost_snapshot(
         if latest is not None:
             return latest
         raise CostReadError("spend_api_unavailable") from None
+
+
+async def read_unknown_presence(
+    session: ClientSession, *, base_url: str, admin_key: str,
+    states: Mapping[str, EmployeeBudget], timeout_seconds: float = 5.0, max_pages: int = 2,
+) -> dict[str, dict[str, dict]]:
+    """Bounded presence-only reads of caller-verified native budget DTOs.
+
+    The caller retains authentication/model ACL and current assignment ownership.
+    Historical query bounds are not a billing month. False or failed reads never
+    establish known cost, zero, completeness or available funds.
+    """
+    _reader_configuration(base_url, admin_key, max_pages)
+    _require(type(timeout_seconds) in (int, float) and Decimal(str(timeout_seconds)).is_finite()
+             and 0 < timeout_seconds <= 60, "invalid_configuration")
+    _require(isinstance(states, Mapping), "invalid_scope")
+    for uid, state in states.items():
+        _call_id(uid)
+        models = [model.model for model in state.models]
+        _require(state.user_id == uid and len(models) == len(set(models)), "invalid_scope")
+    observations = {uid: {} for uid in states}
+    start = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    end = now.replace(microsecond=0) + timedelta(seconds=bool(now.microsecond))
+    semaphore = asyncio.Semaphore(4)
+
+    async def observe(uid, model):
+        try:
+            async with semaphore:
+                value = await read_admin_unknown_presence(session, base_url=base_url, admin_key=admin_key,
+                    user_id=uid, model=model.model, assignment_hash=model.key_hash,
+                    observation_start=start, observation_end=end,
+                    timeout_seconds=timeout_seconds, max_pages=max_pages)
+            if (type(value) is AdminUnknownPresence and value.user_id == uid and value.model == model.model
+                    and value.observation_start == start and value.observation_end == end
+                    and type(value.unknown_confirmed) is bool and isinstance(value.as_of, datetime)
+                    and value.as_of.tzinfo is not None and value.as_of.utcoffset() == timedelta(0)):
+                observations[uid][model.model] = {"unknown_confirmed": value.unknown_confirmed,
+                                                 "as_of": value.as_of.isoformat()}
+        except Exception:
+            # Failed/unsupported evidence stays unavailable; no raw native data escapes.
+            pass
+
+    tasks = [asyncio.create_task(observe(uid, model)) for uid, state in states.items() for model in state.models]
+    if tasks:
+        try:
+            await asyncio.wait(tasks, timeout=timeout_seconds)
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+    return observations
 
 
 async def read_admin_unknown_presence(

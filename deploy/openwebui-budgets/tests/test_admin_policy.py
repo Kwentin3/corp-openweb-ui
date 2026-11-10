@@ -187,6 +187,23 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(len(revisions), 3)
         self.assertIs(before.models[0].blocked, False)
 
+    def test_public_projection_keeps_native_periods_and_scalar_remaining(self):
+        before = state()
+        identity = {"user_id": USER, "name": "Ada", "email": "ada@example.invalid"}
+        for cap, spend, expected in ((D("0"), D("0"), "0"), (D("1"), D("2"), "-1"),
+                                     (None, D("2"), None)):
+            with self.subTest(cap=cap, spend=spend):
+                model = replace(before.models[0], max_budget=cap, spend=spend,
+                                budget_duration="30d", budget_reset_at="2027-02-03T04:05:06Z")
+                observed = replace(before, max_budget=cap, spend=spend, models=(model,))
+                row = policy.public_employee(identity, observed)
+                self.assertEqual((row["budget_duration"], row["budget_reset_at"]),
+                                 (observed.budget_duration, observed.budget_reset_at))
+                self.assertEqual(row["remaining_usd"], expected)
+                self.assertEqual((row["models"][0]["budget_duration"], row["models"][0]["budget_reset_at"]),
+                                 (model.budget_duration, model.budget_reset_at))
+                self.assertEqual(row["models"][0]["remaining_usd"], expected)
+
     def test_display_filters_cannot_introduce_business_operations(self):
         with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_view"):
             policy.parse_view('{"max_budget":"100"}')

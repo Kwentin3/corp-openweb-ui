@@ -19,7 +19,7 @@ on:
         description: Existing full acceptance or one finite backend component
         type: choice
         default: full
-        options: [full, stream-usage, release-config, stream-ledger, file-service]
+        options: [full, stream-usage, release-config, stream-ledger, file-service, monthly-api]
 
 permissions:
   contents: read
@@ -38,9 +38,9 @@ jobs:
     env:
       ACCEPTANCE_PROFILE: ${{ inputs.acceptance || 'full' }}
       STREAM_COMPONENT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance != 'full' }}
-      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && (inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service') && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
+      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && (inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api') && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
     # Observed main runtime leaves room for the bounded provider500 phase.
-    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || (inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service') && 25 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
+    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || (inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api') && 25 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -177,7 +177,7 @@ jobs:
           PY
 
       - name: Prepare or qualify only the selected native component
-        if: inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service'
+        if: inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
         timeout-minutes: 4
         shell: bash
         run: |
@@ -189,7 +189,7 @@ jobs:
           out=Path(os.environ['PROOF_OUTPUT_DIR']);build=json.loads((out/'native-build.json').read_text())
           identity=native.verify_build(build);image=build['image_ref']
           owner='goal584-stream-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
-          ledger=os.environ.get('ACCEPTANCE_PROFILE') in ('stream-ledger','file-service')
+          ledger=os.environ.get('ACCEPTANCE_PROFILE') in ('stream-ledger','file-service','monthly-api')
           cache=Path(os.environ['PROOF_PRIVATE_DIR'],'native-tokenizers') if ledger else Path(os.environ['RUNNER_TEMP'],'goal584-stream-tokenizers')
           cache.mkdir(mode=0o700)
           common=['docker','run','--rm','--init','--label','goal584.owner='+owner,
@@ -225,7 +225,7 @@ jobs:
           PY
 
       - name: Start the pinned disposable backend
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
         timeout-minutes: 6
         shell: bash
         run: |
@@ -233,7 +233,7 @@ jobs:
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 240
 
       - name: Bind the receipt to the actual images and source
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
         timeout-minutes: 3
         shell: bash
         run: |
@@ -276,9 +276,12 @@ jobs:
                    'scripts/goal584-budget-proof/prove_gateway_auth.py',
                    'scripts/goal584-budget-proof/native-patch-requirements.txt',
                    *build['files_sha256']]
-          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service'):
+          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api'):
               files += ['deploy/openwebui-budgets/'+name for name in ('unknown_usage_guard.py','budget_runtime.py',
                   'provenance.py','admin_client.py','admin_contract.py','cost_readback.py')]
+          if os.environ['ACCEPTANCE_PROFILE']=='monthly-api':
+              files += ['compose/goal584.webui-proof.yml','scripts/goal584-budget-proof/prove_monthly_api.py',
+                  *['deploy/openwebui-budgets/'+name for name in ('monthly_view.py','admin_policy.py','admin_tools.py','cost_filter.py')]]
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'images': images,
@@ -326,7 +329,7 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
 
       - name: Bootstrap a native operator key before enabling the adapter
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
         timeout-minutes: 2
         shell: bash
         run: |
@@ -339,7 +342,7 @@ jobs:
           exit "$proof_result"
 
       - name: Enable the native hook through its config-file extension
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
         timeout-minutes: 5
         shell: bash
         run: |
@@ -350,7 +353,7 @@ jobs:
           content = config.read_text(encoding='utf-8')
           assert content.count('general_settings:\n') == 1 and 'custom_auth:' not in content
           content = content.replace('general_settings:\n', 'general_settings:\n  custom_auth: litellm_auth.gateway_auth\n  custom_auth_run_common_checks: true\n', 1)
-          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service'):
+          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api'):
               assert 'missing_session_id:' not in content
               content=content.replace('general_settings:\n','general_settings:\n  missing_session_id: omit\n',1)
               original='callbacks: ["budget_errors.handler", "pricing_snapshot.handler"]'
@@ -375,7 +378,7 @@ jobs:
                      'config_sha256': hashlib.sha256(config.read_bytes()).hexdigest()}
           Path(os.environ['PROOF_OUTPUT_DIR'], 'gateway-config.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
           PY
-          if test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service; then
+          if test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service || test "$ACCEPTANCE_PROFILE" = monthly-api; then
             docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml exec -T proxy python -B - <<'PY'
           import json,pathlib
           operator=json.loads(pathlib.Path('/proof-private/gateway-state.private.json').read_text())['operator_token']
@@ -415,6 +418,46 @@ jobs:
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml exec -T proxy \
             python -B -c 'import pathlib;print(pathlib.Path("/proof-private/file-service.safe.json").read_text())' \
             > "$PROOF_OUTPUT_DIR/file-service.safe.json"
+          exit "${result:-0}"
+
+      - name: Start stock WebUI for the authenticated monthly budget API
+        if: inputs.acceptance == 'monthly-api'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml up -d --wait --wait-timeout 180 proxy webui
+          python -B - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          command=['docker','compose','--env-file',os.environ['PROOF_ENV_FILE'],
+              '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml']
+          containers=subprocess.check_output(command+['ps','-q'],text=True).split()
+          observed=json.loads(subprocess.check_output(['docker','inspect',*containers]))
+          assert {v['Config']['Labels']['com.docker.compose.service'] for v in observed}=={'proxy','provider','postgres','redis','webui'}
+          assert all(v['State'].get('Health',{}).get('Status')=='healthy' for v in observed)
+          code="import hashlib,json,pathlib;names=['admin_client','admin_contract','admin_policy','cost_readback','assignment'];print(json.dumps({n:hashlib.sha256(pathlib.Path('/app/backend/employee_budget_'+n+'.py').read_bytes()).hexdigest() for n in names}))"
+          mounted=json.loads(subprocess.check_output(command+['exec','-T','webui','python','-B','-c',code]))
+          assert all(mounted[n]==hashlib.sha256(Path('deploy/openwebui-budgets',n+'.py').read_bytes()).hexdigest() for n in mounted)
+          packet={'source_commit':os.environ['GITHUB_SHA'],'webui_version':'0.12.2','mounted_sha256':mounted,
+              'images':[{'service':v['Config']['Labels']['com.docker.compose.service'],'ref':v['Config']['Image'],
+                  'id':v['Image'],'health':v['State']['Health']['Status']} for v in observed]}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'monthly-api-runtime.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          PY
+
+      - name: Verify authenticated monthly budget reads and existing cap set
+        if: inputs.acceptance == 'monthly-api'
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy \
+            python -B -c 'import subprocess;raise SystemExit(subprocess.run(["python","-B","/proof/prove_monthly_api.py","--receipt","/proof-private/monthly-api.safe.json"],timeout=110).returncode)' \
+            > "$PROOF_OUTPUT_DIR/monthly-api.log" 2>&1 || result=$?
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy \
+            python -B -c 'import pathlib;print(pathlib.Path("/proof-private/monthly-api.safe.json").read_text())' \
+            > "$PROOF_OUTPUT_DIR/monthly-api.safe.json"
           exit "${result:-0}"
 
       - name: Qualify gateway identity selection and native management access
@@ -1007,7 +1050,7 @@ jobs:
 
       - name: Show bounded sanitized startup diagnostics on failure
         timeout-minutes: 2
-        if: failure() && (env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service')
+        if: failure() && (env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api')
         shell: bash
         run: |
           python - <<'PY'
@@ -1035,7 +1078,10 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service; then
+          if test "$ACCEPTANCE_PROFILE" = monthly-api; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml down --volumes --remove-orphans --timeout 20
+          elif test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service; then
             docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml down --volumes --remove-orphans --timeout 20
           fi
           if test "$STREAM_COMPONENT_ONLY" = true; then
@@ -1056,7 +1102,7 @@ jobs:
               subprocess.run(['docker','image','rm','--no-prune',image],check=True,timeout=30)
           packet={'owner':owner,'remaining_containers':ids(),'removed_image_id':image}
           assert not packet['remaining_containers']
-          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service'):
+          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api'):
               label='label=com.docker.compose.project=goal584-native-budget-proof'
               remaining={kind:subprocess.check_output(['docker',*command,'--filter',label],text=True).split()
                   for kind,command in {'containers':['ps','-aq'],'volumes':['volume','ls','-q'],'networks':['network','ls','-q']}.items()}
