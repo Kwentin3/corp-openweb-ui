@@ -2,8 +2,9 @@
 
 Статус10.11.2026: инструкция подготовки, **не разрешение на deployment**.
 Текущее состояние и незакрытые пункты — в [единственной записи GOAL584](employee-budgets-goal584.md).
-Streaming CC Usage и native регистрация проверены в изолированном компонентном
-прогоне LiteLLM1.105.1/OpenAI SDK2.33.0; native Compose merge также проверен.
+Streaming CC Usage и native регистрация проверены на LiteLLM1.105.1/OpenAI SDK2.33.0.
+Actual42825996133 подтвердил отмену → native failure row → reader unknown → адресную
+блокировку и отказ без повторного dispatch; native Compose merge также проверен.
 Это подготовленный стендовый комплект. Установка, DB/Redis/права и каталог на
 целевом сервере остаются отдельной приёмкой; production не менялся.
 
@@ -89,7 +90,9 @@ protected operator key. Responses peer сохраняет существующи
 проверенного патча. Точный образ собирается существующим
 `scripts/goal584-budget-proof/build_native_floor_image.py --variant stream-usage-v1.105.1`
 с отдельными абсолютными `--context` и `--receipt` на подготовленном стенде.
-Builder проверяет base digest, native3/SDK8 source hashes и сохраняет immutable IID.
+Builder проверяет base digest, native4/SDK8 source hashes и сохраняет immutable IID.
+Составной proxy source включает прежний floor patch и передачу отмены из фактического
+CC generator в общий cleanup; исходный floor patch проверяется отдельно без изменений.
 Разрешение на этот патч ограничено стендом; production activation согласуется отдельно.
 
 ## Подключение и проверка
