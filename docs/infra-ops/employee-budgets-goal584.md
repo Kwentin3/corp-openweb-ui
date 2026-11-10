@@ -115,6 +115,38 @@ provider-ID verifier, ни полный85min workflow не являются gate
 Native stop — `gh run cancel <exact_run> --repo Kwentin3/corp-openweb-ui`;
 точный run/head/deadlines записать после dispatch, дубликат не запускать.
 
+**Первый Known0 CI10.11 завершён:**
+[run42774556410](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42774556410),
+job129689916516, source`de06dd14a2c06ffee15d2e26111bff91a0749c82`,
+profileknown-zero, dispatch07:20:07UTC. До push rootпроверил11source raw/LF и
+Git contents/clean; remote ref FFсверен, конфликтующих live runs не было.
+TerminalFAIL: Known0 step до browser/inference читает несуществующий
+`browser-accounts.private.json`; shared setup передаёт существующий
+`webui-state.private.json`. Rootпрочёл фактический job traceback, независимый
+review подтвердил source mismatch,11candidate/12runner source hashes и cleanup0.
+Artifact13743777237/633318B/55members/SHAde0884e3… скачан1раз; privateURLудалён.
+Known0receipt/PNG отсутствуют, финансовый runtime не принят. Единственный fix:
+читать users из штатного private handoff через existing read_private, без нового
+файла/экспорта. Новый dispatch только на изменённом, проверенном source после
+commit/remoteFF; это не повтор неизменённого кандидата. Production/paid отсутствуют.
+Receipt/review `kiss-refactor-2026-11-10/runtime-known-zero/`.
+
+**Исправление после первой попытки:** Known0workflow теперь читает `users` через
+existing `read_private(webui-state.private.json)`, проверяет2разных id и поля
+login. Новый accounts-файл не создаётся. Изменён только consumer; affected inline
+compile/actionlint/diff PASS, прежние7/17tests/CCrehearsal не повторялись.
+
+**Общая сверка native ledger вместо provider-ID assumptions:** в proof P только
+verify_finance теперь связывает native row с уже проверенным auth/wire observation
+по scope.call_id и полному scope. Native request_id — opaque unique identity;
+decode не участвует в денежной проверке. Existing deployment/key/user/model/
+root/usage/rates/spend/caps/old rows guards сохранены, validate_scope не объявлен
+аутентификацией. Product8 и R/testR не менялись. Ровно12targetedcases PASS5.20s,
+все exits0, outbound0,54tracked terminal. Это исправляет ошибочную предпосылку
+proof, а не вводит финансовый алгоритм под Office. ActualOffice/negativequota
+этим ещё не приняты; исправленные старые результаты не переименовываются вPASS.
+Evidence `ledger-scope-proof/`, `known-zero-handoff-fix.safe.json`.
+
 **Протокольный остаток:** CC streaming теряет происхождение отдельных счётчиков
 при нормализации; native stream_response=false в WebUI не заменяет tool path,
 который работает только при streaming. Штатный готовый strict seam не найден.

@@ -287,6 +287,7 @@ jobs:
           sys.path.insert(0,'scripts/goal584-budget-proof')
           from playwright.sync_api import sync_playwright
           from prove_cost_browser import CostFixture,run_known_zero
+          from prove_gateway_auth import read_private
           # Reserve checkout's bounded minute, this step8, cleanup2 and upload2.
           remaining=54*60-(time.time()-float(os.environ['PROOF_STARTED_EPOCH']))
           assert remaining>=12*60,'Known0 job lacks acceptance/cleanup headroom'
@@ -315,7 +316,11 @@ jobs:
               actual=json.loads(subprocess.check_output(fixture.command+['exec','-T',owner,'python','-B','-c',code],timeout=30))
               assert actual==mounted,'Known0 mounted source differs'
           (out/'sources.safe.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'sources':sources},indent=2)+'\n')
-          accounts=json.loads((private/'browser-accounts.private.json').read_text())['users']
+          accounts=read_private(private/'webui-state.private.json')['users']
+          assert isinstance(accounts,list) and len(accounts)==2 and all(isinstance(account,dict) and
+              all(isinstance(account.get(field),str) and bool(account[field]) for field in ('id','email','password'))
+              for account in accounts),'Known0 native account handoff differs'
+          assert len({account['id'] for account in accounts})==2,'Known0 native account identities differ'
           with sync_playwright() as playwright:
               browser=playwright.chromium.launch(channel='chrome',headless=True)
               try: result=run_known_zero(browser,fixture,base,accounts)

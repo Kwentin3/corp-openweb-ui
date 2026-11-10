@@ -650,11 +650,15 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
                    wire_model, deployment_id, validate_scope, validate_rates, decode_response_id, expected_calls=3,
                    provider_transport="native", model=MODEL, expected_call_spend=Decimal('.20'),
                    input_rate=Decimal('.01'), output_rate=Decimal('.02'), user_spend_delta=None):
-    """Readback assertions only. SDK decoder/rate validator are existing owners.
+    """Readback assertions only; native ledger IDs are opaque row identities.
 
     The isolated collector must pass ALL raw pages from NativeProof.logs, not
     positive-cost rows, and the full retained original payer state. No pricing
     calculation, new ledger, scheduler or budget allowance is implemented here.
+    The existing wire verifier/collector owns each provider observation and its
+    server-validated scope; that scope's call nonce joins the native row.
+    validate_scope checks persisted shape; the auth observer owns its origin.
+    decode_response_id remains an ABI parameter, not ledger authority.
     """
     require(type(expected_calls) is int and expected_calls in (1, 3, 6), "office_expected_calls")
     require(type(provider_transport) is str and provider_transport in ("native", "buffered"), "office_provider_transport")
@@ -680,22 +684,24 @@ def verify_finance(before, after, *, calls_by_provider, actor, key_hash, chat_id
     require(all(new.get(k) == v for k, v in old.items()), "office_old_row_changed")
     added = [v for k, v in new.items() if k not in old]
     require(len(added) == len(calls_by_provider) == expected_calls, "office_row_count")
+    # verify_wire_calls/the existing collector already bind each provider
+    # observation to its server-validated scope. Native log IDs are opaque;
+    # join by that scope's call nonce, without decoding provider envelopes.
+    calls_by_id = {}
+    for observed_scope in calls_by_provider.values():
+        checked = validate_scope(observed_scope)
+        require(checked["call_id"] not in calls_by_id, "office_row_dispatch_binding_duplicate")
+        calls_by_id[checked["call_id"]] = checked
     observed = set()
     for row in added:
         metadata = json.loads(row["metadata"]) if isinstance(row.get("metadata"), str) else row["metadata"]
         spend = metadata["spend_logs_metadata"]
         scope = validate_scope(spend["owui_budget"])
-        decoded = decode_response_id(row["request_id"])
-        provider = decoded["response_id"]
-        binding = (decoded["custom_llm_provider"] == "openai" and decoded["model_id"] == deployment_id
-                   if provider_transport == "native" else decoded["custom_llm_provider"] is None
-                   and decoded["model_id"] is None and row.get("model_id") == deployment_id)
-        require(binding, "office_row_dispatch_binding_kind_native" if provider_transport == "native"
-                else "office_row_dispatch_binding_kind_buffered")
-        require(provider in calls_by_provider, "office_row_dispatch_binding_provider")
-        require(provider not in observed, "office_row_dispatch_binding_duplicate")
-        require(scope == calls_by_provider[provider], "office_row_dispatch_binding_scope")
-        observed.add(provider)
+        call_id = scope["call_id"]
+        require(call_id in calls_by_id, "office_row_dispatch_binding_call")
+        require(call_id not in observed, "office_row_dispatch_binding_duplicate")
+        require(scope == calls_by_id[call_id], "office_row_dispatch_binding_scope")
+        observed.add(call_id)
         require(scope["user_id"] == row.get("user") == actor and scope["model"] == row.get("model_group") == model
                 and scope["chat_id"] == scope["root_chat_id"] == row.get("session_id") == chat_id
                 and scope["answer_id"] == scope["root_answer_id"] == answer_id and row.get("api_key") == key_hash

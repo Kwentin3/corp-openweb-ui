@@ -897,7 +897,7 @@ def test_native_sdk_scope_rates_and_full_raw_financial_contract(component, monke
     assert P.verify_finance(before, after, **kwargs) == {"physical_calls": 3, "new_raw_rows": 3, "native_spend_delta_usd": ".60"}
 
 
-@pytest.mark.parametrize("mutation", ["missing", "duplicate", "extra_zero", "old_row", "old_payer", "cap", "counter", "nonce", "rate", "key", "model", "usage", "spend", "decoded_provider"])
+@pytest.mark.parametrize("mutation", ["missing", "duplicate", "extra_zero", "old_row", "old_payer", "cap", "counter", "nonce", "rate", "key", "model", "usage", "spend", "scope_misbind"])
 def test_financial_contract_mutations_fail(component, monkeypatch, mutation):
     before, after, kwargs = financial_fixture(component, monkeypatch)
     row = after["rows"][-1]
@@ -914,7 +914,9 @@ def test_financial_contract_mutations_fail(component, monkeypatch, mutation):
     elif mutation == "model": row["model_id"] = "foreign-deployment"
     elif mutation == "usage": row["prompt_tokens"] = True
     elif mutation == "spend": row["spend"] = 0
-    else: row["request_id"] = "resp_" + base64.b64encode(b"litellm:custom_llm_provider:openai;model_id:office-deployment;response_id:unobserved-provider").decode()
+    else:
+        scope = row["metadata"]["spend_logs_metadata"]["owui_budget"]
+        scope["chat_id"] = scope["root_chat_id"] = str(uuid4())
     with pytest.raises(P.ProofError): P.verify_finance(before, after, **kwargs)
 
 
@@ -1046,7 +1048,7 @@ def test_one_call_selector_rejects_nonfinite_counts_and_boolean_or_coerced_types
 @pytest.mark.parametrize("mutation", ["missing", "duplicate", "extra_zero", "old_row", "missing_old_row", "old_payer",
     "empty_old_payers", "cap", "period", "counter_user", "counter_key", "nonce", "invalid_nonce", "nonce_map",
     "old_answer", "foreign_chat", "rate", "key", "model", "status", "usage", "usage_bool", "spend", "surplus_fee",
-    "decoded_provider", "decoded_deployment", "old_provider", "wrong_expected_count", "missing_provider_map", "extra_provider_map"])
+    "old_provider", "wrong_expected_count", "missing_provider_map", "extra_provider_map"])
 def test_one_call_finance_preserves_all_raw_row_scope_rate_history_and_fee_guards(component, monkeypatch, mutation):
     before, after, kwargs = continuation_financial_fixture(component, monkeypatch)
     row = after["rows"][-1]; scope = row["metadata"]["spend_logs_metadata"]["owui_budget"]
@@ -1077,11 +1079,6 @@ def test_one_call_finance_preserves_all_raw_row_scope_rate_history_and_fee_guard
     elif mutation == "usage_bool": row["prompt_tokens"] = True
     elif mutation == "spend": row["spend"] = 0
     elif mutation == "surplus_fee": row["spend"] = .21
-    elif mutation in ("decoded_provider", "decoded_deployment"):
-        model = "foreign-deployment" if mutation == "decoded_deployment" else "office-deployment"
-        provider = next(iter(kwargs["calls_by_provider"])) if mutation == "decoded_deployment" else "unobserved-provider"
-        row["request_id"] = "resp_" + base64.b64encode(("litellm:custom_llm_provider:openai;model_id:" + model
-            + ";response_id:" + provider).encode()).decode()
     elif mutation == "old_provider": row["request_id"] = before["rows"][-1]["request_id"]
     elif mutation == "wrong_expected_count": kwargs["expected_calls"] = 3
     elif mutation == "missing_provider_map": kwargs["calls_by_provider"] = {}
@@ -1108,36 +1105,36 @@ def test_buffered_finance_joins_native_raw_id_to_exact_row_deployment_scope_and_
     assert P.verify_finance(before, after, **kwargs) == {
         'physical_calls': count, 'new_raw_rows': count, 'native_spend_delta_usd': {1: '.20', 3: '.60'}[count]}
     assert (before, after, kwargs['calls_by_provider']) == original
-    with pytest.raises(P.ProofError, match='office_row_dispatch_binding'):
-        P.verify_finance(before, after, **{**kwargs, 'provider_transport': 'native'})
+    # The provider transport belongs to wire proof, not native ledger ID shape.
+    assert P.verify_finance(before, after, **{**kwargs, 'provider_transport': 'native'}) == {
+        'physical_calls': count, 'new_raw_rows': count, 'native_spend_delta_usd': {1: '.20', 3: '.60'}[count]}
 
 
 @pytest.mark.parametrize('transport,mutation,code', [
-    ('native','kind','kind_native'), ('buffered','kind','kind_buffered'),
-    ('native','provider','provider'), ('buffered','provider','provider'),
-    ('native','scope','scope'), ('buffered','scope','scope'),
-    ('native','duplicate','duplicate'),
+    ('native','missing_call','call'), ('buffered','scope','scope'),
+    ('native','duplicate','duplicate'), ('native','duplicate_call_map','duplicate'),
 ])
 def test_finance_binding_diagnostic_identifies_exact_existing_conjunct_without_mutation(
         component, monkeypatch, transport, mutation, code):
-    source_transport = ('buffered' if transport == 'native' else 'native') if mutation == 'kind' else transport
-    before, after, kwargs = (buffered_financial_fixture(component, monkeypatch, 3) if source_transport == 'buffered'
+    before, after, kwargs = (buffered_financial_fixture(component, monkeypatch, 3) if transport == 'buffered'
                              else financial_fixture(component, monkeypatch))
     kwargs['provider_transport'] = transport
     retained = {row['request_id'] for row in before['rows']}
     rows = [row for row in after['rows'] if row['request_id'] not in retained]
     row = rows[-1]
-    provider = kwargs['decode_response_id'](row['request_id'])['response_id']
-    if mutation == 'provider':
-        kwargs['calls_by_provider']['resp_unobserved'] = kwargs['calls_by_provider'].pop(provider)
-    elif mutation == 'scope':
+    if mutation == 'missing_call':
         row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
+    elif mutation == 'scope':
+        scope = row['metadata']['spend_logs_metadata']['owui_budget']
+        scope['chat_id'] = scope['root_chat_id'] = str(uuid4())
     elif mutation == 'duplicate':
-        # Distinct raw row IDs, same decoded dispatch through the actual SDK.
-        # Avoid the earlier duplicate-raw-row guard masking this conjunct.
-        row['request_id'] = rows[0]['request_id'] + ' '
+        # Distinct opaque row IDs must not admit the same physical call twice.
+        row['metadata']['spend_logs_metadata']['owui_budget'] = copy.deepcopy(
+            rows[0]['metadata']['spend_logs_metadata']['owui_budget'])
         assert len({v['request_id'] for v in after['rows']}) == len(after['rows'])
-        assert kwargs['decode_response_id'](row['request_id']) == kwargs['decode_response_id'](rows[0]['request_id'])
+    else:
+        providers = list(kwargs['calls_by_provider'])
+        kwargs['calls_by_provider'][providers[-1]] = copy.deepcopy(kwargs['calls_by_provider'][providers[0]])
     original = copy.deepcopy((before, after, kwargs))
     with pytest.raises(P.ProofError, match='^office_row_dispatch_binding_' + code + '$'):
         P.verify_finance(before, after, **kwargs)
@@ -1148,25 +1145,34 @@ def test_finance_binding_diagnostic_identifies_exact_existing_conjunct_without_m
 def test_finance_binding_diagnostic_success_keeps_result_and_input_unchanged(component, monkeypatch, transport):
     before, after, kwargs = (buffered_financial_fixture(component, monkeypatch, 3) if transport == 'buffered'
                              else financial_fixture(component, monkeypatch))
+    expected = {'physical_calls': 3, 'new_raw_rows': 3, 'native_spend_delta_usd': '.60'}
+    assert P.verify_finance(before, after, **kwargs) == expected
+    retained = {row['request_id'] for row in before['rows']}
+    rows = [row for row in after['rows'] if row['request_id'] not in retained]
+    rows[0]['request_id'] = str(uuid4())
+    rows[1]['request_id'] = 'opaque-native-ledger:' + uuid4().hex
+    rows[2]['request_id'] = 'resp_' + base64.b64encode(
+        b'litellm:custom_llm_provider:foreign;model_id:unrelated;response_id:unobserved').decode()
+    def must_not_decode_native_row_id(value):
+        pytest.fail('Native ledger identity is opaque; provider-envelope decoder must not run')
+    kwargs['decode_response_id'] = must_not_decode_native_row_id
     original = copy.deepcopy((before, after, kwargs))
-    assert P.verify_finance(before, after, **kwargs) == {
-        'physical_calls': 3, 'new_raw_rows': 3, 'native_spend_delta_usd': '.60'}
+    assert P.verify_finance(before, after, **kwargs) == expected
     assert (before, after, kwargs) == original
 
 
 @pytest.mark.parametrize('count', [1, 3])
-@pytest.mark.parametrize('mutation', ['encoded_id', 'partial_provider', 'partial_model', 'model', 'provider',
+@pytest.mark.parametrize('mutation', ['model', 'foreign_scope', 'duplicate_call_map',
     'scope', 'scope_map', 'duplicate', 'missing', 'old_row', 'old_payer', 'cap', 'counter', 'usage', 'spend', 'rate'])
 def test_buffered_finance_preserves_strict_binding_and_existing_money_guards(component, monkeypatch, count, mutation):
     before, after, kwargs = buffered_financial_fixture(component, monkeypatch, count)
-    row = after['rows'][-1]; provider = row['request_id']; deployment = kwargs['deployment_id']
-    if mutation in ('encoded_id', 'partial_provider', 'partial_model'):
-        native_provider = 'None' if mutation == 'partial_provider' else 'openai'
-        native_model = 'None' if mutation == 'partial_model' else deployment
-        row['request_id'] = 'resp_' + base64.b64encode(('litellm:custom_llm_provider:' + native_provider
-            + ';model_id:' + native_model + ';response_id:' + provider).encode()).decode()
-    elif mutation == 'model': row['model_id'] = 'foreign-deployment'
-    elif mutation == 'provider': row['request_id'] = 'resp_unobserved_provider'
+    row = after['rows'][-1]; provider = row['request_id']
+    if mutation == 'model': row['model_id'] = 'foreign-deployment'
+    elif mutation == 'foreign_scope':
+        scope = row['metadata']['spend_logs_metadata']['owui_budget']
+        scope['chat_id'] = scope['root_chat_id'] = str(uuid4())
+    elif mutation == 'duplicate_call_map':
+        kwargs['calls_by_provider']['extra-provider'] = copy.deepcopy(next(iter(kwargs['calls_by_provider'].values())))
     elif mutation == 'scope': row['metadata']['spend_logs_metadata']['owui_budget']['call_id'] = str(uuid4())
     elif mutation == 'scope_map': kwargs['calls_by_provider'][provider]['call_id'] = str(uuid4())
     elif mutation == 'duplicate': after['rows'].append(copy.deepcopy(row))
