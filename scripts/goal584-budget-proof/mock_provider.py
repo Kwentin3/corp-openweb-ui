@@ -59,7 +59,7 @@ STATE_LOCK = threading.Lock()
 REQUESTS = []
 CONTROL = {"prompt_tokens": 10, "completion_tokens": 5, "delay_ms": 0, "tool_round": False,
            "admin_mode": False, "title_mode": False}
-OPTIONAL_CONTROLS = frozenset({"native_tasks_mode", "response_status", "after_first_chunk_delay_ms"})
+OPTIONAL_CONTROLS = frozenset({"native_tasks_mode", "response_status", "after_first_chunk_delay_ms", "before_first_chunk_delay_ms"})
 
 CATALOG_REVISION = "d665dc1a6315847fcad6cc2c1264ceb47c06abce"
 CATALOG_BACKUP_SHA256 = "329113e5820834dc2a206500db9ec7861a17c74b86fe79601dec05478c06327e"
@@ -881,6 +881,8 @@ class Handler(BaseHTTPRequestHandler):
                 record.update(route="/v1/responses", id_kind="provider_response")
             if control.get("response_status") == 500:
                 record["usage"] = None
+            if "before_first_chunk_delay_ms" in control:
+                record["lifecycle"]["before_first_chunk_delay_ms"] = control["before_first_chunk_delay_ms"]
             REQUESTS.append(record)
         return control, record
 
@@ -1043,7 +1045,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, {"ok": True})
         if self.path == "/__proof/control":
             limits = {"prompt_tokens": (0, 10000), "completion_tokens": (0, 10000), "delay_ms": (0, 10000),
-                      "after_first_chunk_delay_ms": (0, 10000)}
+                      "after_first_chunk_delay_ms": (0, 10000), "before_first_chunk_delay_ms": (0, 10000)}
             if not payload or any(
                 (False if key in OPTIONAL_CONTROLS and value is None else
                  type(value) is not bool if key in ("tool_round", "admin_mode", "title_mode", "native_tasks_mode") else
@@ -1123,6 +1125,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
             self.mark(record, stage="headers_sent", headers_sent=True)
+            if control.get("before_first_chunk_delay_ms", 0):
+                self.mark(record, stage="before_first_chunk_delay")
+                time.sleep(control["before_first_chunk_delay_ms"] / 1000)
             for index, chunk in enumerate(chunks):
                 self.wfile.write(("data: " + json.dumps(chunk, separators=(",", ":")) + "\n\n").encode("utf-8"))
                 self.wfile.flush()

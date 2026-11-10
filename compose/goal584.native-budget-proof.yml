@@ -75,6 +75,10 @@ services:
     pids_limit: 512
     # Keep the image's native entrypoint/CLI migration path on the fresh DB.
     command: ["--config", "/proof/config.yaml", "--host", "0.0.0.0", "--port", "4000", "--num_workers", "1", "--telemetry", "false"]
+    env_file:
+      - path: ${PROOF_PROXY_ENV_FILE:-/dev/null}
+        required: false
+        format: raw
     environment:
       PROOF_MASTER_KEY: ${PROOF_MASTER_KEY:?Generate a fresh synthetic sk-prefixed master key}
       OWUI_BUDGET_GATEWAY_SECRET: ${OWUI_BUDGET_GATEWAY_SECRET:?Generate a separate synthetic gateway secret}
@@ -139,6 +143,41 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: ../deploy/openwebui-budgets/budget_runtime.py
+        target: /proof/budget_runtime.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../deploy/openwebui-budgets/unknown_usage_guard.py
+        target: /proof/unknown_usage_guard.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /proof/provenance.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../deploy/openwebui-budgets/provenance.py
+        target: /proof/employee_budget_provenance.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_client.py
+        target: /proof/employee_budget_admin_client.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../deploy/openwebui-budgets/admin_contract.py
+        target: /proof/employee_budget_admin_contract.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../deploy/openwebui-budgets/cost_readback.py
+        target: /proof/employee_budget_cost_readback.py
+        read_only: true
+        bind: {create_host_path: false}
       - type: bind
         source: ../scripts/goal584-budget-proof/prove_gateway_auth.py
         target: /proof/prove_gateway_auth.py

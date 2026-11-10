@@ -271,9 +271,152 @@ class GatewayProof(NativeProof):
         self.check("cold_restart_preserves_native_spend_keys_logs_and_cap", successful_calls=7)
 
 
+async def stream_ledger(args, state, gateway, receipt):
+    """One actual header-only cancellation; native APIs/storage remain owners."""
+    import asyncio
+    import time
+    from dataclasses import replace
+    from uuid import uuid4
+    from aiohttp import ClientSession, ClientTimeout
+    from employee_budget_admin_client import BudgetAdminClient
+    from employee_budget_cost_readback import CostReadError, SESSION_ROUTE, read_cost_snapshot
+    from litellm_auth import PROVENANCE_FIELD, TASK_HEADER, USER_ID_HEADER
+    from provenance import decode_call, encode_call
+    from prove_native_budgets import protected_r
+
+    native = NativeProof(args.base_url, state["operator_token"], 5, receipt)
+    native.poll_deadline = time.monotonic() + 90
+    user, chat, answer = (str(uuid4()) for _ in range(3))
+    receipt.update(users=[user], stage="preflight", scope="actual_native_stream_cancellation_storage_no_WebUI",
+                   provider_boundary="actual_lifecycle_and_context_observed_by_this_phase")
+    task = baseline = None
+    async with ClientSession(trust_env=False, timeout=ClientTimeout(total=5)) as session:
+        async def provider(body=None):
+            async with session.request("GET" if body is None else "POST", "http://provider:8000/__proof/" +
+                    ("requests" if body is None else "control"), json=body, allow_redirects=False) as response:
+                raw = await response.content.read(2 * 1024 * 1024 + 1)
+                require(response.status == 200 and len(raw) <= 2 * 1024 * 1024, "stream_ledger_provider_transport")
+                return json.loads(raw)
+        def routing():
+            rows = native.ok("GET", "/model/info").get("data", [])
+            for model, wire in zip(MODELS, ("goal584-fake-a", "goal584-fake-b")):
+                found = [row for row in rows if row.get("model_name") == model]
+                require(len(found) == 1, "stream_ledger_ambiguous_route")
+                params, info = found[0].get("litellm_params", {}), found[0].get("model_info", {})
+                require(params.get("model") == "openai/" + wire and params.get("api_base") == "http://provider:8000/v1"
+                        and info.get("id") == "goal584-deployment-" + model[-1] and info.get("mode") == "chat"
+                        and info.get("input_cost_per_token") == .01 and info.get("output_cost_per_token") == .02,
+                        "stream_ledger_route_or_rates")
+        async def before_write(): routing()
+        def snapshot():
+            return native.user_info(user), {m.model: native.ok("GET", "/key/info", query={"key": m.key_hash})["info"] for m in budget.models}
+        def body_for(answer_id):
+            token = encode_call(gateway, user_id=user, chat_id=chat, answer_id=answer_id,
+                                root_chat_id=chat, root_answer_id=answer, model=MODELS[0])
+            return {"model": MODELS[0], "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 5,
+                    "stream": True, "litellm_metadata": {PROVENANCE_FIELD: token}}, decode_call(token, gateway, user_id=user, model=MODELS[0])
+        try:
+            async with asyncio.timeout(90):
+                native.schema();routing()
+                require(native.user_info(state["operator_user"]).get("user_role") == "proxy_admin", "stream_ledger_operator")
+                admin = BudgetAdminClient(session, args.base_url, state["operator_token"])
+                budget = await admin.initialize_employee(user, tuple((m, Decimal(1)) for m in MODELS), Decimal(2), gateway, before_write=before_write)
+                before_user, before_keys = snapshot()
+                require(not native.logs(user), "stream_ledger_fresh_history")
+                viewer = str(uuid4())
+                native.ok("POST", "/user/new", body={"user_id": viewer, "user_role": "proxy_admin_viewer", "models": [], "auto_create_key": False})
+                read_key = native.ok("POST", "/key/generate", body={"user_id": viewer, "models": [], "allowed_routes": [SESSION_ROUTE]})["key"]
+                require(native.user_info(viewer).get("user_role") == "proxy_admin_viewer" and
+                        native.ok("GET", "/key/info", query={"key": read_key})["info"].get("allowed_routes") == [SESSION_ROUTE], "stream_ledger_reader_scope")
+                baseline = await provider();require(baseline.get("synthetic") is True and baseline.get("requests") == [], "stream_ledger_fresh_provider")
+                await provider({"before_first_chunk_delay_ms": 10000})
+                body, claims = body_for(answer)
+                headers = {"Authorization": "Bearer " + gateway, USER_ID_HEADER: user, TASK_HEADER: ""}
+                receipt.update(stage="dispatching", call_id=claims["jti"], user_id=user, root_chat_id=chat, root_answer_id=answer, model=MODELS[0])
+                task = asyncio.ensure_future(session.post(args.base_url + "/v1/chat/completions", json=body, headers=headers,
+                                                         allow_redirects=False, timeout=ClientTimeout(total=20)))
+                async with asyncio.timeout(8):
+                    while True:
+                        observation = await provider();records = observation.get("requests", [])
+                        require(len(records) <= 1, "stream_ledger_duplicate_dispatch")
+                        if task.done(): require(task.result().status == 200, "stream_ledger_dispatch_http_" + str(task.result().status))
+                        if task.done() and records and records[0].get("lifecycle", {}).get("headers_sent") is True: break
+                        await asyncio.sleep(.05)
+                life = records[0]["lifecycle"]
+                wire = records[0].get("body", {})
+                require(wire.get("model") == "goal584-fake-a" and wire.get("messages") == body["messages"]
+                        and wire.get("max_tokens") == 5 and wire.get("stream") is True and not wire.get("tools"), "stream_ledger_provider_context")
+                require(life.get("response_status") == 200 and life.get("chunks_sent") == 0 and life.get("usage_sent") is False and life.get("terminal") is False,
+                        "stream_ledger_cancel_window")
+                require(task.done() and task.result().status == 200, "stream_ledger_downstream_headers")
+                task.result().close()
+                await asyncio.gather(task, return_exceptions=True)
+                receipt.update(stage="cancelled", cancelled_after_headers_before_chunk=True, downstream_headers_seen=True,
+                    provider_at_cancel={k: life.get(k) for k in ("headers_sent", "chunks_sent", "usage_sent", "terminal", "response_status")})
+                key_hash = next(m.key_hash for m in budget.models if m.model == MODELS[0])
+                async with asyncio.timeout(min(args.timeout, 30)):
+                    while True:
+                        after_user, after_keys = snapshot();rows = native.logs(user)
+                        found = []
+                        for row in rows:
+                            metadata = row.get("metadata") or {}
+                            if isinstance(metadata, str): metadata = json.loads(metadata)
+                            scope = metadata.get("spend_logs_metadata", {}).get("owui_budget", {})
+                            if scope.get("call_id") == claims["jti"]: found.append((row, metadata, scope))
+                        if found and after_keys[MODELS[0]].get("blocked") is True: break
+                        await asyncio.sleep(.1)
+                require(len(found) == 1, "stream_ledger_duplicate_row")
+                row, metadata, scope = found[0]
+                require(row.get("status") == "failure" and row.get("user") == user and row.get("api_key") == key_hash
+                        and row.get("model_group") == MODELS[0] and row.get("model_id") == "goal584-deployment-a"
+                        and scope == {"schema": 1, "user_id": user, "chat_id": chat, "answer_id": answer, "root_chat_id": chat,
+                                      "root_answer_id": answer, "call_id": claims["jti"], "model": MODELS[0], "category": "personal"}, "stream_ledger_failure_row_binding")
+                own = [g for g in (metadata.get("guardrail_information") or []) if isinstance(g, dict) and g.get("guardrail_name") == "owui_budget_usage"]
+                require(not own or len(own) == 1 and own[0].get("guardrail_action") == "block" and own[0].get("violation_categories") == ["usage_unavailable"], "stream_ledger_unknown_marker")
+                receipt.update(target_key_hash=key_hash, native_unknown_marker_present=bool(own), native_failure_row_sha256=hashlib.sha256(json.dumps(row, sort_keys=True).encode()).hexdigest())
+                try:
+                    await read_cost_snapshot(session, base_url=args.base_url, read_key=read_key, user_id=user,
+                        root_chat_id=chat, root_answer_id=answer, observed_call_ids=[claims["jti"]], wait_seconds=0)
+                except CostReadError as error:
+                    require(error.code in ("usage_unavailable", "accounting_unavailable"), "stream_ledger_reader_wrong_failure")
+                    receipt["reader_error"] = error.code
+                else: require(False, "stream_ledger_unknown_became_amount")
+                denied_body, _ = body_for(str(uuid4()))
+                status, denied, _ = native.request("POST", "/v1/chat/completions", token=gateway, body=denied_body,
+                                                  extra_headers={USER_ID_HEADER: user, TASK_HEADER: ""})
+                require(status == 401 and denied.get("error", {}).get("type") == "auth_error", "stream_ledger_fresh_denial")
+                require(len((await provider())["requests"]) == 1, "stream_ledger_denial_dispatched")
+                after_user, after_keys = snapshot()
+                for model in MODELS:
+                    expected = protected_r(before_user, before_keys[model])
+                    if model == MODELS[0]: expected["key"]["blocked"] = True
+                    require(protected_r(after_user, after_keys[model]) == expected, "stream_ledger_caps_or_control_changed")
+                observed = await admin.read_employee(user, MODELS)
+                target = next(m for m in observed.models if m.model == MODELS[0])
+                require(observed.spend >= budget.spend and target.spend >= next(m.spend for m in budget.models if m.model == MODELS[0]), "stream_ledger_native_counters_decreased")
+                require(observed == replace(budget, spend=observed.spend, models=tuple(
+                    replace(m, blocked=True, spend=target.spend) if m.model == MODELS[0] else m for m in budget.models)), "stream_ledger_native_assignment_or_control_changed")
+                receipt.update(stage="verified", failure_row_bound=True, target_blocked=True, caps_and_control_preserved=True,
+                               unknown_never_zero=True, denied_http=status, provider_dispatches=1)
+        finally:
+            async with asyncio.timeout(12):
+                if task is not None:
+                    if task.done() and not task.cancelled() and task.exception() is None: task.result().close()
+                    else: task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+                if baseline is not None:
+                    await provider({"before_first_chunk_delay_ms": baseline["control"].get("before_first_chunk_delay_ms")})
+                    while True:
+                        final = await provider()
+                        if all(r.get("lifecycle", {}).get("terminal") is True for r in final.get("requests", [])): break
+                        await asyncio.sleep(.1)
+                    require(final["control"] == baseline["control"], "stream_ledger_provider_restore")
+                    receipt.update(provider_control_restored=True, provider_terminal=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("bootstrap", "run", "restart"))
+    parser.add_argument("--phase", required=True, choices=("bootstrap", "run", "restart", "stream-ledger"))
     parser.add_argument("--private-state", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     parser.add_argument("--base-url", default="http://127.0.0.1:4000")
@@ -291,9 +434,16 @@ def main():
         require(math.isfinite(args.timeout) and 1 <= args.timeout <= 120, "Invalid persistence timeout")
         require(args.private_state.resolve() != args.receipt.resolve(), "Private state and safe receipt must differ")
         master = os.environ.get("PROOF_MASTER_KEY")
-        require(bool(master), "PROOF_MASTER_KEY is required")
+        require(bool(master) or args.phase == "stream-ledger", "PROOF_MASTER_KEY is required")
         if args.phase == "bootstrap":
             bootstrap(args, master, receipt)
+        elif args.phase == "stream-ledger":
+            import asyncio
+            state = read_private(args.private_state)
+            require(state.get("stage") == "bootstrap_complete", "Private proof state has the wrong phase")
+            gateway = os.environ.get("OWUI_BUDGET_GATEWAY_SECRET")
+            require(bool(gateway) and gateway != state.get("operator_token"), "A distinct gateway secret is required")
+            asyncio.run(stream_ledger(args, state, gateway, receipt))
         else:
             state = read_private(args.private_state)
             required_stage = "bootstrap_complete" if args.phase == "run" else "run_complete"

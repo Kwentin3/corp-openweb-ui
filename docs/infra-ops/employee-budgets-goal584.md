@@ -241,9 +241,27 @@ Budget Functions не установлены; DB/custom_auth/callbacks LiteLLM �
    DB/Redis/control-plane identities, каталог/цены/лимиты и сохранённые Valves/ACL.
    Их наличие и установка на target не проверены; production cutover отдельный.
 4. Сохранить полезный WIP/evidence и убрать свои временные ресурсы в пределах допусков.
-   Последние CI terminal/cleanup0. Автоматическая проверка дважды отклонила удаление
-   owned artifact-bookkeeping-proof/pytest-owned: «blocked by policy», иных причин нет.
-   Папка сохранена, обход не выполнялся; очистка остаётся явным незакрытым пунктом.
+   Последние CI terminal/cleanup0. Прежние recursive удаления pytest-owned были
+   отклонены automatic review («blocked by policy»). Новая инвентаризация выявила
+   symbolic link на собственный fixture0 и2regular DOCX по2307B. Файлы сохранены
+   в fixture-cleanup-preserved.v2.zip, SHA7157766a702079cb2c61d12ad6fe1322134a38242fae20fe0424f3d31017c976,
+   CRC/bytes проверены. Удалены только verified link,2exact regular files и EMPTY
+   директории не-рекурсивными операциями; review их разрешил. cleanup-final.safe.json
+   подтверждает отсутствие каталога. Первый empty-backup/PowerShell guard failure
+   сохранены как ошибки подготовки; до них файлы не удалялись.
+   Чистый quota worktree закрыт native Git, веткаc652 сохранена. Office оказался
+   с7WIP files; он и прочие исторические WIP trees сохранены, принудительной очистки нет.
+
+Независимая финальная приёмка (contract-outcome-review) нашла только обязательный
+R5 storage/readback gap: actual native component отменяет поток и блокирует через
+HTTP leaves, но actual cancel→failure SpendLogs→reader unknown ещё не наблюдалось.
+R1–R4/R6/R7 приняты в согласованном stand/source+reuse объёме; production не gate.
+R8 cleanup исправлен выше. Следующее действие: ОДИН existing native backend профиль
+stream-ledger (4services,без WebUI/frontend/Office), real provisioning/auth/DB/reader,
+header-only cancel, ровно1provider dispatch и последующий отказ, cap/control snapshots.
+Новых money owners/frameworks нет; current app/core patch не меняется. Source review
+четырёх существующих proof/Compose/workflow files перед запуском; bounds25min job,
+body90s+finally12s, native subprocess110s. Широкую матрицу не запускать.
 
 Основные evidence: local/goal584/kiss-refactor-2026-11-10/ (runtime-known-zero-native-default,
 runtime-delegation-cost-resource,artifact-bookkeeping-proof,stream-usage-fix,

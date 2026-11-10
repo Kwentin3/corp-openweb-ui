@@ -19,7 +19,7 @@ on:
         description: Existing full acceptance or finite stream component
         type: choice
         default: full
-        options: [full, stream-usage, release-config]
+        options: [full, stream-usage, release-config, stream-ledger]
 
 permissions:
   contents: read
@@ -36,10 +36,11 @@ jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
     env:
+      ACCEPTANCE_PROFILE: ${{ inputs.acceptance || 'full' }}
       STREAM_COMPONENT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance != 'full' }}
-      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
+      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && (inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger') && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
     # Observed main runtime leaves room for the bounded provider500 phase.
-    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
+    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || inputs.acceptance == 'stream-ledger' && 25 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +67,10 @@ jobs:
               'PROOF_PRIVATE_DIR': str(private),
               'PROOF_CONFIG_FILE': str(config),
           }
+          if os.environ['PROOF_NATIVE_VARIANT']=='stream-usage-v1.105.1':
+              proxy_env=private/'proxy-budget.env'
+              proxy_env.write_text('TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\nCUSTOM_TIKTOKEN_CACHE_DIR=/proof-private/native-tokenizers\n')
+              proxy_env.chmod(0o600);paths['PROOF_PROXY_ENV_FILE']=str(proxy_env)
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as handle:
               for key, value in paths.items():
                   handle.write(f'{key}={value}\n')
@@ -172,7 +177,7 @@ jobs:
           PY
 
       - name: Qualify only the selected native stream component
-        if: inputs.acceptance == 'stream-usage'
+        if: inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger'
         timeout-minutes: 4
         shell: bash
         run: |
@@ -184,7 +189,9 @@ jobs:
           out=Path(os.environ['PROOF_OUTPUT_DIR']);build=json.loads((out/'native-build.json').read_text())
           identity=native.verify_build(build);image=build['image_ref']
           owner='goal584-stream-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
-          cache=Path(os.environ['RUNNER_TEMP'],'goal584-stream-tokenizers');cache.mkdir(mode=0o700)
+          ledger=os.environ.get('ACCEPTANCE_PROFILE')=='stream-ledger'
+          cache=Path(os.environ['PROOF_PRIVATE_DIR'],'native-tokenizers') if ledger else Path(os.environ['RUNNER_TEMP'],'goal584-stream-tokenizers')
+          cache.mkdir(mode=0o700)
           common=['docker','run','--rm','--init','--label','goal584.owner='+owner,
               '--read-only','--memory=2g','--cpus=2','--pids-limit=256',
               '--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--entrypoint','python',
@@ -194,6 +201,10 @@ jobs:
           subprocess.run(common+['--name',owner+'-cache','--mount','type=bind,source='+str(cache)+',target=/native-tokenizers',
               image,'-B','-c',"import tiktoken;[tiktoken.get_encoding(n) for n in ('cl100k_base','o200k_base')]"],
               check=True,timeout=75,stdout=subprocess.DEVNULL)
+          if ledger:
+              (out/'stream-tokenizers.safe.json').write_text(json.dumps({'passed':True,'model_calls':0,
+                  'sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in cache.iterdir() if p.is_file()}},indent=2)+'\n')
+              raise SystemExit(0)
           # Legacy Responses/nonstream controls passed on this same frozen native variant in run42804096354.
           tests=['test_unknown_usage_guard.CCStreamNativeProxyTests']
           packet={'scope':'Pinned-image native component; fixture auth/admin HTTP leaves, no real DB/UI acceptance',
@@ -214,14 +225,16 @@ jobs:
           PY
 
       - name: Start the pinned disposable backend
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger'
+        timeout-minutes: 6
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml config --quiet
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 240
 
       - name: Bind the receipt to the actual images and source
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger'
+        timeout-minutes: 3
         shell: bash
         run: |
           python - <<'PY'
@@ -263,6 +276,9 @@ jobs:
                    'scripts/goal584-budget-proof/prove_gateway_auth.py',
                    'scripts/goal584-budget-proof/native-patch-requirements.txt',
                    *build['files_sha256']]
+          if os.environ['ACCEPTANCE_PROFILE']=='stream-ledger':
+              files += ['deploy/openwebui-budgets/'+name for name in ('unknown_usage_guard.py','budget_runtime.py',
+                  'provenance.py','admin_client.py','admin_contract.py','cost_readback.py')]
           receipt = {
               'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'images': images,
@@ -310,7 +326,8 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
 
       - name: Bootstrap a native operator key before enabling the adapter
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger'
+        timeout-minutes: 2
         shell: bash
         run: |
           proof_result=0
@@ -322,7 +339,8 @@ jobs:
           exit "$proof_result"
 
       - name: Enable the native hook through its config-file extension
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger'
+        timeout-minutes: 5
         shell: bash
         run: |
           python - <<'PY'
@@ -332,15 +350,43 @@ jobs:
           content = config.read_text(encoding='utf-8')
           assert content.count('general_settings:\n') == 1 and 'custom_auth:' not in content
           content = content.replace('general_settings:\n', 'general_settings:\n  custom_auth: litellm_auth.gateway_auth\n  custom_auth_run_common_checks: true\n', 1)
+          if os.environ['ACCEPTANCE_PROFILE']=='stream-ledger':
+              original='callbacks: ["budget_errors.handler", "pricing_snapshot.handler"]'
+              assert content.count(original)==1
+              content=content.replace(original,'callbacks: ["budget_errors.handler", "pricing_snapshot.handler", "budget_runtime.responses_handler", "budget_runtime.cc_stream_handler"]')
           config.write_text(content, encoding='utf-8')
           receipt = {'custom_auth': 'litellm_auth.gateway_auth', 'custom_auth_run_common_checks': True,
                      'config_sha256': hashlib.sha256(config.read_bytes()).hexdigest()}
           Path(os.environ['PROOF_OUTPUT_DIR'], 'gateway-config.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
           PY
-          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart proxy
-          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 180
+          if test "$ACCEPTANCE_PROFILE" = stream-ledger; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml exec -T proxy python -B - <<'PY'
+          import json,pathlib
+          operator=json.loads(pathlib.Path('/proof-private/gateway-state.private.json').read_text())['operator_token']
+          assert operator.startswith('sk-') and not any(c.isspace() for c in operator)
+          with pathlib.Path('/proof-private/proxy-budget.env').open('a') as handle:
+              handle.write('OWUI_BUDGET_REQUIRE_PROVENANCE=true\nOWUI_BUDGET_OPERATOR_KEY='+operator+'\n')
+          PY
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --force-recreate --wait --wait-timeout 180 proxy
+          else
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart proxy
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 180
+          fi
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
             exec -T provider python -c 'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
+
+      - name: Verify one cancelled stream in native storage and the restricted reader
+        if: inputs.acceptance == 'stream-ledger'
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml exec -T proxy \
+            python -B -c 'import subprocess;raise SystemExit(subprocess.run(["python","-B","/proof/prove_gateway_auth.py","--phase","stream-ledger","--base-url","http://127.0.0.1:4000","--private-state","/proof-private/gateway-state.private.json","--receipt","/proof-private/stream-ledger.safe.json","--timeout","30"],timeout=110).returncode)' \
+            > "$PROOF_OUTPUT_DIR/stream-ledger.log" 2>&1 || result=$?
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml exec -T proxy \
+            python -B -c 'import pathlib;print(pathlib.Path("/proof-private/stream-ledger.safe.json").read_text())' \
+            > "$PROOF_OUTPUT_DIR/stream-ledger.safe.json"
+          exit "${result:-0}"
 
       - name: Qualify gateway identity selection and native management access
         if: env.STREAM_COMPONENT_ONLY != 'true'
@@ -956,6 +1002,9 @@ jobs:
         if: always()
         shell: bash
         run: |
+          if test "$ACCEPTANCE_PROFILE" = stream-ledger; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml down --volumes --remove-orphans --timeout 20
+          fi
           if test "$STREAM_COMPONENT_ONLY" = true; then
             python -B - <<'PY'
           import json,os,re,subprocess
@@ -974,6 +1023,12 @@ jobs:
               subprocess.run(['docker','image','rm','--no-prune',image],check=True,timeout=30)
           packet={'owner':owner,'remaining_containers':ids(),'removed_image_id':image}
           assert not packet['remaining_containers']
+          if os.environ['ACCEPTANCE_PROFILE']=='stream-ledger':
+              label='label=com.docker.compose.project=goal584-native-budget-proof'
+              remaining={kind:subprocess.check_output(['docker',*command,'--filter',label],text=True).split()
+                  for kind,command in {'containers':['ps','-aq'],'volumes':['volume','ls','-q'],'networks':['network','ls','-q']}.items()}
+              packet['native_project_remaining']=remaining
+              assert not any(remaining.values()),'Owned native backend resources remain'
           Path(os.environ['PROOF_OUTPUT_DIR'],'stream-cleanup.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
           PY
           fi
