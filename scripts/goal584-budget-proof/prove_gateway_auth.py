@@ -335,12 +335,18 @@ async def stream_ledger(args, state, gateway, receipt):
                 receipt.update(stage="dispatching", call_id=claims["jti"], user_id=user, root_chat_id=chat, root_answer_id=answer, model=MODELS[0])
                 task = asyncio.ensure_future(session.post(args.base_url + "/v1/chat/completions", json=body, headers=headers,
                                                          allow_redirects=False, timeout=ClientTimeout(total=20)))
+                receipt["last_window_observation"] = {"provider_requests": None, "lifecycle": None,
+                    "downstream_headers_seen": False, "downstream_http_status": None}
                 async with asyncio.timeout(8):
                     while True:
                         observation = await provider();records = observation.get("requests", [])
+                        ready = task.done() and not task.cancelled() and task.exception() is None
+                        receipt["last_window_observation"] = {"provider_requests": len(records),
+                            "lifecycle": {k: records[0].get("lifecycle", {}).get(k) for k in
+                                ("headers_sent", "chunks_sent", "usage_sent", "terminal", "response_status")} if records else None,
+                            "downstream_headers_seen": ready, "downstream_http_status": task.result().status if ready else None}
                         require(len(records) <= 1, "stream_ledger_duplicate_dispatch")
-                        if task.done(): require(task.result().status == 200, "stream_ledger_dispatch_http_" + str(task.result().status))
-                        if task.done() and records and records[0].get("lifecycle", {}).get("headers_sent") is True: break
+                        if records and records[0].get("lifecycle", {}).get("headers_sent") is True: break
                         await asyncio.sleep(.05)
                 life = records[0]["lifecycle"]
                 wire = records[0].get("body", {})
@@ -348,10 +354,14 @@ async def stream_ledger(args, state, gateway, receipt):
                         and wire.get("max_tokens") == 5 and wire.get("stream") is True and not wire.get("tools"), "stream_ledger_provider_context")
                 require(life.get("response_status") == 200 and life.get("chunks_sent") == 0 and life.get("usage_sent") is False and life.get("terminal") is False,
                         "stream_ledger_cancel_window")
-                require(task.done() and task.result().status == 200, "stream_ledger_downstream_headers")
-                task.result().close()
+                receipt.update(downstream_headers_seen=receipt["last_window_observation"]["downstream_headers_seen"],
+                               downstream_http_status=receipt["last_window_observation"]["downstream_http_status"])
+                if task.done():
+                    require(task.result().status == 200, "stream_ledger_dispatch_http_" + str(task.result().status))
+                    task.result().close()
+                else: task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                receipt.update(stage="cancelled", cancelled_after_headers_before_chunk=True, downstream_headers_seen=True,
+                receipt.update(stage="cancelled", cancelled_after_headers_before_chunk=True,
                     provider_at_cancel={k: life.get(k) for k in ("headers_sent", "chunks_sent", "usage_sent", "terminal", "response_status")})
                 key_hash = next(m.key_hash for m in budget.models if m.model == MODELS[0])
                 async with asyncio.timeout(min(args.timeout, 30)):
