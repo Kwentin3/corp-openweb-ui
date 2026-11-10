@@ -440,6 +440,12 @@ def run_known_zero(browser, fixture, base_url, accounts):
     try:
         fixture.provider_control(armed)
         require(fixture.provider()["control"] == {**original, **armed}, "Known0 provider arming differs")
+        profile = fixture._observe_once("plainchat")["webui_models"]
+        require(len(profile) == 2 and {model["model_id"] for model in profile} == set(MODELS)
+                and all(model["builtin_tools"] is False and model["max_tokens"] == 5 for model in profile),
+                "Known0 native plain-chat profile differs")
+        result["fixture_profile"] = {"owner": "provision_webui.plainchat", "models": [
+            {field: model[field] for field in ("model_id", "builtin_tools", "max_tokens")} for model in profile]}
         baseline = fixture.phase("known-zero")["known_zero"]
         context, page, token = login(browser, base_url, accounts[0])
         before_settings = read(context, base_url, token, SETTINGS)
