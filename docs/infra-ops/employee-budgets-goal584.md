@@ -97,8 +97,24 @@ Production/default Office и лимиты не меняются. Compile/ост�
 Для следующего оправданного запуска остаются bounds55min, acceptance8min,
 body4min, cleanup2min, ≥12min headroom перед acceptance; native stop —
 `gh run cancel <exact_run> --repo Kwentin3/corp-openweb-ui`.
+На исправленном `7ea2ed13325b3a9a63d7beb3866016369664ab18` запущен один
+[run42780335933](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42780335933),
+08:08:41UTC; manual cancel08:53:41UTC/hard09:03:41UTC.13sourcepins/clean/remoteFF
+сверены, предыдущий run terminal/cleanup0. Пока build; runtime не принят.
 
 ## Обязательное до завершения
+
+Подготовка поставки: добавлен только `budget_runtime.py` (20строк), который
+регистрирует существующий UnknownUsageGuard с native operator key из protected
+environment. Missing/invalid format запрещает регистрацию; master fallback и
+proof imports отсутствуют. Compile/source import graph проверены; actual image,
+права ключа, DB/Redis и установка ещё не приняты. Compose/generator не менялись.
+Карта существующих владельцев/import aliases — `release-owner-map.md` в local evidence.
+До установки: сохранить image/config/env и native connection/resource/Valves/ACL;
+подготовить native DB/Redis, реальные цены и operator/viewer identities до включения
+auth; установить Functions/Tool штатными API с source/ACL readback. При откате
+сохранить native бюджеты/keys/SpendLogs, вернуть согласованные image/config/resources;
+не удалять финансовые volumes и не открывать обход proxy автоматически.
 
 1. Доказать Known0 на настоящих DB/UI/Details/reload, сохранив UNKNOWN и права.
 2. Закрыть общую unknown policy на согласованных протоколах. Для CC streaming
