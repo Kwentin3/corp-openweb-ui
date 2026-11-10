@@ -351,6 +351,8 @@ jobs:
           assert content.count('general_settings:\n') == 1 and 'custom_auth:' not in content
           content = content.replace('general_settings:\n', 'general_settings:\n  custom_auth: litellm_auth.gateway_auth\n  custom_auth_run_common_checks: true\n', 1)
           if os.environ['ACCEPTANCE_PROFILE']=='stream-ledger':
+              assert 'missing_session_id:' not in content
+              content=content.replace('general_settings:\n','general_settings:\n  missing_session_id: omit\n',1)
               original='callbacks: ["budget_errors.handler", "pricing_snapshot.handler"]'
               assert content.count(original)==1
               content=content.replace(original,'callbacks: ["budget_errors.handler", "pricing_snapshot.handler", "budget_runtime.responses_handler", "budget_runtime.cc_stream_handler"]')

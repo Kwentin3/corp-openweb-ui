@@ -381,20 +381,26 @@ async def stream_ledger(args, state, gateway, receipt):
                         await asyncio.sleep(1)
                 require(len(found) == 1, "stream_ledger_duplicate_row")
                 row, metadata, scope = found[0]
+                receipt["native_session_matches_chat"] = row.get("session_id") == chat
                 require(row.get("status") == "failure" and row.get("user") == user and row.get("api_key") == key_hash
                         and row.get("model_group") == MODELS[0] and row.get("model_id") == "goal584-deployment-a"
+                        and row.get("session_id") == chat
                         and scope == {"schema": 1, "user_id": user, "chat_id": chat, "answer_id": answer, "root_chat_id": chat,
                                       "root_answer_id": answer, "call_id": claims["jti"], "model": MODELS[0], "category": "personal"}, "stream_ledger_failure_row_binding")
                 own = [g for g in (metadata.get("guardrail_information") or []) if isinstance(g, dict) and g.get("guardrail_name") == "owui_budget_usage"]
                 require(not own or len(own) == 1 and own[0].get("guardrail_action") == "block" and own[0].get("violation_categories") == ["usage_unavailable"], "stream_ledger_unknown_marker")
                 receipt.update(target_key_hash=key_hash, native_unknown_marker_present=bool(own), native_failure_row_sha256=hashlib.sha256(json.dumps(row, sort_keys=True).encode()).hexdigest())
                 try:
-                    await read_cost_snapshot(session, base_url=args.base_url, read_key=read_key, user_id=user,
+                    readback = await read_cost_snapshot(session, base_url=args.base_url, read_key=read_key, user_id=user,
                         root_chat_id=chat, root_answer_id=answer, observed_call_ids=[claims["jti"]], wait_seconds=0)
                 except CostReadError as error:
                     require(error.code in ("usage_unavailable", "accounting_unavailable"), "stream_ledger_reader_wrong_failure")
                     receipt["reader_error"] = error.code
-                else: require(False, "stream_ledger_unknown_became_amount")
+                else:
+                    receipt["unexpected_reader_snapshot"] = {"answer_has_amount": readback.answer.spend is not None,
+                        "chat_has_amount": readback.chat.spend is not None, "pending": readback.pending,
+                        "complete": readback.complete, "missing_calls": len(readback.missing_call_ids)}
+                    require(False, "stream_ledger_reader_did_not_report_unknown")
                 denied_body, _ = body_for(str(uuid4()))
                 status, denied, _ = native.request("POST", "/v1/chat/completions", token=gateway, body=denied_body,
                                                   extra_headers={USER_ID_HEADER: user, TASK_HEADER: ""})
