@@ -2,6 +2,14 @@
 
 Run as the deployment owner with explicit --root after native admin sign-in.
 Only native local GETs and Docker identity reads precede protected file writes.
+
+Optional managed preparation (never applies native config): pass both
+--managed-config /protected/phase/private/approved-litellm.json and
+--managed-env /protected/phase/private/approved-litellm.env. The JSON is the
+operator-approved native LiteLLM config (JSON is YAML-compatible); prices and
+provider credentials remain caller-owned. The env must supply distinct
+LITELLM_MASTER_KEY and OWUI_BUDGET_GATEWAY_SECRET. Outputs use the existing
+new-phase files/Compose selectors; an existing gateway is never overwritten.
 """
 from __future__ import annotations
 
@@ -9,6 +17,7 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -244,7 +253,130 @@ def project(source, models, master_key):
     return pending, catalogs, upstream_keys
 
 
-def main(root):
+def project_managed(source, models, inference_bearer, gateway_config):
+    """Project native /openai/models, not the mixed /api/models workspace catalog."""
+    expected = {'ENABLE_OPENAI_API', 'OPENAI_API_BASE_URLS', 'OPENAI_API_KEYS', 'OPENAI_API_CONFIGS'}
+    require(isinstance(source, dict) and set(source) == expected and source['ENABLE_OPENAI_API'] is True,
+            'Unexpected native OpenAI configuration contract')
+    urls, keys, configs = (source[key] for key in
+                          ('OPENAI_API_BASE_URLS', 'OPENAI_API_KEYS', 'OPENAI_API_CONFIGS'))
+    require(isinstance(urls, list) and bool(urls) and isinstance(keys, list) and len(urls) == len(keys)
+            and isinstance(configs, dict) and set(configs).issubset(map(str, range(len(urls)))),
+            'Invalid native connection arrays or non-normalized config keys')
+    require(isinstance(inference_bearer, str) and inference_bearer.startswith('sk-') and len(inference_bearer) > 3
+            and not any(char.isspace() or ord(char) < 32 for char in inference_bearer),
+            'Explicit shared inference bearer required')
+    require(all(key != inference_bearer or url.rstrip('/') == GATEWAY_URL
+                for url, key in zip(urls, keys) if isinstance(url, str)),
+            'Shared inference bearer must not reuse a direct provider credential')
+    require(isinstance(gateway_config, dict) and isinstance(gateway_config.get('model_list'), list)
+            and bool(gateway_config['model_list']), 'Approved native LiteLLM model_list required')
+    for settings_name in ('litellm_settings', 'router_settings'):
+        settings = gateway_config.get(settings_name, {})
+        require(isinstance(settings, dict), 'Invalid native LiteLLM settings')
+        require(not any(settings.get(name) for name in
+                        ('fallbacks', 'default_fallbacks', 'context_window_fallbacks', 'content_policy_fallbacks')),
+                'Managed preparation forbids provider fallbacks')
+    require(gateway_config.get('litellm_settings', {}).get('block_requests_for_models_without_pricing') is True,
+            'Approved native fail-closed pricing flag required')
+    general = gateway_config.get('general_settings', {})
+    required_profile = {'master_key': 'os.environ/LITELLM_MASTER_KEY', 'database_url': 'os.environ/DATABASE_URL',
+                        'custom_auth': 'litellm_auth.gateway_auth', 'custom_auth_run_common_checks': True,
+                        'fail_closed_budget_enforcement': True, 'disable_spend_logs': False,
+                        'missing_session_id': 'omit'}
+    require(isinstance(general, dict) and all(type(general.get(key)) is type(value)
+            and general[key] == value for key, value in required_profile.items())
+            and general.get('disable_budget_reservation') is not True,
+            'Approved native budget authentication/database/enforcement/SpendLogs profile required')
+    settings = gateway_config['litellm_settings']
+    callbacks = settings.get('callbacks', [])
+    require(isinstance(callbacks, list) and all(isinstance(value, str) for value in callbacks)
+            and {'budget_errors.handler', 'pricing_snapshot.handler'}.issubset(callbacks)
+            and {'budget_runtime.responses_handler', 'budget_runtime.cc_stream_handler'}.issubset(callbacks)
+            and 'budget_runtime.handler' not in callbacks and len(callbacks) == len(set(callbacks))
+            and settings.get('enable_post_custom_auth_checks') is not True,
+            'Approved native budget callback/common-check profile required')
+    approved = {}
+    for row in gateway_config['model_list']:
+        require(isinstance(row, dict), 'Invalid approved native model row')
+        name, info, params = row.get('model_name'), row.get('model_info'), row.get('litellm_params')
+        require(isinstance(name, str) and bool(name) and name == name.strip() and '*' not in name
+                and name not in approved and isinstance(params, dict)
+                and isinstance(params.get('model'), str) and bool(params['model'])
+                and '*' not in params['model'], 'Approved native model aliases must be explicit and unique')
+        approved[name] = info
+    require(isinstance(models, dict) and isinstance(models.get('data'), list)
+            and all(isinstance(item, dict) for item in models['data']), 'Unexpected native model catalog')
+    catalogs, owners, wire_owners = {}, set(), set()
+    for item in models['data']:
+        index, name = item.get('urlIdx'), item.get('id')
+        require(type(index) is int and 0 <= index < len(urls) and isinstance(name, str)
+                and bool(name) and name == name.strip() and name not in owners
+                and not item.get('pipe') and not item.get('pipeline'),
+                'Native catalog requires unambiguous connection-owned model IDs')
+        owners.add(name)
+        catalogs.setdefault(index, []).append(name)
+    pending = copy.deepcopy(source)
+    for index in range(len(urls)):
+        label = 'Managed connection ' + str(index)
+        config = configs.get(str(index), {})
+        require(isinstance(config, dict) and type(config.get('enable', True)) is bool,
+                label + ' has invalid enable state')
+        if not config.get('enable', True):
+            require(not catalogs.get(index), label + ' is disabled but has catalog models')
+            pending['OPENAI_API_KEYS'][index] = ''
+            pending['OPENAI_API_BASE_URLS'][index] = ''
+            # Keep the protected source for rollback; inactive headers may still
+            # contain provider credentials and must not remain in WebUI.
+            pending['OPENAI_API_CONFIGS'][str(index)] = {'enable': False}
+            continue
+        require(catalogs.get(index), label + ' requires explicit classification and catalog models')
+        require(config.get('api_type') in (None, '', 'chat_completions', 'responses')
+                and config.get('auth_type') in (None, 'bearer')
+                and config.get('provider') in (None, '', 'openai')
+                and not config.get('azure') and not config.get('forward_cookies'),
+                label + ' has unsupported API/auth/provider/cookie configuration')
+        prefix = config.get('prefix_id')
+        require(prefix is None or isinstance(prefix, str), label + ' has an invalid model prefix')
+        configured = config.get('model_ids', [])
+        # Native model_ids are wire IDs; native catalog IDs include prefix_id.
+        wires = [name[len(prefix) + 1:] if prefix and name.startswith(prefix + '.') else name
+                 for name in catalogs[index]]
+        require(isinstance(configured, list) and len(configured) == len(set(configured))
+                and (not configured or set(configured) == set(wires)), label + ' configured catalog differs')
+        mode = 'responses' if config.get('api_type') == 'responses' else 'chat'
+        for wire in wires:
+            require(wire and wire not in wire_owners and wire in approved and isinstance(approved[wire], dict)
+                    and approved[wire].get('mode') == mode,
+                    label + ' has duplicate, unpriced or protocol-incompatible wire models')
+            require(all(type(approved[wire].get(field)) in (int, float)
+                        and math.isfinite(approved[wire][field]) and approved[wire][field] >= 0
+                        for field in ('input_cost_per_token', 'output_cost_per_token')),
+                    label + ' requires approved native input/output token pricing')
+            wire_owners.add(wire)
+        headers = config.get('headers', {})
+        require(isinstance(headers, dict) and all(isinstance(key, str) and isinstance(value, str)
+                and not any(char in key + value for char in '\r\n\0') for key, value in headers.items()),
+                label + ' has invalid native metadata headers')
+        lowered = [key.lower() for key in headers]
+        require(len(set(lowered)) == len(lowered) and not any(
+            key in ('host', 'cookie') or any(part in key.replace('_', '-') for part in ('authorization', 'api-key', 'token', 'secret'))
+            for key in lowered), label + ' headers may not override gateway credentials')
+        projected = copy.deepcopy(config)
+        projected['headers'] = dict(headers)
+        for name, template in (('X-OpenWebUI-User-Id', '{{USER_ID}}'), ('X-OpenWebUI-Task', '{{TASK}}')):
+            present = next((key for key in headers if key.lower() == name.lower()), name)
+            require(present not in headers or headers[present] == template,
+                    label + ' has conflicting native identity headers')
+            projected['headers'][present] = template
+        projected['model_ids'] = wires
+        pending['OPENAI_API_CONFIGS'][str(index)] = projected
+        pending['OPENAI_API_BASE_URLS'][index] = GATEWAY_URL
+        pending['OPENAI_API_KEYS'][index] = inference_bearer
+    return pending, catalogs
+
+
+def main(root, *, managed_config=None, managed_env=None):
     root = phase_root(root)
     compose_path = root / 'compose.env'
     original_compose, compose = read_env(compose_path)
@@ -266,24 +398,54 @@ def main(root):
     session = json.loads(session_path.read_text(encoding='utf-8'))
     require(session.get('role') == 'admin' and isinstance(session.get('token'), str)
             and session['token'], 'Expected the existing native admin sign-in response')
+    require(bool(managed_config) == bool(managed_env), 'Managed config and env must be provided together')
     source = native_get('/openai/config', session['token'])
-    models = native_get('/api/models', session['token'])
-    master_key = 'sk-' + secrets.token_urlsafe(48)
-    pending, catalogs, upstream_keys = project(source, models, master_key)
-    _, webui_env = read_env(root / 'webui.env')
-    gateway_env = {key: value for key, value in webui_env.items() if key in PROXY_KEYS}
-    gateway_env.update(upstream_keys, LITELLM_MASTER_KEY=master_key)
+    models = native_get('/openai/models' if managed_config else '/api/models', session['token'])
+    managed_inputs = {}
+    if managed_config:
+        for path in (managed_config, managed_env):
+            require(path.is_absolute() and path.is_relative_to(root / 'private')
+                    and path.resolve(strict=True) == path, 'Managed inputs must be inside the protected phase private directory')
+            protected(path)
+            managed_inputs[path] = path.read_bytes()
+        try:
+            gateway_config = json.loads(managed_inputs[managed_config].decode('utf-8'))
+        except (json.JSONDecodeError, UnicodeError):
+            raise RuntimeError('Managed config must be UTF-8 JSON; explicitly export native YAML as JSON first') from None
+        _, gateway_env = read_env(managed_env)
+        inference_bearer = gateway_env.get('OWUI_BUDGET_GATEWAY_SECRET')
+        master_key = gateway_env.get('LITELLM_MASTER_KEY')
+        operator_key = gateway_env.get('OWUI_BUDGET_OPERATOR_KEY', '')
+        require(isinstance(master_key, str) and bool(master_key) and master_key != inference_bearer
+                and operator_key.startswith('sk-') and len(operator_key) > 3
+                and not any(char.isspace() for char in operator_key)
+                and operator_key not in (master_key, inference_bearer)
+                and bool(gateway_env.get('DATABASE_URL'))
+                and inference_bearer not in (value for key, value in gateway_env.items()
+                                           if key != 'OWUI_BUDGET_GATEWAY_SECRET'),
+                'Separate master/operator/provider and shared inference credentials plus native database required')
+        pending, catalogs = project_managed(source, models, inference_bearer, gateway_config)
+        config_bytes = managed_inputs[managed_config]
+    else:
+        master_key = 'sk-' + secrets.token_urlsafe(48)
+        pending, catalogs, upstream_keys = project(source, models, master_key)
+        _, webui_env = read_env(root / 'webui.env')
+        gateway_env = {key: value for key, value in webui_env.items() if key in PROXY_KEYS}
+        gateway_env.update(upstream_keys, LITELLM_MASTER_KEY=master_key)
+        config_bytes = CONFIG.encode()
     require(all(not any(char in value for char in '\r\n\0') for value in gateway_env.values()),
             'Unexpected multiline gateway environment')
     # Re-read the native owner before creating files; fail if an operator changed it.
     require(native_get('/openai/config', session['token']) == source, 'Native config changed during preparation')
     require(candidate_identity(root, compose) == (container_id, image), 'Candidate identity changed during preparation')
     require(compose_path.read_bytes() == original_compose, 'Compose selectors changed during preparation')
+    require(all(path.read_bytes() == raw for path, raw in managed_inputs.items()),
+            'Approved managed inputs changed during preparation')
     if not (root / 'private').exists():
         (root / 'private').mkdir(mode=0o700)
     protected(root / 'private', directory=True)
     (root / 'google-gateway').mkdir(mode=0o700)
-    write_new(outputs['config'], CONFIG.encode(), 0o644)
+    write_new(outputs['config'], config_bytes, 0o600 if managed_config else 0o644)
     write_new(outputs['env'], ''.join(key + '=' + value + '\n'
               for key, value in sorted(gateway_env.items())).encode())
     write_new(outputs['source'], encoded(source))
@@ -315,8 +477,10 @@ def main(root):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, required=True, help='Existing protected phase under the task base')
+    parser.add_argument('--managed-config', type=Path, help='Protected approved native LiteLLM JSON config')
+    parser.add_argument('--managed-env', type=Path, help='Protected native gateway env with separate inference/master keys')
     args = parser.parse_args()
     try:
-        main(args.root)
+        main(args.root, managed_config=args.managed_config, managed_env=args.managed_env)
     except (RuntimeError, OSError, ValueError, KeyError, TypeError, IndexError) as error:
         raise SystemExit(str(error)) from None

@@ -97,6 +97,42 @@ CC generator в общий cleanup; исходный floor patch проверя�
 
 ## Подключение и проверка
 
+Для подготовки единого маршрута используется существующий
+`deploy/openwebui-upgrade-0122/prepare_google_gateway.py` с обоими параметрами:
+
+```text
+--root /opt/openwebui-upgrade-0122/<phase>
+--managed-config /opt/openwebui-upgrade-0122/<phase>/private/approved-litellm.json
+--managed-env /opt/openwebui-upgrade-0122/<phase>/private/approved-litellm.env
+```
+
+Это подготовка новой защищённой фазы, без применения native config или запуска
+контейнеров; существующий gateway она не перезаписывает. Входной JSON является
+штатным конфигом LiteLLM в YAML-совместимом формате и копируется точно, без
+построения второго каталога тарифов. Значения цен и подключения задаёт оператор.
+Env содержит разные master/operator/shared inference keys и native DATABASE_URL.
+Обязателен профиль обоих `budget_runtime.responses_handler` и
+`budget_runtime.cc_stream_handler`; legacy handler к этому списку не добавляется.
+
+Managed-подготовка читает native `/openai/models`, сохраняет API type Responses/CC,
+prefix и разрешённые metadata headers, направляет все enabled connection slots
+в тот же LiteLLM и помещает в WebUI только shared inference bearer. Disabled
+connection slots очищаются от URL, ключей и скрытых credential headers; исходная
+конфигурация сохраняется в protected source snapshot. Неоднозначные активные
+подключения, конфликтующие headers, отсутствующие aliases/цены и fallback вызывают
+отказ подготовки. Ошибка managed-профиля не переключает её на legacy-режим.
+Default CC bootstrap остаётся исторической транспортной подготовкой; для включения
+бюджетов применяется только managed-режим и бюджетный overlay.
+
+Перед включением подтвердить `direct.enable=false`, `ollama.enable=false`,
+native attachment/активность бюджетных Functions и service task binding.
+Низкоуровневый native model helper сам request Filters не запускает. Отдельный OCR
+внешнего загрузчика не имеет chat/answer root; до принятия его плательщика и
+подключения через общий owner он не квалифицирован для managed-профиля.
+Строгий gateway должен остановить неподписанный вызов до provider dispatch.
+Неактивные broker direct adapters требуют отдельного включения в общий путь
+перед активацией; наличие их файлов не означает работающий обход.
+
 В существующем protected Compose env задать `EMPLOYEE_BUDGET_LITELLM_IMAGE`,
 `EMPLOYEE_BUDGET_CONFIG_FILE`, `EMPLOYEE_BUDGET_ENV_FILE` и
 `EMPLOYEE_BUDGET_MODULES_DIR`. Последний — каталог исходников
