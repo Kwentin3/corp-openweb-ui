@@ -19,7 +19,7 @@ on:
         description: Existing full acceptance or finite stream component
         type: choice
         default: full
-        options: [full, stream-usage]
+        options: [full, stream-usage, release-config]
 
 permissions:
   contents: read
@@ -36,10 +36,10 @@ jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
     env:
-      STREAM_COMPONENT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' }}
+      STREAM_COMPONENT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance != 'full' }}
       PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
     # Observed main runtime leaves room for the bounded provider500 phase.
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
+    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,7 +85,63 @@ jobs:
                       print(f'::add-mask::{value}')
           PY
 
+      - name: Read the native release Compose configuration
+        if: inputs.acceptance == 'release-config'
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          python -B - <<'PY'
+          import hashlib,json,os,subprocess,tempfile
+          from pathlib import Path
+          repo=Path.cwd();work=Path(tempfile.mkdtemp(prefix='goal584-release-config-',dir=os.environ['RUNNER_TEMP']))
+          for name in ('webui','stt','terminal','google','budget'):
+              (work/(name+'.env')).write_text('RELEASE_ONLY=release\nMERGE_ORDER=release\n' if name=='google'
+                  else 'BUDGET_ONLY=budget\nMERGE_ORDER=budget\n' if name=='budget' else 'SYNTHETIC_ONLY=1\n')
+          for name in ('google','budget'):(work/(name+'.yaml')).write_text('model_list: []\n')
+          values={'RELEASE_WEBUI_IMAGE':'sha256:'+'1'*64,'RELEASE_WEBUI_NO_PROXY':'synthetic.invalid',
+              'RELEASE_STT_NO_PROXY':'synthetic.invalid','EMPLOYEE_BUDGET_LITELLM_IMAGE':'sha256:'+'2'*64,
+              'EMPLOYEE_BUDGET_MODULES_DIR':str(repo/'deploy/openwebui-budgets')}
+          for prefix,name in (('RELEASE_WEBUI','webui'),('RELEASE_STT','stt'),('RELEASE_TERMINAL','terminal'),
+                              ('RELEASE_GOOGLE','google'),('EMPLOYEE_BUDGET','budget')):
+              values[prefix+'_ENV_FILE']=str(work/(name+'.env'))
+          values.update(RELEASE_GOOGLE_CONFIG_FILE=str(work/'google.yaml'),EMPLOYEE_BUDGET_CONFIG_FILE=str(work/'budget.yaml'))
+          env={key:os.environ[key] for key in ('PATH','HOME','DOCKER_HOST') if key in os.environ};env.update(values)
+          interpolation=work/'compose.env';interpolation.write_text(''.join(k+'='+v+'\n' for k,v in values.items()))
+          files=[repo/'compose'/name for name in ('openwebui.release-0122.compose.yml',
+              'openwebui.release-0122.google.compose.yml','openwebui.employee-budgets.compose.yml')]
+          def native(selected):
+              cmd=['timeout','--signal=TERM','--kill-after=3s','20s','docker','compose','--env-file',str(interpolation)]
+              for path in selected:cmd+=['-f',str(path)]
+              return json.loads(subprocess.check_output(cmd+['config','--format','json'],env=env,text=True))
+          baseline=native(files[:2]);merged=native(files)
+          assert set(baseline['services'])==set(merged['services'])
+          assert baseline.get('volumes')==merged.get('volumes') and baseline.get('networks')==merged.get('networks')
+          for name,before in baseline['services'].items():
+              allowed={'image','working_dir','environment','volumes'} if name=='google-gateway-0122' else {'volumes'} if name=='openwebui-0122' else set()
+              assert {k:v for k,v in before.items() if k not in allowed}=={k:v for k,v in merged['services'][name].items() if k not in allowed}
+          gateway=merged['services']['google-gateway-0122'];ui=merged['services']['openwebui-0122']
+          assert gateway['image']==values['EMPLOYEE_BUDGET_LITELLM_IMAGE'] and gateway['working_dir']=='/app'
+          assert all(gateway['environment'].get(k)==v for k,v in {'RELEASE_ONLY':'release','BUDGET_ONLY':'budget',
+              'MERGE_ORDER':'budget','OWUI_BUDGET_REQUIRE_PROVENANCE':'true'}.items())
+          assert all(gateway['environment'].get(k)==v for k,v in baseline['services']['google-gateway-0122']['environment'].items() if k!='MERGE_ORDER')
+          mounts={m['target']:m for m in gateway['volumes']};assert len(mounts)==10
+          assert mounts['/app/config.yaml']['source']==str(work/'budget.yaml')
+          old={m['target']:m for m in baseline['services']['openwebui-0122']['volumes']};new={m['target']:m for m in ui['volumes']}
+          assert old=={k:new[k] for k in old} and len(new)==len(old)+8
+          additions=[m for m in gateway['volumes'] if m['target']!='/app/config.yaml']+[m for k,m in new.items() if k not in old]
+          assert len(additions)==17 and all(m['type']=='bind' and m['read_only'] and m['bind']['create_host_path'] is False and Path(m['source']).is_file() for m in additions)
+          packet={'passed':True,'scope':'Native Compose merge only; synthetic inputs, no build/services/model calls',
+              'source_commit':os.environ['GITHUB_SHA'],'compose_version':subprocess.check_output(['docker','compose','version','--short'],text=True).strip(),
+              'source_sha256':{str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
+              'services':sorted(merged['services']),'module_binds':{m['target']:{'source':Path(m['source']).name,
+                  'sha256':hashlib.sha256(Path(m['source']).read_bytes()).hexdigest()} for m in additions},
+              'data_networks_limits_security_preserved':True,'env_files_appended_and_overridden':True,'config_target_replaced':True}
+          Path(os.environ['PROOF_OUTPUT_DIR'],'release-config.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          print(json.dumps(packet,indent=2))
+          PY
+
       - name: Build the reviewed two-function native derivative
+        if: inputs.acceptance != 'release-config'
         env:
           GOAL584_NATIVE_BUILD_OWNER: ${{ env.STREAM_COMPONENT_ONLY == 'true' && format('goal584-stream-{0}-{1}', github.run_id, github.run_attempt) || '' }}
         timeout-minutes: 10
@@ -115,7 +171,7 @@ jobs:
           PY
 
       - name: Qualify only the selected native stream component
-        if: env.STREAM_COMPONENT_ONLY == 'true'
+        if: inputs.acceptance == 'stream-usage'
         timeout-minutes: 4
         shell: bash
         run: |
@@ -946,7 +1002,7 @@ jobs:
           retention-days: 7
 
   native-pricing-catalog:
-    if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'stream-usage'
+    if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'full'
     runs-on: ubuntu-24.04
     # Reference check + versions + used categories: 92m phase bounds + 3m reserve.
     timeout-minutes: 95
@@ -1288,7 +1344,7 @@ jobs:
           retention-days: 7
 
   native-calendar-reset:
-    if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'stream-usage'
+    if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'full'
     runs-on: ubuntu-24.04
     # Bound each phase and reserve time for always-cleanup after both startup
     # waits and a timed-out floor helper. Native 5s/60s clocks are unchanged.
