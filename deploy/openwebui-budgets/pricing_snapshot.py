@@ -94,12 +94,13 @@ def _descriptor(value):
     return {field: value[field] for field in DESCRIPTOR_FIELDS}
 
 
-def _billing_categories(result):
+def _billing_categories(result, *, native_zero=False):
     """Project canonical native billing Usage; never infer or price tokens.
 
     Native Logging normalizes Responses usage before this hook and assembles
     streaming usage before its complete signal. Zero cannot establish a used
     category, including when native normalization replaced absent usage by zero.
+    Only this publisher's same-call native zero qualification enables total0.
     """
     usage = result.get("usage") if isinstance(result, Mapping) else getattr(result, "usage", None)
     # Native billing can consume private Usage counters absent from model_dump.
@@ -113,7 +114,7 @@ def _billing_categories(result):
         return None, "usage_unconfirmed"
     counts = [usage.get(field) for field in ("prompt_tokens", "completion_tokens", "total_tokens")]
     if (any(type(value) is not int or value < 0 for value in counts)
-            or counts[2] == 0 or counts[0] + counts[1] != counts[2]):
+            or (counts[2] == 0 and native_zero is not True) or counts[0] + counts[1] != counts[2]):
         return None, "usage_unconfirmed"
     used = {"cached_tokens": 0, "reasoning_tokens": 0}
     for field, supported, limit in (
@@ -160,6 +161,24 @@ def _billing_categories(result):
         return None, "usage_categories"
     used.update(cached_tokens=cache_read, reasoning_tokens=reasoning)
     return used, None
+
+
+def _native_zero_cost(owner, metadata):
+    """Observe this native calculation; never turn the logging fallback into0."""
+    cost = owner.model_call_details.get("response_cost")
+    breakdown = getattr(owner, "cost_breakdown", None)
+    if (type(cost) not in (int, float) or not math.isfinite(cost) or cost != 0
+            or not isinstance(breakdown, Mapping)
+            or any(type(breakdown.get(k)) not in (int, float) or not math.isfinite(breakdown[k]) or breakdown[k] != 0
+                   for k in ("input_cost", "output_cost", "total_cost", "tool_usage_cost"))):
+        return False
+    entries = metadata.get("standard_logging_guardrail_information")
+    if not isinstance(entries, list):
+        return False
+    usage = [v for v in entries if isinstance(v, dict) and v.get("guardrail_name") == "owui_budget_usage"]
+    return (len(usage) == 1 and usage[0].get("guardrail_status") == "success"
+            and usage[0].get("guardrail_mode") == "post_call" and usage[0].get("guardrail_action") == "allow"
+            and usage[0].get("violation_categories") == [])
 
 
 def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=None):
@@ -230,7 +249,7 @@ def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=
                     or declared < 0 or billed < 0 or declared != billed):
                 return unknown
         unknown["reason"] = "usage_unconfirmed"
-        used, reason = _billing_categories(result)
+        used, reason = _billing_categories(result, native_zero=_native_zero_cost(owner, metadata))
         if reason is not None:
             unknown["reason"] = reason
             return unknown
@@ -280,6 +299,7 @@ class _RequestSnapshot(CustomLogger):
         self._proxy_auth = proxy_auth
         self._auth_route = auth_route
         self._descriptor_snapshot = None
+        self._zero_confirmed = False
 
     async def async_logging_hook(self, kwargs, result, call_type):
         # Native Logging passes this object to hooks before ProxyTrackCost runs.
@@ -321,10 +341,14 @@ class _RequestSnapshot(CustomLogger):
                 "rates": rates,
             }
         # Copy the representation so consumers cannot mutate the frozen capture.
-        spend_metadata[SNAPSHOT_KEY] = {**self._snapshot, "rates": dict(self._snapshot["rates"])}
         if self._descriptor_snapshot is None:
             billing_result = kwargs["async_complete_streaming_response"] if getattr(self._owner, "stream", False) is True else result
+            native_zero = _native_zero_cost(self._owner, metadata)
             self._descriptor_snapshot = _capture_descriptor(self._owner, params, metadata, self._proxy_auth, self._auth_route, billing_result)
+            self._zero_confirmed = native_zero and self._descriptor_snapshot["availability"] == "available"
+        spend_metadata[SNAPSHOT_KEY] = {**self._snapshot, "rates": dict(self._snapshot["rates"])}
+        if self._zero_confirmed and _native_zero_cost(self._owner, metadata):
+            spend_metadata[SNAPSHOT_KEY]["native_zero_confirmed"] = True
         spend_metadata[DESCRIPTOR_SNAPSHOT_KEY] = copy.deepcopy(self._descriptor_snapshot)
         return kwargs, result
 
@@ -332,6 +356,18 @@ class _RequestSnapshot(CustomLogger):
 class PricingSnapshot(CustomLogger):
     async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type):
         owner = data.get("litellm_logging_obj") if isinstance(data, dict) else None
+        details = getattr(owner, "model_call_details", None)
+        # These reserved observations belong to this publisher, never callers.
+        # Clear before any owner/registration failure can preserve client proof.
+        for carrier in (data, getattr(owner, "litellm_params", None),
+                        details.get("litellm_params") if isinstance(details, dict) else None):
+            if isinstance(carrier, dict):
+                for name in ("metadata", "litellm_metadata"):
+                    bucket = carrier.get(name)
+                    spend = bucket.get("spend_logs_metadata") if isinstance(bucket, dict) else None
+                    if isinstance(spend, dict):
+                        spend.pop(SNAPSHOT_KEY, None)
+                        spend.pop(DESCRIPTOR_SNAPSHOT_KEY, None)
         if not isinstance(owner, Logging):
             return None
         callbacks = getattr(owner, "dynamic_async_success_callbacks", None) or ()

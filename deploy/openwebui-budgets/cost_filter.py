@@ -56,14 +56,6 @@ def money_text(amount):
     return "$" + whole + "." + fraction
 
 
-def has_delegation(message):
-    # The current outlet has no controller-owned durable child-settlement receipt.
-    # Keep delegated/background cost a visibly provisional accrued amount.
-    return any(isinstance(item, dict) and item.get("type") == "function_call"
-               and item.get("name") in ("delegate_task", "run_sub_agent", "run_parallel_sub_agents")
-               for item in message.get("output", []))
-
-
 async def native_answer(chat_id, answer_id, user, *, permission="write"):
     from open_webui.models.chats import Chats
 
@@ -274,13 +266,11 @@ class Filter:
                     observed_call_ids=observed_call_ids,
                     wait_seconds=self.valves.read_wait_seconds)
                 if snapshot.answer.spend is not None and snapshot.chat.spend is not None:
-                    current = next((message for message in body.get("messages", [])
-                                    if message.get("id") == scope["root_answer_id"]), {})
-                    provisional = snapshot.pending or metadata.get(UNBOUND_RESPONSE) is True or has_delegation(current)
                     description = f"Ответ: {money_text(snapshot.answer.spend)} · Чат: {money_text(snapshot.chat.spend)}"
                     description += " · на " + snapshot.as_of.strftime("%H:%M:%S UTC")
-                    if provisional:
-                        description += " · начислено на сейчас, учёт обновляется"
+                    description += " · начислено на сейчас"
+                    if snapshot.pending or metadata.get(UNBOUND_RESPONSE) is True:
+                        description += ", учёт обновляется"
             except CostReadError as error:
                 log.warning("Budget cost readback unavailable: %s", error.code)
                 if error.code in ("usage_unavailable", "accounting_unavailable"):

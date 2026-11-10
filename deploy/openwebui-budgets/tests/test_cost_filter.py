@@ -274,11 +274,34 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "answer_model"):await self.sign(body)
         self.assertEqual(self.request.base_model_id, "gpt-6.1-sol")
 
-    def test_native_and_community_delegation_keep_cost_display_provisional(self):
-        for name in ("delegate_task", "run_sub_agent", "run_parallel_sub_agents"):
-            self.assertTrue(extension.has_delegation({"output": [{"type": "function_call", "name": name}]}))
-        self.assertFalse(extension.has_delegation({"output": [{"type": "function_call", "name": "apply_office_batch"}]}))
-        self.assertFalse(extension.has_delegation({"output": [{"type": "function_call_output", "name": "run_sub_agent"}]}))
+    async def test_every_workflow_displays_accrued_snapshot_with_pending_distinction(self):
+        await self.sign()
+        snapshot = SimpleNamespace(answer=SimpleNamespace(spend=Decimal("0.20")),
+            chat=SimpleNamespace(spend=Decimal("0.60")), pending=False,
+            as_of=datetime(2026, 11, 2, 13, 0, tzinfo=timezone.utc))
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        for name in (None, "delegate_task", "run_sub_agent", "run_parallel_sub_agents", "future_workflow_tool"):
+            for pending in (False, True):
+                with self.subTest(tool=name, pending=pending):
+                    snapshot.pending = pending
+                    message = {"id": ANSWER, "role": "assistant", "content": "Proof"}
+                    if name:
+                        message["output"] = [{"type": "function_call", "name": name}]
+                    body = {"messages": [message]}
+                    before, metadata = copy.deepcopy(body), copy.deepcopy(self.metadata)
+                    emitter, reader = AsyncMock(), AsyncMock(return_value=snapshot)
+                    with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
+                            {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+                        result = await self.filter.outlet(body, __user__=self.actor,
+                            __metadata__=self.metadata, __event_emitter__=emitter)
+                    expected = "Ответ: $0.20 · Чат: $0.60 · на 13:00:00 UTC · начислено на сейчас"
+                    if pending:
+                        expected += ", учёт обновляется"
+                    self.assertEqual(emitter.call_args.args[0], {"type": "status", "data": {
+                        "action": "employee_budget_cost", "description": expected, "done": True}})
+                    self.assertIs(result, body)
+                    self.assertEqual(body, before)
+                    self.assertEqual(self.metadata, metadata)
 
     async def test_resumed_parent_owns_new_answer_and_ignores_inherited_capsule(self):
         self.metadata["message_id"] = NEXT_ANSWER
@@ -430,11 +453,15 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, original)
         event = emitter.call_args.args[0]
         self.assertEqual(event["type"], "status")
-        self.assertEqual(event["data"]["description"], "Ответ: $0.20 · Чат: $0.60 · на 13:00:00 UTC")
-        self.assertEqual(reader.call_args.kwargs["user_id"], USER)
-        self.assertEqual(reader.call_args.kwargs["root_answer_id"], ANSWER)
-        self.assertEqual(reader.call_args.kwargs["observed_request_ids"], ["provider-one"])
-        self.assertEqual(reader.call_args.kwargs["observed_call_ids"], [])
+        self.assertEqual(event["data"]["description"],
+                         "Ответ: $0.20 · Чат: $0.60 · на 13:00:00 UTC · начислено на сейчас")
+        self.assertEqual(reader.call_args.args, (get_session.return_value,))
+        self.assertEqual(reader.call_args.kwargs, {
+            "base_url": self.filter.valves.ledger_base_url,
+            "read_key": self.filter.valves.ledger_read_key,
+            "user_id": USER, "root_chat_id": CHAT, "root_answer_id": ANSWER,
+            "observed_request_ids": ["provider-one"], "observed_call_ids": [],
+            "wait_seconds": self.filter.valves.read_wait_seconds})
 
     async def test_display_scope_mismatch_does_not_query_foreign_costs(self):
         await self.sign()

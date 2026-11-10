@@ -1,5 +1,104 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
+## Новая редакция после согласования KISS, 09.11.2026
+
+Прежний системный GOAL отменён пользователем; создана новая цель с тем же
+продуктовым результатом и общим инфраструктурным механизмом. В чате отдельно
+разрешён первый этап: **аудит без изменений реализации и новых тяжёлых прогонов**.
+Этот раздел задаёт актуальные границы; предыдущие proof gates ниже — история,
+а не автоматически обязательный план новой задачи.
+
+**Цель:** LiteLLM — единственный учёт расходов и применение денежных лимитов;
+общая серверная интеграция сохраняет employee/chat/answer/call для всех конвейеров
+и помощников; сотрудник видит стоимость ответа и чата, администратор меняет
+бюджеты через готовую форму. Новый конвейер использует общий managed dispatch
+без собственной финансовой логики. Неизвестный расход не равен0; сохраняется
+согласованная блокировка модели конкретному сотруднику. Приоритет — существующий
+компонент, штатная возможность, затем необходимая тонкая адаптация.
+
+**Состояние на 10.11.2026:** аудит завершён; пользователь разрешил приступить
+к согласованной доводке общего механизма. Полный продукт ещё не принят.
+[Единый отчёт и предложение следующего этапа](../reports/2026-11-09/GOAL584_KISS_AUDIT.md).
+Независимые supporting notes/evidence: `local/goal584/kiss-audit-2026-11-09/`.
+Опора аудита09.11: MAINb451819 / DELIVERYb745cd8f; тогда менялись только документы,
+без запуска новых tests/CI/Docker/SSH/model calls. Ниже — отдельное актуальное
+состояние после разрешения реализации10.11, а не перенос source-only в runtime.
+
+Проверено: native LiteLLM владеет spend/counters/reservation/quotas; общие
+Filter/Auth/reader добавляют identity/root context и UI, второго ledger нет.
+Diff141files/+72404: product budgets4066строк, tests35677, proof+CI/Compose26337.
+Tracked release helper переводит CC1/2/4, сохраняя Responses0; это не доказательство
+актуальных runtime обходов и не основание считать покрытие всех вызовов принятым.
+Общий root/actor/call контракт уже реализован в native dispatch + Filter/Auth;
+новый финансовый framework не нужен. Ветка task=sub_agent — адаптация entrypoint,
+не отдельный биллинг Office. Необходимость новой ветки на каждый конвейер не найдена.
+
+Office106 завершён FAIL с `office_row_dispatch_binding_kind_native` в proof
+verifier. Artifact13693731745/1494701B/104members, SHA6041417b…; скачан один раз,
+private URL удалён. Steps1–14SUCCESS/15FAIL/16–17SKIPPED/18–20SUCCESS;
+actual cleanup0containers/volumes/networks/images. Это не доказательство ошибки
+денежного списания и не полная приёмка двухмодельной стоимости.
+
+Сохранён весь прежний WIP, включая ZERO7/Terminal4/LTS4/reasoning6 dirty files;
+незавершённый Known0 collector не интегрирован и не запускался. Автоматический
+перенос старых source slices, удаление деревьев и повтор старых CI не разрешались.
+**Политика рефакторинга (согласована в чате, сохраняется здесь):**
+
+- Штатные LiteLLM money/quotas/SpendLogs и native WebUI Users/Chats/ACL остаются
+  единственными владельцами своего состояния; не вводить второй ledger/калькулятор.
+- Каждый собственный компонент оправдывается конкретным native gap. Не создавать
+  новый engine, маршрут, журнал или framework ради унификации и красоты.
+- Новый конвейер на существующем managed dispatch наследует employee/chat/answer
+  context без изменения бюджетного кода. Новая модель/протокол требует обычного
+  общего подключения, а не отдельной финансовой реализации для конвейера.
+- Согласованные функции/данные/безопасность сохраняются. Проверки выбираются по
+  затронутому риску и пользовательскому результату; старые fixtures/golden call
+  counts не определяют архитектуру. Применимые результаты использовать повторно.
+- После этого GOAL отдельно разобрать разрастание тестовой инфраструктуры как
+  глобальную backlog-задачу; не включать её решение в текущий продукт.
+
+**Выполнено10.11 на source/component уровне:**
+
+- Status «Ответ / Чат» теперь для любого инструмента является снимком начисленного
+  расхода. Удалены has_delegation и просмотр списка tools; ожидание обновления
+  зависит только от pending/unbound. Auth/request/stream и money owners неизменны.
+  Ровно9целевых существующих проверок PASS/0skip/exit0, процессы0.
+- В DELIVERY перенесены ровно6ранее reviewed Known0 файлов; raw/LF совпадают с
+  freeze06edc96e… и ZERO. Седьмой незавершённый collector не перенесён. Native
+  cost0 + guard Usage receipt сохраняются в существующем snapshot/SpendLogs;
+  default/missing0 остаётся UNKNOWN. Ровно4целевых existing tests PASS/0skip,
+  pytest/runner/supervisor/outer exit0, outbound0,40tracked PIDs terminal.
+  Функции агрегации/attribution/положительный путь и прежний6argABI сохранены.
+  Descriptor qualification пока сохранена; её удаление не входит в этот срез.
+
+**Фактическая конфигурация сервера10.11 (только чтение):** существующий private
+operator target и hostname сверены, strict host-key/key-only SSH успешен. Native
+persisted WebUI config прочитан SQLite mode=ro/query_only, без импорта приложения:
+Responses connection0 направлен прямо к провайдеру (4configured models), CC1/2/4 —
+к действующему LiteLLM; connection3 другой/не классифицирован. В WebUI не найдены
+наши3budget Functions. У единственного LiteLLM1.105.1 нет configured database,
+custom_auth и callbacks. Значит сейчас нет единого активированного бюджетного
+контура. Это не заявление о неучтённом ранее финансовом ущербе. Конфигурацию,
+бюджеты и сервисы не меняли, модельные вызовы не выполняли. Браузерная сессия
+ordinary user, не admin; admin API через неё не запрашивали. Его native открытие
+страницы выполнило штатный timezone update, бюджетные настройки не затронуты.
+Evidence `local/goal584/kiss-refactor-2026-11-10/`: runtime-config.safe.json,
+status/, known-zero/, shared-call-contract.md; ключи/адреса/raw config не опубликованы.
+
+**Следующий срез:** одна ограниченная actual DB/UI/reload Known0 проверка через
+существующий cost browser/stand; общие protocol boundaries unknown policy проверить
+отдельно от конвейеров. Новый core Usage patch не подразумевается. Production
+cutover потребует конкретного общего профиля маршрутов/БД/отката и отдельного
+согласования; подготовка источников не равна его разрешению.
+
+**Обязательный оставшийся объём:** фактические маршруты и общий root context,
+охват unknown/known0 на выбранных протоколах, единая поставка и достаточная
+сквозная приёмка/установка/откат. Каждый срез закрывается по своему результату,
+его завершение не означает готовности всего GOAL.
+Production/реальные бюджеты/тарифы/paid API/deployment/cutover — отдельно.
+
+## Историческая запись предыдущей итерации
+
 Текущая запись работы, 09.11.2026. Источник требований и полномочий —
 [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 Заказчик согласовал начало работы в этом чате. Коммерческое описание —
@@ -8,7 +107,15 @@
 **Состояние:** GOAL в работе; полный продукт ещё не принят. Принятая стендовая
 опора — Office81/42238631735 SUCCESS на reasoningc3d28f62 / deliveryaaa82105;
 source/event сверены, независимые readers повторены root, actual PNG просмотрены.
-**Следующий этап Office106: diagnostic-only, готов к одному изолированному запуску.**
+**Текущий прогон Office106: diagnostic-only, запущен один раз.**
+[run42657055754](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42657055754),
+job129298255935, head`b745cd8f1745cd1964a73a83a9c23862f4b7c449`,
+dispatch09.11 16:39:55UTC. Coherent3file/13pins/clean readback PASS;
+remote reasoning ref FF подтверждён; перед dispatch конфликтующих live runs нет.
+Native stop `gh run cancel 42657055754 --repo Kwentin3/corp-openweb-ui`;
+manual17:24:55UTC/hard17:34:55UTC, затем terminal/actual cleanup readback.
+Readers/run binding `local/goal584/office106-review/`; сейчас build, результат
+не принят. Runtime source остаётся точно b745cd8f, последующие заметки его не меняют.
 Два файла P/testP: прежние четыре predicates `office_row_dispatch_binding`
 разделены на фиксированные kind_native/kind_buffered/provider/duplicate/scope
 коды. Порядок, observed.add и весь остальной AST production-модуля сохранены;
@@ -19,23 +126,46 @@ Root независимо сверил frozen raw/LF, восстановил п�
 Evidence `local/goal584/office105-row-binding-diagnostic/`, включая
 `root-review.safe.json`; это SOURCE_GO_DIAGNOSTIC_ONLY, runtime ещё не принят.
 Поставка: только P/testP и эта запись; Known0/Terminal/docstring в неё не входят.
-После coherent commit/readback13pins/remote FF — один existing Office workflow,
+Используется тот же existing Office workflow,
 те же55min/manual45min/resource caps/positive→negative→restore→cleanup;
-точные run/head/deadlines фиксируются после native dispatch. Office105 terminal
-и cleanup подтверждены; перед запуском повторно исключить конфликтующий live run.
+Office105 terminal и cleanup подтверждены. Повторный dispatch не делается.
 
 **Параллельные ограниченные source slices (не активированы).**
 Known0 шесть файлов получили независимый SOURCE_GO; совместимость исходной
 шестиаргументной `_capture_descriptor` восстановлена. Финальные5PASS/0skip,
 6file pre/post pins/78PIDs terminal; evidence
 `known-zero-current/positive-consumer-correction/`, `known-zero-current-review/`.
-Integration с текущим collector и actual DB/GUI zero/retained reload ещё нужны.
+Current collector compatibility теперь проверена отдельно: два неизменённых
+current DELIVERY testR против реальных accepted ZERO owners,2PASS/0skip,
+pytest11.29s/runner12.515s/pytest0/wrapper0,8raw+LF pre/post pins стабильны,
+48PIDs/23handles terminal/outbound0 (141allowed loopback events не скрыты).
+Evidence `known-zero-current-integration/report.md`, freeze8338ced4…;
+исходники не копировались/не менялись. Integration в DELIVERY и actual DB/GUI
+zero/retained reload ещё нужны; это positive compatibility, не runtime known0.
+Минимальный runtime owner найден в существующем cost browser/Details, не в
+UNKNOWN6fixture (`known-zero-current-integration/runtime-slice.md`). В той же ZERO
+копии отдельно готовятся opt-in prove_cost_browser/provision_cost_display и
+один узкий test owner; принятые шесть файлов frozen и не меняются. Host wiring
+в existing workflow интегрирует root после Terminal slice. Existing CC provider
+уже даёт completeUsage0 через control; rate/provider source не меняются, control
+сохраняется и восстанавливается, capture не сбрасывается. Actual DB/UI/Details/
+same-row reload/foreign ACL и resource cleanup ещё не запускались. Responses0
+этим CC-срезом не квалифицируется; действующий UNKNOWN6 остаётся без изменений.
 Отдельная рабочая копия `corp-openweb-ui-goal584-terminal`, branch
 `agent/goal584-terminal-native`, base43e97d8746e1fbbfdf85fe459654758a5a08e794:
 три файла workflow/office_fixture/test_office_fixture для bootstrap и наблюдения
-штатного Terminal-контекста без inference. Второй агент владеет только docstring
+штатного Terminal-контекста без inference теперь frozen375a1f7c… и независимо
+SOURCE_GO (`terminal-bootstrap-context/root-review.safe.json`). 10existing methods
+и 8ordinary inference-step bodies неизменны. Новые11PASS/0skip; affected62PASS+2FAIL
+сохранены; точный base с тем же CRLF input повторяет2FAIL, current GitLF даёт2PASS.
+Actionlint0/15inline+3embedded compile; owned processes0. Это не whole-suite PASS.
+Опциональный existing seventh container добавляет768MiB/0.5CPU/256PIDs:
+суммарный service cap6.625GiB/4.75CPU/1984PIDs; прежние55min, Terminal step7min,
+bounded native exec/stop и same-overlay volume cleanup. Actual runtime не запускался.
+Второй агент владеет только docstring
 `admin_tools.open_budget_form`: native function→Pydantic schema и parse_view
-проверены; full LangChain formatter отсутствует в cache и не проверен.
+проверены; root whole-module AST равен прежнему за исключением docstring,
+SOURCE_GO_DOCSTRING_ONLY. Full LangChain formatter отсутствует в cache и не проверен.
 Evidence только в DELIVERY `terminal-bootstrap-context/`, `admin-view-docstring-fix/`;
 runtime/CI/провайдер не запускались. После принятой integration и сохранения
 evidence — native Git cleanup дерева/ветки; до этого source WIP сохраняется.

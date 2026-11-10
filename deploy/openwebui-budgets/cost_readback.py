@@ -247,6 +247,44 @@ def _usage_numbers(raw: dict) -> tuple[int, int, int, Decimal]:
     return prompt, completion, total, _money(raw.get("spend"))
 
 
+def _known_zero(metadata: dict) -> bool:
+    snapshot = metadata["spend_logs_metadata"].get("owui_billed_token_rates")
+    if (type(snapshot) is not dict or set(snapshot) != {"schema", "availability", "observed_at_utc", "rates", "native_zero_confirmed"}
+            or type(snapshot.get("schema")) is not int or snapshot["schema"] != 1
+            or snapshot.get("native_zero_confirmed") is not True
+            or snapshot.get("availability") not in ("available", "partial")
+            or not isinstance(snapshot.get("observed_at_utc"), str) or not snapshot["observed_at_utc"]
+            or not isinstance(snapshot.get("rates"), dict)):
+        return False
+    fields = {"input_cost_per_token", "output_cost_per_token", "cache_read_input_token_cost",
+              "cache_read_input_audio_token_cost", "cache_creation_input_token_cost",
+              "cache_creation_input_token_cost_above_1hr", "output_cost_per_reasoning_token"}
+    if set(snapshot["rates"]) != fields:
+        return False
+    for value in snapshot["rates"].values():
+        if value is not None and (type(value) not in (int, float, Decimal)
+                or not Decimal(str(value)).is_finite() or value < 0):
+            return False
+    expected = "available" if all(v is not None for v in snapshot["rates"].values()) else "partial"
+    if snapshot["availability"] != expected or not snapshot["observed_at_utc"].endswith("Z"):
+        return False
+    try:
+        datetime.fromisoformat(snapshot["observed_at_utc"].replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    for field in ("input_cost_per_token", "output_cost_per_token"):
+        value = snapshot["rates"].get(field)
+        if type(value) not in (int, float, Decimal) or not Decimal(str(value)).is_finite() or value < 0:
+            return False
+    information = metadata.get("guardrail_information")
+    if not isinstance(information, list):
+        return False
+    entries = [v for v in information if isinstance(v, dict) and v.get("guardrail_name") == "owui_budget_usage"]
+    return (len(entries) == 1 and entries[0].get("guardrail_action") == "allow"
+            and entries[0].get("guardrail_status") == "success" and entries[0].get("guardrail_mode") == "post_call"
+            and entries[0].get("violation_categories") == [])
+
+
 def _row(raw: object, user_id: str, chat_id: str) -> _Row:
     scope = _attribution(raw, user_id, chat_id)
     metadata = raw["metadata"]
@@ -257,7 +295,7 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
     # Native writer defaults missing cost/usage to zero (utils797..800), and
     # absent metadata.status to success1720..1731. Failure cost-debug data is
     # not guaranteed in this endpoint's whitelisted metadata. Until a native
-    # zero-cost qualification exists, never present these defaults as free.
+    # zero-cost qualification is present, never present these defaults as free.
     _require(raw.get("status") == "success"
              and metadata.get("status") in (None, "success")
              and metadata.get("error_information") is None
@@ -265,7 +303,7 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
              and metadata.get("response_cost_failure_debug_information") is None,
              "accounting_unavailable")
     prompt, completion, total, spend = _usage_numbers(raw)
-    _require(spend > 0 and total > 0, "accounting_unavailable")
+    _require(spend > 0 and total > 0 or spend == 0 and _known_zero(metadata), "accounting_unavailable")
     return _Row(_text(raw.get("request_id")), scope["call_id"], scope["root_answer_id"], scope["model"],
                 spend, prompt, completion, total)
 

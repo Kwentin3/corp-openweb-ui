@@ -1259,5 +1259,154 @@ class PricingSnapshotTests(unittest.TestCase):
         self.assertEqual(self.snapshot(owner)["availability"], "available")
 
 
+    def native_zero_publication(self, raw_usage, *, raw_cost_none=False, free_rates=False, reenter_none=False, mutate=None):
+        """Actual SDK parser/guard/cost, existing protected owner, native hook/row."""
+        import httpx
+        import litellm
+        from litellm.cost_calculator import completion_cost
+        from litellm.integrations.custom_guardrail import CustomGuardrail
+        from litellm.litellm_core_utils.litellm_logging import Logging
+        from litellm.litellm_core_utils.llm_cost_calc.utils import BilledTokenRates
+        from litellm.llms.openai.responses.transformation import OpenAIResponsesAPIConfig
+        from litellm.responses.utils import ResponseAPILoggingUtils, ResponsesAPIRequestUtils
+        from litellm.types.guardrails import GuardrailEventHooks
+        scripts = HERE.parents[3] / 'scripts/goal584-budget-proof'
+        sys.path.insert(0, str(scripts))
+        from test_unknown_usage_guard import native_responses_origin, SANITIZER
+        prototype, router, proxy, modules, _ = self.protected_owner(call_type='aresponses')
+        if free_rates:
+            for info in (router.model_list[0]['model_info'], prototype.litellm_params['model_info']):
+                info.update(input_cost_per_token=0., output_cost_per_token=0.)
+        data = native_responses_origin({'model': 'gpt-4o', 'stream': False, 'input': 'Hi'})
+        owner = data['litellm_logging_obj']
+        owner.litellm_params = prototype.litellm_params
+        owner.model_call_details['litellm_params'] = owner.litellm_params
+        owner._test_http_request = prototype._test_http_request
+        metadata = self.native['get_litellm_metadata_from_kwargs'](owner.model_call_details)
+        import test_cost_readback as readback
+        metadata['spend_logs_metadata']['owui_budget'] = copy.deepcopy(readback.row()['metadata']['spend_logs_metadata']['owui_budget'])
+        data['litellm_metadata'] = metadata
+        raw = dict(id='resp_native_zero', object='response', created_at=1, model='gpt-4o', status='completed', output=[])
+        if raw_usage != 'missing': raw['usage'] = raw_usage
+        response = OpenAIResponsesAPIConfig().transform_response_api_response(model='gpt-4o',
+            raw_response=httpx.Response(200, json=raw), logging_obj=owner)
+        guard_raw = (HERE.parents[1] / 'unknown_usage_guard.py').read_bytes().replace(b'\r\n', b'\n')
+        self.assertEqual(hashlib.sha256(guard_raw).hexdigest(), '7968f26f84bdba012161c8b4628bc846212e699182a34a7a4719d0bd6fe335d9')
+        guard_cls = next(n for n in ast.parse(guard_raw).body if isinstance(n, ast.ClassDef) and n.name == 'UnknownUsageGuard')
+        guard_cls.body = [n for n in guard_cls.body if getattr(n, 'name', None) in ('_responses_usage_available', '_record')]
+        env = dict(CustomGuardrail=CustomGuardrail, Logging=Logging, ResponsesAPIRequestUtils=ResponsesAPIRequestUtils,
+                   json=json, NAME='owui_budget_usage', GuardrailEventHooks=GuardrailEventHooks)
+        execute([guard_cls], env)
+        guard = env['UnknownUsageGuard'](guardrail_name='owui_budget_usage', event_hook=GuardrailEventHooks.post_call)
+        known = guard._responses_usage_available(data, response)
+        guard._record(data, 'allow' if known else 'block')
+        terms = router.get_deployment(model_id=owner.get_router_model_id()).model_info
+        cost = completion_cost(completion_response=response, model='gpt-4o', custom_llm_provider='openai',
+            call_type='aresponses', custom_pricing=True, litellm_logging_obj=owner,
+            custom_cost_per_token={k: getattr(terms, k) for k in ('input_cost_per_token', 'output_cost_per_token')})
+        self.assertEqual(cost, 0)
+        owner.model_call_details['response_cost'] = cost
+        if raw_cost_none:
+            # The actual Logging failure path returns None, even with prior rates.
+            old_model, old_params = owner.model, owner.litellm_params
+            owner.model = 'unregistered-native-cost-failure'; owner.litellm_params = {}
+            owner.model_call_details['litellm_params'] = {}
+            failed = response.model_copy(update={'model': owner.model})
+            with patch.dict(sys.modules, modules):
+                owner.model_call_details['response_cost'] = owner._response_cost_calculator(result=failed)
+            owner.model, owner.litellm_params = old_model, old_params
+            owner.model_call_details['litellm_params'] = old_params
+            self.assertIsNone(owner.model_call_details['response_cost'])
+        if mutate: mutate(owner, metadata)
+        normalized = SimpleNamespace(usage=ResponseAPILoggingUtils._transform_response_api_usage_to_chat_usage(response.usage))
+        with patch.object(self.adapter, 'Logging', Logging), patch.object(self.adapter, 'BilledTokenRates', BilledTokenRates):
+            observed = self.capture_protected(owner, modules, result=normalized)
+            if reenter_none:
+                self.assertIs(self.snapshot(owner).get('native_zero_confirmed'), True)
+                owner.model_call_details['response_cost'] = None
+                with patch.dict(sys.modules, modules):
+                    self.run_hooks(owner, normalized)
+                self.assertNotIn('native_zero_confirmed', self.snapshot(owner))
+        # Same pinned native sanitizer, with its complete existing dependency closure.
+        with patch.dict(sys.modules, modules), patch.dict(self.native, {'_sanitize_guardrail_information_for_spend_logs': SANITIZER['_sanitize_guardrail_information_for_spend_logs']}):
+            clean = self.native['_get_spend_logs_metadata'](metadata,
+                guardrail_information=metadata.get('standard_logging_guardrail_information'))
+        writer = selected('proxy/spend_tracking/spend_tracking_utils.py', {'get_logging_payload'})[0]
+        payload = next(n for n in ast.walk(writer) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'SpendLogsPayload')
+        fields = {n.arg: n.value for n in payload.keywords}
+        expression = ast.Dict(keys=[ast.Constant('metadata'), ast.Constant('spend')], values=[fields['metadata'], fields['spend']])
+        row = eval(compile(ast.fix_missing_locations(ast.Expression(expression)), 'actual-native-zero-row', 'eval'),
+                   {'safe_dumps': json.dumps, 'clean_metadata': clean, 'kwargs': owner.model_call_details})
+        if self.snapshot(owner).get('native_zero_confirmed') is True:
+            api_row = readback.row(spend=row['spend'])
+            api_row.update(metadata=json.loads(row['metadata']), prompt_tokens=normalized.usage.prompt_tokens,
+                           completion_tokens=normalized.usage.completion_tokens, total_tokens=normalized.usage.total_tokens)
+            self.assertEqual(readback.cost._row(api_row, readback.USER, readback.CHAT).spend, 0)
+        return self.snapshot(owner), observed, row, known
+
+    def test_actual_native_zero_cost_usage_guard_snapshot_and_row_are_distinct_from_default_zero(self):
+        usage = {'input_tokens': 0, 'output_tokens': 0, 'total_tokens': 0}
+        snapshot, descriptor, row, known = self.native_zero_publication(usage)
+        self.assertTrue(known); self.assertIs(snapshot.get('native_zero_confirmed'), True)
+        self.assertEqual(descriptor['availability'], 'available')
+        self.assertEqual(json.loads(row['metadata'])['spend_logs_metadata'][self.adapter.SNAPSHOT_KEY], snapshot)
+        self.assertEqual(row['spend'], 0)
+        paid_usage = {'input_tokens': 10, 'output_tokens': 5, 'total_tokens': 15}
+        snapshot, descriptor, row, known = self.native_zero_publication(paid_usage, free_rates=True)
+        self.assertTrue(known); self.assertIs(snapshot.get('native_zero_confirmed'), True)
+        self.assertEqual(descriptor['availability'], 'available'); self.assertEqual(row['spend'], 0)
+        for mutation in ('not_run', 'duplicate', 'breakdown'):
+            def corrupt(owner, metadata):
+                entries = metadata['standard_logging_guardrail_information']
+                if mutation == 'not_run': entries[0]['guardrail_status'] = 'not_run'
+                elif mutation == 'duplicate': entries.append(copy.deepcopy(entries[0]))
+                else: owner.cost_breakdown['total_cost'] = .01
+            snapshot, _, _, _ = self.native_zero_publication(usage, mutate=corrupt)
+            self.assertNotIn('native_zero_confirmed', snapshot)
+        for raw in ('missing', None, dict(usage, input_tokens='0')):
+            with self.subTest(raw=raw):
+                snapshot, _, row, known = self.native_zero_publication(raw)
+                self.assertFalse(known); self.assertNotIn('native_zero_confirmed', snapshot)
+                self.assertEqual(row['spend'], 0)
+        with self.assertRaises(ValidationError):
+            self.native_zero_publication(dict(usage, input_tokens=None))
+        snapshot, _, row, _ = self.native_zero_publication(usage, raw_cost_none=True)
+        self.assertNotIn('native_zero_confirmed', snapshot)
+        self.assertIsNone(row['spend'])
+        standard = selected('litellm_core_utils/litellm_logging.py', {'get_standard_logging_object_payload'})[0]
+        default = next(n.value for n in ast.walk(standard) if isinstance(n, ast.AnnAssign)
+                       and getattr(n.target, 'id', None) == 'llm_response_cost')
+        scalar = eval(compile(ast.Expression(default), 'native-standard-cost-fallback', 'eval'), {'raw_response_cost': row['spend']})
+        self.assertEqual(scalar, 0)
+        import test_cost_readback as readback
+        projected = readback.row(spend=scalar)
+        projected.update(metadata=json.loads(row['metadata']), prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        with self.assertRaises(readback.cost.CostReadError):
+            readback.cost._row(projected, readback.USER, readback.CHAT)
+        snapshot, _, row, _ = self.native_zero_publication(usage, reenter_none=True)
+        self.assertNotIn('native_zero_confirmed', snapshot)
+        self.assertIsNone(row['spend'])
+
+    def test_reserved_zero_snapshot_is_cleared_before_owner_or_hook_failure(self):
+        forged = {self.adapter.SNAPSHOT_KEY: {'native_zero_confirmed': True}, self.adapter.DESCRIPTOR_SNAPSHOT_KEY: {'availability': 'available'}, 'owui_budget': {'preserved': True}}
+        data = {'litellm_metadata': {'spend_logs_metadata': copy.deepcopy(forged)}}
+        asyncio.run(self.adapter.handler.async_pre_call_hook(None, None, data, 'aresponses'))
+        self.assertEqual(data['litellm_metadata']['spend_logs_metadata'], {'owui_budget': {'preserved': True}})
+        owner, _, _, modules, _ = self.protected_owner()
+        self.bucket(owner).update(copy.deepcopy(forged))
+        with patch.dict(sys.modules, modules):
+            asyncio.run(self.adapter.handler.async_pre_call_hook(self.Auth(), None, {'litellm_logging_obj': owner}, owner.call_type))
+        self.assertNotIn(self.adapter.SNAPSHOT_KEY, self.bucket(owner))
+        self.assertNotIn(self.adapter.DESCRIPTOR_SNAPSHOT_KEY, self.bucket(owner))
+        # Callback not run: no retained caller observation survives to native row.
+        owner, _, _, modules, _ = self.protected_owner()
+        self.bucket(owner).update(copy.deepcopy(forged))
+        with patch.dict(sys.modules, modules), patch.object(owner, 'add_dynamic_callback', side_effect=RuntimeError('registration failed')):
+            with self.assertRaisesRegex(RuntimeError, '^registration failed$'):
+                asyncio.run(self.adapter.handler.async_pre_call_hook(self.Auth(), None, {'litellm_logging_obj': owner}, owner.call_type))
+        self.assertNotIn(self.adapter.SNAPSHOT_KEY, self.bucket(owner))
+        self.assertNotIn(self.adapter.DESCRIPTOR_SNAPSHOT_KEY, self.bucket(owner))
+
+
 if __name__ == "__main__":
     unittest.main()

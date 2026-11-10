@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -23,7 +24,7 @@ sys.path.insert(0, str(HERE))
 import prove_pricing_snapshots as p
 from prove_native_budgets import NativeProof
 
-UPSTREAM = REPO / "local/goal584/litellm/upstream/litellm"
+UPSTREAM = Path(os.environ.get("GOAL584_LITELLM_SOURCE", REPO / "local/goal584/litellm/upstream")) / "litellm"
 ADAPTER = REPO / "deploy/openwebui-budgets/pricing_snapshot.py"
 IDS = [f"{n:08d}-1111-4111-8111-111111111111" for n in range(1, 6)]
 
@@ -244,6 +245,22 @@ class PricingProofTests(unittest.TestCase):
         for mutate in mutations:
             snapshot = copy.deepcopy(template); mutate(snapshot)
             with self.subTest(mutate=mutate), self.assertRaises(p.ProofError): p.validate_snapshot(snapshot)
+
+    def test_optional_native_zero_boolean_preserves_old_schema_and_actual_row_projection(self):
+        raw = self.raw()
+        original = json.loads(raw['metadata'])["spend_logs_metadata"][p.SNAPSHOT_KEY]
+        self.assertEqual(p.validate_snapshot(original), original)
+        for value in (False, True):
+            snapshot = dict(copy.deepcopy(original), native_zero_confirmed=value)
+            self.assertEqual(p.validate_snapshot(snapshot), snapshot)
+            meta = json.loads(raw['metadata']); meta['spend_logs_metadata'][p.SNAPSHOT_KEY] = snapshot
+            candidate = dict(raw, metadata=meta)
+            self.assertEqual(p.project_row(candidate, set(IDS))['metadata']['spend_logs_metadata'][p.SNAPSHOT_KEY], snapshot)
+        for value in (None, 0, 1, 'true', {}, []):
+            with self.subTest(value=value), self.assertRaises(p.ProofError):
+                p.validate_snapshot(dict(copy.deepcopy(original), native_zero_confirmed=value))
+        with self.assertRaises(p.ProofError):
+            p.validate_snapshot(dict(copy.deepcopy(original), native_zero_confirmed=True, arbitrary='extra'))
 
     def test_duplicate_foreign_or_secret_bearing_rows_are_rejected(self):
         with self.assertRaises(p.ProofError): self.observed([self.raw(), self.raw()])

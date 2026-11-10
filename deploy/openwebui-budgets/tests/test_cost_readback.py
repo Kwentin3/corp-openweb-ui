@@ -503,6 +503,43 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
             await self.read()
 
 
+    async def test_qualified_zero_native_row_survives_current_and_later_no_observed_details_read(self):
+        zero = row(spend='0')
+        zero.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        zero['metadata']['spend_logs_metadata']['owui_billed_token_rates'] = {
+            'schema': 1, 'availability': 'partial', 'observed_at_utc': '2026-11-09T00:00:00Z',
+            'rates': {'input_cost_per_token': .01, 'output_cost_per_token': .02, 'cache_read_input_token_cost': None,
+                      'cache_read_input_audio_token_cost': None, 'cache_creation_input_token_cost': None,
+                      'cache_creation_input_token_cost_above_1hr': None, 'output_cost_per_reasoning_token': None},
+            'native_zero_confirmed': True}
+        zero['metadata']['guardrail_information'] = [{'guardrail_name': 'owui_budget_usage', 'guardrail_action': 'allow',
+            'guardrail_status': 'success', 'guardrail_mode': 'post_call', 'violation_categories': []}]
+        self.payload = page([zero])
+        current = await self.read(observed_call_ids=[CALL])
+        retained = await self.read()
+        self.assertEqual(current.answer.spend, Decimal(0)); self.assertTrue(current.complete)
+        self.assertEqual((retained.answer.spend, retained.chat.spend, retained.answer.calls), (Decimal(0), Decimal(0), 1))
+        self.assertEqual(retained.answer, current.answer)
+        self.payload = page([zero, row('positive', answer=OLD_ANSWER, spend='.20', call_id=str(uuid5(NAMESPACE_URL, 'positive')))])
+        mixed = await self.read(observed_call_ids=[CALL])
+        self.assertEqual((mixed.answer.spend, mixed.chat.spend, mixed.chat.calls), (Decimal(0), Decimal('.20'), 2))
+        for mutation in ('missing', 'false', 'integer', 'marker_only', 'not_run', 'duplicate', 'failure', 'foreign', 'inconsistent'):
+            bad = copy.deepcopy(zero)
+            snapshot = bad['metadata']['spend_logs_metadata']['owui_billed_token_rates']
+            if mutation == 'missing': snapshot.pop('native_zero_confirmed')
+            elif mutation == 'false': snapshot['native_zero_confirmed'] = False
+            elif mutation == 'integer': snapshot['native_zero_confirmed'] = 1
+            elif mutation == 'marker_only': bad['metadata']['spend_logs_metadata'].pop('owui_billed_token_rates')
+            elif mutation == 'not_run': bad['metadata']['guardrail_information'][0]['guardrail_status'] = 'not_run'
+            elif mutation == 'duplicate': bad['metadata']['guardrail_information'] *= 2
+            elif mutation == 'failure': bad['metadata']['response_cost_failure_debug_information'] = {}
+            elif mutation == 'foreign': bad['user'] = OTHER_USER
+            else: bad['total_tokens'] = 1
+            self.payload = page([bad])
+            with self.subTest(mutation=mutation), self.assertRaises(cost.CostReadError):
+                await self.read(observed_call_ids=[CALL])
+
+
 class _MemoryReadSession:
     """Finite aiohttp GET/content IO leaf; never creates a socket/client."""
     def __init__(self, owner): self.owner, self.closed = owner, False

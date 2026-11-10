@@ -116,9 +116,12 @@ def fixture_scope(state):
 
 def validate_snapshot(snapshot):
     fields = rate_fields()
-    require(isinstance(snapshot, dict) and set(snapshot) == {"schema", "availability", "observed_at_utc", "rates"}
+    require(isinstance(snapshot, dict) and set(snapshot) in ({"schema", "availability", "observed_at_utc", "rates"},
+                {"schema", "availability", "observed_at_utc", "rates", "native_zero_confirmed"})
             and type(snapshot["schema"]) is int and snapshot["schema"] == 1,
             "Native pricing snapshot schema differs")
+    require("native_zero_confirmed" not in snapshot or type(snapshot["native_zero_confirmed"]) is bool,
+            "Native zero qualification is not boolean")
     rates = snapshot["rates"]
     require(isinstance(rates, dict) and set(rates) == set(fields), "Native pricing snapshot omitted a rate field")
     for value in rates.values():
