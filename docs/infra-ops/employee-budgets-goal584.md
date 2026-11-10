@@ -100,7 +100,31 @@ body4min, cleanup2min, ≥12min headroom перед acceptance; native stop —
 На исправленном `7ea2ed13325b3a9a63d7beb3866016369664ab18` запущен один
 [run42780335933](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42780335933),
 08:08:41UTC; manual cancel08:53:41UTC/hard09:03:41UTC.13sourcepins/clean/remoteFF
-сверены, предыдущий run terminal/cleanup0. Пока build; runtime не принят.
+сверены, предыдущий run terminal/cleanup0. Run завершён FAIL после успешного
+ordinary Send: сохранён actual PNG с Proof и «Ответ:$0.00 · Чат:$0.00» плюс UTC
+снимок. Root просмотрел PNG. Следующая compound-проверка provider outcome
+не прошла; raw provider record не экспортирован, поэтому все её predicates
+независимо перепроверить нельзя. Source review установил ошибочную предпосылку:
+native OpenAI adapter опускает stream:false, а proof требовал явное поле.
+Consumer исправлен на protocol default false (+комментарий/2default arguments),
+compile/остальной module AST/diff PASS. Actual результат задним числом не меняется.
+Details/reader observation/reload не выполнялись и не приняты. Control восстановлен,
+provider terminal, native cleanup0 containers/volumes/networks/images.
+Artifact13746955286/656031B/57members, SHA256
+5506830cb70a989d0bab5deb357ad65b87b55916ac1cca723fd3d41871689313;
+скачан один раз, private URL удалён. Evidence `runtime-known-zero-plainchat/`.
+Следующий CI не запущен; сначала разобрать existing producer/consumer contract,
+сохранив рабочий ответ и штатные финансовые проверки.
+
+Для общего streaming unknown-Usage10.11 задан один вопрос пользователю: разрешить
+узкую поправку сохранения исходного признака Usage до native нормализации только
+на стенде. Предложение: native stream boundary сохраняет происхождение счётчиков,
+существующий guard применяет прежнюю employee/model block policy; pricing, Usage
+values, ledger, budgets и маршруты не переписываются. Проверять на существующем
+сценарии known/zero/missing/null и прерывании, без нового стенда/framework.
+Ранее пользователь выбрал «без нового патча»; это разрешение не расширялось.
+До ответа новые изменения ядра не выполняются. Независимая подготовка поставки
+в прежнем объёме разрешена. Разрешение на production не запрашивалось и не получено.
 
 ## Обязательное до завершения
 

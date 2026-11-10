@@ -490,7 +490,8 @@ def run_known_zero(browser, fixture, base_url, accounts):
         require(provider["requests"][:len(prior["requests"])] == prior["requests"]
                 and len(provider["requests"]) == len(prior["requests"]) + 1, "Known0 provider prefix/suffix differs")
         physical = provider["requests"][-1]
-        require(physical["body"].get("stream") is False and not physical["body"].get("tools")
+        # The native OpenAI adapter omits stream:false; absence is nonstream.
+        require(physical["body"].get("stream", False) is False and not physical["body"].get("tools")
                 and physical["body"].get("model") == "goal584-fake-b"
                 and physical["usage"] == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
                 and physical.get("response", {}).get("usage") == physical["usage"]
@@ -511,7 +512,7 @@ def run_known_zero(browser, fixture, base_url, accounts):
                 and scope.get("user_id") == accounts[0]["id"] and scope.get("model") == MODELS[1],
                 "Known0 signed actual scope differs from native UI")
         for body in (captured["body"], captured["body_after_auth"], physical["body"]):
-            require(body.get("stream") is False and not body.get("tools") and not body.get("functions")
+            require(body.get("stream", False) is False and not body.get("tools") and not body.get("functions")
                     and body.get("messages") == [{"role": "user", "content": "Hi"}], "Known0 actual model context differs")
         target = dict(chat_id=call["chat_id"], answer_id=call["message_id"],
                       request_id=physical["id"], call_id=scope["call_id"])
