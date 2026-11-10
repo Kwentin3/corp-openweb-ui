@@ -32,6 +32,7 @@ CC_ROUTES = frozenset({"/chat/completions", "/v1/chat/completions", "/openai/v1/
 
 class UnknownUsageGuard(CustomGuardrail):
     records_own_guardrail_information = True
+    _cc_stream_owned_elsewhere = False
 
     def __init__(self, operator_key: Callable[[], str], *, base_url: str):
         if version("litellm") != "1.105.1" or not callable(operator_key):
@@ -72,6 +73,9 @@ class UnknownUsageGuard(CustomGuardrail):
         # No streaming aggregation, model-ID decoding, or generic DTO inference.
         if not isinstance(data, dict):
             return None  # Native callback contract adopts the original response unchanged.
+        if (self._cc_stream_owned_elsewhere and data.get("stream") is True
+                and getattr(user_api_key_dict, "request_route", None) in CC_ROUTES):
+            return response
         if not isinstance(response, (ResponsesAPIResponse, ModelResponse)) or data.get("stream", False) is not False:
             self._record(data, "allow", not_run=True)
             return response
@@ -128,7 +132,9 @@ class UnknownUsageGuard(CustomGuardrail):
             for item in buffered:
                 yield item
             return
-        if isinstance(request_data, dict):
+        if (isinstance(request_data, dict)
+                and not (self._cc_stream_owned_elsewhere and request_data.get("stream") is True
+                         and getattr(user_api_key_dict, "request_route", None) in CC_ROUTES)):
             self._record(request_data, "allow", not_run=True)
         async for event in response:
             yield event
@@ -197,6 +203,11 @@ class UnknownUsageGuard(CustomGuardrail):
         if not cc and self._responses_usage_available(data, response):
             self._record(data, "allow")
             return response
+        return await self._apply_personal_policy(
+            data, user_api_key_dict, response, cc=cc,
+            usage_available=cc and self._cc_usage_available(data, response))
+
+    async def _apply_personal_policy(self, data, user_api_key_dict, response, *, cc, usage_available):
         auth = user_api_key_dict
         if (not isinstance(auth, UserAPIKeyAuth) or auth.authenticated_by_custom_auth is not True
                 or auth.request_route not in (CC_ROUTES if cc else ROUTES) or not isinstance(auth.metadata, dict)
@@ -208,7 +219,7 @@ class UnknownUsageGuard(CustomGuardrail):
             if scope is None:
                 self._record(data, "allow", not_run=True)
                 return response
-            if cc and self._cc_usage_available(data, response):
+            if usage_available:
                 self._record(data, "allow")
                 return response
             # Native client-pricing opt-in permits caller-supplied telemetry;
@@ -240,3 +251,79 @@ class UnknownUsageGuard(CustomGuardrail):
             self._record(data, "block_failed")
             raise HTTPException(status_code=503, detail=FAILURE) from None
         return response
+
+
+class ResponsesUsageGuard(UnknownUsageGuard):
+    """Opt-in peer for CCStreamUsageGuard; retains the existing Responses iterator."""
+
+    _cc_stream_owned_elsewhere = True
+    async_post_call_streaming_iterator_hook = UnknownUsageGuard.async_post_call_streaming_iterator_hook
+
+
+class CCStreamUsageGuard(UnknownUsageGuard):
+    """Opt-in native post-call CC owner; deliberately declares no iterator hook."""
+
+    @staticmethod
+    def _stream_attempt(data):
+        log = data.get("litellm_logging_obj")
+        if (not isinstance(log, Logging) or getattr(log, "stream", None) is not True
+                or getattr(log, "call_type", None) != "acompletion"
+                or not isinstance(data.get("litellm_call_id"), str) or not data["litellm_call_id"]
+                or getattr(log, "litellm_call_id", None) != data["litellm_call_id"]):
+            return None
+        raw = getattr(log, "_raw_stream_usage", None)
+        if (not isinstance(raw, dict) or raw.get("call_id") != log.litellm_call_id
+                or (raw.get("stream_id") is not None
+                    and (type(raw["stream_id"]) is not int or raw["stream_id"] <= 0))):
+            return None
+        return log
+
+    @staticmethod
+    def _stream_usage_available(data, response):
+        log = CCStreamUsageGuard._stream_attempt(data)
+        if log is None:
+            return False
+        details = getattr(log, "model_call_details", None)
+        buckets = [data.get("metadata"), data.get("litellm_metadata")]
+        if isinstance(details, dict):
+            buckets.append(details.get("metadata"))
+            params = details.get("litellm_params")
+            if isinstance(params, dict):
+                buckets.append(params.get("metadata"))
+        if any(isinstance(meta, dict) and meta.get("client_disconnected") is True for meta in buckets):
+            return False
+        raw = log._raw_stream_usage
+        if (type(raw.get("stream_id")) is not int or raw["stream_id"] <= 0
+                or raw.get("seen") is not True or raw.get("valid") is not True
+                or raw.get("invalid") is not False):
+            return False
+        counts = raw.get("counts")
+        usage = getattr(response, "usage", None)
+        return (type(counts) is tuple and len(counts) == 3
+                and all(type(value) is int and value >= 0 for value in counts)
+                and counts[2] == counts[0] + counts[1]
+                and usage is not None
+                and all(getattr(usage, field, None) == value for field, value in zip(
+                    ("prompt_tokens", "completion_tokens", "total_tokens"), counts)))
+
+    @log_guardrail_information
+    async def async_post_call_success_hook(self, data, user_api_key_dict, response):
+        if (not isinstance(data, dict) or data.get("stream") is not True
+                or getattr(user_api_key_dict, "request_route", None) not in CC_ROUTES):
+            return response
+        return await self._apply_personal_policy(
+            data, user_api_key_dict, response, cc=True,
+            usage_available=isinstance(response, ModelResponse) and self._stream_usage_available(data, response))
+
+    async def async_post_call_failure_hook(
+        self, request_data, original_exception, user_api_key_dict, traceback_str=None,
+    ):
+        if (not isinstance(request_data, dict) or request_data.get("stream") is not True
+                or getattr(user_api_key_dict, "request_route", None) not in CC_ROUTES
+                or self._stream_attempt(request_data) is None):
+            return None
+        # A failed/cancelled transport cannot confirm a completed response,
+        # even if its latest observed raw Usage was well formed.
+        await self._apply_personal_policy(
+            request_data, user_api_key_dict, None, cc=True, usage_available=False)
+        return None

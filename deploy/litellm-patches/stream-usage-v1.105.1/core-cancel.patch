@@ -1,0 +1,189 @@
+--- a/litellm/proxy/common_request_processing.py
++++ b/litellm/proxy/common_request_processing.py
+@@ -393,7 +393,9 @@
+     return isinstance(stamped_model, str) and assembled_model == stamped_model
+ 
+ 
+-async def _bill_partial_streamed_spend_on_disconnect(request_data: dict, response: object) -> bool:
++async def _bill_partial_streamed_spend_on_disconnect(
++    request_data: dict, response: object, user_api_key_dict: UserAPIKeyAuth | None = None
++) -> bool:
+     """
+     A client disconnect throws GeneratorExit/CancelledError into the streaming
+     generator, so neither the success nor the failure logging callback fires
+@@ -453,6 +455,14 @@
+     if isinstance(partial_usage, Usage):
+         backfill_missing_cache_usage_fields(partial_usage)
+     try:
++        if (isinstance(user_api_key_dict, UserAPIKeyAuth)
++                and ProxyBaseLLMRequestProcessing._has_post_call_guardrails()):
++            partial_response = await ProxyBaseLLMRequestProcessing._apply_deferred_stream_guardrails(
++                captured_data=request_data,
++                captured_user_api_key_dict=user_api_key_dict,
++                captured_logging_obj=logging_obj,
++                assembled_response=partial_response,
++            )
+         await logging_obj.dispatch_success_handlers(
+             partial_response,
+             cache_hit=False,
+@@ -3514,32 +3524,13 @@
+         logging_obj._on_deferred_stream_complete = _on_deferred_native_stream_complete
+ 
+     @staticmethod
+-    async def _run_deferred_stream_guardrails(
++    async def _apply_deferred_stream_guardrails(
+         captured_data: dict,
+         captured_user_api_key_dict: "UserAPIKeyAuth",
+         captured_logging_obj: LiteLLMLoggingObj,
+         assembled_response: Any,
+-        cache_hit: object,
+-    ) -> None:
+-        """
+-        Run non-streaming post-call guardrail hooks on an assembled streaming
+-        response, then fire success logging via ``dispatch_success_handlers``.
+-
+-        Called by ProxyLogging._fire_deferred_stream_logging after the full
+-        streaming pipeline (including unified_guardrail end-of-stream blocks)
+-        has completed.
+-
+-        Guardrails routed through unified_guardrail are skipped, since they already ran
+-        via its streaming iterator, and so are guardrails a post_call policy pipeline
+-        manages, since the pipeline ran them against the buffered stream.  Guardrails
+-        that override async_post_call_success_hook directly run here, including those
+-        that implement apply_guardrail but keep their native lifecycle hooks.
+-
+-        This is audit-only — content has already been delivered to the client.
+-
+-        Extracted as a static method so tests can call the production
+-        implementation directly rather than reimplementing the closure.
+-        """
++    ) -> Any:
++        """Await the existing guardrail audit before either native success dispatch."""
+         _response = assembled_response
+         try:
+             from litellm.proxy.proxy_server import llm_router as _global_llm_router
+@@ -3596,6 +3587,43 @@
+                 "Error in deferred streaming guardrail initialization: %s",
+                 e,
+             )
++        return _response
++
++    @staticmethod
++    async def _run_deferred_stream_guardrails(
++        captured_data: dict,
++        captured_user_api_key_dict: "UserAPIKeyAuth",
++        captured_logging_obj: LiteLLMLoggingObj,
++        assembled_response: Any,
++        cache_hit: object,
++    ) -> None:
++        """
++        Run non-streaming post-call guardrail hooks on an assembled streaming
++        response, then fire success logging via ``dispatch_success_handlers``.
++
++        Called by ProxyLogging._fire_deferred_stream_logging after the full
++        streaming pipeline (including unified_guardrail end-of-stream blocks)
++        has completed.
++
++        Guardrails routed through unified_guardrail are skipped, since they already ran
++        via its streaming iterator, and so are guardrails a post_call policy pipeline
++        manages, since the pipeline ran them against the buffered stream.  Guardrails
++        that override async_post_call_success_hook directly run here, including those
++        that implement apply_guardrail but keep their native lifecycle hooks.
++
++        This is audit-only — content has already been delivered to the client.
++
++        Extracted as a static method so tests can call the production
++        implementation directly rather than reimplementing the closure.
++        """
++        _response = assembled_response
++        try:
++            _response = await ProxyBaseLLMRequestProcessing._apply_deferred_stream_guardrails(
++                captured_data=captured_data,
++                captured_user_api_key_dict=captured_user_api_key_dict,
++                captured_logging_obj=captured_logging_obj,
++                assembled_response=assembled_response,
++            )
+         finally:
+             try:
+                 # Proxy streaming always runs in async context and proxy spend
+@@ -3814,6 +3842,7 @@
+         client_disconnected: bool = False,
+         user_api_key_dict: UserAPIKeyAuth | None = None,
+         proxy_logging_obj: ProxyLogging | None = None,
++        stream_exception: BaseException | None = None,
+     ) -> None:
+         with anyio.CancelScope(shield=True):
+             should_record_client_disconnect: Final = client_disconnected or (not stream_completed)
+@@ -3837,8 +3866,19 @@
+                 success_event_owns_slot_release = deferred_stream_logging_armed
+                 if not deferred_stream_logging_armed:
+                     success_event_owns_slot_release = await _bill_partial_streamed_spend_on_disconnect(
+-                        request_data, response
++                        request_data, response, user_api_key_dict
+                     )
++                if (not success_event_owns_slot_release and stream_exception is not None
++                        and proxy_logging_obj is not None
++                        and isinstance(user_api_key_dict, UserAPIKeyAuth)):
++                    try:
++                        await proxy_logging_obj.post_call_failure_hook(
++                            request_data=request_data,
++                            user_api_key_dict=user_api_key_dict,
++                            original_exception=stream_exception,
++                        )
++                    except Exception:
++                        verbose_proxy_logger.debug("Disconnect failure hook failed")
+                 if (
+                     not success_event_owns_slot_release
+                     and proxy_logging_obj is not None
+@@ -3906,6 +3946,7 @@
+         stream_completed = False
+         client_disconnected = False
+         delivered_chunk = False
++        stream_exception: BaseException | None = None
+         recent_tail = SSE_STREAM_START_TAIL  # rebind-ok: rolling window over the yielded bytes
+         try:
+             str_so_far = ""
+@@ -3959,7 +4000,8 @@
+             if held_tail:
+                 yield serialize_chunk(held_tail)
+             stream_completed = True
+-        except (asyncio.CancelledError, GeneratorExit):
++        except (asyncio.CancelledError, GeneratorExit) as error:
++            stream_exception = error
+             # Client disconnected mid-stream. CancelledError / GeneratorExit
+             # are BaseException and bypass the success/failure logging
+             # callbacks that release the pre-call max_parallel_requests +1.
+@@ -4014,6 +4056,7 @@
+                 client_disconnected=client_disconnected,
+                 user_api_key_dict=user_api_key_dict,
+                 proxy_logging_obj=proxy_logging_obj,
++                stream_exception=stream_exception,
+             )
+ 
+     @staticmethod
+--- a/litellm/proxy/utils.py
++++ b/litellm/proxy/utils.py
+@@ -3272,7 +3272,7 @@
+         request_data.update(await offload_token_count(_failure_fields_to_lift)(request_data))
+ 
+         # Remove before callbacks iterate — not serialisable
+-        request_data.pop("litellm_logging_obj", None)
++        failure_logging_obj = request_data.pop("litellm_logging_obj", None)
+ 
+         redacted_traceback_str: Final = _redact_string(traceback_str) if traceback_str is not None else None
+ 
+@@ -3290,8 +3290,13 @@
+                     _callback = callback
+                 if _callback is not None and isinstance(_callback, CustomLogger):
+                     try:
++                        callback_data = request_data
++                        if isinstance(_callback, CustomGuardrail) and isinstance(failure_logging_obj, Logging):
++                            # Guardrails need same-call native evidence; serialising loggers
++                            # retain the existing request shape without the Logging owner.
++                            callback_data = {**request_data, "litellm_logging_obj": failure_logging_obj}
+                         hook_result = await _callback.async_post_call_failure_hook(
+-                            request_data=request_data,
++                            request_data=callback_data,
+                             user_api_key_dict=user_api_key_dict,
+                             original_exception=original_exception,
+                             traceback_str=redacted_traceback_str,

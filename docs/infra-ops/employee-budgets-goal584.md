@@ -99,13 +99,34 @@ Logging reuse reset подтверждён, outbound0, SDK unchanged, остав
 Это проверка механизма SDK, не exact image/proxy/DB/UI/cancellation acceptance.
 Cached SDK — reference, не SBOM образа; actual image exports ещё нужны.
 
-Guard WIP использует прежнюю employee/model policy через native post-call callback;
-default регистрация не менялась. Draft partial-cancel сохраняет native settlement.
-Обработка ошибок и cancel без собранного ответа ещё не закрыта; новые core drafts
-не установлены, не собраны и не приняты. Четыре файла floor patch неизменны.
-Следующий шаг — закончить узкий source-кандидат, проверить exact image dependencies
-в существующем builder и выполнить достаточную существующую стендовую проверку.
-Новых ledger, журналов, SSE wrapper и тестовых framework не создавать.
+Guard candidate (+89/−2) использует прежнюю employee/model policy через native
+post-call callback; default регистрация не менялась. Два opt-in peer выбираются
+штатным callback manager; на прямом пути одна telemetry-запись на протокол.
+Named registry возвращает первый peer: эквивалентность иных name-based consumers
+не заявляется. Native patch затрагивает raw factory и два lifecycle-файла:
+partial cleanup вызывает существующие eligible success guards, cancel без ответа —
+существующий full failure hook один раз. Он пишет native failure row; reader уже
+отвергает такие суммы. Точный admin Usage-reason зависит от сохранённых metadata;
+без него сумма недоступна, а не известна/нулевая. Обычный error hook не дублируется,
+native возврат резервов не перемещался. При иных guardrails cancel lifecycle
+расширяется и на них; стендовая композиция ограничена нашими двумя peer.
+Core patch SHA029e55760d4b35b7b6803e8ecefaef96edea5dd7e19c622e2d948c4e9898bfdf.
+Изменения ещё не установлены, не собраны и не приняты в actual image.
+
+Существующие builder и identity получают отдельный opt-in stream вариант,
+проверяющий3native targets/8SDK файлов. Floor patch/manifest/LICENSE и прежние
+prepare/load_manifest/two-function validator сохранены; identity расширен явно.
+В existing test_unknown_usage_guard добавлены3метода (+151строка): actual SDK
+zero/missing, cancel до/после первого chunk, read error; private marker не подделывается.
+Это компонентная проверка с fixture auth/admin HTTP, не приёмка DB/UI.
+Короткий dispatch stream-usage в existing native workflow пропускает37шагов
+и pricing/calendar jobs, не создаёт новых jobs/framework. Bounds20min job,
+10min builder,4min component; ресурсная граница8GiB disk/3GiB RAM, native test
+container2GiB/2CPU/256PIDs/networknone. Native tokenizer cache готовится отдельно
+без model calls. Cleanup адресует только exact-run label и проверенный built IID.
+YAML/31embedded Python bodies/actionlint PASS; default inference bodies сохранены.
+Следующий шаг — закончить source qualification и один ограниченный запуск exact
+image. Новых ledger, журналов, SSE wrapper и тестовых framework не создавать.
 
 ## Поставка и обязательные оставшиеся шаги
 

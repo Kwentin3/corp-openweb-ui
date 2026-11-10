@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "variant": "stream-usage-v1.105.1",
+  "base_image": "ghcr.io/berriai/litellm:v1.105.1@sha256:b7b9e2c306343721802253d0dd9436b9634a2eb4e14da7c7cf06c5c7b7530802",
+  "base_revision": "d665dc1a6315847fcad6cc2c1264ceb47c06abce",
+  "floor_manifest_sha256": "1695ef5f07b8662e8c8a0bc031c01debb74266f92873bac12cc5f2edac93b99b",
+  "patch_sha256": {
+    "raw-usage.patch": "9e77444f4e8a77e0ebc343861775c6a0748e28b58c3e95176ba3dd68a481fade",
+    "core-cancel.patch": "029e55760d4b35b7b6803e8ecefaef96edea5dd7e19c622e2d948c4e9898bfdf"
+  },
+  "sdk": {
+    "version": "2.54.0",
+    "files_sha256": {
+      "_version.py": "3511ac1b34893071b3aeb10623e65562e4213cd711e01ed21c621987fe1f4f9f",
+      "_models.py": "a85b5516d8a03022ee8a615fab432fe0f78b500dc4c35d0707e80626d95c8d46",
+      "_base_client.py": "5539c83d01c27e1bbf1ad34e59cc872202feb6c8bf81b56fadbeeb2b81a3e869",
+      "_streaming.py": "3178ebb721f4ff3cda6d479520ba2bddcdc7096e2a99827c6a0bc150fe44534a",
+      "_legacy_response.py": "981fa9b6f77d323235833924fa7b85590157bddb2178504fe7bb531211e4f0ef",
+      "types/chat/chat_completion_chunk.py": "39b86b03d4ee5df11ceac3bf31f3be57a39a4c30071af58a4e928b80c22aeb48",
+      "types/completion_usage.py": "324038531e00674dcda7d234f0105815690622a0dfef10036fa87f91786c9d9e",
+      "_types.py": "3947cc81519a2390adb44798be0215c86068b99a318e95ef0e2215235323258f"
+    }
+  },
+  "targets": {
+    "llms/openai/openai.py": {
+      "original_sha256": "e6d25eea6d0a12d16f781ea175982830ab7eaa945ca32b4c5b424580d84f8831",
+      "patched_sha256": "8f11034ded770a2fef7acc6941c3c4c91784bf98bc19f1fcd9c54bbe25d287fc",
+      "changed_functions": [
+        "OpenAIChatCompletion.make_openai_chat_completion_request"
+      ],
+      "added_functions": [],
+      "signature_changes": []
+    },
+    "proxy/common_request_processing.py": {
+      "original_sha256": "4dcc3a41f8179d14ea35d25d9669b89a78063ea162767ba358817d050d2be1d0",
+      "patched_sha256": "af320e59295c8da2a185de16233335f236b6d03095f0a705f50d3c79a9938b7a",
+      "changed_functions": [
+        "ProxyBaseLLMRequestProcessing._finalize_streaming_generator_cleanup",
+        "ProxyBaseLLMRequestProcessing._run_deferred_stream_guardrails",
+        "ProxyBaseLLMRequestProcessing.async_streaming_data_generator",
+        "_bill_partial_streamed_spend_on_disconnect"
+      ],
+      "added_functions": [
+        "ProxyBaseLLMRequestProcessing._apply_deferred_stream_guardrails"
+      ],
+      "signature_changes": [
+        "_bill_partial_streamed_spend_on_disconnect",
+        "ProxyBaseLLMRequestProcessing._finalize_streaming_generator_cleanup"
+      ]
+    },
+    "proxy/utils.py": {
+      "original_sha256": "f2b56f6e501ee6cfedbf4e9d79a19cee594fb797f1c3d2f2fd80a37faaf6a77f",
+      "patched_sha256": "a360f0958fb5cb1d22acc5d73aff9d15b8d9b5e44c295e823ebc68f56c52edba",
+      "changed_functions": [
+        "ProxyLogging.post_call_failure_hook"
+      ],
+      "added_functions": [],
+      "signature_changes": []
+    }
+  },
+  "license_sha256": "b170d6bf8e8835dd357e011681db028f4d51e2fb0ea892058f56e01fb39b8273"
+}

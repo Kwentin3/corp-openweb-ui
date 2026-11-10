@@ -67,6 +67,10 @@ PINS = {
     "llms/openai/openai.py": "e6d25eea6d0a12d16f781ea175982830ab7eaa945ca32b4c5b424580d84f8831",
     "utils.py": "b8780e244b32bfe709fff7ba4dfedb1141ca0fbe6443ce0d1626e4e714da37f8",
 }
+if os.environ.get("PROOF_NATIVE_VARIANT") == "stream-usage-v1.105.1":
+    sys.path.append(str(HERE.parents[1] / "deploy/litellm-patches/positive-floor-v1.105.1"))
+    import native_floor_identity
+    PINS = native_floor_identity.selected_hashes(PINS)
 
 
 def tree(relative):
@@ -1038,6 +1042,154 @@ class NonstreamCCNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                 self.processor._flush_deferred_async_logging(logging_obj=log, exception_raised=False)
                 await self.flush(); self.assertFalse(self.failures); self.assertEqual(len(self.successes), 1)
                 self.auth.metadata = previous_metadata
+
+
+@unittest.skipUnless(os.environ.get("PROOF_NATIVE_VARIANT") == "stream-usage-v1.105.1",
+                     "Requires the explicit native stream-usage candidate")
+class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
+    """Actual patched SDK/Router stream and proxy lifecycle; HTTP/admin leaves only."""
+    @classmethod
+    def setUpClass(cls):
+        BufferedNativeUsageTests.setUpClass.__func__(cls)
+        native_floor_identity.inspect_sources()  # Existing owner verifies SDK8 and patched native identities.
+    entry = UnknownUsageTests.entry
+    assert_finance_unchanged = UnknownUsageTests.assert_finance_unchanged
+    outer = BufferedNativeUsageTests.outer
+    flush = BufferedNativeUsageTests.flush
+
+    def setUp(self):
+        BufferedNativeUsageTests.setUp(self)
+        self.addCleanup(self.router.reset)
+        self.guard = G.CCStreamUsageGuard(self.operator, base_url="http://127.0.0.1:4000")
+        self.enterContext(patch.object(litellm, "callbacks", [
+            G.ResponsesUsageGuard(self.operator, base_url="http://127.0.0.1:4000"), self.guard]))
+        self.auth.request_route = "/v1/chat/completions"
+        self.native_failure = self.enterContext(patch.object(self.proxy_instance, "post_call_failure_hook",
+            wraps=self.proxy_instance.post_call_failure_hook))
+
+    async def routed_stream(self, kind, *, stop=None):
+        import httpx
+        from litellm.llms.openai.openai import OpenAIChatCompletion
+        self.data.pop("input", None); self.data.pop("litellm_logging_obj", None)
+        self.data["litellm_metadata"].pop("standard_logging_guardrail_information", None)
+        self.data.update(stream=True, litellm_call_id=str(uuid4()), max_tokens=6000, temperature=0,
+            stream_options={"include_usage": True}, messages=[
+                {"role": "system", "content": "Preserve the full source and native function schema."},
+                {"role": "user", "content": "Inspect the complete synthetic Office source."}],
+            tools=[{"type": "function", "function": {"name": "inspect_native_file",
+                "description": "Inspect the whole source", "parameters": {"type": "object",
+                    "properties": {"file_id": {"type": "string"}}, "required": ["file_id"],
+                    "additionalProperties": False}}}])
+        log, self.data = litellm.utils.function_setup(original_function="acompletion",
+            rules_obj=litellm.utils.Rules(), start_time=datetime.now(), **self.data)
+        self.data["litellm_logging_obj"] = log
+        self.assertIsInstance(log, self.logging); self.assertFalse(hasattr(log, "_raw_stream_usage"))
+        expected = {key: copy.deepcopy(self.data[key]) for key in
+                    ("messages", "tools", "max_tokens", "temperature", "stream", "stream_options")}
+        expected["model"] = "gpt-4o"
+        base = {"id": "chatcmpl-stream-source", "object": "chat.completion.chunk", "created": 1, "model": "gpt-4o"}
+        first = {**base, "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Source inspected.",
+            "tool_calls": [{"index": 0, "id": "call_native", "type": "function", "function": {
+                "name": "inspect_native_file", "arguments": '{"file_id":"synthetic-source"}'}}]}, "finish_reason": None}]}
+        final = {**base, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+        if kind == "zero": final["usage"] = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        state = {"entered": asyncio.Event(), "closed": False, "requests": [], "raw": [first, final]}
+        class Body(httpx.AsyncByteStream):
+            async def __aiter__(inner):
+                for index, chunk in enumerate(state["raw"]):
+                    if stop == "before" or (stop == "after" and index == 1):
+                        state["entered"].set(); await asyncio.Event().wait()
+                    if stop == "error" and index == 1:
+                        raise httpx.ReadError("controlled native stream failure")
+                    yield ("data: " + json.dumps(chunk) + "\n\n").encode()
+                yield b"data: [DONE]\n\n"
+            async def aclose(inner): state["closed"] = True
+        async def leaf(request):
+            state["requests"].append(json.loads(request.content))
+            self.assertEqual(state["requests"][-1], expected)
+            return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Body(), request=request)
+        client = httpx.AsyncClient(transport=httpx.MockTransport(leaf)); self.addAsyncCleanup(client.aclose)
+        self.router = litellm.Router(model_list=[{"model_name": self.model, "litellm_params": {
+            "model": "openai/gpt-4o", "api_key": "synthetic-native-stream-key", "max_retries": 0,
+            "api_base": "https://" + str(uuid4()) + ".native-fixture.invalid/v1"},
+            "model_info": {"id": "native-stream-" + str(uuid4()), "mode": "chat",
+                "input_cost_per_token": .001, "output_cost_per_token": .002}}], num_retries=0)
+        self.addCleanup(self.router.reset)
+        self.enterContext(patch.object(self.server, "llm_router", self.router))
+        with patch.object(OpenAIChatCompletion, "_get_async_http_client", return_value=client):
+            iterator = await self.router.acompletion(**self.data)
+        self.assertIs(iterator.logging_obj, log); self.assertEqual(len(state["requests"]), 1)
+        self.processor(self.data)._arm_deferred_stream_dispatch(iterator, "acompletion", self.auth, log)
+        self.addAsyncCleanup(iterator.aclose)
+        return iterator, log, state
+
+    def assert_stream_context(self, event):
+        delta = json.loads(event)["choices"][0]["delta"]
+        self.assertEqual(delta["content"], "Source inspected.")
+        call = delta["tool_calls"][0]
+        self.assertEqual((call["id"], call["function"]["name"], call["function"]["arguments"]),
+                         ("call_native", "inspect_native_file", '{"file_id":"synthetic-source"}'))
+
+    def assert_targeted_block(self):
+        self.assertTrue(self.wire.key["blocked"]); self.assert_finance_unchanged()
+        self.assertEqual([(path, body) for method, path, body, *_ in self.wire.requests if method == "POST"],
+                         [("/key/block", {"key": self.key_hash})])
+        self.assertEqual(self.entry()["guardrail_action"], "block")
+        committed = next(index for index, (method, path, *_) in enumerate(self.wire.requests)
+                         if method == "POST" and path == "/key/block")
+        self.assertTrue(any(method == "GET" and path == "/user/info"
+                            for method, path, *_ in self.wire.requests[committed + 1:]))
+
+    async def test_raw_zero_and_missing_usage_follow_native_deferred_policy(self):
+        for kind in ("zero", "absent"):
+            with self.subTest(kind=kind):
+                self.wire.key["blocked"] = False; self.wire.requests.clear(); self.operator.reset_mock()
+                self.queued.clear(); self.successes.clear(); self.failures.clear()
+                iterator, log, state = await self.routed_stream(kind)
+                events = [event async for event in self.outer(iterator)]
+                self.assert_stream_context(events[0]); self.assertTrue(state["closed"])
+                self.assertTrue(any(choice.get("finish_reason") == "tool_calls" for event in events
+                                    for choice in json.loads(event).get("choices", [])))
+                self.assertIs(self.data["litellm_logging_obj"], log)
+                await asyncio.wait_for(self.flush(), 3)
+                self.assertEqual(len(self.successes), 1); self.assertFalse(self.failures)
+                records = self.successes[0]["guardrail_information"]
+                self.assertEqual(len(records), 1)
+                if kind == "zero":
+                    self.assertEqual(records[0]["guardrail_action"], "allow")
+                    self.assertFalse(self.wire.requests); self.operator.assert_not_called()
+                else: self.assert_targeted_block()
+
+    async def test_actual_sdk_cancel_preserves_refund_and_confirms_targeted_block(self):
+        for stop in ("before", "after"):
+            with self.subTest(stop=stop):
+                self.wire.key["blocked"] = False; self.wire.requests.clear(); self.cancel_release.reset_mock()
+                self.native_failure.reset_mock()
+                iterator, _, state = await self.routed_stream("absent", stop=stop)
+                stream = self.outer(iterator)
+                if stop == "after": self.assert_stream_context(await anext(stream))
+                pending = asyncio.create_task(anext(stream))
+                await asyncio.wait_for(state["entered"].wait(), 2); pending.cancel()
+                with self.assertRaises(asyncio.CancelledError): await pending
+                self.assert_targeted_block(); self.assertTrue(state["closed"])
+                if stop == "before":
+                    self.cancel_release.assert_awaited_once_with(self.reservation)
+                    self.native_failure.assert_awaited_once()
+                else:
+                    self.cancel_release.assert_not_awaited(); self.native_failure.assert_not_awaited()
+                # Preserve native failure/partial-dispatch ownership; do not invent
+                # a successful no-assembled response or order block before its writer.
+                while self.queue: await asyncio.wait_for(self.queue.pop(0), 3)
+
+    async def test_actual_sdk_read_error_preserves_context_and_confirms_targeted_block(self):
+        iterator, _, state = await self.routed_stream("absent", stop="error")
+        events = [event async for event in self.outer(iterator)]
+        self.assert_stream_context(events[0]); self.assertEqual(events[-1], "unexpected-error")
+        self.assert_targeted_block(); self.assertTrue(state["closed"])
+        self.cancel_release.assert_not_awaited()
+        self.native_failure.assert_awaited_once()
+        # Native failure rows can predate Usage policy telemetry and remain unknown.
+        while self.queue: await asyncio.wait_for(self.queue.pop(0), 3)
 
 
 if __name__ == "__main__":

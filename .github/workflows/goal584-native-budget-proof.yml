@@ -14,6 +14,12 @@ on:
       - deploy/openwebui-budgets/**
       - deploy/litellm-patches/positive-floor-v1.105.1/**
   workflow_dispatch:
+    inputs:
+      acceptance:
+        description: Existing full acceptance or finite stream component
+        type: choice
+        default: full
+        options: [full, stream-usage]
 
 permissions:
   contents: read
@@ -29,8 +35,11 @@ concurrency:
 jobs:
   native-budget-proof:
     runs-on: ubuntu-24.04
+    env:
+      STREAM_COMPONENT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' }}
+      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
     # Observed main runtime leaves room for the bounded provider500 phase.
-    timeout-minutes: 85
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,14 +86,26 @@ jobs:
           PY
 
       - name: Build the reviewed two-function native derivative
+        env:
+          GOAL584_NATIVE_BUILD_OWNER: ${{ env.STREAM_COMPONENT_ONLY == 'true' && format('goal584-stream-{0}-{1}', github.run_id, github.run_attempt) || '' }}
         timeout-minutes: 10
         shell: bash
         run: |
+          if test "$STREAM_COMPONENT_ONLY" = true; then
+            python -B - <<'PY'
+          import os
+          disk=os.statvfs(os.environ['RUNNER_TEMP']);free=disk.f_bavail*disk.f_frsize
+          memory=int(next(line.split()[1] for line in open('/proc/meminfo') if line.startswith('MemAvailable:')))*1024
+          print({'available_disk_bytes':free,'available_memory_bytes':memory})
+          assert free >= 8*1024**3 and memory >= 3*1024**3,'Native component resource bound not met'
+          PY
+          fi
           python -m venv "$RUNNER_TEMP/goal584-native-patch-venv"
           "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" -m pip install --disable-pip-version-check \
             -r scripts/goal584-budget-proof/native-patch-requirements.txt
           "$RUNNER_TEMP/goal584-native-patch-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
-            --context "$RUNNER_TEMP/goal584-native-floor-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json"
+            --context "$RUNNER_TEMP/goal584-native-floor-build" --receipt "$PROOF_OUTPUT_DIR/native-build.json" \
+            --variant "$PROOF_NATIVE_VARIANT"
           python - <<'PY'
           import json, os
           from pathlib import Path
@@ -93,13 +114,58 @@ jobs:
               handle.write('PROOF_LITELLM_IMAGE='+receipt['image_ref']+'\n')
           PY
 
+      - name: Qualify only the selected native stream component
+        if: env.STREAM_COMPONENT_ONLY == 'true'
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          python -B - <<'PY'
+          import hashlib,json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'deploy/litellm-patches/positive-floor-v1.105.1')
+          import native_floor_identity as native
+          out=Path(os.environ['PROOF_OUTPUT_DIR']);build=json.loads((out/'native-build.json').read_text())
+          identity=native.verify_build(build);image=build['image_ref']
+          owner='goal584-stream-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
+          cache=Path(os.environ['RUNNER_TEMP'],'goal584-stream-tokenizers');cache.mkdir(mode=0o700)
+          common=['docker','run','--rm','--init','--label','goal584.owner='+owner,
+              '--read-only','--memory=2g','--cpus=2','--pids-limit=256',
+              '--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--entrypoint','python',
+              '-e','LITELLM_LOCAL_MODEL_COST_MAP=True','-e','LITELLM_TELEMETRY=False',
+              '-e','DO_NOT_TRACK=1','-e','PYTHONDONTWRITEBYTECODE=1','-e','TIKTOKEN_CACHE_DIR=/native-tokenizers']
+          # Native tokenizer owner downloads its public hash-checked assets; no model call.
+          subprocess.run(common+['--name',owner+'-cache','--mount','type=bind,source='+str(cache)+',target=/native-tokenizers',
+              image,'-B','-c',"import tiktoken;[tiktoken.get_encoding(n) for n in ('cl100k_base','o200k_base')]"],
+              check=True,timeout=75,stdout=subprocess.DEVNULL)
+          tests=['test_unknown_usage_guard.CCStreamNativeProxyTests',
+              'test_unknown_usage_guard.BufferedNativeUsageTests.test_known_and_explicit_zero_preserve_every_native_event_and_single_slp_marker',
+              'test_unknown_usage_guard.NonstreamCCNativeProxyTests.test_real_proxy_cc_policy_precedes_native_deferred_single_payload']
+          packet={'scope':'Pinned-image native component; fixture auth/admin HTTP leaves, no real DB/UI acceptance',
+              'source_commit':os.environ['GITHUB_SHA'],'native_artifact':identity,'tests':tests,'passed':False,
+              'tokenizer_sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in cache.iterdir() if p.is_file()}}
+          save=lambda:(out/'stream-component.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          save()
+          with (out/'stream-component.log').open('wb') as log:
+              result=subprocess.run(common+['--name',owner+'-component','--network=none',
+                  '--mount','type=bind,source='+str(Path.cwd())+',target=/repo,readonly',
+                  '--mount','type=bind,source='+str(cache)+',target=/native-tokenizers,readonly',
+                  '-w','/repo/scripts/goal584-budget-proof','-e','GOAL584_REQUIRE_BUFFERED_NATIVE_COMPONENT=1',
+                  '-e','PROOF_NATIVE_VARIANT='+os.environ['PROOF_NATIVE_VARIANT'],
+                  '-e','PROOF_LITELLM_IMAGE='+image,image,'-B','-m','unittest',*tests,'-v'],
+                  stdout=log,stderr=subprocess.STDOUT,timeout=135)
+          packet.update(passed=result.returncode==0,returncode=result.returncode);save()
+          assert result.returncode==0,'Selected native stream component failed'
+          PY
+
       - name: Start the pinned disposable backend
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml config --quiet
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 240
 
       - name: Bind the receipt to the actual images and source
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -159,6 +225,7 @@ jobs:
           PY
 
       - name: Qualify native budgets against the synthetic provider
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           proof_result=0
@@ -169,7 +236,7 @@ jobs:
           exit "$proof_result"
 
       - name: Read the actual provider boundary
-        if: always()
+        if: (always()) && env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           if test -f "$PROOF_ENV_FILE" && test -n "$(docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml ps --status running -q provider)"; then
@@ -179,6 +246,7 @@ jobs:
           fi
 
       - name: Compare the provider boundary to native outcomes
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python scripts/goal584-budget-proof/verify_provider_calls.py \
@@ -186,6 +254,7 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
 
       - name: Bootstrap a native operator key before enabling the adapter
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           proof_result=0
@@ -197,6 +266,7 @@ jobs:
           exit "$proof_result"
 
       - name: Enable the native hook through its config-file extension
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -217,6 +287,7 @@ jobs:
             exec -T provider python -c 'import urllib.request; urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset", data=b"{}", headers={"Content-Type":"application/json"}), timeout=3).read()'
 
       - name: Qualify gateway identity selection and native management access
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           proof_result=0
@@ -228,6 +299,7 @@ jobs:
           exit "$proof_result"
 
       - name: Verify persisted spend after a cold proxy and cache restart
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml restart redis proxy
@@ -241,7 +313,7 @@ jobs:
           exit "$proof_result"
 
       - name: Read the adapter provider boundary
-        if: always()
+        if: (always()) && env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           if test -f "$PROOF_ENV_FILE" && test -n "$(docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml ps --status running -q provider)"; then
@@ -251,6 +323,7 @@ jobs:
           fi
 
       - name: Reject any extra provider dispatch from adapter checks
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python scripts/goal584-budget-proof/verify_provider_calls.py \
@@ -258,6 +331,7 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/gateway-provider-boundary.json"
 
       - name: Prepare the disposable browser driver
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           command -v google-chrome
@@ -270,6 +344,7 @@ jobs:
             -m unittest discover -s deploy/openwebui-budgets/tests -p test_admin_ui.py
 
       - name: Start stock WebUI with its native isolated data volume
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -344,6 +419,7 @@ jobs:
           PY
 
       - name: Verify mounted budget modules in the stock runtime
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -365,6 +441,7 @@ jobs:
             -f compose/goal584.webui-proof.yml exec -T webui python -B -m unittest discover -s /proof/budgets/tests
 
       - name: Provision two native employees and their model budgets
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -391,6 +468,7 @@ jobs:
           PY
 
       - name: Install the native signed-cost Filter and restricted reader
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           proof_result=0
@@ -402,6 +480,7 @@ jobs:
           exit "$proof_result"
 
       - name: Qualify actual employee chats in the stock browser UI
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_webui_browser.py \
@@ -409,6 +488,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR"
 
       - name: Prepare the native Tool and cost lifecycle fixture
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/costs"
@@ -427,6 +507,7 @@ jobs:
             'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
 
       - name: Qualify cost details, tool rounds, regenerated spend and OFF budget denial
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_cost_browser.py \
@@ -434,6 +515,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/costs"
 
       - name: Install the native admin Tool and its private model preset
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/admin"
@@ -461,6 +543,7 @@ jobs:
           PY
 
       - name: Qualify native hash updates, zero-cap admission and owner role revocation
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -495,6 +578,7 @@ jobs:
           PY
 
       - name: Prepare an independent admin provider observation
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -505,6 +589,7 @@ jobs:
             'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
 
       - name: Qualify admin Rich UI, exact JSON, confirmed caps and employee quotas
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_admin_browser.py \
@@ -513,6 +598,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/admin"
 
       - name: Reconcile admin model context, provider calls and native ledger
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -529,6 +615,7 @@ jobs:
           PY
 
       - name: Prepare a WebUI-only new hire after the accepted admin phase
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/bootstrap"
@@ -559,6 +646,7 @@ jobs:
             'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
 
       - name: Qualify defaults and explicit new-hire initialization through the GUI
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_bootstrap_browser.py \
@@ -567,6 +655,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/bootstrap"
 
       - name: Reconcile bootstrap context, provider calls and native ledger independently
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -583,6 +672,7 @@ jobs:
           PY
 
       - name: Qualify a native title task against its unchanged model context and separate service payer
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/service"
@@ -606,6 +696,7 @@ jobs:
           test "$proof_result" -eq 0
 
       - name: Observe the service spend through the ordinary admin form as a separate paid admin turn
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/service-admin"
@@ -620,6 +711,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/service-admin"
 
       - name: Qualify automatic title, tag and follow-up tasks from ordinary employee chats
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/background"
@@ -628,6 +720,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/background"
 
       - name: Delete one owned fixture chat and verify native ledger retention and raw body privacy
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python -B scripts/goal584-budget-proof/prove_ledger_retention.py \
@@ -637,6 +730,7 @@ jobs:
             --private-output "$PROOF_PRIVATE_DIR/ledger-retention.raw.private.json"
 
       - name: Preserve actual billed rates across a controlled synthetic price change and ordinary employee call
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/pricing"
@@ -645,6 +739,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/pricing"
 
       - name: Qualify native provider500 reservation release and immediate recovery
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         timeout-minutes: 10
         shell: bash
         run: |
@@ -746,6 +841,7 @@ jobs:
           PY
 
       - name: Qualify simultaneous native reservations across two isolated proxy processes
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python -B scripts/goal584-budget-proof/prove_budget_overlap.py \
@@ -756,6 +852,7 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
 
       - name: Qualify native RAG text and query embeddings through the protected service key
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -768,6 +865,7 @@ jobs:
             --prior-overlap-receipt "$PROOF_OUTPUT_DIR/overlap/overlap.safe.json"
 
       - name: Qualify ordinary Responses chat and its native budget ledger after RAG
+        if: env.STREAM_COMPONENT_ONLY != 'true'
         timeout-minutes: 40
         shell: bash
         run: |
@@ -778,7 +876,7 @@ jobs:
 
       - name: Show bounded sanitized startup diagnostics on failure
         timeout-minutes: 2
-        if: failure()
+        if: (failure()) && env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |
           python - <<'PY'
@@ -802,7 +900,28 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if test -f "$PROOF_ENV_FILE"; then
+          if test "$STREAM_COMPONENT_ONLY" = true; then
+            python -B - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          owner='goal584-stream-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
+          label='label=goal584.owner='+owner
+          ids=lambda:subprocess.check_output(['docker','ps','-aq','--filter',label],text=True).split()
+          owned=ids()
+          if owned:subprocess.run(['docker','rm','-f',*owned],check=True,timeout=30)
+          iid=Path(os.environ['RUNNER_TEMP'],'goal584-native-floor-build/image-id.txt')
+          image=iid.read_text().strip() if iid.exists() else None
+          if image:
+              assert re.fullmatch('sha256:[0-9a-f]{64}',image)
+              data=json.loads(subprocess.check_output(['docker','image','inspect',image]))[0]
+              assert data['Id']==image and data['Config']['Labels']['org.alpha-soft.goal584.native-variant']==os.environ['PROOF_NATIVE_VARIANT']
+              subprocess.run(['docker','image','rm','--no-prune',image],check=True,timeout=30)
+          packet={'owner':owner,'remaining_containers':ids(),'removed_image_id':image}
+          assert not packet['remaining_containers']
+          Path(os.environ['PROOF_OUTPUT_DIR'],'stream-cleanup.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          PY
+          fi
+          if test "$STREAM_COMPONENT_ONLY" != true && test -f "$PROOF_ENV_FILE"; then
             docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
               -f compose/goal584.webui-proof.yml down --volumes --remove-orphans
             python - <<'PY'
@@ -828,6 +947,7 @@ jobs:
           retention-days: 7
 
   native-pricing-catalog:
+    if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'stream-usage'
     runs-on: ubuntu-24.04
     # Reference check + versions + used categories: 92m phase bounds + 3m reserve.
     timeout-minutes: 95
@@ -1169,6 +1289,7 @@ jobs:
           retention-days: 7
 
   native-calendar-reset:
+    if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'stream-usage'
     runs-on: ubuntu-24.04
     # Bound each phase and reserve time for always-cleanup after both startup
     # waits and a timed-out floor helper. Native 5s/60s clocks are unchanged.
