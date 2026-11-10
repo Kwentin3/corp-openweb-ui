@@ -471,21 +471,67 @@ def verify_artifacts(browser, office, source):
         paths.append(raw)
     require(paths[0] == paths[1] and browser['foreign_file_statuses'] == [404, 404], 'office_delegation_file_acl_download')
     from io import BytesIO
-    def tree(node):
-        return (node.tag, sorted(node.attrib.items()), node.text if node.text and node.text.strip() else '', [tree(n) for n in node])
+    w = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+    w14 = '{http://schemas.microsoft.com/office/word/2010/wordml}'
+    mc = '{http://schemas.openxmlformats.org/markup-compatibility/2006}'
+    xml = '{http://www.w3.org/XML/1998/namespace}'
+    def tree(node, document=False):
+        attrs = dict(node.attrib)
+        if document:
+            if node.tag == w + 'p':
+                for key in (w14 + 'paraId', w14 + 'textId'):
+                    if re.fullmatch(r'[0-9A-Fa-f]{8}', attrs.get(key, '')): attrs.pop(key)
+            if node.tag == w + 'document' and attrs.get(mc + 'Ignorable') == 'w14': attrs.pop(mc + 'Ignorable')
+            if (node.tag == w + 't' and attrs.get(xml + 'space') == 'preserve'
+                    and node.text is not None and node.text == node.text.strip()): attrs.pop(xml + 'space')
+        edited = document and node.tag == w + 'p' and tuple(n.text for n in node.iter(w + 't')) in (
+            ('Employee: Ada Example',), ('Case: G584-2026',))
+        children = [tree(n, document) for n in node if not (edited and n.tag == w + 'pPr'
+            and not n.attrib and not len(n) and not (n.text or '').strip())]
+        return (node.tag, sorted(attrs.items()), node.text if node.text and node.text.strip() else '', children)
     with ZipFile(BytesIO(source)) as original, ZipFile(BytesIO(paths[0])) as filled:
         require(len(filled.namelist()) == len(set(filled.namelist())) <= 128
                 and sum(part.file_size for part in filled.infolist()) <= MAX_BYTES
                 and set(original.namelist()) <= set(filled.namelist()), 'office_delegation_docx_parts')
+        extra = set(filled.namelist()) - set(original.namelist())
+        require(extra <= {'docProps/custom.xml'}, 'office_delegation_docx_parts')
+        if extra:
+            cp = '{http://schemas.openxmlformats.org/officeDocument/2006/custom-properties}'
+            vt = '{http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes}'
+            properties = ET.fromstring(filled.read('docProps/custom.xml'))
+            require(properties.tag == cp + 'Properties' and not properties.attrib and len(properties) == 2
+                    and not (properties.text or '').strip(), 'office_delegation_docx_preservation')
+            for prop, label, pid in zip(properties, ('OfficeCLI.Version', 'OfficeCLI.LastModified'), ('2', '3')):
+                require(prop.tag == cp + 'property' and prop.attrib == {
+                    'fmtid': '{D5CDD505-2E9C-101B-9397-08002B2CF9AE}', 'pid': pid, 'name': label}
+                    and not (prop.text or '').strip() and len(prop) == 1 and prop[0].tag == vt + 'lpwstr'
+                    and not prop[0].attrib and not len(prop[0]), 'office_delegation_docx_preservation')
+                require(prop[0].text == '1.0.152' if pid == '2' else bool(re.fullmatch(
+                    r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z', prop[0].text or '')), 'office_delegation_docx_preservation')
         for name in original.namelist():
             a, b = original.read(name), filled.read(name)
             if name.endswith('.xml') or name.endswith('.rels'):
                 left, right = ET.fromstring(a), ET.fromstring(b)
+                if extra and name in ('_rels/.rels', '[Content_Types].xml'):
+                    relation = name == '_rels/.rels'
+                    tag = ('{http://schemas.openxmlformats.org/package/2006/relationships}Relationship' if relation
+                           else '{http://schemas.openxmlformats.org/package/2006/content-types}Override')
+                    attrs = ({'Type': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties',
+                              'Target': '/docProps/custom.xml'} if relation else {'PartName': '/docProps/custom.xml',
+                              'ContentType': 'application/vnd.openxmlformats-officedocument.custom-properties+xml'})
+                    matches = [n for n in right if n.tag == tag and all(n.get(k) == v for k, v in attrs.items())]
+                    require(len(matches) == 1, 'office_delegation_docx_preservation')
+                    item = matches[0]
+                    require(set(item.attrib) == set(attrs) | ({'Id'} if relation else set()) and not len(item)
+                            and not (item.text or '').strip() and (not relation or bool(re.fullmatch(
+                                r'R[0-9a-fA-F]{16}', item.get('Id', '')))), 'office_delegation_docx_preservation')
+                    right.remove(item)
                 if name == 'word/document.xml':
                     for old, new in (('Employee: {{employee}}', 'Employee: Ada Example'), ('Case: {{case}}', 'Case: G584-2026')):
                         matches = [n for n in left.iter() if n.text == old]
                         require(len(matches) == 1, 'office_delegation_source_fields'); matches[0].text = new
-                require(tree(left) == tree(right), 'office_delegation_docx_preservation')
+                bookkeeping = name in ('word/document.xml', 'word/footer1.xml')
+                require(tree(left, bookkeeping) == tree(right, bookkeeping), 'office_delegation_docx_preservation')
             else: require(a == b, 'office_delegation_docx_preservation')
     return {'sha256': sha256(paths[0]).hexdigest(), 'bytes': len(paths[0])}
 
