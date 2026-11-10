@@ -373,8 +373,12 @@ async def stream_ledger(args, state, gateway, receipt):
                             if isinstance(metadata, str): metadata = json.loads(metadata)
                             scope = metadata.get("spend_logs_metadata", {}).get("owui_budget", {})
                             if scope.get("call_id") == claims["jti"]: found.append((row, metadata, scope))
+                        receipt["last_storage_observation"] = {"native_rows": len(rows), "matching_rows": len(found),
+                            "statuses": [row.get("status") for row in rows],
+                            "target_blocked": after_keys[MODELS[0]].get("blocked"),
+                            "control_blocked": after_keys[MODELS[1]].get("blocked")}
                         if found and after_keys[MODELS[0]].get("blocked") is True: break
-                        await asyncio.sleep(.1)
+                        await asyncio.sleep(1)
                 require(len(found) == 1, "stream_ledger_duplicate_row")
                 row, metadata, scope = found[0]
                 require(row.get("status") == "failure" and row.get("user") == user and row.get("api_key") == key_hash
