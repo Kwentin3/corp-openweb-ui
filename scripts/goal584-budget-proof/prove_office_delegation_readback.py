@@ -498,7 +498,7 @@ def verify_cost_status(final, cost, actor, chat, answer):
             and {m.model: m.calls for m in cost.answer.models} == dict.fromkeys(MODELS, 6), 'office_delegation_cost_snapshot')
     statuses = [s for s in final.get('statusHistory', []) if s.get('action') == 'employee_budget_cost']
     require(statuses and statuses[-1].get('done') is True, 'office_delegation_cost_status')
-    description = statuses[-1]['description']; match = re.fullmatch(r'Ответ: \$(\d+(?:\.\d+)?) · Чат: \$(\d+(?:\.\d+)?) · на \d{2}:\d{2}:\d{2} UTC( · начислено на сейчас, учёт обновляется)?', description)
+    description = statuses[-1]['description']; match = re.fullmatch(r'Ответ: \$(\d+(?:\.\d+)?) · Чат: \$(\d+(?:\.\d+)?) · на \d{2}:\d{2}:\d{2} UTC · начислено на сейчас(, учёт обновляется)?', description)
     require(match is not None and Decimal(match[1]) == cost.answer.spend and Decimal(match[2]) == cost.chat.spend,
             'office_delegation_cost_status_amount')
     return bool(match[3])

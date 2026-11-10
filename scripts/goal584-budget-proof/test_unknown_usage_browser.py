@@ -173,7 +173,7 @@ class World:
         if outcome == 'denied': a['error'] = {'content': {'message': B.BLOCKED}}
         else:
             a['output'] = [{'type': 'message', 'role': 'assistant', 'content': [{'type': 'output_text', 'text': 'Proof', 'annotations': []}]}]
-            a['statusHistory'] = [{'action': 'employee_budget_cost', 'done': True, 'description': B.UNKNOWN if outcome == 'unknown' else B.KNOWN + ' · на 13:00:00 UTC'}]
+            a['statusHistory'] = [{'action': 'employee_budget_cost', 'done': True, 'description': B.UNKNOWN if outcome == 'unknown' else B.KNOWN + ' · на 13:00:00 UTC · начислено на сейчас'}]
         self.chats[chat] = {'id': chat, 'user_id': ACTOR, 'chat': {'models': [model], 'history': {'currentId': answer, 'messages': {user: q, answer: a}}}}
         acknowledgement = {'chat_id': chat, 'status': True}
         if self.ack_mutation: self.ack_mutation(acknowledgement)
@@ -218,7 +218,7 @@ class UnknownBrowserTests(unittest.TestCase):
             self.assertEqual(call['model'], model); self.assertNotIn('chat_id', call['submitted'])
             self.assertEqual(call['chat_id'], call['acknowledgement']['chat_id'])
             self.assertEqual(call['http_status'], 200); self.assertEqual(call['task_ids'], [])
-            self.assertEqual(call['visible_status'], None if outcome == 'denied' else B.UNKNOWN if outcome == 'unknown' else B.KNOWN + ' · на 13:00:00 UTC')
+            self.assertEqual(call['visible_status'], None if outcome == 'denied' else B.UNKNOWN if outcome == 'unknown' else B.KNOWN + ' · на 13:00:00 UTC · начислено на сейчас')
             self.assertIsInstance(call['visible_error'], str if outcome == 'denied' else type(None))
             self.assertIn(B.BLOCKED if outcome == 'denied' else 'Proof', call['visible_text'])
         self.assertEqual(packet['office_settings_before'], packet['office_settings_after'])
@@ -302,7 +302,7 @@ class UnknownBrowserTests(unittest.TestCase):
             lambda s: answer(s).update(user_id=OTHER), lambda s: answer(s).update(model='foreign'),
             lambda s: answer(s).update(error={'content': 'failed'}),
             lambda s: answer(s)['output'][0]['content'][0].update(text='fabricated'),
-            lambda s: answer(s)['statusHistory'][0].update(description=B.KNOWN + ' · на 13:00:00 UTC · начислено на сейчас')]
+            lambda s: answer(s)['statusHistory'][0].update(description=B.KNOWN + ' · на 13:00:00 UTC')]
         for mutation in mutations:
             with self.subTest(mutation=mutation):
                 safe, _, failure, _ = self.exercise(lambda w: setattr(w, 'saved_mutation', mutation))

@@ -146,7 +146,7 @@ class Browser:
         self.download_url = BASE + '/api/v1/files/' + FILE + '/content'
         self.tasks = [{'id': 'returned-native-task', 'content': 'Fill and inspect the copy', 'status': 'completed'}]
         self.running_tasks = []; self.followups = ['Review another copy.']
-        self.cost = 'Ответ: $1.234 · Чат: $5.678 · на 13:00:00 UTC'; self.cost_visible = True
+        self.cost = 'Ответ: $1.234 · Чат: $5.678 · на 13:00:00 UTC · начислено на сейчас'; self.cost_visible = True
         self.submit_mutation = self.seed_mutation = self.saved_mutation = self.file_mutation = self.skill_mutation = None
     def new_context(self, **kwargs):
         assert kwargs == {'locale': 'en-US', 'viewport': {'width': 1440, 'height': 1000}}
@@ -525,9 +525,9 @@ class DelegatedBrowserTests(unittest.TestCase):
         self.assertIsNone(safe); self.assertIsNotNone(error)
 
     def test_observed_cost_amount_is_not_hardcoded(self):
-        safe, packet, error, _ = self.exercise(lambda b,s,r:setattr(b, 'cost', 'Ответ: $0.0123 · Чат: $0.0456 · на 14:59:00 UTC'))
+        safe, packet, error, _ = self.exercise(lambda b,s,r:setattr(b, 'cost', 'Ответ: $0.0123 · Чат: $0.0456 · на 14:59:00 UTC · начислено на сейчас'))
         self.assertIsNone(error); self.assertTrue(safe['visible_cost_status'])
-        self.assertEqual(packet['cost_status']['description'], 'Ответ: $0.0123 · Чат: $0.0456 · на 14:59:00 UTC')
+        self.assertEqual(packet['cost_status']['description'], 'Ответ: $0.0123 · Чат: $0.0456 · на 14:59:00 UTC · начислено на сейчас')
 
     def test_native_delegation_accrued_label_is_preserved_without_claiming_settlement(self):
         description = 'Ответ: $1.32 · Чат: $1.32 · на 13:00:00 UTC · начислено на сейчас, учёт обновляется'

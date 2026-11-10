@@ -28,7 +28,7 @@ UNKNOWN = 'Расход неизвестен. Обратитесь к админ
 KNOWN = 'Ответ: $0.166 · Чат: $0.166'
 BLOCKED = 'Authentication Error, Доступ заблокирован. Обратитесь к администратору.'
 CHAT_NOT_FOUND = "We could not find what you're looking for :/"
-PROVISIONAL_COST_TEXT = ('учёт обновляется', 'учет обновляется', 'начислено на сейчас',
+PROVISIONAL_COST_TEXT = ('учёт обновляется', 'учет обновляется',
                          'стоимость ещё не подтверждена', 'стоимость еще не подтверждена',
                          'pending cost', 'cost pending', 'partial cost', 'provisional cost')
 CASES = (('known-before', 'goal584-usage', 'known'),
@@ -198,7 +198,7 @@ def saved_answer(stored, actor_id, chat_id, answer_id, user_id, model, outcome):
     require(len(statuses) == 1 and statuses[0].get('done') is True, 'Unknown GUI cost status is ambiguous or incomplete')
     description = statuses[0].get('description')
     require(description == UNKNOWN if outcome == 'unknown' else
-            isinstance(description, str) and re.fullmatch(re.escape(KNOWN) + r' · на \d{2}:\d{2}:\d{2} UTC', description),
+            isinstance(description, str) and re.fullmatch(re.escape(KNOWN) + r' · на \d{2}:\d{2}:\d{2} UTC · начислено на сейчас(?:, учёт обновляется)?', description),
             'Unknown GUI saved cost status differs or claims a partial amount')
     return answer
 
@@ -289,7 +289,8 @@ def run(browser, fixture: OfficeFixture, base_url, build_receipt, expected_revis
             if outcome == 'denied':
                 call['visible_error'] = visible
             else:
-                require(description in visible and not any(text in visible.casefold() for text in PROVISIONAL_COST_TEXT),
+                require(description in visible and not any(text in visible.casefold() for text in PROVISIONAL_COST_TEXT)
+                        and (outcome != 'unknown' or 'начислено на сейчас' not in visible.casefold()),
                         'Unknown GUI visible card contradicts its completed cost status')
                 require('$' not in visible if outcome == 'unknown' else UNKNOWN not in visible,
                         'Unknown GUI visible card claims a contradictory expense')

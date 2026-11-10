@@ -180,11 +180,11 @@ def observed_answer(stored, actor_id, chat_id, user_id, answer_id, request, *, q
     if not statuses or statuses[-1].get('done') is not True: return None
     description = statuses[-1].get('description')
     # Observe native accrued known cost; finance must prove all related rows.
-    # Delegation keeps the existing explicit provisional label even after the
-    # UI turn completes. A terminal widget is not financial settlement proof.
+    # Every workflow uses the accrued snapshot label; pending may add an update
+    # warning. A terminal widget is not financial settlement proof.
     require(isinstance(description, str) and re.fullmatch(
         r'Ответ: \$[0-9]+(?:\.[0-9]+)? · Чат: \$[0-9]+(?:\.[0-9]+)? · на [0-9]{2}:[0-9]{2}:[0-9]{2} UTC'
-        r'(?: · начислено на сейчас, учёт обновляется)?', description),
+        r' · начислено на сейчас(?:, учёт обновляется)?', description),
         'delegated_browser_cost_not_known')
     followups = answer.get('followUps')
     if not isinstance(followups, list) or not followups: return None

@@ -192,9 +192,9 @@ def test_saved_provisional_display_cannot_omit_worker_rows_or_reuse_old_amount(m
             for model, spend in zip(R.MODELS, ('.20', '.02')) for i in range(6)]
     total = owner._total(rows)
     snapshot = owner.CostSnapshot(actor, chat, answer, total, total, datetime.now(timezone.utc), False, True, ())
-    description = 'Ответ: $1.32 · Чат: $1.32 · на 12:00:00 UTC · начислено на сейчас, учёт обновляется'
+    description = 'Ответ: $1.32 · Чат: $1.32 · на 12:00:00 UTC · начислено на сейчас'
     final = {'statusHistory': [{'action': 'employee_budget_cost', 'done': True, 'description': description}]}
-    assert R.verify_cost_status(final, snapshot, actor, chat, answer) is True
+    assert R.verify_cost_status(final, snapshot, actor, chat, answer) is False
     final['statusHistory'][0]['description'] = description.replace('1.32', '1.20')
     with pytest.raises(N.ProofError, match='office_delegation_cost_status_amount'): R.verify_cost_status(final, snapshot, actor, chat, answer)
     partial = owner._total(rows[:6])

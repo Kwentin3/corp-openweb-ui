@@ -148,9 +148,30 @@ existing prepare без inference, существующие positive delegation 
 quota/refusal/recovery, diagnostics/cleanup. Mini Send, continuation и unknown/admin
 phases этому пути не нужны и пропускаются; default Office/Known0 сохранены.
 Compile2inline/actionlint/AST/body/conditions и независимое source review PASS.
-Новых fixture/harness/финансового кода нет. Этот профиль ещё не запускался;
-следующий шаг — один ограниченный actual Sol+Terra прогон на coherent source,
-с прежними55min bounds/ресурсами/адресной остановкой и recovery/cleanup.
+Новых fixture/harness/финансового кода нет. Запущен один
+[actual Sol+Terra run42787785954](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42787785954)
+на coherent`6352341ae4fcbb9967068ca93b15cdde495f144f`,09:05:34UTC.
+22sourcepins/raw+GitLF/clean/remote ref сверены; прежние runs terminal/cleanup0.
+Bounds55min, прежние ресурсы/recovery/cleanup; native stop — gh run cancel
+42787785954, manual09:50:34UTC/hard10:00:34UTC. Run завершён FAIL; runtime не принят.
+Metadata `runtime-delegation-cost/`. Не запускать дубликат и не менять ядро Usage.
+Failure ordinary_send:`delegated_browser_cost_not_known`; последующие quota/
+recovery skipped (мутации quota не было).2native checklist tasks completed,
+answer/status done и docx1 наблюдены;13provider/auth только counts/hashes,
+финансовые строки не сохранены. Source review обнаружил stale regex, отвергающий
+новый обычный accrued-only status; actual description не экспортирован, поэтому
+единственная причина и known finance пока не доказаны. Сверяются все затронутые
+consumers текущего status contract; финансовый код не меняется.22candidate pins/
+6runtime hashes/cleanup0 подтверждены, privateURL удалён. Artifact13750776717,
+635891B/61members/SHA1b5aef00e1519e9877d3608e2665d9dfea3bf204ab6b04f193ac12933e29c4aa.
+Независимый failure-review.md сохранён; новый CI пока не запущен.
+Исправлены3status consumers (delegation browser/readback и unknown GUI) и только
+их3existing test fixtures: known numeric status всегда timestamp+accrued, pending
+только явное «учёт обновляется».6focused tests PASS1.96s/exit0/ownedPIDs0,
+compile6/остальнойAST/diff и независимое source review PASS. Arithmetic, scope,
+auth/history/lifecycle/unknown/ACL не менялись, новыхcases/framework/collectors нет.
+Evidence status-consumers-source/tests.safe.json и runtime-delegation-cost/status-source-review.md.
+Actual description прошлого run не восстановлена; финансовое принятие не заявлено.
 
 Для общего streaming unknown-Usage10.11 задан один вопрос пользователю: разрешить
 узкую поправку сохранения исходного признака Usage до native нормализации только
