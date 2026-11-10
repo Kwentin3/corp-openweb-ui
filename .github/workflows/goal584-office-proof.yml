@@ -21,6 +21,12 @@ on:
       - deploy/openwebui-patches/provider-context-v0.12.2/**
       - services/officecli-openapi-proof/**
   workflow_dispatch:
+    inputs:
+      acceptance:
+        description: Finite acceptance profile
+        type: choice
+        default: office
+        options: [office, known-zero]
 permissions:
   contents: read
 jobs:
@@ -42,6 +48,7 @@ jobs:
         run: |
           BUILD_ROOT="$RUNNER_TEMP/$OWNED-build"; OUTPUT="$RUNNER_TEMP/$OWNED-output"
           printf '%s\n' "BUILD_ROOT=$BUILD_ROOT" "OUTPUT=$OUTPUT" "DOCKER_CONFIG=$BUILD_ROOT/docker-config" >> "$GITHUB_ENV"
+          printf 'PROOF_STARTED_EPOCH=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test ! -e "$BUILD_ROOT" && test ! -e "$OUTPUT"
           mkdir -m 700 "$OUTPUT"
@@ -250,7 +257,73 @@ jobs:
           PY
           "${compose[@]}" restart proxy
           "${compose[@]}" up -d --wait --wait-timeout 240
+      - name: Prepare the shared native WebUI and cost Functions
+        timeout-minutes: 4
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_cost_browser import CostFixture
+          fixture=CostFixture(Path(os.environ['PROOF_ENV_FILE']),Path(os.environ['OUTPUT']))
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          fixture.command+=['-f','compose/goal584.office-proof.yml']
+          for script,label in (('provision_webui.py','webui'),('provision_cost_display.py','cost')):
+              result=subprocess.run(fixture.command+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),
+                  'proxy','python','-B','/proof/'+script,'--phase','setup',
+                  '--private-state','/proof-private/webui-state.private.json',
+                  '--receipt','/proof-private/'+label+'-setup.safe.json'],capture_output=True,timeout=120)
+              receipt=json.loads(result.stdout)
+              assert result.returncode==0 and receipt.get('passed') is True,'Shared native setup failed'
+              (fixture.output/(label+'-setup.safe.json')).write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - name: Qualify one Known0 ordinary CC nonstream Send and persisted Details
+        if: github.event_name == 'workflow_dispatch' && inputs.acceptance == 'known-zero'
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from playwright.sync_api import sync_playwright
+          from prove_cost_browser import CostFixture,run_known_zero
+          # Reserve checkout's bounded minute, this step8, cleanup2 and upload2.
+          remaining=54*60-(time.time()-float(os.environ['PROOF_STARTED_EPOCH']))
+          assert remaining>=12*60,'Known0 job lacks acceptance/cleanup headroom'
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])/'known-zero'
+          out.mkdir();fixture=CostFixture(Path(os.environ['PROOF_ENV_FILE']),out)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          fixture.command+=['-f','compose/goal584.office-proof.yml']
+          container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=15).strip()
+          networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
+          network,=networks.values();base='http://'+network['IPAddress']+':8080'
+          owners={
+              'proxy':{'/proof/'+name:'scripts/goal584-budget-proof/'+name for name in
+                  ('provision_cost_display.py','capture_webui_auth.py','prove_pricing_snapshots.py','usage_guard_fixture.py')},
+              'webui':{'/app/backend/employee_budget_cost_readback.py':'deploy/openwebui-budgets/cost_readback.py',
+                  '/app/backend/employee_budget_provenance.py':'deploy/openwebui-budgets/provenance.py',
+                  '/proof/budgets/cost_action.py':'deploy/openwebui-budgets/cost_action.py'},
+              'provider':{'/proof/mock_provider.py':'scripts/goal584-budget-proof/mock_provider.py'}}
+          owners['proxy'].update({'/proof/'+target:'deploy/openwebui-budgets/'+source for target,source in
+              (('employee_budget_cost_readback.py','cost_readback.py'),('budgets/cost_filter.py','cost_filter.py'),
+               ('pricing_snapshot.py','pricing_snapshot.py'),('unknown_usage_guard.py','unknown_usage_guard.py'))})
+          sources={'scripts/goal584-budget-proof/prove_cost_browser.py':hashlib.sha256(Path('scripts/goal584-budget-proof/prove_cost_browser.py').read_bytes()).hexdigest()}
+          for owner,paths in owners.items():
+              mounted={path:hashlib.sha256(Path(source).read_bytes()).hexdigest() for path,source in paths.items()}
+              sources.update({source:mounted[path] for path,source in paths.items()})
+              code='import hashlib,json,pathlib;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in '+repr(tuple(mounted))+'}))'
+              actual=json.loads(subprocess.check_output(fixture.command+['exec','-T',owner,'python','-B','-c',code],timeout=30))
+              assert actual==mounted,'Known0 mounted source differs'
+          (out/'sources.safe.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'sources':sources},indent=2)+'\n')
+          accounts=json.loads((private/'browser-accounts.private.json').read_text())['users']
+          with sync_playwright() as playwright:
+              browser=playwright.chromium.launch(channel='chrome',headless=True)
+              try: result=run_known_zero(browser,fixture,base,accounts)
+              finally: browser.close()
+          assert result.get('passed') is True and result.get('provider_control_restored') is True and result.get('native_tasks_terminal') is True
+          PY
       - name: Prepare Office and verify one ordinary Send and native accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 8
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -270,11 +343,6 @@ jobs:
           container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
           networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
           network,=networks.values();base='http://'+network['IPAddress']+':8080'
-          for script,label in (('provision_webui.py','webui'),('provision_cost_display.py','cost')):
-              receipt=fixture.command_json(['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy','python','-B','/proof/'+script,'--phase','setup',
-                  '--private-state','/proof-private/webui-state.private.json','--receipt','/proof-private/'+label+'-setup.safe.json'],label+'_setup',timeout=120)
-              assert receipt.get('passed') is True
-              (fixture.output/(label+'-setup.safe.json')).write_text(json.dumps(receipt,indent=2)+'\n')
           build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
           stage='preparation';wire_diagnostic_collected=False
           def public(name,value):
@@ -372,6 +440,7 @@ jobs:
               raise SystemExit(1)
           PY
       - name: Verify saved reasoning after reload and one ordinary continuation Send
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 8
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -484,6 +553,7 @@ jobs:
               signal.alarm(0)
           PY
       - name: Verify native key block and signed gateway denial
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 3
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -519,6 +589,7 @@ jobs:
           assert packet.get('unknown_usage_policy_qualified') is False
           PY
       - name: Verify targeted unavailable Usage and native cost projection
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 5
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -576,6 +647,7 @@ jobs:
           assert packet.get('browser_or_chat_ancestry_qualified') is False
           PY
       - name: Verify six ordinary Sends and native unknown Usage accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 10
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -732,6 +804,7 @@ jobs:
           finally: signal.setitimer(signal.ITIMER_REAL,0)
           PY
       - name: Verify the native admin form against unknown expense and separate accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 10
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -865,6 +938,7 @@ jobs:
           finally: signal.setitimer(signal.ITIMER_REAL,0)
           PY
       - name: Verify one ordinary delegated Office Send and native personal accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 8
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -1057,6 +1131,7 @@ jobs:
           finally: signal.alarm(0)
           PY
       - name: Verify one exhausted Terra refusal after accepted positive delegation
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
         timeout-minutes: 8
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -1329,6 +1404,9 @@ jobs:
             ${{ env.OUTPUT }}/*.safe.json
             ${{ env.OUTPUT }}/office*.png
             ${{ env.OUTPUT }}/unknown-usage-browser/*.png
+            ${{ env.OUTPUT }}/known-zero/*.safe.json
+            ${{ env.OUTPUT }}/known-zero/*.png
+            ${{ env.OUTPUT }}/known-zero/*.html
             ${{ env.OUTPUT }}/office.docx
             ${{ env.OUTPUT }}/office-delegation.docx
             ${{ env.BUILD_ROOT }}/office-build.safe.json

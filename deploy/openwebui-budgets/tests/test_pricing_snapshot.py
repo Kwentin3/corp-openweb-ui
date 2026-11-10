@@ -1259,7 +1259,8 @@ class PricingSnapshotTests(unittest.TestCase):
         self.assertEqual(self.snapshot(owner)["availability"], "available")
 
 
-    def native_zero_publication(self, raw_usage, *, raw_cost_none=False, free_rates=False, reenter_none=False, mutate=None):
+    def native_zero_publication(self, raw_usage, *, raw_cost_none=False, free_rates=False, reenter_none=False,
+                                mutate=None, audit_descriptor=True, auth=True, context_mutate=None):
         """Actual SDK parser/guard/cost, existing protected owner, native hook/row."""
         import httpx
         import litellm
@@ -1274,6 +1275,9 @@ class PricingSnapshotTests(unittest.TestCase):
         sys.path.insert(0, str(scripts))
         from test_unknown_usage_guard import native_responses_origin, SANITIZER
         prototype, router, proxy, modules, _ = self.protected_owner(call_type='aresponses')
+        if not audit_descriptor:
+            for info in (router.model_list[0]['model_info'], prototype.litellm_params['model_info']):
+                info.pop(self.adapter.DESCRIPTOR_KEY)
         if free_rates:
             for info in (router.model_list[0]['model_info'], prototype.litellm_params['model_info']):
                 info.update(input_cost_per_token=0., output_cost_per_token=0.)
@@ -1318,9 +1322,10 @@ class PricingSnapshotTests(unittest.TestCase):
             owner.model_call_details['litellm_params'] = old_params
             self.assertIsNone(owner.model_call_details['response_cost'])
         if mutate: mutate(owner, metadata)
+        if context_mutate: context_mutate(owner, metadata, router, proxy)
         normalized = SimpleNamespace(usage=ResponseAPILoggingUtils._transform_response_api_usage_to_chat_usage(response.usage))
         with patch.object(self.adapter, 'Logging', Logging), patch.object(self.adapter, 'BilledTokenRates', BilledTokenRates):
-            observed = self.capture_protected(owner, modules, result=normalized)
+            observed = self.capture_protected(owner, modules, auth=auth, result=normalized)
             if reenter_none:
                 self.assertIs(self.snapshot(owner).get('native_zero_confirmed'), True)
                 owner.model_call_details['response_cost'] = None
@@ -1342,6 +1347,24 @@ class PricingSnapshotTests(unittest.TestCase):
             api_row.update(metadata=json.loads(row['metadata']), prompt_tokens=normalized.usage.prompt_tokens,
                            completion_tokens=normalized.usage.completion_tokens, total_tokens=normalized.usage.total_tokens)
             self.assertEqual(readback.cost._row(api_row, readback.USER, readback.CHAT).spend, 0)
+            # Read the actual published row through the existing reader, both
+            # current-call coverage and later retained Details/reload semantics.
+            async def current_and_retained():
+                leaf = SimpleNamespace(requests=[], handler=None, payload=readback.page([api_row]))
+                session = readback._MemoryReadSession(leaf)
+                arguments = dict(base_url='http://127.0.0.1:18080', read_key='private-read-key',
+                    user_id=readback.USER, root_chat_id=readback.CHAT, root_answer_id=readback.ANSWER)
+                try:
+                    current = await readback.cost.read_cost_snapshot(session, **arguments,
+                        observed_call_ids=[readback.CALL])
+                    retained = await readback.cost.read_cost_snapshot(session, **arguments)
+                    self.assertTrue(current.complete)
+                    self.assertEqual((current.answer.spend, current.chat.spend), (0, 0))
+                    self.assertEqual(retained.answer, current.answer)
+                    self.assertEqual(retained.chat, current.chat)
+                finally:
+                    await session.close()
+            asyncio.run(current_and_retained())
         return self.snapshot(owner), observed, row, known
 
     def test_actual_native_zero_cost_usage_guard_snapshot_and_row_are_distinct_from_default_zero(self):
@@ -1355,22 +1378,56 @@ class PricingSnapshotTests(unittest.TestCase):
         snapshot, descriptor, row, known = self.native_zero_publication(paid_usage, free_rates=True)
         self.assertTrue(known); self.assertIs(snapshot.get('native_zero_confirmed'), True)
         self.assertEqual(descriptor['availability'], 'available'); self.assertEqual(row['spend'], 0)
-        for mutation in ('not_run', 'duplicate', 'breakdown'):
+        for raw_usage, free in ((usage, False), (paid_usage, True)):
+            snapshot, descriptor, row, known = self.native_zero_publication(raw_usage,
+                free_rates=free, audit_descriptor=False)
+            self.assertTrue(known); self.assertIs(snapshot.get('native_zero_confirmed'), True)
+            self.assertEqual(descriptor, self.unknown_descriptor('declaration'))
+            self.assertEqual(row['spend'], 0)
+        for mutation in ('no_auth', 'dev_mode', 'no_router', 'retired', 'alias_copy', 'foreign_metadata',
+                         'absent_input_rate', 'absent_output_rate', 'mismatched_rate', 'no_billed_rates', 'wrong_route'):
+            def corrupt_context(owner, metadata, router, proxy):
+                if mutation == 'dev_mode': proxy.master_key = None
+                elif mutation == 'no_router': proxy.llm_router = None
+                elif mutation == 'retired': router.model_id_to_deployment_index_map.clear()
+                elif mutation == 'alias_copy': owner.litellm_params['model_info'] = copy.deepcopy(owner.litellm_params['model_info'])
+                elif mutation == 'foreign_metadata': owner.model_call_details['litellm_params'] = dict(owner.litellm_params)
+                elif mutation == 'absent_input_rate': router.model_list[0]['model_info'].pop('input_cost_per_token')
+                elif mutation == 'absent_output_rate': router.model_list[0]['model_info'].pop('output_cost_per_token')
+                elif mutation == 'mismatched_rate': router.model_list[0]['model_info']['input_cost_per_token'] = .03
+                elif mutation == 'no_billed_rates': owner.billed_token_rates = None
+                elif mutation == 'wrong_route': owner._test_http_request = self.http_request('/embeddings')
+            with self.subTest(native_context=mutation):
+                snapshot, _, _, _ = self.native_zero_publication(usage, audit_descriptor=False,
+                    auth=mutation != 'no_auth', context_mutate=corrupt_context)
+                self.assertNotIn('native_zero_confirmed', snapshot)
+        def paid_rates_on_zero(owner, metadata, router, proxy):
+            # A native zero scalar cannot make a priced, positive-Usage call free.
+            values = {field: getattr(owner.billed_token_rates, field) for field in self.adapter.RATE_FIELDS}
+            values.update(input_cost_per_token=.01, output_cost_per_token=.02)
+            owner.billed_token_rates = type(owner.billed_token_rates)(**values)
+            for info in (router.model_list[0]['model_info'], owner.litellm_params['model_info']):
+                info.update(input_cost_per_token=.01, output_cost_per_token=.02)
+        snapshot, _, _, _ = self.native_zero_publication(paid_usage, free_rates=True,
+            audit_descriptor=False, context_mutate=paid_rates_on_zero)
+        self.assertNotIn('native_zero_confirmed', snapshot)
+        for mutation in ('not_run', 'duplicate', 'breakdown', 'failure_debug'):
             def corrupt(owner, metadata):
                 entries = metadata['standard_logging_guardrail_information']
                 if mutation == 'not_run': entries[0]['guardrail_status'] = 'not_run'
                 elif mutation == 'duplicate': entries.append(copy.deepcopy(entries[0]))
+                elif mutation == 'failure_debug': owner.model_call_details['response_cost_failure_debug_information'] = {}
                 else: owner.cost_breakdown['total_cost'] = .01
-            snapshot, _, _, _ = self.native_zero_publication(usage, mutate=corrupt)
+            snapshot, _, _, _ = self.native_zero_publication(usage, mutate=corrupt, audit_descriptor=False)
             self.assertNotIn('native_zero_confirmed', snapshot)
         for raw in ('missing', None, dict(usage, input_tokens='0')):
             with self.subTest(raw=raw):
-                snapshot, _, row, known = self.native_zero_publication(raw)
+                snapshot, _, row, known = self.native_zero_publication(raw, audit_descriptor=False)
                 self.assertFalse(known); self.assertNotIn('native_zero_confirmed', snapshot)
                 self.assertEqual(row['spend'], 0)
         with self.assertRaises(ValidationError):
-            self.native_zero_publication(dict(usage, input_tokens=None))
-        snapshot, _, row, _ = self.native_zero_publication(usage, raw_cost_none=True)
+            self.native_zero_publication(dict(usage, input_tokens=None), audit_descriptor=False)
+        snapshot, _, row, _ = self.native_zero_publication(usage, raw_cost_none=True, audit_descriptor=False)
         self.assertNotIn('native_zero_confirmed', snapshot)
         self.assertIsNone(row['spend'])
         standard = selected('litellm_core_utils/litellm_logging.py', {'get_standard_logging_object_payload'})[0]
@@ -1383,7 +1440,7 @@ class PricingSnapshotTests(unittest.TestCase):
         projected.update(metadata=json.loads(row['metadata']), prompt_tokens=0, completion_tokens=0, total_tokens=0)
         with self.assertRaises(readback.cost.CostReadError):
             readback.cost._row(projected, readback.USER, readback.CHAT)
-        snapshot, _, row, _ = self.native_zero_publication(usage, reenter_none=True)
+        snapshot, _, row, _ = self.native_zero_publication(usage, reenter_none=True, audit_descriptor=False)
         self.assertNotIn('native_zero_confirmed', snapshot)
         self.assertIsNone(row['spend'])
 

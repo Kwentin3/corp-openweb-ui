@@ -165,7 +165,11 @@ def _billing_categories(result, *, native_zero=False):
 
 def _native_zero_cost(owner, metadata):
     """Observe this native calculation; never turn the logging fallback into0."""
-    cost = owner.model_call_details.get("response_cost")
+    details = owner.model_call_details
+    if (details.get("response_cost_failure_debug_info") is not None
+            or details.get("response_cost_failure_debug_information") is not None):
+        return False
+    cost = details.get("response_cost")
     breakdown = getattr(owner, "cost_breakdown", None)
     if (type(cost) not in (int, float) or not math.isfinite(cost) or cost != 0
             or not isinstance(breakdown, Mapping)
@@ -181,7 +185,8 @@ def _native_zero_cost(owner, metadata):
             and usage[0].get("violation_categories") == [])
 
 
-def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=None):
+def _qualify_native(owner, params, metadata, proxy_auth, auth_route, result=None, *, audit_descriptor=False):
+    """One owner for native origin, rates and billing-category qualification."""
     unknown = {"schema": 1, "availability": "unknown", "descriptor": None,
                "reason": DESCRIPTOR_UNKNOWN_REASONS[0]}
     try:
@@ -233,10 +238,12 @@ def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=
         protected = deployment.model_info
         if getattr(protected, "id", None) != native_id:
             return unknown
-        unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[10]
-        descriptor = _descriptor(getattr(protected, DESCRIPTOR_KEY, None))
-        if descriptor["deployment_id"] != native_id or _descriptor(selected.get(DESCRIPTOR_KEY)) != descriptor:
-            return unknown
+        descriptor = None
+        if audit_descriptor:
+            unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[10]
+            descriptor = _descriptor(getattr(protected, DESCRIPTOR_KEY, None))
+            if descriptor["deployment_id"] != native_id or _descriptor(selected.get(DESCRIPTOR_KEY)) != descriptor:
+                return unknown
         unknown["reason"] = DESCRIPTOR_UNKNOWN_REASONS[11]
         rates = getattr(owner, "billed_token_rates", None)
         if not isinstance(rates, BilledTokenRates):
@@ -249,12 +256,13 @@ def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=
                     or declared < 0 or billed < 0 or declared != billed):
                 return unknown
         unknown["reason"] = "usage_unconfirmed"
-        used, reason = _billing_categories(result, native_zero=_native_zero_cost(owner, metadata))
+        native_zero = _native_zero_cost(owner, metadata)
+        used, reason = _billing_categories(result, native_zero=native_zero)
         if reason is not None:
             unknown["reason"] = reason
             return unknown
         unknown["reason"] = "usage_categories"
-        if descriptor["qualified_usage"] == "flat_input_output" and any(used.values()):
+        if audit_descriptor and descriptor["qualified_usage"] == "flat_input_output" and any(used.values()):
             return unknown
         unknown["reason"] = "extra_billing"
         if guardrail_information_cost(metadata.get("standard_logging_guardrail_information")) > 0:
@@ -282,11 +290,28 @@ def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=
                         or not math.isfinite(declared) or not math.isfinite(billed)
                         or declared < 0 or billed < 0 or declared != billed):
                     return unknown
-        return {"schema": 1, "availability": "available", "descriptor": descriptor}
+        # Nonzero Usage is free only at explicit zero native billed rates.
+        # This is eligibility, not a second token-cost calculation.
+        if native_zero:
+            usage = result.get("usage") if isinstance(result, Mapping) else getattr(result, "usage", None)
+            counts = (usage.get("prompt_tokens"), usage.get("completion_tokens")) if isinstance(usage, Mapping) else (
+                usage.prompt_tokens, usage.completion_tokens)
+            native_zero = all(count == 0 or getattr(rates, field) == 0 for count, field in (
+                (counts[0], "input_cost_per_token"), (counts[1], "output_cost_per_token"),
+                (used["cached_tokens"], "cache_read_input_token_cost"),
+                (used["reasoning_tokens"], "output_cost_per_reasoning_token")))
+        return {"schema": 1, "availability": "available", "descriptor": descriptor,
+                "native_zero_confirmed": native_zero}
     except Exception:
         # Observability must preserve native cost handling and never export a
         # private declaration, URL or exception as diagnostic text.
         return unknown
+
+
+def _capture_descriptor(owner, params, metadata, proxy_auth, auth_route, result=None):
+    capture = _qualify_native(owner, params, metadata, proxy_auth, auth_route, result, audit_descriptor=True)
+    capture.pop("native_zero_confirmed", None)
+    return capture
 
 
 class _RequestSnapshot(CustomLogger):
@@ -343,9 +368,9 @@ class _RequestSnapshot(CustomLogger):
         # Copy the representation so consumers cannot mutate the frozen capture.
         if self._descriptor_snapshot is None:
             billing_result = kwargs["async_complete_streaming_response"] if getattr(self._owner, "stream", False) is True else result
-            native_zero = _native_zero_cost(self._owner, metadata)
             self._descriptor_snapshot = _capture_descriptor(self._owner, params, metadata, self._proxy_auth, self._auth_route, billing_result)
-            self._zero_confirmed = native_zero and self._descriptor_snapshot["availability"] == "available"
+            qualification = _qualify_native(self._owner, params, metadata, self._proxy_auth, self._auth_route, billing_result)
+            self._zero_confirmed = qualification.get("native_zero_confirmed") is True
         spend_metadata[SNAPSHOT_KEY] = {**self._snapshot, "rates": dict(self._snapshot["rates"])}
         if self._zero_confirmed and _native_zero_cost(self._owner, metadata):
             spend_metadata[SNAPSHOT_KEY]["native_zero_confirmed"] = True

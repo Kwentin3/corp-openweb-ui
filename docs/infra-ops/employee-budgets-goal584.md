@@ -69,7 +69,16 @@ actual cleanup0containers/volumes/networks/images. Это не доказате�
   default/missing0 остаётся UNKNOWN. Ровно4целевых existing tests PASS/0skip,
   pytest/runner/supervisor/outer exit0, outbound0,40tracked PIDs terminal.
   Функции агрегации/attribution/положительный путь и прежний6argABI сохранены.
-  Descriptor qualification пока сохранена; её удаление не входит в этот срез.
+  Это первое exact-copy состояние; следующий срез ниже отделяет обязательное
+  native qualification от необязательного тарифного описания.
+
+- Следующим двухфайловым срезом общий `_qualify_native` стал одним владельцем
+  auth/router/Usage/rates checks. Descriptor остаётся audit metadata; отсутствие
+  его10полей больше не запрещает native0 при protected explicit rates и guard
+  success. Native fallback/default/unpriced/forged0 не принимается; cost-map-only
+  deployments без explicit protected rates пока UNKNOWN. Public6argABI сохранён.
+  Один batch4PASS/0skip/все exits0, положительный старый capture test неизменён,
+  outbound0, owned processes0. Source review/evidence `zero-native/`.
 
 **Фактическая конфигурация сервера10.11 (только чтение):** существующий private
 operator target и hostname сверены, strict host-key/key-only SSH успешен. Native
@@ -85,9 +94,37 @@ ordinary user, не admin; admin API через неё не запрашивал
 Evidence `local/goal584/kiss-refactor-2026-11-10/`: runtime-config.safe.json,
 status/, known-zero/, shared-call-contract.md; ключи/адреса/raw config не опубликованы.
 
-**Следующий срез:** одна ограниченная actual DB/UI/reload Known0 проверка через
-существующий cost browser/stand; общие protocol boundaries unknown policy проверить
-отдельно от конвейеров. Новый core Usage patch не подразумевается. Production
+**Actual Known0 кандидат:** ровно3existing files: cost browser, native cost
+provisioner и existing Office workflow с выбором `acceptance=known-zero`.
+Default Office оставлен; Known0 пропускает неотносящиеся inference phases.
+Ровно7offline observer/reader/restoration checks,2module+16inline compile,
+actionlint/diff checks PASS. Отдельная genuine CC Hi/noTools composition через
+Router/Logging/raw guard/native cost/current publisher/native writer/actual
+observer-reader-projector PASS9.188s/exit0/outbound0/remaining0. Поля стоимости
+и подтверждение не подставлялись. Setup mistakes в rehearsal сохранены; это
+не actual proxy/DB/UI origin. Все source pins стабильны, новых UI/DB receipts
+до отдельного actual dispatch пока нет.
+
+План одного запуска: existingworkflow55min, acceptance step8min с собственным
+4min body alarm, cleanup2min; перед acceptance проверяется≥12min headroom.
+Стандартные limits остаются6services5.875GiB/4.25CPU/1728PIDs и component1GiB/
+256PIDs, preflight20GiB disk/6GiB RAM/7GiB Docker. Одна ordinary CC/nonstream
+нулевая запись → status/Details → reload same row → foreignACL → точное
+восстановление mock control/terminalTasks → owned cleanup. Ни старый Office
+provider-ID verifier, ни полный85min workflow не являются gate этого среза.
+Native stop — `gh run cancel <exact_run> --repo Kwentin3/corp-openweb-ui`;
+точный run/head/deadlines записать после dispatch, дубликат не запускать.
+
+**Протокольный остаток:** CC streaming теряет происхождение отдельных счётчиков
+при нормализации; native stream_response=false в WebUI не заменяет tool path,
+который работает только при streaming. Штатный готовый strict seam не найден.
+Upstream45707 OPEN относится к nonstream missing marker,42323 merged сохраняет
+explicit stream0,45425 closed/unmerged исправлял другую fallback проблему;
+ни один из них не объявлен готовой установленной policy. Ограничения записаны в
+`cc-usage-native-seam.md` и `upstream-usage.md`, нового core patch/upgrade нет.
+
+**Следующий шаг:** один ограниченный actual DB/UI/reload Known0 прогон;
+общие protocol boundaries unknown policy закрыть отдельно от конвейеров. Production
 cutover потребует конкретного общего профиля маршрутов/БД/отката и отдельного
 согласования; подготовка источников не равна его разрешению.
 

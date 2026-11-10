@@ -7,6 +7,7 @@ fixture APIs only observe/configure the isolated model/provider environment.
 """
 
 import argparse
+import copy
 from collections import Counter
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -14,6 +15,7 @@ import ipaddress
 import json
 from pathlib import Path
 import subprocess
+import signal
 import time
 from urllib.parse import urlsplit
 
@@ -32,19 +34,44 @@ MODELS = ("goal584-a", "goal584-b")
 
 
 class CostFixture(Fixture):
-    def phase(self, phase, *, chat_id=None):
+    def phase(self, phase, *, chat_id=None, answer_id=None, request_id=None, call_id=None):
         self.sequence += 1
         command = self.command + ["exec", "-T", "proxy", "python", "-B",
             "/proof/provision_cost_display.py", "--phase", phase, "--private-state",
             "/proof-private/webui-state.private.json", "--receipt", "/proof-private/cost-phase.safe.json"]
-        if chat_id is not None:
-            command += ["--chat-id", chat_id]
+        for flag, value in (("chat-id", chat_id), ("answer-id", answer_id),
+                            ("request-id", request_id), ("call-id", call_id)):
+            if value is not None:
+                command += ["--" + flag, value]
         result = subprocess.run(command, capture_output=True, text=True, timeout=75)
         receipt = json.loads(result.stdout)
         write_json(self.output / ("cost-native-%02d-%s.json" % (self.sequence, phase)), receipt)
         require(result.returncode == 0 and receipt.get("passed") is True,
                 "Native cost fixture phase failed: " + phase)
         return receipt
+
+    def provider_control(self, control):
+        script = ('import urllib.request; request=urllib.request.Request('
+            '"http://127.0.0.1:8000/__proof/control", data=' + repr(json.dumps(control).encode()) +
+            ', headers={"Content-Type":"application/json"}); '
+            'print(urllib.request.urlopen(request,timeout=3).read().decode())')
+        result = subprocess.run(self.command + ["exec", "-T", "provider", "python", "-c", script],
+                                capture_output=True, text=True, timeout=15)
+        require(result.returncode == 0, "Known0 provider control failed")
+        return json.loads(result.stdout)
+
+    def context(self):
+        # The native owner returns an empty observation before its first call;
+        # read under its lock rather than creating/resetting a capture file.
+        script = ('import json,capture_webui_auth as owner\n'
+                  'with owner.capture_lock():\n'
+                  ' print(json.dumps(owner._read_locked()))')
+        result = subprocess.run(self.command + ["exec", "-T", "proxy", "python", "-c", script],
+                                capture_output=True, text=True, timeout=15)
+        require(result.returncode == 0, "Cannot read the native cost context observation")
+        data = json.loads(result.stdout)
+        write_json(self.output / "webui-gateway-context.json", data)
+        return data
 
     def observe_cost(self, expected_total=None):
         deadline = time.monotonic() + 60
@@ -114,7 +141,8 @@ def set_display(page, base_url, token, enabled, output):
     page.locator('button[aria-label="Controls"]').click()
 
 
-def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, chat_models):
+def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, chat_models,
+                 answer_spend=".40", answer_models=None):
     """Click the native Action; read visible Rich UI and persisted native embed."""
     provider_before = {request["id"] for request in fixture.provider()["requests"]}
     before = chat_state(page, base_url, token, call["chat_id"])[call["message_id"]]
@@ -164,7 +192,8 @@ def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, cha
     expect(report).to_be_visible()
     totals = {}
     for scope, expected_spend, expected_models in (
-        ("answer", Decimal(".40"), {MODELS[0]: (2, 20, 10, 30, Decimal(".40"))}),
+        ("answer", Decimal(answer_spend), answer_models if answer_models is not None else
+         {MODELS[0]: (2, 20, 10, 30, Decimal(".40"))}),
         ("chat", Decimal(chat_spend), chat_models),
     ):
         section = report.locator('section[data-cost-scope="' + scope + '"]')
@@ -384,12 +413,180 @@ def verify(result, provider, context, before, final):
             "denial_native_rows": observed["total_rows"], "denial_user_delta_rows": len(observed["new_user_rows"])}
 
 
+def run_known_zero(browser, fixture, base_url, accounts):
+    """One actual native CC/nonstream Send; existing reader owns zero truth."""
+    from prove_unknown_usage_browser import SETTINGS, read, setting, settings_preserved
+    from prove_pricing_snapshots import no_credentials
+
+    result = {"schema": 1, "proof": "goal584-known-zero-browser", "passed": False,
+              "not_qualified": ["streaming_CC", "native_Tools", "Responses_zero", "Office", "production"]}
+    prior = fixture.provider()
+    require(all(row.get("lifecycle", {}).get("terminal") is True for row in prior["requests"]),
+            "Known0 cannot overlap an unfinished provider request")
+    capture_before = fixture.context()["requests"]
+    require(len(capture_before) < 36 and len(json.dumps(capture_before).encode()) < 4 * 1024 * 1024 - 65536,
+            "Known0 existing capture has insufficient headroom")
+    original = copy.deepcopy(prior["control"])
+    armed = {"prompt_tokens": 0, "completion_tokens": 0, "delay_ms": 0, "tool_round": False,
+             "admin_mode": False, "title_mode": False, "native_tasks_mode": False,
+             "response_status": 200, "after_first_chunk_delay_ms": 0}
+    context = page = token = None
+    submitted = []
+    def timeout(_signum, _frame):
+        raise TimeoutError("Known0 case exceeded four-minute bound")
+    require(hasattr(signal, "SIGALRM"), "Known0 requires the existing Linux runner")
+    old_signal = signal.signal(signal.SIGALRM, timeout)
+    signal.alarm(240)
+    try:
+        fixture.provider_control(armed)
+        require(fixture.provider()["control"] == {**original, **armed}, "Known0 provider arming differs")
+        baseline = fixture.phase("known-zero")["known_zero"]
+        context, page, token = login(browser, base_url, accounts[0])
+        before_settings = read(context, base_url, token, SETTINGS)
+        page.get_by_role("button", name="User menu", exact=True).first.click()
+        page.get_by_role("button", name="Settings", exact=True).click()
+        page.locator('#settings-tabs-container [role="tab"][aria-controls="tab-general"]').click()
+        general = page.locator("#tab-general")
+        general.get_by_role("button", name="Show", exact=True).click()
+        stream = general.get_by_text("Stream Chat Response", exact=True).locator("..").get_by_role("button")
+        for _ in range(3):
+            if stream.inner_text().strip() == "Off":
+                break
+            stream.click()
+        expect(stream).to_have_text("Off")
+        with page.expect_response(lambda response: urlsplit(response.url).path == SETTINGS + "/update"
+                and response.request.method == "POST") as saved:
+            general.get_by_role("button", name="Save", exact=True).click()
+        require(saved.value.status == 200, "Known0 native settings save failed")
+        page.locator('#settings-tabs-container [role="tab"][aria-controls="tab-interface"]').click()
+        for label in ("auto-generation-label", "follow-up-auto-generation-label", "chat-tags-label"):
+            control = page.locator('#tab-interface [role="switch"][aria-labelledby="' + label + '"]')
+            expect(control).to_be_visible()
+            if control.get_attribute("aria-checked") == "true":
+                with page.expect_response(lambda response: urlsplit(response.url).path == SETTINGS + "/update"
+                        and response.request.method == "POST") as saved:
+                    control.click()
+                require(saved.value.status == 200, "Known0 automatic task settings save failed")
+            expect(control).to_have_attribute("aria-checked", "false")
+        page.locator("#settings-tabs-container").get_by_role("button", name="Back", exact=True).click()
+        settings = read(context, base_url, token, SETTINGS)
+        settings_preserved(before_settings, settings)
+        require(setting(settings, "params.stream_response") is False and all(setting(settings, key) is False
+                for key in ("title.auto", "autoTags", "autoFollowUps")), "Known0 effective native settings differ")
+        page.on("request", lambda request: submitted.append(request.post_data_json)
+                if urlsplit(request.url).path == "/api/chat/completions" and request.method == "POST" else None)
+        call = chat(page, base_url, token, accounts[0]["id"], MODELS[1], "success", "known-zero-send",
+                    fixture.output, expected_costs=("0.00", "0.00"))
+        require(len(submitted) == 1 and submitted[0].get("stream") is False
+                and all(not submitted[0].get(key) for key in ("tool_ids", "skill_ids", "tool_servers", "files")),
+                "Known0 actual native submission is not ordinary nonstream")
+        provider = fixture.provider()
+        require(provider["requests"][:len(prior["requests"])] == prior["requests"]
+                and len(provider["requests"]) == len(prior["requests"]) + 1, "Known0 provider prefix/suffix differs")
+        physical = provider["requests"][-1]
+        require(physical["body"].get("stream") is False and not physical["body"].get("tools")
+                and physical["body"].get("model") == "goal584-fake-b"
+                and physical["usage"] == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                and physical.get("response", {}).get("usage") == physical["usage"]
+                and physical["lifecycle"].get("terminal") is True
+                and physical["lifecycle"].get("outcome") == "completed"
+                and physical["lifecycle"].get("usage_sent") is True, "Known0 actual provider outcome differs")
+        capture = fixture.context()["requests"]
+        require(capture[:len(capture_before)] == capture_before and len(capture) == len(capture_before) + 1,
+                "Known0 captured prefix/suffix differs")
+        captured = capture[-1]
+        scope = captured.get("verified_cost_scope", {})
+        require(captured.get("attestation_present_before") is True and captured.get("provenance_removed_after") is True
+                and captured.get("native_auth_user_id") == accounts[0]["id"]
+                and captured.get("task") in (None, "") and captured["body"].get("model") == MODELS[1]
+                and scope.get("category") == "personal"
+                and scope.get("root_chat_id") == scope.get("chat_id") == call["chat_id"]
+                and scope.get("root_answer_id") == scope.get("answer_id") == call["message_id"]
+                and scope.get("user_id") == accounts[0]["id"] and scope.get("model") == MODELS[1],
+                "Known0 signed actual scope differs from native UI")
+        for body in (captured["body"], captured["body_after_auth"], physical["body"]):
+            require(body.get("stream") is False and not body.get("tools") and not body.get("functions")
+                    and body.get("messages") == [{"role": "user", "content": "Hi"}], "Known0 actual model context differs")
+        target = dict(chat_id=call["chat_id"], answer_id=call["message_id"],
+                      request_id=physical["id"], call_id=scope["call_id"])
+        observed = fixture.phase("known-zero", **target)["known_zero"]
+        expected_rows = {**baseline["row_sha256"], physical["id"]: observed["row_sha256"][physical["id"]]}
+        require(physical["id"] not in baseline["row_sha256"] and observed["row_sha256"] == expected_rows
+                and observed["financial"] == baseline["financial"], "Known0 changed existing native rows/counters/caps")
+        zero_models = {MODELS[1]: (1, 0, 0, 0, Decimal("0"))}
+        details = [cost_details(page, base_url, token, call, fixture, "known-zero-details",
+            answer_spend="0", answer_models=zero_models, chat_spend="0", chat_models=zero_models)]
+        saved = copy.deepcopy(chat_state(page, base_url, token, call["chat_id"])[call["message_id"]])
+        statuses = [status for status in saved.get("statusHistory", []) if status.get("action") == FILTER_ID]
+        require(statuses and "начислено на сейчас" in statuses[-1].get("description", "")
+                and " UTC" in statuses[-1]["description"], "Known0 status is not an accrued timestamped snapshot")
+        page.goto(base_url + "/", wait_until="domcontentloaded")
+        page.goto(base_url + "/c/" + call["chat_id"], wait_until="domcontentloaded")
+        page.reload(wait_until="domcontentloaded")
+        expect(page.locator("#message-" + call["message_id"])).to_contain_text("Ответ: $0.00 · Чат: $0.00")
+        require(chat_state(page, base_url, token, call["chat_id"])[call["message_id"]] == saved,
+                "Known0 reload changed the persisted native answer/status/embed")
+        details.append(cost_details(page, base_url, token, call, fixture, "known-zero-details-reloaded",
+            answer_spend="0", answer_models=zero_models, chat_spend="0", chat_models=zero_models))
+        foreign, _, foreign_token = login(browser, base_url, accounts[1])
+        denied = foreign.request.get(base_url + "/api/v1/chats/" + call["chat_id"],
+            headers={"Authorization": "Bearer " + foreign_token}, timeout=10_000)
+        action = foreign.request.post(base_url + "/api/chat/actions/" + ACTION_ID,
+            headers={"Authorization": "Bearer " + foreign_token}, data={"model": MODELS[1],
+                "chat_id": call["chat_id"], "id": call["message_id"], "session_id": "synthetic-negative", "messages": []},
+            timeout=15_000)
+        require(denied.status == 401 and action.status == 404, "Known0 foreign native ACL differs")
+        final = fixture.phase("known-zero", **target)["known_zero"]
+        require(final["financial"] == baseline["financial"] and final["row_sha256"] == expected_rows
+                and fixture.provider()["requests"] == provider["requests"]
+                and fixture.context()["requests"] == capture, "Known0 reload/Details/ACL changed native accounting or dispatch")
+        result.update(call=call, native=final, details=details, foreign_chat_denial=denied.status,
+                      foreign_details_denial=action.status, provider_id=physical["id"], reload_same_row=True, case_passed=True)
+    except Exception as error:
+        result["failure_class"] = type(error).__name__
+        raise
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_signal)
+        try:
+            if page is not None and token and submitted:
+                chat_id = submitted[0].get("chat_id")
+                if chat_id:
+                    path = base_url + "/api/tasks/chat/" + chat_id
+                    headers = {"Authorization": "Bearer " + token}
+                    active = context.request.get(path, headers=headers, timeout=10_000)
+                    require(active.status == 200, "Known0 native task observation failed")
+                    if active.json().get("task_ids"):
+                        stopped = context.request.post(path + "/stop", headers=headers, timeout=10_000)
+                        require(stopped.status == 200, "Known0 owned native task stop failed")
+                    terminal = context.request.get(path, headers=headers, timeout=10_000)
+                    require(terminal.status == 200 and terminal.json().get("task_ids") == [], "Known0 native tasks remain")
+                    result["native_tasks_terminal"] = True
+        finally:
+            result["provider_control_restored"] = False
+            try:
+                fixture.provider_control({key: original.get(key) for key in set(original) | set(armed)})
+                restored = fixture.provider()
+                result["provider_control_restored"] = restored["control"] == original
+                result["provider_terminal"] = all(row.get("lifecycle", {}).get("terminal") is True
+                    for row in restored["requests"][len(prior["requests"]):])
+            finally:
+                result["passed"] = (result.get("case_passed") is True and result.get("native_tasks_terminal") is True
+                                    and result["provider_control_restored"] and result.get("provider_terminal") is True)
+                no_credentials(result, [account["password"] for account in accounts])
+                write_json(fixture.output / "known-zero.safe.json", result)
+            require(result["provider_control_restored"] and result["provider_terminal"],
+                    "Known0 provider restoration/termination unconfirmed")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--accounts", required=True, type=Path)
     parser.add_argument("--env-file", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--case", choices=("full", "known-zero"), default="full")
     args = parser.parse_args()
     target = urlsplit(args.base_url)
     require(target.scheme == "http" and target.port == 8080 and target.path in ("", "/")
@@ -400,6 +597,14 @@ def main():
     accounts = json.loads(args.accounts.read_text(encoding="utf-8"))["users"]
     require(len(accounts) == 2, "Expected two synthetic employees")
     fixture = CostFixture(args.env_file, args.output)
+    if args.case == "known-zero":
+        fixture.command += ["-f", "compose/goal584.office-proof.yml"]
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(channel="chrome", headless=True)
+            try:
+                return 0 if run_known_zero(browser, fixture, args.base_url, accounts)["passed"] else 1
+            finally:
+                browser.close()
     result = {"schema": 1, "proof": "goal584-native-cost-browser", "passed": False, "calls": [],
               "started_at_utc": datetime.now(timezone.utc).isoformat(),
               "not_qualified": ["management_GUI", "delegation_settlement", "service_tasks", "nonstream_errors",

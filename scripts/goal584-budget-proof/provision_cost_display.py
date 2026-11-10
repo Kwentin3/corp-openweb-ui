@@ -631,10 +631,71 @@ def secret_values(state: dict) -> list[str]:
     return [value for value in values if isinstance(value, str) and value]
 
 
+def known_zero_observation(state, *, chat_id=None, answer_id=None, request_id=None, call_id=None):
+    """Read this finite UI case through the existing native ledger/reader owners."""
+    import asyncio
+    from aiohttp import ClientSession
+    from employee_budget_cost_readback import read_cost_snapshot
+    from prove_pricing_snapshots import project_row
+
+    native = native_client(state)
+    financial = {user["id"]: {model: off_pair(native, user["id"], model) for model in MODELS}
+                 for user in state["users"]}
+    rows = [row for user in state["users"] for row in native.logs(user["id"])]
+    fingerprints = {}
+    for row in rows:
+        identifier = row.get("request_id")
+        require(isinstance(identifier, str) and identifier and identifier not in fingerprints,
+                "Known0 native row identity is missing or duplicated")
+        fingerprints[identifier] = hashlib.sha256(json.dumps(row, sort_keys=True, allow_nan=False,
+            default=str).encode("utf-8")).hexdigest()
+    result = {"financial": financial, "row_sha256": fingerprints}
+    if chat_id is None:
+        require(answer_id is None and request_id is None and call_id is None, "Known0 incomplete target")
+        return result
+    require(all(isinstance(value, str) and value for value in (answer_id, request_id, call_id)),
+            "Known0 incomplete target")
+    actor = state["users"][0]["id"]
+    async def read():
+        async with ClientSession() as session:
+            return await read_cost_snapshot(session, base_url=LEDGER_URL,
+                read_key=state["cost_reader"]["key"], user_id=actor,
+                root_chat_id=chat_id, root_answer_id=answer_id,
+                observed_request_ids=[request_id], observed_call_ids=[call_id], wait_seconds=8)
+    observed = asyncio.run(read())
+    require(not observed.pending and not observed.missing_request_ids and not observed.missing_call_ids
+            and observed.answer.spend == observed.chat.spend == 0
+            and observed.answer.calls == observed.chat.calls == 1
+            and observed.answer.prompt_tokens == observed.answer.completion_tokens == observed.answer.total_tokens == 0,
+            "Known0 existing native reader did not confirm the exact zero row")
+    # Read again after the reader's bounded wait; writer settlement may have
+    # completed during that wait. No independent pricing/zero classifier.
+    rows = [row for user in state["users"] for row in native.logs(user["id"])]
+    matches = [row for row in rows if row.get("request_id") == request_id]
+    require(len(matches) == 1, "Known0 target native row is missing or duplicated")
+    row = matches[0]
+    scope = persisted_scope(row, actor)
+    require(scope["root_chat_id"] == scope["chat_id"] == chat_id
+            and scope["root_answer_id"] == scope["answer_id"] == answer_id
+            and scope["call_id"] == call_id and scope["model"] == MODELS[1], "Known0 native scope differs")
+    projection = project_row(row, {actor})
+    projection.pop("api_key_hash")
+    result["row_sha256"] = {row["request_id"]: hashlib.sha256(json.dumps(row, sort_keys=True,
+        allow_nan=False, default=str).encode("utf-8")).hexdigest() for row in rows}
+    require(len(result["row_sha256"]) == len(rows) and all(isinstance(value, str) and value
+            for value in result["row_sha256"]), "Known0 native row identity changed during readback")
+    result["target"] = {"scope": scope, "row": projection,
+                        "as_of": observed.as_of.isoformat(), "reader_confirmed_zero": True}
+    return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("setup", "scenario", "snapshot", "off-limit", "off-denial-observe", "off-restore"))
+    parser.add_argument("--phase", required=True, choices=("setup", "scenario", "snapshot", "off-limit", "off-denial-observe", "off-restore", "known-zero"))
     parser.add_argument("--chat-id", help="Actual browser-observed fresh denial chat UUID; observation phase only")
+    parser.add_argument("--answer-id")
+    parser.add_argument("--request-id")
+    parser.add_argument("--call-id")
     parser.add_argument("--private-state", required=True, type=Path)
     parser.add_argument("--receipt", required=True, type=Path)
     args = parser.parse_args()
@@ -647,8 +708,10 @@ def main() -> int:
         require(len({args.private_state.resolve(), args.receipt.resolve(), OPERATOR_STATE.resolve()}) == 3,
                 "Private state, operator state and safe receipt must be separate")
         receipt_path_valid = True
-        require((args.phase == "off-denial-observe") == (args.chat_id is not None),
+        require(args.phase == "known-zero" or (args.phase == "off-denial-observe") == (args.chat_id is not None),
                 "A denial chat UUID is required only for off-denial-observe")
+        require(args.phase == "known-zero" or all(value is None for value in
+                (args.answer_id, args.request_id, args.call_id)), "Known0 target is not supported for this phase")
         state = read_private(args.private_state)
         require(state.get("stage") == "setup_complete" and len(state.get("users", [])) == 2
                 and len(state.get("native_keys", [])) == 4, "Base native WebUI setup is incomplete")
@@ -667,7 +730,11 @@ def main() -> int:
             receipt["off_denial"] = off_denial_observe(webui, state, args.private_state, args.chat_id)
         elif args.phase == "off-restore":
             receipt["off_denial"] = off_restore(state, args.private_state)
-        receipt.update(snapshot(webui, state))
+        if args.phase == "known-zero":
+            receipt["known_zero"] = known_zero_observation(state, chat_id=args.chat_id,
+                answer_id=args.answer_id, request_id=args.request_id, call_id=args.call_id)
+        else:
+            receipt.update(snapshot(webui, state))
         receipt["passed"] = True
     except ProofError as error:
         receipt["failure"] = str(error)
