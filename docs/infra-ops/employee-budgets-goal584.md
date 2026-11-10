@@ -185,6 +185,10 @@ native streaming/Tools WebUI и имеет scoped Office81 acceptance. Это д
 чем выключение stream в WebUI (последнее отключает native Tools). Новый вопрос
 касается generic streaming CC; необходимость нового патча для самого Office
 не установлена. Политика на всех рабочих моделях остаётся незакрытой.
+Дополнительная bounded source-сверка нашла raw SDK iterator до нормализации,
+но его перехват потребовал бы private completion_stream/make_call replacement.
+Это недокументированная monkeypatch-зависимость, а не штатный raw hook; как обход
+запрета core patch она не внедрялась. Факты добавлены в ту же cc-usage-native-seam.md.
 До ответа новые изменения ядра не выполняются. Независимая подготовка поставки
 в прежнем объёме разрешена. Разрешение на production не запрашивалось и не получено.
 
