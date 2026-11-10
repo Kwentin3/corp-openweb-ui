@@ -129,7 +129,8 @@ jobs:
           old={m['target']:m for m in baseline['services']['openwebui-0122']['volumes']};new={m['target']:m for m in ui['volumes']}
           assert old=={k:new[k] for k in old} and len(new)==len(old)+8
           additions=[m for m in gateway['volumes'] if m['target']!='/app/config.yaml']+[m for k,m in new.items() if k not in old]
-          assert len(additions)==17 and all(m['type']=='bind' and m['read_only'] and m['bind']['create_host_path'] is False and Path(m['source']).is_file() for m in additions)
+          # Compose's canonical JSON omits false create_host_path (Go zero value).
+          assert len(additions)==17 and all(m['type']=='bind' and m['read_only'] and m.get('bind',{}).get('create_host_path',False) is False and Path(m['source']).is_file() for m in additions)
           packet={'passed':True,'scope':'Native Compose merge only; synthetic inputs, no build/services/model calls',
               'source_commit':os.environ['GITHUB_SHA'],'compose_version':subprocess.check_output(['docker','compose','version','--short'],text=True).strip(),
               'source_sha256':{str(p.relative_to(repo)):hashlib.sha256(p.read_bytes()).hexdigest() for p in files},
