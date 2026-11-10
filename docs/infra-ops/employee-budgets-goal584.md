@@ -143,6 +143,14 @@ Office81 direct-parent accounting применимы в проверенных s
 Office81 actual model gpt-5.4-mini, не Sol/Terra. Office106 сохраняет только
 delegation hashes/counts, без полных financial operands; независимый replay
 исправленного proof невозможен. Точный Sol+Terra cost/refusal остаётся непроверенным.
+Подготовлен `acceptance=delegation-cost` в existing workflow (+15/−7): только
+existing prepare без inference, существующие positive delegation и native
+quota/refusal/recovery, diagnostics/cleanup. Mini Send, continuation и unknown/admin
+phases этому пути не нужны и пропускаются; default Office/Known0 сохранены.
+Compile2inline/actionlint/AST/body/conditions и независимое source review PASS.
+Новых fixture/harness/финансового кода нет. Этот профиль ещё не запускался;
+следующий шаг — один ограниченный actual Sol+Terra прогон на coherent source,
+с прежними55min bounds/ресурсами/адресной остановкой и recovery/cleanup.
 
 Для общего streaming unknown-Usage10.11 задан один вопрос пользователю: разрешить
 узкую поправку сохранения исходного признака Usage до native нормализации только

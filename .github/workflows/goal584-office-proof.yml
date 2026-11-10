@@ -26,7 +26,7 @@ on:
         description: Finite acceptance profile
         type: choice
         default: office
-        options: [office, known-zero]
+        options: [office, known-zero, delegation-cost]
 permissions:
   contents: read
 jobs:
@@ -38,6 +38,7 @@ jobs:
         shell: bash
     env:
       OWNED: goal584-office-${{ github.run_id }}-${{ github.run_attempt }}
+      ACCEPTANCE_PROFILE: ${{ inputs.acceptance || 'office' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         timeout-minutes: 1
@@ -392,6 +393,8 @@ jobs:
               ready=fixture.prepare(base,build,os.environ['GITHUB_SHA'])
               assert ready['status']=='prepared' and ready['native_office_accepted'] is False and ready['inference_issued'] is False
               public('office-preparation',ready)
+              if os.environ['ACCEPTANCE_PROFILE']=='delegation-cost':
+                  raise SystemExit(0)
               for name in ('webui-state.private.json','office-state.private.json'):
                   fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
               stage='baseline';baseline=readback('baseline')
@@ -445,7 +448,7 @@ jobs:
               raise SystemExit(1)
           PY
       - name: Verify saved reasoning after reload and one ordinary continuation Send
-        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
         timeout-minutes: 8
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -558,7 +561,7 @@ jobs:
               signal.alarm(0)
           PY
       - name: Verify native key block and signed gateway denial
-        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
         timeout-minutes: 3
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -594,7 +597,7 @@ jobs:
           assert packet.get('unknown_usage_policy_qualified') is False
           PY
       - name: Verify targeted unavailable Usage and native cost projection
-        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
         timeout-minutes: 5
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -652,7 +655,7 @@ jobs:
           assert packet.get('browser_or_chat_ancestry_qualified') is False
           PY
       - name: Verify six ordinary Sends and native unknown Usage accounting
-        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
         timeout-minutes: 10
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -809,7 +812,7 @@ jobs:
           finally: signal.setitimer(signal.ITIMER_REAL,0)
           PY
       - name: Verify the native admin form against unknown expense and separate accounting
-        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
         timeout-minutes: 10
         run: |
           "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
@@ -1030,7 +1033,12 @@ jobs:
                   'render_sha256':hashlib.sha256(png).hexdigest(),'render_bytes':len(png),
                   'screenshot_sha256':hashlib.sha256(screenshot).hexdigest(),'screenshot_bytes':len(screenshot)}
           try:
-              assert json.loads((out/'office-continuation.safe.json').read_text()).get('passed') is True
+              if os.environ['ACCEPTANCE_PROFILE']=='delegation-cost':
+                  ready=json.loads((out/'office-preparation.safe.json').read_text())
+                  assert ready.get('status')=='prepared' and ready.get('inference_issued') is False
+                  assert ready.get('inference_calls')==0 and ready.get('native_office_accepted') is False
+              else:
+                  assert json.loads((out/'office-continuation.safe.json').read_text()).get('passed') is True
               credentials()
               container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
               networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
