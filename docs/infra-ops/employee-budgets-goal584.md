@@ -132,13 +132,24 @@ values, ledger, budgets и маршруты не переписываются. �
 регистрирует существующий UnknownUsageGuard с native operator key из protected
 environment. Missing/invalid format запрещает регистрацию; master fallback и
 proof imports отсутствуют. Compile/source import graph проверены; actual image,
-права ключа, DB/Redis и установка ещё не приняты. Compose/generator не менялись.
+права ключа, DB/Redis и установка ещё не приняты. Базовые Compose/generator не менялись.
 Карта существующих владельцев/import aliases — `release-owner-map.md` в local evidence.
 До установки: сохранить image/config/env и native connection/resource/Valves/ACL;
 подготовить native DB/Redis, реальные цены и operator/viewer identities до включения
 auth; установить Functions/Tool штатными API с source/ACL readback. При откате
 сохранить native бюджеты/keys/SpendLogs, вернуть согласованные image/config/resources;
 не удалять финансовые volumes и не открывать обход proxy автоматически.
+
+Добавлен отдельный opt-in [budget overlay](../../compose/openwebui.employee-budgets.compose.yml)
+для тех же2сервисов:9proxy/8WebUI module binds, required image/config/env/module
+selectors, native cwd `/app`, provenance=true. Базовые release files неизменны;
+новых services/networks/volumes и proof imports нет. YAML parsing/peer import
+closure/source review PASS, независимое ревью завершено. Docker CLI недоступен:
+native Compose merge/interpolation и imports в actual image не проверены.
+[Инструкция установки/отката](employee-budgets-installation.md) подготовлена;
+описаны native identities, activation/Valves/ACL и сохранение финансовых данных.
+Это source-подготовка, не runtime acceptance/deployment. Evidence: release-overlay.safe.json,
+release-packaging-review.md. Новые CI/модели/контейнеры/remote probes не запускались.
 
 1. Доказать Known0 на настоящих DB/UI/Details/reload, сохранив UNKNOWN и права.
 2. Закрыть общую unknown policy на согласованных протоколах. Для CC streaming
