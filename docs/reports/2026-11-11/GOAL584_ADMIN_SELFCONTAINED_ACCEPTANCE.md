@@ -2,7 +2,45 @@
 
 11.11.2026. База `2c4ae3ab`, ветка `agent/goal584-admin-table`.
 Каноническое состояние: [GOAL584](../../infra-ops/employee-budgets-goal584.md).
-**GUI native PASS; последний backend срез требует исправления. Production не менялся.**
+**Этап принят на изолированном стенде. Production не менялся.**
+
+Финальный кандидат `1ebf2b6412aa206976cc9b88ce027cc653993060`,
+[native run 43018788862](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43018788862)
+завершён SUCCESS. Две адресные проверки в закреплённой сборке подтвердили:
+provider 402 до начала stream сохраняет отказ оплаты без unknown-usage block;
+429/500 и 402 после начала stream сохраняют прежнюю защиту. Исправление находится
+в существующем extension callback, новых core patches нет; прежние LiteLLM
+patches остаются частью закреплённой сборки. Open WebUI core не изменён.
+
+Через настоящий чат проверены 5 admin turns, 10 физических admin вызовов,
+3 успешных staff вызова и 3 отказа по квотам. Итого 16 signed attempts/13 physical,
+без лишних вызовов; synthetic phase 3.00 USD (admin 2.40/staff 0.60), отдельно от seed.
+Контекст содержит полный Skill, историю и точный stored JSON; HTML не передаётся
+модели, apply Tool не получает пересобранных аргументов. Подтверждение/отмена,
+лимиты и дальнейшая работа сотрудника сверены с native состоянием.
+
+Public S1→S2→S1 и расписание восстановлены: 12 прежних строк неизменны, две новые
+посчитаны по 0.40 USD; все 14 записей сохранены. Ручной снимок 123.45 USD показан
+в новой карточке с датой/источником/server author/revision; employee finances
+не меняются. Actual PNG таблицы и сохранённого баланса просмотрены root.
+
+Отдельная API-only проверка подтвердила pending новую модель без выдуманных
+финансовых сумм → создание native key с hard cap 0, сохранение прежних назначений
+и основного fixture. Затем ровно два подписанных CC-stream вызова без retries:
+provider 402/spend 0 → оплаченный 200/Usage 15/spend 0.20, тот же account. Это проверка
+реального native API и durable readback, без заявления о дополнительном WebUI чате.
+Оба вызова прошли общий gateway/provenance/назначение; альтернативного маршрута нет.
+
+Cleanup receipt: containers/volumes/networks 0, derivative image удалён.
+Финальные source/image/mount identities сохранены вместе с результатом.
+Артефакты: `local/goal584/admin-selfcontained/run-43018788862/`.
+Независимая итоговая приёмка PASS: `local/goal584/admin-selfcontained/actual-review.md`.
+Сверены 4 boundary hashes, 14 PNG hashes, HTML/srcdoc, изменённые source hashes,
+build/runtime/removed image и точное сохранение основного fixture после expansion.
+Переход 402→успех квалифицирован через native API, без отдельного WebUI чата или
+PNG шапки в момент402. Конкурентные изменения маршрута не квалифицированы.
+
+## Предыдущие ограниченные прогоны
 
 Кандидат `d7d1205e642536a2522d383332343d8b904f337f`,
 [actual 43010403326](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43010403326):
@@ -94,8 +132,11 @@ global Filter, public preparation, synthetic provider/verifier и sandbox Chrome
 остаются 63 px, шапка закреплена; точные значения сохраняются в data/title,
 визуальное форматирование не меняет отправляемые суммы.
 
-Обязательный остаток: зафиксированный кандидат, native GUI с сохранением ручного
-баланса и публичной сменой S1→S2→S1 в существующем пятом admin turn; отдельный
-native pending→hard-zero assignment и 402→успех на disposable плательщике;
-осмотр actual PNG/источника/финансовых результатов и cleanup. До этого общий PASS
-не выставляется.
+Обязательный объём этого этапа закрыт финальным run43018788862. Предыдущие FAIL
+сохранены как история диагностики; они не переименованы в PASS. В run43018428780
+новое поведение402 прошло, но новая проверка ошибочно вызвала старый helper,
+ожидающий blocked=True. Исправлено только сравнение с исходным user/key; финальный
+прогон подтвердил обе проверки. Нового framework/стенда не создано.
+
+Установка на production, реальные provider balance API, live цены/мультимодальные
+тарифы и дополнительные Office сценарии не входят в приёмку этого этапа.
