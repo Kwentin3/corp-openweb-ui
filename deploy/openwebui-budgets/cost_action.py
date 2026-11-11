@@ -71,7 +71,13 @@ def render_monthly(snapshot):
     def amount(value, missing="не установлен"):
         return missing if value is None else escaped(value) + " USD"
 
+    native_counters = snapshot.get("expense_observation_scope") == "native_budget_counters"
+    expense_column = not native_counters or any(value.get("expense_status") is not None
+                                               for value in [snapshot, *snapshot["models"]])
+
     def expense(value):
+        if native_counters and value.get("expense_status") is None:
+            return ''
         if value.get("expense_status") == "unknown":
             return '<strong>Расход неизвестен: в истории есть запросы без данных о расходе. Итоговый остаток не подтверждён.</strong>'
         return 'Полнота данных о расходе не подтверждена; итоговый остаток не подтверждён.'
@@ -84,7 +90,8 @@ def render_monthly(snapshot):
             '<td>' + amount(model["cap_usd"]) + '</td><td>' + amount(model["spend_usd"], "нет данных") + '</td>'
             '<td>' + amount(model["remaining_usd"], "нет лимита") + '</td>'
             '<td>' + escaped(model["budget_duration"]) + '<br>' + escaped(model["budget_reset_at"]) + '</td>'
-            '<td>' + block + '</td><td>' + expense(model) + '</td></tr>')
+            '<td>' + block + '</td>' + ('<td>' + expense(model) + '</td>' if expense_column else '') + '</tr>')
+    expense_status = expense(snapshot)
     return ('<aside data-monthly-budget="v1"><h2>Мой месячный бюджет</h2>'
             '<p>Снимок на: <time datetime="' + escaped(snapshot["as_of"]) + '">' + escaped(snapshot["as_of"]) + '</time>.</p>'
             '<p>Бюджет: <output data-monthly-field="budget">' + amount(snapshot["budget_usd"]) + '</output> · '
@@ -92,12 +99,14 @@ def render_monthly(snapshot):
             'Остаток по учтённым расходам: <output data-monthly-field="remaining">'
             + amount(snapshot["remaining_usd"], "нет лимита") + '</output>.</p>'
             '<p>Период: ' + escaped(snapshot["budget_duration"]) + '. Следующее обновление бюджета: '
-            + escaped(snapshot["budget_reset_at"]) + '.</p><p role="status">' + expense(snapshot) + '</p>'
-            '<p>Неизвестные расходы не включены в показанные суммы. '
-            'Остаток не гарантирует допуск следующего запроса.</p>'
+            + escaped(snapshot["budget_reset_at"]) + '.</p>'
+            + ('<p role="status">' + expense_status + '</p>' if expense_status else '')
+            + '<p>' + ('Неизвестные расходы не включены в показанные суммы. ' if expense_column else '')
+            + 'Остаток не гарантирует допуск следующего запроса.</p>'
             '<table><thead><tr><th>Модель</th><th>Лимит</th><th>Учтённый расход</th><th>Остаток по учёту</th>'
-            '<th>Период / следующее обновление</th><th>Блокировка</th><th>Полнота расхода</th></tr></thead><tbody>'
-            + (''.join(rows) or '<tr><td colspan="7">Модели не назначены.</td></tr>') + '</tbody></table>'
+            '<th>Период / следующее обновление</th><th>Блокировка</th>'
+            + ('<th>Полнота расхода</th>' if expense_column else '') + '</tr></thead><tbody>'
+            + (''.join(rows) or '<tr><td colspan="' + ('7' if expense_column else '6') + '">Модели не назначены.</td></tr>') + '</tbody></table>'
             '<p>Чтобы обновить снимок, снова откройте «Стоимость: детали».</p>'
             '<p>При публикации чата этот снимок бюджета тоже станет доступен читателям.</p></aside>')
 

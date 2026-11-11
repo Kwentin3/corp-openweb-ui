@@ -292,6 +292,19 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("<img", text)
         self.assertIn("&lt;img", text)
         self.assertIn("Модели не назначены", extension.render_monthly(monthly_budget(models=[])))
+        native = monthly_budget(spend_usd="0.0118212", remaining_usd="19.9881788",
+                                expense_observation_scope="native_budget_counters")
+        native.pop("expense_status")
+        native["models"][0].pop("expense_status")
+        text = extension.render_monthly(native)
+        self.assertIn("0.0118212 USD", text)
+        self.assertIn("19.9881788 USD", text)
+        self.assertNotIn("Полнота", text)
+        self.assertNotIn("Неизвестные расходы", text)
+        native["models"][0]["expense_status"] = "unknown"
+        text = extension.render_monthly(native)
+        self.assertIn("Расход неизвестен", text)
+        self.assertIn("Полнота расхода", text)
 
     async def test_empty_unavailable_or_unknown_cost_is_not_zero(self):
         self.rows = []

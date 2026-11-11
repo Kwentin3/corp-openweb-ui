@@ -465,7 +465,7 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(self.record.base_model_id, self.request.app.state.OPENAI_MODELS)
         with self.assertRaises(extension.ServiceTaskError) as caught:
             await self.invoke(__task__="follow_up_generation")
-        self.assertEqual(caught.exception.code, "unsupported_background_source")
+        self.assertEqual(caught.exception.code, "unsupported_background_target_pipe")
         self.connection.assert_not_awaited();self.dispatch.assert_not_awaited()
 
     async def test_distinct_source_binding_and_final_actor_await_recheck_both_models(self):
@@ -542,8 +542,11 @@ class ServicePipeTests(unittest.IsolatedAsyncioTestCase):
                 source["arena"] = True
             else:
                 source["owned_by"] = "ollama"
-            with self.subTest(kind=kind), self.assertRaises(extension.ServiceTaskError):
-                await self.invoke()
+            with self.subTest(kind=kind):
+                with self.assertRaises(extension.ServiceTaskError) as caught:
+                    await self.invoke()
+                self.assertEqual(caught.exception.code, "unsupported_background_source_cache"
+                    if kind in ("other_primary", "stale_cache_model") else "unsupported_background_source_context")
         self.dispatch.assert_not_awaited()
 
     async def test_background_missing_parent_and_malformed_native_task_shape_are_denied(self):
