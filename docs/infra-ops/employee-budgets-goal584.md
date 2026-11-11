@@ -58,8 +58,15 @@ PNG, а не только DOM/JSON: общий вид, фильтрованна�
 |---|---|
 | UI таблицы/черновика | Первый PNG отклонён и заменён плотной версией:63px строки, sticky header с управлением/легендой, одна segmented bar с N−1 границами. Root просмотрел2/12/3-model PNG при820px, без overflow; source review PASS, schema/policy прежние |
 | Нативный путь подтверждения | Pinned WebUI0.12.2 проверен: прямого авторизованного iframe→Tool RPC нет. Сохраняются оба подтверждения без изменения доверия и прав |
-| Browser/PNG | Компонентный Chrome:25 принятых cases +исправленный scale-expectation N2 case PASS; финальный label/N3 boundary case PASS. Root просмотрел PNG2/12/scrolled/N3, header top49 при scroll240. Existing gui-product driver адаптирован, AST/CLI/source contract PASS; native run ещё не запускался |
-| Приёмка/поставка/уборка | Source готов,15financial owners и4stand/verifier файла совпали с592a4534. Следующий шаг — один coherent native GUI-кандидат; production/paid API исключены. Реальные ошибки/остаток сохраняются явно |
+| Browser/PNG | Компонентный Chrome:25 принятых cases +исправленный scale-expectation N2 case PASS; финальный label/N3 boundary case PASS. Root просмотрел PNG2/12/scrolled/N3, header top49 при scroll240. Actual42988211059 остановился до Tool: synthetic dispatcher не распознал новую фразу, UI не квалифицирован |
+| Приёмка/поставка/уборка | В test provider добавлен только approved literal intent при прежних regex-контролях; replay фактического запроса и5контролей PASS. Product/UI прежние263c243f,15financial owners прежние592a4534. Первый cleanup0/image removed подтверждён; следующий шаг — повтор finite native profile |
+
+Actual компактного GUI: [42988211059](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42988211059),
+`263c243f921dcc1a55f5cd872cf797cb29ee2afe`, завершён FAIL: выбран обычный synthetic
+ответ вместо вызова Tool из-за неполного тестового intent matcher. Исправлен только
+mock dispatcher после replay actual payload; product/UI не менялись. Cleanup0,
+generated image удалён. Параллельных повторов нет.
+[Отчёт](../reports/2026-11-11/GOAL584_ADMIN_TABLE_ACCEPTANCE.md).
 
 ## Предыдущий принятый этап: минимальный GUI и продуктовая приёмка
 

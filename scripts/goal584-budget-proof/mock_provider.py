@@ -165,8 +165,9 @@ def pending_admin_tool(payload, messages):
         proposal = json.loads(text)
     except ValueError:
         intent = text.casefold()
-        if not (re.search(r"\b(?:настро\w*|обнов\w*)\b", intent)
-                and re.search(r"\b(?:лимит\w*|бюджет\w*)\b", intent)):
+        if not (intent == ADMIN_USER_REQUEST.casefold()
+                or (re.search(r"\b(?:настро\w*|обнов\w*)\b", intent)
+                    and re.search(r"\b(?:лимит\w*|бюджет\w*)\b", intent))):
             return None
         suffix, arguments = "open_budget_form", {"view_json": "{}"}
     else:

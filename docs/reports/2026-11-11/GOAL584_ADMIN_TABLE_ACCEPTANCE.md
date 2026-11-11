@@ -51,6 +51,17 @@ self info API; тестовая фраза синхронизирована с �
 Native profile по-прежнему использует пять прежних сервисов, job25min/browser6min,
 synthetic provider и always-cleanup. Workflow и финансовый verifier не менялись.
 
+Первый actual [42988211059](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42988211059)
+на `263c243f` остановился до Tool/карточки: synthetic `pending_admin_tool` распознавал
+старые глаголы «настроить/обновить», но не approved фразу «Давай поработаем с лимитами».
+Переданный provider payload и PNG подтверждают обычный ответ Proof, не ошибку UI.
+В dispatcher добавлен только привязанный literal intent, прежние controls сохранены.
+Actual payload replay через реальный AST-фрагмент выбирает `open_budget_form`;
+настройка/обновление, ordinary Hi и apply с пустыми business arguments проверены.
+Продуктовый код не менялся. Seed native0.20 прошёл, но GUI PASS этим не заявляется.
+Always-cleanup: containers/volumes/networks0, generated image удалён. Первый FAIL
+и actual artifacts сохраняются, повтор выполняется только после этой узкой поправки.
+
 Обязательный остаток: actual browser/native/context/PNG/source/image/mount/cleanup
 приёмка итогового кандидата. Production/deployment, платные API, реальные лимиты,
 новые групповые операции и глобальная реформа тестовой инфраструктуры не входят.
