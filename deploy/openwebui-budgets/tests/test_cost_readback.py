@@ -977,6 +977,19 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
             self.rows[0]["metadata"]["error_information"]["error_message"] = message
             self.assertEqual((await self.read())["accounts"][0]["status"], "unknown")
 
+    async def test_native_payment_required_without_structured_body_and_generic_denials(self):
+        # Actual second-run shape: failure + selected deployment + cacheFalse,
+        # APIError402 + provider, human-only SDK text and native router suffix.
+        for code, expected in (("402", "financial_refusal"), (402, "financial_refusal"),
+                               ("429", "unknown"), (429, "unknown"), ("422", "unknown"), (True, "unknown")):
+            self.rows = [self.event("financial_refusal")]
+            info = self.rows[0]["metadata"]["error_information"]
+            info.update(error_class="APIError", error_code=code,
+                error_message="litellm.APIError: OpenAIException - Payment Required\n\nLiteLLM: model group 'goal584-b' failed. No fallback was attempted.")
+            self.assertEqual((await self.read())["accounts"][0]["status"], expected)
+        info.update(error_code="402", llm_provider="")
+        self.assertEqual((await self.read())["accounts"][0]["status"], "unknown")
+
     async def test_sdk_python_error_literal_survives_native_router_suffix(self):
         # Replayed real SDK402 repr + pinned format_no_fallback_group_message.
         suffix = ("\n\nLiteLLM: model group 'goal584-b' failed with the error above and no fallback model group was found "

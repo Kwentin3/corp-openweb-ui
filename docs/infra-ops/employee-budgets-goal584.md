@@ -50,6 +50,19 @@ router suffix; точные failure rows первого запуска не со
 не доказательство единственной причины. Исправляется только этот разбор и
 ограниченный safe readback при ошибке прогона. Общий native PASS не заявляется.
 Cleanup первого запуска: containers/volumes/networks 0, derivative image удалён.
+Повторный кандидат `2d429fc193964b88129b2a7de4d894095cb436fe`,
+[run 43012712144](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43012712144)
+выполняется: parser удаляет только точный pinned router suffix; остальные
+проверки и UI сохранены. 58 readback tests PASS, native SDK/formatter replay
+False→True подтверждён; при новом timeout сохранится ограниченная safe проекция
+row/schema/cache/code без тела ошибки и credentials. Следующий шаг — actual readback.
+Повтор `43012712144`: GUI/context/reconcile снова PASS, final backend FAIL.
+Safe actual row подтвердил failure/model_id B/cache False/APIError/native code402/
+provider present/spend0; тело не содержит JSON/literal. Поэтому SDK потерял
+подробный код, и одного исправления suffix недостаточно. Добавлено точное
+распознавание native provider402 как финансового отказа; 429/422/нет provider
+не подходят, баланс 0 не выводится. 59 readback tests PASS. Следующий шаг —
+финальный конечный профиль; UI и финансовый backend caps/spend не менялись.
 Пределы: job 25 минут, браузер 330 секунд; наблюдение через GitHub Actions,
 адресная остановка через `gh run cancel <id>`, штатный always-cleanup Compose.
 Профиль использует только существующий synthetic provider/public catalog, без

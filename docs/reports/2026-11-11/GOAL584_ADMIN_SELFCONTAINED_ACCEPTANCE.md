@@ -24,6 +24,15 @@ startup log начинается уже в середине опроса. SDK + 
 networks и удаление derivative image. Следующий шаг — узкая поправка parser,
 safe failure projection и повтор конечного профиля без расширения матрицы.
 
+Повтор `2d429fc1`/[43012712144](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43012712144)
+снова подтвердил GUI/context/цены/manual; финальный backend FAIL сохранил точную
+safe форму: native row failure, model_id B, cache False, APIError, code402,
+provider present, native user/model spend0, message173 без JSON/literal.
+Это выявило дополнительную границу: native SDK сохраняет общий Payment Required,
+но теряет подробный provider code. Точечная поправка распознаёт такой native402
+как финансовый отказ; generic429/native422 и отсутствие provider не подходят.
+Сумма баланса из ошибки не выводится. 59 readback tests PASS; требуется final actual.
+
 ## Реализация
 
 - Native каталог WebUI/connection/ACL заменяет ручной список. Совпадающие wire

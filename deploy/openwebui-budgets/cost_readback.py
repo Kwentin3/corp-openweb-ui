@@ -629,10 +629,15 @@ def _overview_rate(value):
 
 
 def _financial_refusal(metadata):
-    """Read explicit provider codes; HTTP status and prose never imply a balance."""
+    """Read explicit provider payment refusal; never infer an account balance."""
     info = metadata.get("error_information")
     if not isinstance(info, dict) or not info.get("llm_provider"):
         return False
+    # Native402 is Payment Required even when SDK transport omits its body.
+    # Generic rate limits and native employee budget denials do not qualify.
+    code = info.get("error_code")
+    if type(code) in (str, int) and code in ("402", 402):
+        return True
     message = info.get("error_message")
     if not isinstance(message, str) or len(message) > 32768:
         return False
