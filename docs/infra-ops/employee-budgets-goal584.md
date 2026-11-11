@@ -1,12 +1,12 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Актуальная запись на 11.11.2026. **Backend и минимальный GUI приняты; выполняется удобная админская таблица. Production не менялся.**
-Текущая база `592a4534`; предыдущий принятый GUI-кандидат `0138b6d2`.
+Актуальная запись на 11.11.2026. **Backend и компактная админская таблица приняты на изолированном стенде. Production не менялся.**
+Принятый table-кандидат `8ae015a5` от базы`592a4534`; предыдущий GUI-кандидат`0138b6d2`.
 Источник: [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 [Ограниченный аудит](../reports/2026-11-09/GOAL584_KISS_AUDIT.md).
 [Установка и откат](employee-budgets-installation.md).
 
-## Текущий этап: удобная интерактивная таблица индивидуальных лимитов
+## Завершённый текущий этап: удобная интерактивная таблица индивидуальных лимитов
 
 Администратор пишет «Давай поработаем с лимитами» и получает один рабочий экран:
 сотрудники, месячный бюджет, учтённый расход/остаток, распределение и состояния
@@ -54,12 +54,12 @@ PNG, а не только DOM/JSON: общий вид, фильтрованна�
 кандидат связан с native суммами, source/runtime identity и cleanup своих ресурсов.
 Прежняя приёмка неизменённых финансовых/Office owners переиспользуется адресно.
 
-| Обязательный срез | Проверенное состояние / следующий шаг |
+| Срез | Принятый результат |
 |---|---|
 | UI таблицы/черновика | Первый PNG отклонён и заменён плотной версией:63px строки, sticky header с управлением/легендой, одна segmented bar с N−1 границами. Root просмотрел2/12/3-model PNG при820px, без overflow; source review PASS, schema/policy прежние |
 | Нативный путь подтверждения | Pinned WebUI0.12.2 проверен: прямого авторизованного iframe→Tool RPC нет. Сохраняются оба подтверждения без изменения доверия и прав |
-| Browser/PNG | Компонентный Chrome:25 принятых cases +исправленный scale-expectation N2 case PASS; финальный label/N3 boundary case PASS. Root просмотрел PNG2/12/scrolled/N3, header top49 при scroll240. Actual42988211059 остановился до Tool: synthetic dispatcher не распознал новую фразу, UI не квалифицирован |
-| Приёмка/поставка/уборка | В test provider добавлен только approved literal intent при прежних regex-контролях; replay фактического запроса и5контролей PASS. Product/UI прежние263c243f,15financial owners прежние592a4534. Первый cleanup0/image removed подтверждён; следующий шаг — повтор finite native profile |
+| Browser/PNG | Компонентный Chrome и root N3 pointer replay PASS;2/12/scrolled/N3 PNG просмотрены при820px, header top49 при scroll240. Actual42989620455 PASS67.11s:6 локальных этапов/12 PNG, native open/cancel/apply/recovery; root просмотрел реальные general/filtered/draft/error/preview/confirm/saved PNG |
+| Приёмка/поставка/уборка | Actual8ae015a5 принят:61Git pins/6mounts/4extension sources/5images,15 прежних financial owners/4stand/verifier файла; native local controls0prompt/provider/finance effects, точный JSON/Skill/context сохранён. Независимый R1–R5 PASS; resources0/image removed. Первый dispatcher FAIL сохранён |
 
 Actual компактного GUI: [42988211059](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42988211059),
 `263c243f921dcc1a55f5cd872cf797cb29ee2afe`, завершён FAIL: выбран обычный synthetic
@@ -67,6 +67,17 @@ Actual компактного GUI: [42988211059](https://github.com/Kwentin3/cor
 mock dispatcher после replay actual payload; product/UI не менялись. Cleanup0,
 generated image удалён. Параллельных повторов нет.
 [Отчёт](../reports/2026-11-11/GOAL584_ADMIN_TABLE_ACCEPTANCE.md).
+
+Повтор: [42989620455](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42989620455),
+`8ae015a57027e501084d0507deb5e5445e8ad47b`, SUCCESS; та же UI версияa98d92cf. Дополнительная
+source-bound pointer репетиция: настоящий drag N3 дал20/30/50→35/15/50→35/60/5;
+пересечение соседа ограничено95/0/5, другие доли сохранены, page errors/prompt posts0.
+Это компонентная проверка, отдельно от принятого actual native результата.
+
+Обязательного остатка table source/stand этапа нет. Сохранены два штатных
+подтверждения; результат приходит новым сообщением со свежей карточкой. Групповые
+действия остаются backlog; production, реальные провайдеры/лимиты, upstream и
+глобальная реформа тестов не входят в этот PASS. Следующий этап отдельно согласуется.
 
 ## Предыдущий принятый этап: минимальный GUI и продуктовая приёмка
 

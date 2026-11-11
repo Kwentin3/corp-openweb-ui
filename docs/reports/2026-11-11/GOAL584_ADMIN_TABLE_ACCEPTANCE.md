@@ -2,7 +2,10 @@
 
 11.11.2026. База `592a4534`, ветка `agent/goal584-admin-table`.
 Каноническая задача: [employee-budgets-goal584.md](../../infra-ops/employee-budgets-goal584.md).
-**Компонентный GUI готов; native приёмка на стенде ожидается.**
+**Этап принят: исходники и native GUI на изолированном стенде.**
+Actual кандидат `8ae015a57027e501084d0507deb5e5445e8ad47b`,
+[run42989620455](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42989620455)
+SUCCESS. Обязательного остатка в этом этапе нет; production не менялся.
 
 Первый эскиз с высокими строками, отдельными ползунками и повторяющимися
 пояснениями пользователь отверг после просмотра PNG. Принята плотная таблица:
@@ -62,6 +65,53 @@ Actual payload replay через реальный AST-фрагмент выби�
 Always-cleanup: containers/volumes/networks0, generated image удалён. Первый FAIL
 и actual artifacts сохраняются, повтор выполняется только после этой узкой поправки.
 
-Обязательный остаток: actual browser/native/context/PNG/source/image/mount/cleanup
-приёмка итогового кандидата. Production/deployment, платные API, реальные лимиты,
+Перед финальной приёмкой оставались actual browser/native/context/PNG/source/
+image/mount/cleanup проверки; они закрыты результатами ниже. Production/deployment, платные API, реальные лимиты,
 новые групповые операции и глобальная реформа тестовой инфраструктуры не входят.
+
+## Итог actual приёмки
+
+Браузерная фаза67.11s: настоящий native signin администратора/двух сотрудников,
+первый запрос «Давай поработаем с лимитами» открыл Tool/карточку. Локальные поиск,
+отделы/остаток, сортировки, keyboard boundary1/99, точные индивидуальные правки,
+скрытый черновик, «Только изменённые», сброс, inline validation и live diff прошли.
+Actual `admin-table.json` содержит6 этапов: general/filtered/empty/draft/error/preview.
+Native prompts и completion POSTs во время локальной работы0; provider/context,
+users/keys/admin accounting/attributed rows до/после совпали.
+
+Сохранилась прежняя конечная native последовательность:4 admin turns,8 admin
+physical calls,3 employee successes и3 quota denials, восстановление после cap
+increase. Всего14 signed attempts/11 physical calls, лишних provider calls0;
+phase2.20 synthetic USD (admin1.60, staff0.60), отдельный исходный seed0.20 находится
+в baseline и собственных provider/context/native receipts. Точные stored JSON
+совпали с provider requests, apply arguments пусты, полный Skill сохранён в system
+context, HTML/GUI/фильтры в model context не попали. Native отказы и foreign monthly403
+подтверждены; ранее принятые role/unknown/Office владельцы переиспользованы, их новые
+живые сценарии не заявляются.
+
+После Apply native свежая карточка показала40/0/40USD для первого сотрудника и
+0.4/0.2/0.2USD для второго; лимиты моделей соответствуют индивидуальному плану.
+Отмена сохранила employee финансовое состояние. Финансовые компоненты15 файлов и
+workflow/Compose/verifier4 файла совпали с базой592a4534.
+
+Root и независимый reviewer просмотрели настоящие PNG редактора/viewport, включая
+фильтр, черновик, ошибку, preview, business confirmation и сохранённую таблицу;
+они находятся в `local/goal584/admin-table/run-42989620455/` и actual CI artifacts.
+Root проверил61 Git-LF source pin,6 actual mounts,4 сохранённых extension sources,
+5 healthy images и12 PNG hashes. Raw Windows UI SHAa98d92cf соответствует Git-LF
+SHA7e315 после нормализации CRLF; native core/stream/OpenAI SDK maps прежние.
+Итоговый независимый review R1–R5: PASS. Cleanup подтвердил0 owned containers/
+volumes/networks; temporary derivative image удалён.
+
+Дополнительный actual pointer replay N3 на source-bound компоненте:
+20/30/50→35/15/50→35/60/5; попытка пересечь соседа ограничена95/0/5. Другие доли
+сохранялись, JS errors/prompt posts0. Это компонентная проверка, отдельно от native
+backend приёмки. Sticky проверен в12-row компоненте: header top49 при scroll240;
+native2-row сценарий не выдаётся за новый overflowing native directory case.
+
+Ограничения: две native модалки и новое сообщение со свежей карточкой после
+сохранения сохраняются; coarse bar1%, точные поля доступны отдельно. В Linux CI
+шрифт значка информации отличается от Windows preview; названия, суммы, controls
+и title-подсказки читаемы. Установка production и реальный provider требуют отдельно
+согласованного этапа. Первый FAIL тестового dispatcher сохранён, а не переименован
+в PASS; продуктовая UI версия между двумя actual runs не менялась.
