@@ -2,7 +2,10 @@
 
 11.11.2026. База backend `84dace32`, ветка `agent/goal584-gui-product`.
 Каноническая задача: [employee-budgets-goal584.md](../../infra-ops/employee-budgets-goal584.md).
-**Source готов; фактическая браузерная приёмка ещё ожидается.**
+**GUI-этап принят на изолированном стенде.** Actual source-кандидат
+`0138b6d2f58ad83c2520a414d113755f953a3a25`,
+[run42972451676](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42972451676)
+SUCCESS. Обязательного остатка в этом source/stand этапе нет; production не менялся.
 
 ## Изменение продукта
 
@@ -22,7 +25,7 @@ Monthly unavailable отображается явно и не превращае
 намеренной публикации чата публикуется и снимок; карточка сообщает об этом и не
 показывает email/UUID сотрудника. Это не разрешает свежего чтения чужого бюджета.
 
-## Проверка и границы
+## Фактическая продуктовая приёмка
 
 30 адресных component/API checks PASS1.99s. Финансовые/конвейерные владельцы16
 файлов совпадают с принятой backend базой; cost section AST сохраняется. Независимые
@@ -37,6 +40,44 @@ cancel/apply/recovery и точный сохранённый JSON; employee self
 native counters/период, foreign403, reload и отсутствие финансовых/provider
 эффектов от чтения; actual source/image/mount identity и cleanup.
 
+Браузерная фаза прошла за58.94s: настоящий Chrome156 и stock WebUI0.12.2, native
+signin администратора и двух сотрудников, сохранённые native чаты и карточки.
+Проверены открытие формы из чата, точный JSON-план, оба native диалога,
+отмена без изменения лимитов/расходов сотрудников, сохранение, три понятных
+quota-отказа и восстановление после увеличения лимита.
+
+Три фактических employee self снимка совпали с native GET/user/key counters и
+видимыми полями iframe, включая model caps/spend/remaining, native period/reset
+и null-статус блокировки. После reload сохранялся тот же снимок:
+
+| Состояние | Бюджет USD | Учтённый расход USD | Остаток USD |
+|---|---:|---:|---:|
+| После admin apply | 0.4 | 0.2 | 0.2 |
+| При исчерпании | 0.4 | 0.4 | 0 |
+| После увеличения и нового ответа | 0.8 | 0.6000000000000001 | 0.1999999999999999 |
+
+На каждом снимке выбранный ответ/его чат стоили0.20USD, foreign employee GET
+получил403; native users/keys/admin accounting/attributed rows и provider requests
+до/после чтения совпали. Существующий независимый verifier подтвердил4 admin turns,
+8 admin physical calls,3 успешных employee calls и3 отказа:11 physical calls,
+14 signed attempts, лишних provider calls0;2.20 synthetic USD, из них admin1.60 и
+employee0.60. Отдельный настоящий начальный employee запрос0.20 сохранён в baseline
+и согласован с native строкой/provider/context до сброса только наблюдений.
+
+Root проверил сами artifacts:61 Git-LF source hashes,6 фактически смонтированных
+модулей,4 сохранённых native extension source hashes и5 healthy service images.
+Native core/stream/SDK maps совпали с принятым backend42872143425. Проверены actual
+PNG и HTML: `admin-applied`, native confirmations, `monthly-at-quota`,
+`monthly-after-recovery`. Независимая приёмка R1–R5: PASS. Always-cleanup удалил
+generated image; owned containers/volumes/networks0. Изображения и безопасные
+квитанции сохранены в `local/goal584/gui-product/run-42972451676/`, readback —
+`local/goal584/gui-product/artifact-readback.safe.json`.
+
+Числа отображаются как точные строки native счётчиков; длинная float-дробь после
+нескольких списаний — известная косметическая шероховатость, не новый расчёт денег
+и не блокирующий остаток этапа. Положительный unknown в этом браузерном прогоне
+не фабриковался: статус был unavailable, его отсутствие не выдано за known/zero.
+
 Первый actual [42971394155](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42971394155)
 на `bf09b7b4` остановился после native отмены изменения: inherited driver сравнивал
 карточки целиком, включая обновлённый `expense_as_of`. Actual HTML diff показал
@@ -47,8 +88,8 @@ Seed0.20/native settlement, реальное открытие формы и об
 прошли. Cleanup подтверждён: owned containers/volumes/networks0, image удалён.
 Actual HTML replay подтверждает поправку: шесть различий timestamps допускаются,
 изменения финансовых/идентификационных полей, models/order/count по-прежнему
-отклоняются. Продуктовый/backend код после этого результата не меняется; полный
-GUI PASS пока не заявляется. Модельные обращения администратора при работе с
+отклоняются. Продуктовый/backend код после этого результата не менялся; последующий
+GUI PASS относится к исправленному driver0138b6d2, первый FAIL сохранён. Модельные обращения администратора при работе с
 формой учитываются отдельно; отмена не называется бесплатным LLM-вызовом.
 
 Неизменённый Office/helper путь переиспользует ранее принятую scoped финансовую

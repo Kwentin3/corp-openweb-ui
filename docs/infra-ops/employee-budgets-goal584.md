@@ -1,12 +1,12 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Актуальная запись на 11.11.2026. **Backend принят; выполняется минимальный GUI и продуктовая приёмка на стенде.**
-Предыдущая поставка исходников/стенда принята на3095c506; production не менялся.
+Актуальная запись на 11.11.2026. **Backend и минимальный GUI приняты на изолированном стенде. Production не менялся.**
+Backend опора `84dace32`; принятый GUI-кандидат `0138b6d2`.
 Источник: [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 [Ограниченный аудит](../reports/2026-11-09/GOAL584_KISS_AUDIT.md).
 [Установка и откат](employee-budgets-installation.md).
 
-## Текущий этап: минимальный GUI и продуктовая приёмка
+## Завершённый текущий этап: минимальный GUI и продуктовая приёмка
 
 Согласованный результат: администратор из чата открывает управление бюджетами,
 видит текущие настройки, меняет лимиты и подтверждает сохранение. Сотрудник видит
@@ -31,12 +31,12 @@ Office с вспомогательной моделью; суммы сверен
 Кандидат и среда связаны с evidence; свои временные ресурсы убраны. Успех только
 API либо component checks не закрывает продуктовый этап.
 
-| Обязательный остаток | Состояние / следующий шаг |
+| Срез | Принятый результат |
 |---|---|
 | Сверка принятых исходников/существующих GUI | База84dace32 подтверждена, DELIVERY чистая до новой ветки. Штатные admin Tool/Rich UI и cost Action сохраняются; source seam review PASS |
 | Личный месячный просмотр | Добавлен раздел в существующий cost Action через общий public Event.read_monthly; без iframe auth/fetch, новых credentials/mounts и финансовой логики.30 focused checks PASS1.99s |
-| Admin/стоимость/отказы/Office | Конечный gui-product профиль готов: native login/form/confirm/cancel/change/denial/recovery, три self monthly/Details снимка. Неизменённый Office money/helper путь переиспользуется по предыдущей приёмке; новый Office build/full matrix не нужны |
-| Приёмка/сверка/уборка | Actual42971394155@bf09b7b4 остановился на inherited сравнении карточки после отмены: изменились только expense_as_of; exact native finance unchanged PASS. Исправляется driver, product/backend прежние. Cleanup0/image removed подтверждены; полный GUI PASS ожидается |
+| Admin/стоимость/отказы/Office | Actual native browser: open/cancel/apply/recovery, точный JSON и оба диалога; три employee self monthly/Details снимка, reload, foreign403, native counters/period и read без finance/provider effects PASS. Office/helper переиспользуется по предыдущей приёмке на неизменённых owners |
+| Приёмка/сверка/уборка | Actual42972451676@0138b6d2 SUCCESS, browser58.94s. Root readback61Git pins/6mounts/4extension sources/5images PASS; independent R1–R5 PASS. Owned containers/volumes/networks0, generated image удалён. Первый42971394155 FAIL старой timestamp-проверки сохранён; исправлен только driver |
 
 Личный бюджет — снимок в том же native message embed: нужен существующий собственный
 ответ; отдельная страница до первого ответа не создаётся. При намеренной публикации
@@ -49,6 +49,18 @@ Actual GUI run: [42971394155](https://github.com/Kwentin3/corp-openweb-ui/action
 кандидат `bf09b7b4e5ab089ef6cdffa59cab60efc33c3a0d`, завершён FAIL проверки сравнения
 свежих timestamps; ресурсы убраны. Только профиль `gui-product`; повтор после
 адресной поправки driver. [Отчёт этапа](../reports/2026-11-11/GOAL584_GUI_PRODUCT_ACCEPTANCE.md).
+
+Повтор: [42972451676](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42972451676),
+`0138b6d2f58ad83c2520a414d113755f953a3a25`, принят по actual browser/native/context/
+source/cleanup artifacts. Product/backend совпадают с первым кандидатом; изменены
+только проверка timestamps и документация. Админские вызовы оплачиваются его native
+бюджетом: отмена правки не обещает бесплатного модельного запроса. Личный снимок
+показал0.4/0.2/0.2 →0.4/0.4/0 →0.8/≈0.6/≈0.2USD; raw native float strings сохранены
+без форматирующего округления. Это известная косметическая шероховатость.
+
+Обязательного остатка GUI source/stand этапа нет. Production cutover, реальные
+провайдеры/тарифы/лимиты, upstream публикация и глобальная реформа тестов не входят
+в этот PASS. Следующий этап отдельно согласуется; автоматического deployment нет.
 
 ## Предыдущий принятый этап: закрытие функциональных долгов backend
 
