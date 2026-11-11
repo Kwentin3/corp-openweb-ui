@@ -35,8 +35,8 @@ API либо component checks не закрывает продуктовый э�
 |---|---|
 | Сверка принятых исходников/существующих GUI | База84dace32 подтверждена, DELIVERY чистая до новой ветки. Штатные admin Tool/Rich UI и cost Action сохраняются; source seam review PASS |
 | Личный месячный просмотр | Добавлен раздел в существующий cost Action через общий public Event.read_monthly; без iframe auth/fetch, новых credentials/mounts и финансовой логики.30 focused checks PASS1.99s |
-| Admin/стоимость/отказы/Office | Готовится конечный gui-product профиль существующего стенда: native login/form/confirm/cancel/change/denial/recovery, self monthly/Details. Неизменённый Office money/helper путь переиспользуется по предыдущей приёмке; новый Office build/full matrix не нужны |
-| Приёмка/сверка/уборка | Actual browser run ещё не запускался; source-кандидат и finite driver проверяются перед запуском. Ограничения/ошибки сохраняются явно |
+| Admin/стоимость/отказы/Office | Конечный gui-product профиль готов: native login/form/confirm/cancel/change/denial/recovery, три self monthly/Details снимка. Неизменённый Office money/helper путь переиспользуется по предыдущей приёмке; новый Office build/full matrix не нужны |
+| Приёмка/сверка/уборка | Actual42971394155@bf09b7b4 остановился на inherited сравнении карточки после отмены: изменились только expense_as_of; exact native finance unchanged PASS. Исправляется driver, product/backend прежние. Cleanup0/image removed подтверждены; полный GUI PASS ожидается |
 
 Личный бюджет — снимок в том же native message embed: нужен существующий собственный
 ответ; отдельная страница до первого ответа не создаётся. При намеренной публикации
@@ -44,6 +44,11 @@ API либо component checks не закрывает продуктовый э�
 Это не разрешение свежего чужого чтения: GET/Action сохраняют native self/admin права.
 Недоступный monthly reader не подменяется нулём и не ломает независимое отображение
 расхода ответа/чата; отозванная роль запрещает выдачу всего снимка.
+
+Actual GUI run: [42971394155](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42971394155),
+кандидат `bf09b7b4e5ab089ef6cdffa59cab60efc33c3a0d`, завершён FAIL проверки сравнения
+свежих timestamps; ресурсы убраны. Только профиль `gui-product`; повтор после
+адресной поправки driver. [Отчёт этапа](../reports/2026-11-11/GOAL584_GUI_PRODUCT_ACCEPTANCE.md).
 
 ## Предыдущий принятый этап: закрытие функциональных долгов backend
 

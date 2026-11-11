@@ -37,6 +37,20 @@ cancel/apply/recovery и точный сохранённый JSON; employee self
 native counters/период, foreign403, reload и отсутствие финансовых/provider
 эффектов от чтения; actual source/image/mount identity и cleanup.
 
+Первый actual [42971394155](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42971394155)
+на `bf09b7b4` остановился после native отмены изменения: inherited driver сравнивал
+карточки целиком, включая обновлённый `expense_as_of`. Actual HTML diff показал
+только новые timestamps наблюдения на уровне сотрудника/моделей; exact native
+сравнение лимитов/расходов сотрудников прошло. Исправлен только driver: из сравнения исключается
+этот timestamp, все остальные поля и native финансовая проверка сохраняются.
+Seed0.20/native settlement, реальное открытие формы и оба подтверждения отмены
+прошли. Cleanup подтверждён: owned containers/volumes/networks0, image удалён.
+Actual HTML replay подтверждает поправку: шесть различий timestamps допускаются,
+изменения финансовых/идентификационных полей, models/order/count по-прежнему
+отклоняются. Продуктовый/backend код после этого результата не меняется; полный
+GUI PASS пока не заявляется. Модельные обращения администратора при работе с
+формой учитываются отдельно; отмена не называется бесплатным LLM-вызовом.
+
 Неизменённый Office/helper путь переиспользует ранее принятую scoped финансовую
 приёмку: [42792989666](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/42792989666),
 Sol1.20 + Terra0.12 = employee/answer/chat1.32; service0.20 отдельно. Это прежние

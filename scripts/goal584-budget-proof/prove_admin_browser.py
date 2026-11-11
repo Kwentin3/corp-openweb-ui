@@ -29,6 +29,15 @@ from verify_admin_calls import MARKER, FormParser, editor_rows
 INTENT = "Давай настроим лимиты"
 MODELS = ("goal584-a", "goal584-b")
 SERVER_TITLE = "Изменение бюджетов сотрудников"
+def same_editor_state(before, after):
+    """Cancellation preserves all fields except fresh expense observation times."""
+    def state(rows):
+        return [{**{key: value for key, value in row.items() if key != "expense_as_of"},
+                 "models": [{key: value for key, value in model.items() if key != "expense_as_of"}
+                            for model in row["models"]]} for row in rows]
+    return state(before) == state(after)
+
+
 def planned_changes(rows, staff_ids, *, second_budget="0.4"):
     require({row["user_id"] for row in rows} == set(staff_ids), "Native editor differs from fixture employees")
     changes = []
@@ -646,7 +655,7 @@ def main():
         after_cancel = fixture.snapshot()
         require(staff_projection(before, staff_ids) == staff_projection(after_cancel, staff_ids),
                 "Canceled server confirmation changed native employee caps/spend/reset/identity")
-        require(cancel_rows == rows, "Canceled form no longer shows actual unchanged employee state")
+        require(same_editor_state(rows, cancel_rows), "Canceled form no longer shows actual unchanged employee state")
         retry = planned_changes(cancel_rows, staff_ids)
         require(retry == plan, "Canceled plan unexpectedly changed its original values/revisions")
         sent_apply, apply_chat, apply_text = submit_plan(page, frame, retry, args.base_url, args.output, "admin-applied", approve=True,
