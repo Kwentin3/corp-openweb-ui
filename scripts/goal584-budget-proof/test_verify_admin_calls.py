@@ -15,7 +15,7 @@ V = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(V)
 
 
-def packet():
+def packet(*, manual_balance=True):
     admin, u1, u2 = [str(uuid4()) for _ in range(3)]
     staff, chat_id = [u1, u2], str(uuid4())
     skill, intent, results = V.source_contract()
@@ -26,17 +26,37 @@ def packet():
         {'user_id': u2, 'expected_revision': 'c' * 64, 'budget_usd': '0.8', 'shares': {'goal584-a': '50', 'goal584-b': '50'}}]}
     serialize = lambda value: json.dumps(value, ensure_ascii=False, separators=(',', ':'))
     texts = [intent, serialize(original), serialize(original), serialize(recovery)]
+    labels = ('opened', 'canceled', 'applied', 'recovered')
+    balance = {'schema': 1, 'type': 'provider_balance_snapshot', 'account_id': 'proof-provider-account',
+               'expected_revision': 'd' * 64, 'amount': '123.45', 'currency': 'USD',
+               'observed_at': '2026-11-11T09:00:00.000Z'}
+    if manual_balance:
+        texts.append(serialize(balance))
+        labels += ('balance_saved',)
     browser = {'passed': True, 'admin_id': admin, 'staff_ids': staff, 'model_id': 'goal584-budget-admin',
                'original_proposal': original, 'recovery_proposal': recovery, 'calls': []}
-    for label, value in zip(('opened', 'canceled', 'applied', 'recovered'), texts):
+    for label, value in zip(labels, texts):
         browser[label] = {'admin_id': admin, 'parent_author_id': admin, 'model_id': browser['model_id'],
             'chat_id': chat_id, 'assistant_id': str(uuid4()), 'parent_user_id': str(uuid4()), 'stored_parent_text': value,
             'exact_submitted_and_stored_strings': True, 'terminal_persisted': True, 'sandbox_same_origin': False}
+    if manual_balance:
+        browser['manual_balance_proposal'] = balance
+        browser['balance_saved'].update(manual_snapshot_visible=True, native_staff_state_unchanged=True,
+                                        provider_overview_visible=True, public_price_change_visible=True,
+                                        public_native_source_load_matches=True, old_native_rows_unchanged=True)
+        for name, restore in (('public_prices_up', False), ('public_prices_restore', True)):
+            browser[name] = {'variant': 'S1' if restore else 'S2', 'scheduled': not restore,
+                'financial_history_unchanged': True, 'inference_calls': 0,
+                'source_revision': 'proof-source-S1' if restore else 'proof-source-S2',
+                'loaded_at': '2026-11-11T09:00:00+00:00', 'applied_rates': {
+                    model: {'input_cost_per_token': '.02' if not restore and model == V.MODELS[0] else '.01',
+                            'output_cost_per_token': '.04' if not restore and model == V.MODELS[0] else '.02'}
+                    for model in V.MODELS}}
     provider, context, rows = {'synthetic': True, 'requests': []}, {'requests': []}, []
     schemas = [{'type': 'function', 'function': {'name': name, 'description': 'Native source description',
                 'parameters': {'type': 'object', 'properties': properties}}} for name, properties in (
         ('open_budget_form', {'view_json': {'type': 'string', 'default': '{}'}}), ('apply_budget_form', {}))]
-    def add(owner, model, chat, answer, messages, *, completed=True, tools=None):
+    def add(owner, model, chat, answer, messages, *, completed=True, tools=None, spend='.2'):
         scope = {'schema': 1, 'user_id': owner, 'chat_id': chat, 'answer_id': answer, 'root_chat_id': chat,
                  'root_answer_id': answer, 'model': model, 'call_id': str(uuid4()), 'category': 'personal'}
         body = {'model': model, 'messages': copy.deepcopy(messages), 'stream': True, 'max_tokens': 5}
@@ -53,20 +73,19 @@ def packet():
             provider['requests'].append({'id': identifier, 'body': physical,
                 'usage': {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}})
             rows.append({'request_id': identifier, 'user_id': owner, 'model_group': model, 'session_id': chat,
-                'owui_budget': scope, 'spend_usd': '.2', 'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15})
+                'owui_budget': scope, 'spend_usd': spend, 'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15})
     history = [{'role': 'system', 'content': skill}]
-    labels = ('opened', 'canceled', 'applied', 'recovered')
     def admin_turn(index):
         label = labels[index]
         turn = browser[label]
         history.append({'role': 'user', 'content': texts[index]})
-        add(admin, 'goal584-a', chat_id, turn['assistant_id'], history, tools=schemas)
+        add(admin, 'goal584-a', chat_id, turn['assistant_id'], history, tools=schemas, spend='.4' if index == 4 else '.2')
         call_id = 'call-rehearsal-' + uuid4().hex
         function = 'open_budget_form' if index == 0 else 'apply_budget_form'
         history.extend([{'role': 'assistant', 'content': '', 'tool_calls': [{'id': call_id, 'type': 'function',
             'function': {'name': function, 'arguments': serialize({'view_json': '{}'} if index == 0 else {})}}]},
             {'role': 'tool', 'tool_call_id': call_id, 'content': json.dumps(results[label], ensure_ascii=False)}])
-        add(admin, 'goal584-a', chat_id, turn['assistant_id'], history, tools=schemas)
+        add(admin, 'goal584-a', chat_id, turn['assistant_id'], history, tools=schemas, spend='.4' if index == 4 else '.2')
         history.append({'role': 'assistant', 'content': 'Proof'})
     for index in range(3):
         admin_turn(index)
@@ -79,6 +98,8 @@ def packet():
         browser['calls'].append({'user_id': uid, 'model': model, 'chat_id': chat, 'message_id': answer,
                                 'outcome': 'success' if completed else 'budget_blocked', 'terminal_persisted': True})
         add(uid, model, chat, answer, [{'role': 'user', 'content': 'Hi'}], completed=completed)
+    if manual_balance:
+        admin_turn(4)
     # Existing positive history is real input shape, not silently discarded.
     baseline = []
     for uid in staff:
@@ -102,10 +123,40 @@ def packet():
 
 
 class ArtifactVerifierTests(unittest.TestCase):
-    def test_native_shaped_11_calls_14_attempts_and_baseline(self):
+    def test_native_shaped_manual_balance_13_calls_16_attempts_and_baseline(self):
         receipt = V.verify(*packet())
         self.assertTrue(receipt['passed'])
-        self.assertEqual((receipt['physical_calls'], receipt['signed_attempts'], receipt['admin_physical_calls']), (11, 14, 8))
+        self.assertEqual((receipt['physical_calls'], receipt['signed_attempts'], receipt['admin_physical_calls']), (13, 16, 10))
+        self.assertEqual((receipt['phase_cost_usd'], receipt['admin_cost_usd']), ('3.00', '2.40'))
+
+    def test_prior_nonmonthly_profile_preserves_four_admin_turns(self):
+        receipt = V.verify(*packet(manual_balance=False))
+        self.assertEqual((receipt['admin_logical_turns'], receipt['physical_calls'], receipt['signed_attempts']), (4, 11, 14))
+
+    def test_reject_repriced_old_rows_unrepriced_new_rows_and_unrestored_public_schedule(self):
+        self.reject(lambda a: a[3]['attributed_spend_logs'][0].update(spend_usd='.4'))
+        def stale_new(a):
+            answer = a[0]['balance_saved']['assistant_id']
+            next(row for row in a[3]['attributed_spend_logs'] if row['owui_budget']['answer_id'] == answer)['spend_usd'] = '.2'
+        self.reject(stale_new)
+        self.reject(lambda a: a[0]['public_prices_restore'].update(scheduled=True))
+        self.reject(lambda a: a[0]['public_prices_up'].update(inference_calls=1))
+        self.reject(lambda a: a[0]['public_prices_up']['applied_rates']['goal584-a'].update(input_cost_per_token='.01'))
+
+    def test_reject_changed_balance_json_history_and_missing_native_acceptance(self):
+        self.reject(lambda a: a[0]['manual_balance_proposal'].update(amount='0'))
+        self.reject(lambda a: a[0]['balance_saved'].update(native_staff_state_unchanged=False))
+        def change_actual_context(args):
+            target = args[0]['balance_saved']['assistant_id']
+            for observation in args[2]['requests']:
+                if observation['verified_cost_scope']['answer_id'] == target:
+                    for body in (observation['body'], observation['body_after_auth']):
+                        body['messages'][-1]['content'] = '{}'
+                    physical = next(row for row in args[1]['requests']
+                                    if row['body']['messages'][-1].get('content') == args[0]['balance_saved']['stored_parent_text'])
+                    physical['body']['messages'][-1]['content'] = '{}'
+                    break
+        self.reject(change_actual_context)
 
     def reject(self, mutate):
         args = packet()

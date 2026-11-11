@@ -191,6 +191,24 @@ def wait_inference_delta(fixture, before, staff_ids, successful_pairs, *, timeou
 
 
 class AdminFixture(Fixture):
+    def public_prices(self, *, restore=False):
+        phase = "public-prices-restore" if restore else "public-prices-up"
+        result = subprocess.run(self.command + ["exec", "-T", "proxy", "python", "-B", "/proof/provision_admin.py",
+            "--phase", phase, "--private-state", "/proof-private/webui-state.private.json",
+            "--receipt", "/proof-private/" + phase + ".safe.json"], capture_output=True, text=True, timeout=75)
+        try:
+            data = json.loads(result.stdout)
+        except ValueError:
+            raise AssertionError("Public price fixture did not return safe native readback") from None
+        require(result.returncode == 0 and data.get("passed") is True and isinstance(data.get("public_prices"), dict),
+                "Native public price update/restore failed")
+        proof = data["public_prices"]
+        require(proof.get("financial_history_unchanged") is True and proof.get("inference_calls") == 0
+                and proof.get("variant") == ("S1" if restore else "S2")
+                and proof.get("scheduled") is (not restore), "Public price lifecycle evidence differs")
+        write_json(self.output / (phase + ".json"), data)
+        return proof
+
     def snapshot(self):
         self.sequence += 1
         result = subprocess.run(self.command + ["exec", "-T", "proxy", "python", "-B", "/proof/provision_admin.py",
@@ -218,6 +236,7 @@ def admin_login(browser, base, account, *, first_login=True):
     require(response.status == 200, "Ordinary admin browser sign-in failed")
     session = response.json()
     require(session.get("id") == account["id"] and session.get("role") == "admin", "Native signed-in admin identity differs")
+    account["name"] = session.get("name") or account["id"]
     expect(page.locator("#chat-input")).to_be_visible(timeout=45_000)
     # This fixture signs its fresh admin into the GUI for the first time.
     # Acknowledge the stock release-notes modal through its visible control.
@@ -666,6 +685,50 @@ def submit_plan(page, frame, plan, base, output, label, *, approve, source=None,
     return sent, chat_id, text
 
 
+def submit_balance(page, frame, output, *, source):
+    """One visible manual snapshot through both existing native confirmations."""
+    accounts = json.loads(frame.locator("#budget-account-data").text_content())
+    require(isinstance(accounts, list) and bool(accounts), "Native provider account overview is missing")
+    account = accounts[0]
+    require(isinstance(account.get("id"), str) and re.fullmatch(r"[0-9a-f]{64}", account.get("revision", "")),
+            "Native provider account identity/revision is missing")
+    editor = frame.locator('[data-account-index="0"]')
+    if editor.get_attribute("open") is None:
+        editor.locator(":scope > summary").click()
+    balance_editor = editor.locator("details.balance-editor")
+    if balance_editor.get_attribute("open") is None:
+        balance_editor.locator("summary").click()
+    editor.locator('[data-balance-field="amount"]').fill("123.45")
+    editor.locator('[data-balance-field="currency"]').fill("USD")
+    observed = editor.locator('[data-balance-field="observed_at"]').evaluate("el=>new Date(el.value).toISOString()")
+    plan = {"schema": 1, "type": "provider_balance_snapshot", "account_id": account["id"],
+            "expected_revision": account["revision"], "amount": "123.45", "currency": "USD", "observed_at": observed}
+    text = json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+    preview = capture_editor(page, frame, output, "admin-balance-preview", source)
+    editor.locator("[data-submit-balance]").click()
+    prompt = page.get_by_role("dialog", name="Confirm Prompt from Embed", exact=True)
+    expect(prompt).to_be_visible()
+    for value in ("provider_balance_snapshot", account["id"], account["revision"], "123.45", observed):
+        expect(prompt).to_contain_text(value)
+    embed = capture_editor(page, frame, output, "admin-balance-embed-confirm", source, dialog=prompt)
+    with page.expect_response(lambda r: urlsplit(r.url).path == "/api/chat/completions" and r.request.method == "POST",
+                              timeout=45_000) as pending:
+        prompt.get_by_role("button", name="Confirm", exact=True).click()
+    sent, chat_id = acknowledgement(pending.value)
+    require(text_content(sent["user_message"]["content"]) == text, "Balance JSON changed before native submission")
+    server = page.get_by_role("dialog", name="Последний известный баланс провайдера", exact=True)
+    expect(server).to_be_visible(timeout=60_000)
+    expect(server).to_contain_text("123.45 USD")
+    expect(server).to_contain_text("Проверено в ЛК")
+    confirmation = capture_editor(page, frame, output, "admin-balance-server-confirm", source, dialog=server)
+    server.get_by_role("button", name="Confirm", exact=True).click()
+    write_json(output / "admin-balance-submitted-plan.json", {"model": sent["model"], "assistant_id": sent["id"],
+        "chat_id": chat_id, "parent_user_id": sent["user_message"]["id"], "text": text,
+        "native_embed_confirmation": True, "native_server_confirmation": True,
+        "images": {"preview": preview, "embed_confirmation": embed, "server_confirmation": confirmation}})
+    return sent, chat_id, text, plan
+
+
 def monthly_details(page, token, foreign_page, foreign_token, base, call, fixture, staff_ids, label):
     """Read through the visible Action and authenticated existing monthly owner."""
     from prove_cost_browser import cost_details
@@ -826,6 +889,7 @@ def main():
                "not_qualified": ["production", "paid_provider",
                                  "concurrency", "calendar_rollover", "tariff_versions", "full_route_coverage"]}
     browser = page = None
+    public_prices_touched = False
     playwright = sync_playwright().start()
     if args.monthly:
         def interrupted(signum, frame):
@@ -901,7 +965,7 @@ def main():
                 "Recovery form must change only employee two")
         sent_recovery, recovery_chat, recovery_text = submit_plan(page, saved_frame, recovery, args.base_url,
             args.output, "admin-recovered", approve=True, source=applied["diagnostic_source"], browser_codes=browser_codes)
-        _, recovered_rows, recovered = wait_editor(page, args.base_url, token, recovery_chat, sent_recovery,
+        recovered_frame, recovered_rows, recovered = wait_editor(page, args.base_url, token, recovery_chat, sent_recovery,
             admin["id"], model_id, recovery_text, args.output, "admin-recovered", status="Изменения применены.")
         after_recovery = fixture.snapshot()
         verify_saved(after_quota, after_recovery, recovered_rows, staff_ids, second_budget="0.8")
@@ -921,6 +985,80 @@ def main():
             receipt["monthly_views"]["after_recovery"] = monthly_details(employee_contexts[1][1], employee_contexts[1][2],
                 employee_contexts[0][1], employee_contexts[0][2], args.base_url, resumed, fixture, staff_ids, "monthly-after-recovery")
             final = fixture.snapshot()
+            receipt["final_native_receipt"] = "admin-native-%02d.json" % fixture.sequence
+            legends = recovered_frame.locator("details.legend-price")
+            expect(legends).to_have_count(len(MODELS))
+            for legend in legends.all():
+                amounts = legend.locator("summary [data-money]")
+                expect(amounts).to_have_count(2)
+                for amount in amounts.all():
+                    expect(amount).to_be_visible()
+                require([Decimal(value) for value in amounts.evaluate_all("els=>els.map(el=>el.dataset.money)")]
+                        == [Decimal("10000"), Decimal("20000")], "Initial visible rates differ from native S1")
+                expect(legend).to_contain_text("$/1M")
+            before_balance = staff_projection(final, staff_ids)
+            public_prices_touched = True
+            receipt["public_prices_up"] = fixture.public_prices()
+            sent_balance, balance_chat, balance_text, balance_plan = submit_balance(page, recovered_frame,
+                args.output, source=recovered["diagnostic_source"])
+            balance_frame, _, balance_saved = wait_editor(page, args.base_url, token, balance_chat, sent_balance,
+                admin["id"], model_id, balance_text, args.output, "admin-balance-saved", status="Ручной снимок баланса сохранён.")
+            after_accounts = json.loads(balance_frame.locator("#budget-account-data").text_content())
+            selected = [entry for entry in after_accounts if entry["id"] == balance_plan["account_id"]]
+            require(len(selected) == 1 and selected[0]["revision"] != balance_plan["expected_revision"],
+                    "Saved manual balance did not advance its native account revision")
+            account_view = balance_frame.locator('[data-account-index="' + str(after_accounts.index(selected[0])) + '"]')
+            account_view.locator(":scope > summary").click()
+            expect(account_view).to_contain_text("Последний известный баланс: 123.45 USD")
+            expect(account_view).to_contain_text("Источник: вручную")
+            expect(account_view).to_contain_text("Автор: " + admin["name"])
+            for wire, rates in receipt["public_prices_up"]["applied_rates"].items():
+                legend = balance_frame.locator("details.legend-price").filter(
+                    has=balance_frame.locator('[data-color-model="' + wire + '"]'))
+                expect(legend).to_have_count(1)
+                amounts = legend.locator("summary [data-money]")
+                expect(amounts).to_have_count(2)
+                for amount in amounts.all():
+                    expect(amount).to_be_visible()
+                require([Decimal(value) for value in amounts.evaluate_all("els=>els.map(el=>el.dataset.money)")]
+                        == [Decimal(rates[field]) * 1_000_000 for field in
+                            ("input_cost_per_token", "output_cost_per_token")],
+                        "Visible applied rates differ from native public source")
+                expect(legend).to_contain_text("$/1M")
+                if wire == MODELS[0]:
+                    expect(legend).to_contain_text("цена изменена")
+            saved_html = (args.output / "admin-balance-saved.html").read_text(encoding="utf-8")
+            require(receipt["public_prices_up"]["loaded_at"] in saved_html,
+                    "Visible price timestamp differs from native public map load time")
+            balance_saved["images"] = capture_editor(page, balance_frame, args.output, "admin-balance-visible",
+                                                       balance_saved["diagnostic_source"])
+            # Native cost writes are asynchronous. Observe the two actual S2
+            # calls before restoring the catalog; never repeat inference.
+            from verify_admin_calls import accounting_totals_ready
+            old_rows = {row["request_id"]: row for row in final["attributed_spend_logs"]}
+            deadline = time.monotonic() + 20
+            while True:
+                final = fixture.snapshot()
+                current = {row["request_id"]: row for row in final["attributed_spend_logs"]}
+                require(old_rows.keys() <= current.keys() and all(current[k] == v for k, v in old_rows.items()),
+                        "Public price update changed earlier native financial rows")
+                added = [row for key, row in current.items() if key not in old_rows]
+                require(len(added) <= 2 and all(row["user_id"] == admin["id"] and row["model_group"] == MODELS[0]
+                        and Decimal(row["spend_usd"]) == Decimal(".40") for row in added),
+                        "Public S2 manual turn has unexpected native charges")
+                settled = accounting_totals_ready(final["users"] + final["admin_accounting"]["users"],
+                    final["keys"] + final["admin_accounting"]["keys"], final["attributed_spend_logs"],
+                    {admin["id"], *staff_ids}, history_complete=len(added) == 2)
+                if len(added) == 2 and settled:
+                    break
+                require(time.monotonic() < deadline, "Public S2 manual turn did not settle in native accounting")
+                page.wait_for_timeout(250)
+            require(staff_projection(final, staff_ids) == before_balance,
+                    "Manual provider balance changed employee financial state")
+            balance_saved.update(manual_snapshot_visible=True, native_staff_state_unchanged=True,
+                                 provider_overview_visible=True, public_price_change_visible=True,
+                                 public_native_source_load_matches=True, old_native_rows_unchanged=True)
+            receipt.update(balance_saved=balance_saved, manual_balance_proposal=balance_plan)
             receipt["final_native_receipt"] = "admin-native-%02d.json" % fixture.sequence
         fixture.provider()
         fixture.context()
@@ -949,6 +1087,11 @@ def main():
     finally:
         if args.monthly:
             signal.alarm(0)
+        if public_prices_touched:
+            try:
+                receipt["public_prices_restore"] = fixture.public_prices(restore=True)
+            except Exception:
+                receipt.update(passed=False, public_price_restore_failed=True)
         if browser is not None:
             browser.close()
         playwright.stop()

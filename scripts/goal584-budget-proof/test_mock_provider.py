@@ -101,6 +101,22 @@ class ProviderHTTPTests(unittest.TestCase):
         self.assertNotIn("synthetic-not-recorded", json.dumps(result))
         return result
 
+    def test_explicit_payment_required_has_no_usage_and_control_restores_real_success(self):
+        self.assertEqual(self.http("/__proof/control", {"response_status": 402})[0], 200)
+        status, refused = self.http("/v1/chat/completions", {"model": "goal584-fake-b",
+            "messages": [{"role": "user", "content": "Hi"}], "stream": False})
+        self.assertEqual(status, 402)
+        self.assertEqual(refused['error']['code'], 'payment_required')
+        self.assertEqual(refused['error']['type'], 'payment_required')
+        self.assertNotIn('usage', refused)
+        self.assertEqual(self.http("/__proof/control", {"response_status": 200, "admin_mode": False, "tool_round": False})[0], 200)
+        self.chat(model="goal584-fake-b", tools=None)
+        rows = self.receipts()['requests']
+        self.assertEqual(len(rows), 2)
+        self.assertEqual([row['lifecycle']['response_status'] for row in rows], [402, 200])
+        self.assertIsNone(rows[0]['usage'])
+        self.assertEqual(rows[1]['usage'], USAGE)
+
     def test_default_behavior_is_unchanged_for_json_and_sse(self):
         ids = []
         for stream in (False, True):

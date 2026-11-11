@@ -148,14 +148,136 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.connection.assert_awaited_once_with(2)
         protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], SECRET, user_id=USER, model=MODEL)
 
-    async def test_wrong_native_model_or_unmanaged_connection_rejected(self):
+    async def test_wrong_native_model_rejected_and_unmanaged_connection_passes_unchanged(self):
         self.model["id"] = "other"
         with self.assertRaises(ValueError):
             await self.sign()
         self.model["id"] = MODEL
         self.connection.return_value = ("https://external.invalid/v1", SECRET, {})
-        with self.assertRaises(ValueError):
+        body = self.body()
+        before = copy.deepcopy(body)
+        self.metadata[extension.ISSUED_SCOPE] = {"foreign": "stale"}
+        self.assertIs(await self.sign(body), body)
+        self.assertEqual(body, before)
+        self.assertTrue(self.metadata[extension.SKIPPED_SCOPE])
+        self.assertNotIn(extension.ISSUED_SCOPE, self.metadata)
+        emitter = AsyncMock()
+        event = {"object": "chat.completion.chunk", "id": "unmanaged-answer"}
+        self.assertIs(await self.filter.stream(event, __metadata__=self.metadata), event)
+        self.assertIs(await self.filter.outlet(body, __metadata__=self.metadata,
+            __user__=self.actor, __event_emitter__=emitter), body)
+        emitter.assert_not_called()
+
+    async def test_global_scope_skips_native_nonopenai_and_pipe_routes_without_changing_context(self):
+        for model in ({"id": MODEL, "owned_by": "ollama"},
+                      {"id": MODEL, "owned_by": "openai", "pipe": {"id": "native-pipe"}}):
+            self.model = model
+            body = self.body()
+            before = copy.deepcopy(body)
+            with self.subTest(model=model):
+                self.assertIs(await self.sign(body), body)
+                self.assertEqual(body, before)
+                self.assertTrue(self.metadata[extension.SKIPPED_SCOPE])
+        self.connection.assert_not_awaited()
+        self.chats.get_accessible_chat_by_id.assert_not_awaited()
+
+    async def test_native_separate_chat_completed_outlet_reclassifies_foreign_without_status_or_history_changes(self):
+        path = native_root / "utils/chat.py"
+        if not path.exists():
+            self.skipTest("Exact native chat_completed missing")
+        self.request.app.state.MODELS = {MODEL: self.model}
+        emitter = AsyncMock()
+        seen = []
+        async def dispatch(**kwargs):
+            params = kwargs["extra_params"]
+            seen.append(params)
+            return await self.filter.outlet(kwargs["form_data"], __user__=params["__user__"],
+                __metadata__=params["__metadata__"], __request__=params["__request__"],
+                __event_emitter__=params["__event_emitter__"], __model__=params["__model__"]), {}
+        native = {"Request": object, "Any": object, "UserModel": type("NativeUser", (), {}),
+                  "get_all_models": AsyncMock(),
+                  "process_pipeline_outlet_filter": AsyncMock(side_effect=lambda request, body, user, models: body),
+                  "get_event_emitter": AsyncMock(return_value=emitter), "get_event_call": AsyncMock(),
+                  "get_filter_functions": AsyncMock(return_value=[SimpleNamespace(id="employee_budget_cost")]),
+                  "process_filter_functions": dispatch}
+        native_functions(path, {"chat_completed"}, native)
+        body = {"id": ANSWER, "chat_id": CHAT, "session_id": "native-session", "model": MODEL,
+                "messages": [{"role": "assistant", "content": "Preserved native answer."}]}
+        before = copy.deepcopy(body)
+        for url, skipped in (("https://external.invalid/v1", True), ("http://proxy:4000/v1", False)):
+            emitter.reset_mock()
+            self.connection.return_value = (url, SECRET, {})
+            result = await native["chat_completed"](self.request, body, self.user)
+            self.assertIs(result, body)
+            self.assertEqual(result, before)
+            self.assertNotIn(extension.SKIPPED_SCOPE, seen[-1]["__metadata__"])
+            self.assertNotIn(extension.ISSUED_SCOPE, seen[-1]["__metadata__"])
+            self.assertIs(seen[-1]["__model__"], self.model)
+            if skipped:
+                emitter.assert_not_called()
+            else:
+                self.assertIn("ещё не подтверждена", emitter.call_args.args[0]["data"]["description"])
+
+    async def test_global_scope_auxiliary_task_skip_requires_authoritative_server_metadata(self):
+        self.metadata["task"] = "title_generation"
+        body = self.body()
+        before = copy.deepcopy(body)
+        with self.assertRaisesRegex(ValueError, "unsupported_task_or_direct"):
+            await self.sign(body)
+        self.assertEqual(body, before)
+        self.request.state.metadata = self.metadata
+        self.assertIs(await self.sign(body), body)
+        self.assertEqual(body, before)
+        self.assertTrue(self.metadata[extension.SKIPPED_SCOPE])
+        self.assertNotIn("litellm_metadata", body)
+
+    async def test_global_scope_missing_managed_native_binding_and_invalid_managed_auth_fail_closed(self):
+        self.request.app.state.OPENAI_MODELS = {}
+        with self.assertRaisesRegex(ValueError, "native_connection"):
             await self.sign()
+        self.request.app.state.OPENAI_MODELS = {MODEL: {"urlIdx": 0}}
+        self.connection.return_value = ("http://proxy:4000/v1", SECRET, {"auth_type": "oauth"})
+        with self.assertRaisesRegex(ValueError, "gateway_configuration"):
+            await self.sign()
+        self.assertNotIn(extension.SKIPPED_SCOPE, self.metadata)
+
+    async def test_native_global_selection_covers_new_model_once_and_preserves_prepared_primary_and_worker_context(self):
+        selector = native_root / "utils/filter.py"
+        if not selector.exists():
+            self.skipTest("Exact native global Filter selector missing")
+        native = {}
+        native_functions(selector, {"get_model_filter_ids"}, native)
+        select = native["get_model_filter_ids"]
+        active = [("employee_budget_cost", True)]
+        self.assertEqual(select({"id": "new-model"}, active), ["employee_budget_cost"])
+        self.assertEqual(select({"id": MODEL, "info": {"meta": {"filterIds": ["employee_budget_cost"]}}},
+                                active), ["employee_budget_cost"])
+        for delegated in (False, True):
+            with self.subTest(delegated=delegated):
+                if delegated:
+                    body, _, _ = await self.community_worker(inherited_base="gpt-6.1-sol")
+                else:
+                    body = self.body()
+                body["messages"] = [
+                    {"role": "system", "content": "Native model preset: retain source citations."},
+                    {"role": "user", "content": "Inspect the attached source."},
+                    {"role": "assistant", "content": None, "tool_calls": [{"id": "read-source", "type": "function",
+                        "function": {"name": "read_source", "arguments": '{"file_id":"fixture-source"}'}}]},
+                    {"role": "tool", "tool_call_id": "read-source", "content": "Source paragraph: exact evidence."}]
+                body["tools"] = [{"type": "function", "function": {"name": "read_source", "parameters": {
+                    "type": "object", "properties": {"file_id": {"type": "string"}}, "required": ["file_id"]}}}]
+                body["temperature"] = .2
+                body["instructions"] = "Retain all prepared instructions."
+                before = copy.deepcopy(body)
+                context_before = copy.deepcopy(self.metadata["chat_context"])
+                signed = await self.sign(body)
+                self.assertEqual({k: v for k, v in signed.items() if k != "litellm_metadata"}, before)
+                self.assertEqual({k: v for k, v in self.metadata["chat_context"].items() if k != extension.ROOT_CAPSULE},
+                                 {k: v for k, v in context_before.items() if k != extension.ROOT_CAPSULE})
+                self.assertNotIn(extension.SKIPPED_SCOPE, json.dumps(signed))
+                claims = protocol.decode_call(signed["litellm_metadata"]["owui_budget_provenance"], SECRET,
+                    user_id=USER, model="gpt-6.1-terra" if delegated else MODEL)
+                self.assertEqual((claims["root_chat_id"], claims["root_answer_id"]), (CHAT, ANSWER))
 
     async def test_internal_child_requires_server_flag_and_signed_root_capsule(self):
         capsule = protocol.encode_root(SECRET, user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER)

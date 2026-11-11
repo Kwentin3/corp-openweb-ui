@@ -22,6 +22,8 @@ history completeness, a billing period, or the reason for a native key block.
 from __future__ import annotations
 
 import asyncio
+import ast
+import hashlib
 import logging
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
@@ -609,3 +611,224 @@ async def read_admin_unknown_presence(
         return result(False, "spend_api_unavailable")
     except CostReadError as error:
         return result(False, error.code)
+
+
+def _overview_time(value):
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else None
+        return parsed.astimezone(timezone.utc) if parsed is not None and parsed.tzinfo is not None else None
+    except (ValueError, OverflowError):
+        return None
+
+
+def _overview_rate(value):
+    try:
+        return _money(value) if type(value) in (str, int, float, Decimal) else None
+    except CostReadError:
+        return None
+
+
+def _financial_refusal(metadata):
+    """Read explicit provider codes; HTTP status and prose never imply a balance."""
+    info = metadata.get("error_information")
+    if not isinstance(info, dict) or not info.get("llm_provider"):
+        return False
+    message = info.get("error_message")
+    if not isinstance(message, str) or len(message) > 32768:
+        return False
+    # LiteLLM prefixes the upstream JSON with its exception/provider name.
+    # Decode one object rather than searching quoted words in echoed input.
+    try:
+        body = message[message.index("{"):]
+        try:
+            payload, _ = json.JSONDecoder().raw_decode(body)
+        except ValueError:
+            # SDK error strings also use Python's dictionary representation.
+            # Parse bounded literal data only; never execute provider text.
+            payload = ast.literal_eval(body)
+    except (ValueError, TypeError, SyntaxError, RecursionError):
+        return False
+    error = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(error, dict):
+        return False
+    codes = {"insufficient_quota", "insufficient_balance", "balance_not_enough",
+             "credit_balance_too_low", "billing_hard_limit_reached", "insufficient_credits",
+             "payment_required", "credit_balance_exhausted"}
+    return any(isinstance(error.get(key), str) and error[key] in codes for key in ("code", "type"))
+
+
+def _overview_event(raw, deployment):
+    """Representation of one native event, never a credential or error body."""
+    if not isinstance(raw, dict) or raw.get("model_id") != deployment["id"]:
+        return None
+    observed = _overview_time(raw.get("endTime"))
+    started = _overview_time(raw.get("startTime"))
+    metadata = raw.get("metadata")
+    if observed is None or started is None or started > observed or not isinstance(metadata, dict):
+        return None
+    if raw.get("cache_hit") not in (False, "False", "false"):
+        return None
+    if raw.get("status") == "failure" and _financial_refusal(metadata):
+        return (observed, started, "financial_refusal", raw)
+    if (raw.get("status") != "success" or metadata.get("status") not in (None, "success")
+            or metadata.get("error_information") is not None
+            or type(metadata.get("attempted_fallbacks")) is not int
+            or metadata["attempted_fallbacks"] != 0):
+        return None
+    try:
+        _, _, total, spend = _usage_numbers(raw)
+    except CostReadError:
+        return None
+    if total <= 0 or spend <= 0:
+        return None
+    return (observed, started, "success", raw)
+
+
+async def read_admin_overview(session: ClientSession, *, base_url: str, admin_key: str,
+                              models: dict, configsnapshots: dict) -> dict:
+    """Native applied prices and bounded provider observations for admin display.
+
+    Reads are at most model/info, cost-map/source and two spend pages in five
+    seconds. No background polling, charges, account journal or enforcement.
+    Account ids are protected model metadata, otherwise exact deployment ids.
+    Explicit deployment ids must be immutable across credential changes; absent
+    that deployment-lifecycle guarantee a later success cannot clear a refusal.
+    """
+    _reader_configuration(base_url, admin_key, 2)
+    _require(isinstance(models, dict) and 0 < len(models) <= 100
+             and all(isinstance(k, str) and isinstance(v, str) for k, v in models.items())
+             and isinstance(configsnapshots, dict), "invalid_configuration")
+    now = datetime.now(timezone.utc)
+    as_of = now.isoformat()
+    prices = [{"id": wire, "label": label, "input_per_million": None,
+               "output_per_million": None, "cache_per_million": None,
+               "as_of": None, "source": "unknown", "changed": False}
+              for wire, label in models.items()]
+    result = {"prices": prices, "accounts": [], "as_of": as_of,
+              "coverage": "observed_native_rows_only", "complete": False}
+    try:
+        async with asyncio.timeout(5):
+            catalog = await _get_page(session, base_url.rstrip("/") + "/model/info", admin_key, {}, 5)
+            rows = catalog.get("data")
+            _require(isinstance(rows, list) and len(rows) <= 1000, "invalid_native_models")
+            deployments = {}
+            for raw in rows:
+                if not isinstance(raw, dict) or raw.get("model_name") not in models:
+                    continue
+                info = raw.get("model_info")
+                if not isinstance(info, dict):
+                    continue
+                identity = info.get("id")
+                if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}", identity):
+                    continue
+                account = info.get("owui_billing_account_id", identity)
+                if not isinstance(account, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}", account):
+                    continue
+                _require(identity not in deployments and len(deployments) < 100, "ambiguous_native_deployment")
+                deployments[identity] = {"id": identity, "account": account, "wire": raw["model_name"],
+                    "info": info, "events": [],
+                    "grouped": "owui_billing_account_id" in info,
+                    "immutable": info.get("owui_billing_immutable_deployment_id") is True}
+            for deployment in deployments.values():
+                if any(a["id"] == deployment["account"] for a in result["accounts"]):
+                    continue
+                account = deployment["account"]
+                snapshot = configsnapshots.get(account)
+                snapshot = snapshot if isinstance(snapshot, dict) else {}
+                revision = hashlib.sha256(json.dumps({"account_id": account, "snapshot": snapshot},
+                    sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                balance = {field: snapshot.get(field) for field in
+                           ("amount", "currency", "observed_at", "actor", "source")} if snapshot else None
+                label = deployment["info"].get("owui_billing_account_label")
+                label = label if isinstance(label, str) and 0 < len(label) <= 128 and all(ord(c) >= 32 for c in label) else models[deployment["wire"]]
+                result["accounts"].append({"id": account, "label": label, "status": "unknown",
+                    "event_at": None, "balance": balance, "revision": revision})
+            try:
+                source = await _get_page(session, base_url.rstrip("/") + "/model/cost_map/source", admin_key, {}, 5)
+            except CostReadError:
+                source = {}
+            loaded = _overview_time(source.get("loaded_at"))
+            source_kind = source.get("source") if source.get("source") in ("local", "remote") else "unknown"
+            for price in prices:
+                selected = [d for d in deployments.values() if d["wire"] == price["id"]]
+                for public, field in (("input_per_million", "input_cost_per_token"),
+                                      ("output_per_million", "output_cost_per_token"),
+                                      ("cache_per_million", "cache_read_input_token_cost")):
+                    rates = [_overview_rate(d["info"].get(field)) for d in selected]
+                    if rates and all(rate is not None and rate == rates[0] for rate in rates):
+                        price[public] = str(rates[0] * 1_000_000)
+                price.update(as_of=loaded.isoformat() if loaded else None, source=source_kind)
+            if not deployments:
+                return result
+            counts, seen = None, set()
+            for page_number in (1, 2):
+                params = {"page": page_number, "page_size": PAGE_SIZE,
+                          "start_date": (now - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S"),
+                          "end_date": now.strftime("%Y-%m-%d %H:%M:%S"),
+                          "sort_by": "startTime", "sort_order": "desc"}
+                if len(deployments) == 1:
+                    params["model_id"] = next(iter(deployments))
+                payload = await _get_page(session, base_url.rstrip("/") + ADMIN_ROUTE, admin_key, params, 5)
+                native_pages = _integer(payload.get("total_pages"), "invalid_pagination")
+                data, counts = _validated_page(payload, page_number, max(2, native_pages), counts)
+                for raw in data:
+                    _require(isinstance(raw, dict), "invalid_native_row")
+                    request_id = _text(raw.get("request_id"))
+                    _require(request_id not in seen, "unstable_native_rows")
+                    seen.add(request_id)
+                    deployment = deployments.get(raw.get("model_id"))
+                    if deployment is not None:
+                        event = _overview_event(raw, deployment)
+                        if event is not None and now - timedelta(days=7) <= event[1] <= event[0] <= now:
+                            deployment["events"].append(event)
+                if page_number >= counts[1]:
+                    result["complete"] = True
+                    break
+            # Incomplete observation never announces recovery or absence of a
+            # refusal; known evidence remains available in the native journal.
+            if not result["complete"]:
+                return result
+            for account in result["accounts"]:
+                members = [d for d in deployments.values() if d["account"] == account["id"]]
+                events = [(event, deployment) for deployment in members for event in deployment["events"]]
+                successes = [event for event, _ in events if event[2] == "success"]
+                refusals = []
+                for failure, failed_deployment in events:
+                    if failure[2] != "financial_refusal":
+                        continue
+                    recovered = any(success[2] == "success" and success[1] > failure[0]
+                        and failed_deployment["immutable"] and paid_deployment["immutable"]
+                        and (paid_deployment["id"] == failed_deployment["id"]
+                             or failed_deployment["grouped"] and paid_deployment["grouped"])
+                        for success, paid_deployment in events)
+                    if not recovered:
+                        refusals.append(failure)
+                for deployment in members:
+                    events = sorted(deployment["events"], key=lambda e: e[0])
+                    # Compare only qualified native billed rates for the same
+                    # deployment; it is an observed difference, not a timeline.
+                    for event in reversed(events):
+                        if event[2] != "success":
+                            continue
+                        if loaded is not None and event[0] >= loaded:
+                            continue  # Compare with usage before this catalog load.
+                        metadata = event[3]["metadata"].get("spend_logs_metadata")
+                        billed = metadata.get("owui_billed_token_rates") if isinstance(metadata, dict) else None
+                        rates = billed.get("rates") if isinstance(billed, dict) and billed.get("availability") == "available" else None
+                        if not isinstance(rates, dict):
+                            continue
+                        fields = ("input_cost_per_token", "output_cost_per_token")
+                        old = [_overview_rate(rates.get(field)) for field in fields]
+                        current = [_overview_rate(deployment["info"].get(field)) for field in fields]
+                        if all(rate is not None for rate in old + current) and old != current:
+                            next(p for p in prices if p["id"] == deployment["wire"])["changed"] = True
+                        break
+                event = max(refusals or successes, key=lambda e: e[0], default=None)
+                if event is not None:
+                    account.update(status="financial_refusal" if refusals else "success", event_at=event[0].isoformat())
+            return result
+    except (CostReadError, asyncio.TimeoutError):
+        for account in result["accounts"]:
+            account.update(status="unknown", event_at=None)
+        result["complete"] = False
+        return result

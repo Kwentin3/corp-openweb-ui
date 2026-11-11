@@ -216,18 +216,23 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "native_http_404")
         self.assertEqual(len(self.requests), 1)
 
-    async def test_inspection_existing_user_no_keys_or_subset_is_incomplete_never_absent(self):
+    async def test_inspection_existing_user_missing_assignments_are_explicit_pending_without_writes(self):
         for rows in [[], [row(MODELS[0])], [{"token": "c"*64, "user_id": USER,
                                            "key_alias": "other-application", "metadata": {}}]]:
             self.rows = rows
             with self.subTest(key_count=len(rows)):
                 result = await self.inspect()
-                self.assertEqual(result.kind, "incomplete")
-                self.assertEqual(result.code, "missing_assignment")
-                self.assertIsNone(result.employee_budget)
-                with self.assertRaises(contract.BudgetAdminError) as caught:
-                    await self.read()
-                self.assertEqual(caught.exception.code, "missing_assignment")
+                self.assertEqual(result.kind, "ready" if len(rows) == 1 and rows[0].get("models") else "incomplete")
+                actual = await self.read()
+                for model in actual.models:
+                    if any(item.get("models") == [model.model] for item in rows):
+                        self.assertFalse(model.pending)
+                        self.assertEqual(model.spend, Decimal(".20"))
+                    else:
+                        self.assertTrue(model.pending)
+                        self.assertEqual((model.key_hash, model.key_alias, model.max_budget, model.spend,
+                                          model.budget_duration, model.budget_reset_at, model.blocked), (None,) * 7)
+                self.assertTrue(all(entry[0] == "GET" for entry in self.requests))
 
     async def test_inspection_404_with_canonical_or_unrelated_keys_is_orphan_conflict(self):
         self.handler = self.missing_user
@@ -250,7 +255,8 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
                 self.rows.append(row(MODELS[1]))
             self.requests.clear()
             result = await self.inspect()
-            self.assertEqual(result.kind, "incomplete" if missing else "ready")
+            self.assertEqual(result.kind, "ready")
+            self.assertEqual(result.employee_budget.models[1].pending, missing)
             self.assertEqual([entry[2]["page"] for entry in self.requests if entry[1] == "/key/list"], ["1", "2"])
         self.rows[-1]["metadata"] = {}
         result = await self.inspect()
@@ -285,8 +291,7 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(result.employee_budget)
                 self.assertNotIn(PRIVATE, repr(asdict(result)))
         for rows, code in [([row(MODELS[0]), row(MODELS[0])], "duplicate_key"),
-                           ([row(MODELS[0]), row(MODELS[0], identifier="a"*64)], "duplicate_assignment"),
-                           ([row("unsupported")], "unsupported_assignment")]:
+                           ([row(MODELS[0]), row(MODELS[0], identifier="a"*64)], "duplicate_assignment")]:
             self.rows = rows
             result = await self.inspect()
             self.assertEqual((result.kind, result.code), ("conflict", code))
@@ -414,7 +419,8 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len([entry for entry in self.requests if entry[0] == "POST"]), deny_number)
             self.assertEqual(self.user is None, deny_number == 0)
             self.assertEqual(len(self.rows), max(0, deny_number-1))
-            self.assertEqual((await self.inspect()).kind, "absent" if deny_number == 0 else "incomplete")
+            self.assertEqual((await self.inspect()).kind,
+                             "absent" if deny_number == 0 else "incomplete" if deny_number == 1 else "ready")
 
     async def test_initialization_actual_user_drift_blocks_all_key_creation_even_with_successful_post(self):
         for mutation in [{"max_budget": .9}, {"spend": .1}, {"models": [MODELS[0]]},
@@ -685,21 +691,106 @@ class AdminClientTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(contract.BudgetAdminError):
             await self.read()
 
-    async def test_duplicate_hash_duplicate_assignment_and_missing_assignment_rejected(self):
+    async def test_duplicate_hash_and_duplicate_assignment_rejected(self):
         original = copy.deepcopy(self.rows)
         for rows, code in [([*original, copy.deepcopy(original[0])], "duplicate_key"),
-                           ([*original, row(MODELS[0], identifier="a"*64)], "duplicate_assignment"),
-                           ([original[0]], "missing_assignment")]:
+                           ([*original, row(MODELS[0], identifier="a"*64)], "duplicate_assignment")]:
             self.rows = rows
             with self.subTest(code=code), self.assertRaises(contract.BudgetAdminError) as caught:
                 await self.read()
             self.assertEqual(caught.exception.code, code)
 
-    async def test_unsupported_canonical_namespace_model_rejected(self):
+    async def test_revoked_canonical_assignment_is_validated_preserved_and_omitted_from_active_projection(self):
         self.rows.append(row("not-in-the-caller-models"))
-        with self.assertRaises(contract.BudgetAdminError) as caught:
+        before = copy.deepcopy((self.user, self.rows))
+        result = await self.read()
+        self.assertEqual(tuple(item.model for item in result.models), MODELS)
+        self.assertEqual((self.user, self.rows), before)
+        self.assertTrue(all(item[0] == "GET" for item in self.requests))
+        self.rows[-1]["key_alias"] = "forged-alias"
+        with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_assignment"):
             await self.read()
-        self.assertEqual(caught.exception.code, "unsupported_assignment")
+
+    async def expansion(self, *, before_write=None):
+        async def permit():
+            pass
+        return await self.admin.create_model_assignment(USER, "new-model", GATEWAY,
+                                                        before_write=before_write or permit)
+
+    async def expansion_boundary(self, request):
+        if request.path == "/user/update":
+            body = await request.json()
+            self.user["models"] = body["models"]
+            return web.json_response({"updated": True})
+        if request.path == "/key/generate":
+            return await self.bootstrap_boundary(request)
+
+    async def test_confirmed_expansion_creates_only_missing_zero_key_and_appends_native_acl(self):
+        self.handler = self.expansion_boundary
+        self.rows.append(row("revoked-model"))
+        before = copy.deepcopy((self.user, self.rows))
+        result = await self.expansion()
+        self.assertEqual((result.model, result.max_budget, result.spend, result.pending),
+                         ("new-model", Decimal(0), Decimal(0), False))
+        self.assertEqual(self.rows[:-1], before[1])
+        self.assertEqual({k: v for k, v in self.user.items() if k != "models"},
+                         {k: v for k, v in before[0].items() if k != "models"})
+        self.assertEqual(self.user["models"], [*MODELS, "new-model"])
+        posts = [entry for entry in self.requests if entry[0] == "POST"]
+        self.assertEqual([entry[1] for entry in posts], ["/key/generate", "/user/update"])
+        self.assertEqual(posts[0][3]["max_budget"], 0.0)
+        self.assertEqual(posts[0][3]["models"], ["new-model"])
+        self.assertEqual(posts[0][3]["allowed_routes"], ["llm_api_routes"])
+        self.assertEqual(posts[1][3], {"user_id": USER, "models": [*MODELS, "new-model"]})
+        self.assertNotIn(GATEWAY, repr(asdict(result)))
+        with self.assertRaisesRegex(contract.BudgetAdminError, "assignment_already_exists"):
+            await self.expansion()
+        self.assertEqual(len([entry for entry in self.requests if entry[0] == "POST"]), 2)
+
+    async def test_expansion_rechecks_each_post_and_preserves_honest_partial_state(self):
+        self.handler = self.expansion_boundary
+        before = copy.deepcopy((self.user, self.rows))
+        calls = 0
+        async def revoke():
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                raise contract.BudgetAdminError("admin_revoked")
+        with self.assertRaisesRegex(contract.BudgetAdminError, "admin_revoked"):
+            await self.expansion(before_write=revoke)
+        self.assertEqual(self.user, before[0])
+        self.assertEqual(self.rows[:-1], before[1])
+        self.assertEqual(self.rows[-1]["max_budget"], 0.0)
+        self.assertEqual([entry[1] for entry in self.requests if entry[0] == "POST"], ["/key/generate"])
+
+    async def test_expansion_existing_native_model_permission_needs_only_zero_key(self):
+        self.handler = self.expansion_boundary
+        self.user["models"].append("new-model")
+        before = copy.deepcopy(self.user)
+        result = await self.expansion()
+        self.assertEqual(self.user, before)
+        self.assertEqual((result.model, result.max_budget, result.spend), ("new-model", Decimal(0), Decimal(0)))
+        self.assertEqual([entry[1] for entry in self.requests if entry[0] == "POST"], ["/key/generate"])
+
+    async def test_expansion_does_not_grant_model_permission_if_actual_key_zero_was_not_confirmed(self):
+        before = copy.deepcopy(self.user)
+        async def wrong_key(request):
+            result = await self.expansion_boundary(request)
+            if request.path == "/key/generate":
+                self.rows[-1]["max_budget"] = .01
+            return result
+        self.handler = wrong_key
+        with self.assertRaisesRegex(contract.BudgetAdminError, "assignment_creation_unconfirmed"):
+            await self.expansion()
+        self.assertEqual(self.user, before)
+        self.assertEqual([entry[1] for entry in self.requests if entry[0] == "POST"], ["/key/generate"])
+
+    async def test_expansion_rejects_nonexplicit_acl_before_any_write(self):
+        for models in ([], ["*"], ["all-proxy-models"], ["no-default-models"]):
+            self.user["models"] = models
+            with self.subTest(models=models), self.assertRaisesRegex(contract.BudgetAdminError, "invalid_models"):
+                await self.expansion()
+        self.assertTrue(all(item[0] == "GET" for item in self.requests))
 
     async def test_pagination_missing_changed_or_duplicate_pages_rejected(self):
         for malformed in [{"keys": self.rows, "total_count": 3, "total_pages": 1, "current_page": 1},

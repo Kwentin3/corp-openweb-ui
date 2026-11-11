@@ -7,7 +7,8 @@ required_open_webui_version: 0.12.2
 
 Mount provenance.py as /app/backend/employee_budget_provenance.py and
 cost_readback.py as /app/backend/employee_budget_cost_readback.py. Install this
-file with the native Functions API and attach its stable ID to managed models.
+file with the native Functions API as an active global Filter. Native connection
+binding scopes signing to the managed gateway; model attachments remain compatible.
 It is mandatory; UserValves changes only future display, never signing/budgets.
 """
 
@@ -26,6 +27,7 @@ OBSERVED_IDS = "_owui_budget_observed_provider_ids"
 OBSERVED_CALL_IDS = "_owui_budget_observed_call_ids"
 UNBOUND_RESPONSE = "_owui_budget_unbound_response"
 ISSUED_SCOPE = "_owui_budget_current_scope"
+SKIPPED_SCOPE = "_owui_budget_skipped_scope"
 log = logging.getLogger(__name__)
 
 
@@ -85,11 +87,12 @@ async def completed_nonstream_call(body, metadata, scope, request):
     return canonical_uuid(scope.get("call_id"), "call_id")
 
 
-async def native_connection(body, model, request, ledger_base_url):
+async def native_connection(body, model, request, ledger_base_url, *, allow_other_gateway=False):
     """Check existing owner output; leave transport/model selection to the router."""
     from employee_budget_webui_model_binding import native_connection as bind
 
-    return await bind(body, model, request, ledger_base_url, require=require)
+    return await bind(body, model, request, ledger_base_url, require=require,
+                      allow_other_gateway=allow_other_gateway)
 
 
 class Filter:
@@ -106,6 +109,8 @@ class Filter:
                                       json_schema_extra={"format": "password", "writeOnly": True})
         default_budget_template: dict | None = Field(default=None,
             description="Explicit monthly budget/share template for new employees; never rewrites existing budgets.")
+        provider_balance_snapshots: dict = Field(default_factory=dict,
+            description="Last manually checked provider balances; informational only, never spend or budget state.")
         service_payer_id: str = Field(default="",
             description="Native service budget identity; used only by qualified signed service tasks.")
         read_wait_seconds: float = Field(default=8.0, ge=0, le=10)
@@ -123,9 +128,29 @@ class Filter:
         from open_webui.env import VERSION
         from open_webui.models.users import Users
 
-        require(VERSION == "0.12.2", "unsupported_webui_version")
         metadata = __metadata__
         require(isinstance(metadata, dict) and __request__ is not None and isinstance(__user__, dict), "server_context")
+        metadata.pop(SKIPPED_SCOPE, None)
+        require(isinstance(__model__, dict) and __model__.get("id") == body.get("model"), "model_owner")
+        task = metadata.get("task")
+        # Task metadata belongs to the native dispatch, never the provider body.
+        # An arbitrary task name must not exempt a managed personal call.
+        auxiliary = (getattr(__request__.state, "metadata", None) is metadata
+                     and isinstance(task, str)
+                     and task in {"title_generation", "follow_up_generation", "tags_generation",
+                                  "emoji_generation", "query_generation", "image_prompt_generation",
+                                  "autocomplete_generation", "function_calling", "moa_response_generation"})
+        if __model__.get("owned_by") != "openai" or __model__.get("pipe") or auxiliary:
+            metadata[SKIPPED_SCOPE] = True
+            metadata.pop(ISSUED_SCOPE, None)
+            return body
+        binding = await native_connection(body, __model__, __request__, self.valves.ledger_base_url,
+                                          allow_other_gateway=True)
+        if binding is None:
+            metadata[SKIPPED_SCOPE] = True
+            metadata.pop(ISSUED_SCOPE, None)
+            return body
+        require(VERSION == "0.12.2", "unsupported_webui_version")
         require(metadata.get("task") in (None, "", "sub_agent") and not metadata.get("direct")
                 and not getattr(__request__.state, "direct", False), "unsupported_task_or_direct")
         user_id = canonical_uuid(__user__.get("id"), "user_id")
@@ -137,7 +162,7 @@ class Filter:
         message = await native_answer(chat_id, answer_id, user)
         if metadata.get("task") != "sub_agent":
             require(message.get("model") == body.get("model"), "answer_model")
-        secret, wire_model = await native_connection(body, __model__, __request__, self.valves.ledger_base_url)
+        secret, wire_model = binding
 
         context = metadata.get("chat_context")
         require(isinstance(context, dict), "chat_context")
@@ -189,7 +214,7 @@ class Filter:
 
     async def stream(self, event: dict, __metadata__: dict = None) -> dict:
         metadata = __metadata__
-        if not isinstance(metadata, dict) or ISSUED_SCOPE not in metadata:
+        if not isinstance(metadata, dict) or metadata.get(SKIPPED_SCOPE) is True or ISSUED_SCOPE not in metadata:
             return event
         identifier = None
         if event.get("object") == "chat.completion.chunk":
@@ -223,13 +248,29 @@ class Filter:
         return event
 
     async def outlet(self, body: dict, __user__: dict = None, __metadata__: dict = None,
-                     __request__=None, __event_emitter__=None) -> dict:
+                     __request__=None, __event_emitter__=None, __model__: dict = None) -> dict:
         if not display_enabled(__user__) or not __event_emitter__:
             return body
         metadata = __metadata__ or {}
+        if metadata.get(SKIPPED_SCOPE) is True:
+            return body
         if metadata.get("task") not in (None, "") or metadata.get("internal") is True:
             return body
         scope = metadata.get(ISSUED_SCOPE)
+        # Native chat_completed builds fresh server metadata on its separate
+        # outlet request. Classify that model again without inventing a scope.
+        if scope is None and __request__ is not None and isinstance(__model__, dict) \
+                and __model__.get("id") == body.get("model"):
+            if __model__.get("owned_by") != "openai" or __model__.get("pipe"):
+                return body
+            try:
+                if await native_connection(body, __model__, __request__, self.valves.ledger_base_url,
+                                            allow_other_gateway=True) is None:
+                    return body
+            except Exception:
+                # An unverifiable managed route retains the existing optional
+                # unavailable feedback, without failing a completed answer.
+                pass
         description = "Стоимость ещё не подтверждена журналом учёта. Учёт и лимиты действуют."
         if isinstance(scope, dict):
             from employee_budget_cost_readback import CostReadError, read_cost_snapshot

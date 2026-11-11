@@ -44,6 +44,24 @@ def pending_rows():
             for i, state in enumerate(('absent', 'absent', 'incomplete', 'conflict'))]
 
 
+def overview():
+    return {'prices': [
+        {'id': 'model-a', 'label': 'Model A', 'input_per_million': '0.1234567890123456789',
+         'output_per_million': '1.20', 'cache_per_million': None, 'as_of': '2026-11-11T12:00:00Z',
+         'source': 'remote', 'changed': True},
+        {'id': 'model-b', 'label': 'Model B', 'input_per_million': None,
+         'output_per_million': None, 'cache_per_million': '0', 'as_of': None,
+         'source': 'local', 'changed': False}],
+        'accounts': [
+            {'id': 'opaque-account-' + str(i), 'label': 'Account ' + str(i), 'status': status,
+             'event_at': None if status == 'unknown' else '2026-11-11T12:30:00Z',
+             'balance': {'amount': '-1.000000000000000001', 'currency': 'USD',
+                         'observed_at': '2026-11-10T10:00:00Z', 'actor': 'Server-owned actor',
+                         'source': 'manual'} if i == 0 else None,
+             'revision': 'account-revision-' + str(i)}
+            for i, status in enumerate(('financial_refusal', 'success', 'unknown'))]}
+
+
 class Parser(HTMLParser):
     def __init__(self, html):
         super().__init__()
@@ -66,6 +84,67 @@ class Parser(HTMLParser):
 
 
 class RendererTests(unittest.TestCase):
+    def test_overview_projects_only_supplied_observations_and_server_owned_identity(self):
+        supplied = overview()
+        supplied['accounts'][0]['private_extra'] = 'PRIVATE_ACCOUNT'
+        supplied['prices'][0]['private_extra'] = 'PRIVATE_PRICE'
+        before = copy.deepcopy(supplied)
+        html = UI.render_editor(rows(), as_of='owned', overview=supplied)
+        parser = Parser(html)
+        self.assertIn('data-money="0.1234567890123456789"', html)
+        self.assertIn('data-money="1.20"', html)
+        self.assertIn('title="нет данных USD"', html)
+        self.assertEqual(html.count('class="price-changed"'), 1)
+        self.assertIn('Кэш: <span data-money="0"', html)
+        self.assertIn('Источник: Каталог LiteLLM', html)
+        self.assertIn('Источник: Встроенный каталог LiteLLM', html)
+        self.assertIn('Финансовый отказ', html)
+        self.assertIn('Успешный запрос', html)
+        self.assertIn('Нет данных', html)
+        self.assertIn('Последний известный баланс: -1.000000000000000001 USD', html)
+        self.assertIn('Server-owned actor', html)
+        self.assertNotIn('PRIVATE_', html)
+        self.assertEqual(json.loads(parser.scripts[1]), [
+            {'id': account['id'], 'revision': account['revision']} for account in supplied['accounts']])
+        fields = [attrs['data-balance-field'] for tag, attrs in parser.tags
+                  if tag == 'input' and 'data-balance-field' in attrs]
+        self.assertEqual(fields, ['amount', 'currency', 'observed_at'] * 3)
+        observed = [attrs for tag, attrs in parser.tags if attrs.get('data-balance-field') == 'observed_at']
+        self.assertTrue(all(attrs['type'] == 'datetime-local' and attrs['step'] == '60'
+                            and attrs['title'] == 'Местное время' for attrs in observed))
+        self.assertIn('Проверено в ЛК', html)
+        self.assertNotIn('ISO 8601', html)
+        self.assertEqual(supplied, before)
+        empty = UI.render_editor([], as_of='owned', overview=supplied)
+        self.assertIn('Model A', empty)
+
+    def test_overview_and_employee_model_disclosure_escape_and_never_derive_values(self):
+        attack = '</script><img src=x onerror="alert(1)"><&\u2028\u2029'
+        data, supplied = rows(), overview()
+        data[0]['models'][0].update(remaining_usd='4.750000000000000001', new=False, pending=True)
+        data[0]['models'][1].update(expense_status='unknown', remaining_usd=None, new=False)
+        for price in supplied['prices']:
+            for key in ('input_per_million', 'output_per_million', 'cache_per_million', 'source', 'as_of'):
+                price[key] = attack
+        account = supplied['accounts'][0]
+        for key in ('id', 'label', 'status', 'event_at', 'revision'):
+            account[key] = attack
+        account['balance'] = {key: attack for key in ('amount', 'currency', 'observed_at', 'actor', 'source')}
+        html = UI.render_editor(data, as_of='owned', overview=supplied)
+        parser = Parser(html)
+        self.assertNotIn('<img', html)
+        self.assertIn('&lt;img', html)
+        self.assertNotIn('<', parser.scripts[1])
+        self.assertEqual(json.loads(parser.scripts[1])[0]['id'], attack)
+        self.assertIn('data-money="4.750000000000000001"', html)
+        self.assertIn('Остаток по учёту: <span data-money=""', html)
+        self.assertIn('class="new-model">новая', html)
+        self.assertIn('class="unknown">Расход неизвестен.', html)
+        projected = json.loads(parser.scripts[0])[0]['models']
+        self.assertEqual(projected[0]['remaining_usd'], '4.750000000000000001')
+        self.assertIs(projected[0]['pending'], True)
+        self.assertIs(projected[1]['new'], False)
+
     def test_unknown_expense_is_primary_recorded_amount_and_known_part_are_separate(self):
         data = rows()
         data[0].update(expense_status='unknown', spend_usd='9.99', remaining_usd='0.01',
@@ -428,6 +507,112 @@ class ChromeSandboxTests(unittest.TestCase):
         if review.get_attribute('open') is None:
             review.locator('summary').click()
         return self.frame.locator('#preview')
+
+    def load_overview(self, data=None, supplied=None, **kwargs):
+        html = UI.render_editor(data if data is not None else rows(), as_of='2026-11-11T13:00:00Z',
+                                overview=supplied if supplied is not None else overview(), **kwargs)
+        self.page.locator('iframe').evaluate('(el,html)=>el.srcdoc=html', html)
+        self.frame.locator('[data-account-index="0"]').wait_for()
+        return html
+
+    def open_balance(self):
+        account = self.frame.locator('[data-account-index="0"]')
+        account.locator(':scope>summary').click()
+        account.locator('.balance-editor>summary').click()
+        return account
+
+    def test_overview_disclosures_keep_drafts_and_balance_uses_exact_native_transport(self):
+        data = rows()
+        data[0]['models'][0].update(remaining_usd='4.750000000000000001', new=True)
+        self.load_overview(data)
+        budget = self.frame.locator('[data-field="budget_usd"]').first
+        budget.fill('20.000000000000000001')
+        self.frame.locator('.legend-price>summary').first.click()
+        employee = self.frame.locator('.employee-info').first
+        employee.locator('summary').click()
+        self.assertIn('4,75', employee.inner_text())
+        self.assertEqual(employee.locator('[data-money="4.750000000000000001"]').get_attribute('title'),
+                         '4.750000000000000001 USD')
+        employee.locator('summary').click()
+        account = self.open_balance()
+        account.locator('[data-balance-field="amount"]').fill('-123.000000000000000001')
+        account.locator('[data-balance-field="observed_at"]').fill('2026-11-11T12:34')
+        expected_observed = self.page.evaluate("new Date('2026-11-11T12:34').toISOString()")
+        account.locator('[data-submit-balance]').click()
+        self.assertIn('несохранённые правки бюджетов', account.locator('[data-balance-feedback]').inner_text())
+        self.assertEqual(budget.input_value(), '20.000000000000000001')
+        self.assertEqual(self.prompts(), [])
+        self.frame.locator('#reset-drafts').click()
+        account.locator('[data-submit-balance]').click()
+        self.page.wait_for_function("received.some(x=>x.data.type==='input:prompt:submit')")
+        self.assertEqual(json.loads(self.prompts()[0]['data']['text']), {
+            'schema': 1, 'type': 'provider_balance_snapshot', 'account_id': 'opaque-account-0',
+            'expected_revision': 'account-revision-0', 'amount': '-123.000000000000000001',
+            'currency': 'USD', 'observed_at': expected_observed})
+        self.assertTrue(account.locator('[data-submit-balance]').is_disabled())
+        self.assertIn('ещё не сохранена', account.locator('[data-balance-feedback]').inner_text())
+        self.assertEqual(self.prompts()[0]['origin'], 'null')
+
+    def test_manual_balance_validation_and_bootstrap_draft_guard(self):
+        self.load_overview(template=template(), pending=pending_rows())
+        account = self.open_balance()
+        amount = account.locator('[data-balance-field="amount"]')
+        for invalid in ('1e3', '', ' 1', '.5'):
+            amount.fill(invalid)
+            account.locator('[data-submit-balance]').click()
+            self.assertIn('десятичной строкой', account.locator('[data-balance-feedback]').inner_text())
+        amount.fill('1.00')
+        self.frame.locator('.optional').first.locator(':scope>summary').click()
+        self.frame.locator('#template-budget').fill('2.00')
+        account.locator('[data-submit-balance]').click()
+        self.assertIn('несохранённые правки бюджетов', account.locator('[data-balance-feedback]').inner_text())
+        self.assertEqual(self.frame.locator('#template-budget').input_value(), '2.00')
+        self.assertEqual(self.prompts(), [])
+
+    def test_overview_820px_compact_rows_sticky_header_and_unknown_state(self):
+        data = []
+        for i in range(12):
+            row = copy.deepcopy(rows()[i % 2])
+            row.update(user_id='preview-' + str(i), name='Сотрудник ' + str(i + 1))
+            row['models'].append({'id': 'model-c', 'label': 'Model C', 'cap_usd': '0',
+                                  'spend_usd': '0', 'remaining_usd': '0', 'share_percent': '0', 'new': True})
+            data.append(row)
+        supplied = overview()
+        supplied['prices'].append({'id': 'model-c', 'label': 'Model C', 'input_per_million': '0',
+            'output_per_million': '0', 'cache_per_million': None, 'as_of': None,
+            'source': 'cached-provider-price', 'changed': False})
+        html = self.load_overview(data, supplied)
+        self.page.set_viewport_size({'width': 820, 'height': 900})
+        self.assertIn('Нет данных', self.frame.locator('[data-account-index="2"]>summary').inner_text())
+        self.assertIn('нет данных', self.frame.locator('.legend-price').nth(1).inner_text())
+        self.assertTrue(self.frame.locator('.balance-editor').first.is_hidden())
+        self.assertEqual(self.frame.locator('#employee-rows>tr').evaluate_all(
+            '(rows)=>rows.map(row=>row.getBoundingClientRect().height)'), [63] * 12)
+        metrics = self.frame.locator('.table-scroll').evaluate(
+            'el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,top:el.getBoundingClientRect().top})')
+        self.assertEqual(metrics['width'], metrics['scrollWidth'])
+        self.assertLess(self.frame.locator('thead').evaluate('el=>el.getBoundingClientRect().height'), 220)
+        out = Path(os.environ['GOAL584_ADMIN_UI_EVIDENCE']) if os.environ.get('GOAL584_ADMIN_UI_EVIDENCE') else None
+        if out:
+            out.mkdir(parents=True, exist_ok=True)
+            (out / 'overview-12-820.html').write_text(html, encoding='utf-8')
+            self.page.screenshot(path=str(out / 'overview-12-820.png'), full_page=True)
+        self.frame.locator('.table-scroll').evaluate('el=>el.scrollTop=240')
+        self.assertAlmostEqual(self.frame.locator('thead').evaluate('el=>el.getBoundingClientRect().top'),
+                               metrics['top'] + 1, delta=1)
+        if out:
+            self.page.screenshot(path=str(out / 'overview-12-820-scrolled.png'), full_page=True)
+        self.frame.locator('.table-scroll').evaluate('el=>el.scrollTop=0')
+        account = self.open_balance()
+        self.assertIn('Последний известный баланс', account.inner_text())
+        self.assertEqual(account.locator('[data-balance-field="amount"]').input_value(), '-1.000000000000000001')
+        self.assertEqual(account.locator('[data-balance-field="observed_at"]').input_value(),
+            self.page.evaluate("(()=>{const d=new Date('2026-11-10T10:00:00Z'),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes())})()"))
+        absent_time = self.frame.locator('[data-account-index="1"] [data-balance-field="observed_at"]')
+        self.assertRegex(absent_time.input_value(), r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$')
+        if out:
+            self.page.screenshot(path=str(out / 'overview-balance-disclosure-820.png'), full_page=True)
+        self.assertEqual(self.prompts(), [])
 
     def test_template_exact_validation_preview_and_separate_native_payload(self):
         self.open_bootstrap()

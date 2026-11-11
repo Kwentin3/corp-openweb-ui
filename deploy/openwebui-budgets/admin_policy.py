@@ -9,6 +9,7 @@ an LLM's rewritten business arguments or treats a revision as authorization.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from decimal import Decimal, Inexact, localcontext
 import hashlib
 from html import escape
@@ -45,9 +46,13 @@ def native_cap(value):
 
 def monthly(state):
     periods = {"1mo", "30d", "monthly"}
+    require(all(not model.pending or all(value is None for value in (
+        model.key_hash, model.key_alias, model.max_budget, model.spend,
+        model.budget_duration, model.budget_reset_at, model.blocked)) for model in state.models),
+        "invalid_pending_assignment")
     require(state.budget_duration in periods and state.budget_reset_at is not None
             and all(model.budget_duration in periods and model.budget_reset_at is not None
-                    for model in state.models), "unsupported_budget_period")
+                    for model in state.models if not model.pending), "unsupported_budget_period")
 
 
 def money(value):
@@ -149,7 +154,7 @@ def revision(state):
              "duration": state.budget_duration, "reset_at": state.budget_reset_at,
              "models": [{"model": model.model, "key": model.key_hash, "alias": model.key_alias,
                          "cap": money(model.max_budget), "duration": model.budget_duration,
-                         "reset_at": model.budget_reset_at, "blocked": model.blocked}
+                         "reset_at": model.budget_reset_at, "blocked": model.blocked, "pending": model.pending}
                         for model in sorted(state.models, key=lambda item: item.model)]}
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=True,
                                     separators=(",", ":")).encode()).hexdigest()
@@ -169,8 +174,35 @@ def prepare_change(change, state):
 def submission_kind(text):
     value = _json(text)
     require(isinstance(value, dict) and value.get("type") in (
-        "employee_budget_plan", "employee_budget_template", "employee_budget_initialize"), "invalid_plan")
+        "employee_budget_plan", "employee_budget_template", "employee_budget_initialize",
+        "provider_balance_snapshot"), "invalid_plan")
     return value["type"]
+
+
+def parse_balance_plan(text):
+    value = _json(text)
+    require(isinstance(value, dict) and set(value) == {
+        "schema", "type", "account_id", "expected_revision", "amount", "currency", "observed_at"}
+        and type(value["schema"]) is int and value["schema"] == 1
+        and value["type"] == "provider_balance_snapshot", "invalid_balance_plan")
+    require(type(value["account_id"]) is str
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}", value["account_id"]) is not None
+            and type(value["expected_revision"]) is str
+            and re.fullmatch(r"[0-9a-f]{64}", value["expected_revision"]) is not None,
+            "invalid_balance_plan")
+    require(type(value["amount"]) is str and len(value["amount"]) <= 32
+            and re.fullmatch(r"-?[0-9]+(?:\.[0-9]+)?", value["amount"]) is not None
+            and Decimal(value["amount"]).is_finite()
+            and type(value["currency"]) is str and re.fullmatch(r"[A-Z]{3}", value["currency"]) is not None,
+            "invalid_balance_plan")
+    require(type(value["observed_at"]) is str and 0 < len(value["observed_at"]) <= 64,
+            "invalid_balance_plan")
+    try:
+        observed = datetime.fromisoformat(value["observed_at"].replace("Z", "+00:00"))
+        require(observed.utcoffset() is not None, "invalid_balance_plan")
+    except (ValueError, OverflowError):
+        raise BudgetAdminError("invalid_balance_plan") from None
+    return value
 
 
 def parse_initialization(text):
@@ -187,7 +219,8 @@ def template_value(value, models):
     require(isinstance(value, dict) and set(value) == {"budget_usd", "shares", "budget_duration"}
             and value["budget_duration"] == "1mo", "invalid_template")
     budget, shares = number(value["budget_usd"]), _shares(value["shares"])
-    require({model for model, _ in shares} == set(models), "template_models_changed")
+    require({model for model, _ in shares} <= set(models), "template_models_changed")
+    shares = tuple(sorted({**dict.fromkeys(models, Decimal(0)), **dict(shares)}.items()))
     allocation(budget, shares)
     return {"budget_usd": money(budget), "shares": {model: money(share) for model, share in shares},
             "budget_duration": "1mo"}
@@ -205,6 +238,7 @@ def parse_template_plan(text, current, models):
         and type(value["schema"]) is int and value["schema"] == 1
         and value["type"] == "employee_budget_template", "invalid_template")
     require(value["expected_revision"] == template_revision(current, models), "stale_template")
+    require(isinstance(value["shares"], dict) and set(value["shares"]) == set(models), "template_models_changed")
     return template_value({key: value[key] for key in ("budget_usd", "shares", "budget_duration")}, models)
 
 
@@ -259,18 +293,32 @@ async def apply_prepared(client, prepared):
     current = await client.read_employee(prepared.user_id, tuple(model.model for model in before.models))
     require(revision(current) == prepared.expected_revision, "stale_snapshot")
     caps = dict(prepared.new_caps)
+    native = {model.model: model for model in before.models if not model.pending}
     lowered = set()
     for model in before.models:
+        if model.pending:
+            continue
         cap = caps[model.model]
         if model.max_budget is None or cap < model.max_budget:
             await client.set_model_cap(model.key_hash, cap)
             lowered.add(model.model)
+    for model in before.models:
+        if model.pending:
+            created = await client.create_model_assignment(before.user_id, model.model)
+            require(created.model == model.model and not created.pending
+                    and created.key_hash is not None and created.key_alias is not None
+                    and created.max_budget == 0 and created.spend == 0
+                    and created.budget_duration in {"1mo", "30d", "monthly"}
+                    and created.budget_reset_at is not None and created.blocked is False,
+                    "assignment_creation_unconfirmed")
+            native[model.model] = created
     raised_user = before.max_budget is not None and prepared.budget_usd > before.max_budget
     if raised_user:
         await client.set_user_cap(before.user_id, prepared.budget_usd)
     for model in before.models:
-        if model.model not in lowered and model.max_budget != caps[model.model]:
-            await client.set_model_cap(model.key_hash, caps[model.model])
+        old = native[model.model]
+        if model.model not in lowered and old.max_budget != caps[model.model]:
+            await client.set_model_cap(old.key_hash, caps[model.model])
     if not raised_user and before.max_budget != prepared.budget_usd:
         await client.set_user_cap(before.user_id, prepared.budget_usd)
     after = await client.read_employee(before.user_id, tuple(model.model for model in before.models))
@@ -281,8 +329,8 @@ async def apply_prepared(client, prepared):
     require(len(after.models) == len(original) and {model.model for model in after.models} == set(original),
             "write_unconfirmed")
     for model in after.models:
-        old = original[model.model]
-        require(_same_native(model.max_budget, caps[model.model])
+        old = native[model.model]
+        require(not model.pending and _same_native(model.max_budget, caps[model.model])
                 and (model.key_hash, model.key_alias, model.budget_duration, model.budget_reset_at, model.blocked)
                 == (old.key_hash, old.key_alias, old.budget_duration, old.budget_reset_at, old.blocked),
                 "write_unconfirmed")
@@ -292,14 +340,15 @@ async def apply_prepared(client, prepared):
 def public_employee(identity, state, *, unknown_presence=None):
     require(identity["user_id"] == state.user_id, "invalid_employee")
     monthly(state)
-    shares = {}
+    shares = {model.model: Decimal(0) for model in state.models if model.pending}
+    native = [model for model in state.models if not model.pending]
     if (state.max_budget is not None and state.max_budget > 0
-            and all(model.max_budget is not None for model in state.models)
-            and abs(sum((model.max_budget for model in state.models), Decimal(0)) - state.max_budget)
+            and all(model.max_budget is not None for model in native)
+            and abs(sum((model.max_budget for model in native), Decimal(0)) - state.max_budget)
                 <= state.max_budget * Decimal("1e-12")):
         with localcontext() as context:
             context.prec = 128
-            models = sorted(state.models, key=lambda item: item.model)
+            models = sorted(native, key=lambda item: item.model)
             for model in models[:-1]:
                 shares[model.model] = (model.max_budget * 100 / state.max_budget).quantize(Decimal(".0001"), rounding="ROUND_DOWN")
             if models:
@@ -312,9 +361,10 @@ def public_employee(identity, state, *, unknown_presence=None):
             "budget_duration": state.budget_duration, "budget_reset_at": state.budget_reset_at,
             "models": [{"id": model.model, "label": labels.get(model.model, model.model),
                         "cap_usd": money(model.max_budget), "spend_usd": money(model.spend),
-                        "remaining_usd": money(model.max_budget - model.spend) if model.max_budget is not None else None,
+                        "remaining_usd": money(model.max_budget - model.spend)
+                            if model.max_budget is not None and model.spend is not None else None,
                         "budget_duration": model.budget_duration, "budget_reset_at": model.budget_reset_at,
-                        "blocked": model.blocked,
+                        "blocked": model.blocked, "pending": model.pending,
                         "share_percent": money(shares[model.model]) if model.model in shares else ""}
                        for model in sorted(state.models, key=lambda item: item.model)]}
     if unknown_presence is not None:
@@ -326,7 +376,7 @@ def public_employee(identity, state, *, unknown_presence=None):
         for model in public["models"]:
             value = unknown_presence.get(model["id"])
             model["expense_status"] = "unavailable"
-            if (type(value) is dict and set(value) == {"unknown_confirmed", "as_of"}
+            if (not model["pending"] and type(value) is dict and set(value) == {"unknown_confirmed", "as_of"}
                     and type(value["unknown_confirmed"]) is bool and isinstance(value["as_of"], str)
                     and 0 < len(value["as_of"]) <= 128 and all(ord(c) >= 32 for c in value["as_of"])):
                 model["expense_status"] = "unknown" if value["unknown_confirmed"] else "unavailable"
@@ -396,9 +446,5 @@ def confirmation_text(changes, identities):
         for model, cap in change.new_caps:
             label = (identity.get("model_labels") or {}).get(model, model)
             result.append(f"  {line(label)}: {amount(old[model].max_budget)} → {money(cap)} USD")
-            if old[model].spend >= cap:
-                result.append("    Лимит не выше начисленного расхода: новые запросы к модели будут отклоняться.")
-        if change.before.spend >= change.budget_usd:
-            result.append("Новый бюджет ниже начисленного расхода: новые запросы будут отклоняться.")
         result.append("")
     return "\n".join(result)

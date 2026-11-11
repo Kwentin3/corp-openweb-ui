@@ -53,6 +53,7 @@ services:
     read_only: true
     environment:
       PYTHONDONTWRITEBYTECODE: "1"
+      PROOF_CATALOG_ENABLED: ${PROOF_CATALOG_ENABLED:-false}
     volumes:
       - type: bind
         source: ../scripts/goal584-budget-proof/mock_provider.py
@@ -83,7 +84,8 @@ services:
       PROOF_MASTER_KEY: ${PROOF_MASTER_KEY:?Generate a fresh synthetic sk-prefixed master key}
       OWUI_BUDGET_GATEWAY_SECRET: ${OWUI_BUDGET_GATEWAY_SECRET:?Generate a separate synthetic gateway secret}
       DATABASE_URL: postgresql://goal584:${PROOF_DB_PASSWORD:?Generate a fresh URL-safe synthetic DB password}@postgres:5432/goal584
-      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+      LITELLM_LOCAL_MODEL_COST_MAP: ${PROOF_LOCAL_COST_MAP:-True}
+      LITELLM_MODEL_COST_MAP_URL: ${PROOF_COST_MAP_URL:-https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json}
       STORE_PROMPTS_IN_SPEND_LOGS: "false"
       NO_PROXY: localhost,127.0.0.1,postgres,redis,provider
       PROOF_NATIVE_VARIANT: ${PROOF_NATIVE_VARIANT:-stock}

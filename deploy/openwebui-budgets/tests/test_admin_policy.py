@@ -68,8 +68,51 @@ class NativeClient:
         self.state = replace(self.state, models=tuple(
             replace(m, max_budget=cap) if m.key_hash == key_hash else m for m in self.state.models))
 
+    async def create_model_assignment(self, user_id, model):
+        self.record("create", model, D(0))
+        created = contract.ModelBudget(model, "c" * 64, "private-alias-new", D(0), D(0),
+                                        "1mo", "2026-12-01T00:00:00Z", False)
+        self.state = replace(self.state, models=tuple(created if m.model == model else m for m in self.state.models))
+        return created
+
 
 class PolicyTests(unittest.TestCase):
+    def test_balance_plan_is_exact_bounded_signed_snapshot_without_actor_or_source_override(self):
+        value = {"schema": 1, "type": "provider_balance_snapshot", "account_id": "gateway-main",
+                 "expected_revision": "a" * 64, "amount": "-1.20", "currency": "USD",
+                 "observed_at": "2026-11-11T10:00:00Z"}
+        self.assertEqual(policy.parse_balance_plan(json.dumps(value)), value)
+        self.assertEqual(policy.submission_kind(json.dumps(value)), "provider_balance_snapshot")
+        for mutation in ({"amount": 1}, {"amount": "1e3"}, {"amount": "NaN"}, {"amount": "9" * 33},
+                         {"currency": "usd"}, {"account_id": "bad/account"}, {"expected_revision": "A" * 64},
+                         {"observed_at": "2026-11-11T10:00:00"}, {"actor": USER}, {"source": "api"}):
+            with self.subTest(mutation=mutation), self.assertRaises(contract.BudgetAdminError):
+                policy.parse_balance_plan(json.dumps(value | mutation))
+        with self.assertRaisesRegex(contract.BudgetAdminError, "duplicate_json_field"):
+            policy.parse_balance_plan(json.dumps(value).replace('"schema": 1', '"schema": 1, "schema": 1'))
+
+    def test_new_assignment_projects_zero_share_without_claiming_native_cap_spend_or_period(self):
+        before = state()
+        pending = contract.ModelBudget("new", None, None, None, None, None, None, None, pending=True)
+        expanded = replace(before, models=(*before.models, pending))
+        public = policy.public_employee({"user_id": USER, "name": "Ada", "email": "a@example.invalid"}, expanded)
+        self.assertEqual([m["share_percent"] for m in public["models"]], ["50", "50", "0"])
+        self.assertEqual(public["models"][-1], {"id": "new", "label": "new", "pending": True,
+            "cap_usd": None, "spend_usd": None, "remaining_usd": None, "budget_duration": None,
+            "budget_reset_at": None, "blocked": None, "share_percent": "0"})
+        self.assertEqual((public["budget_usd"], public["spend_usd"], public["remaining_usd"]), ("10", "1", "9"))
+        self.assertNotEqual(policy.revision(before), policy.revision(expanded))
+        with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_pending_assignment"):
+            policy.public_employee({"user_id": USER}, replace(expanded, models=(replace(pending, spend=D(0)),)))
+
+    def test_removed_models_do_not_redistribute_remaining_native_shares(self):
+        before = state()
+        active_subset = replace(before, models=(before.models[0],))
+        public = policy.public_employee({"user_id": USER, "name": "Ada", "email": "a@example.invalid"}, active_subset)
+        self.assertEqual(public["models"][0]["share_percent"], "")
+        self.assertEqual(public["models"][0]["cap_usd"], "5")
+        self.assertEqual(public["budget_usd"], "10")
+
     def test_presence_projection_maps_only_true_to_unknown_without_changing_native_values(self):
         before = state()
         identity = {'user_id': USER, 'name': 'Ada', 'email': 'ada@example.invalid', 'models': ('a', 'b')}
@@ -242,6 +285,16 @@ class BootstrapPolicyTests(unittest.TestCase):
         self.assertEqual(public["shares"][1]["share_percent"], "0")
         self.assertNotEqual(public["revision"], policy.template_revision(None, self.labels))
 
+    def test_existing_template_expands_with_zero_shares_and_preserves_existing_values(self):
+        template = policy.parse_template_plan(json.dumps(self.template_plan()), None, self.labels)
+        expanded = policy.template_value(template, {**self.labels, "new": "New"})
+        self.assertEqual(expanded, {**template, "shares": {"a": "100", "b": "0", "new": "0"}})
+        self.assertEqual(template["shares"], {"a": "100", "b": "0"})
+        self.assertNotEqual(policy.template_revision(template, self.labels),
+                            policy.template_revision(template, {**self.labels, "new": "New"}))
+        with self.assertRaisesRegex(contract.BudgetAdminError, "template_models_changed"):
+            policy.template_value(template, {"a": "A"})
+
     def test_template_rejects_stale_unknown_models_precision_and_mixed_operations(self):
         for update in ({"expected_revision": "0" * 64}, {"shares": {"a": "100"}},
                        {"budget_usd": 40}, {"budget_duration": "30d"}, {"changes": []},
@@ -284,6 +337,32 @@ class BootstrapPolicyTests(unittest.TestCase):
 
 
 class MutationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pending_model_created_only_on_apply_at_zero_with_existing_state_preserved(self):
+        previous = state()
+        pending = contract.ModelBudget("new", None, None, None, None, None, None, None, pending=True)
+        before = replace(previous, models=(*previous.models, pending))
+        client = NativeClient(before)
+        change = prepared(before, shares={"a": "50", "b": "50", "new": "0"})
+        self.assertEqual(client.writes, [])
+        after = await policy.apply_prepared(client, change)
+        self.assertEqual(client.writes, [("create", "new", D(0))])
+        self.assertEqual(after.models[:2], previous.models)
+        self.assertEqual((after.max_budget, after.spend, after.budget_reset_at),
+                         (previous.max_budget, previous.spend, previous.budget_reset_at))
+        self.assertFalse(after.models[-1].pending)
+        self.assertEqual((after.models[-1].max_budget, after.models[-1].spend), (D(0), D(0)))
+
+    async def test_pending_model_created_at_zero_before_confirmed_nonzero_allocation(self):
+        previous = state()
+        pending = contract.ModelBudget("new", None, None, None, None, None, None, None, pending=True)
+        before = replace(previous, models=(*previous.models, pending))
+        client = NativeClient(before)
+        after = await policy.apply_prepared(client, prepared(before, shares={"a": "40", "b": "40", "new": "20"}))
+        self.assertEqual(client.writes, [("model", "a" * 64, D(4)), ("model", "b" * 64, D(4)),
+                                         ("create", "new", D(0)), ("model", "c" * 64, D(2))])
+        self.assertEqual([m.max_budget for m in after.models], [D(4), D(4), D(2)])
+        self.assertEqual([m.key_hash for m in after.models[:2]], [m.key_hash for m in previous.models])
+
     async def test_cap_change_preserves_each_native_block_state(self):
         for blocked in (True, False, None):
             with self.subTest(blocked=blocked):

@@ -59,6 +59,17 @@ jobs:
           private.mkdir(mode=0o700)
           config = private / 'config.yaml'
           config.write_bytes(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
+          if os.environ['ACCEPTANCE_PROFILE'] == 'gui-product':
+              # Reuse the existing synthetic public catalog; no paid/external inference.
+              content = config.read_text(encoding='utf-8')
+              assert content.count('      input_cost_per_token: 0.01\n') == 2
+              assert content.count('      output_cost_per_token: 0.02\n') == 2
+              content = content.replace('      input_cost_per_token: 0.01\n', '').replace('      output_cost_per_token: 0.02\n', '')
+              for route in ('a', 'b'):
+                  old = '      id: goal584-deployment-' + route
+                  assert content.count(old) == 1
+                  content = content.replace(old, old + '\n      owui_billing_account_id: synthetic-provider\n      owui_billing_account_label: Test provider\n      owui_billing_immutable_deployment_id: true')
+              config.write_text(content, encoding='utf-8')
           config.chmod(0o600)
           paths = {
               'PROOF_ENV_FILE': str(Path(os.environ['RUNNER_TEMP'], 'goal584-proof.env')),
@@ -82,6 +93,9 @@ jobs:
               'PROOF_PRIVATE_DIR': str(private),
               'PROOF_CONFIG_FILE': str(config),
           }
+          if os.environ['ACCEPTANCE_PROFILE'] == 'gui-product':
+              values.update(PROOF_CATALOG_ENABLED='true', PROOF_LOCAL_COST_MAP='False',
+                            PROOF_COST_MAP_URL='http://provider:8000/__proof/catalog')
           fd = os.open(paths['PROOF_ENV_FILE'], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
           with os.fdopen(fd, 'w', encoding='utf-8') as handle:
               for key, value in values.items():
@@ -812,6 +826,16 @@ jobs:
               '--context', str(output / 'webui-gateway-context.json'), '--native', str(final),
               '--receipt', str(output / 'admin-boundary.json')], check=True)
           PY
+
+      - name: Qualify native zero assignment for an automatically discovered model
+        if: inputs.acceptance == 'gui-product'
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+            -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_admin.py \
+            --phase model-expansion --private-state /proof-private/webui-state.private.json \
+            --receipt /proof-private/model-expansion.safe.json > "$PROOF_OUTPUT_DIR/admin/model-expansion.json"
 
       - name: Prepare a WebUI-only new hire after the accepted admin phase
         if: env.STREAM_COMPONENT_ONLY != 'true'

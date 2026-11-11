@@ -9,7 +9,7 @@ description: Open a native budget form; apply only the exact stored JSON user tu
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import copy
 import json
 import re
@@ -22,7 +22,7 @@ from employee_budget_admin_client import BudgetAdminClient
 from employee_budget_admin_contract import BudgetAdminError, EmployeeBudgetInspection
 import employee_budget_admin_policy as policy
 from employee_budget_admin_ui import render_editor
-from employee_budget_cost_readback import read_unknown_presence
+from employee_budget_cost_readback import read_unknown_presence, read_admin_overview
 from employee_budget_webui_model_binding import native_connection
 
 
@@ -76,8 +76,9 @@ async def stored_plan(chat_id, message, user):
 
 class AuthorizedWriter:
     """Recheck native authority after awaited reads, before each cap-only POST."""
-    def __init__(self, client, authorize):
+    def __init__(self, client, authorize, secrets=None):
         self.client, self.authorize = client, authorize
+        self.secrets = secrets or {}
 
     async def read_employee(self, user_id, models):
         return await self.client.read_employee(user_id, models)
@@ -89,6 +90,10 @@ class AuthorizedWriter:
     async def set_model_cap(self, key_hash, cap):
         await self.authorize()
         await self.client.set_model_cap(key_hash, cap)
+
+    async def create_model_assignment(self, user_id, model):
+        return await self.client.create_model_assignment(user_id, model, self.secrets[model],
+                                                         before_write=self.authorize)
 
 
 @dataclass(frozen=True)
@@ -103,6 +108,7 @@ class LoadedDirectory:
     labels: dict
     service: dict | None = None
     unknown_presence: dict | None = None
+    overview: dict | None = None
 
     def configuration(self):
         # Server-only comparison; never project credentials into HTML or context.
@@ -112,7 +118,8 @@ class LoadedDirectory:
 
 class Tools:
     class Valves(BaseModel):
-        managed_model_ids: list[str] = Field(default_factory=list, max_length=100)
+        managed_model_ids: list[str] = Field(default_factory=list, max_length=100,
+            description="Legacy setting, ignored: managed models are discovered from native connections and ACLs.")
         employee_limit: int = Field(default=100, ge=1, le=100)
 
     def __init__(self):
@@ -128,19 +135,24 @@ class Tools:
         url = config.get("ledger_base_url")
         key = config.get("ledger_admin_key")
         require(isinstance(url, str) and bool(url) and isinstance(key, str) and bool(key), "invalid_configuration")
-        configured = self.valves.managed_model_ids
-        require(bool(configured) and len(set(configured)) == len(configured), "invalid_configuration")
         # A request-level base-model override belongs to the currently executing
         # inference route, not an arbitrary management-directory model lookup.
         require(not hasattr(request, "base_model_id"), "unsupported_model_override")
         bindings, labels, secrets = [], {}, {}
-        for model_id in configured:
-            model = request.app.state.MODELS.get(model_id)
-            secret, wire = await native_connection({"model": model_id}, model, request, url, require=require)
-            require(wire not in labels, "ambiguous_managed_model")
-            labels[wire] = model.get("name") if isinstance(model.get("name"), str) else model_id
+        for model_id, model in sorted(request.app.state.MODELS.items()):
+            if not isinstance(model, dict) or model.get("owned_by") != "openai" or model.get("pipe"):
+                continue
+            binding = await native_connection({"model": model_id}, model, request, url, require=require,
+                                              allow_other_gateway=True)
+            if binding is None:
+                continue
+            secret, wire = binding
+            require(wire not in secrets or secrets[wire] == secret, "ambiguous_managed_model")
+            if wire not in labels or model_id == wire:
+                labels[wire] = model.get("name") if isinstance(model.get("name"), str) else model_id
             secrets[wire] = secret
             bindings.append((model, wire))
+        require(bool(labels) and len(labels) <= 100, "invalid_configuration")
         policy.template_value(config.get("default_budget_template"), labels)
         listing = await Users.get_users(filter={"roles": ["user"]}, skip=0, limit=self.valves.employee_limit + 1)
         employees, count = listing.get("users"), listing.get("total")
@@ -162,7 +174,8 @@ class Tools:
                     if type(error) is Exception and str(error) == "Model not found":
                         continue
                     raise BudgetAdminError("model_access_unavailable") from None
-                allowed.append(wire)
+                if wire not in allowed:
+                    allowed.append(wire)
             info = employee.info if isinstance(employee.info, dict) else {}
             department = info.get("department")
             identities[user_id] = {"user_id": user_id, "name": employee.name, "email": employee.email,
@@ -185,8 +198,10 @@ class Tools:
                        "remaining_usd": policy.money(budget.max_budget - budget.spend)
                            if budget.max_budget is not None else None}
         unknown_presence = await self._unknown_presence(session, url, key, identities, states)
+        overview = await read_admin_overview(session, base_url=url, admin_key=key, models=labels,
+                                            configsnapshots=config.get("provider_balance_snapshots", {}))
         return LoadedDirectory(url, identities, states, client, copy.deepcopy(config), secrets, inspections, labels,
-                               service, unknown_presence)
+                               service, unknown_presence, overview)
 
     @staticmethod
     async def _unknown_presence(session, url, key, identities, states):
@@ -197,7 +212,11 @@ class Tools:
             require(state.user_id == uid and len(models) == len(set(models))
                     and set(models) == set(allowed), "invalid_models")
 
-        return await read_unknown_presence(session, base_url=url, admin_key=key, states=states,
+        observed = {uid: replace(state, models=tuple(model for model in state.models
+                                                   if not getattr(model, "pending", False)))
+                    for uid, state in states.items()}
+        observed = {uid: state for uid, state in observed.items() if state.models}
+        return await read_unknown_presence(session, base_url=url, admin_key=key, states=observed,
                                            timeout_seconds=PRESENCE_READ_SECONDS, max_pages=2)
 
     @staticmethod
@@ -210,7 +229,8 @@ class Tools:
         pending = [policy.public_pending(data.identities[uid], inspection, template, data.labels)
                    for uid, inspection in data.inspections.items() if inspection.kind != "ready"]
         html = render_editor(rows, as_of=datetime.now(timezone.utc).isoformat(), status=status,
-                             template=policy.template_public(template, data.labels), pending=pending, service=data.service)
+                             template=policy.template_public(template, data.labels), pending=pending, service=data.service,
+                             overview=getattr(data, "overview", None))
         return (HTMLResponse(html, headers={"Content-Disposition": "inline", "Cache-Control": "no-store"}),
                 {"status": outcome, "message": status or "Budget form opened. Apply its next stored JSON turn with apply_budget_form and no arguments."})
 
@@ -227,6 +247,9 @@ class Tools:
         user, chat_id, message = await context(__request__, __user__, __metadata__)
         parent_id, text = await stored_plan(chat_id, message, user)
         kind = policy.submission_kind(text)
+        if kind == "provider_balance_snapshot":
+            return await self._apply_balance(text, user, chat_id, message, parent_id,
+                                              __request__, __user__, __metadata__, __event_call__)
         if kind != "employee_budget_plan":
             return await self._apply_setup(kind, text, user, chat_id, message, parent_id,
                                            __request__, __user__, __metadata__, __event_call__)
@@ -256,10 +279,17 @@ class Tools:
                 return self._result(fresh, outcome="cancelled",
                                     status="Изменения отменены. Показано текущее состояние.")
             require(fresh.url == data.url and fresh.identities == data.identities, "stale_directory")
+            require(fresh.configuration() == data.configuration(), "stale_configuration")
             require(all(change.user_id in fresh.states for change in changes), "employee_not_ready")
             fresh_prepared = tuple(policy.prepare_change(change, fresh.states[change.user_id]) for change in changes)
             require(policy.confirmation_text(fresh_prepared, fresh.identities) == confirmation, "stale_confirmation")
-            writer = AuthorizedWriter(fresh.client, authorize_source)
+            async def before_write():
+                await authorize_source()
+                current = await self._load(__request__)
+                await authorize_source()
+                require(current.configuration() == fresh.configuration(), "stale_configuration")
+
+            writer = AuthorizedWriter(fresh.client, before_write, fresh.secrets)
             for change in fresh_prepared:
                 await policy.apply_prepared(writer, change)
             status = "Изменения применены. Показано текущее состояние."
@@ -274,6 +304,68 @@ class Tools:
         data = await self._load(__request__)
         await context(__request__, __user__, __metadata__)
         return self._result(data, status=status, outcome=outcome)
+
+    async def _apply_balance(self, text, user, chat_id, message, parent_id,
+                             request, actor, metadata, event_call):
+        from open_webui.models.functions import Functions
+
+        plan = policy.parse_balance_plan(text)
+
+        async def authorize_source():
+            current_user, current_chat, current_message = await context(request, actor, metadata)
+            require((current_user.id, current_chat, current_message["id"]) ==
+                    (user.id, chat_id, message["id"]), "stale_context")
+            require(await stored_plan(current_chat, current_message, current_user) == (parent_id, text),
+                    "stale_source")
+
+        def selected(data):
+            accounts = (data.overview or {}).get("accounts", [])
+            found = [item for item in accounts if item.get("id") == plan["account_id"]]
+            require(len(found) == 1, "unknown_billing_account")
+            require(found[0].get("revision") == plan["expected_revision"], "stale_balance_snapshot")
+            return found[0]
+
+        data = await self._load(request)
+        await authorize_source()
+        account = selected(data)
+        observed = datetime.fromisoformat(plan["observed_at"].replace("Z", "+00:00"))
+        require(observed.tzinfo is not None and observed.utcoffset() is not None, "invalid_balance_time")
+        require(observed <= datetime.now(timezone.utc), "invalid_balance_time")
+        snapshot = {"amount": plan["amount"], "currency": plan["currency"],
+                    "observed_at": observed.astimezone(timezone.utc).isoformat(),
+                    "actor": getattr(user, "name", None) or user.id,
+                    "actor_id": user.id, "source": "manual",
+                    "recorded_at": datetime.now(timezone.utc).isoformat()}
+        require(callable(event_call), "confirmation_unavailable")
+        approved = await event_call({"type": "confirmation", "data": {
+            "title": "Последний известный баланс провайдера",
+            "message": policy.markdown_text(account["label"] + ": " + plan["amount"] + " " + plan["currency"]
+                + "\nПроверено в ЛК: " + snapshot["observed_at"]
+                + "\nРучной снимок. Расходы и лимиты сотрудников сохраняются.")}})
+        await authorize_source()
+        fresh = await self._load(request)
+        await authorize_source()
+        if approved is not True:
+            return self._result(fresh, outcome="cancelled", status="Ручной снимок не сохранён.")
+        selected(fresh)
+        require(fresh.configuration() == data.configuration(), "stale_configuration")
+        # Reuse the protected native Functions configuration. It has no CAS;
+        # re-read/preserve unrelated fields and verify the acknowledged write.
+        current = await Functions.get_function_valves_by_id("employee_budget_cost")
+        await authorize_source()
+        require(current == fresh.config, "stale_configuration")
+        snapshots = copy.deepcopy(current.get("provider_balance_snapshots", {}))
+        require(type(snapshots) is dict, "invalid_configuration")
+        snapshots[plan["account_id"]] = snapshot
+        updated = {**copy.deepcopy(current), "provider_balance_snapshots": snapshots}
+        saved = await Functions.update_function_valves_by_id("employee_budget_cost", updated)
+        require(saved is not None, "balance_write_unconfirmed")
+        actual = await Functions.get_function_valves_by_id("employee_budget_cost")
+        await authorize_source()
+        require(actual == updated, "balance_write_unconfirmed")
+        result = await self._load(request)
+        await authorize_source()
+        return self._result(result, status="Ручной снимок баланса сохранён.")
 
     async def _apply_setup(self, kind, text, user, chat_id, message, parent_id,
                            request, actor, metadata, event_call):

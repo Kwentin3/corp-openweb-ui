@@ -27,7 +27,7 @@ async def service_configuration(user_id, *, require):
     return url, payer
 
 
-async def native_connection(body, model, request, ledger_base_url, *, require):
+async def native_connection(body, model, request, ledger_base_url, *, require, allow_other_gateway=False):
     from open_webui.models.models import Models
     from open_webui.routers.openai import get_openai_connection
     from open_webui.utils.model_ids import strip_provider_model_prefix
@@ -43,6 +43,9 @@ async def native_connection(body, model, request, ledger_base_url, *, require):
     require(isinstance(entry, dict) and type(entry.get("urlIdx")) is int, "native_connection")
     url, key, config = await get_openai_connection(entry["urlIdx"])
     expected = ledger_base_url.rstrip("/")
+    require(bool(expected), "gateway_configuration")
+    if allow_other_gateway and isinstance(url, str) and url.rstrip("/") not in (expected, expected + "/v1"):
+        return None
     require(bool(expected) and url.rstrip("/") in (expected, expected + "/v1")
             and config.get("auth_type", "bearer") == "bearer"
             and isinstance(key, str) and bool(key), "gateway_configuration")

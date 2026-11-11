@@ -92,6 +92,7 @@ def source_contract():
                "canceled": {"status": "cancelled", "message": message("Изменения отменены.")},
                "applied": {"status": "success", "message": message("Изменения применены.")}}
     results["recovered"] = results["applied"]
+    results["balance_saved"] = {"status": "success", "message": message("Ручной снимок баланса сохранён.")}
     return skill, intent, results
 
 
@@ -210,14 +211,45 @@ def verify(browser, provider, context, native):
     require(len(staff) == 2 and len({admin, *staff}) == 3 and browser["model_id"] == "goal584-budget-admin",
             "Native admin/employee identities differ")
     skill, intent, results = source_contract()
-    labels = ("opened", "canceled", "applied", "recovered")
+    manual = "balance_saved" in browser
+    require(not browser.get("monthly_seed") or manual, "GUI monthly profile omitted manual provider balance acceptance")
+    labels = ("opened", "canceled", "applied", "recovered") + (("balance_saved",) if manual else ())
     turns = [browser[label] for label in labels]
     turn_texts = [turn["stored_parent_text"] for turn in turns]
     require(turn_texts[0] == intent and turn_texts[1] == turn_texts[2]
             and json.loads(turn_texts[1]) == browser["original_proposal"]
             and json.loads(turn_texts[3]) == browser["recovery_proposal"], "Stored original/recovery proposal changed")
+    if manual:
+        plan = browser.get("manual_balance_proposal")
+        require(isinstance(plan, dict) and set(plan) == {"schema", "type", "account_id", "expected_revision",
+                "amount", "currency", "observed_at"} and plan["schema"] == 1
+                and plan["type"] == "provider_balance_snapshot" and plan["amount"] == "123.45"
+                and plan["currency"] == "USD" and json.loads(turn_texts[4]) == plan
+                and isinstance(plan["account_id"], str) and bool(plan["account_id"])
+                and re.fullmatch(r"[0-9a-f]{64}", plan["expected_revision"]),
+                "Stored manual balance proposal changed")
+        require(all(browser["balance_saved"].get(field) is True for field in
+                ("manual_snapshot_visible", "native_staff_state_unchanged", "provider_overview_visible",
+                 "public_price_change_visible", "public_native_source_load_matches", "old_native_rows_unchanged")),
+                "Manual provider balance acceptance evidence is missing")
+        up, restored = browser.get("public_prices_up"), browser.get("public_prices_restore")
+        for proof, restore in ((up, False), (restored, True)):
+            require(isinstance(proof, dict) and proof.get("variant") == ("S1" if restore else "S2")
+                    and proof.get("scheduled") is (not restore) and proof.get("financial_history_unchanged") is True
+                    and type(proof.get("inference_calls")) is int and proof["inference_calls"] == 0
+                    and isinstance(proof.get("source_revision"), str) and bool(proof["source_revision"])
+                    and isinstance(proof.get("loaded_at"), str) and bool(proof["loaded_at"]),
+                    "Native public tariff reload/schedule/restore evidence is incomplete")
+            rates = proof.get("applied_rates")
+            require(isinstance(rates, dict) and set(rates) == set(MODELS), "Native public tariff routes differ")
+            for model in MODELS:
+                factor = Decimal(1 if restore or model == MODELS[1] else 2)
+                require(Decimal(rates[model]["input_cost_per_token"]) == Decimal(".01") * factor
+                        and Decimal(rates[model]["output_cost_per_token"]) == Decimal(".02") * factor,
+                        "Native public tariff rates differ")
+        require(up["source_revision"] != restored["source_revision"], "Public S1/S2 source revisions did not change")
     expected = {}
-    require(len({t["chat_id"] for t in turns}) == 1 and len({t["parent_user_id"] for t in turns}) == 4,
+    require(len({t["chat_id"] for t in turns}) == 1 and len({t["parent_user_id"] for t in turns}) == len(labels),
             "Admin turns lost their single chat/distinct source parents")
     for index, turn in enumerate(turns):
         for field in ("chat_id", "assistant_id", "parent_user_id"):
@@ -238,10 +270,11 @@ def verify(browser, provider, context, native):
         uuid(call["chat_id"])
         require(call["message_id"] not in expected and call["terminal_persisted"] is True, "Duplicate/nonterminal browser attempt")
         expected[call["message_id"]] = (call["user_id"], call["model"], call["chat_id"], int(call["outcome"] == "success"), None)
-    require(len(expected) == 10, "Admin/employee assistant IDs collided")
+    require(len(expected) == len(labels) + 6, "Admin/employee assistant IDs collided")
     requests = provider["requests"]
     physical = {r["id"]: r for r in requests}
-    require(len(physical) == len(requests) == 11, "Expected exactly eleven physical calls after reset")
+    physical_count, signed_count, admin_count = (13, 16, 10) if manual else (11, 14, 8)
+    require(len(physical) == len(requests) == physical_count, "Unexpected physical call count after reset")
     rows = native["attributed_spend_logs"]
     ledger = {r["request_id"]: r for r in rows}
     baseline = browser["baseline_positive_request_ids"]
@@ -249,10 +282,10 @@ def verify(browser, provider, context, native):
             and set(baseline) <= set(ledger) and not set(baseline) & set(physical)
             and set(ledger) - set(baseline) == set(physical), "Phase native/provider delta has missing or extra positive rows")
     by_nonce = {r["owui_budget"]["call_id"]: r for r in rows if r["request_id"] in physical}
-    require(len(by_nonce) == 11, "Physical rows reused a signed nonce")
+    require(len(by_nonce) == physical_count, "Physical rows reused a signed nonce")
     observations = context["requests"]
-    require(len(observations) == 14 and all(r.get("verified_cost_scope") for r in observations),
-            "Expected fourteen signed attempts and no raw/unbound extras")
+    require(len(observations) == signed_count and all(r.get("verified_cost_scope") for r in observations),
+            "Expected exact signed attempts and no raw/unbound extras")
     grouped, nonces = {}, set()
     for observation in observations:
         scope = observation["verified_cost_scope"]
@@ -262,7 +295,7 @@ def verify(browser, provider, context, native):
             uuid(scope[field])
         require(scope["call_id"] not in nonces, "Signed attempt nonce repeated")
         nonces.add(scope["call_id"])
-        owner, model, chat_id, count, _ = expected[scope["answer_id"]]
+        owner, model, chat_id, count, turn_index = expected[scope["answer_id"]]
         require(scope["user_id"] == observation["user_id"] == owner and scope["model"] == model
                 and scope["chat_id"] == scope["root_chat_id"] == chat_id
                 and scope["answer_id"] == scope["root_answer_id"] and observation.get("task") == ""
@@ -274,8 +307,9 @@ def verify(browser, provider, context, native):
                     "Denied nonce overlaps existing positive ledger history")
         provider_row = None
         if row is not None:
+            expected_cost = Decimal(".40") if manual and turn_index == 4 else Decimal(".20")
             require(row["owui_budget"] == scope and row["user_id"] == owner and row["session_id"] == chat_id
-                    and row["model_group"] == model and Decimal(row["spend_usd"]) == Decimal(".20")
+                    and row["model_group"] == model and Decimal(row["spend_usd"]) == expected_cost
                     and [row[f] for f in ("prompt_tokens", "completion_tokens", "total_tokens")] == [10, 5, 15],
                     "Native row differs from signed attribution/cost/usage")
             provider_row = physical[row["request_id"]]
@@ -315,11 +349,12 @@ def verify(browser, provider, context, native):
     all_keys = native["keys"] + native["admin_accounting"]["keys"]
     verify_accounting_totals(all_users, all_keys, rows, {admin, *staff})
     admin_rows = [r for r in rows if r["user_id"] == admin]
-    require(len(admin_rows) == 8 and all(r["model_group"] == MODELS[0] and r["request_id"] in physical for r in admin_rows),
+    require(len(admin_rows) == admin_count and all(r["model_group"] == MODELS[0] and r["request_id"] in physical for r in admin_rows),
             "Admin inference was billed to a staff identity, wrong model or extra history")
-    return {"passed": True, "admin_logical_turns": 4, "admin_physical_calls": 8, "staff_successes": 3,
-            "staff_budget_denials": 3, "signed_attempts": 14, "physical_calls": 11, "extra_provider_calls": 0,
-            "phase_cost_usd": "2.20", "admin_cost_usd": "1.60", "staff_cost_usd": "0.60",
+    return {"passed": True, "admin_logical_turns": len(labels), "admin_physical_calls": admin_count, "staff_successes": 3,
+            "staff_budget_denials": 3, "signed_attempts": signed_count, "physical_calls": physical_count, "extra_provider_calls": 0,
+            "phase_cost_usd": "3.00" if manual else "2.20", "admin_cost_usd": "2.40" if manual else "1.60", "staff_cost_usd": "0.60",
+            "native_public_tariff_change": manual, "native_public_schedule_restored": manual,
             "exact_stored_json_to_provider": True, "native_apply_arguments_empty": True,
             "short_owner_tool_results": True, "html_excluded": True, "full_skill_in_system_context": True,
             "skill_sha256": hashlib.sha256(skill.encode()).hexdigest(),

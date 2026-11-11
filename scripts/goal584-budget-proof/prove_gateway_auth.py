@@ -31,6 +31,8 @@ OPERATOR_ROUTES = [
     "/openapi.json", "/user/new", "/user/update", "/user/info", "/user/list",
     "/key/generate", "/key/update", "/key/block", "/key/info", "/key/list", "/spend/logs/v2",
     "/model/info",
+    "/model/cost_map/source",
+    "/reload/model_cost_map", "/schedule/model_cost_map_reload", "/schedule/model_cost_map_reload/status",
 ]
 
 

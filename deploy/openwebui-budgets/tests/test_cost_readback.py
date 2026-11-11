@@ -866,5 +866,160 @@ class AdminUnknownPresenceTests(unittest.IsolatedAsyncioTestCase):
                 user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER, observed_request_ids=["known"])
 
 
+class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
+    def test_sdk_literal_financial_code_without_prose_or_executing_text(self):
+        error = {'llm_provider': 'openai', 'error_message':
+                 "RateLimitError: Error code: 429 - {'error': {'code': 'credit_balance_exhausted'}}"}
+        self.assertTrue(cost._financial_refusal({'error_information': error}))
+        for body in ("{'error': {'message': 'insufficient_quota', 'code': 'rate_limit_exceeded'}}",
+                     "__import__('os').system('invalid')", "{'error': {'code': '429'}}"):
+            self.assertFalse(cost._financial_refusal({'error_information': {**error, 'error_message': body}}))
+
+    async def asyncSetUp(self):
+        self.identity = "a" * 64
+        self.info = {"id": self.identity, "owui_billing_account_id": "corporate-provider",
+                     "owui_billing_immutable_deployment_id": True,
+                     "input_cost_per_token": "0.000001", "output_cost_per_token": "0.000002",
+                     "cache_read_input_token_cost": "0.0000001"}
+        self.rows, self.requests, self.extra_models = [], [], []
+        self.log_payload = None
+        self.source = {"source": "remote", "loaded_at": datetime.now(timezone.utc).isoformat(),
+                       "url": "https://private-source.invalid/?token=do-not-project"}
+        app = web.Application()
+        app.router.add_get("/{tail:.*}", self.serve)
+        self.runner = web.AppRunner(app)
+        await self.runner.setup()
+        site = web.TCPSite(self.runner, "127.0.0.1", 0)
+        await site.start()
+        self.base = f"http://127.0.0.1:{site._server.sockets[0].getsockname()[1]}"
+        self.session = ClientSession()
+
+    async def asyncTearDown(self):
+        await self.session.close()
+        await self.runner.cleanup()
+
+    async def serve(self, request):
+        self.requests.append((request.path, dict(request.query), request.headers.get("Authorization")))
+        if request.path == "/model/info":
+            return web.json_response({"data": [{"model_name": "alias-a", "model_info": self.info,
+                "litellm_params": {"api_key": "private-upstream-key", "api_base": "https://private.invalid"}}] + self.extra_models})
+        if request.path == "/model/cost_map/source":
+            return web.json_response(self.source)
+        if request.path == cost.ADMIN_ROUTE:
+            number = int(request.query["page"])
+            return web.json_response(self.log_payload or page(self.rows[(number - 1) * 100:number * 100],
+                                                            number=number, total=len(self.rows)))
+        return web.Response(status=500)
+
+    def event(self, kind, minute=0, **changes):
+        raw = row(f"event-{minute}")
+        begin = datetime.now(timezone.utc) - timedelta(hours=1) + timedelta(minutes=minute)
+        raw.update(model_id=self.identity, cache_hit="False", startTime=begin.isoformat(),
+                   endTime=(begin + timedelta(seconds=1)).isoformat())
+        raw["metadata"].update(attempted_fallbacks=0)
+        if kind == "financial_refusal":
+            raw["status"] = "failure"
+            raw["metadata"]["error_information"] = {"llm_provider": "openai", "error_code": "429",
+                "error_message": 'RateLimitError: provider - {"error":{"code":"insufficient_quota","message":"private-error"}}'}
+        raw.update(changes)
+        return raw
+
+    async def read(self, snapshots=None):
+        return await cost.read_admin_overview(self.session, base_url=self.base, admin_key="private-admin",
+                                             models={"alias-a": "Friendly model"}, configsnapshots=snapshots or {})
+
+    async def test_actual_later_paid_same_route_clears_and_preserves_only_safe_fields(self):
+        self.rows = [self.event("success", 2), self.event("financial_refusal")]
+        self.rows[0]["metadata"]["spend_logs_metadata"]["owui_billed_token_rates"] = {
+            "availability": "available", "rates": {"input_cost_per_token": "0.0000005",
+                                                      "output_cost_per_token": "0.000002"}}
+        snapshot = {"amount": "12.50", "currency": "EUR", "observed_at": "2026-11-11T10:00:00Z",
+                    "actor": USER, "source": "manual", "revision": "stored-revision"}
+        result = await self.read({"corporate-provider": snapshot})
+        self.assertEqual(result["accounts"][0]["status"], "success")
+        self.assertEqual(result["accounts"][0]["balance"]["amount"], "12.50")
+        self.assertRegex(result["accounts"][0]["revision"], r"^[0-9a-f]{64}$")
+        self.assertEqual(result["prices"][0]["input_per_million"], "1.000000")
+        self.assertTrue(result["prices"][0]["changed"])
+        self.assertEqual(result["prices"][0]["as_of"], self.source['loaded_at'])
+        for secret in ("private-upstream-key", "private-error", "do-not-project", "private-admin", "private.invalid"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertEqual(len(self.requests), 3)
+        self.assertEqual(self.requests[-1][1]["model_id"], self.identity)
+        self.assertTrue(all(request[2] == "Bearer private-admin" for request in self.requests))
+
+    async def test_new_price_row_does_not_hide_pre_reload_price_change(self):
+        self.source['loaded_at'] = (datetime.now(timezone.utc) - timedelta(minutes=59)).isoformat()
+        self.rows = [self.event('success', 2), self.event('success', 0)]
+        for row, rate in zip(self.rows, ('0.000001', '0.0000005')):
+            row['metadata']['spend_logs_metadata']['owui_billed_token_rates'] = {
+                'availability': 'available', 'rates': {
+                    'input_cost_per_token': rate, 'output_cost_per_token': '0.000002'}}
+        self.assertTrue((await self.read())['prices'][0]['changed'])
+
+    async def test_cached_fallback_unknown_usage_wrong_route_and_overlapping_success_never_clear(self):
+        for change in ({"cache_hit": "True"}, {"model_id": "other-route"}, {"spend": "0"},
+                       {"total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0},
+                       {"startTime": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()}):
+            with self.subTest(change=change):
+                self.rows = [self.event("success", 2, **change), self.event("financial_refusal")]
+                self.assertEqual((await self.read())["accounts"][0]["status"], "financial_refusal")
+        for fallback in (1, None, False):
+            self.rows = [self.event("success", 2), self.event("financial_refusal")]
+            self.rows[0]["metadata"]["attempted_fallbacks"] = fallback
+            self.assertEqual((await self.read())["accounts"][0]["status"], "financial_refusal")
+
+    async def test_generic_429_native_budget_and_reflected_prompt_are_not_financial_evidence(self):
+        for message in ('too many requests', '{"error":{"code":"rate_limit_exceeded"}}',
+                        '{"error":{"message":"insufficient_quota"}}',
+                        '{"input":{"error":{"code":"insufficient_quota"}}}', 'budget exceeded'):
+            self.rows = [self.event("financial_refusal")]
+            self.rows[0]["metadata"]["error_information"]["error_message"] = message
+            self.assertEqual((await self.read())["accounts"][0]["status"], "unknown")
+
+    async def test_credential_change_and_explicit_mutable_ids_cannot_erase_refusal(self):
+        self.info["id"] = self.identity = "explicit-deployment"
+        self.info.pop("owui_billing_immutable_deployment_id")
+        self.rows = [self.event("success", 2), self.event("financial_refusal")]
+        self.assertEqual((await self.read())["accounts"][0]["status"], "financial_refusal")
+        self.info["owui_billing_immutable_deployment_id"] = True
+        self.assertEqual((await self.read())["accounts"][0]["status"], "success")
+
+    async def test_paid_other_model_recovers_only_explicit_same_protected_account(self):
+        second = {**self.info, "id": "b" * 64}
+        self.extra_models = [{"model_name": "alias-b", "model_info": second}]
+        self.rows = [self.event("success", 2, model_id=second["id"]), self.event("financial_refusal")]
+        async def read():
+            return await cost.read_admin_overview(self.session, base_url=self.base, admin_key="private-admin",
+                models={"alias-a": "First model", "alias-b": "Second model"}, configsnapshots={})
+        result = await read()
+        self.assertEqual(len(result["accounts"]), 1)
+        self.assertEqual(result["accounts"][0]["status"], "success")
+        second["owui_billing_account_id"] = "different-account"
+        result = await read()
+        self.assertEqual(next(a for a in result["accounts"] if a["id"] == "corporate-provider")["status"], "financial_refusal")
+
+    async def test_truncated_or_duplicate_native_scan_never_announces_recovery(self):
+        self.rows = [self.event("success", 2)]
+        self.log_payload = page(self.rows * 100, total=300)
+        result = await self.read()
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["accounts"][0]["status"], "unknown")
+        self.log_payload = None
+        self.rows = [self.event("success", index) for index in range(300)]
+        result = await self.read()
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["accounts"][0]["status"], "unknown")
+        self.assertEqual([request[1]["page"] for request in self.requests if request[0] == cost.ADMIN_ROUTE][-2:], ["1", "2"])
+
+    async def test_absent_rates_or_financial_rows_remain_unknown(self):
+        self.info.pop("input_cost_per_token")
+        result = await self.read()
+        self.assertIsNone(result["prices"][0]["input_per_million"])
+        self.assertFalse(result["prices"][0]["changed"])
+        self.assertEqual(result["accounts"][0]["status"], "unknown")
+        self.assertIsNone(result["accounts"][0]["balance"])
+
+
 if __name__ == "__main__":
     unittest.main()

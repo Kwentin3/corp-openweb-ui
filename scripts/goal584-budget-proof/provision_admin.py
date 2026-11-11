@@ -22,6 +22,7 @@ from pathlib import Path
 import re
 import secrets
 import sys
+from uuid import UUID, uuid5
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
@@ -51,7 +52,7 @@ SKILL = """# Employee budget administration
 For a request to view or configure employee budgets, call open_budget_form.
 Use view_json only for display filters. Present the native form to the admin.
 When the current user turn is a JSON employee_budget_plan,
-employee_budget_template or employee_budget_initialize, call apply_budget_form
+employee_budget_template, employee_budget_initialize or provider_balance_snapshot, call apply_budget_form
 with no business arguments. The server reads the exact saved parent user turn;
 do not copy, rewrite or interpret its changes as tool arguments. Applying requires
 the native server confirmation. Treat the returned fresh form as the result;
@@ -667,6 +668,147 @@ def denied_status(webui, method, path, token, *, body=None):
     return status
 
 
+def public_prices(state, *, restore=False):
+    """Change only the existing disposable public catalog, never native spend."""
+    require(os.environ.get('LITELLM_MODEL_COST_MAP_URL') == 'http://provider:8000/__proof/catalog'
+            and os.environ.get('LITELLM_LOCAL_MODEL_COST_MAP', '').lower() == 'false',
+            'Public price observation requires the isolated synthetic catalog')
+    native = native_client(state)
+    before = read_states(state)
+    old_rows, old_zero = positive_logs(native, state)
+    variant = 'S1' if restore else 'S2'
+    request = Request('http://provider:8000/__proof/catalog/control', method='POST',
+        data=json.dumps({'variant': variant}).encode(), headers={'Content-Type': 'application/json'})
+    with native.opener.open(request, timeout=5) as response:
+        require(response.status == 200, 'Synthetic catalog selection failed')
+        response.read(8192)
+    synced = native.ok('POST', '/reload/model_cost_map', body={})
+    source = native.ok('GET', '/model/cost_map/source')
+    require(source.get('source') == 'remote' and source.get('url') == 'http://provider:8000/__proof/catalog'
+            and isinstance(source.get('source_revision'), str), 'Native public source differs')
+    info = native.ok('GET', '/model/info')['data']
+    observed = {}
+    for wire in MODELS:
+        rows = [r for r in info if r.get('model_name') == wire]
+        require(len(rows) == 1, 'Public rate lookup is ambiguous')
+        rates = rows[0]['model_info']
+        factor = Decimal(1 if restore or wire == MODELS[1] else 2)
+        require(amount(rates.get('input_cost_per_token')) == Decimal('.01') * factor
+                and amount(rates.get('output_cost_per_token')) == Decimal('.02') * factor,
+                'Native applied public rates differ')
+        observed[wire] = {k: str(rates[k]) for k in ('input_cost_per_token', 'output_cost_per_token')}
+    if restore:
+        native.ok('DELETE', '/schedule/model_cost_map_reload')
+    else:
+        native.ok('POST', '/schedule/model_cost_map_reload', query={'hours': 1}, body={})
+    scheduled = native.ok('GET', '/schedule/model_cost_map_reload/status')
+    require(scheduled.get('scheduled') is (not restore), 'Native price schedule readback differs')
+    after_rows, after_zero = positive_logs(native, state)
+    require(read_states(state) == before and after_rows == old_rows and after_zero == old_zero,
+            'Public catalog reload rewrote native financial history')
+    return {'variant': variant, 'applied_rates': observed, 'source_revision': source['source_revision'],
+            'loaded_at': source.get('loaded_at'), 'scheduled': scheduled['scheduled'],
+            'financial_history_unchanged': True, 'inference_calls': 0}
+
+
+async def provider_refusal_recovery(state, session, client, user_id, created, secret):
+    """Two synthetic calls, with status derived from actual durable native rows."""
+    from employee_budget_admin_client import _initialization_key
+    from employee_budget_cost_readback import read_admin_overview
+
+    require(os.environ.get('LITELLM_MODEL_COST_MAP_URL') == 'http://provider:8000/__proof/catalog',
+            'Provider account proof requires the isolated synthetic catalog')
+    native = native_client(state)
+    native.timeout = 10
+    def provider(path, body=None):
+        request = Request('http://provider:8000' + path, method='GET' if body is None else 'POST',
+            data=None if body is None else json.dumps(body).encode(), headers={'Content-Type': 'application/json'})
+        with native.opener.open(request, timeout=5) as response:
+            raw = response.read(2 * 1024 * 1024 + 1)
+            require(response.status == 200 and len(raw) <= 2 * 1024 * 1024, 'Provider proof read/control failed')
+            return json.loads(raw)
+    def control(status):
+        provider('/__proof/control', {'response_status': status, 'admin_mode': False, 'tool_round': False})
+    async def observed(expected, since):
+        try:
+            async with asyncio.timeout(20):
+                while True:
+                    overview = await read_admin_overview(session, base_url=PROXY_URL,
+                        admin_key=read_private(OPERATOR_STATE)['operator_token'], models={MODELS[1]: 'Synthetic B'}, configsnapshots={})
+                    accounts = overview.get('accounts', [])
+                    require(len(accounts) == 1, 'Native provider account projection is ambiguous')
+                    account = accounts[0]
+                    timestamp = account.get('event_at')
+                    stamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00')) if timestamp else None
+                    actual = await client.read_employee(user_id, tuple(MODELS))
+                    expected_spend = Decimal('.20') if expected == 'success' else Decimal(0)
+                    if (account.get('status') == expected and stamp is not None and stamp >= since
+                            and actual.spend == expected_spend and actual.models[1].spend == expected_spend):
+                        return {'status': expected, 'event_at': timestamp, 'account_id': account['id'],
+                                'native_user_and_model_spend_usd': str(expected_spend)}
+                    await asyncio.sleep(.25)
+        except asyncio.TimeoutError:
+            raise ProofError('Actual native provider status/usage/counters remain unconfirmed: ' + expected) from None
+    await client.set_model_cap(created.key_hash, Decimal('.60'))
+    credential = _initialization_key(user_id, MODELS[1], secret)
+    require(hashlib.sha256(credential.encode()).hexdigest() == created.key_hash,
+            'Native dummy assignment credential differs from its existing owner')
+    before = len(provider('/__proof/requests')['requests'])
+    body = {'model': MODELS[1], 'messages': [{'role': 'user', 'content': 'Hi'}], 'stream': False, 'max_tokens': 5}
+    try:
+        control(402)
+        sent = datetime.now(timezone.utc)
+        status, _, _ = native.request('POST', '/v1/chat/completions', token=credential, body=body)
+        require(status == 402, 'Explicit synthetic payment refusal did not reach the native API')
+        refusal = await observed('financial_refusal', sent)
+        control(200)
+        sent = datetime.now(timezone.utc)
+        status, response, _ = native.request('POST', '/v1/chat/completions', token=credential, body=body)
+        require(status == 200 and response.get('usage') == {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15},
+                'Synthetic recovery did not return actual native paid usage')
+        recovery = await observed('success', sent)
+        require(recovery['account_id'] == refusal['account_id'], 'Recovery switched provider accounts')
+        calls = provider('/__proof/requests')['requests'][before:]
+        require(len(calls) == 2 and [row['lifecycle']['response_status'] for row in calls] == [402, 200]
+                and calls[0].get('usage') is None and calls[1].get('usage') == response['usage'],
+                'Native provider proof added calls or reused cached/fallback success')
+        return {'refusal': refusal, 'recovery': recovery, 'inference_calls': 2, 'physical_calls': 2,
+                'synthetic_paid_cost_usd': '0.20', 'separate_after_browser_reconciliation': True,
+                'coverage': 'native API and durable account projection; no additional browser chat'}
+    finally:
+        control(200)
+
+
+async def model_expansion(state):
+    """Native pending -> zero assignment, then one synthetic account recovery."""
+    before = await actual_states(state)
+    user_id = str(uuid5(UUID(state['admin']['id']), 'goal584-model-expansion'))
+    key = read_private(OPERATOR_STATE)['operator_token']
+    secret = os.environ.get('OWUI_BUDGET_GATEWAY_SECRET', '')
+    async def before_write():
+        require(await actual_states(state) == before, 'Model expansion changed an existing employee')
+    async with ClientSession(trust_env=False) as session:
+        client = BudgetAdminClient(session, PROXY_URL, key)
+        initial = await client.initialize_employee(user_id, ((MODELS[0], Decimal(1)),), Decimal(1),
+                                                    secret, before_write=before_write)
+        pending = await client.read_employee(user_id, tuple(MODELS))
+        require(pending.max_budget == 1 and pending.spend == 0 and pending.models[0] == initial.models[0]
+                and pending.models[1].pending and pending.models[1].max_budget is None
+                and pending.models[1].spend is None, 'New model read projection changed native values')
+        created = await client.create_model_assignment(user_id, MODELS[1], secret, before_write=before_write)
+        actual = await client.read_employee(user_id, tuple(MODELS))
+        require(actual.max_budget == initial.max_budget and actual.spend == initial.spend
+                and actual.budget_reset_at == initial.budget_reset_at
+                and actual.models[0] == initial.models[0] and actual.models[1] == created
+                and created.max_budget == 0 and created.spend == 0 and not created.pending,
+                'New native assignment did not preserve existing budget state')
+        account_proof = await provider_refusal_recovery(state, session, client, user_id, created, secret)
+    require(await actual_states(state) == before, 'Expansion changed primary fixture finances')
+    return {'pending_model_visible_without_native_amount': True, 'created_native_cap_usd': '0',
+            'existing_assignment_and_user_unchanged': True, 'primary_fixture_unchanged': True,
+            'inference_calls': 2, 'provider_account_observations': account_proof}
+
+
 def refresh_login(webui, account, role):
     response = webui.ok("POST", "/api/v1/auths/signin",
                         body={"email": account["email"], "password": account["password"]})
@@ -734,7 +876,8 @@ def role_probe(webui, state, path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase", required=True, choices=("setup", "snapshot", "hash-probe", "native-probe", "role-probe",
-                                                          "bootstrap-setup", "bootstrap-snapshot", "unknown-setup", "unknown-snapshot"))
+                                                          "bootstrap-setup", "bootstrap-snapshot", "unknown-setup", "unknown-snapshot",
+                                                          "public-prices-up", "public-prices-restore", "model-expansion"))
     parser.add_argument("--private-state", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--browser-accounts", type=Path)
@@ -797,6 +940,10 @@ def main():
             receipt["native_probe"] = native_probe(state, deny=args.phase == "native-probe")
         elif args.phase == "role-probe":
             receipt["role_probe"] = role_probe(webui, state, args.private_state)
+        elif args.phase in ('public-prices-up', 'public-prices-restore'):
+            receipt['public_prices'] = public_prices(state, restore=args.phase.endswith('restore'))
+        elif args.phase == 'model-expansion':
+            receipt['model_expansion'] = asyncio.run(model_expansion(state))
         elif args.phase == "bootstrap-setup":
             bootstrap_setup(webui, state, args.private_state, args.browser_accounts)
         if not unknown_phase:

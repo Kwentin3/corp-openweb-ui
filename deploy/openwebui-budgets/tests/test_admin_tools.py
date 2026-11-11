@@ -61,12 +61,19 @@ class PresenceSession:
     """Finite GET/content IO leaf; real readback owns parsing/marker validation."""
     def __init__(self):
         self.requests, self.handler, self.active, self.peak = [], None, 0, 0
+        self.overview_models = []
 
     def get(self, url, *, params, headers, allow_redirects, timeout):
-        assert url == URL + '/spend/logs/v2' and allow_redirects is False
+        assert url in (URL + '/spend/logs/v2', URL + '/model/info', URL + '/model/cost_map/source') and allow_redirects is False
         assert 0 < timeout.total <= 5
         @asynccontextmanager
         async def response():
+            if url != URL + '/spend/logs/v2':
+                payload = ({'data': self.overview_models} if url.endswith('/model/info') else
+                           {'source': 'remote', 'loaded_at': '2026-11-11T09:00:00Z'})
+                async def chunks(size): yield json.dumps(payload).encode()
+                yield SimpleNamespace(status=200, content=SimpleNamespace(iter_chunked=chunks))
+                return
             self.requests.append((dict(params), dict(headers)))
             self.active += 1; self.peak = max(self.peak, self.active)
             try:
@@ -168,6 +175,66 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         text = self.html(result)
         return json.loads(text.split('<script id="budget-data" type="application/json">', 1)[1].split('</script>', 1)[0])
 
+    async def balance_plan(self):
+        self.session.overview_models = [{'model_name': MODELS[0], 'model_info': {
+            'id': 'fixed-synthetic-route', 'owui_billing_account_id': 'google-main'}}]
+        result = await self.open()
+        text = self.html(result)
+        account = json.loads(text.split('<script id="budget-account-data" type="application/json">', 1)[1]
+                             .split('</script>', 1)[0])[0]
+        return {'schema': 1, 'type': 'provider_balance_snapshot', 'account_id': account['id'],
+                'expected_revision': account['revision'], 'amount': '-0.25', 'currency': 'USD',
+                'observed_at': '2026-11-10T10:00:00Z'}
+
+    async def test_manual_balance_uses_stored_parent_admin_author_and_preserves_financial_state(self):
+        before = copy.deepcopy(self.states)
+        self.config['unrelated'] = {'keep': True}
+        self.parent['content'] = json.dumps(await self.balance_plan())
+        confirm = AsyncMock(return_value=True)
+        result = await self.apply(confirm)
+        self.assertEqual(result[1]['status'], 'success')
+        value = self.config['provider_balance_snapshots']['google-main']
+        self.assertEqual(value['amount'], '-0.25')
+        self.assertEqual(value['actor_id'], ADMIN)
+        self.assertEqual(value['source'], 'manual')
+        self.assertEqual(self.config['unrelated'], {'keep': True})
+        self.assertEqual(self.states, before)
+        self.assertEqual(self.writes, [])
+        self.assertIn('Последний известный баланс', self.html(result))
+        self.assertIn('Ручной снимок', confirm.call_args.args[0]['data']['message'])
+
+    async def test_manual_balance_cancel_and_concurrent_edit_do_not_overwrite_snapshot(self):
+        self.parent['content'] = json.dumps(await self.balance_plan())
+        result = await self.apply(AsyncMock(return_value=False))
+        self.assertEqual(result[1]['status'], 'cancelled')
+        self.functions.update_function_valves_by_id.assert_not_awaited()
+        async def concurrent(_):
+            self.config['provider_balance_snapshots'] = {'google-main': {'amount': '55', 'currency': 'USD'}}
+            return True
+        with self.assertRaisesRegex(contract.BudgetAdminError, 'stale_balance_snapshot'):
+            await self.apply(concurrent)
+        self.functions.update_function_valves_by_id.assert_not_awaited()
+        self.assertEqual(self.config['provider_balance_snapshots']['google-main']['amount'], '55')
+
+    async def test_manual_balance_source_or_admin_revocation_prevents_write(self):
+        original = json.dumps(await self.balance_plan())
+        for changed in ('source', 'role'):
+            self.parent['content'] = original
+            self.admin.role = 'admin'
+            async def revoke(_):
+                if changed == 'source': self.parent['content'] = original + ' '
+                else: self.admin.role = 'user'
+                return True
+            with self.assertRaises(contract.BudgetAdminError):
+                await self.apply(revoke)
+        self.functions.update_function_valves_by_id.assert_not_awaited()
+
+    async def test_native_catalog_ignores_legacy_model_selection_and_deduplicates_wire_aliases(self):
+        self.tools.valves.managed_model_ids = []
+        result = await self.open()
+        self.assertEqual({m['id'] for m in self.public_rows(result)[0]['models']}, set(MODELS))
+        self.assertEqual(self.writes, [])
+
     async def test_actual_presence_reader_policy_and_html_keep_unknown_separate_from_unavailable(self):
         before = copy.deepcopy(self.states)
         self.states[USER] = replace(self.states[USER], models=(replace(self.states[USER].models[0], blocked=True),
@@ -187,7 +254,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first['spend_usd'], '0.4')
         self.assertIs(first['models'][0].get('blocked'), None)  # Block is readonly HTML, not proposal data.
         text = self.html(result)
-        self.assertIn('<td>Заблокирована</td>', text)
+        self.assertIn('<small data-model-status>Заблокирована</small>', text)
         self.assertIn('В истории есть запросы без данных о расходе.', text)
         self.assertIn('Полнота данных о расходе не подтверждена.', text)
         self.assertNotIn('PRIVATE', text)
@@ -664,8 +731,8 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.states[OTHER] = replace(state(OTHER), max_budget=Decimal(20), spend=Decimal('.2'),
             models=(replace(state(OTHER).models[0], max_budget=Decimal(20)),))
         rendered = self.html(await self.open())
-        self.assertIn('data-service-spend>0.2</span>', rendered)
-        self.assertIn('data-service-remaining>19.8</span>', rendered)
+        self.assertIn('data-service-spend><span data-money="0.2"', rendered)
+        self.assertIn('data-service-remaining><span data-money="19.8"', rendered)
         self.assertIn('Служебные задачи и RAG', rendered)
         self.assertNotIn(OTHER, rendered)
         self.client.read_service.assert_awaited_once_with(OTHER)
@@ -689,8 +756,8 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.service_footer()
         existing = copy.deepcopy(self.states)
         rendered = self.html(await self.open())
-        self.assertIn('data-service-spend>0.3</span>', rendered)
-        self.assertIn('data-service-remaining>19.7</span>', rendered)
+        self.assertIn('data-service-spend><span data-money="0.3"', rendered)
+        self.assertIn('data-service-remaining><span data-money="19.7"', rendered)
         self.assertEqual(rendered.count('data-service-spend'), 1)
         for private in (OTHER, 'embedding-e', KEY, 'existing-gateway-secret'):
             self.assertNotIn(private, rendered)
@@ -715,7 +782,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.states[OTHER] = replace(self.states[OTHER], models=(self.states[OTHER].models[1],))
         platform = copy.deepcopy(self.states[OTHER])
         rendered = self.html(await self.open())
-        self.assertIn('data-service-spend>0.3</span>', rendered)
+        self.assertIn('data-service-spend><span data-money="0.3"', rendered)
         result = await self.apply(AsyncMock(return_value=True))
         self.assertEqual(result[1]['status'], 'success')
         self.assertEqual(self.states[USER].max_budget, Decimal(20))
@@ -736,7 +803,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unmanaged_target_connection_fails_before_native_budget_reads(self):
         self.connection.return_value = ("http://other.invalid/v1", "other-secret", {})
-        with self.assertRaisesRegex(contract.BudgetAdminError, "gateway_configuration"):
+        with self.assertRaisesRegex(contract.BudgetAdminError, "invalid_configuration"):
             await self.open()
         self.assertEqual(self.reads, [])
 

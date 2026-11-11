@@ -25,8 +25,7 @@ def fixture():
                   for i, name in enumerate(names)}}
     models = {'data': [{'id': name, 'urlIdx': i} for i, name in enumerate(names) if name]}
     gateway = {'model_list': [{'model_name': name, 'litellm_params': {'model': 'openai/' + name},
-                'model_info': {'mode': 'responses' if i == 0 else 'chat',
-                               'input_cost_per_token': 0, 'output_cost_per_token': 0.002}}
+                'model_info': {'mode': 'responses' if i == 0 else 'chat'}}
                 for i, name in enumerate(names) if name],
                'litellm_settings': {'block_requests_for_models_without_pricing': True,
                                    'callbacks': ['budget_errors.handler', 'pricing_snapshot.handler',
@@ -41,6 +40,46 @@ def fixture():
 
 
 class ManagedProjection(unittest.TestCase):
+    def test_public_pricing_config_preserves_native_alias_mapping_and_nonmonetary_limits(self):
+        source, models, gateway = fixture()
+        row = gateway['model_list'][0]
+        row['model_info'].update(base_model='openai/gpt-6.1-sol', max_tokens=8192)
+        row['litellm_params'].update(rpm=60, tpm=10000, timeout=30)
+        before = copy.deepcopy(gateway)
+        pending, catalogs = owner.project_managed(source, models, 'sk-inference-example', gateway)
+        self.assertEqual(gateway, before)
+        self.assertEqual(catalogs[0], ['gpt-6.1-sol'])
+        self.assertEqual(pending['OPENAI_API_CONFIGS']['0']['api_type'], 'responses')
+        self.assertIs(gateway['litellm_settings']['block_requests_for_models_without_pricing'], True)
+
+    def test_managed_monetary_overrides_rejected_in_both_native_model_sections(self):
+        fields = ('input_cost_per_token', 'output_cost_per_token', 'input_cost_per_token_above_200k_tokens',
+                  'input_cost_per_token_priority', 'cache_read_input_token_cost',
+                  'cache_creation_input_token_cost', 'output_cost_per_reasoning_token',
+                  'cost_per_second', 'output_cost_per_second_1080p', 'cost_per_ptu_per_hour',
+                  'custom_pricing', 'custom_cost_per_token', 'discount_percent', 'margin_fixed_amount',
+                  'input_rate', 'rates', 'additional_costs', 'pricing_tiers')
+        for section in ('model_info', 'litellm_params'):
+            for field in fields:
+                for value in (0, None):
+                    with self.subTest(section=section, field=field, value=value):
+                        source, models, gateway = fixture()
+                        gateway['model_list'][0][section][field] = value
+                        with self.assertRaisesRegex(RuntimeError, 'native public pricing without explicit monetary overrides'):
+                            owner.project_managed(source, models, 'sk-inference-example', gateway)
+        for nested in ({'metadata': {'input_cost_per_token': 0}},
+                       {'metadata': [{'margin_percent': .01}]}):
+            source, models, gateway = fixture()
+            gateway['model_list'][0]['model_info'].update(nested)
+            with self.assertRaisesRegex(RuntimeError, 'explicit monetary overrides'):
+                owner.project_managed(source, models, 'sk-inference-example', gateway)
+        source, models, gateway = fixture()
+        gateway['model_list'].append({'model_name': 'unreferenced-service',
+            'model_info': {'mode': 'embedding', 'input_cost_per_token': 0},
+            'litellm_params': {'model': 'openai/text-embedding-example'}})
+        with self.assertRaisesRegex(RuntimeError, 'explicit monetary overrides'):
+            owner.project_managed(source, models, 'sk-inference-example', gateway)
+
     def test_all_enabled_connections_and_protocols_preserved_without_source_mutation(self):
         source, models, gateway = fixture()
         before = copy.deepcopy((source, models, gateway))
@@ -129,7 +168,6 @@ class ManagedProjection(unittest.TestCase):
             'duplicate-model': lambda s, m, g: m['data'].append(dict(m['data'][0])),
             'duplicate-wire': duplicate_wire,
             'duplicate-approved': lambda s, m, g: g['model_list'].append(copy.deepcopy(g['model_list'][0])),
-            'missing-price': lambda s, m, g: g['model_list'][0]['model_info'].pop('input_cost_per_token'),
             'unknown-price': lambda s, m, g: g['model_list'][0]['model_info'].update(input_cost_per_token=None),
             'nan-price': lambda s, m, g: g['model_list'][0]['model_info'].update(input_cost_per_token=float('nan')),
             'missing-model': lambda s, m, g: g['model_list'].pop(0),
@@ -210,6 +248,13 @@ class ManagedProjection(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'explicitly export native YAML as JSON'):
                     owner.main(root, managed_config=config_path, managed_env=env_path)
                 self.assertFalse((root / 'google-gateway').exists())
+                overridden = copy.deepcopy(gateway)
+                overridden['model_list'][0]['litellm_params']['cache_read_input_token_cost'] = 0
+                config_path.write_text(json.dumps(overridden), encoding='utf-8')
+                with self.assertRaisesRegex(RuntimeError, 'explicit monetary overrides'):
+                    owner.main(root, managed_config=config_path, managed_env=env_path)
+                self.assertFalse((root / 'google-gateway').exists())
+                self.assertEqual((root / 'compose.env').read_text(), 'EXISTING=preserved\n')
                 config_path.write_bytes(approved_bytes)
                 owner.main(root, managed_config=config_path, managed_env=env_path)
                 self.assertEqual((root / 'google-gateway/config.yaml').read_bytes(), approved_bytes)

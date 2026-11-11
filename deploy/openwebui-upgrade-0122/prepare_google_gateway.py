@@ -6,8 +6,9 @@ Only native local GETs and Docker identity reads precede protected file writes.
 Optional managed preparation (never applies native config): pass both
 --managed-config /protected/phase/private/approved-litellm.json and
 --managed-env /protected/phase/private/approved-litellm.env. The JSON is the
-operator-approved native LiteLLM config (JSON is YAML-compatible); prices and
-provider credentials remain caller-owned. The env must supply distinct
+operator-approved native LiteLLM config (JSON is YAML-compatible); managed prices
+come from LiteLLM's native public cost map, without monetary overrides. Provider
+credentials remain caller-owned. The env must supply distinct
 LITELLM_MASTER_KEY and OWUI_BUDGET_GATEWAY_SECRET. Outputs use the existing
 new-phase files/Compose selectors; an existing gateway is never overwritten.
 """
@@ -17,7 +18,6 @@ import argparse
 import copy
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -253,6 +253,17 @@ def project(source, models, master_key):
     return pending, catalogs, upstream_keys
 
 
+def _has_price_override(value):
+    """Reject explicit monetary config, including nested native pricing tiers."""
+    if isinstance(value, dict):
+        return any(re.search(r'(?:^|_)(?:costs?|prices?|pricing|discounts?|margins?)(?:_|$)', key)
+                   or key in ('rate', 'rates') or key.endswith(('_rate', '_rates'))
+                   or _has_price_override(item) for key, item in value.items())
+    if isinstance(value, list):
+        return any(_has_price_override(item) for item in value)
+    return False
+
+
 def project_managed(source, models, inference_bearer, gateway_config):
     """Project native /openai/models, not the mixed /api/models workspace catalog."""
     expected = {'ENABLE_OPENAI_API', 'OPENAI_API_BASE_URLS', 'OPENAI_API_KEYS', 'OPENAI_API_CONFIGS'}
@@ -304,6 +315,8 @@ def project_managed(source, models, inference_bearer, gateway_config):
                 and name not in approved and isinstance(params, dict)
                 and isinstance(params.get('model'), str) and bool(params['model'])
                 and '*' not in params['model'], 'Approved native model aliases must be explicit and unique')
+        require(not _has_price_override(info) and not _has_price_override(params),
+                'Managed models require native public pricing without explicit monetary overrides')
         approved[name] = (info, params)
     require(isinstance(models, dict) and isinstance(models.get('data'), list)
             and all(isinstance(item, dict) for item in models['data']), 'Unexpected native model catalog')
@@ -347,14 +360,12 @@ def project_managed(source, models, inference_bearer, gateway_config):
         mode = 'responses' if config.get('api_type') == 'responses' else 'chat'
         for wire in wires:
             require(wire and wire not in wire_owners and wire in approved,
-                    label + ' has duplicate, unpriced or protocol-incompatible wire models')
+                    label + ' has duplicate, unapproved or protocol-incompatible wire models')
             info, params = approved[wire]
             require(isinstance(info, dict) and info.get('mode') == mode,
-                    label + ' has duplicate, unpriced or protocol-incompatible wire models')
-            require(all(type(info.get(field)) in (int, float)
-                        and math.isfinite(info[field]) and info[field] >= 0
-                        for field in ('input_cost_per_token', 'output_cost_per_token')),
-                    label + ' requires approved native input/output token pricing')
+                    label + ' has duplicate, unapproved or protocol-incompatible wire models')
+            # Native startup owns public-map lookup. Verify /model/info rates
+            # after startup; absence of overrides here does not prove pricing.
             if mode == 'responses':
                 require(info.get('supports_native_streaming') is False
                         and params['model'].startswith('openai/')

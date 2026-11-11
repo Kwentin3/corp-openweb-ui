@@ -96,7 +96,7 @@ async def setup_unknown_usage_gui(webui, common: dict, office: dict, path: Path)
     cost = get('/api/v1/functions/id/' + FILTER_ID)
     valves = get('/api/v1/functions/id/' + FILTER_ID + '/valves')
     require(cost.get('id') == FILTER_ID and cost.get('type') == 'filter' and cost.get('is_active') is True
-            and cost.get('is_global') is False and (cost.get('meta') or {}).get('toggle') is False
+            and cost.get('is_global') is True and (cost.get('meta') or {}).get('toggle') is False
             and source_hash(cost.get('content', '')) == source_hash(FILTER_SOURCE.read_text(encoding='utf8'))
             and valves.get('ledger_base_url') == 'http://proxy:4000'
             and valves.get('ledger_read_key') == common['cost_reader']['key'], 'Unknown GUI installed cost Filter differs')

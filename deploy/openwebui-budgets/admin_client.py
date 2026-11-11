@@ -140,6 +140,20 @@ def _initialization_key(user_id: str, model: str, gateway_secret: str) -> str:
                             b"employee-budget-bootstrap-key-v1\0" + identity, hashlib.sha256).hexdigest()
 
 
+def _assignment_body(user_id: str, model: str, key: str, cap: float) -> dict:
+    return {"key": key, "user_id": user_id, "models": [model],
+            "key_alias": assignment_alias(user_id, model), "metadata": assignment_metadata(model),
+            "max_budget": cap, "budget_duration": "1mo", "spend": 0,
+            "blocked": False, "allowed_routes": ["llm_api_routes"],
+            "duration": None, "team_id": None, "budget_id": None, "send_invite_email": False}
+
+
+def _employee_models(selected: dict[str, ModelBudget], models: tuple[str, ...]) -> tuple[ModelBudget, ...]:
+    # A missing assignment is an explicit proposal state, never a native zero.
+    return tuple(selected.get(model) or ModelBudget(model, None, None, None, None, None, None, None,
+                                                   pending=True) for model in models)
+
+
 def _reset_time(value: str | None) -> datetime:
     try:
         result = datetime.fromisoformat(value) if isinstance(value, str) else None
@@ -221,9 +235,8 @@ class BudgetAdminClient:
     async def _read_employee(self, user_id: str, models: tuple[str, ...]) -> EmployeeBudget:
         payload = await self._request("GET", "/user/info", params={"user_id": user_id})
         user = _employee_user(payload, user_id)
-        selected, _ = await self._read_assignments(user_id, models)
-        _require(set(selected) == set(models), "missing_assignment")
-        return _employee_budget(user, user_id, tuple(selected[model] for model in models))
+        selected, _ = await self._read_assignments(user_id, models, allow_inactive=True)
+        return _employee_budget(user, user_id, _employee_models(selected, models))
 
     async def read_service(self, user_id: str) -> EmployeeBudget:
         """Read explicit native service models and their canonical assignments.
@@ -272,21 +285,22 @@ class BudgetAdminClient:
         except BudgetAdminError as error:
             if error.code != "native_http_404":
                 raise
-            _, count = await self._read_assignments(user_id, models)
+            _, count = await self._read_assignments(user_id, models, allow_inactive=True)
             if count:
                 return EmployeeBudgetInspection(user_id, models, "conflict", code="orphan_assignments")
             return EmployeeBudgetInspection(user_id, models, "absent", code="missing_native_user")
         user = _employee_user(payload, user_id)
         # Validate all user scalar fields even when assignments are missing.
         budget = _employee_budget(user, user_id, ())
-        selected, _ = await self._read_assignments(user_id, models)
-        if set(selected) != set(models):
+        selected, _ = await self._read_assignments(user_id, models, allow_inactive=True)
+        if not selected:
             return EmployeeBudgetInspection(user_id, models, "incomplete", code="missing_assignment")
-        budget = replace(budget, models=tuple(selected[model] for model in models))
+        budget = replace(budget, models=_employee_models(selected, models))
         return EmployeeBudgetInspection(user_id, models, "ready", employee_budget=budget)
 
     async def _read_assignments(self, user_id: str, models: tuple[str, ...], *,
-                                initializing: bool = False) -> tuple[dict[str, ModelBudget], int]:
+                                initializing: bool = False,
+                                allow_inactive: bool = False) -> tuple[dict[str, ModelBudget], int]:
         aliases = {assignment_alias(user_id, model): model for model in models}
         selected: dict[str, ModelBudget] = {}
         seen: set[str] = set()
@@ -329,6 +343,10 @@ class BudgetAdminClient:
                              and row["allowed_routes"] == ["llm_api_routes"], "initialization_unconfirmed")
                 if model is None and namespace != ASSIGNMENT_NAMESPACE:
                     continue  # Other native application keys are not our assignment catalog.
+                if model is None and allow_inactive:
+                    model = (metadata or {}).get("owui_budget_model")
+                    _require(isinstance(model, str) and 0 < len(model) <= 256 and model == model.strip()
+                             and all(ord(char) >= 32 for char in model), "invalid_assignment")
                 _require(model is not None, "unsupported_assignment")
                 record = SimpleNamespace(user_id=row.get("user_id"), team_id=row.get("team_id"),
                                          models=row.get("models"), key_alias=row.get("key_alias"), metadata=metadata)
@@ -384,13 +402,7 @@ class BudgetAdminClient:
         for model in sorted(models):
             key = _initialization_key(user_id, model, gateway_secret)
             await before_write()
-            await self._request("POST", "/key/generate", body={
-                "key": key, "user_id": user_id, "models": [model],
-                "key_alias": assignment_alias(user_id, model), "metadata": assignment_metadata(model),
-                "max_budget": wire_caps[model], "budget_duration": "1mo", "spend": 0,
-                "blocked": False, "allowed_routes": ["llm_api_routes"],
-                "duration": None, "team_id": None, "budget_id": None, "send_invite_email": False,
-            })
+            await self._request("POST", "/key/generate", body=_assignment_body(user_id, model, key, wire_caps[model]))
             expected[model] = (hashlib.sha256(key.encode("utf-8")).hexdigest(), caps[model])
             selected, count = await self._read_assignments(user_id, models, initializing=True)
             _initial_models(selected, count, expected, user.budget_reset_at)
@@ -401,6 +413,49 @@ class BudgetAdminClient:
         _initial_models({entry.model: entry for entry in result.models}, len(result.models), expected,
                         user.budget_reset_at)
         return result
+
+    async def create_model_assignment(self, user_id: str, model: str, gateway_secret: str, *,
+                                      before_write: Callable[[], Awaitable[None]]) -> ModelBudget:
+        """Confirmed expansion only: create a missing native key at hard zero.
+
+        The caller freshly checks WebUI access and source before each POST.
+        Existing user/key scalar budgets, spend and periods are never rewritten.
+        An API failure may leave a zero-cap key; no retry or automatic repair.
+        """
+        user_id, models = _user_id(user_id), _models((model,))
+        _require(isinstance(gateway_secret, str) and 0 < len(gateway_secret) <= 4096
+                 and not any(char.isspace() for char in gateway_secret) and callable(before_write),
+                 "invalid_configuration")
+        user = _employee_user(await self._request("GET", "/user/info", params={"user_id": user_id}), user_id)
+        _employee_budget(user, user_id, ())
+        # Append to a finite explicit native ACL. Wildcards/unrestricted lists
+        # cannot be narrowed or reinterpreted as part of this operation.
+        native_models = _service_models(user)
+        _require(model in native_models or len(native_models) < 100, "invalid_models")
+        selected, _ = await self._read_assignments(user_id, models, allow_inactive=True)
+        _require(model not in selected, "assignment_already_exists")
+        key = _initialization_key(user_id, model, gateway_secret)
+        await before_write()
+        await self._request("POST", "/key/generate", body=_assignment_body(user_id, model, key, 0.0))
+        selected, _ = await self._read_assignments(user_id, models, allow_inactive=True)
+        entry = selected.get(model)
+        _require(entry is not None and entry.key_hash == hashlib.sha256(key.encode("utf-8")).hexdigest()
+                 and entry.max_budget == 0 and entry.spend == 0 and entry.budget_duration == "1mo"
+                 and entry.blocked is False, "assignment_creation_unconfirmed")
+        _reset_time(entry.budget_reset_at)
+        if model not in native_models:
+            latest = _employee_user(await self._request("GET", "/user/info", params={"user_id": user_id}), user_id)
+            _require(_service_models(latest) == native_models, "native_models_changed")
+            await before_write()
+            await self._request("POST", "/user/update", body={"user_id": user_id,
+                                                                "models": [*latest["models"], model]})
+        latest = _employee_user(await self._request("GET", "/user/info", params={"user_id": user_id}), user_id)
+        _require(set(_service_models(latest)) == set(native_models) | {model}, "assignment_creation_unconfirmed")
+        # Spend can progress independently; the operation must preserve these
+        # configuration fields. Public readback owns the final assignment state.
+        _require(all(latest.get(field) == user.get(field) for field in (
+            "max_budget", "budget_duration", "budget_reset_at")), "assignment_creation_unconfirmed")
+        return entry
 
     async def set_user_cap(self, user_id: str, cap: Decimal) -> None:
         await self._request("POST", "/user/update", body={"user_id": _user_id(user_id), "max_budget": _wire_cap(cap)})

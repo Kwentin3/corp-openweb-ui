@@ -144,9 +144,9 @@ def display_readback(webui: WebUI, state: dict) -> dict:
     function_path = "/api/v1/functions/id/" + FILTER_ID
     function = webui.ok("GET", function_path, token=admin)
     require(function.get("id") == FILTER_ID and function.get("type") == "filter"
-            and function.get("is_active") is True and function.get("is_global") is False
+            and function.get("is_active") is True and function.get("is_global") is True
             and function.get("meta", {}).get("toggle") is False,
-            "Native cost Function is not active, model-scoped and non-toggleable")
+            "Native cost Function is not active, global and non-toggleable")
     content = function.get("content")
     require(isinstance(content, str) and source_hash(content) == state["cost_display"]["source_sha256"],
             "Native Function content differs from mounted cost source")
@@ -186,7 +186,7 @@ def display_readback(webui: WebUI, state: dict) -> dict:
         require(all(any(a.get("id") == ACTION_ID and a.get("name") == ACTION_LABEL for a in m.get("actions", []))
                     for m in models), "Ordinary model catalog omitted the cost details Action")
     return {"filter_id": FILTER_ID, "source_sha256": source_hash(content), "active": True,
-            "toggleable": False, "global": False, "attached_models": list(MODELS),
+            "toggleable": False, "global": True, "attached_models": list(MODELS),
             "action_id": ACTION_ID, "action_source_sha256": source_hash(action["content"]),
             "reader_valves_readback": True, "user_valves": preferences, "employee_admin_denials": access}
 
@@ -236,6 +236,7 @@ def setup(webui: WebUI, state: dict, path: Path) -> None:
         "ledger_base_url": LEDGER_URL, "ledger_read_key": key, "read_wait_seconds": 8.0,
     })
     webui.ok("POST", function_path + "/toggle", token=admin)
+    webui.ok("POST", function_path + "/toggle/global", token=admin)
     created_action = webui.ok("POST", "/api/v1/functions/create", token=admin, body={
         "id": ACTION_ID, "name": ACTION_LABEL, "content": ACTION_SOURCE.read_text(encoding="utf-8"), "meta": {},
     })

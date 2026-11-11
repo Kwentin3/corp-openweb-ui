@@ -20,13 +20,14 @@ class BudgetAdminError(Exception):
 @dataclass(frozen=True)
 class ModelBudget:
     model: str
-    key_hash: str
-    key_alias: str
+    key_hash: str | None
+    key_alias: str | None
     max_budget: Decimal | None
-    spend: Decimal
+    spend: Decimal | None
     budget_duration: str | None
     budget_reset_at: str | None
     blocked: bool | None
+    pending: bool = False
 
 
 @dataclass(frozen=True)
