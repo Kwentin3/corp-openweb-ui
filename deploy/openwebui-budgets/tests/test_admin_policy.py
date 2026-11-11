@@ -324,7 +324,8 @@ class BootstrapPolicyTests(unittest.TestCase):
             policy.prepare_initialization(change, absent, identity | {"models": ("a",)}, None, self.labels)
 
     def test_pending_does_not_renormalize_template_or_imply_zero_spend(self):
-        template = policy.parse_template_plan(json.dumps(self.template_plan()), None, self.labels)
+        template = policy.parse_template_plan(json.dumps(self.template_plan() | {
+            "shares": {"a": "50", "b": "50"}}), None, self.labels)
         identity = {"user_id": USER, "name": "Ada", "email": "a@example.invalid", "models": ("a",)}
         absent = contract.EmployeeBudgetInspection(USER, ("a",), "absent")
         public = policy.public_pending(identity, absent, template, self.labels)
@@ -333,7 +334,34 @@ class BootstrapPolicyTests(unittest.TestCase):
         self.assertNotIn("spend_usd", public)
         matching = policy.public_pending(identity | {"models": ("a", "b")},
             replace(absent, allowed_wire_models=("a", "b")), template, self.labels)
-        self.assertEqual(matching["suggested_shares"], {"a": "100", "b": "0"})
+        self.assertEqual(matching["suggested_shares"], {"a": "50", "b": "50"})
+
+    def test_pending_projects_zero_excluded_model_without_changing_global_revision(self):
+        models = tuple(f"model-{index}" for index in range(9))
+        labels = {model: model for model in (*models, "private")}
+        shares = {model: "11.1111" for model in models[:-1]} | {models[-1]: "11.1112"}
+        template = {"budget_usd": "20", "shares": shares, "budget_duration": "1mo"}
+        identity = {"user_id": USER, "name": "Ada", "email": "a@example.invalid", "models": models}
+        absent = contract.EmployeeBudgetInspection(USER, models, "absent")
+        public = policy.public_pending(identity, absent, template, labels)
+        self.assertEqual(public["suggested_budget_usd"], "20")
+        self.assertEqual(public["suggested_shares"], shares)
+        self.assertNotIn("private", public["suggested_shares"])
+        self.assertEqual(sum(map(D, public["suggested_shares"].values())), D(100))
+        self.assertEqual(public["revision"], policy.absence_revision(USER, models,
+            policy.template_revision(template, labels)))
+        self.assertNotEqual(public["revision"], policy.absence_revision(USER, models,
+            policy.template_revision(template, {model: model for model in models})))
+        change = policy.parse_initialization(json.dumps({"schema": 1, "type": "employee_budget_initialize",
+            "changes": [{"user_id": USER, "expected_revision": public["revision"],
+                         "budget_usd": public["suggested_budget_usd"], "shares": public["suggested_shares"]}]}))[0]
+        caps = policy.prepare_initialization(change, absent, identity, template, labels)
+        self.assertEqual(caps[0][1], D("2.22222"))
+        self.assertEqual(caps[-1][1], D("2.22224"))
+        self.assertEqual(sum(cap for _, cap in caps), D(20))
+        with self.assertRaisesRegex(contract.BudgetAdminError, "stale_snapshot"):
+            policy.prepare_initialization(change, absent, identity, template | {"budget_usd": "21"}, labels)
+        self.assertNotIn("private", template["shares"])
 
 
 class MutationTests(unittest.IsolatedAsyncioTestCase):

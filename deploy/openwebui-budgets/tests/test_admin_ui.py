@@ -329,6 +329,9 @@ class RendererTests(unittest.TestCase):
         self.assertIn(('main', {'data-budget-editor': 'v1'}), parser.tags)
         self.assertEqual([a['data-employee-id'] for t, a in parser.tags if t == 'tr' and 'data-employee-id' in a], list(IDS))
         self.assertEqual(len([a for t, a in parser.tags if t == 'input' and 'data-model-id' in a]), 4)
+        equal = [attrs for tag, attrs in parser.tags if tag == 'button' and 'data-equal-shares' in attrs]
+        self.assertEqual([button['aria-label'] for button in equal], ['Поровну для Employee 1', 'Поровну для Employee 2'])
+        self.assertTrue(all(button['type'] == 'button' for button in equal))
         self.assertEqual(len([a for t, a in parser.tags if t == 'option' and a.get('value', '').startswith('Department ')]), 2)
 
     def test_all_untrusted_text_and_script_terminators_are_escaped(self):

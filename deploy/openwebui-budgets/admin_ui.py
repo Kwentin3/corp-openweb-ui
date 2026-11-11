@@ -227,7 +227,9 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
             f'<td class="distribution"><div class="allocation-bar" aria-label="Распределение 100% лимита">'
             f'<div class="segments">{"".join(segments)}</div>{"".join(handles)}</div>'
             f'<div class="row-meta"><span class="row-flags">{" · ".join(flags)}</span>'
-            f'<details class="exact-shares"><summary>Доли</summary><div class="exact-fields">{"".join(models)}'
+            f'<details class="exact-shares"><summary>Доли</summary><div class="exact-fields">'
+            f'<button type="button" data-equal-shares aria-label="Поровну для {_text(row["name"])}"'
+            + (' disabled' if not row["models"] else '') + f'>Поровну</button>{"".join(models)}'
             '<small>Границы меняют две соседние доли. Точная сумма должна быть 100%.</small></div></details></div>'
             '<small class="share-total" data-share-total aria-live="polite"></small></td></tr>')
     departments = sorted({str(row["department"]) for row in public if row["department"]})
@@ -376,6 +378,13 @@ const updateRow=entry=>{
 };
 const update=()=>{entries.forEach(updateRow);const count=entries.filter(changed).length;document.getElementById('changed-count').textContent='Изменено: '+count;reset.disabled=count===0;apply.disabled=count===0;filters();prepare();};
 form.addEventListener('submit',event=>event.preventDefault());
+form.addEventListener('click',event=>{
+ const button=event.target.closest('[data-equal-shares]');if(!button||button.disabled)return;
+ const entry=entries.find(e=>e.el===button.closest('[data-employee-id]')),inputs=[...entry.el.querySelectorAll('input[data-model-id]')];
+ if(!inputs.length)return;const count=BigInt(inputs.length),share=1000000n/count;
+ inputs.forEach((input,i)=>input.value=exact(i===inputs.length-1?1000000n-share*(count-1n):share,4));
+ clearPreview();update();
+});
 form.addEventListener('input',event=>{
  if(!event.target.matches('[data-share-slider],[data-field="budget_usd"],input[data-model-id]'))return;
  const slider=event.target.closest('[data-share-slider]');
@@ -421,8 +430,12 @@ document.getElementById('refresh').addEventListener('click',()=>{
  if(entries.some(changed)||extraDirty){feedback.textContent='Есть несохранённые правки. Примените или сбросьте их перед обновлением.';return;}refresh();
 });
 update();
-const height=()=>parent.postMessage({type:'iframe:height',height:document.documentElement.scrollHeight},'*');
-new ResizeObserver(height).observe(document.documentElement);addEventListener('load',height);height();
+const height=()=>{
+ const body=document.body,style=getComputedStyle(body);
+ const pixels=Math.ceil(Math.max(body.scrollHeight,body.getBoundingClientRect().height)+(parseFloat(style.marginTop)||0)+(parseFloat(style.marginBottom)||0));
+ parent.postMessage({type:'iframe:height',height:pixels},'*');
+};
+new ResizeObserver(height).observe(document.body);addEventListener('load',height);height();
 })();</script>'''
 
 

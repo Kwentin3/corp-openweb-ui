@@ -259,13 +259,14 @@ def absence_revision(user_id, models, template_rev):
 def public_pending(identity, inspection, template, labels):
     value = template_value(template, labels)
     models = identity["models"]
-    matches = value is not None and set(value["shares"]) == set(models)
+    matches = (value is not None and set(models) <= set(value["shares"])
+               and all(number(share) == 0 for model, share in value["shares"].items() if model not in models))
     return {"user_id": identity["user_id"], "name": identity["name"], "email": identity["email"],
             "revision": absence_revision(identity["user_id"], models, template_revision(value, labels)),
             "state": inspection.kind, "code": inspection.code,
             "models": [{"id": model, "label": labels[model]} for model in models],
             "suggested_budget_usd": value["budget_usd"] if matches else None,
-            "suggested_shares": value["shares"] if matches else None}
+            "suggested_shares": {model: value["shares"][model] for model in models} if matches else None}
 
 
 def prepare_initialization(change, inspection, identity, template, labels):
