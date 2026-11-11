@@ -40,7 +40,8 @@ Git-LF экспорта. Accepted image после стенда удалён; of
 все полные proof jobs SKIPPED. Прямой dispatch нового workflow получил404 до его
 регистрации на default branch; existing manual workflow теперь вызывает его
 через reuse. Это image packaging, не новый test framework.
-Native persistence overlay подготовлен; actual Compose merge/health ещё впереди.
+Native persistence overlay применён только к новым PG/Redis: actual Compose
+merge, закрытая сеть, persistent volumes и health PASS. Исходные сервисы сохранены.
 Protected backup phase создана с image/config/Compose/env snapshot. SQLite backup
 первая попытка остановлена по времени; повтор дошёл до SQLITE_DONE, но callback
 слишком поздно применил тот же предел. Полученная копия635068416 B затем отдельно
@@ -54,13 +55,48 @@ API source review доказал, что сохранение fake chat не г�
 guard owners: signed API operation существующего владельца ключа, без выдуманных
 chat IDs, новых payer/ledger/расчёта денег. Персональный учёт сотрудников1С исключён.
 
-Обязательный остаток: runtime inventory зависимостей/точных маршрутов; согласованный
-рабочий каталог и начальные бюджеты; подготовленный immutable off-prod artifact и
-protected config/roles/backup/rollback; разрешение конкретных несовместимостей;
+Обязательный остаток: финальный managed каталог/публичные цены и применение
+начальных бюджетов; protected config/control-plane roles и operational rollback;
+разрешение конкретных несовместимостей;
 установка, native readback, один ограниченный admin→staff→расход→отказ→увеличение→
 восстановление GUI/PNG сценарий; независимая приёмка, документация и safe cleanup.
-Следующий шаг: подтвердить backup/archive checksums и подготовить закрытые
-зависимости/конфигурацию; дождаться стартовых лимитов и фактов API-совместимости.
+Следующий шаг: завершить текущий upstream review и обсудить с пользователем
+реакцию на неизвестный расход/расширение patch. Независимая подготовка API/config
+допустима; общий cutover до решения coverage gap не выполнять.
+
+Уточнения пользователя: стартовый месячный лимит каждого сотрудника20 USD,
+равные доли доступных моделей; отдельный общий platform/OCR/tasks budget20 USD.
+Потоковый режим действующей1С пока неизвестен. API source candidate(+91/−15
+production LOC,194 строки в существующих tests) прошёл адресные проверки и
+независимый source review; runtime/реальная1С ещё не приняты.
+PG/Redis уже установлены и healthy, с persistent volumes и без published ports;
+исходные WebUI/gateway containers и routes не менялись. Image load на Docker29
+дал другой target ID; source config SHA256 совпал с builder IID, все layer diff IDs
+и runtime config совпали с архивом. Source/target identity receipt сохранён.
+
+Перед общим включением обнаружен реальный coverage gap: current CC Usage guard
+читает raw witness только OpenAI leaf, native Anthropic/Gemini идут другими путями
+и могут получить ложный unknown block после успешного ответа. Учитывать это как
+непринятый production provider path; прежний OpenAI fixture PASS его не закрывает.
+Подготовлен, но НЕ применён concrete draft54 строки на два native parser targets
+в existing stream patch package; callback может использовать уже существующий
+iterator hook без нового parser/счётчика. Пользователь выбрал сначала обсудить
+компромисс; core draft не применять, общий cutover не выполнять до решения.
+
+По просьбе пользователя11.11 выполнен targeted upstream read-only поиск:
+[issue50124](https://github.com/BerriAI/litellm/issues/50124) открыт: missing/malformed
+Usage может не списывать native key budget; [issue37992](https://github.com/BerriAI/litellm/issues/37992)
+открыт: explicit0 подменяется estimates на disconnect. [Feature29680](https://github.com/BerriAI/litellm/issues/29680)
+предлагает usage_source, закрыт stale/not_planned; связанный [PR29704](https://github.com/BerriAI/litellm/pull/29704)
+открыт, merged=false, mergeable=false по live PR readback. Просмотренный diff
+определяет upstream/missing по наличию response_obj.usage; происхождение данных
+после нормализации им не доказано, нашей блокировки он не реализует. Это не
+квалифицированная замена raw-presence witness до нормализации.
+[Issue47332](https://github.com/BerriAI/litellm/issues/47332) закрыт без изменения
+поведения после обсуждения отсутствующего final Usage; closure comment прямо
+сохраняет graceful completion, а не добавляет финансовый fail-closed. Наличие issues не доказывает
+исправления в нашей1.105.1 или готовности полного fail-closed режима из коробки.
+Новых core изменений, CI/provider/model calls и upstream messages в этом поиске нет.
 
 ## Текущий этап: самодостаточное управление моделями, ценами и состоянием оплаты
 
