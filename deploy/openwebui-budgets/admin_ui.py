@@ -111,76 +111,116 @@ def _bootstrap_panels(template, pending):
     return ''.join(panels), data
 
 
+def _money(value, missing="нет данных"):
+    # Exact public strings; browser formatting changes representation only.
+    return f'<span data-money="{_text(value, "")}" title="{_text(value, missing)} USD">{_text(value, missing)}</span>'
+
+
+def _spend_cell(row):
+    if row.get("expense_status") == "unknown":
+        return '<strong class="unknown" title="Итоговый расход неизвестен">Неизвестен</strong><small>учтено ' + _money(row.get("spend_usd")) + '</small>'
+    return _money(row.get("spend_usd"))
+
+
 def render_editor(rows: list[dict], *, as_of: str, status: str = "",
                   template: dict | None = None, pending: list[dict] | None = None,
                   service: dict | None = None) -> str:
-    # Only the public presentation contract enters HTML; caller owns policy/order.
+    # Caller retains policy, ledger qualification and revision ownership.
     public = [{key: row.get(key) for key in ("user_id", "name", "email", "department", "revision",
                "budget_usd", "spend_usd", "remaining_usd")}
         | {key: row[key] for key in _EXPENSE_FIELDS if key in row} | {"models": [
         {key: model.get(key) for key in ("id", "label", "cap_usd", "spend_usd", "share_percent")}
         | {key: model[key] for key in _EXPENSE_FIELDS if key in model}
         for model in row["models"]]} for row in rows]
-    sections, department = [], None
+    employee_rows, catalog = [], {}
     for index, row in enumerate(public):
-        if row["department"] and row["department"] != department:
-            department = row["department"]
-            sections.append(f'<h2 data-department="{_text(department)}">{_text(department)}</h2>')
-        models = []
+        models, segments, handles, flags = [], [], [], []
         for number, model in enumerate(row["models"]):
+            catalog.setdefault(model["id"], model["label"])
             field_id = f"share-{index}-{number}"
-            original_model = rows[index]["models"][number]
-            blocked = original_model.get("blocked")
+            blocked = rows[index]["models"][number].get("blocked")
             block_label = "Заблокирована" if blocked is True else "Не заблокирована" if blocked is False else "Нет данных"
-            expense = _expense_markup(model)
-            spend = _text(model["spend_usd"]) if expense is None else expense
-            models.append(f'<tr><th scope="row"><label for="{field_id}">{_text(model["label"])}</label>'
-                f'<small>{_text(model["id"])}</small></th><td>{_text(model["cap_usd"], "не установлен")}</td>'
-                f'<td>{spend}</td><td>{block_label}</td><td><input id="{field_id}" data-model-id="{_text(model["id"])}" '
+            segments.append(f'<span class="segment" data-segment="{number}" data-color-model="{_text(model["id"])}">'
+                            f'<span data-segment-label>{_text(model["label"])}</span><b class="segment-percent" data-segment-percent></b></span>')
+            if number < len(row["models"]) - 1:
+                handles.append(f'<input type="range" min="0" max="100" step="1" value="0" data-share-slider="{number}" '
+                    f'aria-label="Граница {_text(model["label"])} / {_text(row["models"][number+1]["label"])} для {_text(row["name"])}">')
+            if blocked is True:
+                flags.append(f'<span class="blocked" title="{_text(model["label"])}: заблокирована">{_text(model["label"])}: блок</span>')
+            if model.get("expense_status") == "unknown":
+                flags.append(f'<span class="unknown">{_text(model["label"])}: расход неизвестен</span>')
+            models.append(f'<div class="exact-model"><label for="{field_id}">{_text(model["label"])}</label>'
+                f'<input id="{field_id}" data-model-id="{_text(model["id"])}" '
                 f'inputmode="decimal" maxlength="128" value="{_text(model["share_percent"], "")}" '
-                f'aria-label="Доля для {_text(model["label"])}, процентов" placeholder="нет данных"> %</td></tr>')
-        expense = _expense_markup(row)
-        summary = (f'Учтённый расход: {_text(row["spend_usd"])} USD · '
-                   f'Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD' if expense is None
-                   else expense + ('Остаток не подтверждён.' if row.get('expense_status') == 'unknown'
-                       else f'Остаток по учтённым расходам: {_text(row["remaining_usd"])} USD. '
-                            'Итоговый остаток не подтверждён.'))
-        sections.append(f'<section data-employee-id="{_text(row["user_id"])}"><h3>{_text(row["name"])}</h3>'
-            f'<p>{_text(row["email"])} · ID: {_text(row["user_id"])}</p>'
-            f'<p>{summary}</p>'
-            f'<label for="budget-{index}">Личный бюджет, USD</label> '
+                f'aria-label="Доля для {_text(row["name"])}: {_text(model["label"])}, процентов" placeholder="нет данных"> %'
+                f'<small>План: <output data-allocation="{number}">нет данных</output> USD · '
+                f'Лимит сейчас: {_money(model["cap_usd"], "не установлен")} USD</small>'
+                f'<small>Учтено: {_money(model["spend_usd"])} USD</small>'
+                + (_expense_markup(model) or '') +
+                f'<small data-model-status>{block_label}</small></div>')
+        employee_rows.append(f'<tr data-employee-id="{_text(row["user_id"])}" data-index="{index}">'
+            f'<th scope="row"><details class="employee-info"><summary>{_text(row["name"])}</summary>'
+            f'<small>{_text(row["email"])}</small><small>{_text(row["department"], "Без отдела")}</small>'
+            + (_expense_markup(row) or '') + '</details><span data-draft-label></span></th>'
+            f'<td><label class="sr-only" for="budget-{index}">Личный бюджет для {_text(row["name"])}, USD</label>'
             f'<input id="budget-{index}" data-field="budget_usd" inputmode="decimal" maxlength="128" '
-            f'value="{_text(row["budget_usd"], "")}" placeholder="не установлен">'
-            '<table><thead><tr><th>Модель</th><th>Текущий лимит, USD</th><th>Учтённый расход, USD</th>'
-            '<th>Блокировка</th><th>Новая доля</th></tr></thead><tbody>' + "".join(models) + '</tbody></table></section>')
-    empty = '<p>Сотрудники для этого представления не найдены.</p>' if not public else ""
+            f'value="{_text(row["budget_usd"], "")}" placeholder="не установлен"></td>'
+            f'<td>{_spend_cell(row)}</td><td title="Остаток по зарегистрированным расходам; итог и доступность запроса не гарантированы">{_money(row["remaining_usd"])}</td>'
+            f'<td class="distribution"><div class="allocation-bar" aria-label="Распределение 100% лимита">'
+            f'<div class="segments">{"".join(segments)}</div>{"".join(handles)}</div>'
+            f'<div class="row-meta"><span class="row-flags">{" · ".join(flags)}</span>'
+            f'<details class="exact-shares"><summary>Доли</summary><div class="exact-fields">{"".join(models)}'
+            '<small>Границы меняют две соседние доли. Точная сумма должна быть 100%.</small></div></details></div>'
+            '<small class="share-total" data-share-total aria-live="polite"></small></td></tr>')
+    departments = sorted({str(row["department"]) for row in public if row["department"]})
+    options = ''.join(f'<option value="{_text(d)}">{_text(d)}</option>' for d in departments)
+    legend = ''.join(f'<span class="legend-item"><i data-color-model="{_text(key)}"></i>{_text(label)}</span>' for key, label in catalog.items())
     bootstrap_html, bootstrap = _bootstrap_panels(template, pending)
-    service_html = ""
+    if bootstrap_html:
+        bootstrap_html = '<details class="optional"><summary>Новые сотрудники и шаблон</summary>' + bootstrap_html + '</details>'
+    service_html = ''
     if service is not None:
-        service_html = ('<aside data-service-budget="v1"><h2>Служебные расходы</h2>'
+        service_html = ('<details class="optional"><summary>Служебные расходы</summary><aside data-service-budget="v1">'
             f'<p>{_text(service.get("label"))}. Этот расход не уменьшает личные бюджеты сотрудников.</p>'
-            f'<p>Бюджет: <span data-service-cap>{_text(service.get("budget_usd"), "не установлен")}</span> USD · '
-            f'Расход: <span data-service-spend>{_text(service.get("spend_usd"))}</span> USD · '
-            f'Остаток: <span data-service-remaining>{_text(service.get("remaining_usd"))}</span> USD</p>'
-            f'<p>Следующее обновление бюджета: {_text(service.get("budget_reset_at"))}.</p></aside>')
+            f'<p>Бюджет: <span data-service-cap>{_money(service.get("budget_usd"), "не установлен")}</span> USD · '
+            f'Расход: <span data-service-spend>{_money(service.get("spend_usd"))}</span> USD · '
+            f'Остаток: <span data-service-remaining>{_money(service.get("remaining_usd"))}</span> USD</p>'
+            f'<p>Следующее обновление бюджета: <time data-date>{_text(service.get("budget_reset_at"))}</time>.</p></aside></details>')
     program = _PROGRAM
     if bootstrap:
-        program = program.replace("const height=()=>", _BOOTSTRAP_PROGRAM + "\nconst height=()=>", 1)
+        program = program.replace('const height=()=>', _BOOTSTRAP_PROGRAM + '\nconst height=()=>', 1)
     return ('''<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Бюджеты сотрудников</title>
-<style>body{font:14px system-ui;margin:16px;color:#222;background:white}main{max-width:100%}section{border:1px solid #ccc;padding:12px;margin:14px 0;overflow:auto}table{border-collapse:collapse;width:100%;margin-top:12px}td,th{text-align:left;padding:7px;border-bottom:1px solid #ddd}small{display:block;font-weight:normal}input{font:inherit;width:12em;max-width:85%;padding:5px}button{font:inherit;padding:8px;margin:8px 8px 8px 0}input:focus,button:focus{outline:2px solid #2365bd;outline-offset:2px}pre{white-space:pre-wrap;overflow-wrap:anywhere}[role=alert]{color:#a20}p{line-height:1.5}</style></head><body>
-<main data-budget-editor="v1"><h1>Бюджеты сотрудников</h1>'''
-        + f'<p>Данные на: <time>{_text(as_of)}</time>.</p><p>{_text(status, "")}</p>'
-        + '<p>Недавние расходы могут появиться с небольшой задержкой.</p>'
-        + '<p>Правки действуют только в этом экране и не сохраняются при обновлении. '
-          'Применение отправит JSON в чат через штатное подтверждение. Затем сервер заново проверит '
-          'права и данные и отдельно запросит подтверждение изменения бюджета.</p>'
-        + '<button type="button" id="refresh">Обновить данные</button><form id="editor">'
-        + empty + "".join(sections)
-        + '<button type="button" id="apply"' + (' disabled' if not public else '')
-        + '>Применить изменения</button></form><p id="feedback" role="alert" aria-live="polite"></p>'
-          '<pre id="preview" aria-label="Было → станет" aria-live="polite"></pre>'
+<style>
+*{box-sizing:border-box}body{font:13px system-ui;margin:12px;color:#263445;background:white}h1{font-size:20px;margin:0}p{line-height:1.4;margin:6px 0}small{display:block;font-size:11px;font-weight:400;color:#637084;line-height:1.4}button,input,select{font:inherit;color:inherit}button{cursor:pointer;padding:6px 10px;border:1px solid #c7d1df;border-radius:5px;background:white}button:disabled{cursor:default;opacity:.45}.primary{background:#245dc1;color:white;border-color:#245dc1}input:not([type=range]):not([type=checkbox]),select{padding:5px 6px;border:1px solid #c0ccdb;border-radius:4px;background:white;max-width:100%}input[data-field]{width:74px}input[data-model-id]{width:77px}input[type=checkbox]{margin:0 4px 0 0}header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:9px}.table-scroll{max-height:520px;overflow:auto;border:1px solid #d8e0eb;border-radius:6px}table{border-collapse:separate;border-spacing:0;table-layout:fixed;width:100%;min-width:760px}th,td{text-align:left;padding:8px 10px;vertical-align:middle;border-bottom:1px solid #e3e8ef}thead th{position:sticky;top:0;z-index:5;background:#f2f5f9;vertical-align:top;font-size:12px;border-bottom:1px solid #bdcadb}thead th:nth-child(1){width:23%}thead th:nth-child(2){width:12%}thead th:nth-child(3){width:11%}thead th:nth-child(4){width:20%}thead th:nth-child(5){width:34%}th[scope=row]{font-weight:500}.header-controls{display:flex;gap:4px;margin-top:6px}.header-controls input{min-width:0;width:55%}.header-controls select{min-width:0;width:45%;font-size:11px}#remaining-filter{width:100%;margin-top:6px;font-size:11px}.sort-button{padding:0;border:0;background:none;font-size:12px;font-weight:600;text-align:left;white-space:nowrap}.sort-button[aria-pressed=true]{color:#215cb9}.legend{display:flex;flex-wrap:wrap;gap:3px 10px;font-size:11px;font-weight:400;margin-top:5px}.legend-item{display:inline-flex;gap:4px;align-items:center}.legend i{width:9px;height:9px;border-radius:2px}.allocation-bar{position:relative;height:27px;margin:0 6px}.segments{display:flex;height:100%;width:100%;border-radius:4px;overflow:hidden;background:#e4e9f1}.segment{display:flex;align-items:center;justify-content:center;gap:3px;container-type:inline-size;container-name:segment;overflow:hidden;white-space:nowrap;color:white;font-size:10px;min-width:0;padding:0}.segment>[data-segment-label]{overflow:hidden;text-overflow:ellipsis;min-width:0;margin-left:5px}.segment-percent{font-weight:500;flex-shrink:0;margin-right:5px}@container segment (max-width:32px){.segment>[data-segment-label]{display:none}.segment-percent{display:none}}.allocation-bar input[type=range]{appearance:none;-webkit-appearance:none;position:absolute;inset:0;width:calc(100% + 12px);margin:0 -6px;height:27px;background:transparent;pointer-events:none;outline:none}.allocation-bar input[type=range]::-webkit-slider-runnable-track{height:0;background:transparent}.allocation-bar input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;pointer-events:auto;width:12px;height:23px;margin-top:-11px;border-radius:3px;border:2px solid white;background:#24374f;box-shadow:0 0 0 1px #7a8da7;cursor:ew-resize}.allocation-bar input[type=range]::-moz-range-track{height:0;background:transparent}.allocation-bar input[type=range]::-moz-range-thumb{pointer-events:auto;width:9px;height:20px;border:2px solid white;border-radius:3px;background:#24374f;cursor:ew-resize}.allocation-bar input:disabled::-webkit-slider-thumb{visibility:hidden}.allocation-bar input:disabled::-moz-range-thumb{visibility:hidden}.allocation-bar input:focus-visible::-webkit-slider-thumb{outline:3px solid #6399ed;outline-offset:2px}.allocation-bar[data-valid=false] .segments{opacity:.4}.row-meta{display:flex;justify-content:space-between;align-items:start;gap:8px;min-height:16px;font-size:10px;margin-top:3px}.row-flags{font-size:10px}.blocked,.unknown,.invalid{color:#a33d20}.unknown{font-size:11px}.share-total{color:#a33d20}.share-total:empty{display:none}summary{cursor:pointer}.employee-info>summary{list-style:none;overflow-wrap:anywhere}.employee-info>summary:after{content:' ⓘ';color:#71839a;font-size:10px}.employee-info>summary::-webkit-details-marker{display:none}.exact-shares{margin-left:auto}.exact-shares>summary{font-size:10px;color:#43648d;white-space:nowrap}.exact-shares[open]{width:100%}.exact-fields{padding:8px;background:#f7f9fc;border:1px solid #d5deea;border-radius:4px;margin-top:5px}.exact-model{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:4px;margin-bottom:8px}.exact-model>small,.exact-model>span{grid-column:1/-1}.actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:9px}.actions label{font-size:12px;margin-right:auto}#changed-count{font-size:12px;white-space:nowrap}[data-draft-label]{font-size:10px;color:#245dc1}tr[data-changed=true]{background:#f2f7ff}[hidden]{display:none!important}.optional{margin-top:10px;border-top:1px solid #e0e6ee;padding-top:8px}.optional>summary{font-size:12px;color:#53677f}#plan-review{margin-top:9px;font-size:12px;color:#43648d}#plan-review[hidden]{display:none}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fa;padding:9px;font-size:11px;border-radius:4px}#feedback{color:#9b3b22;font-size:12px}#feedback:empty{display:none}:focus-visible{outline:2px solid #598beb;outline-offset:2px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}@media(max-width:600px){body{margin:8px}header{align-items:start}.table-scroll{max-height:480px}.actions{gap:6px}.actions button{padding:6px 8px}header small{max-width:180px}}
+</style></head><body>
+<main data-budget-editor="v1"><header><h1>Бюджеты сотрудников</h1>'''
+        + f'<small>USD · Месячные лимиты · <time data-date>{_text(as_of)}</time></small></header>'
+        + (f'<p>{_text(status)}</p>' if status else '')
+        + '<form id="editor"><div class="table-scroll"><table id="employee-table"><caption class="sr-only">Личные бюджеты и распределение по моделям</caption>'
+          '<thead><tr><th scope="col"><button type="button" class="sort-button" data-sort="name" aria-pressed="true">Сотрудник ↑</button>'
+          '<div class="header-controls"><input id="search" type="search" aria-label="Поиск по имени или email" title="Имя или email" placeholder="Поиск">'
+          '<select id="department" aria-label="Отдел" title="Все отделы"><option value="">Отдел</option>' + options + '</select></div></th>'
+          '<th scope="col" title="Общий личный лимит в USD">Лимит, USD</th>'
+          '<th scope="col" title="Зарегистрированный расход. Данные могут быть неполными и появляться с задержкой.">'
+          '<button type="button" class="sort-button" data-sort="spend" aria-pressed="false">Учтено ↓ ⓘ</button></th>'
+          '<th scope="col" title="Остаток по зарегистрированным расходам. Итог и доступность запроса не гарантированы.">'
+          '<button type="button" class="sort-button" data-sort="remaining" aria-pressed="false">Остаток по учёту ↑ ⓘ</button>'
+          '<select id="remaining-filter" aria-label="Фильтр остатка по учёту"><option value="all">Любой остаток</option>'
+          '<option value="low">Мало: до 10%</option><option value="exhausted">Исчерпан: ≤ 0</option></select></th>'
+          '<th scope="col" title="Вся полоса — 100% личного лимита. Двигайте границы между соседними моделями.">Распределение · 100%'
+          '<div class="legend">' + legend + '</div></th></tr></thead><tbody id="employee-rows">'
+        + ''.join(employee_rows) + '</tbody></table></div>'
+        + '<p id="empty-result"' + (' hidden' if public else '') + '>Сотрудники для этого представления не найдены. Измените фильтры.</p>'
+          '<div class="actions"><label><input id="only-changed" type="checkbox"> Только изменённые</label>'
+          '<strong id="changed-count" aria-live="polite">Изменено: 0</strong>'
+          '<button type="button" id="reset-drafts" disabled>Сбросить правки</button>'
+          '<button type="button" id="apply" class="primary" disabled>Применить изменения</button>'
+          '<button type="button" id="refresh">Обновить данные</button>'
+          '</div></form>'
+          '<p id="feedback" role="alert" aria-live="polite"></p>'
+          '<details id="plan-review" hidden><summary>Посмотреть изменения</summary><pre id="preview" aria-label="Было → станет" aria-live="polite"></pre></details>'
         + bootstrap_html + service_html + '</main>'
         + '<script id="budget-data" type="application/json">' + _script_json(public) + '</script>'
         + ('<script id="budget-bootstrap-data" type="application/json">' + _script_json(bootstrap) + '</script>' if bootstrap else '')
@@ -194,38 +234,130 @@ const form=document.getElementById('editor'), apply=document.getElementById('app
 const feedback=document.getElementById('feedback'), preview=document.getElementById('preview');
 const original=value=>value===null?'':String(value);
 const decimal=value=>value.length<=128&&/^(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/.test(value);
-const sum100=values=>{
+const scaled=value=>{const [whole,fraction='']=value.split('.');return {n:BigInt(whole+fraction),scale:fraction.length};};
+const exact=(n,scale)=>{const digits=n.toString().padStart(scale+1,'0');return scale?digits.slice(0,-scale)+'.'+digits.slice(-scale):digits;};
+const total=values=>{
  const scale=Math.max(...values.map(v=>(v.split('.')[1]||'').length),0);
- return values.reduce((sum,v)=>{const [whole,fraction='']=v.split('.');
-  return sum+BigInt(whole+fraction.padEnd(scale,'0'));},0n)===100n*10n**BigInt(scale);
+ return {n:values.reduce((sum,v)=>{const x=scaled(v);return sum+x.n*10n**BigInt(scale-x.scale);},0n),scale};
 };
+const sum100=values=>{const t=total(values);return t.n===100n*10n**BigInt(t.scale);};
+const signed=value=>{
+ if(value===null||value===undefined||!/^\-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(String(value)))return null;
+ const text=String(value),negative=text.startsWith('-'),x=scaled((negative?text.slice(1):text).replace(/^\./,'0.'));
+ return {n:negative?-x.n:x.n,scale:x.scale};
+};
+const compare=(a,b)=>{const scale=Math.max(a.scale,b.scale),x=a.n*10n**BigInt(scale-a.scale),y=b.n*10n**BigInt(scale-b.scale);return x<y?-1:x>y?1:0;};
 const send=text=>parent.postMessage({type:'input:prompt:submit',text},'*');
-form.addEventListener('input',()=>{apply.disabled=rows.length===0;feedback.textContent='';preview.textContent='';});
-apply.addEventListener('click',event=>{
- event.preventDefault(); if(apply.disabled)return;
- const changes=[], lines=[];
+const numberFormat=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:8});
+const percentFormat=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2});
+const money=value=>{
+ if(value===null||value===undefined||value==='')return 'нет данных';
+ const text=String(value); if(!/^-?(?:\d+(?:\.\d+)?|\.\d+)$/.test(text))return text;
+ const nonzero=/[1-9]/.test(text), negative=text.startsWith('-'), n=Number(text);
+ if(nonzero&&Math.abs(n)<0.00000001)return negative?'−(< 0,00000001)':'< 0,00000001';
+ return numberFormat.format(text);
+};
+document.querySelectorAll('[data-money]').forEach(el=>{if(el.dataset.money!=='')el.textContent=money(el.dataset.money);});
+document.querySelectorAll('time[data-date]').forEach(el=>{const date=new Date(el.textContent);if(!Number.isNaN(date.valueOf())){el.title=el.textContent;el.textContent=new Intl.DateTimeFormat('ru-RU',{dateStyle:'medium',timeStyle:'short'}).format(date);}});
+const colors=['#336da8','#6d55a1','#178072','#ad6c26','#a34c70','#687d32'];
+const colorIds=[...new Set(rows.flatMap(row=>row.models.map(model=>model.id)))].sort();
+document.querySelectorAll('[data-color-model]').forEach(el=>{el.style.backgroundColor=colors[colorIds.indexOf(el.dataset.colorModel)%colors.length];});
+const entries=rows.map((row,index)=>({row,index,el:form.querySelector('[data-index="'+index+'"]')}));
+const valuesOf=entry=>[...entry.el.querySelectorAll('input[data-model-id]')].map(input=>input.value);
+const budgetOf=entry=>entry.el.querySelector('[data-field="budget_usd"]').value;
+const changed=entry=>budgetOf(entry)!==original(entry.row.budget_usd)||valuesOf(entry).some((v,i)=>v!==original(entry.row.models[i].share_percent));
+const reset=document.getElementById('reset-drafts');
+let prepared=null;
+let sortBy='name';
+const clearPreview=()=>{prepared=null;preview.textContent='';document.getElementById('plan-review').hidden=true;feedback.textContent='';feedback.dataset.state='';};
+const filters=()=>{
+ const query=document.getElementById('search').value.trim().toLocaleLowerCase('ru');
+ const department=document.getElementById('department').value, kind=document.getElementById('remaining-filter').value;
+ document.getElementById('department').title=department||'Все отделы';
+ const only=document.getElementById('only-changed').checked;
+ let count=0;
+ entries.forEach(entry=>{
+  const row=entry.row, remaining=signed(row.remaining_usd), budget=signed(row.budget_usd);
+  const match=(!query||[row.name,row.email].some(v=>String(v||'').toLocaleLowerCase('ru').includes(query)))&&(!department||row.department===department)&&(!only||changed(entry))&&
+   (kind==='all'||remaining!==null&&(kind==='exhausted'?remaining.n<=0n:remaining.n>0n&&budget!==null&&budget.n>0n&&compare({n:remaining.n*10n,scale:remaining.scale},budget)<=0));
+  entry.el.hidden=!match;if(match)count++;
+ });
+ const order=sortBy;
+ const sorted=[...entries].sort((a,b)=>{
+  if(order==='name')return String(a.row.name||'').localeCompare(String(b.row.name||''),'ru')||a.index-b.index;
+  const key=order==='spend'?'spend_usd':'remaining_usd';
+  const amount=entry=>signed(entry.row[key]);
+  const x=amount(a),y=amount(b);if(x===null)return y===null?a.index-b.index:1;
+  if(y===null)return -1;return (order==='spend'?compare(y,x):compare(x,y))||a.index-b.index;
+ });
+ const body=document.getElementById('employee-rows');sorted.forEach((entry,index)=>{if(body.children[index]!==entry.el)body.insertBefore(entry.el,body.children[index]||null);});
+ document.getElementById('empty-result').hidden=count!==0;
+};
+const updateRow=entry=>{
+ const values=valuesOf(entry), budget=budgetOf(entry), valid=values.length&&values.every(decimal), complete=valid&&sum100(values);
+ const sum=entry.el.querySelector('[data-share-total]');
+ sum.textContent=complete?'':valid?'Сумма '+money(exact(total(values).n,total(values).scale))+'%; нужно 100%':'Задайте доли: сумма 100%';
+ entry.el.dataset.changed=String(changed(entry));entry.el.querySelector('[data-draft-label]').textContent=changed(entry)?'Изменён':'';
+ entry.el.querySelector('.allocation-bar').dataset.valid=String(Boolean(complete));
+ entry.el.querySelectorAll('[data-share-slider]').forEach(slider=>{
+  const i=Number(slider.dataset.shareSlider),t=valid?total(values.slice(0,i+1)):null,value=t?exact(t.n,t.scale):'0';
+  slider.disabled=!complete;slider.value=value;slider.setAttribute('aria-valuetext',complete?'Граница '+value+' процентов':'Сначала задайте доли с суммой 100%');
+ });
+ entry.el.querySelectorAll('[data-segment]').forEach(segment=>{const i=Number(segment.dataset.segment),value=values[i];segment.style.flex=complete?'0 0 '+Number(value)+'%':'1';segment.querySelector('[data-segment-label]').textContent=entry.row.models[i].label;segment.querySelector('[data-segment-percent]').textContent=complete?percentFormat.format(value)+'%':'';});
+ entry.el.querySelectorAll('[data-allocation]').forEach(output=>{
+  const value=values[Number(output.dataset.allocation)];let amount=null;
+  if(decimal(budget)&&decimal(value)){const b=scaled(budget),v=scaled(value);amount=exact(b.n*v.n,b.scale+v.scale+2);}
+  output.textContent=money(amount);output.title=amount===null?'нет данных':amount+' USD';
+  entry.el.querySelector('[data-segment="'+output.dataset.allocation+'"]').title=entry.row.models[Number(output.dataset.allocation)].label+': '+(value||'нет данных')+'% · '+(amount===null?'нет данных':amount+' USD');
+ });
+};
+const update=()=>{entries.forEach(updateRow);const count=entries.filter(changed).length;document.getElementById('changed-count').textContent='Изменено: '+count;reset.disabled=count===0;apply.disabled=count===0;filters();prepare();};
+form.addEventListener('submit',event=>event.preventDefault());
+form.addEventListener('input',event=>{
+ if(!event.target.matches('[data-share-slider],[data-field="budget_usd"],input[data-model-id]'))return;
+ const slider=event.target.closest('[data-share-slider]');
+ if(slider){const entry=entries.find(e=>e.el===slider.closest('[data-employee-id]')),inputs=[...entry.el.querySelectorAll('input[data-model-id]')],i=Number(slider.dataset.shareSlider);
+  const values=inputs.map(input=>input.value);if(!values.every(decimal)||!sum100(values))return;
+  const lower=total(values.slice(0,i)),upper=total(values.slice(0,i+2)),candidate=scaled(slider.value);
+  const scale=Math.max(lower.scale,upper.scale,candidate.scale),lo=lower.n*10n**BigInt(scale-lower.scale),hi=upper.n*10n**BigInt(scale-upper.scale);
+  const desired=candidate.n*10n**BigInt(scale-candidate.scale),boundary=desired<lo?lo:desired>hi?hi:desired;
+  inputs[i].value=exact(boundary-lo,scale);inputs[i+1].value=exact(hi-boundary,scale);
+ }
+ clearPreview();update();
+});
+['search','department','remaining-filter','only-changed'].forEach(id=>document.getElementById(id).addEventListener('input',filters));
+document.querySelectorAll('[data-sort]').forEach(button=>button.addEventListener('click',()=>{sortBy=button.dataset.sort;document.querySelectorAll('[data-sort]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));filters();}));
+reset.addEventListener('click',()=>{entries.forEach(entry=>{entry.el.querySelector('[data-field="budget_usd"]').value=original(entry.row.budget_usd);entry.el.querySelectorAll('input[data-model-id]').forEach((input,i)=>input.value=original(entry.row.models[i].share_percent));});clearPreview();update();});
+const prepare=()=>{
+ prepared=null;preview.textContent='';document.getElementById('plan-review').hidden=true;
+ const changes=[],lines=[];
  try{
-  const sections=form.querySelectorAll('section[data-employee-id]');
-  rows.forEach((row,index)=>{
-   const section=sections[index], budget=section.querySelector('[data-field="budget_usd"]').value;
-   const values=[...section.querySelectorAll('input[data-model-id]')].map(input=>input.value);
-   const changed=budget!==original(row.budget_usd)||values.some((v,i)=>v!==original(row.models[i].share_percent));
-   if(!changed)return;
-   if(!decimal(budget))throw new Error('Укажите бюджет десятичной строкой без пробелов, со знаком точки.');
-   if(!values.length||!values.every(decimal)||!sum100(values))throw new Error('Доли моделей должны быть десятичными строками с суммой 100%.');
-   const shares=Object.fromEntries(row.models.map((model,i)=>[model.id,values[i]]));
-   changes.push({user_id:row.user_id,expected_revision:row.revision,budget_usd:budget,shares});
-   lines.push(String(row.name||row.user_id)+': бюджет '+(row.budget_usd===null?'не установлен':row.budget_usd)+' → '+budget+' USD');
+  entries.forEach(entry=>{
+   if(!changed(entry))return;const row=entry.row,budget=budgetOf(entry),values=valuesOf(entry);
+   if(!decimal(budget))throw new Error(String(row.name||'Сотрудник')+': укажите бюджет десятичной строкой без пробелов, со знаком точки.');
+   if(!values.length||!values.every(decimal)||!sum100(values))throw new Error(String(row.name||'Сотрудник')+': доли моделей должны быть десятичными строками с суммой 100%.');
+   changes.push({user_id:row.user_id,expected_revision:row.revision,budget_usd:budget,shares:Object.fromEntries(row.models.map((model,i)=>[model.id,values[i]]))});
+   lines.push(String(row.name||row.email||'Сотрудник')+': бюджет '+(row.budget_usd===null?'не установлен':row.budget_usd)+' → '+budget+' USD');
    row.models.forEach((model,i)=>lines.push('  '+model.label+': '+(model.share_percent===null?'нет данных':model.share_percent)+' → '+values[i]+'%'));
   });
-  if(!changes.length)throw new Error('Нет изменений для отправки.');
-  preview.textContent=lines.join('\n');
-  send(JSON.stringify({schema:1,type:'employee_budget_plan',changes}));
-  apply.disabled=true;
-  feedback.textContent='План передан на штатное подтверждение отправки в чат. Бюджеты ещё не изменены. Для повторной отправки измените поле или обновите данные.';
- }catch(error){feedback.textContent=error.message;preview.textContent='';}
+  if(!changes.length)return;
+  prepared={schema:1,type:'employee_budget_plan',changes};preview.textContent='Будут переданы все изменённые сотрудники, включая скрытых фильтрами.\n\n'+lines.join('\n');
+  document.getElementById('plan-review').hidden=false;
+ }catch(error){preview.textContent=error.message;document.getElementById('plan-review').hidden=false;}
+};
+apply.addEventListener('click',()=>{
+ if(apply.disabled)return;prepare();
+ if(!prepared){feedback.textContent=preview.textContent||'Нет изменений для отправки.';return;}
+ apply.disabled=true;feedback.dataset.state='';feedback.textContent='Передаём план на подтверждение…';
+ try{send(JSON.stringify(prepared));feedback.textContent='План передан на штатное подтверждение отправки в чат. Бюджеты ещё не изменены. Результат сохранения появится в ответе сервера. Если отправка отменена, измените поле или сбросьте правки для повтора.';}
+ catch(error){feedback.textContent='Не удалось передать план: '+error.message;apply.disabled=false;}
 });
-document.getElementById('refresh').addEventListener('click',()=>send('Обнови управление бюджетами'));
+const refresh=()=>{send('Обнови управление бюджетами');feedback.textContent='Запрос обновления передан в чат. Дождитесь нового экрана.';};
+document.getElementById('refresh').addEventListener('click',()=>{
+ const extraDirty=[...document.querySelectorAll('#template-editor input,#pending-editor input')].some(input=>input.type==='checkbox'?input.checked:input.value!==input.defaultValue);
+ if(entries.some(changed)||extraDirty){feedback.textContent='Есть несохранённые правки. Примените или сбросьте их перед обновлением.';return;}refresh();
+});
+update();
 const height=()=>parent.postMessage({type:'iframe:height',height:document.documentElement.scrollHeight},'*');
 new ResizeObserver(height).observe(document.documentElement);addEventListener('load',height);height();
 })();</script>'''

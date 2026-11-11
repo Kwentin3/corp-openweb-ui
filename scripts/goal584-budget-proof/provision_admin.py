@@ -171,6 +171,11 @@ def installation(webui, state, *, managed_model_ids=MODELS, base_model_id=None, 
 def setup(webui, state, path):
     require("admin_fixture" not in state and "admin_budgetnative_keys" not in state,
             "Admin setup requires a fresh disposable installation")
+    # Representative native profile data for the local department filter.
+    for account, department in zip(state["users"], ("Продажи", "Разработка")):
+        info = webui.ok("POST", "/api/v1/users/user/info/update", token=account["token"],
+                        body={"department": department})
+        require(info.get("department") == department, "Native fixture department did not persist")
     source = SOURCE.read_text(encoding="utf-8")
     require(0 < len(source.encode()) <= 128 * 1024, "Admin Tool source exceeds fixture bounds")
     before = read_states(state, include_admin=False)

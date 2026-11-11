@@ -26,7 +26,7 @@ from prove_webui_browser import Fixture, chat, login, require, safe_failure, sam
 from verify_admin_calls import MARKER, FormParser, editor_rows
 
 
-INTENT = "Давай настроим лимиты"
+INTENT = "Давай поработаем с лимитами"
 MODELS = ("goal584-a", "goal584-b")
 SERVER_TITLE = "Изменение бюджетов сотрудников"
 def same_editor_state(before, after):
@@ -305,20 +305,44 @@ def wait_editor(page, base, token, chat_id, sent, admin_id, model_id, text, outp
         expect(frame.locator("main")).to_contain_text(status)
         require(status in html, "Backend status is missing from persisted form")
     (output / (label + ".html")).write_text(html, encoding="utf-8")
-    page.screenshot(path=str(output / (label + ".png")))
+    images = capture_editor(page, frame, output, label, editor_source(html, "message-" + sent["id"]))
     proof.update(editor_rows=rows, terminal_persisted=True, native_embed_count=len(embeds),
                  editor_source="function_call_output.embeds", sandbox_same_origin=False, backend_status=status,
-                 diagnostic_source=editor_source(html, "message-" + sent["id"]))
+                 diagnostic_source=editor_source(html, "message-" + sent["id"]), images=images)
     write_json(output / (label + ".json"), proof)
     return frame, rows, proof
 
 
 def fill_plan(frame, plan):
     for change in plan["changes"]:
-        section = frame.locator('section[data-employee-id="' + change["user_id"] + '"]')
+        section = frame.locator('tr[data-employee-id="' + change["user_id"] + '"]')
         section.locator('[data-field="budget_usd"]').fill(change["budget_usd"])
+        exact = section.locator("details.exact-shares")
+        if exact.get_attribute("open") is None:
+            exact.locator("summary").click()
         for model, amount in change["shares"].items():
-            section.locator('input[data-model-id="' + model + '"]').fill(amount)
+            section.locator('input[data-model-id="' + model + '"]:not([type="range"])').fill(amount)
+        exact.locator("summary").click()
+
+
+def review_plan(frame):
+    review = frame.locator("#plan-review")
+    expect(review).to_be_visible()
+    if review.get_attribute("open") is None:
+        review.locator("summary").click()
+    expect(frame.locator("#preview")).to_be_visible()
+    return frame.locator("#preview")
+
+
+def capture_editor(page, frame, output, label, source, *, dialog=None):
+    """Keep actual pixels of both the native viewport and the readable editor."""
+    files = []
+    region = ("-dialog", dialog) if dialog is not None else ("-editor", frame.locator("main"))
+    for suffix, target in (("", page), region):
+        path = output / (label + suffix + ".png")
+        target.screenshot(path=str(path))
+        files.append({"file": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+    return {"source": source, "png": files}
 
 
 def diff_lines(rows, plan):
@@ -343,6 +367,184 @@ def editor_source(html, card_id):
     programs = re.findall(r"<script>\(\(\)=>\{.*?</script>", html, re.DOTALL)
     return {"card_id": card_id, "srcdoc_sha256": hashlib.sha256(html.encode()).hexdigest(),
             "inline_program_sha256": hashlib.sha256(programs[0].encode()).hexdigest() if len(programs) == 1 else None}
+
+
+def qualify_table(page, frame, rows, plan, fixture, source, browser_codes):
+    """Finite local interactions on the actual sandbox; no extra model turn."""
+    from verify_admin_calls import accounting_totals_ready
+
+    output = fixture.output
+    physical, context = fixture.provider()["requests"], fixture.context()["requests"]
+    deadline = time.monotonic() + 60
+    while True:
+        before = fixture.snapshot()
+        users = before["users"] + before["admin_accounting"]["users"]
+        keys = before["keys"] + before["admin_accounting"]["keys"]
+        if {item["id"] for item in physical} <= {item["request_id"] for item in before["attributed_spend_logs"]} and accounting_totals_ready(
+                users, keys, before["attributed_spend_logs"], {item["user_id"] for item in users}):
+            break
+        require(time.monotonic() < deadline, "Local table baseline accounting did not settle")
+        time.sleep(.25)
+    diagnostic = admin_editor_diagnostic(page, frame, source, browser_codes)
+    baseline_prompts = diagnostic["iframe"]["prompt_messages"]
+    completion_posts = []
+    def observe_request(request):
+        if request.method == "POST" and urlsplit(request.url).path == "/api/chat/completions":
+            completion_posts.append(1)
+    page.on("request", observe_request)
+    receipt = {"schema": 1, "proof": "goal584-local-admin-table", "passed": False, "source": source,
+        "source_sha256": {"driver": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "admin_ui": hashlib.sha256((Path(__file__).resolve().parents[2] / "deploy/openwebui-budgets/admin_ui.py").read_bytes()).hexdigest()},
+        "stages": []}
+    def stage(name, **checked):
+        observation = admin_editor_diagnostic(page, frame, source, browser_codes)
+        require(observation["iframe"]["srcdoc_matches_saved"] and observation["iframe"]["inline_program_matches_saved"],
+                "Local table changed its persisted editor source")
+        require(observation["iframe"]["prompt_messages"] == baseline_prompts and not completion_posts,
+                "Local table interaction submitted a native prompt")
+        receipt["stages"].append({"stage": name, "checks": checked, "diagnostic": observation,
+            "images": capture_editor(page, frame, output, "admin-table-" + name, source)})
+        write_json(output / "admin-table.json", receipt)
+    employee = frame.locator('tr[data-employee-id]')
+    visible = frame.locator('tr[data-employee-id]:visible')
+    def ids():
+        return visible.evaluate_all("els=>els.map(el=>el.dataset.employeeId)")
+    def row(uid):
+        return frame.locator('tr[data-employee-id="' + uid + '"]')
+    def values(uid):
+        return row(uid).locator('input:not([type="range"])').evaluate_all("els=>els.map(el=>el.value)")
+    def clear_filters():
+        frame.locator("#search").fill("")
+        frame.locator("#department").select_option("")
+        frame.locator("#remaining-filter").select_option("all")
+        frame.locator("#only-changed").uncheck()
+    try:
+        expect(employee).to_have_count(len(rows))
+        require(set(ids()) == {item["user_id"] for item in rows}, "Employee table is incomplete")
+        require(frame.locator("#editor table").count() == 1, "Employee editor is not one native HTML table")
+        sticky = frame.locator(".table-scroll").evaluate("""el=>{
+          const head=el.querySelector('thead th'),start=head.getBoundingClientRect().top;
+          const overflow=el.scrollHeight>el.clientHeight+1;
+          if(!overflow)return {overflow:false,qualified:false,reason:'finite fixture does not overflow'};
+          el.scrollTop=Math.min(64,el.scrollHeight-el.clientHeight);
+          const top=head.getBoundingClientRect().top,scrollTop=el.scrollTop;el.scrollTop=0;
+          return {overflow:true,qualified:scrollTop>0&&Math.abs(top-start)<=1,scrollTop,header_delta:top-start};
+        }""")
+        require(not sticky["overflow"] or sticky["qualified"], "Scrollable employee header did not stay sticky")
+        money = frame.locator("#employee-table [data-money]").evaluate_all(
+            "els=>els.map(el=>({raw:el.dataset.money,display:el.textContent,title:el.title}))")
+        require(money and all(item["raw"] == "" or item["title"] == item["raw"] + " USD" for item in money),
+                "Readable money lost its exact native amount")
+        for item in rows:
+            raw = row(item["user_id"]).locator("[data-money]").evaluate_all("els=>els.map(el=>el.dataset.money)")
+            expected_caps = [model["cap_usd"] for model in item["models"] if model["cap_usd"] is not None]
+            require(all(amount in raw for amount in expected_caps), "Readable model cap differs from exact native data")
+        stage("general", single_table=True, employee_count=len(rows), visible_money=money, sticky_header=sticky)
+        first, second = rows[:2]
+        frame.locator("#search").fill(first["email"])
+        require(ids() == [first["user_id"]], "Local email search selected wrong employees")
+        stage("filtered", email_search=True)
+        frame.locator("#search").fill("goal584-no-employee-match")
+        expect(visible).to_have_count(0)
+        expect(frame.locator("#empty-result")).to_be_visible()
+        stage("empty", no_matching_rows=True)
+        clear_filters()
+        require(first.get("department") and second.get("department") and first["department"] != second["department"],
+                "Finite table fixture requires two distinct native employee departments")
+        frame.locator("#department").select_option(first["department"])
+        require(set(ids()) == {item["user_id"] for item in rows if item.get("department") == first["department"]},
+                "Department filter selected wrong employees")
+        clear_filters()
+        statuses = ("low", "exhausted")
+        for status in statuses:
+            frame.locator("#remaining-filter").select_option(status)
+            eligible = [item for item in rows if item["remaining_usd"] is not None and Decimal(item["remaining_usd"]).is_finite()]
+            expected = {item["user_id"] for item in eligible if (Decimal(item["remaining_usd"]) <= 0 if status == "exhausted"
+                else item["budget_usd"] is not None and Decimal(item["budget_usd"]) > 0
+                    and 0 < Decimal(item["remaining_usd"]) <= Decimal(item["budget_usd"]) / 10)}
+            require(set(ids()) == expected, "Remaining filter differs from registered native counters")
+        clear_filters()
+        orders = {}
+        for direction in ("name", "spend", "remaining"):
+            frame.locator('[data-sort="' + direction + '"]').click()
+            expect(frame.locator('[data-sort="' + direction + '"]')).to_have_attribute("aria-pressed", "true")
+            orders[direction] = ids()
+            require(set(orders[direction]) == {item["user_id"] for item in rows}, "Sorting lost an employee")
+            if direction != "name":
+                field = "spend_usd" if direction == "spend" else "remaining_usd"
+                numeric = [item for item in rows if item[field] is not None and Decimal(item[field]).is_finite()]
+                expected = sorted(numeric, key=lambda item: Decimal(item[field]), reverse=direction == "spend")
+                expected += [item for item in rows if item not in numeric]
+                require(orders[direction] == [item["user_id"] for item in expected],
+                        "Money sorting differs from registered native counters")
+        frame.locator('[data-sort="name"]').click()
+        require(ids() == [item["user_id"] for item in sorted(rows, key=lambda item: item["name"])],
+                "Name sorting differs from the fixture employee order")
+        slider = row(first["user_id"]).locator("input[data-share-slider]").first
+        slider.focus()
+        slider.press("Home")
+        slider.press("ArrowRight")
+        exact = row(first["user_id"]).locator('input[data-model-id]:not([type="range"])')
+        require(exact.count() == 2 and [Decimal(value) for value in exact.evaluate_all("els=>els.map(el=>el.value)")] == [Decimal(1), Decimal(99)]
+                and slider.evaluate("el=>document.activeElement===el"),
+                "Two-model keyboard slider did not maintain an exact complementary share")
+        frame.locator("#reset-drafts").click()
+        original = {item["user_id"]: values(item["user_id"]) for item in rows}
+        fill_plan(frame, plan)
+        draft = {item["user_id"]: values(item["user_id"]) for item in rows}
+        require(all(draft[change["user_id"]] != original[change["user_id"]] for change in plan["changes"]),
+                "Individual employee drafts did not change")
+        for change in plan["changes"]:
+            expect(row(change["user_id"]).locator('[data-field="budget_usd"]')).to_have_value(change["budget_usd"])
+            for model, share in change["shares"].items():
+                expect(row(change["user_id"]).locator('input[data-model-id="' + model + '"]')).to_have_value(share)
+        expect(frame.locator("#changed-count")).to_contain_text(str(len(plan["changes"])))
+        frame.locator("#search").fill(first["email"])
+        require(ids() == [first["user_id"]] and values(second["user_id"]) == draft[second["user_id"]],
+                "Filtering discarded a hidden employee draft")
+        expect(frame.locator("#changed-count")).to_contain_text(str(len(plan["changes"])))
+        clear_filters()
+        frame.locator('[data-sort="remaining"]').click()
+        require(all(values(uid) == value for uid, value in draft.items()), "Sorting discarded an employee draft")
+        frame.locator('[data-sort="name"]').click()
+        frame.locator("#only-changed").check()
+        require(set(ids()) == {item["user_id"] for item in plan["changes"]}, "Changed-only view lost drafts")
+        stage("draft", changed_count=len(plan["changes"]), hidden_draft_preserved=True,
+              exact_percent=True, keyboard_slider_complement=True, sort_orders=orders, status_options=statuses,
+              department_scoped=True)
+        frame.locator("#reset-drafts").click()
+        expect(visible).to_have_count(0)
+        require(all(values(uid) == value for uid, value in original.items()), "Reset did not restore original row inputs")
+        clear_filters()
+        fill_plan(frame, plan)
+        invalid = row(first["user_id"]).locator('[data-field="budget_usd"]')
+        invalid.fill("invalid-budget")
+        # Invalid editing is local and must not produce a native confirmation.
+        frame.locator("#apply").click()
+        expect(frame.locator("#feedback")).not_to_be_empty()
+        stage("error", invalid_budget_not_submitted=True)
+        fill_plan(frame, plan)
+        preview = review_plan(frame)
+        expect(preview).to_contain_text("→")
+        for change in plan["changes"]:
+            original_row = next(item for item in rows if item["user_id"] == change["user_id"])
+            old_budget = "не установлен" if original_row["budget_usd"] is None else original_row["budget_usd"]
+            expect(preview).to_contain_text(original_row["name"] + ": бюджет " + old_budget + " → " + change["budget_usd"] + " USD")
+            for model in original_row["models"]:
+                old_share = "нет данных" if model["share_percent"] is None else model["share_percent"]
+                expect(preview).to_contain_text(model["label"] + ": " + old_share + " → " + change["shares"][model["id"]] + "%")
+        stage("preview", live_diff_before_submit=True, original_schema=plan["schema"], revisions_preserved=True)
+        after = fixture.snapshot()
+        require(all(before[field] == after[field] for field in ("users", "keys", "admin_accounting", "attributed_spend_logs")),
+                "Local table interactions changed native finance")
+        require(physical == fixture.provider()["requests"] and context == fixture.context()["requests"],
+                "Local table interactions dispatched a provider/context request")
+        receipt.update(passed=True, native_finance_unchanged=True, provider_unchanged=True, gateway_context_unchanged=True,
+            native_prompt_messages=0, completion_posts=0, final_native_receipt="admin-native-%02d.json" % fixture.sequence)
+        write_json(output / "admin-table.json", receipt)
+        return receipt
+    finally:
+        page.remove_listener("request", observe_request)
 
 
 def observe_admin_browser(page):
@@ -431,6 +633,8 @@ def submit_plan(page, frame, plan, base, output, label, *, approve, source=None,
     observe("before_fill")
     fill_plan(frame, plan)
     observe("after_fill")
+    expect(review_plan(frame)).to_contain_text("→")
+    preview_images = capture_editor(page, frame, output, label + "-preview", source)
     frame.get_by_role("button", name="Применить изменения", exact=True).click()
     observe("after_click")
     prompt = page.get_by_role("dialog", name="Confirm Prompt from Embed", exact=True)
@@ -441,7 +645,7 @@ def submit_plan(page, frame, plan, base, output, label, *, approve, source=None,
     expect(prompt).to_contain_text("employee_budget_plan")
     for change in plan["changes"]:
         expect(prompt).to_contain_text(change["expected_revision"])
-    page.screenshot(path=str(output / (label + "-embed-confirm.png")))
+    embed_images = capture_editor(page, frame, output, label + "-embed-confirm", source, dialog=prompt)
     with page.expect_response(lambda r: urlsplit(r.url).path == "/api/chat/completions" and r.request.method == "POST",
                               timeout=45_000) as pending:
         prompt.get_by_role("button", name="Confirm", exact=True).click()
@@ -452,12 +656,13 @@ def submit_plan(page, frame, plan, base, output, label, *, approve, source=None,
     for line in expected_diff:
         expect(server).to_contain_text(line)
     server_text = server.inner_text()
-    page.screenshot(path=str(output / (label + "-server-confirm.png")))
+    server_images = capture_editor(page, frame, output, label + "-server-confirm", source, dialog=server)
     server.get_by_role("button", name="Confirm" if approve else "Cancel", exact=True).click()
     write_json(output / (label + "-submitted-plan.json"), {"model": sent["model"], "assistant_id": sent["id"],
         "chat_id": chat_id, "parent_user_id": sent["user_message"]["id"], "text": text,
         "native_embed_confirmation": True, "native_server_confirmation": approve,
-        "server_diff_expected": expected_diff, "server_diff_visible": server_text})
+        "server_diff_expected": expected_diff, "server_diff_visible": server_text,
+        "images": {"preview": preview_images, "embed_confirmation": embed_images, "server_confirmation": server_images}})
     return sent, chat_id, text
 
 
@@ -648,6 +853,9 @@ def main():
         frame, rows, opened = wait_editor(page, args.base_url, token, chat_id, sent, admin["id"], model_id,
                                          INTENT, args.output, "admin-opened")
         plan = planned_changes(rows, staff_ids)
+        if args.monthly:
+            receipt["admin_table"] = qualify_table(page, frame, rows, plan, fixture,
+                opened["diagnostic_source"], browser_codes)
         sent_cancel, cancel_chat, cancel_text = submit_plan(page, frame, plan, args.base_url, args.output, "admin-canceled", approve=False,
             source=opened["diagnostic_source"], browser_codes=browser_codes)
         frame, cancel_rows, canceled = wait_editor(page, args.base_url, token, cancel_chat, sent_cancel, admin["id"], model_id,
