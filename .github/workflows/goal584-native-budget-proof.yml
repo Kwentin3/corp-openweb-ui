@@ -19,7 +19,7 @@ on:
         description: Existing full acceptance or one finite component/product case
         type: choice
         default: full
-        options: [full, stream-usage, release-config, stream-ledger, file-service, monthly-api, gui-product]
+        options: [full, stream-usage, release-config, stream-ledger, file-service, monthly-api, gui-product, release-image]
 
 permissions:
   contents: read
@@ -33,7 +33,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  budget-release-image:
+    if: github.event_name == 'workflow_dispatch' && inputs.acceptance == 'release-image'
+    uses: ./.github/workflows/goal584-budget-release.yml
+
   native-budget-proof:
+    if: inputs.acceptance != 'release-image'
     runs-on: ubuntu-24.04
     env:
       ACCEPTANCE_PROFILE: ${{ inputs.acceptance || 'full' }}
