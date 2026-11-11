@@ -29,17 +29,38 @@ rehearsals на production VPS. До переключения — конкрет
 денег, прокси и массовых тестовых прогонов не добавлять; повторять только
 затронутые проверки при новых значимых входах.
 
-Проверенное сейчас: DELIVERY clean `dffab57e`; MAIN `b4518191` с независимым WIP.
-Предыдущий read-only production snapshot показал mixed direct/proxy routing и
-отсутствие budget Functions; это исходное состояние, не квалификация deployment.
-Два независимых ограниченных source review: release/artifact и API compatibility.
+Проверенное сейчас: база DELIVERY `dffab57e`; MAIN `b4518191` с независимым WIP.
+Bounded SSH preflight подтвердил здоровые WebUI/LiteLLM без budget Functions,
+отсутствие PG/Redis у gateway, stock1.105.1 с тем же pinned base digest,
+свободные ~5 GB RAM/~35 GB disk и native admin API access. Неизвестное подключение
+идентифицировано как official DeepSeek. Никаких model calls не сделано.
+Release source/runtime reviews подтвердили61 LF source pins и необходимость
+Git-LF экспорта. Accepted image после стенда удалён; off-prod rebuild сохранён
+в [image-only run43029553258](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43029553258),
+все полные proof jobs SKIPPED. Прямой dispatch нового workflow получил404 до его
+регистрации на default branch; existing manual workflow теперь вызывает его
+через reuse. Это image packaging, не новый test framework.
+Native persistence overlay подготовлен; actual Compose merge/health ещё впереди.
+Protected backup phase создана с image/config/Compose/env snapshot. SQLite backup
+первая попытка остановлена по времени; повтор дошёл до SQLITE_DONE, но callback
+слишком поздно применил тот же предел. Полученная копия635068416 B затем отдельно
+прошла readonly SQLite quick_check=ok и SHA256; повторного копирования не было.
+Архив image445921052 B доставлен прямо с Actions на сервер, SHA256 GitHub artifact
+и все внутренние checksums/source1ebf2b64 подтверждены. Зависшее скачивание через
+Windows адресно остановлено, незавершённых download процессов нет. Рабочие
+routes/сервисы не переключены.
+API source review доказал, что сохранение fake chat не годится: меняется история
+и HTTP streaming. Минимальная совместимость готовится в прежних signature/gateway/
+guard owners: signed API operation существующего владельца ключа, без выдуманных
+chat IDs, новых payer/ledger/расчёта денег. Персональный учёт сотрудников1С исключён.
 
 Обязательный остаток: runtime inventory зависимостей/точных маршрутов; согласованный
 рабочий каталог и начальные бюджеты; подготовленный immutable off-prod artifact и
 protected config/roles/backup/rollback; разрешение конкретных несовместимостей;
 установка, native readback, один ограниченный admin→staff→расход→отказ→увеличение→
 восстановление GUI/PNG сценарий; независимая приёмка, документация и safe cleanup.
-Следующий шаг: bounded read-only inventory production без вызовов моделей и изменений.
+Следующий шаг: подтвердить backup/archive checksums и подготовить закрытые
+зависимости/конфигурацию; дождаться стартовых лимитов и фактов API-совместимости.
 
 ## Текущий этап: самодостаточное управление моделями, ценами и состоянием оплаты
 

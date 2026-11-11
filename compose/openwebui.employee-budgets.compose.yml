@@ -1,5 +1,5 @@
 # SOURCE ONLY: opt-in overlay after the existing release base and Google gateway.
-# NOT RUNTIME QUALIFIED: protocol/config/image gaps and production approval remain.
+# Target runtime must match the accepted image/source and protected config.
 # Reuse native DB/Redis configuration; this file creates no service or data owner.
 x-employee-budget-bind: &employee-budget-bind
   type: bind
