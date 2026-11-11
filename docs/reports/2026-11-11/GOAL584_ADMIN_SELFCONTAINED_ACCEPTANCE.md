@@ -2,7 +2,27 @@
 
 11.11.2026. База `2c4ae3ab`, ветка `agent/goal584-admin-table`.
 Каноническое состояние: [GOAL584](../../infra-ops/employee-budgets-goal584.md).
-**Source собран; новая native приёмка ещё не выполнена. Production не менялся.**
+**GUI native PASS; последний backend срез требует исправления. Production не менялся.**
+
+Кандидат `d7d1205e642536a2522d383332343d8b904f337f`,
+[actual 43010403326](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43010403326):
+общий FAIL только на последнем `model-expansion`/financial-refusal срезе.
+`admin-boundary.json` PASS: 5 admin turns, 10 admin physical calls, 3 staff successes,
+3 quota denials, 16 signed attempts/13 physical, phase 3.00 USD (admin2.40/staff0.60).
+Public S1→S2→S1, native расписание/restore, точный stored JSON/Skill/history,
+старые суммы и две новые строки по 0.40 USD подтверждены. Ручной снимок/автор/
+revision/новая карточка и неизменённые employee finances подтверждены.
+
+Root просмотрел actual general и balance-visible PNG; независимый reviewer
+проверил 61 source pin, 6 mounts и 14 PNG hashes. Компонентные 12-row PNG
+квалифицируют переполнение отдельно от native двухстрочной таблицы.
+Actual financial-refusal остался unconfirmed20s; rows ошибки не экспортированы,
+startup log начинается уже в середине опроса. SDK + точный native router formatter
+в локальном replay выявил реальный дефект: literal body с дописанным suffix не
+читается прежним parser. Единственная причина actual timeout пока не доказана.
+Первый FAIL сохраняется. Cleanup подтвердил отсутствие owned containers/volumes/
+networks и удаление derivative image. Следующий шаг — узкая поправка parser,
+safe failure projection и повтор конечного профиля без расширения матрицы.
 
 ## Реализация
 

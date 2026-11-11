@@ -714,7 +714,7 @@ def public_prices(state, *, restore=False):
 async def provider_refusal_recovery(state, session, client, user_id, created, secret):
     """Two synthetic calls, with status derived from actual durable native rows."""
     from employee_budget_admin_client import _initialization_key
-    from employee_budget_cost_readback import read_admin_overview
+    from employee_budget_cost_readback import read_admin_overview, _financial_refusal
 
     require(os.environ.get('LITELLM_MODEL_COST_MAP_URL') == 'http://provider:8000/__proof/catalog',
             'Provider account proof requires the isolated synthetic catalog')
@@ -729,7 +729,44 @@ async def provider_refusal_recovery(state, session, client, user_id, created, se
             return json.loads(raw)
     def control(status):
         provider('/__proof/control', {'response_status': status, 'admin_mode': False, 'tool_round': False})
+    def diagnostic(expected, since, last):
+        """Bounded safe schema evidence, including rows lacking deployment ids."""
+        result = {'expected': expected, 'last_projection': last, 'rows': []}
+        try:
+            native.timeout = 5
+            status, payload, _ = native.request('GET', '/spend/logs/v2', query={'user_id': user_id,
+                'page': 1, 'page_size': 100, 'start_date': since.strftime('%Y-%m-%d %H:%M:%S'),
+                'end_date': datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')})
+            data = payload.get('data', []) if status == 200 else []
+            result.update(spend_http_status=status, returned_rows=len(data) if isinstance(data, list) else None)
+            for row in data[:3] if isinstance(data, list) else []:
+                if not isinstance(row, dict) or row.get('user') != user_id:
+                    continue
+                metadata = row.get('metadata') if isinstance(row.get('metadata'), dict) else {}
+                info = metadata.get('error_information')
+                info = info if isinstance(info, dict) else {}
+                message = info.get('error_message')
+                message = message if isinstance(message, str) else ''
+                error_class, error_code, model_id = info.get('error_class'), str(info.get('error_code', '')), row.get('model_id')
+                cache = row.get('cache_hit')
+                result['rows'].append({'status': row.get('status') if row.get('status') in ('success', 'failure') else 'other',
+                    'model_id': model_id if model_id in ('goal584-deployment-a', 'goal584-deployment-b') else ('other' if model_id else 'missing'),
+                    'cache_hit': cache if cache in (True, False, 'True', 'False', 'true', 'false', '', None) else 'other',
+                    'error_class': error_class if isinstance(error_class, str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,79}', error_class) else None,
+                    'error_code': error_code if re.fullmatch(r'[0-9]{3}', error_code) else None,
+                    'provider_present': bool(info.get('llm_provider')), 'recognized_financial_marker': _financial_refusal(metadata),
+                    'message_chars': min(len(message), 32769), 'python_dict_repr': "{'" in message,
+                    'json_object_repr': '{"' in message, 'native_router_suffix': '\n\nLiteLLM: model group ' in message})
+            status, source, _ = native.request('GET', '/model/cost_map/source')
+            result['source'] = {'http_status': status, 'kind': source.get('source') if source.get('source') in ('local', 'remote') else 'other',
+                'url': 'http://provider:8000/__proof/catalog' if source.get('url') == 'http://provider:8000/__proof/catalog' else 'other'}
+        except Exception as error:
+            result['capture_error_type'] = type(error).__name__
+        finally:
+            native.timeout = 10
+        return result
     async def observed(expected, since):
+        last = {}
         try:
             async with asyncio.timeout(20):
                 while True:
@@ -741,6 +778,8 @@ async def provider_refusal_recovery(state, session, client, user_id, created, se
                     timestamp = account.get('event_at')
                     stamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00')) if timestamp else None
                     actual = await client.read_employee(user_id, tuple(MODELS))
+                    last = {'status': account.get('status'), 'event_at': timestamp, 'complete': overview.get('complete'),
+                            'native_user_spend_usd': str(actual.spend), 'native_model_spend_usd': str(actual.models[1].spend)}
                     expected_spend = Decimal('.20') if expected == 'success' else Decimal(0)
                     if (account.get('status') == expected and stamp is not None and stamp >= since
                             and actual.spend == expected_spend and actual.models[1].spend == expected_spend):
@@ -748,7 +787,9 @@ async def provider_refusal_recovery(state, session, client, user_id, created, se
                                 'native_user_and_model_spend_usd': str(expected_spend)}
                     await asyncio.sleep(.25)
         except asyncio.TimeoutError:
-            raise ProofError('Actual native provider status/usage/counters remain unconfirmed: ' + expected) from None
+            failure = ProofError('Actual native provider status/usage/counters remain unconfirmed: ' + expected)
+            failure.provider_observation_diagnostic = diagnostic(expected, since, last)
+            raise failure from None
     await client.set_model_cap(created.key_hash, Decimal('.60'))
     credential = _initialization_key(user_id, MODELS[1], secret)
     require(hashlib.sha256(credential.encode()).hexdigest() == created.key_hash,
@@ -951,6 +992,8 @@ def main():
         receipt["passed"] = True
     except ProofError as error:
         receipt["failure"] = str(error)
+        if args.phase == 'model-expansion' and isinstance(getattr(error, 'provider_observation_diagnostic', None), dict):
+            receipt['provider_observation_diagnostic'] = error.provider_observation_diagnostic
     except BudgetAdminError as error:
         receipt["failure"] = "Native admin client: " + error.code
     except Exception as error:

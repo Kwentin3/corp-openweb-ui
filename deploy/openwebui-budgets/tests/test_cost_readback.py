@@ -977,6 +977,23 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
             self.rows[0]["metadata"]["error_information"]["error_message"] = message
             self.assertEqual((await self.read())["accounts"][0]["status"], "unknown")
 
+    async def test_sdk_python_error_literal_survives_native_router_suffix(self):
+        # Replayed real SDK402 repr + pinned format_no_fallback_group_message.
+        suffix = ("\n\nLiteLLM: model group 'goal584-b' failed with the error above and no fallback model group was found "
+                  "for it, so the request was not retried on another model. No fallbacks are configured."
+                  " Add a fallbacks entry for that model group (Router fallbacks or proxy router_settings.fallbacks)"
+                  " to retry on another model.")
+        for code, expected in (("payment_required", "financial_refusal"), ("rate_limit_exceeded", "unknown")):
+            for tail in ("", suffix):
+                self.rows = [self.event("financial_refusal")]
+                info = self.rows[0]["metadata"]["error_information"]
+                info["error_message"] = ("litellm.APIError: OpenAIException - Error code: 402 - "
+                    + repr({"error": {"message": "Controlled synthetic payment required", "type": code, "code": code},
+                            "id": "synthetic-response"}) + tail)
+                self.assertEqual((await self.read())["accounts"][0]["status"], expected)
+        info["error_message"] = "litellm.APIError: {'error': {'code': 'payment_required'}} arbitrary unrelated tail"
+        self.assertEqual((await self.read())["accounts"][0]["status"], "unknown")
+
     async def test_credential_change_and_explicit_mutable_ids_cannot_erase_refusal(self):
         self.info["id"] = self.identity = "explicit-deployment"
         self.info.pop("owui_billing_immutable_deployment_id")

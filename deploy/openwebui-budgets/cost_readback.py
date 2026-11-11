@@ -645,7 +645,9 @@ def _financial_refusal(metadata):
         except ValueError:
             # SDK error strings also use Python's dictionary representation.
             # Parse bounded literal data only; never execute provider text.
-            payload = ast.literal_eval(body)
+            # Pinned Router appends this explanation to exception.message.
+            # SDK dict repr is one literal; the native prose is not part of it.
+            payload = ast.literal_eval(body.split("\n\nLiteLLM: model group ", 1)[0])
     except (ValueError, TypeError, SyntaxError, RecursionError):
         return False
     error = payload.get("error") if isinstance(payload, dict) else None

@@ -40,6 +40,16 @@ primary/subagent контекста проверены адресно. По не
 отказа и восстановления; осмотр настоящих PNG, source/image/mount readback,
 уборка своих ресурсов и финальная фиксация результата. Общий GOAL пока не принят.
 Следующий шаг: зафиксировать целостного кандидата и запустить этот конечный профиль.
+Кандидат `d7d1205e642536a2522d383332343d8b904f337f` зафиксирован и отправлен;
+[actual run 43010403326](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43010403326)
+завершился: GUI/context/reconcile PASS (5 admin turns, 13 physical calls,
+16 signed attempts, synthetic phase 3.00 USD, S1→S2→S1/расписание восстановлены).
+Последний native backend срез FAIL: финансовый отказ не распознан за 20 секунд.
+Native SDK/router replay подтвердил дефект парсинга literal body с добавленным
+router suffix; точные failure rows первого запуска не сохранены, поэтому это
+не доказательство единственной причины. Исправляется только этот разбор и
+ограниченный safe readback при ошибке прогона. Общий native PASS не заявляется.
+Cleanup первого запуска: containers/volumes/networks 0, derivative image удалён.
 Пределы: job 25 минут, браузер 330 секунд; наблюдение через GitHub Actions,
 адресная остановка через `gh run cancel <id>`, штатный always-cleanup Compose.
 Профиль использует только существующий synthetic provider/public catalog, без
