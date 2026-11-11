@@ -1,10 +1,10 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Актуальная запись на 11.11.2026. **Native accounting и бюджеты активированы в production; продуктовая приёмка ещё не завершена. Пользователь выбрал штатный учёт LiteLLM без собственного подсчёта токенов и специальной unknown-Usage блокировки.**
+Актуальная запись на 11.11.2026. **Продукт внедрён в production; ограниченная продуктовая приёмка выполнена. Используется штатный учёт LiteLLM без собственного подсчёта токенов и специальной unknown-Usage блокировки.**
 Источник: [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
 [Установка и откат](employee-budgets-installation.md). [Реестр патчей](patch-registry.md).
 
-## Активный этап: внедрение всего продукта в production
+## Результат production-этапа
 
 Разрешён пользователем 11.11.2026 от `dffab57e`, в существующей DELIVERY/ветке.
 Цель: штатный учёт LLM-расходов, бюджеты сотрудников, компактная админка,
@@ -23,7 +23,12 @@ rehearsals на production. Новых framework/proxy и массовых по�
 
 ### Проверенное production-состояние
 
-Активен source `435d9caeb21f22483803a137fb1818abd39a54dc`, floor-only variant
+Согласованный пакет исходников — `57a23de6b1f6ddfb278160713c270ab49f4374d3`:
+20 Git-LF blobs, без credentials/tests/retired guard modules. Runtime identity
+проверена побайтно, а не по имени папки или одному общему image tag:
+`coherent-runtime-readback.safe.json` связывает15 read-only mounted peers,
+4 native Functions, OCR и Tool с этим revision. Image build source остаётся
+`435d9caeb21f22483803a137fb1818abd39a54dc`, floor-only variant
 `positive-floor-v1.105.1`, target image
 `sha256:551f9c61b6d501a2a6e391e2a26eee0052857fdc633bbc30f2fce569ad6dbf9c`.
 Off-prod [image-only run43045939112](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43045939112)
@@ -33,14 +38,19 @@ SUCCESS; полные proof jobs SKIPPED. Различие source/target image I
 и подключён штатным WebUI-only recreate: `ui-source-activation.safe.json`, healthy/restart0,
 gateway container не менялся, прежние data/mounts сохранены. Gateway peer blobs нового
 пакета побайтно эквивалентны действующим; image build source остаётся `435d9cae`.
-Изменены только admin policy/UI: безопасная проекция шаблона без недоступных нулевых
-моделей, intrinsic высота iframe и явная «Поровну». Фактическая GUI-приёмка новой версии впереди.
+В peers изменены только admin policy/UI: безопасная проекция шаблона без недоступных
+нулевых моделей, intrinsic высота iframe и явная «Поровну». В native Function store
+отдельно обновлены service diagnostics `7026b5ef` (три error code без изменения
+предикатов) и Action `57a23de6` (убраны предупреждения отменённой политики полноты
+для штатных counters). Эти blobs также совпадают с полным пакетом57a; нового image
+для них не требуется. Новый GUI просмотрен через PNG и принят.
 
 `local/goal584/production-rollout/product-activated.safe.json`: gateway healthy,
 5 native connections /16 явных aliases уже переведены на common gateway;
 custom auth включён, Usage guards отсутствуют. Временный stock-auth bootstrap
-завершён. Provider credentials/протоколы сохранены; source mapping не заменяет
-оставшуюся API/Office product acceptance.
+завершён. Provider credentials/протоколы сохранены; последующие API/Office проверки
+описаны ниже. Прямой запрос с общим inference bearer без подписанной employee/service
+привязки получил403; отдельного неподписанного обхода для API не добавлено.
 
 Новые PostgreSQL/Redis установлены с persistent volumes/private network и без
 published ports. WebUI получил8 read-only budget peers с сохранением image/
@@ -54,7 +64,8 @@ Tool/Skill/preset и grants для3 администраторов; service targ
 (3 admin/31 ordinary),20 USD/месяц каждому, равные доли9 доступных моделей,
 306 employee/model assignments. Platform/OCR/tasks budget —20 USD/месяц,
 9 service/model assignments; native period `1mo`. Existing spend не сбрасывался,
-WebUI ACL writes0. Это initial directory, а не подтверждение нового QA-назначения.
+WebUI ACL writes0 при этой инициализации. Дополнительный QA создан отдельно для
+приёмки и удалён после неё; его финансовая история сохранена.
 
 Public prices загружены штатно:16 aliases имеют native prices, у9 active models
 missing prices нет. Reload обновил5894 entries; native расписание6h записано в DB
@@ -67,19 +78,59 @@ SHA256 `1a4d0e933823c5de4a2416860c7625c6b0193a5166ddd111f5a57e3897c2d447`;
 rollback base сохраняет3 прежних Compose файла, native data rewrite не выполнялся.
 Прежний timeout receipt не выдаётся за backup PASS: подтверждена последующая проверка копии.
 
-Native monthly endpoint — PASS по activation receipt; root отдельно сверил личный
-месячный просмотр. В реальном admin chat первый ответ стоил0.001416 USD,
-второй0.002662 USD, чат0.004078 USD. Эти browser/native факты относятся к более
-позднему моменту, чем `operator_inference_requests:0` activation receipt.
+### Продуктовая приёмка в production
 
-**QA initialization и zero-cap denial подтверждены:** native widget confirmation →
-server confirmation → `apply_budget_form` завершились. Native QA user имеет
-cap0/spend0 и9 model assignments, следующий reset1 декабря; staff monthly200
-показывает cap0/spend0/remaining0. Fresh admin form содержит QA row с9 пока пустыми
-долями; явное «Поровну» доставлено в source UI fixes. Реальный QA chat получил
-«Недостаточно бюджета для этого запроса…»; root просмотрел `native-staff-zero-denial.png`.
-Обычный пользователь получил401 на GET admin Tool/Skill/model и403 на чужой monthly.
-Источник: `qa-product-progress.safe.json`. Повышение QA cap и recovery ещё не приняты.
+В native профиле **«Бюджеты сотрудников»** администратор написал в чате просьбу
+поработать с лимитами; Tool открыл активную таблицу. Проверены поиск, единая полоса
+долей, явное «Поровну», сохранение через два штатных подтверждения и повторное
+открытие с актуальным расходом. Закреплённая шапка содержит управление/легенду цен
+и сведения об оплате; подробности сотрудника, шаблон/инициализация и служебный
+бюджет раскрываются по запросу. Доступ к admin Tool/Skill/preset ограничен3 admin.
+
+Обычный QA получил нулевой бюджет: запрос в чате отказал понятным русским сообщением.
+После изменения через таблицу0→20 USD и equal9 тот же чат успешно продолжился.
+Два ответа стоили0.01046025 и0.00136095 USD; накоплено0.0118212 USD. Native SpendLogs
+содержит ровно две соответствующие personal success rows; user/key counters и остаток
+19.9881788 USD совпали. Свой monthly endpoint вернул200, чужой403; admin Tool/Skill/
+model для ordinary user вернули401. Native Action **«Стоимость: детали»** показывает
+стоимость ответа/чата и собственный месячный бюджет из того же owner, без ложного
+предупреждения о полноте при обычных native counters.
+
+Совместимость `/api/chat/completions` проверена собственным native QA API key:
+DeepSeek `stream=false` →200/JSON/OK, Gemini `stream=true` →200/SSE/OK./`[DONE]`.
+Native ledger сохранил две api operations с разными operation IDs, тем же владельцем
+ключа и расходами0.00183915/0.0032984 USD; фиктивные чаты не создаются. Действующие
+пользовательские/1С ключи и global permissions не изменялись. Временные QA key/group
+созданы и удалены через native API; реальный клиент1С этим smoke не выдаётся за проверенный.
+
+Office: Sol через существующий OfficeCLI создал DOCX; реальная ссылка скачала5776 B,
+SHA256 `d3440eb56d2d53591cf59d76b25477a46670e767bbc5c146e864c7a80c87858f`.
+Проверены точные7 XML texts, две строки таблицы и native render PNG. Затем в том же
+чате выбран существующий **OfficeCLI — Terra**: он через `inspect_office_document`
+прочитал прежний файл и вернул точные контрольную строку/суммы без пересоздания.
+Sol0.1143585 + Terra0.03846905 =0.15282755 USD отнесены к тому же QA/chat. Это проверка
+реального переключения модели и сохранности file/tool context; автоматическое
+делегирование заполнения опубликованного шаблона здесь повторно не запускалось.
+Его прежние owners/model params/ACL и принятый stand-контракт сохранены. OCR source
+также сохранён и связан с пакетом; отдельный платный OCR replay не добавлялся.
+
+Title/tags/follow-up реально прошли через `gpt-6-luna`:13 наблюдаемых service rows
+имеют отдельного platform payer, исходный actor и category=service. Они не включены
+в personal QA rows. Итоговый QA counter после чата/API/Office0.1697863 USD,
+остаток19.8302137 USD; platform spend около0.0007838 USD при отдельном cap20.
+Late bounded log read не обнаружил service errors. Сохранены14 остальных Functions
+и meta/params/grants12 существовавших моделей; task configuration отличается от
+backup только двумя заранее согласованными service selectors.
+
+Evidence — закрытые `local/goal584/production-rollout/`:
+`qa-product-progress.safe.json`, `api-product-acceptance.safe.json`,
+`office-product-acceptance.safe.json`, `product-ledger-progress.safe.json`,
+`coherent-runtime-readback.safe.json`; PNG `native-staff-zero-denial`,
+`native-staff-recovery-cost`, `native-staff-monthly-final`, `native-admin-final`,
+`native-office-document-preview`. PNG с настоящими сотрудниками не публикуются в Git.
+Независимые bounded reviews: `budget-api-outcome-review.md` и
+`production-outcome-review.md`; опубликованная ветка содержит код/эту запись,
+приватные receipts остаются отдельно.
 
 ### Решение пользователя и сохраняемые ограничения
 
@@ -93,21 +144,30 @@ identity, native quotas/reservations и SpendLogs сохранены. Callbacks 
 Сохранён floor fix месячного reset; raw-usage/cancel delta исключены. Provider balance
 API не квалифицирован; ручной снимок остаётся датированным наблюдением.
 
-### Обязательный остаток и следующий шаг
+### Уборка и границы результата
 
-- Завершить QA cap increase→recovery и реальный GUI/PNG цикл, сверить costs/remaining,
-  native ledger и точную source binding. Zero-cap denial/ACL не заменяют recovery.
-- Принять действующий native API путь `stream=false` и `stream=true`; совместимость
-  реальной1С до этого не заявляется.
-- Адресно разобрать service-task ошибку `unsupported_background_source`; выполнить
-  ограниченный Office context/tool smoke и сверить attribution/service spend в native ledger.
-- Проверить затронутые UI/readback пути после доставленных source UI fixes `1f612931`;
-  source/runtime hashes не заменяют фактическую проверку height, долей и сохранения.
-- Завершить bounded независимый review и safe cleanup своих временных ресурсов,
-  сохранив backup/rollback/receipts и независимый MAIN WIP.
+QA account, его два чата/два generated files и собственный admin acceptance chat
+удалены native API. Другие34 WebUI user IDs/roles сохранены. В native LiteLLM QA cap
+обнулён,9 keys заблокированы; spend0.1697863 и все13 финансовых rows сохранены без
+delete/reset. Два собственных BrowserContext закрыты; исходный пользовательский
+контекст не изменён, удалённый QA session получил401. Удалены три временных файла
+авторизации и их пустой каталог; QA password file на сервере также удалён.
 
-Следующий шаг — открыть новую карточку после source UI fixes, завершить QA повышение/recovery и
-перечисленную приёмку. Активация infrastructure/initial budgets не завершает GOAL.
+Удалены три проверенные собственные binary-копии:1,337,151,287 B, а также unused
+retired composite image. Текущий floor-only image archive, original backup/rollback,
+native persistent DB/Redis, source manifests и приватная evidence сохранены.
+Временные OfficeCLI directories обслуживаются прежним native TemporaryDirectory
+owner. Source не собирался на VPS. Итоговая health — healthy; повторной полной
+матрицы тестов не было, проверялись только изменённые renderers/policy/error codes.
+Receipts: `qa-cleanup-readback.safe.json`, `local-auth-cleanup.safe.json`,
+`binary-cleanup.safe.json`; операторские процессы завершены, native chat task lists
+перед уборкой были пусты.
+
+Вне этого production-этапа остаются согласованные backlog: персональная атрибуция1С,
+групповые действия, универсальный API внешних балансов, upstream публикация и
+глобальная реформа прежних proof/tests. Старые десятки тысяч строк proof infrastructure
+не входят в runtime-пакет и не были заново прогнаны или радикально переписаны.
+Новых финансовых owners, калькуляторов, proxy или test framework не создано.
 
 ### Компактная история подготовки и сохранённые ошибки
 
@@ -126,6 +186,13 @@ Usage-политика заменены floor-only release и не считаю�
 Range-докачка завершена без повторной полной загрузки; checksums сохранены.
 Первый metadata subprocess pricing preflight завершился ошибкой, raw diagnostic сохранён;
 позднейшие reload/status/readback подтверждают текущее состояние отдельно.
+
+Начальное QA apply было ещё в работе, когда monthly ответил503; последующее
+native readback подтвердило завершение, повторного создания не было. Один ранний
+`unsupported_background_source` не выдан за установленную причину: три native checks
+получили различимые safe error codes, последующие title/tags/follow-up успешно
+прошли. При уборке первый file DELETE вернул штатный message object, а не bool;
+уборка продолжена из наблюдаемого состояния без повторных денежных мутаций.
 Первый QA apply долго не завершался, monthly временно отвечал503. Последующий
 native/browser readback подтвердил завершение initialization и zero-cap denial;
 этот промежуточный сбой не остаётся текущим статусом QA.
