@@ -81,6 +81,12 @@ shared gateway, свежий nonce и штатный CC-stream. Локальны
 402→200/Usage15/два вызова; patched-native guard локально не запускался. В прежний
 `gui-product` preflight включены только две затронутые native проверки: pre-stream402
 и сохранение блокировки для429/500/midstream402. Новый framework не добавлен.
+Actual `a9c9d321`/[43018428780](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43018428780)
+остановился на новом preflight assertion: вызванный прежний helper намеренно
+ожидает blocked=True, хотя новый pre-stream402 обязан оставить blocked=False.
+До assertion уже подтверждены исходный402/нет admin writes/нет block; второй
+native429/500/midstream402 тест PASS. Меняется только новая проверка на точное
+равенство user/key исходному состоянию. Cleanup0; продуктовый GUI не запускался.
 Пределы: job 25 минут, браузер 330 секунд; наблюдение через GitHub Actions,
 адресная остановка через `gh run cancel <id>`, штатный always-cleanup Compose.
 Профиль использует только существующий synthetic provider/public catalog, без

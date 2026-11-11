@@ -1219,7 +1219,8 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(error.message, before)
         self.assertFalse(self.wire.requests)
         self.assertFalse(self.wire.key["blocked"])
-        self.assert_finance_unchanged()
+        self.assertEqual(self.wire.user, self.before[0])
+        self.assertEqual(self.wire.key, self.before[1])
 
     async def test_other_http_failures_and402_after_source_still_block(self):
         from fastapi import HTTPException
