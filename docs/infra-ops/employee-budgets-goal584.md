@@ -1,190 +1,148 @@
 # GOAL #584: бюджеты сотрудников и стоимость чата
 
-Актуальная запись на 11.11.2026. **Стендовая поставка принята. Внедрение в production разрешено, но не завершено. Пользователь выбрал штатный учёт LiteLLM без собственной детализации и специальной блокировки из-за неподтверждённой Usage.**
-Принятый table-кандидат `8ae015a5` от базы`592a4534`; предыдущий GUI-кандидат`0138b6d2`.
+Актуальная запись на 11.11.2026. **Native accounting и бюджеты активированы в production; продуктовая приёмка ещё не завершена. Пользователь выбрал штатный учёт LiteLLM без собственного подсчёта токенов и специальной unknown-Usage блокировки.**
 Источник: [issue #584](https://github.com/Kwentin3/corp-openweb-ui/issues/584).
-[Ограниченный аудит](../reports/2026-11-09/GOAL584_KISS_AUDIT.md).
-[Установка и откат](employee-budgets-installation.md).
+[Установка и откат](employee-budgets-installation.md). [Реестр патчей](patch-registry.md).
 
 ## Активный этап: внедрение всего продукта в production
 
 Разрешён пользователем 11.11.2026 от `dffab57e`, в существующей DELIVERY/ветке.
-Цель: работающие учёт LLM-расходов, бюджеты сотрудников, компактная админка и
-отображение стоимости ответа/чата и личного бюджета в рабочем Open WebUI.
-Стендовая база — runtime `1ebf2b64`, actual `43018788862`; новый GOAL не заменяет
-приёмку артефактом другого checkout. Текущие MAIN WIP и worktrees сохраняются.
+Цель: штатный учёт LLM-расходов, бюджеты сотрудников, компактная админка,
+стоимость ответа/чата и личный бюджет в рабочем Open WebUI. Стендовая база
+`1ebf2b64` / actual `43018788862` — историческая приёмка; активный native-профиль
+имеет собственные source/image/config receipts. Независимые MAIN WIP/worktrees сохраняются.
 
-Границы поставки: точная сборка и существующий Compose overlay, native DB/Redis,
-control-plane credentials/roles, routing всех согласованных моделей через общий
-LiteLLM с сохранением Responses/CC/контекста/tools, native Functions/Tools/Models/
-Skill и Valves/ACL, public prices/provider status/manual snapshots, реестр прежних
-patches и откат с сохранением данных. Персональное бюджетирование 1С исключено;
-действующая API-интеграция должна сохранить работоспособность. Не создавать
-обходной финансовый owner или неподписанный скрытый маршрут для совместимости.
-
-Полномочия включают подготовку и deployment этого продукта. Нет полномочий
+Границы поставки: существующий gateway/Compose, native DB/Redis и control-plane
+roles, согласованные модели через общий LiteLLM с сохранением Responses/CC/контекста/
+tools, native Functions/Tool/Skill/Models/Valves/ACL, public prices/provider status/
+manual snapshots и откат без потери данных. Персональное бюджетирование внутри1С
+исключено; действующая API-интеграция должна сохранить работу. Второго ledger,
+обходного финансового owner или скрытого маршрута не создавать. Нет полномочий
 терять данные, править финансовые counters напрямую или выполнять clean builds/
-rehearsals на production VPS. До переключения — конкретный source/image/config,
-проверенная резервная копия/откат и пределы ресурсов. Новых framework, журналов
-денег, прокси и массовых тестовых прогонов не добавлять; повторять только
-затронутые проверки при новых значимых входах.
+rehearsals на production. Новых framework/proxy и массовых повторных тестов не добавлять.
 
-Проверенное сейчас: база DELIVERY `dffab57e`; MAIN `b4518191` с независимым WIP.
-Bounded SSH preflight подтвердил здоровые WebUI/LiteLLM без budget Functions,
-отсутствие PG/Redis у gateway, stock1.105.1 с тем же pinned base digest,
-свободные ~5 GB RAM/~35 GB disk и native admin API access. Неизвестное подключение
-идентифицировано как official DeepSeek. Никаких model calls не сделано.
-Release source/runtime reviews подтвердили61 LF source pins и необходимость
-Git-LF экспорта. Accepted image после стенда удалён; off-prod rebuild сохранён
-в [image-only run43029553258](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43029553258),
-все полные proof jobs SKIPPED. Прямой dispatch нового workflow получил404 до его
-регистрации на default branch; existing manual workflow теперь вызывает его
-через reuse. Это image packaging, не новый test framework.
-Native persistence overlay применён только к новым PG/Redis: actual Compose
-merge, закрытая сеть, persistent volumes и health PASS. Исходные сервисы сохранены.
-Protected backup phase создана с image/config/Compose/env snapshot. SQLite backup
-первая попытка остановлена по времени; повтор дошёл до SQLITE_DONE, но callback
-слишком поздно применил тот же предел. Полученная копия635068416 B затем отдельно
-прошла readonly SQLite quick_check=ok и SHA256; повторного копирования не было.
-Архив image445921052 B доставлен прямо с Actions на сервер, SHA256 GitHub artifact
-и все внутренние checksums/source1ebf2b64 подтверждены. Зависшее скачивание через
-Windows адресно остановлено, незавершённых download процессов нет. Рабочие
-routes/сервисы не переключены.
-API source review доказал, что сохранение fake chat не годится: меняется история
-и HTTP streaming. Минимальная совместимость готовится в прежних signature/gateway/
-guard owners: signed API operation существующего владельца ключа, без выдуманных
-chat IDs, новых payer/ledger/расчёта денег. Персональный учёт сотрудников1С исключён.
+### Проверенное production-состояние
 
-Обязательный остаток: финальный managed каталог/публичные цены и применение
-начальных бюджетов; protected config/control-plane roles и operational rollback;
-разрешение конкретных несовместимостей;
-установка, native readback, один ограниченный admin→staff→расход→отказ→увеличение→
-восстановление GUI/PNG сценарий; независимая приёмка, документация и safe cleanup.
-Следующий шаг: привести release/config/readback к выбранному штатному учёту:
-выделить и убрать ненужную строгую Usage-политику и связанные только с ней patches,
-сохранив авторизацию, штатные лимиты и необходимые исправления их работы.
-Перед cutover проверить согласованность окончательного кандидата; прежняя сборка
-со строгими Usage callbacks автоматически новым решением не принимается.
+Активен source `435d9caeb21f22483803a137fb1818abd39a54dc`, floor-only variant
+`positive-floor-v1.105.1`, target image
+`sha256:551f9c61b6d501a2a6e391e2a26eee0052857fdc633bbc30f2fce569ad6dbf9c`.
+Off-prod [image-only run43045939112](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43045939112)
+SUCCESS; полные proof jobs SKIPPED. Различие source/target image IDs на Docker29
+проверено по archive config SHA,26 layer diff IDs/runtime config. Git-LF пакет
+связан с этой поставкой. Последующий WebUI peer source `1f612931` доставлен из Git blobs
+и подключён штатным WebUI-only recreate: `ui-source-activation.safe.json`, healthy/restart0,
+gateway container не менялся, прежние data/mounts сохранены. Gateway peer blobs нового
+пакета побайтно эквивалентны действующим; image build source остаётся `435d9cae`.
+Изменены только admin policy/UI: безопасная проекция шаблона без недоступных нулевых
+моделей, intrinsic высота iframe и явная «Поровну». Фактическая GUI-приёмка новой версии впереди.
 
-Уточнения пользователя: стартовый месячный лимит каждого сотрудника20 USD,
-равные доли доступных моделей; отдельный общий platform/OCR/tasks budget20 USD.
-Потоковый режим действующей1С пока неизвестен. API source candidate(+91/−15
-production LOC,194 строки в существующих tests) прошёл адресные проверки и
-независимый source review; runtime/реальная1С ещё не приняты.
-PG/Redis уже установлены и healthy, с persistent volumes и без published ports;
-исходные WebUI/gateway containers и routes не менялись. Image load на Docker29
-дал другой target ID; source config SHA256 совпал с builder IID, все layer diff IDs
-и runtime config совпали с архивом. Source/target identity receipt сохранён.
+`local/goal584/production-rollout/product-activated.safe.json`: gateway healthy,
+5 native connections /16 явных aliases уже переведены на common gateway;
+custom auth включён, Usage guards отсутствуют. Временный stock-auth bootstrap
+завершён. Provider credentials/протоколы сохранены; source mapping не заменяет
+оставшуюся API/Office product acceptance.
 
-Перед общим включением обнаружен реальный coverage gap: current CC Usage guard
-читает raw witness только OpenAI leaf, native Anthropic/Gemini идут другими путями
-и могут получить ложный unknown block после успешного ответа. Учитывать это как
-непринятый production provider path; прежний OpenAI fixture PASS его не закрывает.
-Подготовлен, но НЕ применён concrete draft54 строки на два native parser targets
-в existing stream patch package; callback может использовать уже существующий
-iterator hook без нового parser/счётчика. Пользователь выбрал сначала обсудить
-компромисс; core draft не применять, общий cutover не выполнять до решения.
+Новые PostgreSQL/Redis установлены с persistent volumes/private network и без
+published ports. WebUI получил8 read-only budget peers с сохранением image/
+прежних mounts; эта фаза прошла health PASS/restart0. При последующем final
+cutover WebUI container не менялся. Установлены4 активные Functions, native admin
+Tool/Skill/preset и grants для3 администраторов; service target — `gpt-6-luna`.
+`webui-modules-connected.safe.json` отражает раннее подключение peers;
+`product-activated.safe.json` — последующую активацию Functions и routes.
 
-По просьбе пользователя11.11 выполнен targeted upstream read-only поиск:
-[issue50124](https://github.com/BerriAI/litellm/issues/50124) открыт: missing/malformed
-Usage может не списывать native key budget; [issue37992](https://github.com/BerriAI/litellm/issues/37992)
-открыт: explicit0 подменяется estimates на disconnect. [Feature29680](https://github.com/BerriAI/litellm/issues/29680)
-предлагает usage_source, закрыт stale/not_planned; связанный [PR29704](https://github.com/BerriAI/litellm/pull/29704)
-открыт, merged=false, mergeable=false по live PR readback. Просмотренный diff
-определяет upstream/missing по наличию response_obj.usage; происхождение данных
-после нормализации им не доказано, нашей блокировки он не реализует. Это не
-квалифицированная замена raw-presence witness до нормализации.
-[Issue47332](https://github.com/BerriAI/litellm/issues/47332) закрыт без изменения
-поведения после обсуждения отсутствующего final Usage; closure comment прямо
-сохраняет graceful completion, а не добавляет финансовый fail-closed. Наличие issues не доказывает
-исправления в нашей1.105.1 или готовности полного fail-closed режима из коробки.
-Новых core изменений, CI/provider/model calls и upstream messages в этом поиске нет.
+`employee-initialization.safe.json`: native initialization завершена для34 человек
+(3 admin/31 ordinary),20 USD/месяц каждому, равные доли9 доступных моделей,
+306 employee/model assignments. Platform/OCR/tasks budget —20 USD/месяц,
+9 service/model assignments; native period `1mo`. Existing spend не сбрасывался,
+WebUI ACL writes0. Это initial directory, а не подтверждение нового QA-назначения.
 
-Независимая подготовка после upstream review: четыре API owner hashes сверены
-с independent source review без повторного запуска принятых tests. API candidate
-сохраняется отдельной source поставкой; vendor draft по-прежнему не применяется.
-Read-only pricing preflight14:24UTC нашёл public entries для16/16 native base models,
-включая DeepSeek и Gemini image model; source SHA5406310d…dc3e6. Это prospective
-public-map membership, а не доказательство applied rates/мультимодального биллинга.
-Текущий native `/model/cost_map/source` вернул200; первый metadata subprocess ранее
-завершился ошибкой, её причина не установлена, raw diagnostic сохранён. Ни одного
-LLM request не выполнено. Applied rates и сохранение image/API profiles проверить
-при final config/приёмке, без выдуманных overrides или нулевых цен.
-API source candidate зафиксирован и опубликован как `a35b2033`; рабочее дерево
-DELIVERY чистое, независимый MAIN WIP сохранён. Новых тестовых запусков не было.
-Независимая безопасная подготовка этого участка завершена. Описанный выше выбор
-строгой политики заменён последующим решением пользователя ниже; draft не применяется.
+Public prices загружены штатно:16 aliases имеют native prices, у9 active models
+missing prices нет. Reload обновил5894 entries; native расписание6h записано в DB
+и пережило restart. Зафиксированный reload11.11.2026 16:25:31 UTC, revision
+`66e3a094879f456bf32df22c121bd85e7842fb85`. Источники: `native-price-schedule.safe.json`
+и activation receipt. Это applied snapshot, не гарантия всех внешних мультимодальных тарифов.
 
-### Решение пользователя: штатный учёт вместо собственной детализации
+`backup-verified.safe.json`: SQLite backup635068416 B прошла readonly `quick_check=ok`,
+SHA256 `1a4d0e933823c5de4a2416860c7625c6b0193a5166ddd111f5a57e3897c2d447`;
+rollback base сохраняет3 прежних Compose файла, native data rewrite не выполнялся.
+Прежний timeout receipt не выдаётся за backup PASS: подтверждена последующая проверка копии.
 
-11.11.2026 пользователь уточнил приоритет: бюджетирование расходов сотрудника;
-точность до токена и собственная детальная аналитика продуктовой ценности сейчас
-не добавляют. Источник денежных сумм и применения лимитов — штатный LiteLLM.
-Прежнее требование автоматически блокировать модель сотруднику при отсутствии
-подтверждённой Usage снимается. Новый Claude/Gemini raw-usage patch не нужен.
-Собственный подсчёт токенов, восстановление счёта провайдера и второй финансовый
-журнал не создаются. Лимит/расход/остаток и ранее согласованные суммы ответа/чата
-показываются по данным LiteLLM; недоступные данные не выдаются за подтверждённый ноль.
-При неполной Usage штатный учёт может расходиться со счётом провайдера: лимит
-применяется к учтённому LiteLLM расходу, а не гарантирует точное ограничение
-внешнего списания при любом сбое. Это ограничение фиксируется в документации.
-Авторизация, привязка к сотруднику, общий маршрут, штатные ограничения и сохранность
-данных остаются обязательными. Новое решение не доказывает ненужность отдельных
-исправлений календарного сброса или готовность production: состав оставшихся
-patches проверяется по назначению, затем выполняется ограниченная продуктовая приёмка.
+Native monthly endpoint — PASS по activation receipt; root отдельно сверил личный
+месячный просмотр. В реальном admin chat первый ответ стоил0.001416 USD,
+второй0.002662 USD, чат0.004078 USD. Эти browser/native факты относятся к более
+позднему моменту, чем `operator_inference_requests:0` activation receipt.
 
-Реализация этого решения: managed-подготовка требует только `budget_errors.handler`
-и `pricing_snapshot.handler` и отклоняет старые `budget_runtime.*`; два guard-модуля
-исключены из production Compose mounts. Денежный reader принимает штатный положительный
-SpendLogs.spend при неполных token counters; отсутствие строки/ошибка/неоднозначный
-all-zero не становятся бесплатным ответом. Месячный и админский readers используют
-native user/key counters без historical guard scan, сохраняя проверку владельца/ACL.
-Адресные проверки: managed preparation11, изменённые readers24, Filter integration5;
-полная прежняя матрица не запускалась. Source audit выбрал существующий floor-only
-variant `positive-floor-v1.105.1`; raw-usage/cancel delta не входят. Image-only workflow
-теперь собирает точный commit запуска вместо старого composite source.
+**QA initialization и zero-cap denial подтверждены:** native widget confirmation →
+server confirmation → `apply_budget_form` завершились. Native QA user имеет
+cap0/spend0 и9 model assignments, следующий reset1 декабря; staff monthly200
+показывает cap0/spend0/remaining0. Fresh admin form содержит QA row с9 пока пустыми
+долями; явное «Поровну» доставлено в source UI fixes. Реальный QA chat получил
+«Недостаточно бюджета для этого запроса…»; root просмотрел `native-staff-zero-denial.png`.
+Обычный пользователь получил401 на GET admin Tool/Skill/model и403 на чужой monthly.
+Источник: `qa-product-progress.safe.json`. Повышение QA cap и recovery ещё не приняты.
 
-На сервере подготовлены, но не применены защищённые config/env/pending native
-connection projection:16 явных aliases,5 connection slots,4 оплачивающих аккаунта,
-JSON/env readback и `project_managed` PASS, mode0600. OpenAI Responses и прежний
-CC подтверждены с одним credential; чужой аккаунт для них не подставляется.
-Existing gateway model params содержат только model/api_key: скрытых дополнительных
-provider params при явном mapping не потеряно. Публичные цены и фактический transport
-окончательного профиля ещё не приняты. Новых LLM requests нет, рабочие маршруты
-не переключены. Следующий шаг — независимый source review reader, сохранённый
-floor-only image вне production, затем native initialization/config cutover и
-ограниченная продуктовая приёмка. Общая production цель остаётся незавершённой.
+### Решение пользователя и сохраняемые ограничения
 
-Зафиксирован source `435d9cae`; independent reader review CONFORMS, root сверил
-четыре reviewed source hashes. Floor-only image-only [run43045939112](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43045939112)
-SUCCESS, остальные proof jobs SKIPPED. Artifact13866957758 / SHA256
-`d38930bf0aa97b1d1ed4a390f3f5dc5435e336da435a967ae45a4ce8430d7648`
-доставлен и проверен вместе с inner checksums. Первая передача достигла110s;
-partial сохранён, Range-докачка завершена без повторной полной загрузки.
-Source image `sha256:97206b8b9b217997b12626decd41ae58e7da760dd2fe029498590a2d9b6f7c5b`,
-Docker29 target `sha256:551f9c61b6d501a2a6e391e2a26eee0052857fdc633bbc30f2fce569ad6dbf9c`:
-archive config SHA и все26 layer diff IDs/runtime config совпали. Образ только загружен.
-Отдельный пакет20 source files из точного Git blob/LF экспортирован, скомпилирован
-локально и послойно сверён на сервере; guard/runtime sources в него не включены.
-Первый CRLF-export отклонён, повтор с явными Git LF flags совпал с blobs;
-свой невалидный временный архив удалён. Пакет ещё не подключён к сервисам.
+Суммы и enforcement принадлежат native LiteLLM. Автоматическая unknown-Usage блокировка
+отменена; Claude/Gemini raw-usage draft не применяется. Нет собственного подсчёта
+токенов, восстановления счёта провайдера или второго ledger. При неполной Usage
+native spend может расходиться с внешним списанием: лимит ограничивает учтённую сумму.
+Недоступные данные не выдаются за бесплатный ответ. Auth, signed employee/service/API
+identity, native quotas/reservations и SpendLogs сохранены. Callbacks — только
+`budget_errors.handler` и `pricing_snapshot.handler`; guard/runtime modules не монтируются.
+Сохранён floor fix месячного reset; raw-usage/cancel delta исключены. Provider balance
+API не квалифицирован; ручной снимок остаётся датированным наблюдением.
 
-Попытка получить initial employee/model ACL через отдельный Python import native
-repositories/helper не завершилась за55s; отсутствие результата не считается ACL PASS.
-Не повторять этот импорт. Оставшийся единственный diagnostic `python -` адресно
-остановлен; повторный process readback подтвердил0 таких процессов, прежний основной
-PID WebUI, healthy и restart0. Причина незавершения пока не установлена.
-Альтернатива уже проверена без нового процесса приложения: authenticated native
-HTTP GET `/api/v1/models/all` и `/api/v1/users/all` вернули200; protected directory
-snapshot сохранён,219 зарегистрированных model records не равны16 активным wire aliases.
-Точные доступные модели сотрудников ещё надо определить штатным running-app путём
-перед инициализацией; не подменять их всем каталогом и не менять существующие права.
-Следующий шаг — native control-plane/employee/service initialization и coherent
-cutover из подготовленных source/image/config, затем единственный согласованный
-admin→staff→cost→quota→increase→recovery GUI/PNG прогон. Ни одного нового inference
-в этом этапе не сделано; production бюджеты/Functions/routes пока не включены.
+### Обязательный остаток и следующий шаг
 
-## Текущий этап: самодостаточное управление моделями, ценами и состоянием оплаты
+- Завершить QA cap increase→recovery и реальный GUI/PNG цикл, сверить costs/remaining,
+  native ledger и точную source binding. Zero-cap denial/ACL не заменяют recovery.
+- Принять действующий native API путь `stream=false` и `stream=true`; совместимость
+  реальной1С до этого не заявляется.
+- Адресно разобрать service-task ошибку `unsupported_background_source`; выполнить
+  ограниченный Office context/tool smoke и сверить attribution/service spend в native ledger.
+- Проверить затронутые UI/readback пути после доставленных source UI fixes `1f612931`;
+  source/runtime hashes не заменяют фактическую проверку height, долей и сохранения.
+- Завершить bounded независимый review и safe cleanup своих временных ресурсов,
+  сохранив backup/rollback/receipts и независимый MAIN WIP.
+
+Следующий шаг — открыть новую карточку после source UI fixes, завершить QA повышение/recovery и
+перечисленную приёмку. Активация infrastructure/initial budgets не завершает GOAL.
+
+### Компактная история подготовки и сохранённые ошибки
+
+До активации preflight обнаружил mixed direct/proxy routing и отсутствие budget
+Functions/PG/Redis. Первый dispatch нового workflow получил404; reusable owner
+позволил image-only build без полной proof matrix. Прежний composite image/строгая
+Usage-политика заменены floor-only release и не считаются эквивалентной поставкой.
+
+Первая SQLite backup остановилась по времени; повтор дошёл до SQLITE_DONE, но callback
+поздно применил предел. Копия проверена отдельно без повторного копирования.
+Зависшее Windows-скачивание и один native diagnostic import (55s без результата)
+адресно остановлены; отсутствие результата не считалось ACL PASS. Directory/ACL
+получены running-app API. Registered model records не подменяли active aliases/доступные модели.
+
+Первый CRLF export отклонён; Git-LF export принят. Передача нового image достигла110s,
+Range-докачка завершена без повторной полной загрузки; checksums сохранены.
+Первый metadata subprocess pricing preflight завершился ошибкой, raw diagnostic сохранён;
+позднейшие reload/status/readback подтверждают текущее состояние отдельно.
+Первый QA apply долго не завершался, monthly временно отвечал503. Последующий
+native/browser readback подтвердил завершение initialization и zero-cap denial;
+этот промежуточный сбой не остаётся текущим статусом QA.
+
+CC Usage guard покрывал только OpenAI leaf и мог ложно блокировать native Anthropic/
+Gemini. Подготовленный54-line draft не применён после решения доверять native accounting.
+Targeted upstream issues/PR readback и прежние receipts сохранены в
+`local/goal584/production-rollout/` и review artifacts; это не требование вернуть отменённую политику.
+
+API source candidate `a35b2033` прошёл адресный и независимый source review и вошёл
+в production source435. Fake chat/history workaround отвергнут: используется signed
+API operation владельца native key без выдуманных chat IDs. Runtime API/Office/GUI долги — выше.
+
+## Предыдущий принятый стендовый этап: модели, цены и состояние оплаты
+
+Ниже — историческая запись изолированной приёмки до production activation;
+формулировки о предстоящей установке относятся к её дате. Текущее состояние — выше.
 
 Принят в работу 11.11.2026 от `2c4ae3ab`, в прежней DELIVERY/ветке.
 Результат: автоматический native каталог с ACL и нулевой долей новой модели,
