@@ -12,6 +12,7 @@ import re
 
 from aiohttp import ClientSession, ClientTimeout
 from fastapi import HTTPException
+from litellm.exceptions import APIError
 from litellm.integrations.custom_guardrail import CustomGuardrail, log_guardrail_information
 from litellm.litellm_core_utils.litellm_logging import Logging
 from litellm.proxy._types import UserAPIKeyAuth
@@ -323,6 +324,15 @@ class CCStreamUsageGuard(UnknownUsageGuard):
                 or not self.should_run_guardrail(
                     data=request_data, event_type=GuardrailEventHooks.post_call)
                 or self._stream_attempt(request_data) is None):
+            return None
+        # Native HTTP402 can fail before an SDK source response exists. It is
+        # a provider payment refusal, not a response with unavailable Usage.
+        # Once a source response exists, preserve the failed-stream policy.
+        raw = request_data["litellm_logging_obj"]._raw_stream_usage
+        provider = getattr(original_exception, "llm_provider", None)
+        if (type(original_exception) is APIError and original_exception.status_code == 402
+                and isinstance(provider, str) and bool(provider.strip())
+                and "stream_id" in raw and raw["stream_id"] is None):
             return None
         # A failed/cancelled transport cannot confirm a completed response,
         # even if its latest observed raw Usage was well formed.

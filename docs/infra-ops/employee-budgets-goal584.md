@@ -63,6 +63,24 @@ provider present/spend0; тело не содержит JSON/literal. Поэто
 распознавание native provider402 как финансового отказа; 429/422/нет provider
 не подходят, баланс 0 не выводится. 59 readback tests PASS. Следующий шаг —
 финальный конечный профиль; UI и финансовый backend caps/spend не менялись.
+Кандидат `d7447546cda2339bfc9ab6a5f7a8bdaa016ea4ba`,
+[run 43014154602](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43014154602)
+выполняется. Предыдущие два запуска terminal; их owned resources удалены.
+`43014154602` завершён: GUI/context/reconcile PASS; native402 теперь распознан.
+Recovery-проба получила503: она использовала raw key без обязательного signed
+personal scope, и прежний UsageGuard отказал до проверки Usage. Это дефект пробы,
+а не доказанный nonstream regression продукта. Проба приводится к существующему
+shared gateway/provenance и CC-stream профилю, без изменения проверки scope.
+Source review также выявил необходимое узкое исключение в existing failure callback:
+подтверждённый native provider APIError402 до получения stream response должен
+сохранить отказ оплаты, не блокируя модель как unknown Usage. Midstream/500/429/
+отмена остаются под прежней защитой. Никакого нового zero-cost доказательства нет.
+Cleanup третьего запуска подтверждён0; следующий шаг — адресные проверки и actual.
+Поправка ограничена существующим failure callback; signed SDK-проба использует
+shared gateway, свежий nonce и штатный CC-stream. Локальный SDK replay подтвердил
+402→200/Usage15/два вызова; patched-native guard локально не запускался. В прежний
+`gui-product` preflight включены только две затронутые native проверки: pre-stream402
+и сохранение блокировки для429/500/midstream402. Новый framework не добавлен.
 Пределы: job 25 минут, браузер 330 секунд; наблюдение через GitHub Actions,
 адресная остановка через `gh run cancel <id>`, штатный always-cleanup Compose.
 Профиль использует только существующий synthetic provider/public catalog, без

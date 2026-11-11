@@ -33,6 +33,17 @@ provider present, native user/model spend0, message173 без JSON/literal.
 как финансовый отказ; generic429/native422 и отсутствие provider не подходят.
 Сумма баланса из ошибки не выводится. 59 readback tests PASS; требуется final actual.
 
+Третий actual `d7447546`/[43014154602](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43014154602)
+снова GUI/context/reconcile PASS; финансовый отказ402 распознан. Проба восстановления
+остановилась на503 UsageGuard: прямой native key не передал обязательный подписанный
+personal scope. Source `_personal_scope` отвергает это до проверки Usage, поэтому
+nonstream regression из этой пробы не следует. Исправляется только вызов пробы:
+существующие shared gateway headers/provenance и qualified CC-stream.
+Отдельно проверяется обнаруженная source коллизия: pre-stream APIError402 не должен
+создавать unknown-usage block; исключение ограничено typed native provider error
+до stream response. Существующие неизвестные расходы и midstream failures не
+ослабляются. Ресурсы третьего запуска удалены; общий GOAL пока не закрыт.
+
 ## Реализация
 
 - Native каталог WebUI/connection/ACL заменяет ручной список. Совпадающие wire

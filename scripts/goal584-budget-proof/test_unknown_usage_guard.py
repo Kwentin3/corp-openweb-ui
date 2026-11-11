@@ -1124,7 +1124,7 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
         self.native_failure = self.enterContext(patch.object(self.proxy_instance, "post_call_failure_hook",
             wraps=self.proxy_instance.post_call_failure_hook))
 
-    async def routed_stream(self, kind, *, stop=None):
+    async def routed_stream(self, kind, *, stop=None, http_status=200):
         import httpx
         from litellm.llms.openai.openai import OpenAIChatCompletion
         self.data = copy.deepcopy(self.stream_request)
@@ -1165,6 +1165,10 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
         async def leaf(request):
             state["requests"].append(json.loads(request.content))
             self.assertEqual(state["requests"][-1], expected)
+            if http_status != 200:
+                return httpx.Response(http_status, json={"error": {"message": "Controlled provider refusal",
+                    "type": "payment_required" if http_status == 402 else "synthetic_provider_error",
+                    "code": "payment_required" if http_status == 402 else "synthetic_provider_error"}}, request=request)
             return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Body(), request=request)
         client = httpx.AsyncClient(transport=httpx.MockTransport(leaf)); self.addAsyncCleanup(client.aclose)
         self.router = litellm.Router(model_list=[{"model_name": self.model, "litellm_params": {
@@ -1197,6 +1201,48 @@ class CCStreamNativeProxyTests(unittest.IsolatedAsyncioTestCase):
                          if method == "POST" and path == "/key/block")
         self.assertTrue(any(method == "GET" and path == "/user/info"
                             for method, path, *_ in self.wire.requests[committed + 1:]))
+
+    async def test_actual_provider402_before_sdk_source_preserves_error_without_usage_block(self):
+        with self.assertRaises(litellm.APIError) as failure:
+            await self.routed_stream("known", http_status=402)
+        error = failure.exception
+        self.assertIs(type(error), litellm.APIError)
+        self.assertEqual(error.status_code, 402)
+        log = self.data["litellm_logging_obj"]
+        self.assertIs(self.guard._stream_attempt(self.data), log)
+        self.assertIsNone(log._raw_stream_usage["stream_id"])
+        self.assertFalse(log._raw_stream_usage["seen"])
+        before = error.message
+        transformed = await self.proxy_instance.post_call_failure_hook(
+            request_data=self.data, original_exception=error, user_api_key_dict=self.auth)
+        self.assertIsNone(transformed)
+        self.assertEqual(error.message, before)
+        self.assertFalse(self.wire.requests)
+        self.assertFalse(self.wire.key["blocked"])
+        self.assert_finance_unchanged()
+
+    async def test_other_http_failures_and402_after_source_still_block(self):
+        from fastapi import HTTPException
+        for status in (429, 500):
+            with self.subTest(status=status):
+                self.wire.key["blocked"] = False; self.wire.requests.clear()
+                with self.assertRaises(Exception) as failure:
+                    await self.routed_stream("known", http_status=status)
+                self.assertEqual(failure.exception.status_code, status)
+                self.assertIsNone(self.data["litellm_logging_obj"]._raw_stream_usage["stream_id"])
+                await self.guard.async_post_call_failure_hook(
+                    self.data, failure.exception, self.auth)
+                self.assert_targeted_block()
+        for native_provider in (True, False):
+            with self.subTest(native_provider=native_provider):
+                self.wire.key["blocked"] = False; self.wire.requests.clear()
+                iterator, log, _ = await self.routed_stream("known")
+                self.assertIs(type(log._raw_stream_usage["stream_id"]), int)
+                error = (litellm.APIError(status_code=402, message="Payment Required", llm_provider="openai", model=self.model)
+                         if native_provider else HTTPException(402, "Payment Required"))
+                await self.guard.async_post_call_failure_hook(self.data, error, self.auth)
+                self.assert_targeted_block()
+                await iterator.aclose()
 
     async def test_raw_zero_and_missing_usage_follow_native_deferred_policy(self):
         for kind in ("known", "zero", "absent"):

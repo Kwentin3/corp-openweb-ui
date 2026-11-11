@@ -22,7 +22,7 @@ from pathlib import Path
 import re
 import secrets
 import sys
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
@@ -713,8 +713,11 @@ def public_prices(state, *, restore=False):
 
 async def provider_refusal_recovery(state, session, client, user_id, created, secret):
     """Two synthetic calls, with status derived from actual durable native rows."""
-    from employee_budget_admin_client import _initialization_key
     from employee_budget_cost_readback import read_admin_overview, _financial_refusal
+    from litellm_auth import PROVENANCE_FIELD, TASK_HEADER, USER_ID_HEADER
+    from provenance import decode_call, encode_call
+    import httpx
+    import openai
 
     require(os.environ.get('LITELLM_MODEL_COST_MAP_URL') == 'http://provider:8000/__proof/catalog',
             'Provider account proof requires the isolated synthetic catalog')
@@ -790,32 +793,81 @@ async def provider_refusal_recovery(state, session, client, user_id, created, se
             failure = ProofError('Actual native provider status/usage/counters remain unconfirmed: ' + expected)
             failure.provider_observation_diagnostic = diagnostic(expected, since, last)
             raise failure from None
+    async def stream_call():
+        """Reuse the installed SDK SSE owner; no retries or alternate routes."""
+        answer = str(uuid4())
+        capsule = encode_call(secret, user_id=user_id, chat_id=proof_chat, answer_id=answer,
+                              root_chat_id=proof_chat, root_answer_id=answer, model=MODELS[1])
+        claims = decode_call(capsule, secret, user_id=user_id, model=MODELS[1])
+        evidence = {'http_status': None, 'usage': None, 'response_id': None, 'chunks': 0, 'signed_call_id': claims['jti']}
+        try:
+            async with asyncio.timeout(15):
+                async with httpx.AsyncClient(trust_env=False, timeout=10) as http_client:
+                    async with openai.AsyncOpenAI(api_key=secret, base_url=PROXY_URL.rstrip('/') + '/v1',
+                            max_retries=0, http_client=http_client) as sdk:
+                        stream = await sdk.chat.completions.create(**body,
+                            extra_headers={USER_ID_HEADER: user_id, TASK_HEADER: ''},
+                            extra_body={'litellm_metadata': {PROVENANCE_FIELD: capsule}})
+                        evidence['http_status'] = stream.response.status_code
+                        async with stream:
+                            async for chunk in stream:
+                                evidence['chunks'] += 1
+                                require(evidence['chunks'] <= 32 and isinstance(chunk.id, str) and bool(chunk.id),
+                                        'Native provider stream exceeded its bounded response shape')
+                                require(evidence['response_id'] in (None, chunk.id), 'Native provider stream changed response ids')
+                                evidence['response_id'] = chunk.id
+                                if chunk.usage is not None:
+                                    evidence['usage'] = {field: getattr(chunk.usage, field) for field in
+                                        ('prompt_tokens', 'completion_tokens', 'total_tokens')}
+        except openai.APIError as error:
+            code = getattr(error, 'code', None)
+            evidence.update(http_status=getattr(error, 'status_code', None), error_class=type(error).__name__,
+                error_code=code if code in ('402', '503', 'usage_unavailable', 'budget_exceeded', 402, 503) else None,
+                usage_unavailable='Usage unavailable' in str(error))
+        except asyncio.TimeoutError:
+            evidence.update(error_class='TimeoutError')
+        return evidence
     await client.set_model_cap(created.key_hash, Decimal('.60'))
-    credential = _initialization_key(user_id, MODELS[1], secret)
-    require(hashlib.sha256(credential.encode()).hexdigest() == created.key_hash,
-            'Native dummy assignment credential differs from its existing owner')
+    proof_chat = str(uuid4())  # API-only lineage; no WebUI chat is claimed.
     before = len(provider('/__proof/requests')['requests'])
-    body = {'model': MODELS[1], 'messages': [{'role': 'user', 'content': 'Hi'}], 'stream': False, 'max_tokens': 5}
+    body = {'model': MODELS[1], 'messages': [{'role': 'user', 'content': 'Hi'}], 'stream': True,
+            'stream_options': {'include_usage': True}, 'max_tokens': 5}
     try:
         control(402)
         sent = datetime.now(timezone.utc)
-        status, _, _ = native.request('POST', '/v1/chat/completions', token=credential, body=body)
-        require(status == 402, 'Explicit synthetic payment refusal did not reach the native API')
+        refused_stream = await stream_call()
+        require(refused_stream['http_status'] == 402, 'Explicit synthetic payment refusal did not reach the native API')
         refusal = await observed('financial_refusal', sent)
         control(200)
         sent = datetime.now(timezone.utc)
-        status, response, _ = native.request('POST', '/v1/chat/completions', token=credential, body=body)
-        require(status == 200 and response.get('usage') == {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15},
-                'Synthetic recovery did not return actual native paid usage')
+        recovered_stream = await stream_call()
+        if (recovered_stream['http_status'] != 200 or recovered_stream['usage'] !=
+                {'prompt_tokens': 10, 'completion_tokens': 5, 'total_tokens': 15}):
+            failure = ProofError('Synthetic recovery did not return actual native streamed paid usage')
+            last = {'status': refusal['status'], 'event_at': refusal['event_at']}
+            try:
+                actual = await client.read_employee(user_id, tuple(MODELS))
+                last.update(native_user_spend_usd=str(actual.spend), native_model_spend_usd=str(actual.models[1].spend))
+            except BudgetAdminError as error:
+                last['counter_read_error'] = error.code
+            failure.provider_observation_diagnostic = diagnostic('success', sent, last)
+            failure.provider_observation_diagnostic['stream'] = {key: value for key, value in recovered_stream.items()
+                                                               if key != 'response_id'}
+            failure.provider_observation_diagnostic['stream']['response_id_seen'] = bool(recovered_stream['response_id'])
+            raise failure
         recovery = await observed('success', sent)
         require(recovery['account_id'] == refusal['account_id'], 'Recovery switched provider accounts')
+        require(refused_stream['signed_call_id'] != recovered_stream['signed_call_id'], 'Signed provider calls reused a nonce')
         calls = provider('/__proof/requests')['requests'][before:]
         require(len(calls) == 2 and [row['lifecycle']['response_status'] for row in calls] == [402, 200]
-                and calls[0].get('usage') is None and calls[1].get('usage') == response['usage'],
+                and calls[0].get('usage') is None and calls[1].get('usage') == recovered_stream['usage']
+                and calls[1].get('id') == recovered_stream['response_id'],
                 'Native provider proof added calls or reused cached/fallback success')
         return {'refusal': refusal, 'recovery': recovery, 'inference_calls': 2, 'physical_calls': 2,
                 'synthetic_paid_cost_usd': '0.20', 'separate_after_browser_reconciliation': True,
-                'coverage': 'native API and durable account projection; no additional browser chat'}
+                'transport': 'native_chat_completions_stream', 'streamed_usage_verified': True,
+                'signed_personal_scope': True, 'distinct_call_nonces': True,
+                'coverage': 'signed native API and durable account projection; synthetic UUID lineage, no WebUI chat'}
     finally:
         control(200)
 
