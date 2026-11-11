@@ -148,6 +148,13 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(context["status"], "success")
         return response.body.decode()
 
+    async def test_native_money_is_visible_when_token_statistics_are_unavailable(self):
+        self.rows[0].pop("prompt_tokens")
+        text = await self.click()
+        self.assertEqual(Markers(text).totals, {"answer": "0.20", "chat": "0.20"})
+        self.assertIn('data-field="prompt_tokens">нет данных</td>', text)
+        self.assertNotIn('data-field="prompt_tokens">0</td>', text)
+
     async def test_real_reader_config_shared_session_and_native_scope_only(self):
         original = copy.deepcopy(self.body)
         self.body.update(messages=[{"content": "FORGED HTML"}], metadata={"chat_id": OTHER},

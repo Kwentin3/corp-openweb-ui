@@ -28,8 +28,7 @@ def fixture():
                 'model_info': {'mode': 'responses' if i == 0 else 'chat'}}
                 for i, name in enumerate(names) if name],
                'litellm_settings': {'block_requests_for_models_without_pricing': True,
-                                   'callbacks': ['budget_errors.handler', 'pricing_snapshot.handler',
-                                                 'budget_runtime.responses_handler', 'budget_runtime.cc_stream_handler']},
+                                   'callbacks': ['budget_errors.handler', 'pricing_snapshot.handler']},
                'router_settings': {'fallbacks': [], 'num_retries': 0},
                'general_settings': {'master_key': 'os.environ/LITELLM_MASTER_KEY',
                                     'database_url': 'os.environ/DATABASE_URL', 'custom_auth': 'litellm_auth.gateway_auth',
@@ -184,7 +183,11 @@ class ManagedProjection(unittest.TestCase):
             'callbacks': lambda s, m, g: g['litellm_settings'].update(callbacks=['pricing_snapshot.handler']),
             'legacy-stream-policy': lambda s, m, g: g['litellm_settings'].update(callbacks=[
                 'budget_errors.handler', 'pricing_snapshot.handler', 'budget_runtime.handler']),
-            'duplicate-stream-policy': lambda s, m, g: g['litellm_settings']['callbacks'].append(
+            'duplicate-callback': lambda s, m, g: g['litellm_settings']['callbacks'].append(
+                'budget_errors.handler'),
+            'responses-stream-policy': lambda s, m, g: g['litellm_settings']['callbacks'].append(
+                'budget_runtime.responses_handler'),
+            'cc-stream-policy': lambda s, m, g: g['litellm_settings']['callbacks'].append(
                 'budget_runtime.cc_stream_handler'),
             'mixed-stream-policy': lambda s, m, g: g['litellm_settings']['callbacks'].append(
                 'budget_runtime.handler'),

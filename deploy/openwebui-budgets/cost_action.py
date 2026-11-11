@@ -54,7 +54,8 @@ def section(kind, title, total):
             values = {"model": model.model, "calls": model.calls, "prompt_tokens": model.prompt_tokens,
                       "completion_tokens": model.completion_tokens, "total_tokens": model.total_tokens,
                       "spend_usd": format(model.spend, "f")}
-            cells = "".join(f'<td data-field="{field}">{escaped(value)}</td>' for field, value in values.items())
+            cells = "".join(f'<td data-field="{field}">{escaped(value) if value is not None else "нет данных"}</td>'
+                            for field, value in values.items())
             rows.append(f'<tr data-model="{escaped(model.model)}">{cells}</tr>')
         contents += ('<table><thead><tr><th>Модель</th><th>Вызовы</th><th>Вход</th><th>Выход</th>'
                      '<th>Всего токенов</th><th>USD</th></tr></thead><tbody>' + "".join(rows) + '</tbody></table>')

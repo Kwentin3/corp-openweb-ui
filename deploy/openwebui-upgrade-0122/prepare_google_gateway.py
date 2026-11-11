@@ -303,8 +303,8 @@ def project_managed(source, models, inference_bearer, gateway_config):
     callbacks = settings.get('callbacks', [])
     require(isinstance(callbacks, list) and all(isinstance(value, str) for value in callbacks)
             and {'budget_errors.handler', 'pricing_snapshot.handler'}.issubset(callbacks)
-            and {'budget_runtime.responses_handler', 'budget_runtime.cc_stream_handler'}.issubset(callbacks)
-            and 'budget_runtime.handler' not in callbacks and len(callbacks) == len(set(callbacks))
+            and not any(value.startswith('budget_runtime.') for value in callbacks)
+            and len(callbacks) == len(set(callbacks))
             and settings.get('enable_post_custom_auth_checks') is not True,
             'Approved native budget callback/common-check profile required')
     approved = {}

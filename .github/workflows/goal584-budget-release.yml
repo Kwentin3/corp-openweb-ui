@@ -1,4 +1,4 @@
-name: GOAL584 prepare accepted budget image
+name: GOAL584 prepare native budget image
 
 on:
   workflow_dispatch:
@@ -16,13 +16,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      ACCEPTED_SOURCE: 1ebf2b6412aa206976cc9b88ce027cc653993060
+      ACCEPTED_SOURCE: ${{ github.sha }}
       GOAL584_NATIVE_BUILD_OWNER: goal584-release-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - name: Export the accepted source with native LF bytes
+      - name: Export the release source with native LF bytes
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: 1ebf2b6412aa206976cc9b88ce027cc653993060
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Build with the existing pinned native builder
@@ -35,7 +35,7 @@ jobs:
           python -m venv "$RUNNER_TEMP/build-venv"
           "$RUNNER_TEMP/build-venv/bin/python" -m pip install --disable-pip-version-check -r scripts/goal584-budget-proof/native-patch-requirements.txt
           "$RUNNER_TEMP/build-venv/bin/python" scripts/goal584-budget-proof/build_native_floor_image.py \
-            --variant stream-usage-v1.105.1 --context "$RUNNER_TEMP/native-context" \
+            --variant positive-floor-v1.105.1 --context "$RUNNER_TEMP/native-context" \
             --receipt "$RUNNER_TEMP/release/native-build.json"
           git rev-parse HEAD > "$RUNNER_TEMP/release/source-commit.txt"
 

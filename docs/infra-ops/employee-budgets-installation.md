@@ -3,9 +3,9 @@
 Статус 11.11.2026: стендовая поставка принята; пользователь разрешил production
 в активном GOAL584. Эта инструкция не подменяет проверку целевого окружения.
 Текущее состояние и незакрытые пункты — в [единственной записи GOAL584](employee-budgets-goal584.md).
-Streaming CC Usage и native регистрация проверены на LiteLLM1.105.1/OpenAI SDK2.33.0.
-Actual42825996133 подтвердил отмену → native failure row → reader unknown → адресную
-блокировку и отказ без повторного dispatch; native Compose merge также проверен.
+Исторический стендовый actual42825996133 проверял строгую Usage-блокировку на
+LiteLLM1.105.1/OpenAI SDK2.33.0. Этот контракт заменён решением пользователя:
+текущий release использует штатный учёт и не включает специальные Usage guards.
 Установка, DB/Redis/права и каталог на целевом сервере остаются отдельной приёмкой.
 Рабочие маршруты ещё не переключены. Текущее состояние — в канонической записи GOAL.
 
@@ -164,9 +164,9 @@ ACL сотрудника. Прежний `managed_model_ids` оставлен т
 
 Protected budget env содержит `DATABASE_URL`, native Redis connection values,
 `LITELLM_MASTER_KEY`, отдельный `OWUI_BUDGET_GATEWAY_SECRET` и native
-`OWUI_BUDGET_OPERATOR_KEY`. Последний использует existing Usage guard;
-его отсутствие/некорректный формат запрещает регистрацию callback. Проверка
-формата не заменяет проверку настоящих прав ключа.
+`OWUI_BUDGET_OPERATOR_KEY` для управления бюджетами. Проверка формата
+не заменяет проверку настоящих прав ключа. По решению пользователя 11.11.2026
+специальные Usage guards не регистрируются: расчёт и применение лимитов штатные.
 
 В protected LiteLLM config сохранить согласованный `model_list` и параметры
 провайдеров. Добавить штатные настройки, заполнив Redis из реального подключения:
@@ -187,7 +187,7 @@ general_settings:
   store_prompts_in_spend_logs: false
   proxy_batch_write_at: 1
 litellm_settings:
-  callbacks: [budget_errors.handler, pricing_snapshot.handler, budget_runtime.handler]
+  callbacks: [budget_errors.handler, pricing_snapshot.handler]
   block_requests_for_models_without_pricing: true
 ```
 
@@ -195,23 +195,18 @@ litellm_settings:
 должны быть квалифицированы отдельно. Не переносить отсюда Redis password/port,
 если реальное подключение использует иной native вариант.
 
-Для согласованного **стендового** streaming-кандидата `stream-usage-v1.105.1`
-список callbacks имеет следующий вид:
-
-```yaml
-callbacks: [budget_errors.handler, pricing_snapshot.handler, budget_runtime.responses_handler, budget_runtime.cc_stream_handler]
-```
-
-Эти два Usage callbacks экспортирует тот же `budget_runtime.py`, с тем же
-protected operator key. Responses peer сохраняет существующий buffered-upstream
-профиль и native WebUI SSE/Tools; CC peer читает исходный признак Usage из
-проверенного патча. Точный образ собирается существующим
-`scripts/goal584-budget-proof/build_native_floor_image.py --variant stream-usage-v1.105.1`
-с отдельными абсолютными `--context` и `--receipt` на подготовленном стенде.
-Builder проверяет base digest, native4/SDK8 source hashes и сохраняет immutable IID.
-Составной proxy source включает прежний floor patch и передачу отмены из фактического
-CC generator в общий cleanup; исходный floor patch проверяется отдельно без изменений.
-Разрешение на этот патч ограничено стендом; production activation согласуется отдельно.
+Текущий release использует `positive-floor-v1.105.1`: pinned штатный LiteLLM
+с ранее проверенным исправлением месячного сброса в двух функциях.
+Образ собирается вне production существующим
+`scripts/goal584-budget-proof/build_native_floor_image.py --variant positive-floor-v1.105.1`
+с отдельными абсолютными `--context` и `--receipt`; builder проверяет base digest,
+исходные/итоговые hashes и сохраняет immutable IID. Image-only workflow закрепляет
+точный commit запуска. Прежний стендовый `stream-usage-v1.105.1` с raw-usage и
+deferred-guard cancellation delta больше не входит в выбранный production release.
+`unknown_usage_guard.py` и `budget_runtime.py` не монтируются и не регистрируются.
+При неполной Usage штатный расход может отличаться от внешнего счёта: лимит
+ограничивает учтённое LiteLLM значение. Отсутствие данных не выдаётся за бесплатный
+запрос и само по себе не блокирует модель сотруднику.
 
 ## Подключение и проверка
 
@@ -230,14 +225,14 @@ CC generator в общий cleanup; исходный floor patch проверя�
 построения второго каталога тарифов. Оператор задаёт подключения; публичные цены
 приходят через штатный каталог LiteLLM.
 Env содержит разные master/operator/shared inference keys и native DATABASE_URL.
-Обязателен профиль обоих `budget_runtime.responses_handler` и
-`budget_runtime.cc_stream_handler`; legacy handler к этому списку не добавляется.
+Обязательны только callbacks `budget_errors.handler` и `pricing_snapshot.handler`;
+профиль с прежними `budget_runtime.*` отклоняется, чтобы не вернуть строгую блокировку.
 Для managed Responses alias требуется уже квалифицированный native профиль:
 `model_info.mode=responses`, `supports_native_streaming=false` и
 `litellm_params.model=openai/<wire model>` без другого custom provider override.
 LiteLLM получает полный upstream HTTP response; WebUI сохраняет SSE/Tools.
-Подготовка отклоняет иной профиль, поскольку наличие callbacks само по себе
-не включает проверку Usage в неподдерживаемой streaming-ветке.
+Подготовка пока сохраняет этот ранее квалифицированный транспортный профиль;
+он больше не служит доказательством полноты Usage.
 
 Managed-подготовка читает native `/openai/models`, сохраняет API type Responses/CC,
 prefix и разрешённые metadata headers, направляет все enabled connection slots
@@ -257,8 +252,8 @@ actor/File IDs через общие модули; chat/answer root для не�
 служебный бюджет платформы из common `service_payer_id`, не сотрудник. Нужны native
 назначение этого плательщика на OCR model alias и его лимит. Отсутствие конфигурации,
 неподходящий gateway/model или неподписанный вызов останавливают запрос до провайдера;
-прямого fallback нет. При неизвестной Usage блокируется соответствующий служебный
-ключ модели, личные ключи сотрудника сохраняются. Raw Responses и native File ACL
+прямого fallback нет. Расход OCR учитывается штатно, без специальной блокировки
+по неподтверждённой Usage. Raw Responses и native File ACL
 сохраняются; новая обвязка не меняет содержимое PDF и инструкцию распознавания.
 Неактивные broker direct adapters требуют отдельного включения в общий путь
 перед активацией; наличие их файлов не означает работающий обход.
@@ -307,7 +302,7 @@ Tool Valves `managed_model_ids` содержат выбранные native Model
 
 Деньги в таблице форматируются только для отображения; точные исходные строки
 сохраняются в полях/данных и серверном плане. Учтённый расход и остаток не означают
-окончательный расход/гарантированный допуск. Unknown и подтверждённая блокировка
+окончательный расход/гарантированный допуск. Недоступные данные и штатная блокировка
 остаются заметными; технические подробности раскрываются по запросу.
 
 Для автоматической отправки opaque-origin Rich UI сохраняются оба штатных шага:
@@ -331,10 +326,10 @@ management credentials. GET не создаёт назначений и не м�
 
 Суммы — строковые десятичные native counters и проекция cap-minus-spend; это не
 гарантия допуска следующего запроса с учётом резервов. Период/следующий reset передаются
-из native user/model полей без пересчёта календаря. `expense_status=unknown` означает
-подтверждённый witness неизвестного расхода; `unavailable` не доказывает отсутствие
-такого расхода. `expense_observation_scope=assignment_history` явно отделяет этот
-ограниченный поиск истории текущего назначения от месячных counters.
+из native user/model полей без пересчёта календаря.
+`expense_observation_scope=native_budget_counters` обозначает штатные counters;
+чтение месячного бюджета и админской таблицы не требует исторических Usage witnesses.
+Недоступные данные не превращаются в нулевой расход.
 
 Личный GUI использует уже установленное действие **«Стоимость: детали»** у
 собственного ответа. Оно показывает расходы ответа/чата и раздел **«Мой бюджет»**:
@@ -367,7 +362,7 @@ Tools и reasoning; изменение URL само по себе не дока�
 от существующего Filter отдельную подписанную API operation. Владелец ключа
 остаётся плательщиком; операция не становится выдуманным chat/message, не включает
 чатовый вывод стоимости и не меняет историю/формат HTTP ответа. Используются те
-же native assignments, лимиты, SpendLogs и Usage guard. Сведения о человеке
+же native assignments, лимиты и SpendLogs. Сведения о человеке
 внутри1С из общего ключа не выводятся. Этот source candidate прошёл адресную и
 независимую проверку; integrated runtime/реальная1С до приёмки не заявляются.
 

@@ -122,15 +122,14 @@ def test_authenticated_self_uses_selected_native_counter_and_private_server_cred
     assert data["models"][0]["budget_reset_at"] == RESET
     assert data["models"][0]["remaining_usd"] == "7"
     assert data["models"][0]["blocked"] is False
-    assert data["expense_status"] == "unavailable"
-    assert data["expense_observation_scope"] == "assignment_history"
+    assert "expense_status" not in data
+    assert data["expense_observation_scope"] == "native_budget_counters"
     assert datetime.fromisoformat(data["as_of"]).utcoffset().total_seconds() == 0
     assert response.headers["Cache-Control"] == "no-store"
     native.read_service.assert_awaited_once_with(ACTOR)
     assert native.created_clients == [(native.session, BASE_URL, KEY)]
     native.get_valves.assert_awaited_once_with("employee_budget_cost")
-    assert native.read_unknown.await_args.kwargs["states"].keys() == {ACTOR}
-    assert (native.read_unknown.await_args.kwargs["base_url"], native.read_unknown.await_args.kwargs["admin_key"]) == (BASE_URL, KEY)
+    native.read_unknown.assert_not_awaited()
     for private in (BASE_URL, KEY, "a" * 64, "private-native-key-alias", "must-not-disclose"):
         assert private not in response.text
 
@@ -174,7 +173,7 @@ def test_admin_selected_target_uses_only_that_employee(native):
     assert response.json()["user_id"] == OTHER
     assert response.json()["email"] == native.users[OTHER].email
     native.read_service.assert_awaited_once_with(OTHER)
-    assert native.read_unknown.await_args.kwargs["states"].keys() == {OTHER}
+    native.read_unknown.assert_not_awaited()
 
 
 @pytest.mark.parametrize("change", ["admin_demoted", "actor_disabled", "target_deleted"])
@@ -205,18 +204,19 @@ def test_zero_over_budget_and_nullable_caps_are_native_projections(native, cap, 
     assert data["models"][0]["blocked"] is None
 
 
-@pytest.mark.parametrize("confirmed,blocked,status", [(True, False, "unknown"), (False, True, "unavailable")])
-def test_unknown_history_is_independent_of_native_block_and_monthly_counter(native, confirmed, blocked, status):
+@pytest.mark.parametrize("confirmed,blocked", [(True, False), (False, True)])
+def test_native_budget_counters_do_not_require_historical_guard_observation(native, confirmed, blocked):
     state = native.states[ACTOR]
     native.states[ACTOR] = replace(state, models=(replace(state.models[0], blocked=blocked),))
     native.observations[ACTOR] = {"native-a": {"unknown_confirmed": confirmed, "as_of": "2026-11-10T00:00:00+00:00"}}
     response = asyncio.run(native.request())
     assert response.status_code == 200
     data = response.json()
-    assert data["expense_status"] == data["models"][0]["expense_status"] == status
+    assert "expense_status" not in data and "expense_status" not in data["models"][0]
     assert data["models"][0]["blocked"] is blocked
     assert (data["spend_usd"], data["remaining_usd"]) == ("3", "7")
-    assert data["expense_observation_scope"] == "assignment_history"
+    assert data["expense_observation_scope"] == "native_budget_counters"
+    native.read_unknown.assert_not_awaited()
 
 
 @pytest.mark.parametrize("defect", ["missing_state", "native_http_error", "period", "foreign_state"])

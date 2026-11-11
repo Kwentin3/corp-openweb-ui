@@ -96,7 +96,6 @@ class Event:
         """Shared readonly public projection for the native GET and self Action."""
         from employee_budget_admin_client import BudgetAdminClient
         from employee_budget_admin_policy import public_employee
-        from employee_budget_cost_readback import read_unknown_presence
         from open_webui.env import VERSION
         from open_webui.models.functions import Functions
         from open_webui.utils.session_pool import get_session
@@ -113,14 +112,12 @@ class Event:
         state = await client.read_service(target.id)
         if state.user_id != target.id:
             raise HTTPException(503, UNAVAILABLE)
-        observations = await read_unknown_presence(session, base_url=common.get("ledger_base_url"),
-            admin_key=common.get("ledger_admin_key"), states={target.id: state})
         target = await authorized_target(caller_id, target.id)
         info = target.info if isinstance(target.info, dict) else {}
         department = info.get("department")
         identity = {"user_id": target.id, "name": target.name, "email": target.email,
                     "department": department if isinstance(department, str) else "",
                     "models": tuple(model.model for model in state.models)}
-        result = public_employee(identity, state, unknown_presence=observations[target.id])
-        result.update(as_of=datetime.now(timezone.utc).isoformat(), expense_observation_scope="assignment_history")
+        result = public_employee(identity, state)
+        result.update(as_of=datetime.now(timezone.utc).isoformat(), expense_observation_scope="native_budget_counters")
         return JSONResponse(result, headers={"Cache-Control": "no-store"})

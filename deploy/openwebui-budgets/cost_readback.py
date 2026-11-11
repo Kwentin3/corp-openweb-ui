@@ -71,9 +71,9 @@ class ModelCost:
     model: str
     spend: Decimal
     calls: int
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
 
 
 @dataclass(frozen=True)
@@ -81,9 +81,9 @@ class CostTotal:
     # None means no durable row; absence is never verified zero expense.
     spend: Decimal | None
     calls: int
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
     models: tuple[ModelCost, ...]
 
 
@@ -131,9 +131,9 @@ class _Row:
     root_answer_id: str
     model: str
     spend: Decimal
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
 
 
 def _require(condition: bool, code: str) -> None:
@@ -223,10 +223,6 @@ def _usage_unavailable(metadata: dict) -> bool:
     return unknown
 
 
-def _usage_available(metadata: dict) -> None:
-    _require(not _usage_unavailable(metadata), "usage_unavailable")
-
-
 def _attribution(raw: object, user_id: str, chat_id: str) -> dict:
     _require(isinstance(raw, dict), "invalid_row")
     _require(raw.get("user") == user_id and raw.get("session_id") == chat_id,
@@ -244,63 +240,21 @@ def _attribution(raw: object, user_id: str, chat_id: str) -> dict:
     return scope
 
 
-def _usage_numbers(raw: dict) -> tuple[int, int, int, Decimal]:
-    prompt = _integer(raw.get("prompt_tokens"))
-    completion = _integer(raw.get("completion_tokens"))
-    total = _integer(raw.get("total_tokens"))
-    _require(total == prompt + completion, "invalid_usage")
-    return prompt, completion, total, _money(raw.get("spend"))
-
-
-def _known_zero(metadata: dict) -> bool:
-    snapshot = metadata["spend_logs_metadata"].get("owui_billed_token_rates")
-    if (type(snapshot) is not dict or set(snapshot) != {"schema", "availability", "observed_at_utc", "rates", "native_zero_confirmed"}
-            or type(snapshot.get("schema")) is not int or snapshot["schema"] != 1
-            or snapshot.get("native_zero_confirmed") is not True
-            or snapshot.get("availability") not in ("available", "partial")
-            or not isinstance(snapshot.get("observed_at_utc"), str) or not snapshot["observed_at_utc"]
-            or not isinstance(snapshot.get("rates"), dict)):
-        return False
-    fields = {"input_cost_per_token", "output_cost_per_token", "cache_read_input_token_cost",
-              "cache_read_input_audio_token_cost", "cache_creation_input_token_cost",
-              "cache_creation_input_token_cost_above_1hr", "output_cost_per_reasoning_token"}
-    if set(snapshot["rates"]) != fields:
-        return False
-    for value in snapshot["rates"].values():
-        if value is not None and (type(value) not in (int, float, Decimal)
-                or not Decimal(str(value)).is_finite() or value < 0):
-            return False
-    expected = "available" if all(v is not None for v in snapshot["rates"].values()) else "partial"
-    if snapshot["availability"] != expected or not snapshot["observed_at_utc"].endswith("Z"):
-        return False
-    try:
-        datetime.fromisoformat(snapshot["observed_at_utc"].replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    for field in ("input_cost_per_token", "output_cost_per_token"):
-        value = snapshot["rates"].get(field)
-        if type(value) not in (int, float, Decimal) or not Decimal(str(value)).is_finite() or value < 0:
-            return False
-    information = metadata.get("guardrail_information")
-    if not isinstance(information, list):
-        return False
-    entries = [v for v in information if isinstance(v, dict) and v.get("guardrail_name") == "owui_budget_usage"]
-    return (len(entries) == 1 and entries[0].get("guardrail_action") == "allow"
-            and entries[0].get("guardrail_status") == "success" and entries[0].get("guardrail_mode") == "post_call"
-            and entries[0].get("violation_categories") == [])
+def _usage_numbers(raw: dict) -> tuple[int | None, int | None, int | None, Decimal]:
+    # Native money is authoritative independently of optional token telemetry.
+    values = tuple(value if type(value) is int and value >= 0 else None
+                   for value in (raw.get("prompt_tokens"), raw.get("completion_tokens"), raw.get("total_tokens")))
+    if all(value is not None for value in values) and values[2] != values[0] + values[1]:
+        values = (None, None, None)
+    return *values, _money(raw.get("spend"))
 
 
 def _row(raw: object, user_id: str, chat_id: str) -> _Row:
     scope = _attribution(raw, user_id, chat_id)
     metadata = raw["metadata"]
-    # This native guardrail's typed telemetry is meaningful only after the
-    # existing row owner and signed scope checks. An estimated positive spend
-    # cannot make its unavailable Usage a confirmed amount.
-    _usage_available(metadata)
-    # Native writer defaults missing cost/usage to zero (utils797..800), and
-    # absent metadata.status to success1720..1731. Failure cost-debug data is
-    # not guaranteed in this endpoint's whitelisted metadata. Until a native
-    # zero-cost qualification is present, never present these defaults as free.
+    # The native ledger owns cost, without an application guardrail witness.
+    # Explicit failures remain unsuitable. Native default all-zero cost/usage
+    # is ambiguous; it must not turn unavailable accounting into a free answer.
     _require(raw.get("status") == "success"
              and metadata.get("status") in (None, "success")
              and metadata.get("error_information") is None
@@ -308,23 +262,27 @@ def _row(raw: object, user_id: str, chat_id: str) -> _Row:
              and metadata.get("response_cost_failure_debug_information") is None,
              "accounting_unavailable")
     prompt, completion, total, spend = _usage_numbers(raw)
-    _require(spend > 0 and total > 0 or spend == 0 and _known_zero(metadata), "accounting_unavailable")
+    _require(spend > 0 or total is not None and total > 0, "accounting_unavailable")
     return _Row(_text(raw.get("request_id")), scope["call_id"], scope["root_answer_id"], scope["model"],
                 spend, prompt, completion, total)
 
 
 def _total(rows: list[_Row]) -> CostTotal:
+    def tokens(group, field):
+        values = [getattr(row, field) for row in group]
+        return sum(values) if all(value is not None for value in values) else None
+
     grouped: dict[str, list[_Row]] = {}
     for row in rows:
         grouped.setdefault(row.model, []).append(row)
     models = tuple(ModelCost(model, _sum_spend(group), len(group),
-                             sum(r.prompt_tokens for r in group),
-                             sum(r.completion_tokens for r in group),
-                             sum(r.total_tokens for r in group))
+                             tokens(group, "prompt_tokens"),
+                             tokens(group, "completion_tokens"),
+                             tokens(group, "total_tokens"))
                    for model, group in sorted(grouped.items()))
     return CostTotal(_sum_spend(rows) if rows else None,
-                     len(rows), sum(r.prompt_tokens for r in rows),
-                     sum(r.completion_tokens for r in rows), sum(r.total_tokens for r in rows),
+                     len(rows), tokens(rows, "prompt_tokens"),
+                     tokens(rows, "completion_tokens"), tokens(rows, "total_tokens"),
                      models)
 
 
@@ -686,7 +644,7 @@ def _overview_event(raw, deployment):
         _, _, total, spend = _usage_numbers(raw)
     except CostReadError:
         return None
-    if total <= 0 or spend <= 0:
+    if spend <= 0:
         return None
     return (observed, started, "success", raw)
 

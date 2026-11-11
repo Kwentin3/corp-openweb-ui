@@ -9,7 +9,7 @@ description: Open a native budget form; apply only the exact stored JSON user tu
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import copy
 import json
 import re
@@ -22,11 +22,10 @@ from employee_budget_admin_client import BudgetAdminClient
 from employee_budget_admin_contract import BudgetAdminError, EmployeeBudgetInspection
 import employee_budget_admin_policy as policy
 from employee_budget_admin_ui import render_editor
-from employee_budget_cost_readback import read_unknown_presence, read_admin_overview
+from employee_budget_cost_readback import read_admin_overview
 from employee_budget_webui_model_binding import native_connection
 
 
-PRESENCE_READ_SECONDS = 5.0
 
 
 def require(condition, code):
@@ -186,6 +185,11 @@ class Tools:
             inspections[user_id] = inspection
             if inspection.kind == "ready":
                 states[user_id] = inspection.employee_budget
+        for uid, state in states.items():
+            allowed = identities[uid]["models"]
+            models = [model.model for model in state.models]
+            require(state.user_id == uid and len(models) == len(set(models))
+                    and set(models) == set(allowed), "invalid_models")
         service = None
         payer = config.get("service_payer_id")
         if payer:
@@ -197,27 +201,11 @@ class Tools:
                        "spend_usd": policy.money(budget.spend), "budget_reset_at": budget.budget_reset_at,
                        "remaining_usd": policy.money(budget.max_budget - budget.spend)
                            if budget.max_budget is not None else None}
-        unknown_presence = await self._unknown_presence(session, url, key, identities, states)
+        unknown_presence = None  # Native user/key counters do not depend on historical guardrail telemetry.
         overview = await read_admin_overview(session, base_url=url, admin_key=key, models=labels,
                                             configsnapshots=config.get("provider_balance_snapshots", {}))
         return LoadedDirectory(url, identities, states, client, copy.deepcopy(config), secrets, inspections, labels,
                                service, unknown_presence, overview)
-
-    @staticmethod
-    async def _unknown_presence(session, url, key, identities, states):
-        """Validate the admin directory before the shared presence-only read."""
-        for uid, state in states.items():
-            allowed = identities[uid]["models"]
-            models = [model.model for model in state.models]
-            require(state.user_id == uid and len(models) == len(set(models))
-                    and set(models) == set(allowed), "invalid_models")
-
-        observed = {uid: replace(state, models=tuple(model for model in state.models
-                                                   if not getattr(model, "pending", False)))
-                    for uid, state in states.items()}
-        observed = {uid: state for uid, state in observed.items() if state.models}
-        return await read_unknown_presence(session, base_url=url, admin_key=key, states=observed,
-                                           timeout_seconds=PRESENCE_READ_SECONDS, max_pages=2)
 
     @staticmethod
     def _result(data, *, view=None, status="", outcome="success"):

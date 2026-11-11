@@ -778,13 +778,13 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         reader.assert_not_awaited()
         self.assertNotIn(extension.OBSERVED_CALL_IDS, self.metadata)
 
-    async def test_native_nonstream_delayed_unknown_row_emits_warning_after_wait(self):
+    async def test_native_nonstream_delayed_unavailable_row_emits_warning_after_wait(self):
         await self.nonstream_scope()
         self.messages[(CHAT, ANSWER)]["done"] = False
         self.filter.valves.ledger_read_key = "synthetic-viewer-key"
         self.filter.valves.read_wait_seconds = 0.5
         real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
-        rows = AsyncMock(side_effect=[[], real_reader.CostReadError("usage_unavailable")])
+        rows = AsyncMock(side_effect=[[], real_reader.CostReadError("accounting_unavailable")])
         emitter = AsyncMock()
         response = {"choices": [{"message": {"role": "assistant", "content": "Proof"}}]}
         original, metadata = copy.deepcopy(response), copy.deepcopy(self.metadata)
@@ -856,7 +856,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.messages[(CHAT, ANSWER)]["done"] = True
         metadata, before = copy.deepcopy(self.metadata), copy.deepcopy(body)
         real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
-        reader = AsyncMock(side_effect=real_reader.CostReadError("usage_unavailable"))
+        reader = AsyncMock(side_effect=real_reader.CostReadError("accounting_unavailable"))
         emitter = AsyncMock()
         with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
                 {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
@@ -877,13 +877,37 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body, before)
         self.assertEqual(self.metadata, metadata)
 
-    async def test_unknown_usage_and_accounting_failure_emit_no_amount_or_history_change(self):
+    async def test_native_money_and_accounting_failure_preserve_history_without_fake_zero(self):
         await self.sign()
         real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
         body = {"messages": [{"id": ANSWER, "role": "assistant", "content": "Proof",
                               "output": [{"type": "function_call_output", "output": "unchanged tool result"}]}]}
         original, metadata = copy.deepcopy(body), copy.deepcopy(self.metadata)
-        for code in ("usage_unavailable", "accounting_unavailable", "spend_api_unavailable"):
+        self.filter.valves.ledger_read_key = "synthetic-viewer-key"
+        self.filter.valves.read_wait_seconds = 0
+        call_id = self.metadata[extension.ISSUED_SCOPE]["call_id"]
+        native_row = real_reader._row({"request_id": "native-cost-row", "user": USER, "session_id": CHAT,
+            "status": "success", "spend": ".20", "prompt_tokens": None, "completion_tokens": 0, "total_tokens": None,
+            "metadata": {"spend_logs_metadata": {"owui_budget": {"schema": 1, "user_id": USER,
+                "chat_id": CHAT, "answer_id": ANSWER, "root_chat_id": CHAT, "root_answer_id": ANSWER,
+                "call_id": call_id, "model": MODEL, "category": "personal"}},
+                "guardrail_information": [{"guardrail_name": "owui_budget_usage", "guardrail_action": "block",
+                    "violation_categories": ["usage_unavailable"]}]}}, USER, CHAT)
+        for rows in ([native_row], []):
+            emitter = AsyncMock()
+            with patch.object(real_reader, "_rows", AsyncMock(return_value=rows)), patch.dict(sys.modules,
+                    {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
+                result = await self.filter.outlet(body, __user__=self.actor,
+                    __metadata__=self.metadata, __event_emitter__=emitter)
+            self.assertIs(result, body)
+            self.assertEqual(body, original)
+            self.assertEqual(self.metadata, metadata)
+            description = emitter.call_args.args[0]["data"]["description"]
+            if rows:
+                self.assertIn("Ответ: $0.20 · Чат: $0.20", description)
+            else:
+                self.assertNotIn("$", description)
+        for code in ("accounting_unavailable", "spend_api_unavailable"):
             reader = AsyncMock(side_effect=real_reader.CostReadError(code))
             emitter = AsyncMock()
             with patch.object(real_reader, "read_cost_snapshot", reader), patch.dict(sys.modules,
@@ -902,7 +926,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("блок", event["data"]["description"].lower())
         self.actor["valves"] = self.filter.UserValves(enabled=False)
         emitter = AsyncMock()
-        reader = AsyncMock(side_effect=real_reader.CostReadError("usage_unavailable"))
+        reader = AsyncMock(side_effect=real_reader.CostReadError("accounting_unavailable"))
         with patch.object(real_reader, "read_cost_snapshot", reader):
             self.assertIs(await self.filter.outlet(body, __user__=self.actor,
                 __metadata__=self.metadata, __event_emitter__=emitter), body)

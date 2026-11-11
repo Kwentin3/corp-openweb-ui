@@ -235,108 +235,28 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual({m['id'] for m in self.public_rows(result)[0]['models']}, set(MODELS))
         self.assertEqual(self.writes, [])
 
-    async def test_actual_presence_reader_policy_and_html_keep_unknown_separate_from_unavailable(self):
-        before = copy.deepcopy(self.states)
+    async def test_native_budget_projection_ignores_old_guard_history_and_preserves_blocked_state(self):
         self.states[USER] = replace(self.states[USER], models=(replace(self.states[USER].models[0], blocked=True),
                                                                self.states[USER].models[1]))
-        async def serve(params):
-            if params['user_id'] == USER and params['model_group'] == MODELS[0]: return marker(params)
-            raise OSError('PRIVATE raw transport error')
-        self.session.handler = serve
-        result = await self.open()
-        public = self.public_rows(result)
-        first, second = public
-        self.assertEqual(first['expense_status'], 'unknown')
-        self.assertEqual([m['expense_status'] for m in first['models']], ['unknown', 'unavailable'])
-        self.assertEqual(second['expense_status'], 'unavailable')
-        self.assertEqual(first['expense_as_of'], first['models'][0]['expense_as_of'])
-        self.assertNotIn('expense_as_of', second)
-        self.assertEqual(first['spend_usd'], '0.4')
-        self.assertIs(first['models'][0].get('blocked'), None)  # Block is readonly HTML, not proposal data.
-        text = self.html(result)
-        self.assertIn('<small data-model-status>Заблокирована</small>', text)
-        self.assertIn('В истории есть запросы без данных о расходе.', text)
-        self.assertIn('Полнота данных о расходе не подтверждена.', text)
-        self.assertNotIn('PRIVATE', text)
-        for row in public:
-            self.assertFalse({'known_subtotal_usd', 'expense_window_start', 'expense_window_end_exclusive'} & row.keys())
-            for model in row['models']:
-                self.assertFalse({'known_subtotal_usd', 'assignment_hash', 'scanned_rows', 'final'} & model.keys())
-        self.assertEqual(self.states[USER2], before[USER2]); self.assertEqual(self.writes, [])
-        self.assertEqual(len(self.session.requests), 4)
-        for params, headers in self.session.requests:
-            self.assertEqual(headers, {'Authorization': 'Bearer ' + KEY})
-            current = self.states[params['user_id']]
-            self.assertEqual(params['api_key'], next(m.key_hash for m in current.models if m.model == params['model_group']))
-            self.assertEqual(params['start_date'], '1970-01-01 00:00:00')
-            parsed = datetime.strptime(params['end_date'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-            self.assertLessEqual(abs((parsed - datetime.now(timezone.utc)).total_seconds()), 2)
-            self.assertEqual(params['sort_order'], 'desc')
+        before = copy.deepcopy(self.states)
+        async def forbidden(params):
+            raise AssertionError('Native budget projection must not query historical guard presence')
+        self.session.handler = forbidden
+        rows = self.public_rows(await self.open())
+        self.assertEqual(rows[0]['spend_usd'], str(self.states[USER].spend))
+        self.assertTrue(all('expense_status' not in row for row in rows))
+        self.assertEqual(self.session.requests, [])
+        self.assertEqual(self.states, before)
+        self.assertEqual(self.writes, [])
 
-    async def test_absent_marker_is_unavailable_even_with_native_zero_and_unblocked_model(self):
+    async def test_native_zero_budget_counter_is_read_without_presence_witness(self):
         self.states[USER] = replace(self.states[USER], spend=Decimal(0), models=tuple(
-            replace(m, spend=Decimal(0), blocked=False) for m in self.states[USER].models))
+            replace(model, spend=Decimal(0), blocked=False) for model in self.states[USER].models))
         first = self.public_rows(await self.open())[0]
-        self.assertEqual(first['expense_status'], 'unavailable')
-        self.assertEqual([m['expense_status'] for m in first['models']], ['unavailable', 'unavailable'])
-        self.assertIn('expense_as_of', first)
-        self.assertEqual(first['spend_usd'], '0'); self.assertEqual(self.writes, [])
-
-    async def test_bad_witness_type_identity_model_range_bool_or_asof_cannot_be_unknown(self):
-        async def value(session, **kwargs):
-            return readback.AdminUnknownPresence(kwargs['user_id'], kwargs['model'], kwargs['observation_start'],
-                kwargs['observation_end'], True, 1, 'usage_unavailable', datetime.now(timezone.utc))
-        for mutate in (lambda v: SimpleNamespace(**vars(v)), lambda v: replace(v, user_id=OTHER),
-                lambda v: replace(v, model='foreign'), lambda v: replace(v, unknown_confirmed=1),
-                lambda v: replace(v, observation_end=v.observation_end + timedelta(seconds=1)),
-                lambda v: replace(v, as_of=datetime.now())):
-            async def evidence(session, **kwargs):
-                original = await value(session, **kwargs)
-                return mutate(original) if kwargs['model'] == MODELS[1] else original
-            with self.subTest(mutate=mutate), patch.object(readback, 'read_admin_unknown_presence', side_effect=evidence):
-                first = self.public_rows(await self.open())[0]
-            self.assertEqual([m['expense_status'] for m in first['models']], ['unknown', 'unavailable'])
-            self.assertEqual(first['expense_status'], 'unknown')
-            self.assertNotIn('expense_as_of', first['models'][1])
-
-    async def test_history_stage_bound_keeps_completed_witness_and_cancels_pending_reads(self):
-        parked = asyncio.Event()
-        async def serve(params):
-            if params['user_id'] == USER and params['model_group'] == MODELS[0]: return marker(params)
-            await parked.wait()
-        self.session.handler = serve
-        with patch.object(extension, 'PRESENCE_READ_SECONDS', .03):
-            first = self.public_rows(await asyncio.wait_for(self.open(), 1))[0]
-        self.assertEqual([m['expense_status'] for m in first['models']], ['unknown', 'unavailable'])
-        self.assertEqual(self.session.active, 0); self.assertEqual(self.writes, [])
-
-    async def test_history_semaphore_uses_held_session_and_never_runs_more_than_four_gets(self):
-        self.employees.append(SimpleNamespace(id=OTHER, role='user', name='Third', email='third@example.invalid', info={}))
-        self.states[OTHER] = state(OTHER)
-        reached, release = asyncio.Event(), asyncio.Event()
-        async def serve(params):
-            if self.session.active == 4: reached.set()
-            await release.wait()
-            return marker(params)
-        self.session.handler = serve
-        task = asyncio.create_task(self.open())
-        try:
-            await asyncio.wait_for(reached.wait(), 1)
-            self.assertEqual(len(self.session.requests), 4)
-        finally:
-            release.set()
-        self.public_rows(await asyncio.wait_for(task, 1))
-        self.assertEqual(self.session.peak, 4); self.assertEqual(len(self.session.requests), 6)
-        self.assertEqual(self.session.active, 0)
-
-    async def test_role_revocation_during_presence_reads_prevents_form_disclosure(self):
-        async def serve(params):
-            self.admin.role = 'user'
-            return marker(params)
-        self.session.handler = serve
-        with self.assertRaisesRegex(contract.BudgetAdminError, 'admin_required'):
-            await self.open()
-        self.assertTrue(self.session.requests); self.assertEqual(self.writes, [])
+        self.assertEqual(first['spend_usd'], '0')
+        self.assertNotIn('expense_status', first)
+        self.assertEqual(self.session.requests, [])
+        self.assertEqual(self.writes, [])
 
     async def test_wrong_ready_dto_allowed_model_set_is_rejected_before_history_gets(self):
         original = self.client.inspect_employee.side_effect

@@ -180,7 +180,7 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.answer.calls, 2)
         self.assertEqual(result.coverage, "observed_calls_only")
 
-    async def test_call_nonce_missing_foreign_answer_and_zero_remain_unsettled(self):
+    async def test_call_nonce_missing_or_foreign_answer_remains_unsettled_and_native_zero_is_correlated(self):
         nonce = self.issued_nonce()
         self.payload = page([])
         missing = await self.read(observed_call_ids=[nonce], wait_seconds=.02, poll_interval=.01)
@@ -193,8 +193,7 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(cost.CostReadError, "foreign_answer"):
             await self.read(observed_call_ids=[nonce])
         self.payload = page([row(call_id=nonce, spend="0")])
-        with self.assertRaisesRegex(cost.CostReadError, "accounting_unavailable"):
-            await self.read(observed_call_ids=[nonce])
+        self.assertEqual((await self.read(observed_call_ids=[nonce])).answer.spend, Decimal(0))
 
     async def test_observed_call_collection_is_canonical_and_bounded_before_http(self):
         for value in (CALL, CALL.encode(), None, ["not-a-uuid"], [CALL.upper()], [True], [CALL] * 10001):
@@ -257,9 +256,6 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
             ("invalid_attribution", lambda r: r["metadata"]["spend_logs_metadata"]["owui_budget"].pop("call_id")),
             ("invalid_attribution", lambda r: r["metadata"]["spend_logs_metadata"]["owui_budget"].update(call_id="not-a-uuid")),
             ("invalid_attribution", lambda r: r["metadata"]["spend_logs_metadata"]["owui_budget"].update(unexpected="shape-drift")),
-            ("invalid_usage", lambda r: r.pop("prompt_tokens")),
-            ("invalid_usage", lambda r: r.update(completion_tokens=True)),
-            ("invalid_usage", lambda r: r.update(total_tokens=14)),
             ("invalid_spend", lambda r: r.update(spend="NaN")),
             ("invalid_spend", lambda r: r.update(spend="Infinity")),
             ("invalid_spend", lambda r: r.update(spend="-0.01")),
@@ -279,8 +275,7 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
                      lambda r: r["metadata"].update(status="failure"),
                      lambda r: r["metadata"].update(error_information={"error": "private-provider-detail"}),
                      lambda r: r["metadata"].update(response_cost_failure_debug_info={"detail": "private"}),
-                     lambda r: r.update(spend=0),
-                     lambda r: r.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)]
+                     lambda r: r.update(spend=0, prompt_tokens=0, completion_tokens=0, total_tokens=0)]
         for mutate in mutations:
             candidate = row()
             mutate(candidate)
@@ -289,7 +284,7 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(cost.CostReadError, "accounting_unavailable"):
                     await self.read(observed_request_ids={"provider-1"})
 
-    async def test_native_unavailable_usage_never_confirms_zero_or_estimated_positive(self):
+    async def test_native_money_does_not_require_or_obey_legacy_usage_guard_witness(self):
         for action in ("block", "block_failed"):
             for spend, status in (("0", "success"), ("0.20", "success"), ("0.20", "failure")):
                 candidate = row(spend=spend)
@@ -300,19 +295,23 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
                 self.payload = page([candidate])
                 before = copy.deepcopy(self.payload)
                 with self.subTest(action=action, spend=spend, status=status):
-                    with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
-                        await self.read(observed_request_ids={"provider-1"})
+                    if status == "success":
+                        snapshot = await self.read(observed_request_ids={"provider-1"})
+                        self.assertEqual(snapshot.answer.spend, Decimal(spend))
+                    else:
+                        with self.assertRaisesRegex(cost.CostReadError, "^accounting_unavailable$"):
+                            await self.read(observed_request_ids={"provider-1"})
                     self.assertEqual(self.payload, before)
 
-    async def test_mixed_known_and_unknown_rows_do_not_return_partial_verified_totals(self):
+    async def test_native_spend_totals_are_independent_of_legacy_guard_status(self):
         unknown = row("unknown", answer=OLD_ANSWER, spend="0.40")
         unknown["metadata"]["guardrail_information"] = [{
             "guardrail_name": "owui_budget_usage", "guardrail_action": "block",
             "violation_categories": ["usage_unavailable"]}]
         for rows in ([row(), unknown], [unknown, row()]):
             self.payload = page(rows)
-            with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
-                await self.read(observed_request_ids={"provider-1"})
+            snapshot = await self.read(observed_request_ids={"provider-1"})
+            self.assertEqual(snapshot.chat.spend, Decimal("0.60"))
 
     async def test_unknown_telemetry_does_not_hide_foreign_owner_or_signed_scope(self):
         for mutate in (lambda r: r.update(user=OTHER_USER), lambda r: r.update(session_id=OTHER_CHAT),
@@ -339,10 +338,12 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(snapshot.complete)
         self.assertEqual(snapshot.answer.spend, Decimal("0.20"))
         candidate["spend"] = "0"
+        self.assertEqual((await self.read()).answer.spend, Decimal(0))
+        candidate.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)
         with self.assertRaisesRegex(cost.CostReadError, "^accounting_unavailable$"):
             await self.read()
 
-    async def test_malformed_own_native_usage_telemetry_fails_closed(self):
+    async def test_legacy_guard_telemetry_does_not_replace_native_spend(self):
         native = {"guardrail_name": "owui_budget_usage", "guardrail_action": "block",
                   "violation_categories": ["usage_unavailable"]}
         variants = [native, [None],
@@ -355,8 +356,21 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
             candidate["metadata"]["guardrail_information"] = telemetry
             self.payload = page([candidate])
             with self.subTest(telemetry=telemetry):
-                with self.assertRaisesRegex(cost.CostReadError, "^accounting_unavailable$"):
-                    await self.read()
+                self.assertEqual((await self.read()).answer.spend, Decimal("0.20"))
+
+    async def test_positive_native_money_survives_zero_missing_or_invalid_token_telemetry(self):
+        for changes in ({"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                        {"prompt_tokens": None}, {"completion_tokens": True}, {"total_tokens": 14}):
+            candidate = row()
+            candidate.update(changes)
+            self.payload = page([candidate])
+            snapshot = await self.read(observed_call_ids=[CALL])
+            self.assertEqual((snapshot.answer.spend, snapshot.chat.spend), (Decimal("0.20"), Decimal("0.20")))
+            self.assertTrue(snapshot.complete)
+            if changes.get("prompt_tokens", 1) is None:
+                self.assertIsNone(snapshot.chat.prompt_tokens)
+            if changes.get("total_tokens") == 14:
+                self.assertIsNone(snapshot.chat.total_tokens)
 
     async def test_required_id_on_wrong_answer_is_not_settled(self):
         self.payload = page([row(answer=OTHER_ANSWER)])
@@ -511,41 +525,15 @@ class CostReadbackTests(unittest.IsolatedAsyncioTestCase):
             await self.read()
 
 
-    async def test_qualified_zero_native_row_survives_current_and_later_no_observed_details_read(self):
-        zero = row(spend='0')
-        zero.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)
-        zero['metadata']['spend_logs_metadata']['owui_billed_token_rates'] = {
-            'schema': 1, 'availability': 'partial', 'observed_at_utc': '2026-11-09T00:00:00Z',
-            'rates': {'input_cost_per_token': .01, 'output_cost_per_token': .02, 'cache_read_input_token_cost': None,
-                      'cache_read_input_audio_token_cost': None, 'cache_creation_input_token_cost': None,
-                      'cache_creation_input_token_cost_above_1hr': None, 'output_cost_per_reasoning_token': None},
-            'native_zero_confirmed': True}
-        zero['metadata']['guardrail_information'] = [{'guardrail_name': 'owui_budget_usage', 'guardrail_action': 'allow',
-            'guardrail_status': 'success', 'guardrail_mode': 'post_call', 'violation_categories': []}]
-        self.payload = page([zero])
-        current = await self.read(observed_call_ids=[CALL])
-        retained = await self.read()
-        self.assertEqual(current.answer.spend, Decimal(0)); self.assertTrue(current.complete)
-        self.assertEqual((retained.answer.spend, retained.chat.spend, retained.answer.calls), (Decimal(0), Decimal(0), 1))
-        self.assertEqual(retained.answer, current.answer)
-        self.payload = page([zero, row('positive', answer=OLD_ANSWER, spend='.20', call_id=str(uuid5(NAMESPACE_URL, 'positive')))])
-        mixed = await self.read(observed_call_ids=[CALL])
-        self.assertEqual((mixed.answer.spend, mixed.chat.spend, mixed.chat.calls), (Decimal(0), Decimal('.20'), 2))
-        for mutation in ('missing', 'false', 'integer', 'marker_only', 'not_run', 'duplicate', 'failure', 'foreign', 'inconsistent'):
-            bad = copy.deepcopy(zero)
-            snapshot = bad['metadata']['spend_logs_metadata']['owui_billed_token_rates']
-            if mutation == 'missing': snapshot.pop('native_zero_confirmed')
-            elif mutation == 'false': snapshot['native_zero_confirmed'] = False
-            elif mutation == 'integer': snapshot['native_zero_confirmed'] = 1
-            elif mutation == 'marker_only': bad['metadata']['spend_logs_metadata'].pop('owui_billed_token_rates')
-            elif mutation == 'not_run': bad['metadata']['guardrail_information'][0]['guardrail_status'] = 'not_run'
-            elif mutation == 'duplicate': bad['metadata']['guardrail_information'] *= 2
-            elif mutation == 'failure': bad['metadata']['response_cost_failure_debug_information'] = {}
-            elif mutation == 'foreign': bad['user'] = OTHER_USER
-            else: bad['total_tokens'] = 1
-            self.payload = page([bad])
-            with self.subTest(mutation=mutation), self.assertRaises(cost.CostReadError):
-                await self.read(observed_call_ids=[CALL])
+    async def test_native_zero_with_usage_needs_no_guard_and_default_all_zero_stays_unavailable(self):
+        candidate = row(spend='0')
+        self.payload = page([candidate])
+        snapshot = await self.read(observed_call_ids=[CALL])
+        self.assertEqual(snapshot.answer.spend, Decimal(0))
+        self.assertTrue(snapshot.complete)
+        candidate.update(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        with self.assertRaisesRegex(cost.CostReadError, 'accounting_unavailable'):
+            await self.read(observed_call_ids=[CALL])
 
 
 class _MemoryReadSession:
@@ -858,12 +846,12 @@ class AdminUnknownPresenceTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(values=values), self.assertRaises(cost.CostReadError): await self.read(**values)
             self.assertEqual(self.requests, [])
 
-    async def test_presence_does_not_relax_existing_strict_chat_reader(self):
+    async def test_historical_presence_is_independent_of_native_money_projection(self):
         self.payload = admin_page([admin_row("known"), admin_row("unknown", unknown=True)])
         self.assertTrue((await self.read()).unknown_confirmed)
-        with self.assertRaisesRegex(cost.CostReadError, "^usage_unavailable$"):
-            await cost.read_cost_snapshot(self.session, base_url="http://native-fixture.invalid", read_key="private-read-key",
-                user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER, observed_request_ids=["known"])
+        snapshot = await cost.read_cost_snapshot(self.session, base_url="http://native-fixture.invalid", read_key="private-read-key",
+            user_id=USER, root_chat_id=CHAT, root_answer_id=ANSWER, observed_request_ids=["known"])
+        self.assertEqual(snapshot.chat.spend, Decimal("0.40"))
 
 
 class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
@@ -957,9 +945,8 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
                     'input_cost_per_token': rate, 'output_cost_per_token': '0.000002'}}
         self.assertTrue((await self.read())['prices'][0]['changed'])
 
-    async def test_cached_fallback_unknown_usage_wrong_route_and_overlapping_success_never_clear(self):
+    async def test_cached_fallback_wrong_route_and_overlapping_success_never_clear(self):
         for change in ({"cache_hit": "True"}, {"model_id": "other-route"}, {"spend": "0"},
-                       {"total_tokens": 0, "prompt_tokens": 0, "completion_tokens": 0},
                        {"startTime": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()}):
             with self.subTest(change=change):
                 self.rows = [self.event("success", 2, **change), self.event("financial_refusal")]
@@ -968,6 +955,11 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
             self.rows = [self.event("success", 2), self.event("financial_refusal")]
             self.rows[0]["metadata"]["attempted_fallbacks"] = fallback
             self.assertEqual((await self.read())["accounts"][0]["status"], "financial_refusal")
+
+    async def test_later_native_paid_success_recovers_independently_of_token_telemetry(self):
+        self.rows = [self.event("success", 2, total_tokens=None, prompt_tokens=None, completion_tokens=0),
+                     self.event("financial_refusal")]
+        self.assertEqual((await self.read())["accounts"][0]["status"], "success")
 
     async def test_generic_429_native_budget_and_reflected_prompt_are_not_financial_evidence(self):
         for message in ('too many requests', '{"error":{"code":"rate_limit_exceeded"}}',

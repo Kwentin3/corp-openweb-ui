@@ -32,9 +32,6 @@ services:
         source: ${EMPLOYEE_BUDGET_MODULES_DIR:?Reviewed budget modules directory}/pricing_snapshot.py
         target: /app/pricing_snapshot.py
       - <<: *employee-budget-bind
-        source: ${EMPLOYEE_BUDGET_MODULES_DIR:?Reviewed budget modules directory}/unknown_usage_guard.py
-        target: /app/unknown_usage_guard.py
-      - <<: *employee-budget-bind
         source: ${EMPLOYEE_BUDGET_MODULES_DIR:?Reviewed budget modules directory}/provenance.py
         target: /app/provenance.py
       - <<: *employee-budget-bind
@@ -46,9 +43,6 @@ services:
       - <<: *employee-budget-bind
         source: ${EMPLOYEE_BUDGET_MODULES_DIR:?Reviewed budget modules directory}/admin_contract.py
         target: /app/employee_budget_admin_contract.py
-      - <<: *employee-budget-bind
-        source: ${EMPLOYEE_BUDGET_MODULES_DIR:?Reviewed budget modules directory}/budget_runtime.py
-        target: /app/budget_runtime.py
 
   openwebui-0122:
     # Native Compose merge retains the existing /app/backend/data volume.
