@@ -16,9 +16,10 @@ import ipaddress
 import json
 from pathlib import Path
 import re
+import signal
 import subprocess
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, expect, sync_playwright
 from prove_webui_browser import Fixture, chat, login, require, safe_failure, same_money, text_content, write_json
@@ -451,6 +452,134 @@ def submit_plan(page, frame, plan, base, output, label, *, approve, source=None,
     return sent, chat_id, text
 
 
+def monthly_details(page, token, foreign_page, foreign_token, base, call, fixture, staff_ids, label):
+    """Read through the visible Action and authenticated existing monthly owner."""
+    from prove_cost_browser import cost_details
+    from verify_admin_calls import accounting_totals_ready
+
+    physical = fixture.provider()["requests"]
+    provider_ids = {row["id"] for row in physical}
+    deadline = time.monotonic() + 60
+    while True:
+        before = fixture.snapshot()
+        users = before["users"] + before["admin_accounting"]["users"]
+        keys = before["keys"] + before["admin_accounting"]["keys"]
+        rows = before["attributed_spend_logs"]
+        if provider_ids <= {row["request_id"] for row in rows} and accounting_totals_ready(
+                users, keys, rows, {row["user_id"] for row in users}):
+            break
+        require(time.monotonic() < deadline, "Monthly read baseline did not settle")
+        time.sleep(.25)
+    page.goto(base + "/c/" + call["chat_id"], wait_until="domcontentloaded")
+    model = call["model"]
+    details = cost_details(page, base, token, call, fixture, label,
+        answer_spend=".20", answer_models={model: (1, 10, 5, 15, Decimal(".20"))},
+        chat_spend=".20", chat_models={model: (1, 10, 5, 15, Decimal(".20"))})
+    path = base + "/api/v1/employee-budgets/monthly"
+    response = page.context.request.get(path, headers={"Authorization": "Bearer " + token}, timeout=10_000)
+    require(response.status == 200 and response.headers.get("cache-control") == "no-store",
+            "Authenticated monthly GET failed")
+    monthly = response.json()
+    uid = call["user_id"]
+    require(monthly.get("user_id") == uid and uid in staff_ids and monthly.get("expense_status") == "unavailable"
+            and monthly.get("expense_observation_scope") == "assignment_history", "Monthly self scope/status differs")
+    native = next(row for row in before["users"] if row["user_id"] == uid)
+    expected = {"budget_usd": native["max_budget_usd"], "spend_usd": native["spend_usd"],
+        "remaining_usd": str(Decimal(native["max_budget_usd"]) - Decimal(native["spend_usd"]))}
+    for field, amount in expected.items():
+        require(same_money(monthly.get(field), Decimal(amount)), "Monthly total differs from native " + field)
+    require(all(monthly.get(field) == native[field] for field in ("budget_duration", "budget_reset_at")),
+            "Monthly native period/reset differs")
+    card = page.locator("#message-" + call["message_id"])
+    report = card.locator('iframe[srcdoc*="data-budget-cost-details"]').first.content_frame.locator(
+        'aside[data-monthly-budget="v1"]')
+    expect(report).to_be_visible()
+    for field, name in (("budget_usd", "budget"), ("spend_usd", "spend"), ("remaining_usd", "remaining")):
+        observed = report.locator('[data-monthly-field="' + name + '"]').inner_text().removesuffix(" USD")
+        require(same_money(observed, Decimal(monthly[field])), "Visible monthly total differs from owner")
+    expect(report).to_contain_text(monthly["budget_duration"])
+    expect(report).to_contain_text(monthly["budget_reset_at"])
+    require({row["id"] for row in monthly["models"]} == set(MODELS), "Monthly model scope differs")
+    for item in monthly["models"]:
+        key = next(row for row in before["keys"] if row["user_id"] == uid and row["model"] == item["id"])
+        for public, source in (("cap_usd", "max_budget_usd"), ("spend_usd", "spend_usd")):
+            require(same_money(item[public], Decimal(key[source])), "Monthly model counter differs from native")
+        require(same_money(item["remaining_usd"], Decimal(key["max_budget_usd"]) - Decimal(key["spend_usd"]))
+                and all(item[field] == key[field] for field in ("budget_duration", "budget_reset_at")),
+                "Monthly model remaining/period differs")
+        row = report.get_by_role("rowheader", name=item.get("label") or item["id"], exact=True).locator("..")
+        expect(row).to_have_count(1)
+        cells = row.locator("td")
+        for index, field in enumerate(("cap_usd", "spend_usd", "remaining_usd")):
+            require(same_money(cells.nth(index).inner_text().removesuffix(" USD"), Decimal(item[field])),
+                    "Visible monthly model counter differs")
+        expect(cells.nth(3)).to_contain_text(item["budget_duration"])
+        expect(cells.nth(3)).to_contain_text(item["budget_reset_at"])
+        expect(cells.nth(4)).to_have_text("Заблокирована" if item["blocked"] is True else
+            "Не заблокирована" if item["blocked"] is False else "Нет данных")
+        expect(cells.nth(5)).to_contain_text("Полнота данных о расходе не подтверждена")
+    denied = foreign_page.context.request.get(path + "?" + urlencode({"user_id": uid}),
+        headers={"Authorization": "Bearer " + foreign_token}, timeout=10_000)
+    require(denied.status == 403, "Monthly foreign employee read was not denied")
+    rendered = report.inner_text()
+    require(all(value not in rendered for value in staff_ids), "Monthly GUI disclosed internal user IDs")
+    page.reload(wait_until="domcontentloaded")
+    expect(report).to_be_visible()
+    require(report.inner_text() == rendered, "Reload changed the persisted monthly snapshot")
+    after = fixture.snapshot()
+    fields = ("users", "keys", "admin_accounting", "attributed_spend_logs")
+    require(all(before[field] == after[field] for field in fields), "Monthly/Details reads changed native finance")
+    require(physical == fixture.provider()["requests"], "Monthly/Details reads dispatched a model")
+    page.screenshot(path=str(fixture.output / (label + "-monthly.png")))
+    safe = {key: monthly[key] for key in ("budget_usd", "spend_usd", "remaining_usd", "budget_duration",
+        "budget_reset_at", "models", "expense_status", "expense_observation_scope")}
+    return {"details": details, "monthly": safe, "foreign_http_status": denied.status,
+        "native_finance_unchanged": True, "provider_unchanged": True, "visible_native_counters_equal": True}
+
+
+def seed_monthly(browser, base, staff, fixture, receipt):
+    """One visible prior call preserves the existing admin quota fixture contract."""
+    from prove_webui_browser import verify_context_row
+
+    before = fixture.snapshot()
+    require(all(Decimal(row["spend_usd"]) == 0 for row in before["users"]), "GUI product seed requires fresh users")
+    session = login(browser, base, staff[1])
+    _, page, token = session
+    call = chat(page, base, token, staff[1]["id"], MODELS[0], "success", "monthly-seed", fixture.output)
+    call.update(user_id=staff[1]["id"])
+    after, settled = wait_inference_delta(fixture, before, [u["id"] for u in staff], [(staff[1]["id"], MODELS[0])])
+    provider, context = fixture.provider(), fixture.context()
+    require(provider.get("synthetic") is True and len(provider["requests"]) == len(context["requests"]) == 1,
+            "GUI seed must issue one synthetic call")
+    verify_context_row(context["requests"][0], call, builtin_tools=False)
+    physical, captured = provider["requests"][0], context["requests"][0]
+    rows = [row for row in after["attributed_spend_logs"] if row["request_id"] == physical["id"]]
+    require(len(rows) == 1 and rows[0]["user_id"] == staff[1]["id"] and rows[0]["model_group"] == MODELS[0]
+            and rows[0]["owui_budget"] == captured["verified_cost_scope"]
+            and physical["body"]["model"] == "goal584-fake-a"
+            and len(physical["body"]["messages"]) == 1
+            and physical["body"]["messages"][0].get("role") == "user"
+            and text_content(physical["body"]["messages"][0].get("content")) == "Hi"
+            and not (set(physical["body"]["messages"][0]) - {"role", "content"})
+            and physical["body"]["stream"] is True and not physical["body"].get("tools")
+            and physical["body"].get("max_tokens", physical["body"].get("max_completion_tokens")) == 5
+            and physical["usage"] == {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            "GUI seed provider/context/native identity differs")
+    write_json(fixture.output / "monthly-seed-provider.json", provider)
+    write_json(fixture.output / "monthly-seed-context.json", context)
+    receipt["monthly_seed"] = {"call": call, "settlement": settled,
+        "native_receipt": "admin-native-%02d.json" % fixture.sequence,
+        "source_sha256": {Path(__file__).name: hashlib.sha256(Path(__file__).read_bytes()).hexdigest()},
+        "physical_calls": 1, "spend_usd": ".20", "separate_before_admin_reset": True}
+    reset = 'import urllib.request;urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/reset",data=b"{}",headers={"Content-Type":"application/json"}),timeout=3).read();urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:8000/__proof/control",data=b\'{"admin_mode":true}\',headers={"Content-Type":"application/json"}),timeout=3).read()'
+    subprocess.run(fixture.command + ["exec", "-T", "provider", "python", "-B", "-c", reset],
+        check=True, capture_output=True, timeout=15)
+    clear = 'import capture_webui_auth as c\nwith c.capture_lock(): c._write_locked({"schema":1,"requests":[]})'
+    subprocess.run(fixture.command + ["exec", "-T", "proxy", "python", "-B", "-c", clear],
+        check=True, capture_output=True, timeout=15)
+    return session, call
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", required=True)
@@ -458,6 +587,7 @@ def main():
     parser.add_argument("--accounts", type=Path, required=True)
     parser.add_argument("--env-file", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--monthly", action="store_true", help="Finite GUI product view on the existing admin scenario")
     args = parser.parse_args()
     target = urlsplit(args.base_url)
     require(target.scheme == "http" and target.port == 8080 and target.path in ("", "/")
@@ -483,11 +613,20 @@ def main():
                                  "concurrency", "calendar_rollover", "tariff_versions", "full_route_coverage"]}
     browser = page = None
     playwright = sync_playwright().start()
+    if args.monthly:
+        def interrupted(signum, frame):
+            raise TimeoutError("Finite GUI product browser phase stopped")
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGALRM, interrupted)
+        signal.alarm(330)
     try:
-        before = fixture.snapshot()
-        receipt["baseline_positive_request_ids"] = sorted(row["request_id"] for row in before["attributed_spend_logs"])
         browser = playwright.chromium.launch(channel="chrome", headless=True)
         receipt["browser_version"] = browser.version
+        seed_session = seed_call = None
+        if args.monthly:
+            seed_session, seed_call = seed_monthly(browser, args.base_url, staff, fixture, receipt)
+        before = fixture.snapshot()
+        receipt["baseline_positive_request_ids"] = sorted(row["request_id"] for row in before["attributed_spend_logs"])
         page, token = admin_login(browser, args.base_url, admin)
         browser_codes = observe_admin_browser(page)
         selector = page.locator('button[id^="model-selector-"][aria-haspopup="listbox"]').first
@@ -516,7 +655,11 @@ def main():
             apply_text, args.output, "admin-applied", status="Изменения применены.")
         after_apply = fixture.snapshot()
         verify_saved(before, after_apply, saved_rows, staff_ids)
-        employee_contexts = [login(browser, args.base_url, account) for account in staff]
+        employee_contexts = [login(browser, args.base_url, staff[0]),
+            seed_session if seed_session is not None else login(browser, args.base_url, staff[1])]
+        if args.monthly:
+            receipt["monthly_views"] = {"after_apply": monthly_details(seed_session[1], seed_session[2],
+                employee_contexts[0][1], employee_contexts[0][2], args.base_url, seed_call, fixture, staff_ids, "monthly-after-apply")}
         # The fixture retains admin_mode=true: ordinary Hi gets one physical
         # completion, even when model A exposes the already-qualified echo Tool.
         sequence = [(0, 1, "budget_blocked"), (0, 0, "success"), (1, 0, "budget_blocked"),
@@ -532,6 +675,10 @@ def main():
         receipt.setdefault("native_settlements", {})["after_quota"] = quota_settlement
         quota_after = staff_projection(after_quota, staff_ids)
         verify_inference_delta(after_apply, after_quota, staff_ids, quota_pairs)
+        if args.monthly:
+            own = next(call for call in receipt["calls"] if call["user_id"] == staff_ids[1] and call["outcome"] == "success")
+            receipt["monthly_views"]["at_quota"] = monthly_details(employee_contexts[1][1], employee_contexts[1][2],
+                employee_contexts[0][1], employee_contexts[0][2], args.base_url, own, fixture, staff_ids, "monthly-at-quota")
         recovery = planned_changes(saved_rows, staff_ids, second_budget="0.8")
         require(len(recovery["changes"]) == 1 and recovery["changes"][0]["user_id"] == staff_ids[1],
                 "Recovery form must change only employee two")
@@ -553,6 +700,11 @@ def main():
         verify_inference_delta(after_recovery, final, staff_ids, recovery_pairs)
         recovered_user = next(u for u in final["users"] if u["user_id"] == staff_ids[1])
         require(same_money(recovered_user["spend_usd"], Decimal(".60")), "Recovered employee native spend differs")
+        if args.monthly:
+            receipt["monthly_views"]["after_recovery"] = monthly_details(employee_contexts[1][1], employee_contexts[1][2],
+                employee_contexts[0][1], employee_contexts[0][2], args.base_url, resumed, fixture, staff_ids, "monthly-after-recovery")
+            final = fixture.snapshot()
+            receipt["final_native_receipt"] = "admin-native-%02d.json" % fixture.sequence
         fixture.provider()
         fixture.context()
         receipt.update(passed=True, model_id=model_id, admin_id=admin["id"], staff_ids=staff_ids,
@@ -578,6 +730,8 @@ def main():
             except Exception:
                 pass
     finally:
+        if args.monthly:
+            signal.alarm(0)
         if browser is not None:
             browser.close()
         playwright.stop()

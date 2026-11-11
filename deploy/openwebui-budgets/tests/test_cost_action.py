@@ -13,7 +13,8 @@ from unittest.mock import AsyncMock, patch
 from uuid import NAMESPACE_URL, uuid5
 
 from aiohttp import ClientSession, web
-from fastapi.responses import HTMLResponse
+from fastapi import HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
 
 
 HERE = Path(__file__).parents[1]
@@ -34,6 +35,18 @@ USER, OTHER, CHAT, ANSWER, NEXT = (str(uuid5(NAMESPACE_URL, label)) for label in
                                   ("action-user", "action-other", "action-chat", "action-answer", "action-next"))
 MODEL = "goal584-a"
 KEY = "synthetic-server-held-reader-key"
+
+
+def monthly_budget(**changes):
+    result = {"user_id": USER, "email": "private@synthetic.invalid", "revision": "private-revision",
+        "budget_usd": "20", "spend_usd": "3", "remaining_usd": "17", "budget_duration": "1mo",
+        "budget_reset_at": "2026-12-01T00:00:00Z", "as_of": "2026-11-11T12:00:00+00:00",
+        "expense_status": "unavailable", "expense_observation_scope": "assignment_history",
+        "models": [{"id": MODEL, "label": MODEL, "cap_usd": "20", "spend_usd": "3",
+            "remaining_usd": "17", "budget_duration": "1mo", "budget_reset_at": "2026-12-01T00:00:00Z",
+            "blocked": False, "expense_status": "unavailable"}]}
+    result.update(changes)
+    return result
 
 
 def module(**values):
@@ -93,12 +106,16 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
         self.functions = SimpleNamespace(get_function_by_id=AsyncMock(return_value=self.owner),
             get_function_valves_by_id=AsyncMock(return_value=self.config))
         self.shared_session = AsyncMock(return_value=self.session)
+        self.monthly_owner = SimpleNamespace(type="event", is_active=True)
+        self.monthly_read = AsyncMock(return_value=JSONResponse(monthly_budget()))
+        self.cached = AsyncMock(return_value=(SimpleNamespace(read_monthly=self.monthly_read), None, None))
         self.environment = module(VERSION="0.12.2")
         modules = {name: module() for name in ("open_webui", "open_webui.models", "open_webui.utils")}
         modules.update({"open_webui.env": self.environment,
             "open_webui.models.users": module(Users=self.users), "open_webui.models.chats": module(Chats=self.chats),
             "open_webui.models.functions": module(Functions=self.functions),
             "open_webui.utils.auth": module(VERIFIED_USER_ROLES={"user", "admin"}),
+            "open_webui.utils.plugin": module(get_function_module_from_cache=self.cached),
             "open_webui.utils.session_pool": module(get_session=self.shared_session)})
         self.native_patch = patch.dict(sys.modules, modules)
         self.native_patch.start()
@@ -106,6 +123,10 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
         self.action = extension.Action()
         self.request = SimpleNamespace(state=SimpleNamespace(direct=False))
         self.body = {"chat_id": CHAT, "id": ANSWER, "model": MODEL, "embeds": ["existing tool embed"]}
+
+    def enable_monthly(self):
+        self.functions.get_function_by_id.side_effect = lambda fid: (
+            self.owner if fid == extension.FILTER_ID else self.monthly_owner)
 
     async def asyncTearDown(self):
         await self.session.close()
@@ -123,6 +144,7 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
             __request__=self.request, __model__={"id": MODEL}, **kwargs)
         self.assertIsInstance(response, HTMLResponse)
         self.assertEqual(response.headers["content-disposition"], "inline")
+        self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertEqual(context["status"], "success")
         return response.body.decode()
 
@@ -150,7 +172,7 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(Markers(first).totals, {"answer": "0.40", "chat": "0.40"})
         self.assertEqual(Markers(second).totals, {"answer": "0.40", "chat": "1.20"})
         self.assertEqual(len(self.http_calls), 2)
-        self.assertEqual(self.users.get_user_by_id.await_count, 2)
+        self.assertEqual(self.users.get_user_by_id.await_count, 4)
         self.assertEqual(self.functions.get_function_valves_by_id.await_count, 2)
         self.assertEqual(Markers(second).models, [("answer", MODEL), ("chat", MODEL), ("chat", "goal584-b")])
         self.assertIn('data-field="total_tokens">60</td>', second)
@@ -190,6 +212,79 @@ class CostActionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 await self.action.action(self.body, __user__=user, __request__=request, __model__={"id": MODEL})
         self.assertEqual(self.http_calls, [])
+
+    async def test_monthly_uses_active_native_cache_public_self_owner_and_refreshes(self):
+        self.enable_monthly()
+        self.body.update(user_id=OTHER, monthly={"budget_usd": "9000"})
+        first = await self.click()
+        self.assertIn('data-monthly-field="budget">20 USD</output>', first)
+        self.monthly_read.return_value = JSONResponse(monthly_budget(budget_usd="30", remaining_usd="27"))
+        second = await self.click()
+        self.assertIn('data-monthly-field="budget">30 USD</output>', second)
+        self.assertEqual(Markers(second).totals, {"answer": "0.20", "chat": "0.20"})
+        self.assertEqual(self.monthly_read.await_count, 2)
+        self.monthly_read.assert_awaited_with(self.request, self.user, None)
+        self.cached.assert_awaited_with(self.request, extension.MONTHLY_ID, function=self.monthly_owner)
+        for private in (USER, OTHER, "private@synthetic.invalid", "private-revision", KEY, self.url, "9000"):
+            self.assertNotIn(private, second)
+        self.assertNotIn("fetch(", second)
+        self.assertIn("При публикации чата этот снимок бюджета тоже станет доступен читателям.", second)
+
+    async def test_monthly_unavailable_never_becomes_zero_or_breaks_existing_cost(self):
+        self.enable_monthly()
+        for defect in ("missing", "inactive", "wrong_type", "backend", "invalid", "foreign"):
+            with self.subTest(defect=defect):
+                self.monthly_owner = SimpleNamespace(type="filter" if defect == "wrong_type" else "event",
+                    is_active=defect != "inactive") if defect != "missing" else None
+                self.monthly_read.reset_mock(side_effect=True)
+                self.monthly_read.return_value = JSONResponse(monthly_budget())
+                if defect == "backend":self.monthly_read.side_effect = HTTPException(503, KEY + self.url)
+                if defect == "invalid":self.monthly_read.return_value = JSONResponse({"user_id": USER})
+                if defect == "foreign":self.monthly_read.return_value = JSONResponse(monthly_budget(user_id=OTHER))
+                text = await self.click()
+                self.assertIn('data-monthly-budget="unavailable"', text)
+                self.assertNotIn('data-monthly-field="budget"', text)
+                self.assertEqual(Markers(text).totals, {"answer": "0.20", "chat": "0.20"})
+                self.assertNotIn(KEY, text)
+                self.assertNotIn(self.url, text)
+                if defect in ("missing", "inactive", "wrong_type"):
+                    self.monthly_read.assert_not_awaited()
+
+    async def test_monthly_authority_denial_and_role_loss_disclose_no_snapshot(self):
+        self.enable_monthly()
+        for status in (400, 401, 403):
+            self.monthly_read.side_effect = HTTPException(status, KEY)
+            with self.assertRaisesRegex(ValueError, "Cost details are unavailable"):
+                await self.click()
+        async def revoke(*args):
+            self.user.role = "pending"
+            raise HTTPException(503, KEY)
+        self.monthly_read.side_effect = revoke
+        with self.assertRaisesRegex(ValueError, "Cost details are unavailable"):
+            await self.click()
+
+    def test_monthly_render_preserves_zero_null_negative_blocks_and_unknown_without_recalculation(self):
+        snapshot = monthly_budget(budget_usd="0", spend_usd="0", remaining_usd="-0.00000000000012300",
+                                  expense_status="unknown")
+        template = snapshot["models"][0]
+        snapshot["models"] = [dict(template, id='wire-<img src=x onerror=alert(1)>', label='<img src=x>',
+            cap_usd=None, remaining_usd=None, blocked=True, expense_status="unknown"),
+            dict(template, id="zero", label="zero", cap_usd="0", spend_usd="0", remaining_usd="0", blocked=False),
+            dict(template, id="unset", label="unset", blocked=None)]
+        text = extension.render_monthly(snapshot)
+        self.assertIn('data-monthly-field="budget">0 USD</output>', text)
+        self.assertIn('data-monthly-field="spend">0 USD</output>', text)
+        self.assertIn('-0.00000000000012300 USD', text)
+        self.assertIn("не установлен", text)
+        self.assertIn("нет лимита", text)
+        for state in ("Заблокирована", "Не заблокирована", "Нет данных", "Расход неизвестен", "Полнота данных о расходе не подтверждена"):
+            self.assertIn(state, text)
+        self.assertIn("1mo", text)
+        self.assertIn("2026-12-01T00:00:00Z", text)
+        self.assertIn("2026-11-11T12:00:00+00:00", text)
+        self.assertNotIn("<img", text)
+        self.assertIn("&lt;img", text)
+        self.assertIn("Модели не назначены", extension.render_monthly(monthly_budget(models=[])))
 
     async def test_empty_unavailable_or_unknown_cost_is_not_zero(self):
         self.rows = []

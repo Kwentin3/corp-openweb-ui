@@ -16,10 +16,10 @@ on:
   workflow_dispatch:
     inputs:
       acceptance:
-        description: Existing full acceptance or one finite backend component
+        description: Existing full acceptance or one finite component/product case
         type: choice
         default: full
-        options: [full, stream-usage, release-config, stream-ledger, file-service, monthly-api]
+        options: [full, stream-usage, release-config, stream-ledger, file-service, monthly-api, gui-product]
 
 permissions:
   contents: read
@@ -38,9 +38,9 @@ jobs:
     env:
       ACCEPTANCE_PROFILE: ${{ inputs.acceptance || 'full' }}
       STREAM_COMPONENT_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.acceptance != 'full' }}
-      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && (inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api') && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
+      PROOF_NATIVE_VARIANT: ${{ github.event_name == 'workflow_dispatch' && (inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')) && 'stream-usage-v1.105.1' || 'positive-floor-v1.105.1' }}
     # Observed main runtime leaves room for the bounded provider500 phase.
-    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || (inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api') && 25 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
+    timeout-minutes: ${{ inputs.acceptance == 'release-config' && 5 || (inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')) && 25 || github.event_name == 'workflow_dispatch' && inputs.acceptance == 'stream-usage' && 20 || 85 }}
     steps:
       - name: Check out the candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -177,7 +177,7 @@ jobs:
           PY
 
       - name: Prepare or qualify only the selected native component
-        if: inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
+        if: inputs.acceptance == 'stream-usage' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')
         timeout-minutes: 4
         shell: bash
         run: |
@@ -189,7 +189,7 @@ jobs:
           out=Path(os.environ['PROOF_OUTPUT_DIR']);build=json.loads((out/'native-build.json').read_text())
           identity=native.verify_build(build);image=build['image_ref']
           owner='goal584-stream-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT']
-          ledger=os.environ.get('ACCEPTANCE_PROFILE') in ('stream-ledger','file-service','monthly-api')
+          ledger=os.environ.get('ACCEPTANCE_PROFILE') in ('stream-ledger','file-service','monthly-api','gui-product')
           cache=Path(os.environ['PROOF_PRIVATE_DIR'],'native-tokenizers') if ledger else Path(os.environ['RUNNER_TEMP'],'goal584-stream-tokenizers')
           cache.mkdir(mode=0o700)
           common=['docker','run','--rm','--init','--label','goal584.owner='+owner,
@@ -225,7 +225,7 @@ jobs:
           PY
 
       - name: Start the pinned disposable backend
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')
         timeout-minutes: 6
         shell: bash
         run: |
@@ -233,7 +233,7 @@ jobs:
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml up -d --wait --wait-timeout 240
 
       - name: Bind the receipt to the actual images and source
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')
         timeout-minutes: 3
         shell: bash
         run: |
@@ -276,10 +276,10 @@ jobs:
                    'scripts/goal584-budget-proof/prove_gateway_auth.py',
                    'scripts/goal584-budget-proof/native-patch-requirements.txt',
                    *build['files_sha256']]
-          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api'):
+          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api','gui-product'):
               files += ['deploy/openwebui-budgets/'+name for name in ('unknown_usage_guard.py','budget_runtime.py',
                   'provenance.py','admin_client.py','admin_contract.py','cost_readback.py')]
-          if os.environ['ACCEPTANCE_PROFILE']=='monthly-api':
+          if os.environ['ACCEPTANCE_PROFILE'] in ('monthly-api','gui-product'):
               files += ['compose/goal584.webui-proof.yml','scripts/goal584-budget-proof/prove_monthly_api.py',
                   *['deploy/openwebui-budgets/'+name for name in ('monthly_view.py','admin_policy.py','admin_tools.py','cost_filter.py')]]
           receipt = {
@@ -329,7 +329,7 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/provider-boundary.json"
 
       - name: Bootstrap a native operator key before enabling the adapter
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')
         timeout-minutes: 2
         shell: bash
         run: |
@@ -342,7 +342,7 @@ jobs:
           exit "$proof_result"
 
       - name: Enable the native hook through its config-file extension
-        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product')
         timeout-minutes: 5
         shell: bash
         run: |
@@ -353,7 +353,7 @@ jobs:
           content = config.read_text(encoding='utf-8')
           assert content.count('general_settings:\n') == 1 and 'custom_auth:' not in content
           content = content.replace('general_settings:\n', 'general_settings:\n  custom_auth: litellm_auth.gateway_auth\n  custom_auth_run_common_checks: true\n', 1)
-          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api'):
+          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api','gui-product'):
               assert 'missing_session_id:' not in content
               content=content.replace('general_settings:\n','general_settings:\n  missing_session_id: omit\n',1)
               original='callbacks: ["budget_errors.handler", "pricing_snapshot.handler"]'
@@ -378,7 +378,7 @@ jobs:
                      'config_sha256': hashlib.sha256(config.read_bytes()).hexdigest()}
           Path(os.environ['PROOF_OUTPUT_DIR'], 'gateway-config.json').write_text(json.dumps(receipt, indent=2), encoding='utf-8')
           PY
-          if test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service || test "$ACCEPTANCE_PROFILE" = monthly-api; then
+          if test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service || test "$ACCEPTANCE_PROFILE" = monthly-api || test "$ACCEPTANCE_PROFILE" = gui-product; then
             docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml exec -T proxy python -B - <<'PY'
           import json,pathlib
           operator=json.loads(pathlib.Path('/proof-private/gateway-state.private.json').read_text())['operator_token']
@@ -505,7 +505,7 @@ jobs:
             --receipt "$PROOF_OUTPUT_DIR/gateway-provider-boundary.json"
 
       - name: Prepare the disposable browser driver
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           command -v google-chrome
@@ -514,11 +514,13 @@ jobs:
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip install --disable-pip-version-check \
             -r scripts/goal584-budget-proof/browser-requirements.txt
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" -m pip check
-          RUN_GOAL584_ADMIN_BROWSER=1 "$RUNNER_TEMP/goal584-browser-venv/bin/python" \
-            -m unittest discover -s deploy/openwebui-budgets/tests -p test_admin_ui.py
+          if test "$ACCEPTANCE_PROFILE" != gui-product; then
+            RUN_GOAL584_ADMIN_BROWSER=1 "$RUNNER_TEMP/goal584-browser-venv/bin/python" \
+              -m unittest discover -s deploy/openwebui-budgets/tests -p test_admin_ui.py
+          fi
 
       - name: Start stock WebUI with its native isolated data volume
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           python - <<'PY'
@@ -527,10 +529,11 @@ jobs:
           config = Path(os.environ['PROOF_CONFIG_FILE'])
           content = config.read_text(encoding='utf-8')
           assert content.count('custom_auth: litellm_auth.gateway_auth') == 1
-          assert 'missing_session_id:' not in content
+          assert content.count('missing_session_id: omit') == (1 if os.environ['ACCEPTANCE_PROFILE']=='gui-product' else 0)
           assert content.count('store_prompts_in_spend_logs:') == 1
           assert content.count('store_prompts_in_spend_logs: false') == 1
-          content = content.replace('general_settings:\n', 'general_settings:\n  missing_session_id: omit\n', 1)
+          if os.environ['ACCEPTANCE_PROFILE'] != 'gui-product':
+              content = content.replace('general_settings:\n', 'general_settings:\n  missing_session_id: omit\n', 1)
           config.write_text(content.replace('custom_auth: litellm_auth.gateway_auth',
                                            'custom_auth: capture_webui_auth.gateway_auth'), encoding='utf-8')
           PY
@@ -538,6 +541,10 @@ jobs:
             -f compose/goal584.webui-proof.yml config --quiet
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
             -f compose/goal584.webui-proof.yml up -d --wait --wait-timeout 240 webui
+          if test "$ACCEPTANCE_PROFILE" = gui-product; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml up -d --force-recreate --wait --wait-timeout 180 proxy
+          fi
           python - <<'PY'
           import hashlib, json, os, subprocess, urllib.request
           from pathlib import Path
@@ -579,6 +586,7 @@ jobs:
                    'deploy/openwebui-budgets/assignment.py', 'deploy/openwebui-budgets/admin_contract.py',
                    'deploy/openwebui-budgets/admin_client.py', 'deploy/openwebui-budgets/admin_policy.py',
                    'deploy/openwebui-budgets/admin_ui.py', 'deploy/openwebui-budgets/admin_tools.py',
+                   'deploy/openwebui-budgets/monthly_view.py',
                    'deploy/openwebui-budgets/webui_model_binding.py']
           receipt = {'source_commit': os.environ['GITHUB_SHA'], 'image_ref': data['Config']['Image'],
                      'image_id': data['Image'], 'upstream_revision': revision, 'version': version['version'],
@@ -593,7 +601,7 @@ jobs:
           PY
 
       - name: Verify mounted budget modules in the stock runtime
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -611,11 +619,13 @@ jobs:
               expected = Path('deploy/openwebui-budgets', name + '.py')
               assert actual['sha256'] == hashlib.sha256(expected.read_bytes()).hexdigest(), name
           PY
-          docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
-            -f compose/goal584.webui-proof.yml exec -T webui python -B -m unittest discover -s /proof/budgets/tests
+          if test "$ACCEPTANCE_PROFILE" != gui-product; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml exec -T webui python -B -m unittest discover -s /proof/budgets/tests
+          fi
 
       - name: Provision two native employees and their model budgets
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -642,9 +652,15 @@ jobs:
           PY
 
       - name: Install the native signed-cost Filter and restricted reader
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
+          if test "$ACCEPTANCE_PROFILE" = gui-product; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_webui.py \
+              --phase plainchat --private-state /proof-private/webui-state.private.json \
+              --receipt /proof-private/gui-plainchat.safe.json > "$PROOF_OUTPUT_DIR/gui-plainchat.json"
+          fi
           proof_result=0
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
             -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_cost_display.py \
@@ -689,7 +705,7 @@ jobs:
             --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/costs"
 
       - name: Install the native admin Tool and its private model preset
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           mkdir -p "$PROOF_OUTPUT_DIR/admin"
@@ -701,6 +717,12 @@ jobs:
             --receipt /proof-private/admin-setup.safe.json > "$PROOF_OUTPUT_DIR/admin/setup.json" || proof_result=$?
           cat "$PROOF_OUTPUT_DIR/admin/setup.json"
           test "$proof_result" = 0
+          if test "$ACCEPTANCE_PROFILE" = gui-product; then
+            docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
+              -f compose/goal584.webui-proof.yml exec -T proxy python -B /proof/provision_cost_display.py \
+              --phase monthly --private-state /proof-private/webui-state.private.json \
+              --receipt /proof-private/gui-monthly-setup.safe.json > "$PROOF_OUTPUT_DIR/admin/monthly-setup.json"
+          fi
           # The proxy runs as root; keep its 0600 handoff private and project it
           # into a separate runner-owned 0600 file, as for the staff accounts.
           umask 077
@@ -752,7 +774,7 @@ jobs:
           PY
 
       - name: Prepare an independent admin provider observation
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
@@ -763,16 +785,19 @@ jobs:
             'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
 
       - name: Qualify admin Rich UI, exact JSON, confirmed caps and employee quotas
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
+        timeout-minutes: ${{ inputs.acceptance == 'gui-product' && 6 || 85 }}
         shell: bash
         run: |
+          extra=()
+          if test "$ACCEPTANCE_PROFILE" = gui-product; then extra+=(--monthly); fi
           "$RUNNER_TEMP/goal584-browser-venv/bin/python" scripts/goal584-budget-proof/prove_admin_browser.py \
             --base-url "$PROOF_WEBUI_URL" --admin-accounts "$PROOF_PRIVATE_DIR/admin-browser-accounts.for-browser.private.json" \
             --accounts "$PROOF_PRIVATE_DIR/browser-accounts.private.json" \
-            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/admin"
+            --env-file "$PROOF_ENV_FILE" --output "$PROOF_OUTPUT_DIR/admin" "${extra[@]}"
 
       - name: Reconcile admin model context, provider calls and native ledger
-        if: env.STREAM_COMPONENT_ONLY != 'true'
+        if: env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'gui-product'
         shell: bash
         run: |
           python - <<'PY'
@@ -1050,7 +1075,7 @@ jobs:
 
       - name: Show bounded sanitized startup diagnostics on failure
         timeout-minutes: 2
-        if: failure() && (env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || inputs.acceptance == 'monthly-api')
+        if: failure() && (env.STREAM_COMPONENT_ONLY != 'true' || inputs.acceptance == 'stream-ledger' || inputs.acceptance == 'file-service' || (inputs.acceptance == 'monthly-api' || inputs.acceptance == 'gui-product'))
         shell: bash
         run: |
           python - <<'PY'
@@ -1078,7 +1103,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if test "$ACCEPTANCE_PROFILE" = monthly-api; then
+          if test "$ACCEPTANCE_PROFILE" = monthly-api || test "$ACCEPTANCE_PROFILE" = gui-product; then
             docker compose --env-file "$PROOF_ENV_FILE" -f compose/goal584.native-budget-proof.yml \
               -f compose/goal584.webui-proof.yml down --volumes --remove-orphans --timeout 20
           elif test "$ACCEPTANCE_PROFILE" = stream-ledger || test "$ACCEPTANCE_PROFILE" = file-service; then
@@ -1102,7 +1127,7 @@ jobs:
               subprocess.run(['docker','image','rm','--no-prune',image],check=True,timeout=30)
           packet={'owner':owner,'remaining_containers':ids(),'removed_image_id':image}
           assert not packet['remaining_containers']
-          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api'):
+          if os.environ['ACCEPTANCE_PROFILE'] in ('stream-ledger','file-service','monthly-api','gui-product'):
               label='label=com.docker.compose.project=goal584-native-budget-proof'
               remaining={kind:subprocess.check_output(['docker',*command,'--filter',label],text=True).split()
                   for kind,command in {'containers':['ps','-aq'],'volumes':['volume','ls','-q'],'networks':['network','ls','-q']}.items()}

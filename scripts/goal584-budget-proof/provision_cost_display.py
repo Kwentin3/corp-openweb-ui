@@ -255,6 +255,28 @@ def setup(webui: WebUI, state: dict, path: Path) -> None:
     write_private(path, state)
 
 
+def monthly(webui: WebUI, state: dict) -> dict:
+    """Enable the existing monthly owner on the same GUI fixture and Valves."""
+    function_id = "employee_budget_monthly_view"
+    admin = state["admin"]["token"]
+    common = webui.ok("GET", "/api/v1/functions/id/" + FILTER_ID + "/valves", token=admin)
+    require(common.get("ledger_base_url") == LEDGER_URL and bool(common.get("ledger_admin_key")),
+            "Monthly GUI requires the existing admin setup")
+    source = (FILTER_SOURCE.parent / "monthly_view.py").read_text(encoding="utf-8")
+    made = webui.ok("POST", "/api/v1/functions/create", token=admin, body={
+        "id": function_id, "name": "Employee monthly budget", "content": source, "meta": {}})
+    require(made.get("id") == function_id and made.get("type") == "event" and made.get("is_active") is False,
+            "Monthly Event creation failed")
+    stored = webui.ok("GET", "/api/v1/functions/id/" + function_id, token=admin)
+    require(stored.get("content") == source, "Monthly Event source differs")
+    enabled = webui.ok("POST", "/api/v1/functions/id/" + function_id + "/toggle", token=admin)
+    require(enabled.get("is_active") is True, "Monthly Event did not activate")
+    require(webui.ok("GET", "/api/v1/functions/id/" + FILTER_ID + "/valves", token=admin) == common,
+            "Monthly activation changed shared Valves")
+    return {"function_id": function_id, "source_sha256": source_hash(source),
+            "active": True, "shared_valves_preserved": True}
+
+
 def scenario(webui: WebUI, state: dict, path: Path) -> dict:
     require(state.get("cost_display", {}).get("stage") == "setup_complete"
             and state["cost_display"].get("scenario_complete") is False,
@@ -691,7 +713,7 @@ def known_zero_observation(state, *, chat_id=None, answer_id=None, request_id=No
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", required=True, choices=("setup", "scenario", "snapshot", "off-limit", "off-denial-observe", "off-restore", "known-zero"))
+    parser.add_argument("--phase", required=True, choices=("setup", "monthly", "scenario", "snapshot", "off-limit", "off-denial-observe", "off-restore", "known-zero"))
     parser.add_argument("--chat-id", help="Actual browser-observed fresh denial chat UUID; observation phase only")
     parser.add_argument("--answer-id")
     parser.add_argument("--request-id")
@@ -722,7 +744,9 @@ def main() -> int:
             setup(webui, state, args.private_state)
         else:
             require(state.get("cost_display", {}).get("stage") == "setup_complete", "Cost setup is incomplete")
-        if args.phase == "scenario":
+        if args.phase == "monthly":
+            receipt["monthly_event"] = monthly(webui, state)
+        elif args.phase == "scenario":
             receipt["tool_scenario"] = scenario(webui, state, args.private_state)
         elif args.phase == "off-limit":
             receipt["off_denial"] = off_limit(webui, state, args.private_state)

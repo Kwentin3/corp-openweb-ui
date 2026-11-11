@@ -211,7 +211,7 @@ def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, cha
         totals[scope] = {"spend_usd": amount, "models": {
             model: {"calls": value[0], "prompt_tokens": value[1], "completion_tokens": value[2],
                     "total_tokens": value[3], "spend_usd": str(value[4])} for model, value in observed.items()}}
-    timestamp = report.locator("time[datetime]").get_attribute("datetime")
+    timestamp = report.locator(":scope > p time[datetime]").get_attribute("datetime")
     require(datetime.fromisoformat(timestamp).utcoffset().total_seconds() == 0,
             "Rich UI snapshot lacks a UTC timestamp")
     require(provider_before == {request["id"] for request in fixture.provider()["requests"]},

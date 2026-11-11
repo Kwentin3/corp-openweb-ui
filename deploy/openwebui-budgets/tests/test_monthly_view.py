@@ -11,6 +11,7 @@ from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
 import importlib.util
+import json
 from pathlib import Path
 import sys
 from types import ModuleType, SimpleNamespace
@@ -134,6 +135,19 @@ def test_authenticated_self_uses_selected_native_counter_and_private_server_cred
         assert private not in response.text
 
 
+def test_public_monthly_read_reuses_projection_and_rechecks_native_actor(native):
+    actor = copy.deepcopy(native.users[ACTOR])
+    response = asyncio.run(native.event.read_monthly(None, actor, None))
+    assert json.loads(response.body)["user_id"] == ACTOR
+    native.read_service.assert_awaited_once_with(ACTOR)
+    native.users[ACTOR].role = "pending"
+    native.read_service.reset_mock()
+    with pytest.raises(HTTPException) as denied:
+        asyncio.run(native.event.read_monthly(None, actor, None))
+    assert denied.value.status_code == 403
+    native.read_service.assert_not_awaited()
+
+
 @pytest.mark.parametrize("uid", [None, "pending"])
 def test_anonymous_and_unverified_callers_cannot_read(native, uid):
     if uid == "pending":
@@ -237,8 +251,8 @@ def test_event_route_lifecycle_collision_and_native_cache_reload(native):
     asyncio.run(native.event.event({}, __event_name__="system.startup.completed", __id__=FUNCTION_ID, __app__=native.app))
     assert len(routes()) == 1
     class Reloaded(native.owner.Event):
-        async def _read(self, *args):
-            result = await super()._read(*args)
+        async def read_monthly(self, *args):
+            result = await super().read_monthly(*args)
             result.headers["X-Selected-Function"] = "current-cache"
             return result
     native.cached.return_value = (Reloaded(), None, None)

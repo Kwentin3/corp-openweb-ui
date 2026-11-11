@@ -78,7 +78,7 @@ class Event:
                 if function is None or function.type != "event" or not function.is_active:
                     raise HTTPException(503, UNAVAILABLE)
                 module, _, _ = await get_function_module_from_cache(request, __id__, function=function)
-                return await module._read(request, user, user_id)
+                return await module.read_monthly(request, user, user_id)
             except HTTPException as error:
                 if (error.status_code, error.detail) in ((400, "Invalid budget user ID"),
                         (403, DENIED), (503, UNAVAILABLE)):
@@ -92,7 +92,8 @@ class Event:
         index = next((i for i, current in enumerate(routes) if isinstance(current, Mount) and current.path == ""), len(routes))
         routes.insert(index, route)
 
-    async def _read(self, request, actor, selected_id):
+    async def read_monthly(self, request, actor, selected_id=None):
+        """Shared readonly public projection for the native GET and self Action."""
         from employee_budget_admin_client import BudgetAdminClient
         from employee_budget_admin_policy import public_employee
         from employee_budget_cost_readback import read_unknown_presence
