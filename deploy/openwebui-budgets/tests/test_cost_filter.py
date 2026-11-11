@@ -100,6 +100,88 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         return await self.filter.request(self.body() if body is None else body,
             __user__=self.actor, __metadata__=self.metadata, __request__=self.request, __model__=self.model)
 
+    def api_context(self):
+        self.metadata.update(chat_id="", message_id=None)
+        self.request.state.auth_type = "api_key"
+        self.request.state.user = self.user
+        self.request.state.metadata = self.metadata
+
+    async def test_api_signs_shared_account_preserves_complete_input_and_never_displays_chat_cost(self):
+        self.api_context()
+        operations, nonces = [], []
+        for streaming in (False, True):
+            body = self.body()
+            body.update(stream=streaming, temperature=0.2, tool_choice="auto")
+            body["messages"] = [
+                {"role": "system", "content": "Keep original system instruction"},
+                {"role": "developer", "content": "Keep developer priority"},
+                {"role": "user", "content": "Previous question"},
+                {"role": "assistant", "content": None, "tool_calls": [
+                    {"id": "tool_prior", "type": "function", "function": {"name": "fixture", "arguments": "{}"}}]},
+                {"role": "tool", "tool_call_id": "tool_prior", "content": '{"result":"actual prior output"}'},
+                {"role": "user", "content": [{"type": "text", "text": "Use prior result"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,c3ludGhldGlj"}}]},
+            ]
+            body["metadata"] = {"chat_id": OTHER, "category": "service"}
+            body["litellm_metadata"] = {"unrelated": "keep", "owui_budget_provenance": "forged",
+                "spend_logs_metadata": {"owui_budget": {"user_id": OTHER}}}
+            expected = copy.deepcopy(body)
+            signed = await self.sign(body)
+            token = signed["litellm_metadata"]["owui_budget_provenance"]
+            expected["litellm_metadata"] = {"unrelated": "keep", "owui_budget_provenance": token}
+            self.assertEqual(signed, expected)
+            claims = protocol.decode_api_call(token, SECRET, user_id=USER, model=MODEL)
+            operations.append(claims["operation_id"])
+            nonces.append(claims["jti"])
+            with self.assertRaises(protocol.ProtocolError):
+                protocol.decode_call(token, SECRET, user_id=USER, model=MODEL)
+            self.assertEqual(self.metadata["chat_id"], "")
+            self.assertIsNone(self.metadata["message_id"])
+            self.assertNotIn(extension.ROOT_CAPSULE, self.metadata["chat_context"])
+            event = {"object": "chat.completion.chunk", "id": "provider-real-id"}
+            self.assertIs(await self.filter.stream(event, __metadata__=self.metadata), event)
+            emitter = AsyncMock()
+            self.assertIs(await self.filter.outlet(signed, __user__=self.actor, __metadata__=self.metadata,
+                __request__=self.request, __event_emitter__=emitter, __model__=self.model), signed)
+            emitter.assert_not_called()
+        self.assertEqual(operations[0], operations[1])
+        self.assertNotEqual(nonces[0], nonces[1])
+        self.chats.get_accessible_chat_by_id.assert_not_called()
+        self.chats.get_message_by_id_and_message_id.assert_not_called()
+        previous = operations[-1]
+        self.request.state = SimpleNamespace(internal=False, auth_type="api_key", user=self.user, metadata=self.metadata)
+        claims = protocol.decode_api_call((await self.sign())["litellm_metadata"]["owui_budget_provenance"],
+            SECRET, user_id=USER, model=MODEL)
+        self.assertNotEqual(previous, claims["operation_id"])
+
+    async def test_api_signing_requires_native_auth_identity_metadata_and_no_partial_chat_or_task(self):
+        self.api_context()
+        native = self.request.state
+        cases = [(native, "auth_type", "jwt"), (native, "user", SimpleNamespace(id=OTHER)),
+            (native, "metadata", dict(self.metadata)), (native, "internal", True),
+            (native, "direct", True), (native, extension.API_OPERATION, "not-a-uuid")]
+        for target, name, value in cases:
+            with self.subTest(field=name), patch.object(target, name, value, create=True):
+                with self.assertRaises(ValueError):
+                    await self.sign()
+        for changes in ({"chat_id": CHAT}, {"message_id": ANSWER}, {"task": "sub_agent"},
+                        {"internal": True}, {"assistant_message_id": ANSWER}, {"session_id": "session"}):
+            with self.subTest(changes=changes), patch.dict(self.metadata, changes):
+                with self.assertRaises(ValueError):
+                    await self.sign()
+
+    async def test_api_key_saved_chat_keeps_existing_owner_validation(self):
+        self.request.state.auth_type = "api_key"
+        self.request.state.user = self.user
+        self.request.state.metadata = self.metadata
+        self.chats.get_accessible_chat_by_id.return_value = None
+        body = self.body()
+        body["litellm_metadata"] = {"owui_budget_provenance": protocol.encode_api_call(
+            SECRET, user_id=USER, operation_id=CHAT, model=MODEL), "category": "api"}
+        with self.assertRaises(ValueError):
+            await self.sign(body)
+        self.chats.get_accessible_chat_by_id.assert_awaited_once()
+
     async def test_signed_actual_scope_replaces_caller_and_preserves_model_context(self):
         self.filter.valves.ledger_admin_key = "synthetic-management-not-forwarded"
         body = self.body()

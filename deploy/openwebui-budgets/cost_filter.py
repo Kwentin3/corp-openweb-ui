@@ -2,7 +2,7 @@
 title: Employee budget cost display
 author: Corporate Open WebUI
 version: 0.1.0
-description: Sign native chat attribution and display costs from the existing LiteLLM spend owner.
+description: Sign native chat or authenticated API attribution; display saved-chat costs from the existing LiteLLM spend owner.
 required_open_webui_version: 0.12.2
 
 Mount provenance.py as /app/backend/employee_budget_provenance.py and
@@ -28,6 +28,7 @@ OBSERVED_CALL_IDS = "_owui_budget_observed_call_ids"
 UNBOUND_RESPONSE = "_owui_budget_unbound_response"
 ISSUED_SCOPE = "_owui_budget_current_scope"
 SKIPPED_SCOPE = "_owui_budget_skipped_scope"
+API_OPERATION = "_owui_budget_api_operation"
 log = logging.getLogger(__name__)
 
 
@@ -48,6 +49,15 @@ def canonical_uuid(value, code):
 def display_enabled(user):
     valves = (user or {}).get("valves")
     return valves.get("enabled", True) if isinstance(valves, dict) else getattr(valves, "enabled", True)
+
+
+def replace_provenance(body, token):
+    existing = body.get("litellm_metadata")
+    require(existing is None or isinstance(existing, dict), "metadata_type")
+    carrier = dict(existing or {})
+    carrier.pop("spend_logs_metadata", None)
+    carrier["owui_budget_provenance"] = token
+    body["litellm_metadata"] = carrier
 
 
 def money_text(amount):
@@ -124,7 +134,7 @@ class Filter:
 
     async def request(self, body: dict, __user__: dict = None, __metadata__: dict = None,
                       __request__=None, __model__: dict = None) -> dict:
-        from employee_budget_provenance import decode_call, decode_root, encode_call, encode_root
+        from employee_budget_provenance import decode_api_call, decode_call, decode_root, encode_api_call, encode_call, encode_root
         from open_webui.env import VERSION
         from open_webui.models.users import Users
 
@@ -157,6 +167,28 @@ class Filter:
         require(metadata.get("user_id") == user_id, "authenticated_user")
         user = await Users.get_user_by_id(user_id)
         require(user is not None and user.role in ("user", "admin"), "active_user")
+        # Native API auth owns this principal. An unsaved operation is never a chat.
+        if (getattr(__request__.state, "auth_type", None) == "api_key"
+                and metadata.get("chat_id") in (None, "") and metadata.get("message_id") in (None, "")):
+            require(getattr(getattr(__request__.state, "user", None), "id", None) == user_id
+                    and getattr(__request__.state, "metadata", None) is metadata
+                    and metadata.get("task") in (None, "")
+                    and metadata.get("internal") in (None, False)
+                    and getattr(__request__.state, "internal", False) is False
+                    and not any(metadata.get(name) for name in (
+                        "user_message_id", "assistant_message_id", "automation_id", "session_id")), "api_context")
+            operation = getattr(__request__.state, API_OPERATION, None)
+            if operation is None:
+                operation = str(uuid.uuid4())
+                setattr(__request__.state, API_OPERATION, operation)
+            operation = canonical_uuid(operation, "api_operation")
+            secret, wire_model = binding
+            token = encode_api_call(secret, user_id=user_id, operation_id=operation, model=wire_model)
+            claims = decode_api_call(token, secret, user_id=user_id, model=wire_model)
+            replace_provenance(body, token)
+            metadata[ISSUED_SCOPE] = {"category": "api", "user_id": user_id,
+                "operation_id": operation, "call_id": claims["jti"], "model": wire_model}
+            return body
         chat_id = canonical_uuid(metadata.get("chat_id"), "chat_id")
         answer_id = canonical_uuid(metadata.get("message_id"), "answer_id")
         message = await native_answer(chat_id, answer_id, user)
@@ -198,15 +230,11 @@ class Filter:
             setattr(__request__.state, ROOT_STATE, context[ROOT_CAPSULE])
 
         # Replace client-carried scope. Existing model messages/tools/params stay untouched.
-        existing = body.get("litellm_metadata")
-        require(existing is None or isinstance(existing, dict), "metadata_type")
-        carrier = dict(existing or {})
-        carrier.pop("spend_logs_metadata", None)
-        carrier["owui_budget_provenance"] = encode_call(secret, user_id=user_id,
+        token = encode_call(secret, user_id=user_id,
             chat_id=chat_id, answer_id=answer_id, root_chat_id=root_chat_id,
             root_answer_id=root_answer_id, model=wire_model)
-        claims = decode_call(carrier["owui_budget_provenance"], secret, user_id=user_id, model=wire_model)
-        body["litellm_metadata"] = carrier
+        claims = decode_call(token, secret, user_id=user_id, model=wire_model)
+        replace_provenance(body, token)
         metadata[ISSUED_SCOPE] = {"user_id": user_id, "root_chat_id": root_chat_id,
                                   "root_answer_id": root_answer_id, "call_id": claims["jti"],
                                   "model": body["model"], "nonstream": body.get("stream") is False}
@@ -214,7 +242,8 @@ class Filter:
 
     async def stream(self, event: dict, __metadata__: dict = None) -> dict:
         metadata = __metadata__
-        if not isinstance(metadata, dict) or metadata.get(SKIPPED_SCOPE) is True or ISSUED_SCOPE not in metadata:
+        if (not isinstance(metadata, dict) or metadata.get(SKIPPED_SCOPE) is True or ISSUED_SCOPE not in metadata
+                or isinstance(metadata[ISSUED_SCOPE], dict) and metadata[ISSUED_SCOPE].get("category") == "api"):
             return event
         identifier = None
         if event.get("object") == "chat.completion.chunk":
@@ -257,6 +286,8 @@ class Filter:
         if metadata.get("task") not in (None, "") or metadata.get("internal") is True:
             return body
         scope = metadata.get(ISSUED_SCOPE)
+        if isinstance(scope, dict) and scope.get("category") == "api":
+            return body
         # Native chat_completed builds fresh server metadata on its separate
         # outlet request. Classify that model again without inventing a scope.
         if scope is None and __request__ is not None and isinstance(__model__, dict) \

@@ -16,6 +16,7 @@ import jwt
 
 ISSUER = "corp-openwebui-budget-v1"
 CALL_AUDIENCE = "litellm-budget-call-v1"
+API_AUDIENCE = "litellm-budget-api-call-v1"
 SERVICE_AUDIENCE = "litellm-budget-service-call-v1"
 ROOT_AUDIENCE = "openwebui-budget-root-v1"
 CALL_TTL = 300
@@ -57,6 +58,8 @@ def _validate(claims: dict, audience: str, limit: int) -> None:
     if audience == SERVICE_AUDIENCE:
         ids = {"payer_id", "file_id"} if claims.get("task") == "document_ocr" else _SERVICE_IDS
         fields = {"model", "task"}
+    elif audience == API_AUDIENCE:
+        ids, fields = {"operation_id"}, {"model"}
     else:
         _check(audience in (CALL_AUDIENCE, ROOT_AUDIENCE))
         ids = _CALL_IDS if audience == CALL_AUDIENCE else _ROOT_IDS
@@ -69,7 +72,7 @@ def _validate(claims: dict, audience: str, limit: int) -> None:
         _uuid(claims[field])
     _check(type(claims["iat"]) is int and type(claims["exp"]) is int)
     _check(0 <= claims["iat"] < claims["exp"] <= claims["iat"] + limit)
-    if audience in (CALL_AUDIENCE, SERVICE_AUDIENCE):
+    if audience in (CALL_AUDIENCE, API_AUDIENCE, SERVICE_AUDIENCE):
         _model(claims["model"])
     if audience == SERVICE_AUDIENCE:
         _check(type(claims["task"]) is str
@@ -99,6 +102,17 @@ def validate_persisted_service_scope(scope: object) -> dict:
     for name in ids:
         _uuid(scope[name])
     _check(scope["user_id"] != scope["actor_id"])
+    _model(scope["model"])
+    return scope.copy()
+
+
+def validate_persisted_api_scope(scope: object) -> dict:
+    """API operations belong to the authenticated account, without a saved chat."""
+    ids = {"user_id", "operation_id", "call_id"}
+    _check(isinstance(scope, dict) and set(scope) == ids | {"schema", "model", "category"})
+    _check(type(scope["schema"]) is int and scope["schema"] == 1 and scope["category"] == "api")
+    for name in ids:
+        _uuid(scope[name])
     _model(scope["model"])
     return scope.copy()
 
@@ -154,6 +168,27 @@ def decode_call(token: str, secret: str, *, user_id: str, model: str) -> dict:
     claims = _decode(token, secret, CALL_AUDIENCE, CALL_TTL)
     _check(claims["sub"] == user_id and claims["model"] == model)
     return claims
+
+
+def encode_api_call(secret: str, *, user_id: str, operation_id: str, model: str,
+                    now: int | None = None, ttl_seconds: int = CALL_TTL) -> str:
+    return _encode(secret, audience=API_AUDIENCE, limit=CALL_TTL, user_id=user_id,
+                   scope={"operation_id": operation_id, "model": model},
+                   ttl_seconds=ttl_seconds, now=now)
+
+
+def decode_api_call(token: str, secret: str, *, user_id: str, model: str) -> dict:
+    claims = _decode(token, secret, API_AUDIENCE, CALL_TTL)
+    _check(claims["sub"] == user_id and claims["model"] == model)
+    return claims
+
+
+def decode_inference_call(token: str, secret: str, *, user_id: str, model: str) -> dict:
+    """Select only through full signature/audience/scope validation, never a peek."""
+    try:
+        return decode_call(token, secret, user_id=user_id, model=model)
+    except ProtocolError:
+        return decode_api_call(token, secret, user_id=user_id, model=model)
 
 
 def encode_service_call(secret: str, *, user_id: str, payer_id: str, chat_id: str,

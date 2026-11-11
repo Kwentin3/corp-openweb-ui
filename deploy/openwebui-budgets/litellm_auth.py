@@ -14,6 +14,8 @@ Native virtual keys cannot authorize a nonempty TASK. Model-less discovery is
 unsupported. OWUI_BUDGET_REQUIRE_PROVENANCE=true additionally requires signed
 personal scope. The shared provenance module authenticates representation;
 this adapter projects native log fields and consumes tokens before downstream reads.
+Bare API inference uses a distinct signed account/operation audience, the same
+native account/model assignment, and no invented saved-chat or employee identity.
 
 Assignment state belongs to existing native virtual keys: canonical
 assignment_alias(user_id, model), assignment_metadata(model), models=[model],
@@ -218,16 +220,21 @@ def _apply_provenance(request: Request, data: dict, *, shared_gateway: bool,
              403, "Competing budget correlation headers are forbidden")
     # Native normalization also derives session correlation from metadata.user_id
     # after auth, including on Responses' otherwise provider-owned metadata slot.
+    api_call = not task and "operation_id" in claims
     resource = "file_id" if task == "document_ocr" else "chat_id"
     service_prefix = "owui-service:file:" if resource == "file_id" else "owui-service:"
-    session_id = service_prefix + claims[resource] if task else claims["root_chat_id"]
-    trace_id = claims["jti"] if task else claims["root_answer_id"]
+    session_id = ("owui-api:" + claims["operation_id"] if api_call else
+                  service_prefix + claims[resource] if task else claims["root_chat_id"])
+    trace_id = claims["operation_id"] if api_call else claims["jti"] if task else claims["root_answer_id"]
     _require(metadata_session_id is None or metadata_session_id == session_id,
              403, "Competing budget metadata session is forbidden")
     if task:
         scope = {"schema": 1, "user_id": claims["payer_id"], "actor_id": claims["sub"],
                  resource: claims[resource], "call_id": claims["jti"],
                  "model": claims["model"], "category": "service", "task": claims["task"]}
+    elif api_call:
+        scope = {"schema": 1, "user_id": claims["sub"], "operation_id": claims["operation_id"],
+                 "call_id": claims["jti"], "model": claims["model"], "category": "api"}
     else:
         scope = {"schema": 1, "user_id": claims["sub"], "chat_id": claims["chat_id"],
                  "answer_id": claims["answer_id"], "root_chat_id": claims["root_chat_id"],
@@ -386,7 +393,8 @@ async def gateway_auth(request: Request, api_key: str) -> UserAPIKeyAuth:
             "provenance.decode_service_operation", config_file_path=__file__
         )(token, secret, user_id=scope["user_id"], model=scope["model"])) if service_operation else (
             lambda token, secret, **scope: get_instance_fn(
-                "provenance.decode_service_call" if task else "provenance.decode_call", config_file_path=__file__
+                "provenance.decode_service_call" if task else
+                "provenance.decode_call" if worker_call else "provenance.decode_inference_call", config_file_path=__file__
             )(token, secret, **scope)),
         chain_id=get_chain_id_from_headers(dict(request.headers)),
         metadata_slot=metadata_variable_name_for_route(route),

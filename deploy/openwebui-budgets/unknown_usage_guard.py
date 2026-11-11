@@ -23,7 +23,7 @@ from litellm.types.utils import ModelResponse
 
 from employee_budget_admin_client import BudgetAdminClient
 from employee_budget_assignment import ASSIGNMENT_NAMESPACE, assignment_matches
-from provenance import validate_persisted_scope, validate_persisted_service_scope
+from provenance import validate_persisted_api_scope, validate_persisted_scope, validate_persisted_service_scope
 
 NAME = "owui_budget_usage"
 FAILURE = "Usage unavailable; model key block could not be confirmed."
@@ -67,6 +67,8 @@ class UnknownUsageGuard(CustomGuardrail):
         if isinstance(scopes[0], dict) and scopes[0].get("category") == "service":
             scope = validate_persisted_service_scope(scopes[0])
             return scope if scope["task"] == "document_ocr" else None
+        if isinstance(scopes[0], dict) and scopes[0].get("category") == "api":
+            return validate_persisted_api_scope(scopes[0])
         return validate_persisted_scope(scopes[0])
 
     @log_guardrail_information

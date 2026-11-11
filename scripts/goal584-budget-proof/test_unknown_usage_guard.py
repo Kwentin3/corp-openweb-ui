@@ -217,6 +217,44 @@ class UnknownUsageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(entry["violation_categories"], ["usage_unavailable"])
         self.assertEqual(entry["guardrail_status"], "guardrail_intervened")
 
+    def api_projection(self):
+        from provenance import encode_api_call, decode_inference_call
+        secret, operation = "synthetic-api-provenance-secret" * 2, str(uuid4())
+        self.data["litellm_metadata"] = {"owui_budget_provenance": encode_api_call(
+            secret, user_id=self.uid, operation_id=operation, model=self.model)}
+        auth_owner._apply_provenance(Request({"type": "http", "headers": []}), self.data,
+            shared_gateway=True, required=True, secret=secret, user_id=self.uid, model=self.model,
+            decoder=decode_inference_call, chain_id=None, metadata_slot="litellm_metadata", metadata_session_id=None)
+        scope = self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"]
+        self.assertEqual(scope["category"], "api")
+        self.assertEqual(self.data["litellm_session_id"], "owui-api:" + operation)
+        return scope
+
+    async def test_unknown_api_scope_confirms_same_account_model_block_without_changing_context_or_money(self):
+        scope = self.api_projection()
+        before_input = copy.deepcopy(self.data["input"])
+        response = self.response()
+        original = response.model_dump()
+        self.assertIs(await self.invoke(response), response)
+        self.assertEqual(response.model_dump(), original)
+        self.assertEqual(self.data["input"], before_input)
+        self.assertEqual(self.data["litellm_metadata"]["spend_logs_metadata"]["owui_budget"], scope)
+        self.assert_finance_unchanged()
+        self.assertEqual(self.entry()["guardrail_action"], "block")
+
+    async def test_unknown_api_scope_rejects_foreign_identity_before_operator_http(self):
+        self.api_projection()["user_id"] = str(uuid4())
+        await self.failed()
+        self.assertEqual(self.wire.requests, [])
+
+    async def test_known_zero_api_usage_preserves_native_counters_without_block(self):
+        self.api_projection()
+        response = self.response(ResponseAPIUsage(input_tokens=0, output_tokens=0, total_tokens=0))
+        self.assertIs(await self.invoke(response), response)
+        self.assertEqual(self.wire.requests, [])
+        self.assertEqual((self.wire.user, self.wire.key), self.before)
+        self.assertEqual(self.entry()["guardrail_action"], "allow")
+
     async def test_explicit_null_usage_has_same_unavailable_semantics(self):
         response = self.response(None)
         self.assertIs(await self.invoke(response), response)
@@ -531,6 +569,15 @@ class NonstreamCCUsageTests(unittest.IsolatedAsyncioTestCase):
     invoke = UnknownUsageTests.invoke
     entry = UnknownUsageTests.entry
     assert_finance_unchanged = UnknownUsageTests.assert_finance_unchanged
+
+    async def test_unknown_api_cc_confirms_same_key_block_and_preserves_provider_response(self):
+        UnknownUsageTests.api_projection(self)
+        response, _, _ = self.prepare_cc("absent")
+        original = response.model_dump()
+        self.assertIs(await self.invoke(response), response)
+        self.assertEqual(response.model_dump(), original)
+        self.assert_finance_unchanged()
+        self.assertEqual(self.entry()["guardrail_action"], "block")
 
     def prepare_cc(self, kind="zero", *, defer=False):
         from openai.types.chat import ChatCompletion

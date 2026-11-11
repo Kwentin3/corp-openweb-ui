@@ -80,6 +80,30 @@ def payload(token=None):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_api_audience_scope_and_nonce_are_distinct_and_bound_to_account_model(self):
+        token = protocol.encode_api_call(SECRET, user_id=USER, operation_id=CHAT, model=MODEL)
+        claims = protocol.decode_inference_call(token, SECRET, user_id=USER, model=MODEL)
+        self.assertEqual((claims["aud"], claims["operation_id"]), (protocol.API_AUDIENCE, CHAT))
+        second = protocol.decode_api_call(protocol.encode_api_call(SECRET, user_id=USER, operation_id=CHAT,
+            model=MODEL), SECRET, user_id=USER, model=MODEL)
+        self.assertNotEqual(claims["jti"], second["jti"])
+        for kwargs in ({"user_id": OTHER, "model": MODEL}, {"user_id": USER, "model": "foreign"}):
+            with self.assertRaises(protocol.ProtocolError):
+                protocol.decode_inference_call(token, SECRET, **kwargs)
+        for decoder, value in ((protocol.decode_call, token), (protocol.decode_api_call, call()),
+                               (protocol.decode_inference_call, token + "tampered")):
+            with self.assertRaises(protocol.ProtocolError):
+                decoder(value, SECRET, user_id=USER, model=MODEL)
+        scope = {"schema": 1, "user_id": USER, "operation_id": CHAT, "call_id": claims["jti"],
+                 "model": MODEL, "category": "api"}
+        self.assertEqual(protocol.validate_persisted_api_scope(scope), scope)
+        for invalid in (scope | {"chat_id": CHAT}, scope | {"user_id": "invalid"},
+                        scope | {"schema": True}, scope | {"category": "personal"}):
+            with self.assertRaises(protocol.ProtocolError):
+                protocol.validate_persisted_api_scope(invalid)
+        with self.assertRaises(protocol.ProtocolError):
+            protocol.validate_persisted_scope(scope)
+
     def test_persisted_rag_scope_has_exact_key_owned_tag_without_chat_or_actor(self):
         scope = {"schema": 1, "category": "service", "operation": "rag_embedding"}
         actual = protocol.validate_persisted_rag_scope(scope)
@@ -636,6 +660,40 @@ class ServiceBoundaryTests(unittest.TestCase):
 class ServiceGatewayTests(unittest.TestCase):
     """Execute actual gateway control flow with owner I/O doubles, not native runtime acceptance."""
 
+    def test_api_scope_uses_same_native_account_assignment_validation_and_preserves_http_payload(self):
+        token = protocol.encode_api_call(SECRET, user_id=USER, operation_id=CHAT, model=MODEL)
+        for route in ("/v1/chat/completions", "/v1/responses"):
+            for streaming in (False, True):
+                original = payload(token) | {"stream": streaming}
+                original["metadata"] = {"customer": "preserve", "spend_logs_metadata": {"owui_budget": {"user_id": OTHER}}}
+                expected = copy.deepcopy(original)
+                result, events, body = self.run_gateway(task="", token=token, route=route, supplied_data=original,
+                    assignment_user=USER, required=True)
+                with self.subTest(route=route, stream=streaming):
+                    self.assertNotIsInstance(result, HTTPException)
+                    self.assertEqual(result.user_id, USER)
+                    self.assertEqual(next(v for n, v in events if n == "assignment")["where"]["user_id"], USER)
+                    self.assertEqual(sum(n == "fresh" for n, _ in events), 1)
+                    self.assertEqual(sum(n == "validate" for n, _ in events), 1)
+                    slot = "litellm_metadata" if "responses" in route else "metadata"
+                    scope = protocol.validate_persisted_api_scope(body[slot]["spend_logs_metadata"]["owui_budget"])
+                    self.assertEqual((scope["user_id"], scope["operation_id"]), (USER, CHAT))
+                    self.assertEqual((body["litellm_session_id"], body["litellm_trace_id"]), ("owui-api:" + CHAT, CHAT))
+                    self.assertNotIn(token, json.dumps(body))
+                    for name in ("messages", "tools", "stream", "max_tokens", "model"):
+                        self.assertEqual(body[name], expected[name])
+
+    def test_api_scope_rejects_worker_service_foreign_account_model_and_pricing_optin(self):
+        token = protocol.encode_api_call(SECRET, user_id=USER, operation_id=CHAT, model=MODEL)
+        for changes in ({"task": "sub_agent"}, {"task": "title_generation"}, {"actor": OTHER},
+                        {"body_model": "foreign", "native_model": "foreign"},
+                        {"validated_metadata": {"allow_client_pricing_override": True}}):
+            result, _, _ = self.run_gateway(**({"task": "", "token": token, "assignment_user": USER,
+                "required": True} | changes))
+            with self.subTest(changes=changes):
+                self.assertIsInstance(result, HTTPException)
+                self.assertEqual(result.status_code, 403)
+
     def run_gateway(self, *, token=None, task="title_generation", actor=USER, body_model=MODEL,
                     native_model=MODEL, api_key=SECRET, resolved_user=None, validated_user=None,
                     required=False, assignment_user=OTHER, llm_route=True,
@@ -1085,6 +1143,13 @@ class PersonalKeyDenialTests(unittest.TestCase):
                 self.assertIs(error, native_errors[-1])
                 return req, error, data
         return req, None, data
+
+    def test_api_uses_native_budget_rejection_without_inventing_saved_chat_denial_receipt(self):
+        token = protocol.encode_api_call(SECRET, user_id=USER, operation_id=CHAT, model=MODEL)
+        req, error, data = self.denied(token=token, task='')
+        self.assertIsInstance(error, self.BudgetExceeded)
+        self.assertIsNone(auth.personal_key_budget_denial(req, error))
+        self.assertEqual(data['litellm_metadata']['spend_logs_metadata']['owui_budget']['category'], 'api')
 
     def test_actual_gateway_native_key_rejection_has_independent_verified_scope_and_same_exception(self):
         req, error, data = self.denied()

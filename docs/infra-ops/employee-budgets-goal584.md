@@ -98,6 +98,17 @@ Usage может не списывать native key budget; [issue37992](https:/
 исправления в нашей1.105.1 или готовности полного fail-closed режима из коробки.
 Новых core изменений, CI/provider/model calls и upstream messages в этом поиске нет.
 
+Независимая подготовка после upstream review: четыре API owner hashes сверены
+с independent source review без повторного запуска принятых tests. API candidate
+сохраняется отдельной source поставкой; vendor draft по-прежнему не применяется.
+Read-only pricing preflight14:24UTC нашёл public entries для16/16 native base models,
+включая DeepSeek и Gemini image model; source SHA5406310d…dc3e6. Это prospective
+public-map membership, а не доказательство applied rates/мультимодального биллинга.
+Текущий native `/model/cost_map/source` вернул200; первый metadata subprocess ранее
+завершился ошибкой, её причина не установлена, raw diagnostic сохранён. Ни одного
+LLM request не выполнено. Applied rates и сохранение image/API profiles проверить
+при final config/приёмке, без выдуманных overrides или нулевых цен.
+
 ## Текущий этап: самодостаточное управление моделями, ценами и состоянием оплаты
 
 Принят в работу 11.11.2026 от `2c4ae3ab`, в прежней DELIVERY/ветке.
