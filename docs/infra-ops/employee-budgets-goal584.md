@@ -155,6 +155,35 @@ provider params при явном mapping не потеряно. Публичн�
 floor-only image вне production, затем native initialization/config cutover и
 ограниченная продуктовая приёмка. Общая production цель остаётся незавершённой.
 
+Зафиксирован source `435d9cae`; independent reader review CONFORMS, root сверил
+четыре reviewed source hashes. Floor-only image-only [run43045939112](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43045939112)
+SUCCESS, остальные proof jobs SKIPPED. Artifact13866957758 / SHA256
+`d38930bf0aa97b1d1ed4a390f3f5dc5435e336da435a967ae45a4ce8430d7648`
+доставлен и проверен вместе с inner checksums. Первая передача достигла110s;
+partial сохранён, Range-докачка завершена без повторной полной загрузки.
+Source image `sha256:97206b8b9b217997b12626decd41ae58e7da760dd2fe029498590a2d9b6f7c5b`,
+Docker29 target `sha256:551f9c61b6d501a2a6e391e2a26eee0052857fdc633bbc30f2fce569ad6dbf9c`:
+archive config SHA и все26 layer diff IDs/runtime config совпали. Образ только загружен.
+Отдельный пакет20 source files из точного Git blob/LF экспортирован, скомпилирован
+локально и послойно сверён на сервере; guard/runtime sources в него не включены.
+Первый CRLF-export отклонён, повтор с явными Git LF flags совпал с blobs;
+свой невалидный временный архив удалён. Пакет ещё не подключён к сервисам.
+
+Попытка получить initial employee/model ACL через отдельный Python import native
+repositories/helper не завершилась за55s; отсутствие результата не считается ACL PASS.
+Не повторять этот импорт. Оставшийся единственный diagnostic `python -` адресно
+остановлен; повторный process readback подтвердил0 таких процессов, прежний основной
+PID WebUI, healthy и restart0. Причина незавершения пока не установлена.
+Альтернатива уже проверена без нового процесса приложения: authenticated native
+HTTP GET `/api/v1/models/all` и `/api/v1/users/all` вернули200; protected directory
+snapshot сохранён,219 зарегистрированных model records не равны16 активным wire aliases.
+Точные доступные модели сотрудников ещё надо определить штатным running-app путём
+перед инициализацией; не подменять их всем каталогом и не менять существующие права.
+Следующий шаг — native control-plane/employee/service initialization и coherent
+cutover из подготовленных source/image/config, затем единственный согласованный
+admin→staff→cost→quota→increase→recovery GUI/PNG прогон. Ни одного нового inference
+в этом этапе не сделано; production бюджеты/Functions/routes пока не включены.
+
 ## Текущий этап: самодостаточное управление моделями, ценами и состоянием оплаты
 
 Принят в работу 11.11.2026 от `2c4ae3ab`, в прежней DELIVERY/ветке.
