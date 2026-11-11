@@ -88,7 +88,7 @@ def native_context(request, actor, task, task_body, metadata):
         require(isinstance(source, dict) and source.get("owned_by") == "openai"
                 and not source.get("pipe") and not source.get("arena")
                 and source.get("id") != FUNCTION_ID and task_body.get("model") == source.get("id"),
-                "unsupported_background_source")
+                "unsupported_background_source_context")
         fields = {"model", "messages", "chat_id"}
         if task == "follow_up_generation":
             fields.add("message_id")
@@ -154,10 +154,10 @@ class Pipe:
         require(isinstance(model, dict) and model.get("id") == target, "model_unavailable")
         source = None
         if request.scope.get("path") in MAIN_PATHS:
-            require(not model.get("pipe"), "unsupported_background_source")
+            require(not model.get("pipe"), "unsupported_background_target_pipe")
             source = copy.deepcopy(request.state.metadata.get("model"))
             require(isinstance(source, dict) and isinstance(source.get("id"), str) and bool(source["id"])
-                    and request.app.state.MODELS.get(source["id"]) == source, "unsupported_background_source")
+                    and request.app.state.MODELS.get(source["id"]) == source, "unsupported_background_source_cache")
             await check_model_access(user, source)
         await check_model_access(user, model)
         secret, wire = await native_connection({"model": target}, model, request, url, require=require)
