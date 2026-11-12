@@ -108,6 +108,10 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.parent = {"id": PARENT, "role": "user", "user_id": ADMIN, "content": ""}
         self.users = SimpleNamespace(get_user_by_id=AsyncMock(side_effect=lambda _: self.admin),
             get_users=AsyncMock(side_effect=lambda **_: {"users": self.employees, "total": len(self.employees)}))
+        self.memberships = {USER: [SimpleNamespace(id=ADMIN, name='R&D'), SimpleNamespace(id=USER2, name='Office')],
+                            USER2: [SimpleNamespace(id=USER2, name='Office')]}
+        self.groups = SimpleNamespace(get_groups_by_member_ids=AsyncMock(
+            side_effect=lambda ids, **_: {uid: self.memberships.get(uid, []) for uid in ids}))
         self.chats = SimpleNamespace(get_accessible_chat_by_id=AsyncMock(return_value=SimpleNamespace(user_id=ADMIN)),
             get_message_by_id_and_message_id=AsyncMock(side_effect=lambda chat, msg:
                 self.message if msg == ANSWER else self.parent if msg == PARENT else None))
@@ -158,6 +162,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         native = {name: module() for name in ("open_webui", "open_webui.models", "open_webui.routers", "open_webui.utils")}
         native.update({"open_webui.env": module(VERSION="0.12.2"),
             "open_webui.models.users": module(Users=self.users), "open_webui.models.chats": module(Chats=self.chats),
+            "open_webui.models.groups": module(Groups=self.groups),
             "open_webui.models.functions": module(Functions=self.functions),
             "open_webui.models.models": module(Models=SimpleNamespace(get_model_by_id=AsyncMock(
                 return_value=SimpleNamespace(base_model_id=None)))),
@@ -176,6 +181,14 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
     def public_rows(self, result):
         text = self.html(result)
         return json.loads(text.split('<script id="budget-data" type="application/json">', 1)[1].split('</script>', 1)[0])
+
+    async def test_native_groups_support_multiple_memberships_without_using_profile_department(self):
+        rows = self.public_rows(await self.open())
+        by_id = {row['user_id']: row for row in rows}
+        self.assertEqual(by_id[USER]['groups'], [{'id': USER2, 'name': 'Office'}, {'id': ADMIN, 'name': 'R&D'}])
+        self.assertEqual(by_id[USER2]['groups'], [{'id': USER2, 'name': 'Office'}])
+        self.groups.get_groups_by_member_ids.assert_awaited_with([USER, USER2], include_inherited=True)
+        self.assertEqual(self.writes, [])
 
     async def balance_plan(self):
         self.session.overview_models = [{'model_name': MODELS[0], 'model_info': {

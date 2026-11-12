@@ -125,6 +125,7 @@ class Tools:
 
     async def _load(self, request, *, include_overview=True):
         from open_webui.models.functions import Functions
+        from open_webui.models.groups import Groups
         from open_webui.models.users import Users
         from open_webui.utils.models import check_model_access
         from open_webui.utils.session_pool import get_session
@@ -156,6 +157,8 @@ class Tools:
         employees, count = listing.get("users"), listing.get("total")
         require(isinstance(employees, list) and type(count) is int
                 and 0 <= count == len(employees) <= self.valves.employee_limit, "directory_incomplete")
+        memberships = await Groups.get_groups_by_member_ids([employee.id for employee in employees],
+                                                            include_inherited=True)
         session = await get_session()
         client = BudgetAdminClient(session, url, key)
         identities, states, inspections = {}, {}, {}
@@ -178,6 +181,8 @@ class Tools:
             department = info.get("department")
             identities[user_id] = {"user_id": user_id, "name": employee.name, "email": employee.email,
                 "department": department if isinstance(department, str) else "", "models": tuple(allowed),
+                "groups": [{"id": canonical_id(group.id), "name": group.name}
+                           for group in sorted(memberships[user_id], key=lambda group: (group.name.casefold(), group.id))],
                 "model_labels": {wire: labels[wire] for wire in allowed}}
             inspection = (await client.inspect_employee(user_id, tuple(allowed)) if allowed else
                           EmployeeBudgetInspection(user_id, (), "conflict", code="no_allowed_models"))

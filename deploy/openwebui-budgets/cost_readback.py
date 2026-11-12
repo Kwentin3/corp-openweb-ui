@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, DecimalException, Inexact, localcontext
 import json
+import math
 import re
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlsplit
@@ -670,17 +671,37 @@ def _overview_account_events(result, deployments):
                        event_at=event[0].isoformat() if event else None)
 
 
+async def _overview_rows(session, url, key, params, *, max_pages=MAX_PAGES):
+    """Bounded native rows; an event witness survives bad pagination metadata."""
+    counts, seen = None, set()
+    for number in range(1, max_pages + 1):
+        payload = await _get_page(session, url, key, {**params, "page": number, "page_size": PAGE_SIZE}, 5)
+        data = payload.get("data")
+        _require(isinstance(data, list), "invalid_pagination")
+        for raw in data[:PAGE_SIZE]:
+            _require(isinstance(raw, dict), "invalid_native_row")
+            identity = _text(raw.get("request_id"))
+            _require(identity not in seen, "unstable_native_rows")
+            seen.add(identity)
+            yield raw
+        _, counts = _validated_page(payload, number, MAX_PAGES, counts)
+        if number >= counts[1]:
+            return
+    raise CostReadError("incomplete_pagination")
+
+
 async def read_admin_overview(session: ClientSession, *, base_url: str, admin_key: str,
                               models: dict, configsnapshots: dict) -> dict:
     """Native applied prices and bounded provider observations for admin display.
 
-    Reads are at most model/info, cost-map/source and two spend pages in five
-    seconds. No background polling, charges, account journal or enforcement.
+    Reads retained native failures and later paid recovery witnesses within one
+    five-second deadline/MAX_PAGES bound. The separate recent price observation
+    is capped at two pages. No polling, charges, account journal or enforcement.
     Account ids are protected model metadata, otherwise exact deployment ids.
     Explicit deployment ids must be immutable across credential changes; absent
     that deployment-lifecycle guarantee a later success cannot clear a refusal.
     """
-    _reader_configuration(base_url, admin_key, 2)
+    _reader_configuration(base_url, admin_key, MAX_PAGES)
     _require(isinstance(models, dict) and 0 < len(models) <= 100
              and all(isinstance(k, str) and isinstance(v, str) for k, v in models.items())
              and isinstance(configsnapshots, dict), "invalid_configuration")
@@ -691,7 +712,7 @@ async def read_admin_overview(session: ClientSession, *, base_url: str, admin_ke
                "as_of": None, "source": "unknown", "changed": False}
               for wire, label in models.items()]
     result = {"prices": prices, "accounts": [], "as_of": as_of,
-              "coverage": "observed_native_rows_only", "complete": False}
+              "coverage": "observed_native_rows_only", "complete": False, "prices_complete": False}
     deployments = {}
     try:
         async with asyncio.timeout(5):
@@ -747,33 +768,58 @@ async def read_admin_overview(session: ClientSession, *, base_url: str, admin_ke
                 price.update(as_of=loaded.isoformat() if loaded else None, source=source_kind)
             if not deployments:
                 return result
-            counts, seen = None, set()
-            for page_number in (1, 2):
-                params = {"page": page_number, "page_size": PAGE_SIZE,
-                          "start_date": (now - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S"),
-                          "end_date": now.strftime("%Y-%m-%d %H:%M:%S"),
-                          "sort_by": "startTime", "sort_order": "desc"}
-                if len(deployments) == 1:
-                    params["model_id"] = next(iter(deployments))
-                payload = await _get_page(session, base_url.rstrip("/") + ADMIN_ROUTE, admin_key, params, 5)
-                native_pages = _integer(payload.get("total_pages"), "invalid_pagination")
-                data, counts = _validated_page(payload, page_number, max(2, native_pages), counts)
-                for raw in data:
-                    _require(isinstance(raw, dict), "invalid_native_row")
-                    request_id = _text(raw.get("request_id"))
-                    _require(request_id not in seen, "unstable_native_rows")
-                    seen.add(request_id)
+            url = base_url.rstrip("/") + ADMIN_ROUTE
+            params = {"start_date": "1970-01-01 00:00:00",
+                      "end_date": now.strftime("%Y-%m-%d %H:%M:%S"),
+                      "sort_by": "endTime", "sort_order": "desc",
+                      "status_filter": "failure", "cache_hit_filter": "miss", "group_by_session": "false"}
+            if len(deployments) == 1:
+                params["model_id"] = next(iter(deployments))
+            async for raw in _overview_rows(session, url, admin_key, params):
+                deployment = deployments.get(raw.get("model_id"))
+                if deployment is not None:
+                    event = _overview_event(raw, deployment)
+                    if event is not None and event[2] == "financial_refusal" and event[0] <= now:
+                        deployment["events"].append(event)
+            # Recover only the same protected account, with a real later paid
+            # invocation. Native >= least-positive-double excludes zero spend;
+            # local event validation still rejects cache/fallback/invalid usage.
+            for paid in deployments.values():
+                _overview_account_events(result, deployments)
+                if not any(a["id"] == paid["account"] and a["status"] == "financial_refusal"
+                           for a in result["accounts"]):
+                    continue
+                failures = [event for failed in deployments.values()
+                    if failed["account"] == paid["account"] and failed["immutable"] and paid["immutable"]
+                    and (failed["id"] == paid["id"] or failed["grouped"] and paid["grouped"])
+                    for event in failed["events"] if event[2] == "financial_refusal"]
+                if not failures:
+                    continue
+                after = min(event[0] for event in failures)
+                recovery = {**params, "model_id": paid["id"], "status_filter": "success",
+                            "min_spend": math.nextafter(0.0, 1.0), "sort_by": "startTime",
+                            "start_date": after.strftime("%Y-%m-%d %H:%M:%S")}
+                async for raw in _overview_rows(session, url, admin_key, recovery):
+                    event = _overview_event(raw, paid)
+                    if event is not None and event[2] == "success" and after < event[1] <= event[0] <= now:
+                        paid["events"].append(event)
+                        break  # A valid paid witness does not require all success history.
+            result["complete"] = True
+            # Recent paid rows serve price-change observation and a positive
+            # status witness only; their traffic/page cap cannot hide refusals.
+            recent = {**params, "status_filter": "success", "sort_by": "startTime",
+                      "min_spend": math.nextafter(0.0, 1.0),
+                      "start_date": (now - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")}
+            try:
+                async for raw in _overview_rows(session, url, admin_key, recent, max_pages=2):
                     deployment = deployments.get(raw.get("model_id"))
                     if deployment is not None:
                         event = _overview_event(raw, deployment)
-                        if event is not None and now - timedelta(days=7) <= event[1] <= event[0] <= now:
+                        if event is not None and event[2] == "success" and now - timedelta(days=7) <= event[1] <= event[0] <= now:
                             deployment["events"].append(event)
-                if page_number >= counts[1]:
-                    result["complete"] = True
-                    break
-            # Keep observed refusals even when the bounded scan is incomplete.
-            # Only a qualified later success can clear that evidence; an
-            # incomplete scan cannot establish an account-wide success state.
+                result["prices_complete"] = True
+            except CostReadError:
+                pass
             for account in result["accounts"]:
                 members = [d for d in deployments.values() if d["account"] == account["id"]]
                 for deployment in members:
@@ -799,6 +845,5 @@ async def read_admin_overview(session: ClientSession, *, base_url: str, admin_ke
             _overview_account_events(result, deployments)
             return result
     except (CostReadError, asyncio.TimeoutError):
-        result["complete"] = False
         _overview_account_events(result, deployments)
         return result

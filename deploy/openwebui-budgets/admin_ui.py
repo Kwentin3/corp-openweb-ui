@@ -143,6 +143,9 @@ def _overview_markup(overview, catalog, new_models):
         f'<time data-date>{_text(account.get("event_at"))}</time>. '
         'Событие запроса, не текущий баланс.</p>'
         for account in overview.get("accounts", []) if account.get("status") == "financial_refusal"]
+    if overview.get("complete") is False:
+        accounts.append('<p class="account-refusal" role="status">Не удалось полностью проверить '
+                        'финансовые отказы провайдеров. Обновите данные.</p>')
     return ''.join(legend), ''.join(accounts)
 
 
@@ -150,8 +153,9 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
                   template: dict | None = None, pending: list[dict] | None = None,
                   service: dict | None = None, overview: dict | None = None) -> str:
     # Caller retains policy, ledger qualification and revision ownership.
-    public = [{key: row.get(key) for key in ("user_id", "name", "email", "department", "revision",
+    public = [{key: row.get(key) for key in ("user_id", "name", "email", "revision",
                "budget_usd", "spend_usd", "remaining_usd")}
+        | {"groups": row.get("groups", [])}
         | {key: row[key] for key in _EXPENSE_FIELDS if key in row} | {"models": [
         {key: model.get(key) for key in ("id", "label", "cap_usd", "spend_usd", "share_percent")}
         | {key: model[key] for key in ("remaining_usd", "new", "pending") if key in model}
@@ -189,7 +193,7 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
                 + '</details></div>')
         employee_rows.append(f'<tr data-employee-id="{_text(row["user_id"])}" data-index="{index}">'
             f'<th scope="row"><details class="employee-info"><summary>{_text(row["name"])}</summary>'
-            f'<small>{_text(row["email"])}</small><small>{_text(row["department"], "Без отдела")}</small>'
+            f'<small>{_text(row["email"])}</small><small>{_text(", ".join(group["name"] for group in row["groups"]), "Без группы")}</small>'
             + (_expense_markup(row) or '') + '</details>'
             f'<button type="button" class="expand-editor" data-toggle-editor aria-expanded="false" aria-controls="employee-editor-{index}">Доли ▾</button>'
             '<span data-draft-label></span></th>'
@@ -208,8 +212,9 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
             '<small>При изменении доли остаток распределяется пропорционально между остальными включёнными моделями.</small>'
             '<small data-share-feedback role="status" aria-live="polite"></small>'
             '<small class="share-total" data-share-total aria-live="polite"></small></div></td></tr>')
-    departments = sorted({str(row["department"]) for row in public if row["department"]})
-    options = ''.join(f'<option value="{_text(d)}">{_text(d)}</option>' for d in departments)
+    groups = {group["id"]: group["name"] for row in public for group in row["groups"]}
+    options = ''.join(f'<option value="{_text(key)}">{_text(name)}</option>'
+                      for key, name in sorted(groups.items(), key=lambda pair: (pair[1].casefold(), pair[0])))
     legend, account_notice = _overview_markup(overview, catalog, new_models)
     bootstrap_html, bootstrap = _bootstrap_panels(template, pending)
     if bootstrap_html:
@@ -243,7 +248,8 @@ def render_editor(rows: list[dict], *, as_of: str, status: str = "",
         + '<form id="editor"><div class="table-scroll"><table id="employee-table"><caption class="sr-only">Личные бюджеты и распределение по моделям</caption>'
           '<thead><tr><th scope="col"><button type="button" class="sort-button" data-sort="name" aria-pressed="true">Сотрудник ↑</button>'
           '<div class="header-controls"><input id="search" type="search" aria-label="Поиск по имени или email" title="Имя или email" placeholder="Поиск">'
-          '<select id="department" aria-label="Отдел" title="Все отделы"><option value="">Отдел</option>' + options + '</select></div></th>'
+          '<select id="group" aria-label="Группа" title="Все группы"><option value="">Все группы</option>'
+          + options + '<option value="__ungrouped__">Без группы</option></select></div></th>'
           '<th scope="col" title="Общий личный лимит в USD">Лимит, USD</th>'
           '<th scope="col" title="Зарегистрированный расход. Данные могут быть неполными и появляться с задержкой.">'
           '<button type="button" class="sort-button" data-sort="spend" aria-pressed="false">Учтено ↓ ⓘ</button></th>'
@@ -315,13 +321,13 @@ let sortBy='name';
 const clearPreview=()=>{prepared=null;preview.textContent='';document.getElementById('plan-review').hidden=true;feedback.textContent='';feedback.dataset.state='';};
 const filters=()=>{
  const query=document.getElementById('search').value.trim().toLocaleLowerCase('ru');
- const department=document.getElementById('department').value, kind=document.getElementById('remaining-filter').value;
- document.getElementById('department').title=department||'Все отделы';
+ const group=document.getElementById('group').value, kind=document.getElementById('remaining-filter').value;
+ document.getElementById('group').title=document.getElementById('group').selectedOptions[0].textContent;
  const only=document.getElementById('only-changed').checked;
  let count=0;
  entries.forEach(entry=>{
   const row=entry.row, remaining=signed(row.remaining_usd), budget=signed(row.budget_usd);
-  const match=(!query||[row.name,row.email].some(v=>String(v||'').toLocaleLowerCase('ru').includes(query)))&&(!department||row.department===department)&&(!only||changed(entry))&&
+  const match=(!query||[row.name,row.email].some(v=>String(v||'').toLocaleLowerCase('ru').includes(query)))&&(!group||(group==='__ungrouped__'?row.groups.length===0:row.groups.some(item=>item.id===group)))&&(!only||changed(entry))&&
    (kind==='all'||remaining!==null&&(kind==='exhausted'?remaining.n<=0n:remaining.n>0n&&budget!==null&&budget.n>0n&&compare({n:remaining.n*10n,scale:remaining.scale},budget)<=0));
   entry.el.hidden=!match;entry.panel.hidden=!match||entry.el.querySelector('[data-toggle-editor]').getAttribute('aria-expanded')!=='true';if(match)count++;
  });
@@ -395,7 +401,7 @@ form.addEventListener('input',event=>{
  else if(event.target.matches('input[data-model-id]')){entry.dragShares=null;redistribute(entry,inputsOf(entry).indexOf(event.target),event.target.value,entry.validShares);}
  clearPreview();update();
 });
-['search','department','remaining-filter','only-changed'].forEach(id=>document.getElementById(id).addEventListener('input',filters));
+['search','group','remaining-filter','only-changed'].forEach(id=>document.getElementById(id).addEventListener('input',filters));
 document.querySelectorAll('[data-sort]').forEach(button=>button.addEventListener('click',()=>{sortBy=button.dataset.sort;document.querySelectorAll('[data-sort]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));filters();}));
 reset.addEventListener('click',()=>{entries.forEach(entry=>{entry.dragShares=null;entry.panel.querySelector('[data-share-feedback]').textContent='';entry.el.querySelector('[data-field="budget_usd"]').value=original(entry.row.budget_usd);inputsOf(entry).forEach((input,i)=>input.value=original(entry.row.models[i].share_percent));});clearPreview();update();});
 const prepare=()=>{

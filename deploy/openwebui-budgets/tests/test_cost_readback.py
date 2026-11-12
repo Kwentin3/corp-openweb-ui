@@ -898,8 +898,25 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
             number = int(request.query["page"])
             if number == self.fail_page:
                 return web.Response(status=503)
-            return web.json_response(self.log_payload or page(self.rows[(number - 1) * 100:number * 100],
-                                                            number=number, total=len(self.rows)))
+            if self.log_payload is not None:
+                return web.json_response(self.log_payload)
+            query = request.query
+            start = datetime.strptime(query["start_date"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            end = datetime.strptime(query["end_date"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            rows = [raw for raw in self.rows
+                    if start <= datetime.fromisoformat(raw["startTime"]) <= end]
+            if "model_id" in query:
+                rows = [raw for raw in rows if raw.get("model_id") == query["model_id"]]
+            if "status_filter" in query:
+                statuses = ("success", None) if query["status_filter"] == "success" else (query["status_filter"],)
+                rows = [raw for raw in rows if raw.get("status") in statuses]
+            if query.get("cache_hit_filter") == "miss":
+                rows = [raw for raw in rows if str(raw.get("cache_hit")).lower() != "true"]
+            if "min_spend" in query:
+                rows = [raw for raw in rows if Decimal(str(raw["spend"])) >= Decimal(query["min_spend"])]
+            rows.sort(key=lambda raw: raw[query["sort_by"]], reverse=query["sort_order"] == "desc")
+            size = int(query["page_size"])
+            return web.json_response(page(rows[(number - 1) * size:number * size], number=number, total=len(rows)))
         return web.Response(status=500)
 
     def event(self, kind, minute=0, **changes):
@@ -935,7 +952,7 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["prices"][0]["as_of"], self.source['loaded_at'])
         for secret in ("private-upstream-key", "private-error", "do-not-project", "private-admin", "private.invalid"):
             self.assertNotIn(secret, json.dumps(result))
-        self.assertEqual(len(self.requests), 3)
+        self.assertEqual(len(self.requests), 5)
         self.assertEqual(self.requests[-1][1]["model_id"], self.identity)
         self.assertTrue(all(request[2] == "Bearer private-admin" for request in self.requests))
 
@@ -1024,17 +1041,18 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
         result = await read()
         self.assertEqual(next(a for a in result["accounts"] if a["id"] == "corporate-provider")["status"], "financial_refusal")
 
-    async def test_truncated_or_duplicate_native_scan_never_announces_recovery(self):
+    async def test_duplicate_status_scan_never_announces_recovery_and_price_cap_is_separate(self):
         self.rows = [self.event("success", 2)]
         self.log_payload = page(self.rows * 100, total=300)
         result = await self.read()
         self.assertFalse(result["complete"])
         self.assertEqual(result["accounts"][0]["status"], "unknown")
         self.log_payload = None
-        self.rows = [self.event("success", index) for index in range(300)]
+        self.rows = [self.event("success", -index) for index in range(300)]
         result = await self.read()
-        self.assertFalse(result["complete"])
-        self.assertEqual(result["accounts"][0]["status"], "unknown")
+        self.assertTrue(result["complete"])
+        self.assertFalse(result["prices_complete"])
+        self.assertEqual(result["accounts"][0]["status"], "success")
         self.assertEqual([request[1]["page"] for request in self.requests if request[0] == cost.ADMIN_ROUTE][-2:], ["1", "2"])
 
     async def test_absent_rates_or_financial_rows_remain_unknown(self):
@@ -1045,11 +1063,27 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["accounts"][0]["status"], "unknown")
         self.assertIsNone(result["accounts"][0]["balance"])
 
-    async def test_bounded_scan_keeps_observed_refusal_until_qualified_later_success(self):
+    async def test_capped_history_keeps_refusal_and_never_claims_clean_status(self):
         refusal = self.event("financial_refusal")
-        self.rows = [refusal] + [self.event("success", -index - 1) for index in range(250)]
+        self.log_payload = {**page([refusal] + [self.event("financial_refusal", -index - 1) for index in range(99)],
+                                  total=10000), "total_is_capped": True}
         result = await self.read()
         self.assertFalse(result["complete"])
+        self.assertEqual(result["accounts"][0]["status"], "financial_refusal")
+        self.assertEqual(result["accounts"][0]["event_at"], refusal["endTime"])
+        # Without a refusal witness, capped native metadata cannot prove absence.
+        for error in self.log_payload["data"]:
+            error["metadata"]["error_information"]["error_message"] = "rate limit"
+        self.assertEqual((await self.read())["accounts"][0]["status"], "unknown")
+
+    async def test_bounded_scan_keeps_observed_refusal_until_qualified_later_success(self):
+        refusal = self.event("financial_refusal")
+        errors = [self.event("financial_refusal", -index - 1) for index in range(250)]
+        for error in errors:
+            error["metadata"]["error_information"]["error_message"] = "generic rate limit"
+        self.rows = [refusal] + errors
+        result = await self.read()
+        self.assertTrue(result["complete"])
         self.assertEqual(result["accounts"][0]["status"], "financial_refusal")
         self.assertEqual(result["accounts"][0]["event_at"], refusal["endTime"])
         self.fail_page = 2
@@ -1060,8 +1094,40 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
         self.rows.insert(0, self.event("success", 2))
         result = await self.read()
         self.assertFalse(result["complete"])
-        self.assertEqual(result["accounts"][0]["status"], "unknown")
-        self.assertIsNone(result["accounts"][0]["event_at"])
+        self.assertEqual(result["accounts"][0]["status"], "financial_refusal")
+        self.fail_page = None
+        self.assertEqual((await self.read())["accounts"][0]["status"], "success")
+
+    async def test_old_refusal_survives_normal_traffic_until_same_account_other_model_paid_success(self):
+        second = {**self.info, "id": "b" * 64}
+        self.extra_models = [{"model_name": "alias-b", "model_info": second}]
+        refusal = self.event("financial_refusal")
+        old = datetime.now(timezone.utc) - timedelta(days=30)
+        refusal.update(startTime=old.isoformat(), endTime=(old + timedelta(seconds=1)).isoformat())
+        foreign = {**self.info, "id": "c" * 64, "owui_billing_account_id": "foreign-account"}
+        self.extra_models.append({"model_name": "alias-c", "model_info": foreign})
+        self.rows = [self.event("success", -index, model_id=foreign["id"], request_id=f"foreign-{index}")
+                     for index in range(250)] + [refusal]
+        async def read():
+            return await cost.read_admin_overview(self.session, base_url=self.base, admin_key="private-admin",
+                models={"alias-a": "First", "alias-b": "Second", "alias-c": "Foreign"}, configsnapshots={})
+        result = await read()
+        self.assertTrue(result["complete"])
+        account = next(a for a in result["accounts"] if a["id"] == "corporate-provider")
+        self.assertEqual(account["status"], "financial_refusal")
+        self.assertEqual(account["event_at"], refusal["endTime"])
+        self.assertTrue(any(q.get("start_date") == "1970-01-01 00:00:00" and q.get("status_filter") == "failure"
+                            for path, q, _ in self.requests if path == cost.ADMIN_ROUTE))
+        self.assertFalse(any(q.get("model_id") == foreign["id"] and "min_spend" in q
+                             for path, q, _ in self.requests if path == cost.ADMIN_ROUTE))
+        self.rows.insert(0, self.event("success", 2, model_id=second["id"]))
+        result = await read()
+        self.assertTrue(result["complete"])
+        self.assertEqual(next(a for a in result["accounts"] if a["id"] == "corporate-provider")["status"], "success")
+        recovery = [q for path, q, _ in self.requests if path == cost.ADMIN_ROUTE
+                    and q.get("model_id") == second["id"] and "min_spend" in q]
+        self.assertTrue(recovery)
+        self.assertEqual(recovery[-1]["min_spend"], "5e-324")
 
 
 if __name__ == "__main__":

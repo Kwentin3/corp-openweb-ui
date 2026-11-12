@@ -369,6 +369,8 @@ def public_employee(identity, state, *, unknown_presence=None):
                         "blocked": model.blocked, "pending": model.pending,
                         "share_percent": money(shares[model.model]) if model.model in shares else ""}
                        for model in sorted(state.models, key=lambda item: item.model)]}
+    if "groups" in identity:
+        public["groups"] = identity["groups"]
     if unknown_presence is not None:
         allowed = identity.get("models")
         models = [model.model for model in state.models]

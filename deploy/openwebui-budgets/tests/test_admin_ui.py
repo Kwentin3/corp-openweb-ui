@@ -21,7 +21,8 @@ IDS = ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-22222222
 
 def rows():
     return [{'user_id': value, 'name': 'Employee ' + str(i + 1), 'email': f'user{i + 1}@example.invalid',
-             'department': 'Department ' + str(i + 1), 'revision': 'revision-' + str(i + 1),
+             'groups': [{'id': 'group-' + str(i + 1), 'name': 'Group ' + str(i + 1)}],
+             'revision': 'revision-' + str(i + 1),
              'budget_usd': '10.00', 'spend_usd': '1.25', 'remaining_usd': '8.75', 'models': [
                  {'id': 'model-a', 'label': 'Model A', 'cap_usd': '5.00', 'spend_usd': '.25', 'share_percent': '50.00'},
                  {'id': 'model-b', 'label': 'Model B', 'cap_usd': '5.00', 'spend_usd': '1.00', 'share_percent': '50.00'}]}
@@ -84,6 +85,14 @@ class Parser(HTMLParser):
 
 
 class RendererTests(unittest.TestCase):
+    def test_incomplete_provider_read_is_visible_without_claiming_zero_balance(self):
+        supplied = overview()
+        supplied['complete'] = False
+        html = UI.render_editor(rows(), as_of='owned', overview=supplied)
+        self.assertIn('Не удалось полностью проверить финансовые отказы провайдеров.', html)
+        self.assertIn('Финансовый отказ', html)
+        self.assertNotIn('Баланс равен нулю', html)
+
     def test_overview_projects_only_supplied_observations_and_server_owned_identity(self):
         supplied = overview()
         supplied['accounts'][0]['private_extra'] = 'PRIVATE_ACCOUNT'
@@ -329,13 +338,14 @@ class RendererTests(unittest.TestCase):
         equal = [attrs for tag, attrs in parser.tags if tag == 'button' and 'data-equal-shares' in attrs]
         self.assertEqual([button['aria-label'] for button in equal], ['Поровну для Employee 1', 'Поровну для Employee 2'])
         self.assertTrue(all(button['type'] == 'button' for button in equal))
-        self.assertEqual(len([a for t, a in parser.tags if t == 'option' and a.get('value', '').startswith('Department ')]), 2)
+        self.assertEqual(len([a for t, a in parser.tags if t == 'option' and a.get('value', '').startswith('group-')]), 2)
 
     def test_all_untrusted_text_and_script_terminators_are_escaped(self):
         data = rows()
         attack = '</script><img src=x onerror="alert(1)"><&\u2028\u2029'
-        for key in ('user_id', 'name', 'email', 'department', 'revision', 'budget_usd', 'spend_usd', 'remaining_usd'):
+        for key in ('user_id', 'name', 'email', 'revision', 'budget_usd', 'spend_usd', 'remaining_usd'):
             data[0][key] = attack
+        data[0]['groups'] = [{'id': attack, 'name': attack}]
         for key in data[0]['models'][0]:
             data[0]['models'][0][key] = attack
         html = UI.render_editor(data, as_of=attack, status=attack)
@@ -490,6 +500,21 @@ class ChromeSandboxTests(unittest.TestCase):
 
     def prompts(self):
         return self.page.evaluate("received.filter(x=>x.data.type==='input:prompt:submit')")
+
+    def test_group_filter_matches_each_membership_and_ungrouped(self):
+        data = rows()
+        data[0]['groups'].extend(data[1]['groups'])
+        data[1]['groups'] = []
+        self.page.locator('iframe').evaluate('(el, html) => el.srcdoc=html', UI.render_editor(data, as_of='now'))
+        self.frame.locator('#group').wait_for()
+        for group in ('group-1', 'group-2'):
+            self.frame.locator('#group').select_option(group)
+            self.assertEqual(self.frame.locator('tr[data-employee-id]:visible').get_attribute('data-employee-id'), IDS[0])
+        self.frame.locator('#group').select_option('__ungrouped__')
+        self.assertEqual(self.frame.locator('tr[data-employee-id]:visible').get_attribute('data-employee-id'), IDS[1])
+        self.frame.locator('#group').select_option('')
+        self.assertEqual(self.frame.locator('tr[data-employee-id]:visible').count(), 2)
+        self.assertEqual(self.prompts(), [])
 
     def open_bootstrap(self):
         self.page.goto(f'http://127.0.0.1:{self.server.server_port}/bootstrap')
@@ -732,9 +757,9 @@ class ChromeSandboxTests(unittest.TestCase):
         self.assertFalse(first.is_visible())
         self.frame.locator('[data-sort="remaining"]').click()
         self.frame.locator('#search').fill('')
-        self.frame.locator('#department').select_option('Department 2')
+        self.frame.locator('#group').select_option('group-2')
         self.assertFalse(first.is_visible())
-        self.frame.locator('#department').select_option('')
+        self.frame.locator('#group').select_option('')
         self.frame.locator('#only-changed').check()
         self.assertEqual(self.frame.locator('tr[data-employee-id]:visible').count(), 1)
         self.assertEqual(row.locator('[data-field="budget_usd"]').input_value(), '20.000000000000000001')
