@@ -16,6 +16,7 @@ import unittest
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 PROVIDER_BUNDLE = REPO / 'deploy/openwebui-patches/provider-context-v0.12.2'
+STATUS_MANIFEST = REPO / 'deploy/openwebui-patches/status-position-v0.12.2/manifest.json'
 OBSERVER_FILES = {
     'provider_context_capture.py', 'capture_control.py', 'apply_capture.py', 'verify_capture.py',
 }
@@ -54,6 +55,7 @@ class RuntimeContextPackaging(unittest.TestCase):
             'source_archive_sha256': 'b' * 64,
             'input_receipt_sha256': 'c' * 64,
             'frontend_sources_sha256': 'd' * 64,
+            'status_patch_manifest_sha256': hashlib.sha256(STATUS_MANIFEST.read_bytes()).hexdigest(),
             'artifact_sha256': 'e' * 64,
             'build_files': len(self.files),
             'build_uncompressed_bytes': sum(map(len, self.files.values())),
@@ -103,6 +105,9 @@ class RuntimeContextPackaging(unittest.TestCase):
         receipt = json.loads((self.output / 'frontend-receipt.json').read_text(encoding='utf-8'))
         self.assertEqual(receipt['build_files_manifest_sha256'],
                          hashlib.sha256((self.output / 'frontend-files.json').read_bytes()).hexdigest())
+        self.assertEqual(receipt['status_patch_manifest_sha256'],
+                         hashlib.sha256((self.output / 'status-position-manifest.json').read_bytes()).hexdigest())
+        self.assertEqual((self.output / 'status-position-manifest.json').read_bytes(), STATUS_MANIFEST.read_bytes())
         self.assertNotIn('build_directory', receipt)
         self.assertNotIn('private_operator_note', receipt)
         self.assertFalse((self.output / 'private.env').exists())
@@ -110,7 +115,7 @@ class RuntimeContextPackaging(unittest.TestCase):
 
     def test_failed_frontend_binding_leaves_no_runtime_context(self):
         for failure in ('changed_body', 'changed_manifest', 'extra_file', 'missing_file',
-                        'wrong_upstream', 'failed_native_build'):
+                        'wrong_upstream', 'wrong_status_patch', 'failed_native_build'):
             with self.subTest(failure=failure):
                 original_manifest = self.manifest_path.read_bytes()
                 original_receipt = dict(self.receipt)
@@ -124,6 +129,9 @@ class RuntimeContextPackaging(unittest.TestCase):
                     (self.build / 'index.html').unlink()
                 elif failure == 'wrong_upstream':
                     self.receipt['upstream_commit'] = 'f' * 40
+                    self.save_receipt()
+                elif failure == 'wrong_status_patch':
+                    self.receipt['status_patch_manifest_sha256'] = 'f' * 64
                     self.save_receipt()
                 else:
                     self.receipt['native_build_success'] = False

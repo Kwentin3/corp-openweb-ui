@@ -498,11 +498,12 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
                             {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
                         result = await self.filter.outlet(body, __user__=self.actor,
                             __metadata__=self.metadata, __event_emitter__=emitter)
-                    expected = "Ответ: $0.20 · Чат: $0.60 · на 13:00:00 UTC · начислено на сейчас"
+                    expected = "Ответ: $0.20 · Чат: $0.60"
                     if pending:
                         expected += ", учёт обновляется"
                     self.assertEqual(emitter.call_args.args[0], {"type": "status", "data": {
-                        "action": "employee_budget_cost", "description": expected, "done": True}})
+                        "action": "employee_budget_cost", "description": expected, "done": True,
+                        "position": "after_content"}})
                     self.assertIs(result, body)
                     self.assertEqual(body, before)
                     self.assertEqual(self.metadata, metadata)
@@ -658,7 +659,8 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         event = emitter.call_args.args[0]
         self.assertEqual(event["type"], "status")
         self.assertEqual(event["data"]["description"],
-                         "Ответ: $0.20 · Чат: $0.60 · на 13:00:00 UTC · начислено на сейчас")
+                         "Ответ: $0.20 · Чат: $0.60")
+        self.assertEqual(event["data"]["position"], "after_content")
         self.assertEqual(reader.call_args.args, (get_session.return_value,))
         self.assertEqual(reader.call_args.kwargs, {
             "base_url": self.filter.valves.ledger_base_url,
@@ -679,6 +681,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(await self.filter.outlet(body, __user__=self.actor,
                 __metadata__=self.metadata, __event_emitter__=emitter), body)
         reader.assert_not_called()
+        self.assertEqual(emitter.call_args.args[0]["data"]["position"], "after_content")
         self.assertNotIn("$", emitter.call_args.args[0]["data"]["description"])
 
     async def nonstream_scope(self):
@@ -797,7 +800,8 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rows.await_count, 2)
         statuses = [call.args[0] for call in emitter.call_args_list if call.args[0]["type"] == "status"]
         self.assertEqual(statuses, [{"type": "status", "data": {"action": "employee_budget_cost",
-            "description": "Расход неизвестен. Обратитесь к администратору.", "done": True}}])
+            "description": "Расход неизвестен. Обратитесь к администратору.", "done": True,
+            "position": "after_content"}}])
 
     async def test_nonstream_unverified_native_completion_never_adds_nonce_or_reads_cost(self):
         await self.nonstream_scope()
@@ -918,10 +922,11 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(body, original)
             self.assertEqual(self.metadata, metadata)
             event = emitter.call_args.args[0]
-            expected = ("Стоимость ещё не подтверждена журналом учёта. Учёт и лимиты действуют."
+            expected = ("Стоимость ещё не подтверждена."
                         if code == "spend_api_unavailable" else "Расход неизвестен. Обратитесь к администратору.")
             self.assertEqual(event, {"type": "status", "data": {
-                "action": "employee_budget_cost", "description": expected, "done": True}})
+                "action": "employee_budget_cost", "description": expected, "done": True,
+                "position": "after_content"}})
             self.assertNotIn("$", event["data"]["description"])
             self.assertNotIn("блок", event["data"]["description"].lower())
         self.actor["valves"] = self.filter.UserValves(enabled=False)

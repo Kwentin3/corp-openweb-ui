@@ -24,6 +24,7 @@ RUN python -c "import pathlib,shutil; p=pathlib.Path('/app/build'); assert p.is_
 COPY build/ /app/build/
 COPY frontend-receipt.json /usr/local/lib/openwebui-media-upload/frontend-receipt.json
 COPY frontend-files.json /usr/local/lib/openwebui-media-upload/frontend-files.json
+COPY status-position-manifest.json /usr/local/lib/openwebui-media-upload/status-position-manifest.json
 COPY verify_frontend_artifact.py /usr/local/lib/openwebui-media-upload/verify_frontend_artifact.py
 RUN python /usr/local/lib/openwebui-media-upload/verify_frontend_artifact.py
 LABEL corp.upstream.version="0.12.2" \

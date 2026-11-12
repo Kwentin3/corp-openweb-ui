@@ -16,7 +16,7 @@ NODE = 'node:22-alpine3.20@sha256:2289fb1fba0f4633b08ec47b94a89c7e20b829fc5679f9
 NODE_OPTIONS = '--max-old-space-size=5120'
 INPUTS = ('deploy/openwebui-upgrade-0122', 'deploy/openwebui-patches/media-upload-v0.12.2',
     'deploy/openwebui-patches/tool-context-v0.12.2', 'deploy/openwebui-patches/provider-context-v0.12.2',
-    'services/officecli-openapi-proof')
+    'services/officecli-openapi-proof', 'deploy/openwebui-patches/status-position-v0.12.2')
 WEBUI_FILES = ('config.py', 'utils/middleware.py', 'routers/openai.py', 'utils/payload.py',
     'routers/terminals.py', 'utils/tools.py', 'utils/misc.py', 'routers/files.py', 'storage/provider.py')
 OFFICE_FILES = ('app.py', 'openwebui_client.py', 'rendering.py', 'config.py', 'officecli.py')
@@ -39,7 +39,7 @@ def manifest(root):
         for p in paths if p.is_file()}
 
 
-def main(work, receipt):
+def main(work, receipt, webui_only=False):
     repo = Path(__file__).resolve().parents[2]
     if sys.platform != 'linux':
         raise ValueError('Execution requires a separately prepared Linux CI runner')
@@ -100,26 +100,36 @@ def main(work, receipt):
     run(sys.executable, media / 'apply_media.py', upstream, '--check')
     run(sys.executable, media / 'apply_media.py', upstream)
     run(sys.executable, media / 'verify_backend.py', upstream)
+    status = source / INPUTS[5]
+    run(sys.executable, status / 'verify_installer.py', upstream)
+    run(sys.executable, status / 'apply_status.py', upstream, '--check')
+    run(sys.executable, status / 'apply_status.py', upstream)
+    run('docker', 'run', '--rm', '--network=none', '--read-only', '--memory=128m', '--pids-limit=64',
+        '--cpus=1', '--cidfile', work / 'status-check.cid',
+        '--mount', f'type=bind,src={upstream},dst=/source,readonly',
+        '--mount', f'type=bind,src={status},dst=/status,readonly', '--entrypoint', 'node',
+        NODE, '/status/verify_frontend.mjs', '/source')
     tracked = run('git', '-C', upstream, 'ls-files', capture=True).splitlines()
     frontend_sources = {name: sha(upstream / name) for name in tracked}
     upstream_status = run('git', '-C', upstream, 'status', '--porcelain', '--untracked-files=all', capture=True)
     write(work / 'frontend-sources.json', frontend_sources)
     build_inputs = {'source_commit': head, 'upstream_commit': UPSTREAM, 'node_image': NODE,
-        'node_options': NODE_OPTIONS,
+        'node_options': NODE_OPTIONS, 'status_patch_manifest_sha256': sha(status / 'manifest.json'),
         'runtime_base': (source / INPUTS[0] / 'runtime.Dockerfile').read_text().splitlines()[0].partition('=')[2],
         'source_archive_sha256': sha(upstream_archive), 'git_inputs_sha256': sha(work / 'git-inputs.json'),
         'frontend_sources_sha256': sha(work / 'frontend-sources.json')}
     write(work / 'build-inputs.json', build_inputs)
     identity = sha(work / 'build-inputs.json')
     (work / '.build_identity').write_text(identity + '\n', encoding='ascii')
-    tags = {name: f'goal584-office-{name}:{head[:12]}-{identity[:12]}' for name in ('frontend', 'webui', 'office')}
+    names = ('frontend', 'webui') if webui_only else ('frontend', 'webui', 'office')
+    tags = {name: f'goal584-office-{name}:{head[:12]}-{identity[:12]}' for name in names}
     run('docker', 'build', '--platform=linux/amd64', '--target', 'frontend', '--build-context', f'media_overlay={media}',
         '--build-arg', f'NODE_IMAGE={NODE}', '--build-arg', f'BUILD_HASH={identity}',
         '--build-arg', f'NODE_OPTIONS={NODE_OPTIONS}',
         '--iidfile', work / 'frontend.iid', '-f', media / 'frontend.Dockerfile', '-t', tags['frontend'], upstream)
     frontend = work / 'frontend'
     frontend.mkdir()
-    container = run('docker', 'create', (work / 'frontend.iid').read_text().strip(), capture=True)
+    container = run('docker', 'create', '--cidfile', work / 'frontend.cid', (work / 'frontend.iid').read_text().strip(), capture=True)
     try:
         run('docker', 'cp', f'{container}:/app/build', frontend / 'build')
     finally:
@@ -134,6 +144,7 @@ def main(work, receipt):
     write(frontend / 'frontend-artifact-receipt.json', {'upstream_version': '0.12.2', 'upstream_commit': UPSTREAM,
         'build_identity': identity, 'native_build_command': 'npm run build', 'source_archive_sha256': sha(upstream_archive),
         'input_receipt_sha256': sha(work / 'build-inputs.json'), 'frontend_sources_sha256': sha(work / 'frontend-sources.json'),
+        'status_patch_manifest_sha256': sha(status / 'manifest.json'),
         'artifact_sha256': sha(artifact), 'build_files': len(files), 'build_uncompressed_bytes': sum(v['bytes'] for v in files.values()),
         'build_files_manifest_sha256': sha(frontend / 'frontend-files.json'), 'native_build_success': True,
         'sourcemap': any(name.endswith('.map') for name in files), 'build_directory': str(frontend / 'build')})
@@ -141,7 +152,8 @@ def main(work, receipt):
     run(sys.executable, source / INPUTS[0] / 'make_runtime_context.py', '--frontend', frontend, '--output', runtime)
     run('docker', 'build', '--platform=linux/amd64', '--network=none', '--target', 'runtime',
         '--build-arg', f'BUILD_HASH={identity}', '--iidfile', work / 'webui.iid', '-f', runtime / 'runtime.Dockerfile', '-t', tags['webui'], runtime)
-    run('docker', 'build', '--platform=linux/amd64', '--iidfile', work / 'office.iid', '-f', source / INPUTS[4] / 'Dockerfile', '-t', tags['office'], source)
+    if not webui_only:
+        run('docker', 'build', '--platform=linux/amd64', '--iidfile', work / 'office.iid', '-f', source / INPUTS[4] / 'Dockerfile', '-t', tags['office'], source)
     images = {}
     for name, tag in tags.items():
         frozen_id = (work / f'{name}.iid').read_text().strip()
@@ -154,10 +166,12 @@ def main(work, receipt):
     webui = json.loads(run('docker', 'run', '--rm', '--network=none', '--read-only', '--entrypoint', 'python', images['webui']['id'], '-c', inspect_webui, capture=True))
     if webui['build_hash'] != identity or webui['version'] != identity:
         raise ValueError('In-image native build identity differs')
-    inspect_office = 'import hashlib,json,pathlib,subprocess; r=pathlib.Path("/app/officecli_openapi_proof"); print(json.dumps({"modules":{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in ' + repr(OFFICE_FILES) + '},"binary_sha256":hashlib.sha256(pathlib.Path("/usr/local/bin/officecli").read_bytes()).hexdigest(),"version":subprocess.check_output(["/usr/local/bin/officecli","--version"],text=True).strip()}))'
-    office = json.loads(run('docker', 'run', '--rm', '--network=none', '--read-only', '--tmpfs', '/tmp', '--entrypoint', 'python', images['office']['id'], '-c', inspect_office, capture=True))
-    if office['modules'] != {n: sha(source / INPUTS[4] / 'officecli_openapi_proof' / n) for n in OFFICE_FILES}:
-        raise ValueError('In-image Office source differs from committed inputs')
+    office = None
+    if not webui_only:
+        inspect_office = 'import hashlib,json,pathlib,subprocess; r=pathlib.Path("/app/officecli_openapi_proof"); print(json.dumps({"modules":{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in ' + repr(OFFICE_FILES) + '},"binary_sha256":hashlib.sha256(pathlib.Path("/usr/local/bin/officecli").read_bytes()).hexdigest(),"version":subprocess.check_output(["/usr/local/bin/officecli","--version"],text=True).strip()}))'
+        office = json.loads(run('docker', 'run', '--rm', '--network=none', '--read-only', '--tmpfs', '/tmp', '--entrypoint', 'python', images['office']['id'], '-c', inspect_office, capture=True))
+        if office['modules'] != {n: sha(source / INPUTS[4] / 'officecli_openapi_proof' / n) for n in OFFICE_FILES}:
+            raise ValueError('In-image Office source differs from committed inputs')
     if {name: sha(upstream / name) for name in tracked} != frontend_sources or run('git', '-C', upstream, 'status', '--porcelain', '--untracked-files=all', capture=True) != upstream_status:
         raise ValueError('Official frontend inputs changed during build')
     if manifest(source) != git_inputs or subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip() != head or subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain', '--untracked-files=all']):
@@ -176,5 +190,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work-root', required=True, type=Path)
     parser.add_argument('--receipt', required=True, type=Path)
+    parser.add_argument('--webui-only', action='store_true', help='Build and inspect WebUI only; skip the Office image entirely')
     options = parser.parse_args()
-    main(options.work_root, options.receipt)
+    main(options.work_root, options.receipt, options.webui_only)

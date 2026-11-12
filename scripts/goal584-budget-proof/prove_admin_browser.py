@@ -729,9 +729,8 @@ def submit_balance(page, frame, output, *, source):
     return sent, chat_id, text, plan
 
 
-def monthly_details(page, token, foreign_page, foreign_token, base, call, fixture, staff_ids, label):
-    """Read through the visible Action and authenticated existing monthly owner."""
-    from prove_cost_browser import cost_details
+def monthly_readback(page, token, foreign_page, foreign_token, base, call, fixture, staff_ids, label):
+    """Compare the existing authenticated monthly GET with native finance."""
     from verify_admin_calls import accounting_totals_ready
 
     physical = fixture.provider()["requests"]
@@ -748,18 +747,14 @@ def monthly_details(page, token, foreign_page, foreign_token, base, call, fixtur
         require(time.monotonic() < deadline, "Monthly read baseline did not settle")
         time.sleep(.25)
     page.goto(base + "/c/" + call["chat_id"], wait_until="domcontentloaded")
-    model = call["model"]
-    details = cost_details(page, base, token, call, fixture, label,
-        answer_spend=".20", answer_models={model: (1, 10, 5, 15, Decimal(".20"))},
-        chat_spend=".20", chat_models={model: (1, 10, 5, 15, Decimal(".20"))})
     path = base + "/api/v1/employee-budgets/monthly"
     response = page.context.request.get(path, headers={"Authorization": "Bearer " + token}, timeout=10_000)
     require(response.status == 200 and response.headers.get("cache-control") == "no-store",
             "Authenticated monthly GET failed")
     monthly = response.json()
     uid = call["user_id"]
-    require(monthly.get("user_id") == uid and uid in staff_ids and monthly.get("expense_status") == "unavailable"
-            and monthly.get("expense_observation_scope") == "assignment_history", "Monthly self scope/status differs")
+    require(monthly.get("user_id") == uid and uid in staff_ids
+            and monthly.get("expense_observation_scope") == "native_budget_counters", "Monthly self scope/status differs")
     native = next(row for row in before["users"] if row["user_id"] == uid)
     expected = {"budget_usd": native["max_budget_usd"], "spend_usd": native["spend_usd"],
         "remaining_usd": str(Decimal(native["max_budget_usd"]) - Decimal(native["spend_usd"]))}
@@ -767,15 +762,6 @@ def monthly_details(page, token, foreign_page, foreign_token, base, call, fixtur
         require(same_money(monthly.get(field), Decimal(amount)), "Monthly total differs from native " + field)
     require(all(monthly.get(field) == native[field] for field in ("budget_duration", "budget_reset_at")),
             "Monthly native period/reset differs")
-    card = page.locator("#message-" + call["message_id"])
-    report = card.locator('iframe[srcdoc*="data-budget-cost-details"]').first.content_frame.locator(
-        'aside[data-monthly-budget="v1"]')
-    expect(report).to_be_visible()
-    for field, name in (("budget_usd", "budget"), ("spend_usd", "spend"), ("remaining_usd", "remaining")):
-        observed = report.locator('[data-monthly-field="' + name + '"]').inner_text().removesuffix(" USD")
-        require(same_money(observed, Decimal(monthly[field])), "Visible monthly total differs from owner")
-    expect(report).to_contain_text(monthly["budget_duration"])
-    expect(report).to_contain_text(monthly["budget_reset_at"])
     require({row["id"] for row in monthly["models"]} == set(MODELS), "Monthly model scope differs")
     for item in monthly["models"]:
         key = next(row for row in before["keys"] if row["user_id"] == uid and row["model"] == item["id"])
@@ -784,34 +770,25 @@ def monthly_details(page, token, foreign_page, foreign_token, base, call, fixtur
         require(same_money(item["remaining_usd"], Decimal(key["max_budget_usd"]) - Decimal(key["spend_usd"]))
                 and all(item[field] == key[field] for field in ("budget_duration", "budget_reset_at")),
                 "Monthly model remaining/period differs")
-        row = report.get_by_role("rowheader", name=item.get("label") or item["id"], exact=True).locator("..")
-        expect(row).to_have_count(1)
-        cells = row.locator("td")
-        for index, field in enumerate(("cap_usd", "spend_usd", "remaining_usd")):
-            require(same_money(cells.nth(index).inner_text().removesuffix(" USD"), Decimal(item[field])),
-                    "Visible monthly model counter differs")
-        expect(cells.nth(3)).to_contain_text(item["budget_duration"])
-        expect(cells.nth(3)).to_contain_text(item["budget_reset_at"])
-        expect(cells.nth(4)).to_have_text("Заблокирована" if item["blocked"] is True else
-            "Не заблокирована" if item["blocked"] is False else "Нет данных")
-        expect(cells.nth(5)).to_contain_text("Полнота данных о расходе не подтверждена")
+        require(item["blocked"] is None or type(item["blocked"]) is bool,
+                "Monthly native model block is unavailable or boolean")
     denied = foreign_page.context.request.get(path + "?" + urlencode({"user_id": uid}),
         headers={"Authorization": "Bearer " + foreign_token}, timeout=10_000)
     require(denied.status == 403, "Monthly foreign employee read was not denied")
-    rendered = report.inner_text()
-    require(all(value not in rendered for value in staff_ids), "Monthly GUI disclosed internal user IDs")
     page.reload(wait_until="domcontentloaded")
-    expect(report).to_be_visible()
-    require(report.inner_text() == rendered, "Reload changed the persisted monthly snapshot")
+    reloaded = page.context.request.get(path, headers={"Authorization": "Bearer " + token}, timeout=10_000)
+    require(reloaded.status == 200 and reloaded.headers.get("cache-control") == "no-store"
+            and {k: v for k, v in reloaded.json().items() if k != "as_of"}
+            == {k: v for k, v in monthly.items() if k != "as_of"}, "Reload changed the native monthly projection")
     after = fixture.snapshot()
     fields = ("users", "keys", "admin_accounting", "attributed_spend_logs")
-    require(all(before[field] == after[field] for field in fields), "Monthly/Details reads changed native finance")
-    require(physical == fixture.provider()["requests"], "Monthly/Details reads dispatched a model")
-    page.screenshot(path=str(fixture.output / (label + "-monthly.png")))
+    require(all(before[field] == after[field] for field in fields), "Monthly reads changed native finance")
+    require(physical == fixture.provider()["requests"], "Monthly reads dispatched a model")
     safe = {key: monthly[key] for key in ("budget_usd", "spend_usd", "remaining_usd", "budget_duration",
-        "budget_reset_at", "models", "expense_status", "expense_observation_scope")}
-    return {"details": details, "monthly": safe, "foreign_http_status": denied.status,
-        "native_finance_unchanged": True, "provider_unchanged": True, "visible_native_counters_equal": True}
+        "budget_reset_at", "models", "expense_observation_scope")}
+    write_json(fixture.output / (label + "-monthly.json"), safe)
+    return {"monthly": safe, "foreign_http_status": denied.status,
+        "native_finance_unchanged": True, "provider_unchanged": True, "native_counters_equal": True}
 
 
 def seed_monthly(browser, base, staff, fixture, receipt):
@@ -939,7 +916,7 @@ def main():
         employee_contexts = [login(browser, args.base_url, staff[0]),
             seed_session if seed_session is not None else login(browser, args.base_url, staff[1])]
         if args.monthly:
-            receipt["monthly_views"] = {"after_apply": monthly_details(seed_session[1], seed_session[2],
+            receipt["monthly_reads"] = {"after_apply": monthly_readback(seed_session[1], seed_session[2],
                 employee_contexts[0][1], employee_contexts[0][2], args.base_url, seed_call, fixture, staff_ids, "monthly-after-apply")}
         # The fixture retains admin_mode=true: ordinary Hi gets one physical
         # completion, even when model A exposes the already-qualified echo Tool.
@@ -958,7 +935,7 @@ def main():
         verify_inference_delta(after_apply, after_quota, staff_ids, quota_pairs)
         if args.monthly:
             own = next(call for call in receipt["calls"] if call["user_id"] == staff_ids[1] and call["outcome"] == "success")
-            receipt["monthly_views"]["at_quota"] = monthly_details(employee_contexts[1][1], employee_contexts[1][2],
+            receipt["monthly_reads"]["at_quota"] = monthly_readback(employee_contexts[1][1], employee_contexts[1][2],
                 employee_contexts[0][1], employee_contexts[0][2], args.base_url, own, fixture, staff_ids, "monthly-at-quota")
         recovery = planned_changes(saved_rows, staff_ids, second_budget="0.8")
         require(len(recovery["changes"]) == 1 and recovery["changes"][0]["user_id"] == staff_ids[1],
@@ -982,7 +959,7 @@ def main():
         recovered_user = next(u for u in final["users"] if u["user_id"] == staff_ids[1])
         require(same_money(recovered_user["spend_usd"], Decimal(".60")), "Recovered employee native spend differs")
         if args.monthly:
-            receipt["monthly_views"]["after_recovery"] = monthly_details(employee_contexts[1][1], employee_contexts[1][2],
+            receipt["monthly_reads"]["after_recovery"] = monthly_readback(employee_contexts[1][1], employee_contexts[1][2],
                 employee_contexts[0][1], employee_contexts[0][2], args.base_url, resumed, fixture, staff_ids, "monthly-after-recovery")
             final = fixture.snapshot()
             receipt["final_native_receipt"] = "admin-native-%02d.json" % fixture.sequence

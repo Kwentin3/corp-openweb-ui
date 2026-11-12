@@ -591,7 +591,7 @@ jobs:
                    'scripts/goal584-budget-proof/prove_webui_browser.py', 'scripts/goal584-budget-proof/browser-requirements.txt',
                    'scripts/goal584-budget-proof/capture_webui_auth.py', 'scripts/goal584-budget-proof/provision_cost_display.py',
                    'deploy/openwebui-budgets/provenance.py', 'deploy/openwebui-budgets/cost_readback.py',
-                   'deploy/openwebui-budgets/cost_filter.py', 'deploy/openwebui-budgets/cost_action.py',
+                   'deploy/openwebui-budgets/cost_filter.py',
                    'scripts/goal584-budget-proof/prove_cost_browser.py',
                    'scripts/goal584-budget-proof/provision_admin.py',
                    'scripts/goal584-budget-proof/prove_admin_browser.py',
@@ -720,7 +720,7 @@ jobs:
             -f compose/goal584.webui-proof.yml exec -T proxy python -c \
             'from pathlib import Path; Path("/proof-private/webui-gateway-context.private.json").write_text("{\"schema\":1,\"requests\":[]}", encoding="utf-8")'
 
-      - name: Qualify cost details, tool rounds, regenerated spend and OFF budget denial
+      - name: Qualify compact costs, tool rounds, regenerated spend and OFF budget denial
         if: env.STREAM_COMPONENT_ONLY != 'true'
         shell: bash
         run: |

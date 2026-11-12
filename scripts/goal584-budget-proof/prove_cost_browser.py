@@ -28,8 +28,6 @@ from prove_webui_browser import (Fixture, chat, login, require, safe_failure,
 
 
 FILTER_ID = "employee_budget_cost"
-ACTION_ID = "employee_budget_cost_details"
-ACTION_LABEL = "Стоимость: детали"
 MODELS = ("goal584-a", "goal584-b")
 
 
@@ -141,91 +139,22 @@ def set_display(page, base_url, token, enabled, output):
     page.locator('button[aria-label="Controls"]').click()
 
 
-def cost_details(page, base_url, token, call, fixture, label, *, chat_spend, chat_models,
-                 answer_spend=".40", answer_models=None):
-    """Click the native Action; read visible Rich UI and persisted native embed."""
-    provider_before = {request["id"] for request in fixture.provider()["requests"]}
-    before = chat_state(page, base_url, token, call["chat_id"])[call["message_id"]]
-    marker = "data-budget-cost-details"
-    old_embeds = [embed for embed in (before.get("embeds") or []) if isinstance(embed, str) and marker in embed]
-    card = page.locator("#message-" + call["message_id"])
-    card.hover()
-    path = "/api/chat/actions/" + ACTION_ID
-    with page.expect_response(lambda response: urlsplit(response.url).path == path
-            and response.request.method == "POST", timeout=30_000) as pending:
-        card.locator('button[aria-label="' + ACTION_LABEL + '"]').click()
-    response = pending.value
-    # Native process_tool_result serializes context to str (middleware1304ff),
-    # and the Action endpoint JSON-encodes that string again (actions129ff).
-    # Decode precisely that native wire contract, not a fictional dict result.
-    wire = response.json()
-    require(response.status == 200 and isinstance(wire, str) and 0 < len(wire) < 512,
-            "Native cost Action returned an unsupported wire result")
-    context = json.loads(wire)
-    require(isinstance(context, dict) and set(context) == {"status", "message"}
-            and context["status"] == "success" and isinstance(context["message"], str)
-            and "<" not in context["message"],
-            "Native cost Action did not return an independent UI result")
-    deadline = time.monotonic() + 30
-    while True:
-        saved = chat_state(page, base_url, token, call["chat_id"])[call["message_id"]]
-        embeds = [embed for embed in (saved.get("embeds") or []) if isinstance(embed, str) and marker in embed]
-        # Native UI/chat updates may retain or replace prior snapshots. The
-        # requirement is a fresh owner-persisted report, not growing its count.
-        if embeds and embeds[0] not in old_embeds:
-            break
-        if time.monotonic() >= deadline:
-            write_json(fixture.output / (label + "-persist-failure.json"), {
-                "prior_embed_count": len(old_embeds), "current_embed_count": len(embeds),
-                "same_as_prior": [embed in old_embeds for embed in embeds],
-                "http_status": response.status, "context": context,
-            })
-            raise AssertionError("Fresh native Action snapshot was not persisted")
-        page.wait_for_timeout(200)
-    require(saved.get("content") == before.get("content") == "Proof"
-            and saved.get("output") == before.get("output"), "Details Action changed model history content")
-    iframe = card.locator('iframe[srcdoc*="data-budget-cost-details"]').first
-    expect(iframe).to_be_visible()
-    require("allow-same-origin" not in (iframe.get_attribute("sandbox") or ""),
-            "Details iframe relaxed the stock sandbox")
-    report = iframe.content_frame.locator('main[data-budget-cost-details="v1"]')
-    expect(report).to_be_visible()
-    totals = {}
-    for scope, expected_spend, expected_models in (
-        ("answer", Decimal(answer_spend), answer_models if answer_models is not None else
-         {MODELS[0]: (2, 20, 10, 30, Decimal(".40"))}),
-        ("chat", Decimal(chat_spend), chat_models),
-    ):
-        section = report.locator('section[data-cost-scope="' + scope + '"]')
-        amount = section.locator("[data-cost-usd]").get_attribute("data-cost-usd")
-        require(Decimal(amount) == expected_spend, "Rich UI cost total differs from native ledger")
-        observed = {}
-        for row in section.locator("tr[data-model]").all():
-            model = row.get_attribute("data-model")
-            require(model not in observed, "Rich UI duplicated a model breakdown")
-            counts = tuple(int(row.locator('td[data-field="' + field + '"]').inner_text())
-                           for field in ("calls", "prompt_tokens", "completion_tokens", "total_tokens"))
-            spend = Decimal(row.locator('td[data-field="spend_usd"]').inner_text())
-            observed[model] = (*counts, spend)
-        require(observed == expected_models, "Rich UI model/token breakdown differs from native ledger")
-        totals[scope] = {"spend_usd": amount, "models": {
-            model: {"calls": value[0], "prompt_tokens": value[1], "completion_tokens": value[2],
-                    "total_tokens": value[3], "spend_usd": str(value[4])} for model, value in observed.items()}}
-    timestamp = report.locator(":scope > p time[datetime]").get_attribute("datetime")
-    require(datetime.fromisoformat(timestamp).utcoffset().total_seconds() == 0,
-            "Rich UI snapshot lacks a UTC timestamp")
-    require(provider_before == {request["id"] for request in fixture.provider()["requests"]},
-            "Details Action dispatched a model request")
-    html = embeds[0]
-    require("ledger_read_key" not in html and "owui_budget_provenance" not in html,
-            "Rich UI leaked server configuration")
-    (fixture.output / (label + ".html")).write_text(html, encoding="utf-8")
-    write_json(fixture.output / (label + "-action-result.json"), {"wire_type": "json_string", "context": context})
-    page.screenshot(path=str(fixture.output / (label + ".png")))
-    return {"chat_id": call["chat_id"], "answer_id": call["message_id"], "timestamp": timestamp,
-            "totals": totals, "content_unchanged": True, "provider_ids_unchanged": sorted(provider_before),
-            "native_embed_count": len(embeds), "prior_native_embed_count": len(old_embeds),
-            "snapshot_changed": True, "sandbox_same_origin": False}
+def cost_status(page, base_url, token, call, fixture, label, *, answer_spend, chat_spend):
+    """Read the visible compact status and its existing native persisted owner."""
+    physical = fixture.provider()['requests']
+    saved = chat_state(page, base_url, token, call['chat_id'])[call['message_id']]
+    statuses = [entry for entry in saved.get('statusHistory', []) if entry.get('action') == FILTER_ID]
+    expected = "Ответ: $" + format(Decimal(answer_spend), '.2f') + " · Чат: $" + format(Decimal(chat_spend), '.2f')
+    require(statuses and statuses[-1].get('description') in (expected, expected + ', учёт обновляется')
+            and statuses[-1].get('position') == 'after_content' and saved.get('content') == 'Proof',
+            'Persisted compact status lost its native cost/position/content')
+    expect(page.locator('#message-' + call['message_id'])).to_contain_text(expected)
+    require(chat_state(page, base_url, token, call['chat_id'])[call['message_id']] == saved
+            and fixture.provider()['requests'] == physical, 'Reading cost status changed history or dispatched a model')
+    page.screenshot(path=str(fixture.output / (label + '.png')))
+    return {'chat_id': call['chat_id'], 'answer_id': call['message_id'], 'answer_usd': answer_spend,
+            'chat_usd': chat_spend, 'provider_ids_unchanged': [row['id'] for row in physical],
+            'native_status': statuses[-1], 'content_unchanged': True}
 
 
 def verify(result, provider, context, before, final):
@@ -360,8 +289,7 @@ def verify(result, provider, context, before, final):
     by_id = {row["request_id"]: row for row in rows}
     for request in requests:
         body = request["body"]
-        require("data-budget-cost-details" not in json.dumps(body)
-                and "<!doctype" not in json.dumps(body).lower(), "Rich UI HTML reached the next model context")
+        require("<!doctype" not in json.dumps(body).lower(), "UI HTML reached the next model context")
         scope = by_id[request["id"]]["owui_budget"]
         require(body["model"] == {"goal584-a": "goal584-fake-a", "goal584-b": "goal584-fake-b"}[scope["model"]],
                 "Native wire/provider model attribution differs")
@@ -375,41 +303,23 @@ def verify(result, provider, context, before, final):
     require(len(followups) >= 2 and all(any("proof-tool-result" in text_content(message.get("content", ""))
                 for message in request["body"]["messages"] if message.get("role") == "tool") for request in followups),
             "Actual native tool result is missing from provider follow-up context")
-    details = result["details"]
-    require(len(details) == 2 and details[0]["answer_id"] == details[1]["answer_id"] == calls[0]["message_id"]
-            and datetime.fromisoformat(details[1]["timestamp"]) > datetime.fromisoformat(details[0]["timestamp"])
-            and all(entry["native_embed_count"] >= 1 and entry["snapshot_changed"] is True for entry in details),
-            "Repeated details Action did not refresh the same answer's snapshot")
-    for detail in details:
-        snapshot_ids = set(detail["provider_ids_unchanged"])
-        require(detail["chat_id"] == chat_id and snapshot_ids <= ids
-                and detail["content_unchanged"] is True and detail["sandbox_same_origin"] is False,
-                "Details Action changed ownership/content/sandbox/provider calls")
-        for kind in ("answer", "chat"):
-            visible_rows = [row for row in first_chat_rows if row["request_id"] in snapshot_ids
-                            and (kind == "chat" or row["owui_budget"]["root_answer_id"] == detail["answer_id"])]
-            projection = detail["totals"][kind]
-            require(Decimal(projection["spend_usd"]) == sum(Decimal(row["spend_usd"]) for row in visible_rows),
-                    "Details UI total differs from actual native rows at its snapshot")
-            models = {row["owui_budget"]["model"] for row in visible_rows}
-            require(set(projection["models"]) == models, "Details UI dropped a native model")
-            for model in models:
-                native = [row for row in visible_rows if row["owui_budget"]["model"] == model]
-                shown = projection["models"][model]
-                require(shown["calls"] == len(native)
-                        and all(shown[field] == sum(row[field] for row in native)
-                                for field in ("prompt_tokens", "completion_tokens", "total_tokens"))
-                        and Decimal(shown["spend_usd"]) == sum(Decimal(row["spend_usd"]) for row in native),
-                        "Details model/token amounts differ from actual native ledger")
-    require(result["foreign_details_denial"] == 404 and result["forged_details_denial"] == 400,
-            "Cost Action failed its native authorization boundaries")
+    statuses = result['cost_statuses']
+    require(len(statuses) == 2, 'Cost scenario omitted its compact native statuses')
+    for status in statuses:
+        snapshot_ids = set(status['provider_ids_unchanged'])
+        require(status['chat_id'] == chat_id and snapshot_ids <= ids and status['content_unchanged'] is True,
+                'Cost status changed ownership/content/provider calls')
+        for kind in ('answer', 'chat'):
+            visible_rows = [row for row in first_chat_rows if row['request_id'] in snapshot_ids
+                            and (kind == 'chat' or row['owui_budget']['root_answer_id'] == status['answer_id'])]
+            require(Decimal(status[kind + '_usd']) == sum(Decimal(row['spend_usd']) for row in visible_rows),
+                    'Compact cost status differs from actual native rows at its snapshot')
     return {"passed": True, "visible_replies": 6, "physical_model_calls": 8, "tool_rounds": 2,
             "cost_scenario_usd": "1.60", "first_chat_usd": "1.20", "unexpected_provider_calls": 0,
             "native_preference_ui": True, "regenerated_branch_retained": True,
             "provider_scope_excluded": True, "actual_context_before_after_equal": True,
             "native_stream_usage_normalization_verified": True,
-            "off_budget_denial_without_provider": True, "details_fresh_native_ui": True,
-            "details_html_excluded_from_model_context": True,
+            "off_budget_denial_without_provider": True, "compact_native_cost_status": True,
             "denial_native_rows": observed["total_rows"], "denial_user_delta_rows": len(observed["new_user_rows"])}
 
 
@@ -520,35 +430,27 @@ def run_known_zero(browser, fixture, base_url, accounts):
         expected_rows = {**baseline["row_sha256"], physical["id"]: observed["row_sha256"][physical["id"]]}
         require(physical["id"] not in baseline["row_sha256"] and observed["row_sha256"] == expected_rows
                 and observed["financial"] == baseline["financial"], "Known0 changed existing native rows/counters/caps")
-        zero_models = {MODELS[1]: (1, 0, 0, 0, Decimal("0"))}
-        details = [cost_details(page, base_url, token, call, fixture, "known-zero-details",
-            answer_spend="0", answer_models=zero_models, chat_spend="0", chat_models=zero_models)]
+        statuses_read = [cost_status(page, base_url, token, call, fixture, "known-zero-status",
+            answer_spend="0", chat_spend="0")]
         saved = copy.deepcopy(chat_state(page, base_url, token, call["chat_id"])[call["message_id"]])
-        statuses = [status for status in saved.get("statusHistory", []) if status.get("action") == FILTER_ID]
-        require(statuses and "начислено на сейчас" in statuses[-1].get("description", "")
-                and " UTC" in statuses[-1]["description"], "Known0 status is not an accrued timestamped snapshot")
         page.goto(base_url + "/", wait_until="domcontentloaded")
         page.goto(base_url + "/c/" + call["chat_id"], wait_until="domcontentloaded")
         page.reload(wait_until="domcontentloaded")
         expect(page.locator("#message-" + call["message_id"])).to_contain_text("Ответ: $0.00 · Чат: $0.00")
         require(chat_state(page, base_url, token, call["chat_id"])[call["message_id"]] == saved,
-                "Known0 reload changed the persisted native answer/status/embed")
-        details.append(cost_details(page, base_url, token, call, fixture, "known-zero-details-reloaded",
-            answer_spend="0", answer_models=zero_models, chat_spend="0", chat_models=zero_models))
+                "Known0 reload changed the persisted native answer/status")
+        statuses_read.append(cost_status(page, base_url, token, call, fixture, "known-zero-status-reloaded",
+            answer_spend="0", chat_spend="0"))
         foreign, _, foreign_token = login(browser, base_url, accounts[1])
         denied = foreign.request.get(base_url + "/api/v1/chats/" + call["chat_id"],
             headers={"Authorization": "Bearer " + foreign_token}, timeout=10_000)
-        action = foreign.request.post(base_url + "/api/chat/actions/" + ACTION_ID,
-            headers={"Authorization": "Bearer " + foreign_token}, data={"model": MODELS[1],
-                "chat_id": call["chat_id"], "id": call["message_id"], "session_id": "synthetic-negative", "messages": []},
-            timeout=15_000)
-        require(denied.status == 401 and action.status == 404, "Known0 foreign native ACL differs")
+        require(denied.status == 401, "Known0 foreign native chat/status ACL differs")
         final = fixture.phase("known-zero", **target)["known_zero"]
         require(final["financial"] == baseline["financial"] and final["row_sha256"] == expected_rows
                 and fixture.provider()["requests"] == provider["requests"]
-                and fixture.context()["requests"] == capture, "Known0 reload/Details/ACL changed native accounting or dispatch")
-        result.update(call=call, native=final, details=details, foreign_chat_denial=denied.status,
-                      foreign_details_denial=action.status, provider_id=physical["id"], reload_same_row=True, case_passed=True)
+                and fixture.context()["requests"] == capture, "Known0 reload/status/ACL changed native accounting or dispatch")
+        result.update(call=call, native=final, cost_statuses=statuses_read, foreign_chat_denial=denied.status,
+                      provider_id=physical["id"], reload_same_row=True, case_passed=True)
     except Exception as error:
         result["failure_class"] = type(error).__name__
         raise
@@ -634,8 +536,8 @@ def main():
             return call
         first = send(MODELS[0], "cost-01-tool", start_new=True, costs=("0.40", "0.40"))
         fixture.observe_cost(baseline_count + 2)
-        result["details"] = [cost_details(page, args.base_url, token, first, fixture, "details-initial",
-            chat_spend=".40", chat_models={MODELS[0]: (2, 20, 10, 30, Decimal(".40"))})]
+        result["cost_statuses"] = [cost_status(page, args.base_url, token, first, fixture, "cost-status-initial",
+            answer_spend=".40", chat_spend=".40")]
         second = send(MODELS[1], "cost-02-switch", costs=("0.20", "0.60"))
         third = send(MODELS[1], "cost-03-regenerate", regenerate=second["message_id"], costs=("0.20", "0.80"))
         messages = chat_state(page, args.base_url, token, first["chat_id"])
@@ -676,27 +578,14 @@ def main():
         fixture.observe_cost(baseline_count + 7)
         set_display(page, args.base_url, token, True, args.output)
         page.goto(args.base_url + "/c/" + first["chat_id"], wait_until="domcontentloaded")
-        send(MODELS[1], "cost-06-restored", costs=("0.20", "1.20"))
+        last = send(MODELS[1], "cost-06-restored", costs=("0.20", "1.20"))
         final = fixture.observe_cost(baseline_count + 8)
-        result["details"].append(cost_details(page, args.base_url, token, first, fixture, "details-refreshed",
-            chat_spend="1.20", chat_models={MODELS[0]: (2, 20, 10, 30, Decimal(".40")),
-                                           MODELS[1]: (4, 40, 20, 60, Decimal(".80"))}))
+        result["cost_statuses"].append(cost_status(page, args.base_url, token, last, fixture, "cost-status-restored",
+            answer_spend=".20", chat_spend="1.20"))
         _, foreign_page, foreign_token = login(browser, args.base_url, accounts[1])
         denied = foreign_page.context.request.get(args.base_url + "/api/v1/chats/" + first["chat_id"],
             headers={"Authorization": "Bearer " + foreign_token}, timeout=10_000)
         require(denied.status == 401, "Another employee can read the private chat/cost scope")
-        action_body = {"model": MODELS[0], "chat_id": first["chat_id"], "id": first["message_id"],
-                       "session_id": "synthetic-negative", "messages": []}
-        action_denied = foreign_page.context.request.post(args.base_url + "/api/chat/actions/" + ACTION_ID,
-            headers={"Authorization": "Bearer " + foreign_token}, data=action_body, timeout=15_000)
-        # The native Action ownership gate hides private chats with404;
-        # GET /api/v1/chats/{id} has a different401 contract (main2112ff).
-        require(action_denied.status == 404, "Native cost Action did not hide the foreign chat")
-        forged_action = page.context.request.post(args.base_url + "/api/chat/actions/" + ACTION_ID,
-            headers={"Authorization": "Bearer " + token}, data={**action_body, "id": off_call["message_id"]}, timeout=15_000)
-        require(forged_action.status == 400, "Cost details accepted an answer from a different owned chat")
-        result["foreign_details_denial"] = action_denied.status
-        result["forged_details_denial"] = forged_action.status
         raw = page.context.request.post(args.base_url + "/openai/chat/completions",
             headers={"Authorization": "Bearer " + token}, data={"model": MODELS[0],
                 "messages": [{"role": "user", "content": "Hi"}], "max_tokens": 5,

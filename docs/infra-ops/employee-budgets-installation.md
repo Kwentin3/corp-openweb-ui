@@ -1,13 +1,14 @@
 # Установка бюджетов сотрудников и откат
 
-Статус 11.11.2026: стендовая поставка принята; пользователь разрешил production
-в активном GOAL584. Эта инструкция не подменяет проверку целевого окружения.
+Статус 12.11.2026: базовый биллинг и админка внедрены в production; пользовательский
+рефакторинг (нижняя строка стоимости и разговорный Tool) находится в работе.
+Описанная ниже замена пользовательского UI — целевая поставка, не заявление о её
+текущем внедрении. Эта инструкция не подменяет проверку целевого окружения.
 Текущее состояние и незакрытые пункты — в [единственной записи GOAL584](employee-budgets-goal584.md).
 Исторический стендовый actual42825996133 проверял строгую Usage-блокировку на
 LiteLLM1.105.1/OpenAI SDK2.33.0. Этот контракт заменён решением пользователя:
 текущий release использует штатный учёт и не включает специальные Usage guards.
-Установка, DB/Redis/права и каталог на целевом сервере остаются отдельной приёмкой.
-Рабочие маршруты ещё не переключены. Текущее состояние — в канонической записи GOAL.
+Актуальные source/runtime identity и результаты приёмки — в канонической записи GOAL.
 
 ## Личные лимиты и роль администратора
 
@@ -294,7 +295,7 @@ native Workspace/API ресурсы из выбранной поставки:
 | Ресурс | Native ID / источник |
 |---|---|
 | Cost Filter | `employee_budget_cost` / [cost_filter.py](../../deploy/openwebui-budgets/cost_filter.py) |
-| Details Action | `employee_budget_cost_details` / [cost_action.py](../../deploy/openwebui-budgets/cost_action.py) |
+| Self billing Tool | `employee_budget_user` / [user_tools.py](../../deploy/openwebui-budgets/user_tools.py) |
 | Admin Tool | admin-only Tool / [admin_tools.py](../../deploy/openwebui-budgets/admin_tools.py) |
 | Admin Skill | `goal584-budget-admin-guide` / [employee-budget-admin.md](../../deploy/openwebui-skills/employee-budget-admin.md) |
 | Admin entry Filter | `employee_budget_admin_entry` / [admin_entry_filter.py](../../deploy/openwebui-budgets/admin_entry_filter.py) |
@@ -302,9 +303,9 @@ native Workspace/API ресурсы из выбранной поставки:
 | Service tasks | `employee_budget_service` / [service_pipe.py](../../deploy/openwebui-budgets/service_pipe.py) для согласованных задач |
 | OCR Event | существующий OCR Function / [luna_pdf_ocr.py](../../deploy/openwebui-functions/luna_pdf_ocr.py), с общими budget modules |
 
-Проверить source/ACL readback, включить Filter/Action и, если используется,
-service Pipe; прочитать `is_active` обратно. Filter/Action прикрепить к согласованным
-Models и проверить сохранённые `filterIds`/`actionIds`.
+Проверить source/ACL readback, включить Filter и, если используется,
+service Pipe; прочитать `is_active` обратно. Filter прикрепить к согласованным
+Models и проверить сохранённые `filterIds`.
 В admin-only Valves `employee_budget_cost` задать `ledger_base_url` (корень LiteLLM
 без `/v1`), `ledger_read_key` (viewer), `ledger_admin_key` (management).
 Tool Valves `managed_model_ids` содержат выбранные native Model IDs без ключей.
@@ -413,19 +414,33 @@ management credentials. GET не создаёт назначений и не м�
 чтение месячного бюджета и админской таблицы не требует исторических Usage witnesses.
 Недоступные данные не превращаются в нулевой расход.
 
-Личный GUI использует уже установленное действие **«Стоимость: детали»** у
-собственного ответа. Оно показывает расходы ответа/чата и раздел **«Мой бюджет»**:
-личный лимит, учтённый расход, остаток, native период/следующее обновление, данные
-и блокировку по моделям. Повторное открытие читает свежий снимок. Для этого нужен
-активный Event `employee_budget_monthly_view`; Action вызывает его серверный reader
-с native пользователем, не передаёт ключи в iframe и не вызывает модель. Если
-месячный reader недоступен, этот раздел явно недоступен; расходы ответа/чата
-сохраняют самостоятельный результат. Ноль не подставляется вместо ошибки.
+Личный UI показывает строку **«Ответ: … · Чат: …»** после ответа перед кнопками.
+Cost Filter читает прежний native ledger; расчёт денег не переносится в интерфейс.
+Размещение запрашивается через `status.data.position = "after_content"` и требует
+разрешённого [патча контракта статуса](../../deploy/openwebui-patches/status-position-v0.12.2/README.md)
+в точном frontend build. Статусы без этого поля сохраняют штатное положение сверху.
+Без новых style/loader.js обходов и добавления служебных сумм в текст ответа.
 
-Это штатный снимок внутри сообщения: действие доступно у существующего собственного
-ответа, отдельной страницы до первого ответа нет. При явной публикации/экспорте чата
-пользователь публикует и сохранённый снимок; карточка сообщает об этом и не содержит
-email/UUID сотрудника. Fresh self/admin read остаётся защищённым серверными правами.
+Для вопросов «Какой у меня бюджет?» и «Сколько стоил этот чат?» установить стандартный
+Workspace Tool `employee_budget_user`. Два метода `my_budget` и `current_chat_cost`
+используют существующие monthly reader и cost readback; модель не передаёт employee,
+chat или answer ID. Нужны активные `employee_budget_monthly_view` и `employee_budget_cost`
+с прежними серверными Valves. Tool не содержит своих секретов или настроек тарифов.
+Дать аутентифицированным сотрудникам native read grant (`user:*`), без write grant,
+и добавить Tool в `meta.toolIds` согласованных рабочих текстовых Models, сохранив
+остальные defaults/params/ACL. Специальные worker/Pipe и image-модели не перенастраивать.
+
+Tool проверяет свежую серверную роль и владение текущим сохранённым чатом. Чужие
+данные недоступны и администратору через этот self-only Tool. Неизвестные расходы
+не превращаются в ноль. Месячные данные относятся к текущему native периоду, стоимость
+чата — к уже начисленным записям; произвольная историческая аналитика не добавляется.
+Сам Tool не вызывает LLM; объяснение формирует обычная модель текущего диалога.
+
+При миграции снять только `employee_budget_cost_details` из `meta.actionIds` всех
+привязанных Models и выключить соответствующий Action. Остальные Actions и native
+`ⓘ` сохранить. Старую историю, сохранённые embeds, счётчики и финансовые записи не
+переписывать. Сохранённые карточки и ответы Tool при публикации/экспорте чата публикуются
+вместе с ним; новое чтение по-прежнему проверяет права на сервере.
 
 OCR использует тот же common `service_payer_id` без зависимости от `target_model_id`
 служебного Pipe; выбранная OCR-модель остаётся прежней. Это отдельная операция над
@@ -450,7 +465,8 @@ Tools и reasoning; изменение URL само по себе не дока�
 
 После установки сверить один согласованный сквозной сценарий с native ledger:
 форма → запрос/помощник → две суммы → отказ → изменение лимита → восстановление;
-known0/unknown, Details/reload и чужой доступ — в объёме принятой приёмки GOAL.
+known0/unknown, строка стоимости/reload, разговорный self-read и чужой доступ —
+в объёме принятой приёмки GOAL.
 
 ## Откат с сохранением данных
 

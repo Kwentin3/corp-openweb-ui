@@ -1,6 +1,6 @@
 # Реестр патчей
 
-Срез 11.11.2026. Подробно учтены LiteLLM-патчи GOAL584, подготовленные
+Срез 12.11.2026. Подробно учтены LiteLLM-патчи GOAL584, подготовленные
 и проверенные в исходном/стендовом объёме; ниже добавлен ограниченный перечень
 существующих OpenWebUI 0.12.2 overlays по текущему source buildpath. Это не
 подтверждение установленного production. Текущая приёмка — в [записи GOAL584](employee-budgets-goal584.md),
@@ -61,7 +61,28 @@ blob SHA `f330d7fc6d4716e82b8de9c0e756683a735de77f` и
 
 ## Существующие OpenWebUI 0.12.2 overlays
 
-Новых WebUI core patches в этом GOAL — **0**. В существующем stack их число
+12.11 пользователь разрешил **один новый frontend patch** для пользовательского
+биллинга: [status-position-v0.12.2](../../deploy/openwebui-patches/status-position-v0.12.2/README.md).
+Он добавляет необязательный `status.data.position = "after_content"` в одном
+`ResponseMessage.svelte`, используя штатный StatusHistory после ответа перед
+кнопками. События без этого значения остаются сверху; текст ответа, учёт,
+маршруты и backend не изменяются. Точная версия, исходный/итоговый компонент и
+reviewable patch закреплены в [manifest](../../deploy/openwebui-patches/status-position-v0.12.2/manifest.json).
+Installer отвергает изменённый исходник; перенос при обновлении стека требует
+явной проверки, а не применения по совпавшим строкам.
+
+На момент записи — **source candidate, не deployed**. Пройдены installer/drift,
+reactive placement и совместимость source с media overlay; реальный frontend
+build, ordinary-user GUI/PNG, reload и production acceptance ещё обязательны.
+Используется существующий build owner ниже; новый backend image собирается с
+прежними overlays. Upstream: найден точный [запрос #31886](https://github.com/open-webui/open-webui/issues/31886),
+перенесённый в [discussion #31897](https://github.com/open-webui/open-webui/discussions/31897).
+Нового внешнего сообщения пока нет. Условие снятия: выбранный upstream image
+штатно сохраняет и выводит per-status after-content placement; проверены длинный
+ответ, обычный progress сверху, unknown/missing position, hidden/capability и reload.
+
+Следующий перечень остальных overlays — исторический source-срез 11.11.2026.
+На тот момент новых WebUI core patches этого GOAL было 0. В существующем stack их число
 может быть ненулевым. Следующие три пакета имеют state **source-build known;
 current runtime UNVERIFIED**: прочитаны текущие recipe/installer/verifier и
 датированный [cutover record](openwebui-0122-cutover.md), но live container/image

@@ -15,7 +15,6 @@ from decimal import Decimal
 import hashlib
 import ipaddress
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -285,11 +284,11 @@ def connection_config(original, gateway):
     return result
 
 
-def workspace_model(original, actor, filter_id, action_id, tool_id):
+def workspace_model(original, actor, filter_id, tool_id):
     result = copy.deepcopy(original)
     result.update(id=MODEL, name=MODEL, base_model_id=None, is_active=True,
         access_grants=[{'principal_type': 'user', 'principal_id': canonical(actor), 'permission': 'read'}])
-    result['meta'].update(filterIds=[filter_id, PROBE_ID], actionIds=[action_id], toolIds=[tool_id])
+    result['meta'].update(filterIds=[filter_id, PROBE_ID], toolIds=[tool_id])
     result['meta'].setdefault('capabilities', {})['builtin_tools'] = False
     result['params'] = dict(max_tokens=16, system=SYSTEM, function_calling='native', custom_params={
         'reasoning': REASONING, 'include': ['reasoning.encrypted_content'], 'store': False,
@@ -565,7 +564,7 @@ def native_zero_audit(rows, original, *, actor, key_hash):
 def worker_dependencies():
     from provision_webui import WebUI, native_client, read_private, write_private, account_from_response, TASK_FLAGS, WEBUI_URL
     from employee_budget_assignment import assignment_alias, assignment_metadata, assignment_matches
-    from provision_cost_display import FILTER_ID, ACTION_ID, TOOL_ID, TOOL_SOURCE, model_body, grant_set, source_hash
+    from provision_cost_display import FILTER_ID, TOOL_ID, TOOL_SOURCE, model_body, grant_set, source_hash
     from prove_service_tasks import provider, response
     from prove_pricing_snapshots import private_credentials, validate_snapshot
     from provenance import validate_persisted_scope
@@ -716,7 +715,7 @@ class Worker:
         require(probe.get('is_active') is True and probe.get('is_global') is False
                 and self.d['source_hash'](probe['content']) == self.d['source_hash'](PROBE_SOURCE), 'Responses probe source/global binding differs')
         model = workspace_model(self.d['model_body'](self.r['original_model_a']), self.r['actor']['id'],
-            self.d['FILTER_ID'], self.d['ACTION_ID'], self.d['TOOL_ID'])
+            self.d['FILTER_ID'], self.d['TOOL_ID'])
         self.webui.ok('POST', '/api/v1/models/create', token=self.admin, body=model)
         actual = self.webui.model(self.admin, MODEL)
         require(all(actual.get(k) == v for k, v in model.items() if k != 'access_grants')
@@ -1060,65 +1059,10 @@ def worker_main(args):
     return 0 if receipt['passed'] else 1
 
 
-def verify_details_values(report):
-    for scope in ('answer', 'chat'):
-        section = report.locator('section[data-cost-scope="' + scope + '"]')
-        require(Decimal(section.locator('[data-cost-usd]').get_attribute('data-cost-usd')) == Decimal('.40'), 'Responses native detail total differs')
-        row = section.locator('tr[data-model="' + MODEL + '"]')
-        require(row.count() == 1 and [int(row.locator('td[data-field="' + k + '"]').inner_text())
-            for k in ('calls', 'prompt_tokens', 'completion_tokens', 'total_tokens')] == [2, 20, 10, 30], 'Responses native details usage differs')
-
-
-def verify_reloaded_details(page, answer_id, persisted_html, diagnostic, *, timeout_ms=10_000):
-    """Observe native iframe resizing; never write its height/content or send messages."""
-    from playwright.sync_api import expect
-    iframe = page.locator('#message-' + canonical(answer_id)).locator('iframe[srcdoc*="data-budget-cost-details"]').first
-    report = iframe.content_frame.locator('main[data-budget-cost-details="v1"]')
-    diagnostic['ready'] = False
-
-    def geometry():
-        box = iframe.bounding_box(timeout=1000)
-        content = report.evaluate('''node => ({viewport_height: innerHeight,
-            scroll_height: document.documentElement.scrollHeight,
-            report_top: node.getBoundingClientRect().top,
-            report_bottom: node.getBoundingClientRect().bottom})''', timeout=1000)
-        require(isinstance(box, dict) and set(box) == {'x', 'y', 'width', 'height'}
-                and set(content) == {'viewport_height', 'scroll_height', 'report_top', 'report_bottom'}
-                and all(type(v) in (int, float) and math.isfinite(v) for v in [*box.values(), *content.values()]),
-                'Responses Details geometry unavailable')
-        return {'iframe_box': {k: round(v, 3) for k, v in box.items()},
-                'content': {k: round(v, 3) for k, v in content.items()}}
-
-    try:
-        # Bind the newly acquired post-reload frame to the exact persisted embed.
-        expect(iframe).to_have_attribute('srcdoc', persisted_html, timeout=timeout_ms)
-        expect(report).to_be_visible(timeout=timeout_ms)
-        verify_details_values(report)
-        # Intersection includes clipping by the iframe and the outer viewport.
-        # Wait for the existing cost_action HEIGHT_SCRIPT / native iframe:height
-        # owner, rather than treating DOM values as visible rendered tables.
-        expect(report).to_be_in_viewport(ratio=1, timeout=timeout_ms)
-        expect(iframe).to_be_in_viewport(ratio=1, timeout=1000)
-        for scope in ('answer', 'chat'):
-            table = report.locator('section[data-cost-scope="' + scope + '"] table')
-            expect(table).to_be_in_viewport(ratio=1, timeout=1000)
-        observed = geometry()
-        diagnostic.update(observed)
-        require(observed['content']['viewport_height'] + 1 >= observed['content']['scroll_height'],
-                'Responses Details iframe still clips its document')
-        diagnostic['ready'] = True
-    finally:
-        if not diagnostic['ready']:
-            try:
-                diagnostic.update(geometry())
-            except Exception:
-                diagnostic['geometry_available'] = False
-
-
 def host_main(args):
     from prove_pricing_browser import PricingFixture, private_fixture, overwrite_config
     from prove_webui_browser import login, chat, write_json
-    from playwright.sync_api import sync_playwright, expect
+    from playwright.sync_api import sync_playwright
     target = urlsplit(args.base_url)
     require(target.scheme == 'http' and target.port == 8080 and target.path in ('', '/') and not target.username
             and not target.password and not target.query and not target.fragment
@@ -1193,31 +1137,17 @@ def host_main(args):
                     expected_costs=('0.40', '0.40'))
         receipt['ordinary_send'] = call
         receipt['observe'] = phase('observe', call)
-        # Details is the existing native Action; the old helper hardcodes A.
-        # Reuse its native DOM/endpoint, but verify the new R totals directly.
-        from prove_cost_browser import ACTION_ID, ACTION_LABEL
-        card = page.locator('#message-' + call['message_id']); card.hover()
-        with page.expect_response(lambda r: urlsplit(r.url).path == '/api/chat/actions/' + ACTION_ID and r.request.method == 'POST') as pending:
-            card.locator('button[aria-label="' + ACTION_LABEL + '"]').click()
-        require(pending.value.status == 200, 'Responses native cost details Action failed')
-        report = card.locator('iframe[srcdoc*="data-budget-cost-details"]').first.content_frame.locator('main[data-budget-cost-details="v1"]')
-        expect(report).to_be_visible()
-        verify_details_values(report)
+        from prove_cost_browser import cost_status, chat_state
+        saved = chat_state(page, args.base_url, token, call['chat_id'])[call['message_id']]
+        receipt['status_before_reload'] = cost_status(page, args.base_url, token, call, fixture,
+            'responses-status', answer_spend='.40', chat_spend='.40')
         page.reload(wait_until='domcontentloaded')
-        expect(page.locator('#message-' + call['message_id'])).to_contain_text('Ответ: $0.40 · Чат: $0.40')
-        persisted = page.context.request.get(args.base_url + '/api/v1/chats/' + call['chat_id'],
-            headers={'Authorization': 'Bearer ' + token}, timeout=10_000)
-        require(persisted.status == 200, 'Responses native details reload readback failed')
-        answer = persisted.json()['chat']['history']['messages'][call['message_id']]
-        embeds = [v for v in answer.get('embeds', []) if isinstance(v, str) and 'data-budget-cost-details' in v]
-        require(embeds and all(MODEL in v and 'ledger_read_key' not in v for v in embeds), 'Responses native Action report was not persisted')
-        safe(embeds, secrets)
-        (args.output / 'responses-details.html').write_text(embeds[0], encoding='utf-8')
-        receipt['details_geometry'] = {}
-        verify_reloaded_details(page, call['message_id'], embeds[0], receipt['details_geometry'])
-        page.screenshot(path=str(args.output / 'responses-details.png'))
-        receipt['after_details'] = phase('observe', call, label='after-details')
-        receipt['persisted_ui_costs'] = {'answer_usd': '.40', 'chat_usd': '.40', 'details_models': [MODEL], 'reload_visible': True}
+        receipt['status_after_reload'] = cost_status(page, args.base_url, token, call, fixture,
+            'responses-status-reloaded', answer_spend='.40', chat_spend='.40')
+        require(chat_state(page, args.base_url, token, call['chat_id'])[call['message_id']] == saved,
+                'Responses reload changed the persisted native answer/status')
+        receipt['after_reload'] = phase('observe', call, label='after-reload')
+        receipt['persisted_ui_costs'] = {'answer_usd': '.40', 'chat_usd': '.40', 'reload_visible': True}
         receipt['limit'] = phase('limit')
         denied = chat(page, args.base_url, token, actor['id'], MODEL, 'budget_blocked', 'responses-zero', args.output, expected_costs=None)
         receipt['denied'] = phase('denied', denied)

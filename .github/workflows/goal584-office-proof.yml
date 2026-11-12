@@ -303,8 +303,7 @@ jobs:
               'proxy':{'/proof/'+name:'scripts/goal584-budget-proof/'+name for name in
                   ('provision_cost_display.py','capture_webui_auth.py','prove_pricing_snapshots.py','usage_guard_fixture.py')},
               'webui':{'/app/backend/employee_budget_cost_readback.py':'deploy/openwebui-budgets/cost_readback.py',
-                  '/app/backend/employee_budget_provenance.py':'deploy/openwebui-budgets/provenance.py',
-                  '/proof/budgets/cost_action.py':'deploy/openwebui-budgets/cost_action.py'},
+                  '/app/backend/employee_budget_provenance.py':'deploy/openwebui-budgets/provenance.py'},
               'provider':{'/proof/mock_provider.py':'scripts/goal584-budget-proof/mock_provider.py'}}
           owners['proxy'].update({'/proof/'+target:'deploy/openwebui-budgets/'+source for target,source in
               (('employee_budget_cost_readback.py','cost_readback.py'),('budgets/cost_filter.py','cost_filter.py'),

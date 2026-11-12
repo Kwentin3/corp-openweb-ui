@@ -24,6 +24,9 @@ def main(frontend, output):
         assert not path.is_symlink()
         with path.open('rb') as stream:
             assert hashlib.file_digest(stream, 'sha256').hexdigest() == manifest[name]['sha256']
+    status_manifest = repo / 'deploy/openwebui-patches/status-position-v0.12.2/manifest.json'
+    if 'status_patch_manifest_sha256' in receipt:
+        assert hashlib.sha256(status_manifest.read_bytes()).hexdigest() == receipt['status_patch_manifest_sha256']
     output.mkdir(parents=True, exist_ok=False)
     shutil.copytree(build, output / 'build')
     bundles = {
@@ -40,10 +43,13 @@ def main(frontend, output):
     for name in ('runtime.Dockerfile', 'verify_frontend_artifact.py'):
         shutil.copyfile(Path(__file__).parent / name, output / name)
     shutil.copyfile(manifest_path, output / 'frontend-files.json')
+    shutil.copyfile(status_manifest, output / 'status-position-manifest.json')
     safe = {key: receipt[key] for key in ('upstream_version', 'upstream_commit', 'build_identity',
             'native_build_command', 'source_archive_sha256', 'input_receipt_sha256', 'frontend_sources_sha256',
             'artifact_sha256', 'build_files', 'build_uncompressed_bytes', 'build_files_manifest_sha256',
             'native_build_success', 'sourcemap')}
+    if 'status_patch_manifest_sha256' in receipt:
+        safe['status_patch_manifest_sha256'] = receipt['status_patch_manifest_sha256']
     (output / 'frontend-receipt.json').write_text(json.dumps(safe, indent=2), encoding='utf-8')
     print(json.dumps({'context': str(output), 'build_identity': receipt['build_identity'],
                       'frontend_files': len(actual), 'public_inputs_only': True}))

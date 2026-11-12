@@ -37,11 +37,8 @@ from prove_native_budgets import expected_budget_message
 
 STATE = Path("/proof-private/webui-state.private.json")
 FILTER_ID = "employee_budget_cost"
-ACTION_ID = "employee_budget_cost_details"
-ACTION_LABEL = "Стоимость: детали"
 TOOL_ID = "goal584_budget_echo"
 FILTER_SOURCE = Path("/proof/budgets/cost_filter.py")
-ACTION_SOURCE = Path("/proof/budgets/cost_action.py")
 LEDGER_URL = "http://proxy:4000"
 READ_ROUTES = ["/spend/logs/session/ui"]
 MODEL_FIELDS = ("id", "base_model_id", "name", "meta", "params", "access_grants", "is_active")
@@ -150,12 +147,6 @@ def display_readback(webui: WebUI, state: dict) -> dict:
     content = function.get("content")
     require(isinstance(content, str) and source_hash(content) == state["cost_display"]["source_sha256"],
             "Native Function content differs from mounted cost source")
-    action = webui.ok("GET", "/api/v1/functions/id/" + ACTION_ID, token=admin)
-    require(action.get("id") == ACTION_ID and action.get("type") == "action"
-            and action.get("is_active") is True and action.get("is_global") is False
-            and action.get("name") == ACTION_LABEL
-            and source_hash(action.get("content", "")) == state["cost_display"]["action_source_sha256"],
-            "Native cost details Action differs from the installed source or scope")
     valves = webui.ok("GET", function_path + "/valves", token=admin)
     require(valves.get("ledger_base_url") == LEDGER_URL
             and valves.get("ledger_read_key") == state["cost_reader"]["key"]
@@ -183,11 +174,8 @@ def display_readback(webui: WebUI, state: dict) -> dict:
                 "Ordinary cost-display catalog differs from managed aliases")
         require(all(FILTER_ID in ((m.get("info") or {}).get("meta") or {}).get("filterIds", [])
                     for m in models), "Ordinary catalog omitted the mandatory cost Filter")
-        require(all(any(a.get("id") == ACTION_ID and a.get("name") == ACTION_LABEL for a in m.get("actions", []))
-                    for m in models), "Ordinary model catalog omitted the cost details Action")
     return {"filter_id": FILTER_ID, "source_sha256": source_hash(content), "active": True,
             "toggleable": False, "global": True, "attached_models": list(MODELS),
-            "action_id": ACTION_ID, "action_source_sha256": source_hash(action["content"]),
             "reader_valves_readback": True, "user_valves": preferences, "employee_admin_denials": access}
 
 
@@ -215,7 +203,6 @@ def setup(webui: WebUI, state: dict, path: Path) -> None:
     state["cost_reader"] = {"user_id": user_id, "key": key, "key_alias": alias,
                             "allowed_routes": list(READ_ROUTES)}
     state["cost_display"] = {"stage": "installing", "source_sha256": source_hash(source),
-                             "action_source_sha256": source_hash(ACTION_SOURCE.read_text(encoding="utf-8")),
                              "scenario_complete": False}
     write_private(path, state)
     reader_readback(native, state)
@@ -237,15 +224,8 @@ def setup(webui: WebUI, state: dict, path: Path) -> None:
     })
     webui.ok("POST", function_path + "/toggle", token=admin)
     webui.ok("POST", function_path + "/toggle/global", token=admin)
-    created_action = webui.ok("POST", "/api/v1/functions/create", token=admin, body={
-        "id": ACTION_ID, "name": ACTION_LABEL, "content": ACTION_SOURCE.read_text(encoding="utf-8"), "meta": {},
-    })
-    require(created_action.get("id") == ACTION_ID and created_action.get("type") == "action"
-            and created_action.get("is_active") is False, "Native cost details Action creation failed")
-    webui.ok("POST", "/api/v1/functions/id/" + ACTION_ID + "/toggle", token=admin)
     for model in MODELS:
         add_model_meta(webui, state, model, "filterIds", FILTER_ID)
-        add_model_meta(webui, state, model, "actionIds", ACTION_ID)
     for user in state["users"]:
         # Native GET returns null until there is a stored record. Store empty
         # overrides via the owner, leaving enabled=True solely the native default.

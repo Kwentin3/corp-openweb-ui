@@ -302,7 +302,7 @@ class Filter:
                 # An unverifiable managed route retains the existing optional
                 # unavailable feedback, without failing a completed answer.
                 pass
-        description = "Стоимость ещё не подтверждена журналом учёта. Учёт и лимиты действуют."
+        description = "Стоимость ещё не подтверждена."
         if isinstance(scope, dict):
             from employee_budget_cost_readback import CostReadError, read_cost_snapshot
             from open_webui.utils.session_pool import get_session
@@ -314,6 +314,7 @@ class Filter:
                 # into a failure because its optional display cannot be verified.
                 await __event_emitter__({"type": "status", "data": {
                     "action": "employee_budget_cost", "description": description, "done": True,
+                    "position": "after_content",
                 }})
                 return body
             try:
@@ -339,8 +340,6 @@ class Filter:
                     wait_seconds=self.valves.read_wait_seconds)
                 if snapshot.answer.spend is not None and snapshot.chat.spend is not None:
                     description = f"Ответ: {money_text(snapshot.answer.spend)} · Чат: {money_text(snapshot.chat.spend)}"
-                    description += " · на " + snapshot.as_of.strftime("%H:%M:%S UTC")
-                    description += " · начислено на сейчас"
                     if snapshot.pending or metadata.get(UNBOUND_RESPONSE) is True:
                         description += ", учёт обновляется"
             except CostReadError as error:
@@ -349,5 +348,6 @@ class Filter:
                     description = "Расход неизвестен. Обратитесь к администратору."
         await __event_emitter__({"type": "status", "data": {
             "action": "employee_budget_cost", "description": description, "done": True,
+            "position": "after_content",
         }})
         return body
