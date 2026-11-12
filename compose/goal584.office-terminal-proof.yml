@@ -1,0 +1,28 @@
+# Explicit OfficeFixture(terminal=True) only; not an activation command.
+# Requires Docker Compose >=2.24.4 for native !override (no Python YAML merge).
+services:
+  proxy:
+    environment:
+      STAGING_TERMINAL_API_KEY: ${STAGING_TERMINAL_API_KEY:?Set a separate staging Terminal key}
+    volumes:
+      - type: bind
+        source: ../deploy/openwebui-tools/terminal_file_transfer.py
+        target: /proof/terminal_file_transfer.py
+        read_only: true
+        bind:
+          create_host_path: false
+
+  open-terminal-office:
+    extends:
+      file: openwebui.staging-terminal.compose.yml
+      service: open-terminal-office
+    networks: !override [proof]
+
+  webui:
+    environment:
+      NO_PROXY: localhost,127.0.0.1,webui,proxy,provider,postgres,redis,office,open-terminal-office,open-terminal-office:8000
+      no_proxy: localhost,127.0.0.1,webui,proxy,provider,postgres,redis,office,open-terminal-office,open-terminal-office:8000
+
+# Extends does not import top-level resources. Project-owned, never external.
+volumes:
+  terminal_home:

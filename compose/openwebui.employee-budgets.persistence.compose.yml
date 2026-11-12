@@ -1,0 +1,70 @@
+# Native persistent budget dependencies for the existing release gateway.
+services:
+  employee-budget-postgres:
+    image: docker.io/pgvector/pgvector:0.8.7-pg16-bookworm@sha256:0dd3149a06e4579a0d70d8fef9945636cd514005e7237deb27f9b67886f8dc4f
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    pids_limit: 256
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${EMPLOYEE_BUDGET_DB_PASSWORD:?Protected native budget database password}
+    volumes:
+      - employee-budget-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "litellm", "-d", "litellm"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks: [employee-budgets]
+
+  employee-budget-redis:
+    image: docker.io/library/redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 128
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - employee-budget-redis:/data
+      - type: bind
+        source: ${EMPLOYEE_BUDGET_REDIS_CONFIG_FILE:?Protected Redis authentication and persistence config}
+        target: /usr/local/etc/redis/redis.conf
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      # Generated config uses one unquoted URL-safe requirepass; no secret argv.
+      test:
+        - CMD-SHELL
+        - >-
+          password="$$(awk '$$1 == "requirepass" { print $$2 }' /usr/local/etc/redis/redis.conf)" &&
+          test -n "$$password" &&
+          REDISCLI_AUTH="$$password" redis-cli --no-auth-warning ping | grep -qx PONG
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    networks: [employee-budgets]
+
+  google-gateway-0122:
+    mem_limit: 2g
+    memswap_limit: 3g
+    cpus: 1
+    pids_limit: 512
+    depends_on:
+      employee-budget-postgres:
+        condition: service_healthy
+      employee-budget-redis:
+        condition: service_healthy
+    networks: [services, existing-web, employee-budgets]
+
+volumes:
+  employee-budget-postgres:
+  employee-budget-redis:
+
+networks:
+  employee-budgets:
+    internal: true

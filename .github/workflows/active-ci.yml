@@ -10,6 +10,10 @@ on:
         description: Export the qualified OfficeCLI runtime image for deployment without a production build
         type: boolean
         default: false
+      export_webui_image:
+        description: Build and export the pinned OpenWebUI runtime only, without OfficeCLI or STT qualification
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -20,9 +24,10 @@ concurrency:
 
 jobs:
   active-ci:
+    if: github.event_name != 'workflow_dispatch' || !inputs.export_webui_image
     name: active-ci
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -73,7 +78,7 @@ jobs:
                   staging=true ;;
                 deploy/openwebui-flight-recorder/*)
                   recorder=true ;;
-                compose/openwebui.release-0122*.yml|deploy/openwebui-upgrade-0122/*|deploy/openwebui-patches/media-upload-v0.12.2/*|deploy/openwebui-patches/tool-context-v0.12.2/*|deploy/openwebui-patches/provider-context-v0.12.2/*)
+                compose/openwebui.release-0122*.yml|deploy/openwebui-upgrade-0122/*|deploy/openwebui-patches/media-upload-v0.12.2/*|deploy/openwebui-patches/tool-context-v0.12.2/*|deploy/openwebui-patches/provider-context-v0.12.2/*|deploy/openwebui-patches/status-position-v0.12.2/*)
                   upgrade0122=true ;;
                 deploy/openwebui-functions/stage2_media_intake.py|deploy/openwebui-patches/media-upload-v0.11.4/*)
                   stt=true
@@ -183,3 +188,90 @@ jobs:
             --tmpfs /tmp:rw,nosuid,size=64m \
             -v "$PWD/services/stage2-stt/tests/verify_runtime_media.py:/verify_runtime_media.py:ro" \
             stt-candidate python /verify_runtime_media.py
+
+  export-webui:
+    if: github.event_name == 'workflow_dispatch' && inputs.export_webui_image
+    name: Export pinned OpenWebUI runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out exact source commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+
+      - name: Build and inspect WebUI only
+        timeout-minutes: 35
+        run: |
+          export WEBUI_WORK="$RUNNER_TEMP/webui-build-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          export WEBUI_EXPORT="$RUNNER_TEMP/webui-runtime"
+          printf 'WEBUI_WORK=%s\nWEBUI_EXPORT=%s\n' "$WEBUI_WORK" "$WEBUI_EXPORT" >> "$GITHUB_ENV"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python scripts/goal584-budget-proof/build_office_profile.py \
+            --webui-only --work-root "$WEBUI_WORK" --receipt "$WEBUI_WORK/build-receipt.json"
+
+      - name: Export the inspected image and build receipts
+        timeout-minutes: 5
+        run: |
+          mkdir "$WEBUI_EXPORT"
+          image_id="$(cat "$WEBUI_WORK/webui.iid")"
+          docker save "$image_id" | gzip -1 > "$WEBUI_EXPORT/webui-runtime.tar.gz"
+          printf '%s\n' "$image_id" > "$WEBUI_EXPORT/image-id.txt"
+          printf '%s\n' "$GITHUB_SHA" > "$WEBUI_EXPORT/source-commit.txt"
+          cp "$WEBUI_WORK"/{build-receipt,build-inputs,git-inputs,frontend-sources,resources,commands}.json "$WEBUI_EXPORT/"
+          cp "$WEBUI_WORK/frontend/"{frontend-artifact-receipt,frontend-files}.json "$WEBUI_EXPORT/"
+          cp "$WEBUI_WORK/runtime-context/status-position-manifest.json" "$WEBUI_EXPORT/"
+          cd "$WEBUI_EXPORT"
+          sha256sum -- * > SHA256SUMS
+          sha256sum --check SHA256SUMS
+
+      - name: Retain WebUI image and source-bound receipts
+        timeout-minutes: 5
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: webui-runtime-${{ github.sha }}
+          path: ${{ runner.temp }}/webui-runtime/
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
+
+      - name: Retain bounded build diagnostics
+        if: failure() || cancelled()
+        timeout-minutes: 2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: webui-build-diagnostics-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.WEBUI_WORK }}/logs/
+            ${{ env.WEBUI_WORK }}/commands.json
+            ${{ env.WEBUI_WORK }}/resources.json
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Remove owned build containers and images
+        if: always()
+        timeout-minutes: 2
+        run: |
+          [[ -n "${WEBUI_WORK:-}" ]] || exit 0
+          shopt -s nullglob
+          for file in "$WEBUI_WORK"/*.cid; do
+            id="$(cat "$file")"
+            if [[ "$id" =~ ^[a-f0-9]{64}$ ]] && docker container inspect "$id" >/dev/null 2>&1; then
+              docker rm --force "$id"
+            fi
+          done
+          for file in "$WEBUI_WORK"/*.iid; do
+            id="$(cat "$file")"
+            if [[ "$id" =~ ^sha256:[a-f0-9]{64}$ ]] && docker image inspect "$id" >/dev/null 2>&1; then
+              docker image rm --force "$id"
+            fi
+          done

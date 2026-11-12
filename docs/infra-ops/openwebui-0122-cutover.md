@@ -1,6 +1,15 @@
 # OpenWebUI 0.12.2 production and recovery
 
-## Current operator snapshot, 29 October 2026
+## Current operator entry point, 12 November 2026
+
+Employee budgets, the shared LiteLLM gateway, and the combined media/status
+frontend are recorded in the [canonical GOAL584 record](employee-budgets-goal584.md).
+Use its accepted source/image identity together with the
+[installation and rollback procedure](employee-budgets-installation.md) and
+[patch registry](patch-registry.md). Native financial history stays in LiteLLM;
+old environment/image selectors below describe earlier deliveries.
+
+## Historical operator snapshot, 29 October 2026
 
 The latest completed image delivery is the default-off provider request debugger,
 source [PR #579](https://github.com/Kwentin3/corp-openweb-ui/pull/579), merged as

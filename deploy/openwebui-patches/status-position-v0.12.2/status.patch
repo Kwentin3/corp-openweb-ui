@@ -1,0 +1,52 @@
+--- a/src/lib/components/chat/Messages/ResponseMessage.svelte
++++ b/src/lib/components/chat/Messages/ResponseMessage.svelte
+@@ -78,6 +78,7 @@
+ 		timestamp: number;
+ 		role: string;
+ 		statusHistory?: {
++			position?: string;
+ 			done: boolean;
+ 			action: string;
+ 			description: string;
+@@ -191,10 +192,19 @@
+ 	$: model = $models.find((m) => m.id === message.model);
+ 
+ 	$: statusEntries = message?.statusHistory ?? [...(message?.status ? [message?.status] : [])];
++	$: beforeContentStatusHistory = (message?.statusHistory ?? []).filter(
++		(status) => status?.position !== 'after_content'
++	);
++	$: afterContentStatusHistory = (message?.statusHistory ?? []).filter(
++		(status) => status?.position === 'after_content'
++	);
+ 	$: hasVisibleStatus =
+ 		(model?.info?.meta?.capabilities?.status_updates ?? true) &&
+-		statusEntries.length > 0 &&
+-		!(statusEntries.at(-1)?.hidden ?? false);
++		(message?.statusHistory
++			? [beforeContentStatusHistory.at(-1), afterContentStatusHistory.at(-1)].some(
++					(status) => status && !(status.hidden ?? false)
++				)
++			: statusEntries.length > 0 && !(statusEntries.at(-1)?.hidden ?? false));
+ 	$: visibleResponseContent =
+ 		getOutputText(message.output) || removeAllDetails(message.content ?? '');
+ 	$: hasResponseContent = Boolean((message.content ?? '').trim() || message.output?.length);
+@@ -705,7 +715,7 @@
+ 				<div class="chat-{message.role} w-full min-w-full">
+ 					<div>
+ 						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
+-							<StatusHistory statusHistory={message?.statusHistory} />
++							<StatusHistory statusHistory={beforeContentStatusHistory} />
+ 						{/if}
+ 
+ 						{#if message?.files && message.files?.filter( (f) => ['image', 'file'].includes(f.type) ).length > 0}
+@@ -933,6 +943,10 @@
+ 						</div>
+ 					</div>
+ 				</div>
++
++				{#if model?.info?.meta?.capabilities?.status_updates ?? true}
++					<StatusHistory statusHistory={afterContentStatusHistory} />
++				{/if}
+ 
+ 				{#if compactPreview && message.timestamp}
+ 					<div class="mt-0.5 flex justify-start whitespace-nowrap text-gray-600 dark:text-gray-500">

@@ -2,6 +2,8 @@ FROM python:3.11-slim@sha256:da047cb8f9d1d98e5c070f5300ba9f7274e33b8fc0e5be5ed88
 
 ARG OFFICECLI_VERSION=1.0.152
 ARG OFFICECLI_SHA256=e54d3c1d248372365f0634aac56d6f1918bd04d6e71afc792ad50e075f56cfe9
+# Official v1.0.152 linux-x64 asset; digest and version remain checked below.
+ARG OFFICECLI_ASSET_ID=579806924
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -14,14 +16,23 @@ ENV HOME=/tmp
 WORKDIR /app
 
 RUN sed -i \
-      -e 's|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/20261007T000000Z|' \
-      -e 's|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/20261007T000000Z|' \
+      -e 's|http://deb.debian.org/debian-security|https://snapshot.debian.org/archive/debian-security/20261007T000000Z https://snapshot-cloudflare.debian.org/archive/debian-security/20261007T000000Z|' \
+      -e 's|http://deb.debian.org/debian|https://snapshot.debian.org/archive/debian/20261007T000000Z https://snapshot-cloudflare.debian.org/archive/debian/20261007T000000Z|' \
+      -e '/^Signed-By:/a Check-Valid-Until: no' \
       /etc/apt/sources.list.d/debian.sources \
-    && apt-get -o Acquire::Check-Valid-Until=false update \
-    && apt-get -o Acquire::Check-Valid-Until=false install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
+    && printf '%s\n' '' 'Types: deb' 'URIs: https://deb.debian.org/debian' 'Suites: trixie trixie-updates' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' \
+      '' 'Types: deb' 'URIs: https://deb.debian.org/debian-security' 'Suites: trixie-security' 'Components: main' 'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' 'Check-Valid-Until: yes' > /etc/apt/sources.list.d/00mirror-archives.sources \
+    && printf '%s\n' 'Package: *' 'Pin: origin "deb.debian.org"' 'Pin-Priority: -1' > /etc/apt/preferences.d/99snapshot-archive-only.pref \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get -o APT::Default-Release= -o Acquire::Retries=3 --error-on=any update \
+    && apt-cache -o APT::Default-Release= policy \
+    && apt-cache -o APT::Default-Release= policy ca-certificates curl libicu76 chromium fonts-dejavu-core \
+    && apt-get -o APT::Default-Release= -o Acquire::Retries=3 install --no-install-recommends -y ca-certificates curl libicu76 chromium fonts-dejavu-core \
     && curl --fail --location --silent --show-error \
+      --retry 3 --retry-delay 2 --retry-max-time 120 --connect-timeout 20 --max-time 120 \
+      --header 'Accept: application/octet-stream' \
       --output /usr/local/bin/officecli \
-      "https://github.com/iOfficeAI/OfficeCLI/releases/download/v${OFFICECLI_VERSION}/officecli-linux-x64" \
+      "https://api.github.com/repos/iOfficeAI/OfficeCLI/releases/assets/${OFFICECLI_ASSET_ID}" \
     && echo "${OFFICECLI_SHA256}  /usr/local/bin/officecli" | sha256sum --check \
     && chmod 0755 /usr/local/bin/officecli \
     && test "$(/usr/local/bin/officecli --version)" = "${OFFICECLI_VERSION}" \

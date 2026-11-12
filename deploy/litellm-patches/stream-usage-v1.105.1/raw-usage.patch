@@ -1,0 +1,64 @@
+--- a/litellm/llms/openai/openai.py
++++ b/litellm/llms/openai/openai.py
+@@ -475,6 +475,18 @@
+         - call chat.completions.create by default
+         """
+         start_time: Final = time.time()
++        # Native request-local observation; never caller metadata or spend data.
++        # Valid means latest non-null raw Usage, not stream completion/success.
++        call_id = getattr(logging_obj, "litellm_call_id", None)
++        raw_usage = None
++        logging_obj._raw_stream_usage = None
++        if (data.get("stream") is True and getattr(logging_obj, "stream", None) is True
++                and getattr(logging_obj, "call_type", None) == "acompletion"
++                and type(call_id) is str and call_id):
++            raw_usage = {"call_id": call_id, "stream_id": None, "response_id": None,
++                         "model": None, "seen": False, "invalid": False,
++                         "valid": False, "counts": None}
++            logging_obj._raw_stream_usage = raw_usage
+         try:
+             raw_response = await openai_aclient.chat.completions.with_raw_response.create(**data, timeout=timeout)
+             end_time = time.time()
+@@ -483,7 +495,41 @@
+                 headers = dict(raw_response.headers)
+             else:
+                 headers = {}
+-            response: Final = raw_response.parse()
++            if raw_usage is not None:
++                from openai import AsyncStream
++                from openai.types.chat import ChatCompletionChunk
++
++                source_response = raw_response.http_response
++                raw_usage["stream_id"] = id(source_response)
++
++                # Observe SSE JSON before SDK Optional[CompletionUsage] coercion;
++                # then retain the original SDK constructor and AsyncStream.
++                class RawUsageChatChunk:
++                    @staticmethod
++                    def build(*, response, data):
++                        if (response is source_response
++                                and getattr(logging_obj, "_raw_stream_usage", None) is raw_usage
++                                and getattr(logging_obj, "litellm_call_id", None) == call_id
++                                and getattr(logging_obj, "stream", None) is True
++                                and getattr(logging_obj, "call_type", None) == "acompletion"):
++                            usage = data.get("usage") if isinstance(data, dict) else None
++                            if usage is not None:
++                                fields = ("prompt_tokens", "completion_tokens", "total_tokens")
++                                complete = (type(usage) is dict
++                                    and all(type(usage.get(k)) is int and usage[k] >= 0 for k in fields)
++                                    and usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"])
++                                raw_usage["seen"] = True
++                                raw_usage["invalid"] = not complete
++                                raw_usage["valid"] = complete
++                                raw_usage["counts"] = tuple(usage[k] for k in fields) if complete else None
++                                raw_usage["response_id"] = data.get("id") if type(data.get("id")) is str else None
++                                raw_usage["model"] = data.get("model") if type(data.get("model")) is str else None
++                        return openai_aclient._process_response_data(
++                            data=data, cast_to=ChatCompletionChunk, response=response)
++
++                response = raw_response.parse(to=AsyncStream[RawUsageChatChunk])
++            else:
++                response = raw_response.parse()
+             if not data.get("stream") and not hasattr(response, "model_dump"):
+                 raise OpenAIError(
+                     status_code=500,

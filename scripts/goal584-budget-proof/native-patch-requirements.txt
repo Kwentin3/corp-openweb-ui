@@ -1,0 +1,7 @@
+# Host-only source replay/publication dependencies; never installed into LiteLLM.
+pydantic==2.12.3
+fastapi==0.121.0
+PyYAML==6.0.2
+# Host regression replays the real provider exception; not a product SDK override.
+openai==2.7.1
+httpx==0.28.1

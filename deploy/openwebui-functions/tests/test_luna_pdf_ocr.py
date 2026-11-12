@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 import asyncio
+import ast
 import base64
 import copy
 import hashlib
 import importlib.util
 import io
 import json
+import os
 import sys
 import threading
 import types
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
+from uuid import NAMESPACE_URL, uuid5
 
 import httpx
 import pytest
@@ -30,6 +33,18 @@ assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
+ACTOR, FILE_ID, PAYER = (str(uuid5(NAMESPACE_URL, value)) for value in
+                         ("ocr-requesting-actor", "ocr-source-file", "ocr-platform-payer"))
+GATEWAY = "http://managed-gateway.invalid"
+SECRET = "synthetic-ocr-shared-inference-secret-" * 2
+
+
+def budget_module(monkeypatch, name, filename):
+    spec = importlib.util.spec_from_file_location(name, SOURCE.parents[1] / "openwebui-budgets" / filename)
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    return module
 
 
 def pdf_bytes(pages=2):
@@ -206,8 +221,8 @@ def native(monkeypatch, tmp_path):
     original = pdf_bytes()
     path = tmp_path / "native-file.pdf"
     path.write_bytes(original)
-    user = SimpleNamespace(id="owner", role="user")
-    file = SimpleNamespace(id="file-1", user_id=user.id, path=str(path), filename="source.pdf",
+    user = SimpleNamespace(id=ACTOR, role="user")
+    file = SimpleNamespace(id=FILE_ID, user_id=user.id, path=str(path), filename="source.pdf",
                            hash="extracted-text-hash-is-not-the-upload-hash",
                            meta={"content_type": "application/pdf", "file_hash": hashlib.sha256(original).hexdigest()})
     config_values = {"rag.content_extraction_engine": "external", "rag.pdf_extract_images": False,
@@ -215,8 +230,12 @@ def native(monkeypatch, tmp_path):
     config = SimpleNamespace(get=AsyncMock(return_value="loader-secret"), get_many=AsyncMock(return_value=config_values))
     files = SimpleNamespace(get_file_by_id=AsyncMock(return_value=file))
     users = SimpleNamespace(get_user_by_id=AsyncMock(return_value=user))
+    users.get_user_by_id.side_effect = lambda uid: None if uid == PAYER else users.get_user_by_id.return_value
     active = SimpleNamespace(id="ocr-function", type="event", is_active=True)
     functions = SimpleNamespace(get_function_by_id=AsyncMock(return_value=active), get_function_valves_by_id=AsyncMock(return_value={}))
+    common = {"ledger_base_url": GATEWAY, "service_payer_id": PAYER}
+    functions.get_function_valves_by_id.side_effect = lambda function_id: (
+        common if function_id == "employee_budget_cost" else functions.get_function_valves_by_id.return_value)
     event = MODULE.Event()
     cached = AsyncMock(return_value=(event, None, None))
     provider = AsyncMock(return_value=raw_response())
@@ -236,7 +255,11 @@ def native(monkeypatch, tmp_path):
     storage = SimpleNamespace(get_file=Mock(side_effect=lambda value: value))
     loader = SimpleNamespace(aload=AsyncMock(return_value=[SimpleNamespace(page_content="Native DOCX text", metadata={"native": "kept"})]))
     build_loader = Mock(return_value=loader)
-    connection = AsyncMock(return_value=("unused-url", "unused-native-key", {"api_type": "responses", "auth_type": "bearer"}))
+    connection = AsyncMock(return_value=(GATEWAY + "/v1", SECRET, {"api_type": "responses", "auth_type": "bearer"}))
+    model_access = AsyncMock()
+    protocol = budget_module(monkeypatch, "employee_budget_provenance", "provenance.py")
+    budget_module(monkeypatch, "employee_budget_webui_model_binding", "webui_model_binding.py")
+    module("open_webui.env", VERSION="0.12.2")
     module("open_webui.models.config", Config=config)
     module("open_webui.models.files", Files=files)
     module("open_webui.models.users", Users=users)
@@ -246,7 +269,9 @@ def native(monkeypatch, tmp_path):
     module("open_webui.utils.access_control.files", has_access_to_file=access)
     module("open_webui.utils.plugin", get_function_module_from_cache=cached)
     module("open_webui.utils.chat", generate_chat_completion=completion_provider)
-    module("open_webui.utils.models", get_all_models=AsyncMock())
+    module("open_webui.utils.models", get_all_models=AsyncMock(), check_model_access=model_access)
+    module("open_webui.utils.model_ids", strip_provider_model_prefix=lambda model, prefix:
+           model[len(prefix) + 1:] if prefix and model.startswith(prefix + ".") else model)
     module("open_webui.routers.openai", get_openai_connection=connection, ResponsesForm=ResponsesForm,
            convert_to_responses_payload=converter, responses=provider)
     module("open_webui.retrieval.utils", build_loader_from_config=build_loader)
@@ -259,7 +284,7 @@ def native(monkeypatch, tmp_path):
         request.state.bypass_filter = True
         return await call_next(request)
 
-    app.state.MODELS = {"gpt-6-luna": {"owned_by": "openai", "info": {"meta": {"capabilities": {"vision": True}}}}}
+    app.state.MODELS = {"gpt-6-luna": {"id": "gpt-6-luna", "owned_by": "openai", "info": {"meta": {"capabilities": {"vision": True}}}}}
     app.state.OPENAI_MODELS = {"gpt-6-luna": {"urlIdx": 0}}
 
     async def spa(scope, receive, send):
@@ -276,7 +301,8 @@ def native(monkeypatch, tmp_path):
                            config=config, config_values=config_values, functions=functions, active=active,
                            cached=cached, provider=provider, access=access, storage=storage, files=files,
                            users=users, loader=loader, build_loader=build_loader, connection=connection,
-                           converter=converter, projected=projected, completion_provider=completion_provider)
+                           converter=converter, projected=projected, completion_provider=completion_provider,
+                           protocol=protocol, common=common, model_access=model_access)
 
 
 def test_pdf_route_returns_native_documents_and_exact_isolated_provider_request(native):
@@ -295,7 +321,14 @@ def test_pdf_route_returns_native_documents_and_exact_isolated_provider_request(
     expected = MODULE.build_ocr_request(native.original, native.file.filename, 2)
     expected["metadata"]["file_id"] = native.file.id
     native.converter.assert_called_once_with(expected)
-    assert form.model_dump(exclude_none=True) == native.projected
+    actual = form.model_dump(exclude_none=True)
+    token = actual.pop("litellm_metadata")["owui_budget_provenance"]
+    assert actual == native.projected
+    claims = native.protocol.decode_service_operation(token, SECRET, user_id=ACTOR, model="gpt-6-luna")
+    assert claims["payer_id"] == PAYER and claims["file_id"] == FILE_ID
+    assert not set(claims) & {"chat_id", "answer_id", "root_chat_id", "root_answer_id"}
+    assert SECRET not in json.dumps(form.model_dump())
+    native.model_access.assert_awaited_with(native.user, native.app.state.MODELS["gpt-6-luna"])
     native.completion_provider.assert_not_awaited()
     assert native.file.path and Path(native.file.path).read_bytes() == native.original
     native.build_loader.assert_not_called()
@@ -328,6 +361,82 @@ def test_native_shared_file_write_access_is_preserved(native):
     response = asyncio.run(native.request())
     assert response.status_code == 200, response.text
     native.access.assert_awaited_once_with(native.file.id, "write", native.user)
+    token = native.provider.await_args.args[1].model_dump()["litellm_metadata"]["owui_budget_provenance"]
+    claims = native.protocol.decode_service_operation(token, SECRET, user_id=ACTOR, model="gpt-6-luna")
+    assert claims["sub"] == ACTOR and claims["payer_id"] == PAYER
+
+
+def test_admin_file_access_signs_actual_requester_not_file_owner(native):
+    native.file.user_id = str(uuid5(NAMESPACE_URL, "ocr-other-file-owner"))
+    native.user.role = "admin"
+    response = asyncio.run(native.request())
+    assert response.status_code == 200, response.text
+    native.access.assert_not_awaited()
+    token = native.provider.await_args.args[1].model_dump()["litellm_metadata"]["owui_budget_provenance"]
+    claims = native.protocol.decode_service_operation(token, SECRET, user_id=ACTOR, model="gpt-6-luna")
+    assert claims["sub"] == ACTOR and claims["sub"] != native.file.user_id
+
+
+@pytest.mark.parametrize("defect", ["missing_configuration", "same_payer", "employee_payer", "invalid_payer",
+                                   "direct_provider", "denied_model", "revoked_actor"])
+def test_managed_budget_binding_fails_closed_before_any_native_dispatch(native, defect):
+    if defect == "missing_configuration":
+        native.common.clear()
+    elif defect == "same_payer":
+        native.common["service_payer_id"] = ACTOR
+    elif defect == "employee_payer":
+        native.common["service_payer_id"] = str(uuid5(NAMESPACE_URL, "ocr-other-employee"))
+    elif defect == "invalid_payer":
+        native.common["service_payer_id"] = "not-a-native-id"
+    elif defect == "direct_provider":
+        native.connection.return_value = ("https://provider.invalid/v1", SECRET, {"api_type": "responses"})
+    elif defect == "denied_model":
+        native.model_access.side_effect = PermissionError("private native ACL error")
+    elif defect == "revoked_actor":
+        def lookup(uid):
+            return native.user if uid == ACTOR and native.users.get_user_by_id.await_count == 1 else None
+        native.users.get_user_by_id.side_effect = lookup
+    response = asyncio.run(native.request())
+    assert response.status_code == 503, response.text
+    assert response.json() == {"detail": "Managed OCR budget binding is unavailable"}
+    native.provider.assert_not_awaited()
+    native.completion_provider.assert_not_awaited()
+
+
+def test_cached_native_converter_and_form_retain_full_ocr_request_after_signing(native):
+    root = Path(os.environ.get("GOAL584_NATIVE_SOURCE_ROOT", str(SOURCE.parents[2] /
+                "local/goal584/cost-display/open-webui/backend/open_webui")))
+    path = root / "routers/openai.py"
+    if not path.is_file():
+        pytest.skip("Exact native Responses source unavailable; set GOAL584_NATIVE_SOURCE_ROOT")
+    tree = ast.parse(path.read_bytes())
+    selected = [node for node in tree.body if
+        isinstance(node, ast.FunctionDef) and node.name in {"_normalize_stored_item", "convert_to_responses_payload"}
+        or isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == "RESPONSES_ALLOWED_FIELDS"
+        or isinstance(node, ast.ClassDef) and node.name == "ResponsesForm"]
+    assert len(selected) == 4
+    env = {"BaseModel": BaseModel, "ConfigDict": ConfigDict, "__name__": __name__}
+    exec(compile(ast.Module(body=selected, type_ignores=[]), str(path), "exec"), env)
+    router = sys.modules["open_webui.routers.openai"]
+    router.ResponsesForm = env["ResponsesForm"]
+    native.converter.side_effect = env["convert_to_responses_payload"]
+    response = asyncio.run(native.request())
+    assert response.status_code == 200, response.text
+    forwarded = native.provider.await_args.args[1].model_dump(exclude_none=True)
+    token = forwarded.pop("litellm_metadata")["owui_budget_provenance"]
+    expected = MODULE.build_ocr_request(native.original, native.file.filename, 2)
+    expected["metadata"]["file_id"] = FILE_ID
+    assert forwarded == env["convert_to_responses_payload"](copy.deepcopy(expected))
+    native.protocol.decode_service_operation(token, SECRET, user_id=ACTOR, model="gpt-6-luna")
+    files = [node for node in nodes(forwarded) if node.get("type") == "input_file"]
+    assert len(files) == 1
+    assert base64.b64decode(files[0]["file_data"].split(",", 1)[1]) == native.original
+    assert forwarded["instructions"] == MODULE.OCR_INSTRUCTION
+    assert forwarded["text"]["format"] == expected["text"]["format"]
+    assert forwarded["store"] is False and forwarded["stream"] is False
+    assert "tools" not in forwarded
+    nested = native.provider.await_args.args[0]
+    assert nested.scope["headers"] == []  # No synthetic TASK header injection.
 
 
 def test_nonpdf_uses_native_loader_and_only_request_local_config(native):
@@ -435,7 +544,7 @@ def test_uncertainty_is_visible_in_native_page_text_and_preserves_source_text(na
 
 
 def test_chat_completions_connection_keeps_native_completion_owner(native):
-    native.connection.return_value = ("unused", "unused", {"auth_type": "bearer", "api_type": "chat_completions"})
+    native.connection.return_value = (GATEWAY + "/v1", SECRET, {"auth_type": "bearer", "api_type": "chat_completions"})
     response = asyncio.run(native.request())
     assert response.status_code == 200, response.text
     assert [d["page_content"] for d in response.json()] == [p["text"] for p in extracted_pages()["pages"]]
@@ -443,7 +552,11 @@ def test_chat_completions_connection_keeps_native_completion_owner(native):
     assert args.args[2] is native.user
     expected = MODULE.build_ocr_request(native.original, native.file.filename, 2, api_type="chat_completions")
     expected["metadata"]["file_id"] = native.file.id
-    assert args.args[1] == expected
+    actual = copy.deepcopy(args.args[1])
+    token = actual.pop("litellm_metadata")["owui_budget_provenance"]
+    assert actual == expected
+    claims = native.protocol.decode_service_operation(token, SECRET, user_id=ACTOR, model="gpt-6-luna")
+    assert claims["payer_id"] == PAYER and claims["file_id"] == FILE_ID
     assert args.kwargs == {"bypass_filter": False, "bypass_system_prompt": True}
     native.provider.assert_not_awaited()
     native.converter.assert_not_called()

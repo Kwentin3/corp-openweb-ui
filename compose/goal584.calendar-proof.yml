@@ -1,0 +1,31 @@
+# Combine only with the disposable native-budget fixture, under a fresh
+# goal584-calendar-<12hex> project. Never include the WebUI overlay.
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: goal584_calendar
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U goal584 -d goal584_calendar"]
+  proxy:
+    environment:
+      DATABASE_URL: postgresql://goal584:${PROOF_DB_PASSWORD:?Generate a fresh synthetic DB password}@postgres:5432/goal584_calendar
+      PROOF_CALENDAR_PROJECT: ${CALENDAR_PROJECT:?Use a fresh calendar proof project}
+    volumes:
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_calendar_reset.py
+        target: /proof/prove_calendar_reset.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_calendar_floor.py
+        target: /proof/prove_calendar_floor.py
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../scripts/goal584-budget-proof/prove_budget_overlap.py
+        target: /proof/prove_budget_overlap.py
+        read_only: true
+        bind:
+          create_host_path: false

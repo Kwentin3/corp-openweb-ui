@@ -1,0 +1,1414 @@
+name: GOAL584 Office build proof
+on:
+  # Historical stand qualification remains an explicit manual operation.
+  # Routine delivery uses Active CI and the affected product acceptance only.
+  workflow_dispatch:
+    inputs:
+      acceptance:
+        description: Finite acceptance profile
+        type: choice
+        default: office
+        options: [office, known-zero, delegation-cost]
+permissions:
+  contents: read
+jobs:
+  office-build-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    defaults:
+      run:
+        shell: bash
+    env:
+      OWNED: goal584-office-${{ github.run_id }}-${{ github.run_attempt }}
+      ACCEPTANCE_PROFILE: ${{ inputs.acceptance || 'office' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 1
+        with:
+          persist-credentials: false
+      - name: Prepare fresh task output
+        timeout-minutes: 1
+        run: |
+          BUILD_ROOT="$RUNNER_TEMP/$OWNED-build"; OUTPUT="$RUNNER_TEMP/$OWNED-output"
+          printf '%s\n' "BUILD_ROOT=$BUILD_ROOT" "OUTPUT=$OUTPUT" "DOCKER_CONFIG=$BUILD_ROOT/docker-config" >> "$GITHUB_ENV"
+          printf 'PROOF_STARTED_EPOCH=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test ! -e "$BUILD_ROOT" && test ! -e "$OUTPUT"
+          mkdir -m 700 "$OUTPUT"
+          echo 'TASK_PREPARED=true' >> "$GITHUB_ENV"
+      - name: Build existing frontend, runtime and Office owners
+        timeout-minutes: 45
+        run: |
+          python3 -B scripts/goal584-budget-proof/build_office_profile.py \
+            --work-root "$BUILD_ROOT" --receipt "$BUILD_ROOT/office-build.safe.json" 2>&1 | tee "$OUTPUT/build-driver.log"
+      - name: Qualify the real CLI with the existing local-file preflight
+        timeout-minutes: 3
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,re,subprocess
+          from pathlib import Path
+          root=Path(os.environ['BUILD_ROOT']);out=Path(os.environ['OUTPUT'])
+          receipt=json.loads((root/'office-build.safe.json').read_text());office=receipt['images']['office'];observation=receipt['office']
+          assert receipt['source_commit']==os.environ['GITHUB_SHA'] and receipt['native_office_accepted'] is False
+          assert re.fullmatch('sha256:[0-9a-f]{64}',office['id']) and re.fullmatch('[0-9a-f]{64}',receipt['build_identity'])
+          assert re.fullmatch('goal584-office-office:[0-9a-f]{12}-[0-9a-f]{12}',office['tag'])
+          inspect=lambda:subprocess.check_output(['docker','image','inspect',office['tag'],'--format','{{.Id}}'],text=True).strip()
+          assert inspect()==office['id']
+          source=root/'source';dockerfile=source/'services/officecli-openapi-proof/tests/Dockerfile'
+          test=source/'services/officecli-openapi-proof/tests/verify_capability_discovery.py'
+          evidence={'schema':1,'office_image_id':office['id'],'dockerfile_sha256':hashlib.sha256(dockerfile.read_bytes()).hexdigest(),'test_sha256':hashlib.sha256(test.read_bytes()).hexdigest(),'stage':'qualification_build','preflight_passed':False,'native_office_accepted':False}
+          save=lambda:(out/'qualification.safe.json').write_text(json.dumps(evidence,indent=2)+'\n')
+          save()
+          tag='goal584-office-qualification:'+receipt['build_identity'];iid=out/'qualification.iid'
+          with (out/'qualification-build.log').open('wb') as log:
+              subprocess.run(['docker','build','--platform=linux/amd64','--iidfile',str(iid),'-f',str(dockerfile),'--build-arg','OFFICECLI_IMAGE='+office['tag'],'-t',tag,str(source)],stdout=log,stderr=subprocess.STDOUT,check=True)
+          assert inspect()==office['id'];image=iid.read_text().strip();assert re.fullmatch('sha256:[0-9a-f]{64}',image)
+          evidence.update(qualification_image_id=image,stage='qualification_readback');save()
+          readback="import hashlib,importlib.metadata,json,pathlib; from dataclasses import asdict; from officecli_openapi_proof.config import load_settings; from officecli_openapi_proof.officecli import SubprocessOfficeCliExecutor; r=pathlib.Path('/app/officecli_openapi_proof'); lock=pathlib.Path('/app/requirements.lock'); settings=load_settings(); guide=SubprocessOfficeCliExecutor(settings).run('load_skill','word'); versions={n:importlib.metadata.version(n) for n in ('openpyxl','pytest','aiohttp')}; print(json.dumps({'modules':{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(observation['modules']))+"},'binary_sha256':hashlib.sha256(pathlib.Path('/usr/local/bin/officecli').read_bytes()).hexdigest(),'lock_sha256':hashlib.sha256(lock.read_bytes()).hexdigest(),'production_lock_matches':all(importlib.metadata.version(n)==v for n,v in (line.split('==') for line in lock.read_text().splitlines() if line and not line.startswith('#'))),'test_dependencies':versions,'office_version':settings.expected_version,'word_guide':asdict(guide)}))"
+          common=['docker','run','--rm','--init','--network=none','--read-only','--memory=1g','--pids-limit=256','--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--label','goal584.owner='+os.environ['OWNED']]
+          actual=json.loads(subprocess.check_output(common+['--name',os.environ['OWNED']+'-readback','--entrypoint','python',image,'-B','-c',readback],text=True,stderr=subprocess.PIPE))
+          guide=actual.pop('word_guide');version=actual.pop('office_version')
+          evidence.update(readback=actual);save()
+          assert actual['modules']==observation['modules'] and actual['binary_sha256']==observation['binary_sha256'] and actual['production_lock_matches']
+          assert actual['lock_sha256']==hashlib.sha256((source/'services/officecli-openapi-proof/requirements.lock').read_bytes()).hexdigest()
+          assert version==observation['version']=='1.0.152'
+          assert set(guide)=={'command','text','content_sha256','auto_resident_disabled','diagnostics'}
+          assert guide['command']==['/usr/local/bin/officecli','load_skill','word'] and guide['auto_resident_disabled'] is True
+          assert isinstance(guide['text'],str) and guide['text'] and isinstance(guide['diagnostics'],str)
+          content=guide['text'].encode('utf8');assert hashlib.sha256(content).hexdigest()==guide['content_sha256']
+          owned_root=root.resolve();assert owned_root.parent==Path(os.environ['RUNNER_TEMP']).resolve() and owned_root.name==os.environ['OWNED']+'-build'
+          packet={'schema':1,'source_commit':os.environ['GITHUB_SHA'],'office_image_id':office['id'],
+              'qualification_image_id':image,'version':version,'modules':actual['modules'],
+              'binary_sha256':actual['binary_sha256'],'output':guide}
+          private_guide=json.dumps(packet,ensure_ascii=False,sort_keys=True).encode('utf8')
+          guide_path=owned_root/'office-word-guide.private.json'
+          fd=os.open(guide_path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+          with os.fdopen(fd,'wb') as handle:handle.write(private_guide)
+          assert guide_path.read_bytes()==private_guide
+          evidence['word_guide']={'command':guide['command'],'content_sha256':guide['content_sha256'],
+              'text_bytes':len(content),'packet_sha256':hashlib.sha256(private_guide).hexdigest(),
+              'packet_bytes':len(private_guide),'image_id':image,'binary_sha256':actual['binary_sha256'],
+              'modules':actual['modules'],'version':version};save()
+          evidence.update(stage='preflight');save()
+          target='DiscoveryQualification.test_saved_note_uses_the_same_real_cli_import_and_refuses_a_changed_source'
+          with (out/'preflight.log').open('wb') as log:
+              result=subprocess.run(common+['--name',os.environ['OWNED']+'-preflight','--mount','type=bind,source='+str(test)+',target=/tests/verify_capability_discovery.py,readonly','--entrypoint','python',image,'-B','/tests/verify_capability_discovery.py',target],stdout=log,stderr=subprocess.STDOUT)
+          evidence.update(stage='complete',preflight_passed=result.returncode==0,returncode=result.returncode,test=target);save()
+          assert result.returncode==0,'Existing real-CLI preflight failed'
+          PY
+      - name: Build the reviewed native derivative and prepare the host driver
+        timeout-minutes: 10
+        run: |
+          python3 -m venv "$RUNNER_TEMP/$OWNED-driver"
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -m pip install --disable-pip-version-check \
+            -r scripts/goal584-budget-proof/native-patch-requirements.txt \
+            -r scripts/goal584-budget-proof/browser-requirements.txt
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -m pip check
+          command -v google-chrome
+          google-chrome --version
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B scripts/goal584-budget-proof/build_native_floor_image.py \
+            --context "$BUILD_ROOT/native-floor" --receipt "$OUTPUT/native-build.safe.json"
+      - name: Prepare fresh private Office stand configuration
+        timeout-minutes: 6
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,re,secrets,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import prepare_delegated_office_config,prepare_native_tokenizers
+          from verify_admin_calls import literal
+          from urllib.request import Request,urlopen
+          private=Path(os.environ['RUNNER_TEMP'],os.environ['OWNED']+'-private');private.mkdir(mode=0o700)
+          env_file=private/'compose.env';config=private/'config.yaml'
+          raw=prepare_delegated_office_config(Path('scripts/goal584-budget-proof/litellm_config.yaml').read_bytes())
+          def write(path,data):
+              fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+              with os.fdopen(fd,'wb') as handle:handle.write(data)
+              assert path.read_bytes()==data
+          guide_root=Path(os.environ['BUILD_ROOT']).resolve()
+          assert guide_root.parent==Path(os.environ['RUNNER_TEMP']).resolve() and guide_root.name==os.environ['OWNED']+'-build'
+          guide_source=guide_root/'office-word-guide.private.json';assert guide_source.is_file() and not guide_source.is_symlink()
+          qualification_raw=(Path(os.environ['OUTPUT'])/'qualification.safe.json').read_bytes()
+          qualification=json.loads(qualification_raw)
+          assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
+          guide_bytes=guide_source.read_bytes();guide_sha=qualification['word_guide']['packet_sha256']
+          assert hashlib.sha256(guide_bytes).hexdigest()==guide_sha
+          write(private/'office-word-guide.private.json',guide_bytes)
+          assert hashlib.sha256((private/'office-word-guide.private.json').read_bytes()).hexdigest()==guide_sha
+          write(private/'office-qualification.safe.json',qualification_raw)
+          tool_url='https://raw.githubusercontent.com/Skyzi000/open-webui-extensions/63310704483845c46b9ddbb65885f70938ac909e/tools/sub_agent.py'
+          with urlopen(Request(tool_url,headers={'User-Agent':'goal584-office-proof'}),timeout=30) as response:
+              assert response.status==200 and response.geturl()==tool_url
+              tool=response.read(4*1024*1024+1)
+          expected_tool=literal(Path('scripts/goal584-budget-proof/provision_webui.py'),'DELEGATION_TOOL_SHA256')
+          assert 0<len(tool)<=4*1024*1024 and hashlib.sha256(tool).hexdigest()==expected_tool
+          write(private/'sub_agent.py',tool)
+          write(config,raw)
+          cache=private/'native-tokenizers';assets=prepare_native_tokenizers(cache)
+          (Path(os.environ['OUTPUT'])/'tokenizers.safe.json').write_text(json.dumps(assets,indent=2)+'\n')
+          build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+          native=json.loads((Path(os.environ['OUTPUT'])/'native-build.safe.json').read_text())
+          assert build['source_commit']==os.environ['GITHUB_SHA'] and build['native_office_accepted'] is False
+          values={'PROOF_PRIVATE_DIR':str(private),'PROOF_CONFIG_FILE':str(config),'PROOF_OFFICE_TOKENIZER_CACHE':str(cache),
+            'PROOF_NATIVE_VARIANT':'positive-floor-v1.105.1','PROOF_LITELLM_IMAGE':native['image_ref'],
+            'PROOF_OFFICE_WEBUI_IMAGE':build['images']['webui']['id'],'PROOF_OFFICE_IMAGE':build['images']['office']['id']}
+          assert all(re.fullmatch('sha256:[0-9a-f]{64}',values[key]) for key in
+            ('PROOF_LITELLM_IMAGE','PROOF_OFFICE_WEBUI_IMAGE','PROOF_OFFICE_IMAGE'))
+          for key,prefix in (('PROOF_MASTER_KEY','sk-'),('PROOF_DB_PASSWORD',''),
+              ('OWUI_BUDGET_GATEWAY_SECRET','gw-'),('WEBUI_SECRET_KEY','')):
+              values[key]=prefix+secrets.token_hex(32);print('::add-mask::'+values[key])
+          write(env_file,''.join(key+'='+value+'\n' for key,value in values.items()).encode())
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf8') as handle:
+              handle.write('PROOF_ENV_FILE='+str(env_file)+'\nPROOF_PRIVATE_DIR='+str(private)+'\nPROOF_CONFIG_FILE='+str(config)+'\n')
+          # Use the existing built SDK image before starting any stand service.
+          # The mandatory flag turns a missing full native component into failure.
+          source=Path(os.environ['GITHUB_WORKSPACE']);out=Path(os.environ['OUTPUT'])
+          paths=('deploy/openwebui-budgets/unknown_usage_guard.py','deploy/openwebui-budgets/litellm_auth.py',
+              'scripts/goal584-budget-proof/test_unknown_usage_guard.py','deploy/openwebui-budgets/tests/test_provenance.py')
+          packet={'schema':1,'passed':False,'source_commit':os.environ['GITHUB_SHA'],'native_image_id':native['image_ref'],
+              'scope':'Native callback/cleanup/SLP and descriptor components; policy auth fixture, HTTP/DB leaves; genuine admission remains runtime proof',
+              'source_sha256':{p:hashlib.sha256((source/p).read_bytes()).hexdigest() for p in paths},'tests':{}}
+          save=lambda:(out/'buffered-native-component.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          save()
+          common=['docker','run','--rm','--init','--network','none','--read-only','--memory','1g','--pids-limit','256',
+              '--tmpfs','/tmp:rw,noexec,nosuid,size=128m','--name',os.environ['OWNED']+'-preflight',
+              '--label','goal584.owner='+os.environ['OWNED'],'--mount','type=bind,source='+str(source)+',target=/repo,readonly',
+              '--mount','type=bind,source='+str(cache)+',target=/proof-tokenizers,readonly',
+              '-e','CUSTOM_TIKTOKEN_CACHE_DIR=/proof-tokenizers','-e','TIKTOKEN_CACHE_DIR=/proof-tokenizers',
+              '-e','LITELLM_LOCAL_MODEL_COST_MAP=True','-e','LITELLM_TELEMETRY=False','-e','DO_NOT_TRACK=1',
+              '-e','DOTENV_DISABLED=1','-e','GOAL584_REQUIRE_BUFFERED_NATIVE_COMPONENT=1']
+          for label,work,args in (
+              ('guard','/repo',['discover','-s','scripts/goal584-budget-proof','-p','test_unknown_usage_guard.py','-v']),
+              ('auth','/repo/deploy/openwebui-budgets/tests',['test_provenance.DeclaredBufferedProfileTests',
+                  'test_provenance.BoundaryTests.test_gateway_wires_native_route_slot_and_canonical_cache_setter',
+                  'test_provenance.ServiceGatewayTests','-v'])):
+              with (out/('buffered-native-'+label+'.log')).open('wb') as log:
+                  result=subprocess.run(common+['-w',work,'--entrypoint','python',native['image_ref'],'-B','-m','unittest',*args],
+                      stdout=log,stderr=subprocess.STDOUT,timeout=75)
+              packet['tests'][label]={'returncode':result.returncode};save()
+              assert result.returncode==0,'Mandatory native buffered component failed: '+label
+          packet['passed']=True;save()
+          # Reuse the built WebUI image to check the existing prepared STT path
+          # with the real mandatory signing hook, without starting any service.
+          audio=source/'services/stage2-stt/tests/verify_native_audio_context_runtime.py'
+          intake=source/'services/stage2-stt/openwebui_filters/stage2_audio_context_filter.py'
+          budget_sources=('provenance.py','webui_model_binding.py','cost_filter.py')
+          audio_packet={'schema':1,'passed':False,'source_commit':os.environ['GITHUB_SHA'],
+              'webui_image_id':build['images']['webui']['id'],
+              'verifier_sha256':hashlib.sha256(audio.read_bytes()).hexdigest(),
+              'filter_sha256':hashlib.sha256(intake.read_bytes()).hexdigest()}
+          audio_receipt=out/'audio-budget-component.safe.json'
+          audio_receipt.write_text(json.dumps(audio_packet,indent=2)+'\n')
+          audio_log=out/'audio-budget-component.log'
+          with audio_log.open('wb') as log:
+              result=subprocess.run(common+['-e','PYTHONPATH=/app/backend','-w','/repo','--entrypoint','python',
+                  build['images']['webui']['id'],'-B','/repo/'+str(audio.relative_to(source)),
+                  '--filter','/repo/'+str(intake.relative_to(source)),
+                  '--budgets','/repo/deploy/openwebui-budgets'],stdout=log,stderr=subprocess.STDOUT,timeout=120)
+          assert result.returncode==0,'Native audio/budget composition failed'
+          observed=json.loads(audio_log.read_text().splitlines()[-1])
+          assert len(observed['passed'])==7 and len(observed['budget_composition'])==6
+          assert observed['cached_forbidden_sidecar_calls']==0 and observed['fresh_transcription_http_fixture_calls']==1
+          assert observed['filter_sha256']==audio_packet['filter_sha256']
+          assert observed['budget_source_sha256']=={
+              name:hashlib.sha256((source/'deploy/openwebui-budgets'/name).read_bytes()).hexdigest() for name in budget_sources}
+          audio_packet.update(passed=True,component=observed,
+              scope='Native audio preparation/cache/history and actual budget signing; no recognition, provider, ledger or Terminal acceptance')
+          audio_receipt.write_text(json.dumps(audio_packet,indent=2)+'\n')
+          PY
+      - name: Start the isolated backend and enable the existing authentication hook
+        timeout-minutes: 7
+        run: |
+          compose=(docker compose --project-name "$OWNED" --env-file "$PROOF_ENV_FILE" \
+            -f compose/goal584.native-budget-proof.yml -f compose/goal584.webui-proof.yml -f compose/goal584.office-proof.yml)
+          "${compose[@]}" config --quiet
+          "${compose[@]}" up -d --wait --wait-timeout 240 postgres redis provider proxy
+          "${compose[@]}" exec -T --user "$(id -u):$(id -g)" proxy python -B /proof/prove_gateway_auth.py --phase bootstrap \
+            --base-url http://127.0.0.1:4000 --private-state /proof-private/gateway-state.private.json \
+            --receipt /proof-private/bootstrap.safe.json > "$OUTPUT/gateway-bootstrap.safe.json"
+          python3 -B - <<'PY'
+          import os
+          from pathlib import Path
+          path=Path(os.environ['PROOF_CONFIG_FILE']);raw=path.read_bytes()
+          marker=b'general_settings:\n'
+          assert raw.count(marker)==1 and b'custom_auth:' not in raw and b'missing_session_id:' not in raw
+          value=raw.replace(marker,marker+b'  custom_auth: capture_webui_auth.gateway_auth\n  custom_auth_run_common_checks: true\n  missing_session_id: omit\n',1)
+          # Preserve the already-mounted file inode.
+          with path.open('r+b') as handle:
+              handle.write(value);handle.truncate();handle.flush();os.fsync(handle.fileno())
+          assert path.read_bytes()==value
+          PY
+          "${compose[@]}" restart proxy
+          "${compose[@]}" up -d --wait --wait-timeout 240
+      - name: Prepare the shared native WebUI and cost Functions
+        timeout-minutes: 4
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_cost_browser import CostFixture
+          fixture=CostFixture(Path(os.environ['PROOF_ENV_FILE']),Path(os.environ['OUTPUT']))
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          fixture.command+=['-f','compose/goal584.office-proof.yml']
+          for script,label in (('provision_webui.py','webui'),('provision_cost_display.py','cost')):
+              result=subprocess.run(fixture.command+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),
+                  'proxy','python','-B','/proof/'+script,'--phase','setup',
+                  '--private-state','/proof-private/webui-state.private.json',
+                  '--receipt','/proof-private/'+label+'-setup.safe.json'],capture_output=True,timeout=120)
+              receipt=json.loads(result.stdout)
+              assert result.returncode==0 and receipt.get('passed') is True,'Shared native setup failed'
+              (fixture.output/(label+'-setup.safe.json')).write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - name: Qualify one Known0 ordinary CC nonstream Send and persisted Details
+        if: github.event_name == 'workflow_dispatch' && inputs.acceptance == 'known-zero'
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from playwright.sync_api import sync_playwright
+          from prove_cost_browser import CostFixture,run_known_zero
+          from prove_gateway_auth import read_private
+          # Reserve checkout's bounded minute, this step8, cleanup2 and upload2.
+          remaining=54*60-(time.time()-float(os.environ['PROOF_STARTED_EPOCH']))
+          assert remaining>=12*60,'Known0 job lacks acceptance/cleanup headroom'
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])/'known-zero'
+          out.mkdir();fixture=CostFixture(Path(os.environ['PROOF_ENV_FILE']),out)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          fixture.command+=['-f','compose/goal584.office-proof.yml']
+          container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=15).strip()
+          networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
+          network,=networks.values();base='http://'+network['IPAddress']+':8080'
+          owners={
+              'proxy':{'/proof/'+name:'scripts/goal584-budget-proof/'+name for name in
+                  ('provision_cost_display.py','capture_webui_auth.py','prove_pricing_snapshots.py','usage_guard_fixture.py')},
+              'webui':{'/app/backend/employee_budget_cost_readback.py':'deploy/openwebui-budgets/cost_readback.py',
+                  '/app/backend/employee_budget_provenance.py':'deploy/openwebui-budgets/provenance.py'},
+              'provider':{'/proof/mock_provider.py':'scripts/goal584-budget-proof/mock_provider.py'}}
+          owners['proxy'].update({'/proof/'+target:'deploy/openwebui-budgets/'+source for target,source in
+              (('employee_budget_cost_readback.py','cost_readback.py'),('budgets/cost_filter.py','cost_filter.py'),
+               ('pricing_snapshot.py','pricing_snapshot.py'),('unknown_usage_guard.py','unknown_usage_guard.py'))})
+          sources={'scripts/goal584-budget-proof/prove_cost_browser.py':hashlib.sha256(Path('scripts/goal584-budget-proof/prove_cost_browser.py').read_bytes()).hexdigest()}
+          for owner,paths in owners.items():
+              mounted={path:hashlib.sha256(Path(source).read_bytes()).hexdigest() for path,source in paths.items()}
+              sources.update({source:mounted[path] for path,source in paths.items()})
+              code='import hashlib,json,pathlib;print(json.dumps({p:hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest() for p in '+repr(tuple(mounted))+'}))'
+              actual=json.loads(subprocess.check_output(fixture.command+['exec','-T',owner,'python','-B','-c',code],timeout=30))
+              assert actual==mounted,'Known0 mounted source differs'
+          (out/'sources.safe.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'sources':sources},indent=2)+'\n')
+          accounts=read_private(private/'webui-state.private.json')['users']
+          assert isinstance(accounts,list) and len(accounts)==2 and all(isinstance(account,dict) and
+              all(isinstance(account.get(field),str) and bool(account[field]) for field in ('id','email','password'))
+              for account in accounts),'Known0 native account handoff differs'
+          assert len({account['id'] for account in accounts})==2,'Known0 native account identities differ'
+          with sync_playwright() as playwright:
+              browser=playwright.chromium.launch(channel='chrome',headless=True)
+              try: result=run_known_zero(browser,fixture,base,accounts)
+              finally: browser.close()
+          assert result.get('passed') is True and result.get('provider_control_restored') is True and result.get('native_tasks_terminal') is True
+          PY
+      - name: Prepare Office and verify one ordinary Send and native accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import base64,hashlib,json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_native_budgets import ProofError
+          from prove_pricing_browser import no_credentials
+          from prove_pricing_snapshots import private_credentials
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);env_file=Path(os.environ['PROOF_ENV_FILE'])
+          secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(env_file,Path(os.environ['OUTPUT']),Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
+          networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
+          network,=networks.values();base='http://'+network['IPAddress']+':8080'
+          build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+          stage='preparation';wire_diagnostic_collected=False
+          def public(name,value):
+              no_credentials(value,fixture.secrets)
+              (fixture.output/(name+'.safe.json')).write_text(json.dumps(value,indent=2)+'\n')
+          def readback(phase):
+              # Collector uses proxy root: native capture and its lock are root0600.
+              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
+                  '/proof/prove_office_readback.py','--phase',phase],capture_output=True,timeout=100)
+              assert len(result.stdout)<=2*1024*1024,'Office safe readback exceeded bound'
+              packet=json.loads(result.stdout);public('office-'+phase,packet)
+              # Public duplicate-wire export is optional; full private finance validation remains mandatory.
+              if phase=='diagnostic' and packet.get('failure_code')=='office_diagnostic_bound':
+                  assert result.returncode==1 and packet.get('passed') is False and packet.get('native_office_accepted') is False
+                  return packet
+              assert result.returncode==0 and packet.get('passed') is True,'Office native readback failed'
+              assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
+              return packet
+          def artifacts():
+              sys.path.insert(0,'services/officecli-openapi-proof')
+              from prove_office_compatibility import _nodes,verify_artifacts
+              call=next(item for item in primary[0]['response']['output'] if item['type']=='function_call')
+              exported=json.loads(next(item['output'] for item in primary[1]['body']['input']
+                  if item.get('type')=='function_call_output' and item['call_id']==call['call_id']))
+              images=[item['image_url'] for item in _nodes(primary[2]['body']['input']) if item.get('type')=='input_image']
+              assert len(images)==1 and images[0].startswith('data:image/png;base64,')
+              png=base64.b64decode(images[0].partition(',')[2],validate=True)
+              document=Path(raw['paths']['browser']).read_bytes()
+              screenshot=Path(raw['paths']['screenshot']).read_bytes()
+              assert all(0<len(data)<=8*1024*1024 for data in (document,png,screenshot))
+              assert hashlib.sha256(document).hexdigest()==observed['docx_sha256']==exported['result_sha256']
+              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256']
+              # These are bounded files from this fresh synthetic SOURCE turn.
+              # Preserve the actual evidence even if a content assertion fails.
+              (fixture.output/'office.docx').write_bytes(document)
+              (fixture.output/'office-render.png').write_bytes(png)
+              (fixture.output/'office-browser.png').write_bytes(screenshot)
+              return verify_artifacts(source_message_id=observed['source_message_id'],exported=exported,
+                  native_file_id=observed['file_id'],browser_file_id=observed['file_id'],
+                  native_path=raw['paths']['native'],browser_path=raw['paths']['browser'],png=png)
+          try:
+              ready=fixture.prepare(base,build,os.environ['GITHUB_SHA'])
+              assert ready['status']=='prepared' and ready['native_office_accepted'] is False and ready['inference_issued'] is False
+              public('office-preparation',ready)
+              if os.environ['ACCEPTANCE_PROFILE']=='delegation-cost':
+                  raise SystemExit(0)
+              for name in ('webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+              stage='baseline';baseline=readback('baseline')
+              stage='ordinary_send'
+              from playwright.sync_api import sync_playwright
+              from prove_office_browser import run
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,raw=run(browser,fixture,base,build,os.environ['GITHUB_SHA'])
+                  finally: browser.close()
+              public('office-browser',observed)
+              stage='native_context'
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_provider')
+              primary=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-office']
+              assert len(primary)==3,'Office primary dispatch count differs'
+              reasoning=[[item for item in row['response']['output'] if item['type']=='reasoning'] for row in primary]
+              packet=fixture.native_context(base,build,os.environ['GITHUB_SHA'],reasoning)
+              write_private(private/'office-native-context.private.json',packet)
+              stage='wire_diagnostic';wire_diagnostic_collected=readback('diagnostic').get('passed') is True
+              stage='native_finance';financial=readback('verify')
+              stage='artifact'
+              checked=artifacts()
+              public('office-native',{'schema':1,'passed':True,'stage':'bounded_native_office',
+                  'native_office_accepted':False,'browser_observed':True,'artifact':checked,'financial':financial,
+                  'limits':['independent artifact review pending','no production or full GOAL acceptance',
+                      'no complete saved reasoning continuity or live Filter pre/post claim']})
+          except Exception as error:
+              # Never print Playwright request diagnostics or raw private payloads.
+              failure={'schema':1,'passed':False,'stage':stage,
+                  'native_office_accepted':False,'error_class':type(error).__name__}
+              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
+                  try: no_credentials({'message':str(error)},fixture.secrets)
+                  except (AssertionError,ProofError): pass
+                  else: failure['failure']=str(error)
+              # Observe unchanged synthetic wires before teardown; diagnostic
+              # failure must never replace the original qualification failure.
+              if not wire_diagnostic_collected:
+                  try: wire_diagnostic_collected=readback('diagnostic').get('passed') is True
+                  except Exception: pass
+              failure['wire_diagnostic_collected']=wire_diagnostic_collected
+              if stage!='artifact':
+                  try: public('office-artifact',{'passed':True,'native_office_accepted':False,**artifacts()})
+                  except Exception as artifact_error:
+                      failure['artifact_diagnostic_collected']=False
+                      failure['artifact_error_class']=type(artifact_error).__name__
+                      if isinstance(artifact_error,ProofError) and str(artifact_error).startswith('office_') and str(artifact_error).isascii() and str(artifact_error).isidentifier():
+                          failure['artifact_failure_code']=str(artifact_error)
+                  else: failure['artifact_diagnostic_collected']=True
+              public('office-native',failure)
+              raise SystemExit(1)
+          PY
+      - name: Verify saved reasoning after reload and one ordinary continuation Send
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,signal,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_native_budgets import ProofError
+          from prove_pricing_browser import no_credentials
+          from prove_pricing_snapshots import private_credentials
+          from prove_office_browser import run_saved_continuation
+          from prove_office_compatibility import digest
+          from playwright.sync_api import sync_playwright
+          signal.alarm(420)
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          env_file=Path(os.environ['PROOF_ENV_FILE']);revision=os.environ['GITHUB_SHA']
+          secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(env_file,out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          stage='prior_acceptance';diagnostic_collected=False;baseline_ready=False
+          def public(name,value):
+              no_credentials(value,fixture.secrets)
+              (out/(name+'.safe.json')).write_text(json.dumps(value,indent=2)+'\n')
+          def readback(phase):
+              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
+                  '/proof/prove_office_readback.py','--phase',phase],capture_output=True,timeout=100)
+              assert len(result.stdout)<=2*1024*1024,'Office continuation safe readback exceeded bound'
+              packet=json.loads(result.stdout)
+              if packet.get('passed') is True:
+                  assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_readback.py').read_bytes()).hexdigest()
+                  assert result.returncode==0,'Office continuation exit disagrees with successful packet'
+              public('office-'+phase,packet)
+              # Keep the explicit export failure; never substitute it for private finance acceptance.
+              if phase=='continuation-diagnostic' and packet.get('failure_code')=='office_diagnostic_bound':
+                  assert result.returncode==1 and packet.get('passed') is False and packet.get('native_office_accepted') is False
+                  return packet
+              assert result.returncode==0 and packet.get('passed') is True,'Office continuation readback failed'
+              return packet
+          try:
+              assert json.loads((out/'office-native.safe.json').read_text()).get('passed') is True
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+              # Native proxy cold imports and exact mounted proof owners precede any new Send.
+              stage='source_binding'
+              names=('prove_office_readback.py','prove_office_compatibility.py','prove_native_budgets.py')
+              code='import hashlib,json,pathlib;import prove_office_readback as r;r.dependencies();print(json.dumps({n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(names)+'}))'
+              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_continuation_sources')
+              assert sources=={n:hashlib.sha256((Path('scripts/goal584-budget-proof')/n).read_bytes()).hexdigest() for n in names}
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+              stage='continuation_baseline';readback('continuation-baseline');baseline_ready=True
+              # Root0600 financial/capture state remains owned by the native collector.
+              # Capture only this read-only UI projection, then write it privately as the host UID.
+              stage='continuation_input'
+              code='import json;from pathlib import Path;from prove_gateway_auth import read_private;s=read_private(Path("/proof-private/office-readback.private.json"));print(json.dumps({"schema":s["schema"],"stage":s["stage"],"browser":{k:s["browser"][k] for k in ("chat_id","answer_id","file_id")},"continuation_baseline":{k:s["continuation_baseline"][k] for k in ("stage","saved_chat")}}))'
+              state=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_continuation_input')
+              write_private(private/'office-continuation-input.private.json',state)
+              prior=state['continuation_baseline']['saved_chat']
+              saved=prior['chat']['history']['messages'][state['browser']['answer_id']]['output']
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_continuation_provider')
+              first=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-office']
+              assert len(first)==3,'Office continuation prior dispatch count differs'
+              reasoning=[[item for item in row['response']['output'] if item['type']=='reasoning'] for row in first]
+              # Existing native owners observe actual saved8 and provider final2 before the next request.
+              # Their original argument bound is checked before crossing the Send boundary.
+              stage='continuation_context'
+              packets={'schema':1,
+                  'saved':fixture.native_context(base,build,revision,reasoning,saved_output=saved),
+                  'final':fixture.native_context(base,build,revision,reasoning,saved_output=first[-1]['response']['output'])}
+              write_private(private/'office-continuation-native-context.private.json',packets)
+              public('office-continuation-context',{'schema':1,'packets':{name:{
+                  'sha256':digest(packet),'module_sha256':packet['module_sha256'],
+                  'source_body_sha256':packet['source_body_sha256'],
+                  'saved_output_sha256':digest(packet['saved_output_case']['input_saved_output']),
+                  'native_input_sha256':digest(packet['saved_output_case']['native_input']),
+                  'saved_output_items':len(packet['saved_output_case']['input_saved_output']),
+                  'native_input_items':len(packet['saved_output_case']['native_input'])}
+                  for name,packet in packets.items() if name!='schema'}})
+              stage='continuation_send'
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,_=run_saved_continuation(browser,fixture,base,build,revision)
+                  finally: browser.close()
+              public('office-continuation-browser',observed)
+              stage='continuation_diagnostic';diagnostic_collected=readback('continuation-diagnostic').get('passed') is True
+              stage='continuation_finance';financial=readback('continuation-verify')
+              public('office-continuation',{'schema':1,'passed':True,'stage':'bounded_saved_continuation',
+                  'native_office_accepted':False,'sources':sources,'browser':observed,'financial':financial,
+                  'limits':['independent artifact review pending','no production or full GOAL acceptance',
+                      'native DB/financial observations remain source-bound; no live Filter pre/post claim']})
+          except Exception as error:
+              failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,
+                  'error_class':type(error).__name__}
+              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
+                  try: no_credentials({'message':str(error)},fixture.secrets)
+                  except (AssertionError,ProofError): pass
+                  else: failure['failure']=str(error)
+              if baseline_ready and not diagnostic_collected:
+                  try: diagnostic_collected=readback('continuation-diagnostic').get('passed') is True
+                  except Exception: pass
+              failure['wire_diagnostic_collected']=diagnostic_collected
+              public('office-continuation',failure)
+              raise SystemExit(1)
+          finally:
+              signal.alarm(0)
+          PY
+      - name: Verify native key block and signed gateway denial
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
+        timeout-minutes: 3
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          assert json.loads((out/'office-native.safe.json').read_text()).get('passed') is True
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          secrets.extend(private_credentials(read_private(private/'gateway-state.private.json')))
+          compose=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',os.environ['PROOF_ENV_FILE'],
+              '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml','-f','compose/goal584.office-proof.yml']
+          result=subprocess.run(compose+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy',
+              'python','-B','/proof/prove_native_key_block.py'],capture_output=True,timeout=150)
+          assert 0<len(result.stdout)<=64*1024,'Native block receipt exceeded bound or is absent'
+          packet=json.loads(result.stdout);no_credentials(packet,secrets)
+          assert packet.get('schema')==1 and packet.get('proof')=='goal584-native-key-block'
+          source=Path('scripts/goal584-budget-proof');budgets=Path('deploy/openwebui-budgets')
+          owners={name:source/name for name in ('prove_native_key_block.py','provision_webui.py',
+              'prove_gateway_auth.py','prove_native_budgets.py','prove_pricing_snapshots.py','prove_service_tasks.py')}
+          owners.update({name:budgets/path for name,path in {
+              'employee_budget_admin_client.py':'admin_client.py','employee_budget_admin_contract.py':'admin_contract.py',
+              'employee_budget_assignment.py':'assignment.py','provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py'}.items()})
+          expected={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in owners.items()}
+          assert packet.get('worker_sha256')==expected['prove_native_key_block.py'],'Native block worker source differs'
+          assert packet.get('passed') is not True or packet.get('source_sha256')==expected,'Native block runtime owners differ'
+          assert result.returncode==0 or packet.get('passed') is False,'Native block exit and receipt disagree'
+          (out/'native-key-block.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          assert result.returncode==0 and packet.get('passed') is True,'Native key block/admission proof failed'
+          assert packet.get('unknown_usage_policy_qualified') is False
+          PY
+      - name: Verify targeted unavailable Usage and native cost projection
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
+        timeout-minutes: 5
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          assert json.loads((out/'native-key-block.safe.json').read_text()).get('passed') is True
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          for name in ('gateway-state.private.json','webui-state.private.json'):
+              secrets.extend(private_credentials(read_private(private/name)))
+          compose=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',os.environ['PROOF_ENV_FILE'],
+              '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml','-f','compose/goal584.office-proof.yml']
+          native_pins={
+              'integrations/custom_guardrail.py':'6ada6442281669b3623a1eca1f1bcb609e458e90e3d54a5273c18527f5cc0d70',
+              'types/llms/openai.py':'99ce22ba2bb83dc37d9afb423ef2a6cf919a9cafca834eaad833c4a795088fdd',
+              'proxy/_types.py':'2ef3c788ab6267bd3ba8bcaf336712cba9f67d49256bdfeb0a516c5de1525500',
+              'types/utils.py':'99105ecf13a3676832c10b352b62c69d03fa608cdfafdafa14bad279738eeaf3',
+              'proxy/spend_tracking/spend_tracking_utils.py':'52ce53917cdb6905abfe6dd61f2ffe9640e5198c9e443629177dcc727d24bd17',
+              'proxy/litellm_pre_call_utils.py':'8cb60a5bb2e3d521dce4ded40020b02106d821837b0928a8e36c6dbede4b82c8',
+              'proxy/utils.py':'f2b56f6e501ee6cfedbf4e9d79a19cee594fb797f1c3d2f2fd80a37faaf6a77f'}
+          code="import hashlib,importlib.metadata,json,pathlib,litellm; r=pathlib.Path(litellm.__file__).parent; print(json.dumps({'version':importlib.metadata.version('litellm'),'files_sha256':{n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(native_pins))+"}}))"
+          actual=subprocess.run(compose+['exec','-T','proxy','python','-B','-c',code],capture_output=True,timeout=30)
+          assert actual.returncode==0 and 0<len(actual.stdout)<=32*1024,'Unknown Usage native source readback failed'
+          sdk=json.loads(actual.stdout);no_credentials(sdk,secrets)
+          assert sdk=={'version':'1.105.1','files_sha256':native_pins},'Unknown Usage native SDK source differs'
+          (out/'usage-native-runtime.safe.json').write_text(json.dumps(sdk,indent=2)+'\n')
+          result=subprocess.run(compose+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy',
+              'python','-B','/proof/prove_unknown_usage_policy.py'],capture_output=True,timeout=240)
+          assert 0<len(result.stdout)<=64*1024,'Unknown Usage receipt exceeded bound or is absent'
+          packet=json.loads(result.stdout);no_credentials(packet,secrets)
+          assert packet.get('schema')==1 and packet.get('proof')=='goal584-unknown-usage-policy'
+          source=Path('scripts/goal584-budget-proof');budgets=Path('deploy/openwebui-budgets')
+          owners={name:source/name for name in ('prove_unknown_usage_policy.py','provision_webui.py',
+              'prove_gateway_auth.py','prove_native_budgets.py','prove_pricing_snapshots.py','prove_service_tasks.py')}
+          owners.update({name:budgets/path for name,path in {
+              'employee_budget_admin_client.py':'admin_client.py','employee_budget_admin_contract.py':'admin_contract.py',
+              'employee_budget_assignment.py':'assignment.py','provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py',
+              'employee_budget_cost_readback.py':'cost_readback.py','employee_budget_provenance.py':'provenance.py'}.items()})
+          expected={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in owners.items()}
+          mounted={name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in {
+              'usage_guard_fixture.py':source/'usage_guard_fixture.py','unknown_usage_guard.py':budgets/'unknown_usage_guard.py'}.items()}
+          assert packet.get('worker_sha256')==expected['prove_unknown_usage_policy.py'],'Unknown Usage worker source differs'
+          assert packet.get('passed') is not True or (packet.get('source_sha256')==expected
+              and packet.get('mounted_source_sha256')==mounted),'Unknown Usage runtime owners differ'
+          assert result.returncode==0 or packet.get('passed') is False,'Unknown Usage exit and receipt disagree'
+          (out/'unknown-usage-policy.safe.json').write_text(json.dumps(packet,indent=2)+'\n')
+          assert result.returncode==0 and packet.get('passed') is True,'Unknown Usage native proof failed'
+          assert packet.get('inference_attempts')==7 and packet.get('provider_dispatches')==5
+          assert packet.get('blocked_assignments')==3 and packet.get('known_positive_total')=='.332'
+          assert packet.get('unknown_cost_finality') is False and packet.get('explicit_zero_runtime_qualified') is False
+          assert packet.get('browser_or_chat_ancestry_qualified') is False
+          PY
+      - name: Verify six ordinary Sends and native unknown Usage accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
+        timeout-minutes: 10
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,re,signal,subprocess,sys,time
+          from pathlib import Path
+          from uuid import UUID
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_unknown_usage_browser import CASES,run
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          from playwright.sync_api import sync_playwright
+          root=Path.cwd().resolve();private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          revision=os.environ['GITHUB_SHA'];stage='source_preflight';deadline=time.monotonic()+540
+          def timed_out(*args): raise TimeoutError('unknown_gui_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.setitimer(signal.ITIMER_REAL,540)
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          def credentials():
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json',
+                  'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json','unknown-usage-browser.private.json'):
+                  path=private/name
+                  if path.exists(): fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          def public(name,packet):
+              credentials();no_credentials(packet,fixture.secrets)
+              (out/(name+'.safe.json')).write_text(json.dumps(packet,indent=2,allow_nan=False)+'\n',encoding='utf8')
+          def trusted(path):
+              raw=path.read_bytes()
+              result=subprocess.run(['git','-c','gc.auto=0','show',revision+':'+path.relative_to(root).as_posix()],
+                  capture_output=True,timeout=15,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
+              assert result.returncode==0 and result.stdout==raw,'unknown_gui_source_changed'
+              return hashlib.sha256(raw).hexdigest()
+          source=root/'scripts/goal584-budget-proof';budgets=root/'deploy/openwebui-budgets'
+          owners={name:source/name for name in ('prove_unknown_usage_policy.py','provision_webui.py','prove_gateway_auth.py',
+              'prove_native_budgets.py','prove_pricing_snapshots.py','prove_service_tasks.py')}
+          owners.update({name:budgets/path for name,path in {'employee_budget_admin_client.py':'admin_client.py',
+              'employee_budget_admin_contract.py':'admin_contract.py','employee_budget_assignment.py':'assignment.py',
+              'provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py','employee_budget_cost_readback.py':'cost_readback.py',
+              'employee_budget_provenance.py':'provenance.py'}.items()})
+          mounted={name:source/name for name in ('usage_guard_fixture.py','prove_unknown_usage_gui.py',
+              'unknown_usage_gui_fixture.py','provision_cost_display.py')}
+          mounted['unknown_usage_guard.py']=budgets/'unknown_usage_guard.py'
+          def host_sources():
+              paths={Path(m.__file__).resolve() for m in tuple(sys.modules.values()) if getattr(m,'__file__',None) and Path(m.__file__).is_file()
+                  and Path(m.__file__).resolve().is_relative_to(root)}
+              assert all(p.suffix=='.py' and p.is_relative_to(source) for p in paths),'unknown_gui_host_import_owner'
+              return {p.relative_to(root).as_posix():trusted(p) for p in sorted(paths)}
+          def native_json(arguments,timeout):
+              result=subprocess.run(fixture.command+['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),
+                  'proxy','python','-B',*arguments],capture_output=True,timeout=min(timeout,max(1,deadline-time.monotonic()-5)))
+              assert 0<len(result.stdout)<=64*1024,'unknown_gui_safe_json_bound'
+              packet=json.loads(result.stdout);credentials();no_credentials(packet,fixture.secrets)
+              assert isinstance(packet,dict),'unknown_gui_safe_json_schema'
+              return result.returncode,packet
+          def cli(phase):
+              code,packet=native_json(['/proof/prove_unknown_usage_gui.py','--phase',phase],90)
+              assert code==0 and packet.get('passed') is True,'unknown_gui_cli_failed'
+              common={'schema':1,'proof':'goal584-unknown-usage-gui','passed':True,'phase':phase,
+                  'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False}
+              if phase=='setup':
+                  actor=packet.get('actor_id');assert isinstance(actor,str) and str(UUID(actor))==actor
+                  expected=common|{'status':'readback_ready','actor_id':actor,'model_ids':[c[1] for c in (CASES[0],CASES[1],CASES[3])],
+                      'inference_issued':False,'settings_configured':False,'browser_accepted':False}
+              elif phase=='baseline': expected=common|{'status':'baseline_ready','inference_issued':False}
+              else:
+                  expected=common|{'gui_sends':6,'provider_dispatches':4,'positive_chats':2,'unknown_chats':2,
+                      'saved_key_denials':2,'known_positive_total':'.332','blocked_assignments':2,'native_401_inferred':False,
+                      'unbound_denial_audit_chat_association_independently_proven':False,'inference_issued':False,
+                      'foreign_chat_status':401,'foreign_chat_not_found':True,'foreign_auth_confirmed':True,
+                      'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted}
+              assert type(packet.get('schema')) is int and packet==expected,'unknown_gui_cli_receipt_changed'
+              assert fixture._office_private('unknown-usage-gui-'+phase+'.safe.json')[1]==packet,'unknown_gui_private_cli_receipt_changed'
+              return packet
+          try:
+              credentials()
+              assert re.fullmatch('[0-9a-f]{40}',revision)
+              expected_sources={name:trusted(path) for name,path in owners.items()}
+              expected_mounted={name:trusted(path) for name,path in mounted.items()}
+              expected_filter=trusted(budgets/'cost_filter.py');host=host_sources()
+              gate=json.loads((out/'unknown-usage-policy.safe.json').read_bytes())
+              assert gate.get('schema')==1 and gate.get('proof')=='goal584-unknown-usage-policy' and gate.get('passed') is True
+              assert gate.get('stage')=='complete' and gate.get('worker_sha256')==expected_sources['prove_unknown_usage_policy.py']
+              assert gate.get('source_sha256')==expected_sources and gate.get('mounted_source_sha256')=={
+                  name:expected_mounted[name] for name in ('usage_guard_fixture.py','unknown_usage_guard.py')}
+              assert gate.get('inference_attempts')==7 and gate.get('provider_dispatches')==5 and gate.get('blocked_assignments')==3
+              assert gate.get('known_positive_total')=='.332' and all(gate.get(k) is False for k in
+                  ('unknown_cost_finality','explicit_zero_runtime_qualified','browser_or_chat_ancestry_qualified'))
+              # Cold actual native imports and mounted source readback precede setup's first write.
+              code="import hashlib,json,pathlib; import prove_unknown_usage_gui as c; import provision_cost_display as d; p=c.sources(); p['filter_sha256']=hashlib.sha256(d.FILTER_SOURCE.read_bytes()).hexdigest(); print(json.dumps(p))"
+              status,actual=native_json(['-c',code],45)
+              assert status==0 and actual=={'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted,
+                  'filter_sha256':expected_filter},'unknown_gui_native_import_or_source_changed'
+              public('unknown-usage-gui-source',{'schema':1,'passed':True,'source_sha256':expected_sources,
+                  'mounted_source_sha256':expected_mounted,'filter_sha256':expected_filter,'host_source_sha256':host})
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_bytes())
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=15).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              stage='runtime_binding';fixture.running_readback(base,build,revision)
+              # Bind the chat-specific 401/NOT_FOUND contract to actual native
+              # files; the existing Office file routes retain their 404 proof.
+              chat_access_pins={'routers/chats.py':'510269b6f69c8f634d2d93a6dc0605453fd5ececebf55c3ef3575532b3bc5eb3',
+                  'constants.py':'9b8a38f47415a69c5b6871a5f151145dc759ea8e8d4b72dd7a7a781cf14df8b4'}
+              assert build['inputs']['upstream_commit']=='6a18585ff4c2e5f6805f682222cfbc46dc669ef8'
+              actual_chat_access=fixture._docker_json(['exec',fixture._office_binding['services']['webui']['id'],'python','-B','-c',
+                  "import hashlib,json,pathlib; r=pathlib.Path('/app/backend/open_webui'); print(json.dumps({n:hashlib.sha256((r/n).read_bytes()).hexdigest() for n in "+repr(tuple(chat_access_pins))+"}))"])
+              assert actual_chat_access==chat_access_pins,'unknown_gui_native_chat_access_source_changed'
+              public('unknown-usage-gui-chat-access',{'schema':1,'passed':True,'native_revision':build['inputs']['upstream_commit'],
+                  'files_sha256':actual_chat_access})
+              stage='setup';setup=cli('setup');public('unknown-usage-gui-setup',setup)
+              stage='baseline';baseline=cli('baseline');public('unknown-usage-gui-baseline',baseline)
+              stage='browser';signal.setitimer(signal.ITIMER_REAL,max(1,min(360,deadline-time.monotonic()-100)))
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,packet=run(browser,fixture,base,build,revision)
+                  finally: browser.close()
+              signal.setitimer(signal.ITIMER_REAL,max(1,deadline-time.monotonic()))
+              assert observed.get('schema')==1 and observed.get('status')=='browser_observed' and observed.get('actor_id')==setup['actor_id']
+              assert observed.get('foreign_chat_status')==401 and observed.get('foreign_chat_not_found') is True
+              assert observed.get('foreign_auth_confirmed') is True and observed.get('office_settings_unchanged') is True
+              assert all(observed.get(k) is False for k in ('native_accounting_accepted','provider_dispatch_accepted','unknown_policy_accepted'))
+              assert len(observed.get('calls',[]))==6 and len(packet.get('calls',[]))==6 and 'failure' not in packet
+              assert fixture._office_private('unknown-usage-browser.private.json')[1]==packet,'unknown_gui_private_packet_changed'
+              images=out/'unknown-usage-browser'
+              assert {p.name for p in images.iterdir()}=={label+'.png' for label,_,_ in CASES}
+              for (label,model,outcome),call in zip(CASES,observed['calls']):
+                  assert call.get('model')==model and call.get('outcome')==outcome and call.get('terminal_persisted') is True and call.get('tasks_empty') is True
+                  image=images/(label+'.png');raw=image.read_bytes()
+                  assert not image.is_symlink() and 0<len(raw)<=8*1024*1024 and raw.startswith(b'\x89PNG\r\n\x1a\n')
+                  assert hashlib.sha256(raw).hexdigest()==call.get('screenshot_sha256')
+              no_credentials(observed,fixture.secrets)
+              stage='native_verify';verified=cli('verify')
+              # No successful public browser/final receipt is written until every late check passes.
+              assert host_sources()==host,'unknown_gui_host_source_changed'
+              assert {name:trusted(path) for name,path in owners.items()}==expected_sources
+              assert {name:trusted(path) for name,path in mounted.items()}==expected_mounted and trusted(budgets/'cost_filter.py')==expected_filter
+              credentials();no_credentials([observed,verified],fixture.secrets)
+              public('unknown-usage-browser',observed)
+              public('unknown-usage-gui-verify',verified)
+              final={'schema':1,'proof':'goal584-unknown-usage-host','passed':True,'stage':'complete',
+                  'gui_sends':6,'provider_dispatches':4,'blocked_assignments':2,'known_positive_total':'.332',
+                  'source_sha256':expected_sources,'mounted_source_sha256':expected_mounted,'host_source_sha256':host,
+                  'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False}
+              public('unknown-usage-host',final)
+          except Exception as error:
+              failure={'schema':1,'proof':'goal584-unknown-usage-host','passed':False,'stage':stage,
+                  'failure':'unknown_gui_host_contract_failed','error_class':type(error).__name__ if type(error).__name__ in
+                  ('AssertionError','ProofError','TimeoutError','TimeoutExpired','OSError','JSONDecodeError') else 'Exception',
+                  'unknown_cost_finality':False,'whole_goal_accepted':False,'production_accepted':False}
+              public('unknown-usage-host',failure)
+              raise SystemExit(1) from None
+          finally: signal.setitimer(signal.ITIMER_REAL,0)
+          PY
+      - name: Verify the native admin form against unknown expense and separate accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance == 'office'
+        timeout-minutes: 10
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,signal,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_service_admin_browser import run_unknown_presence, unknown_failure_projection
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          from playwright.sync_api import sync_playwright
+          root=Path.cwd().resolve();private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          revision=os.environ['GITHUB_SHA'];stage='source_preflight';deadline=time.monotonic()+540
+          def timed_out(*args): raise TimeoutError('admin_unknown_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.setitimer(signal.ITIMER_REAL,540)
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          private_names=('gateway-state.private.json','webui-state.private.json','office-state.private.json',
+              'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json',
+              'admin-unknown-state.private.json','admin-unknown-accounts.private.json',
+              'admin-unknown-browser.private.json')
+          def credentials():
+              for name in private_names:
+                  if (private/name).exists(): fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          def public(name,packet):
+              credentials();no_credentials(packet,fixture.secrets)
+              raw=json.dumps(packet,indent=2,allow_nan=False).encode()
+              assert len(raw)<=64*1024,'admin_unknown_public_bound'
+              (out/(name+'.safe.json')).write_bytes(raw+b'\n')
+          def native(arguments,label,timeout=120,require_passed=True,host_owner=True):
+              owner=['--user',str(os.getuid())+':'+str(os.getgid())] if host_owner else []
+              result=subprocess.run(fixture.command+['exec','-T',*owner,'proxy','python','-B',*arguments],
+                  capture_output=True,timeout=min(timeout,max(1,deadline-time.monotonic()-5)))
+              assert 0<len(result.stdout)<=64*1024,'admin_unknown_native_bound'
+              packet=json.loads(result.stdout);public(label,packet)
+              assert result.returncode==0 and (not require_passed or packet.get('passed') is True),'admin_unknown_native_failed'
+              return packet
+          def trusted(path):
+              raw=path.read_bytes()
+              result=subprocess.run(['git','-c','gc.auto=0','show',revision+':'+path.relative_to(root).as_posix()],
+                  capture_output=True,timeout=15,env=os.environ|{'GIT_NO_LAZY_FETCH':'1'})
+              assert result.returncode==0 and result.stdout==raw,'admin_unknown_source_changed'
+              return hashlib.sha256(raw).hexdigest()
+          try:
+              source=root/'scripts/goal584-budget-proof';budgets=root/'deploy/openwebui-budgets'
+              aliases={'employee_budget_admin_client.py':'admin_client.py',
+                  'employee_budget_admin_contract.py':'admin_contract.py','employee_budget_assignment.py':'assignment.py',
+                  'employee_budget_cost_readback.py':'cost_readback.py','employee_budget_provenance.py':'provenance.py',
+                  'provenance.py':'provenance.py','litellm_auth.py':'litellm_auth.py',
+                  'unknown_usage_guard.py':'unknown_usage_guard.py',
+                  'admin_tools.py':'admin_tools.py','admin_ui.py':'admin_ui.py','admin_policy.py':'admin_policy.py'}
+              browser_sha=trusted(source/'prove_service_admin_browser.py')
+              closure=native(['-c','import json,prove_unknown_usage_gui as c; print(json.dumps(c.admin_sources()))'],
+                  'admin-unknown-native-sources',30,require_passed=False)
+              assert set(closure)=={'source_sha256','mounted_source_sha256','admin_source_sha256','admin_producer_sha256'}
+              for group in closure.values():
+                  assert isinstance(group,dict) and group
+                  for name,value in group.items():
+                      path=budgets/aliases[name] if name in aliases else source/name
+                      assert path.is_file() and path.resolve().parent in (source,budgets)
+                      assert trusted(path)==value,'admin_unknown_runtime_source_changed'
+              gate=fixture._office_private('unknown-usage-gui-verify.safe.json')[1]
+              assert gate.get('passed') is True and gate.get('proof')=='goal584-unknown-usage-gui'
+              stage='setup'
+              setup=native(['/proof/provision_admin.py','--phase','unknown-setup',
+                  '--private-state','/proof-private/webui-state.private.json','--office-state','/proof-private/office-state.private.json',
+                  '--unknown-state','/proof-private/unknown-usage-gui-state.private.json',
+                  '--admin-unknown-state','/proof-private/admin-unknown-state.private.json',
+                  '--browser-accounts','/proof-private/admin-unknown-accounts.private.json',
+                  '--receipt','/proof-private/admin-unknown-setup.safe.json'],'admin-unknown-setup')
+              assert setup.get('phase')=='unknown-setup' and setup.get('inference_issued') is False
+              accounts=fixture._office_private('admin-unknown-accounts.private.json')[1]
+              stage='baseline'
+              # Preserve the existing Office collector owner for its0600 capture/lock.
+              # Its private readback stays native-only; host reads only safe stdout.
+              baseline=native(['/proof/prove_unknown_usage_gui.py','--phase','admin-baseline'],'admin-unknown-baseline',host_owner=False)
+              assert baseline.get('status')=='baseline_ready' and baseline.get('inference_issued') is False
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_bytes())
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=15).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=15))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              stage='browser'
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,packet=run_unknown_presence(browser,fixture,base,build,revision,accounts)
+                  finally: browser.close()
+              assert observed.get('status')=='browser_observed' and observed.get('ordinary_sends')==1
+              assert observed.get('native_accounting_accepted') is False and observed.get('provider_dispatch_accepted') is False
+              assert fixture._office_private('admin-unknown-browser.private.json')[1]==packet
+              assert packet.get('source_sha256')==browser_sha==trusted(source/'prove_service_admin_browser.py')
+              assert packet.get('binding',{}).get('source_commit')==revision
+              public('admin-unknown-browser',observed)
+              stage='verify'
+              verified=native(['/proof/prove_unknown_usage_gui.py','--phase','admin-verify'],'admin-unknown-verify',150,host_owner=False)
+              assert verified.get('status')=='verified' and verified.get('personal_calls')==2 and verified.get('personal_cost_usd')=='.332'
+              assert verified.get('native_saved_embed_verified') is True and verified.get('unknown_employee_verified') is True
+              assert all(verified.get(key) is False for key in ('whole_goal_accepted','production_accepted','unknown_cost_finality'))
+              office_source=root/'services/officecli-openapi-proof'
+              sys.path.insert(0,str(office_source))
+              from officecli_openapi_proof.rendering import checked_png
+              png_owner=Path(sys.modules[checked_png.__module__].__file__).resolve()
+              assert png_owner==(office_source/'officecli_openapi_proof/rendering.py').resolve()
+              assert trusted(png_owner)==build['office']['modules']['rendering.py']
+              for key,label in (('page_screenshot','page'),('employee_screenshot','employee')):
+                  path=Path(packet['paths'][key]);assert path.resolve().parent==private.resolve() and not path.is_symlink()
+                  raw=path.read_bytes();checked_png(raw)
+                  assert hashlib.sha256(raw).hexdigest()==packet['screenshot_sha256'][key]
+                  (out/('office-admin-unknown-'+label+'.png')).write_bytes(raw)
+              public('admin-unknown-host',{'schema':1,'passed':True,'stage':'complete','source_commit':revision,
+                  'ordinary_sends':1,'personal_calls':2,'personal_cost_usd':'.332','source_closure':closure,
+                  'whole_goal_accepted':False,'production_accepted':False,'unknown_cost_finality':False})
+          except Exception as error:
+              failure={'schema':1,'passed':False,'stage':stage,'failure':'admin_unknown_host_contract_failed',
+                  'error_class':type(error).__name__,'whole_goal_accepted':False,'production_accepted':False}
+              if stage=='browser':
+                  lifecycle=unknown_failure_projection(None)
+                  try:
+                      _,pending=fixture._office_private('admin-unknown-browser.private.json')
+                      assert pending.get('source_sha256')==browser_sha
+                      assert pending.get('binding',{}).get('source_commit')==revision
+                      lifecycle=unknown_failure_projection(pending)
+                      assert len(json.dumps(lifecycle,allow_nan=False).encode())<=4096
+                      no_credentials(lifecycle,fixture.secrets)
+                  except Exception:
+                      lifecycle=unknown_failure_projection(None)
+                  public('admin-unknown-lifecycle',lifecycle)
+                  failure['lifecycle_diagnostic_collected']=lifecycle.get('collected') is True
+              public('admin-unknown-host',failure)
+              raise SystemExit(1) from None
+          finally: signal.setitimer(signal.ITIMER_REAL,0)
+          PY
+      - name: Verify one ordinary delegated Office Send and native personal accounting
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import base64,hashlib,json,os,signal,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_native_budgets import ProofError
+          from prove_pricing_browser import no_credentials
+          from prove_pricing_snapshots import private_credentials
+          from prove_office_delegation_browser import PACKET, failure_projection, run
+          from prove_office_compatibility import digest
+          from prove_office_delegation_readback import select_render_image
+          from playwright.sync_api import sync_playwright
+          signal.alarm(420)
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT'])
+          env_file=Path(os.environ['PROOF_ENV_FILE']);revision=os.environ['GITHUB_SHA']
+          secrets=[line.partition('=')[2] for line in env_file.read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(env_file,out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          stage='prior_acceptance';baseline_ready=False;diagnostic_collected=False;artifacts_collected=False
+          observed=raw=provider=None
+          def credentials():
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          def public(name,value):
+              credentials();no_credentials(value,fixture.secrets)
+              (out/(name+'.safe.json')).write_text(json.dumps(value,indent=2,allow_nan=False)+'\n',encoding='utf8')
+          def readback(phase):
+              result=subprocess.run(fixture.command+['exec','-T','proxy','python','-B',
+                  '/proof/prove_office_delegation_readback.py','--phase',phase],capture_output=True,timeout=100)
+              assert 0<len(result.stdout)<=2*1024*1024,'Delegated Office safe readback exceeded bound'
+              packet=json.loads(result.stdout);public('office-delegation-'+phase,packet)
+              assert result.returncode==0 and packet.get('passed') is True,'Delegated Office native readback failed'
+              assert packet['source_sha256']==hashlib.sha256(Path('scripts/goal584-budget-proof/prove_office_delegation_readback.py').read_bytes()).hexdigest()
+              assert packet.get('native_office_accepted') is False
+              return packet
+          def setup_diagnostic():
+              # Export only the existing failed receipt and bounded publication progress.
+              _,receipt=fixture._office_private('office-delegation-setup.safe.json')
+              assert receipt.get('phase')=='office-delegation-setup' and receipt.get('passed') is False
+              _,state=fixture._office_private('office-state.private.json')
+              selected=state.get('office_delegation_setup',{})
+              publication=selected.get('publication',{});published=publication.get('receipt',{})
+              journal=selected.get('journal',[]);last=journal[-1] if journal else {}
+              publisher_steps=[entry for entry in journal if entry.get('stage')=='native-publish-template']
+              assert len(publisher_steps)<=1
+              packet={'schema':1,'passed':False,'native_office_accepted':False,
+                  'failure':receipt.get('failure'),'publication_stage':publication.get('stage'),
+                  'config_restored':publication.get('config_restored'),
+                  'last_step':{key:last.get(key) for key in ('stage','returned')},
+                  'publisher_step':{'present':bool(publisher_steps),
+                      'returned':publisher_steps[0].get('returned') if publisher_steps else None},
+                  'publisher':{key:published.get(key) for key in ('status','attempted_step','completed_steps','error')}}
+              assert len(json.dumps(packet,allow_nan=False).encode())<=4096
+              public('office-delegation-setup-failure',packet)
+              return True
+          def collect_artifacts():
+              assert isinstance(observed,dict) and isinstance(raw,dict) and isinstance(provider,dict),'Delegated Office artifact packets differ'
+              workers=[row for row in provider['requests'] if row['body']['model']=='goal584-fake-delegated-worker']
+              calls=[item for row in workers for item in row['response']['output']
+                  if item.get('type')=='function_call' and item.get('name')=='render_office_file']
+              assert len(calls)==1,'Delegated Office render call differs'
+              results=[item for row in workers for item in row['body']['input']
+                  if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id']]
+              # A result is replayed on later requests; use the final native worker packet.
+              result=next(item for item in workers[-1]['body']['input']
+                  if item.get('type')=='function_call_output' and item.get('call_id')==calls[0]['call_id'])
+              assert results and all(item==result for item in results),'Delegated Office render result changed'
+              png,_=select_render_image(workers[-1]['body'],calls[0],file_id=observed['file_id'])
+              files={key:Path(raw['paths'][key]) for key in ('browser','native','screenshot')}
+              assert all(path.resolve().parent==private.resolve() and not path.is_symlink() for path in files.values()),'Delegated Office artifact paths differ'
+              document=files['browser'].read_bytes();native=files['native'].read_bytes();screenshot=files['screenshot'].read_bytes()
+              assert all(0<len(data)<=8*1024*1024 for data in (document,native,png,screenshot)),'Delegated Office artifact byte bound differs'
+              assert document==native and hashlib.sha256(document).hexdigest()==observed['docx_sha256'],'Delegated Office document hash differs'
+              assert hashlib.sha256(screenshot).hexdigest()==observed['screenshot_sha256'],'Delegated Office screenshot hash differs'
+              assert png.startswith(b'\x89PNG\r\n\x1a\n') and screenshot.startswith(b'\x89PNG\r\n\x1a\n'),'Delegated Office artifact PNG differs'
+              (out/'office-delegation.docx').write_bytes(document)
+              (out/'office-delegation-render.png').write_bytes(png)
+              (out/'office-delegation-browser.png').write_bytes(screenshot)
+              return {'docx_sha256':hashlib.sha256(document).hexdigest(),'docx_bytes':len(document),
+                  'render_sha256':hashlib.sha256(png).hexdigest(),'render_bytes':len(png),
+                  'screenshot_sha256':hashlib.sha256(screenshot).hexdigest(),'screenshot_bytes':len(screenshot)}
+          try:
+              if os.environ['ACCEPTANCE_PROFILE']=='delegation-cost':
+                  ready=json.loads((out/'office-preparation.safe.json').read_text())
+                  assert ready.get('status')=='prepared' and ready.get('inference_issued') is False
+                  assert ready.get('inference_calls')==0 and ready.get('native_office_accepted') is False
+              else:
+                  assert json.loads((out/'office-continuation.safe.json').read_text()).get('passed') is True
+              credentials()
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container]))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+              stage='runtime_binding';fixture.running_readback(base,build,revision)
+              stage='source_binding'
+              source_root=Path('scripts/goal584-budget-proof')
+              mounted_paths={name:source_root/name for name in ('prove_office_delegation_readback.py','mock_provider.py')}
+              mounted_paths.update({'corporate_templates.py':Path('deploy/openwebui-tools/corporate_templates.py'),
+                  'corporate_template_models.json':Path('deploy/openwebui-tools/corporate_template_models.json'),
+                  'artifact-workflow.md':Path('deploy/openwebui-skills/artifact-workflow.md')})
+              host_paths={'prove_office_delegation_browser.py':source_root/'prove_office_delegation_browser.py'}
+              source_hashes=lambda paths:{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in paths.items()}
+              mounted_sources=source_hashes(mounted_paths);host_sources=source_hashes(host_paths)
+              code='import hashlib,json,pathlib;import prove_office_delegation_readback as r;r.dependencies();print(json.dumps({"mounted_source_sha256":{n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(tuple(mounted_paths))+'},"capacity_owner":r.capacity_observations([],{})}))'
+              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_delegation_sources',timeout=45)
+              assert sources['mounted_source_sha256']==mounted_sources and sources['capacity_owner']['calls']==[]
+              public('office-delegation-source',{'schema':1,'passed':True,'source_commit':revision,
+                  'host_source_sha256':host_sources,**sources})
+              stage='setup'
+              setup=fixture.command_json(['exec','-T','--user',str(os.getuid())+':'+str(os.getgid()),'proxy','python','-B',
+                  '/proof/provision_webui.py','--phase','office-delegation-setup',
+                  '--private-state','/proof-private/office-state.private.json',
+                  '--receipt','/proof-private/office-delegation-setup.safe.json',
+                  '--delegation-tool-source','/proof-private/sub_agent.py',
+                  '--delegation-profiles-source','/proof/corporate_template_models.json'],'office_delegation_setup',timeout=180)
+              credentials()
+              assert setup.get('passed') is True and setup.get('phase')=='office-delegation-setup'
+              assert fixture._office_private('office-delegation-setup.safe.json')[1]==setup
+              assert setup['office_delegation_setup']['inference_issued'] is False
+              public('office-delegation-setup',setup)
+              stage='baseline';readback('baseline');baseline_ready=True
+              stage='ordinary_send'
+              with sync_playwright() as playwright:
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,raw=run(browser,fixture,base,build,revision)
+                  finally: browser.close()
+              assert fixture._office_private('office-delegation-browser.private.json')[1]==raw
+              no_credentials(observed,fixture.secrets)
+              stage='native_context'
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_delegation_provider')
+              primary=[row for row in provider['requests'] if row['body']['model'] in
+                  ('goal584-fake-delegated-parent','goal584-fake-delegated-worker')]
+              parents=[row for row in primary if row['body']['model']=='goal584-fake-delegated-parent']
+              workers=[row for row in primary if row['body']['model']=='goal584-fake-delegated-worker']
+              assert len(primary)==12 and len(parents)==len(workers)==6,'Delegated Office personal dispatch count differs'
+              ids=[row['id'] for row in primary];assert len(set(ids))==12
+              reasoning=[[item for item in row['response']['output'] if item.get('type')=='reasoning'] for row in parents]
+              packets=[fixture.native_context(base,build,revision,reasoning[start:start+4]) for start in range(0,len(reasoning),4)]
+              qualification_raw=(private/'office-qualification.safe.json').read_bytes();qualification=json.loads(qualification_raw)
+              assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
+              assert qualification_raw==(out/'qualification.safe.json').read_bytes()
+              context={'schema':1,'packets':packets,'provider_ids':ids,'binding':{
+                  'word_guide_binding':qualification['word_guide'],'source_commit':revision,
+                  'qualification_receipt_sha256':hashlib.sha256(qualification_raw).hexdigest()}}
+              write_private(private/'office-delegation-native-context.private.json',context)
+              public('office-delegation-context',{'schema':1,'personal_provider_calls':len(ids),
+                  'native_packet_sha256':[digest(packet) for packet in packets],
+                  'qualification_receipt_sha256':context['binding']['qualification_receipt_sha256']})
+              stage='diagnostic';readback('diagnostic');diagnostic_collected=True
+              stage='native_finance';financial=readback('verify')
+              stage='artifacts';artifacts=collect_artifacts();artifacts_collected=True
+              assert source_hashes(mounted_paths)==mounted_sources and source_hashes(host_paths)==host_sources,'Delegated Office source changed'
+              public('office-delegation-browser',observed)
+              public('office-delegation-artifact',{'schema':1,'native_office_accepted':False,**artifacts})
+              public('office-delegation',{'schema':1,'passed':True,'stage':'bounded_native_delegation',
+                  'native_office_accepted':False,'browser':observed,'financial':financial,'artifact':artifacts,
+                  'limits':['independent artifact review pending','no paid external or production acceptance',
+                      'worker encrypted reasoning compared with current native baseline']})
+          except Exception as error:
+              failure={'schema':1,'passed':False,'stage':stage,'native_office_accepted':False,'error_class':type(error).__name__}
+              if stage=='ordinary_send':
+                  lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
+                  try:
+                      _,pending=fixture._office_private(PACKET)
+                      assert pending.get('browser_source_sha256')==host_sources['prove_office_delegation_browser.py']
+                      lifecycle=failure_projection(pending)
+                      assert len(json.dumps(lifecycle,allow_nan=False).encode())<=4096
+                      no_credentials(lifecycle,fixture.secrets)
+                  except Exception:
+                      lifecycle={'schema':1,'collected':False,'native_office_accepted':False,'native_finance_qualified':False}
+                  public('office-delegation-lifecycle',lifecycle)
+                  failure['lifecycle_diagnostic_collected']=lifecycle.get('collected') is True
+              if stage=='setup':
+                  failure['setup_diagnostic_collected']=False
+                  try: failure['setup_diagnostic_collected']=setup_diagnostic()
+                  except Exception: pass
+              if isinstance(error,(AssertionError,ProofError)) and len(str(error))<=1024:
+                  try: no_credentials({'message':str(error)},fixture.secrets)
+                  except (AssertionError,ProofError): pass
+                  else: failure['failure']=str(error)
+              if baseline_ready and not diagnostic_collected:
+                  try: readback('diagnostic');diagnostic_collected=True
+                  except Exception: pass
+              if not artifacts_collected and provider is not None:
+                  try: collect_artifacts();artifacts_collected=True
+                  except Exception: pass
+              failure.update(wire_diagnostic_collected=diagnostic_collected,artifact_diagnostic_collected=artifacts_collected)
+              public('office-delegation',failure)
+              raise SystemExit(1)
+          finally: signal.alarm(0)
+          PY
+      - name: Verify one exhausted Terra refusal after accepted positive delegation
+        if: github.event_name != 'workflow_dispatch' || inputs.acceptance != 'known-zero'
+        timeout-minutes: 8
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import hashlib,json,os,signal,subprocess,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_gateway_auth import write_private
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          import prove_office_delegation_readback as quota_owner
+          from prove_office_delegation_browser import run
+          from prove_office_compatibility import digest
+          from playwright.sync_api import sync_playwright
+          private=Path(os.environ['PROOF_PRIVATE_DIR']);out=Path(os.environ['OUTPUT']);revision=os.environ['GITHUB_SHA']
+          secrets=[line.partition('=')[2] for line in Path(os.environ['PROOF_ENV_FILE']).read_text().splitlines()
+              if any(word in line.partition('=')[0] for word in ('KEY','SECRET','PASSWORD'))]
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,secrets)
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          stage='positive_acceptance';armed=False;unconfirmed=False;browser_closed=True;restored=False
+          deadline=time.monotonic()+300
+          def timed_out(*args): raise TimeoutError('office_quota_host_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.signal(signal.SIGTERM,timed_out);signal.signal(signal.SIGINT,timed_out)
+          signal.setitimer(signal.ITIMER_REAL,300)
+          def setting(name,value):
+              with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:handle.write(name+'='+str(value).lower()+'\n')
+          def mutation(value):
+              global unconfirmed
+              unconfirmed=value;setting('QUOTA_MUTATION_UNCONFIRMED',value)
+          def public(name,value):
+              for name_private in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+                  fixture.secrets.extend(private_credentials(fixture._office_private(name_private)[1]))
+              no_credentials(value,fixture.secrets)
+              raw=json.dumps(value,indent=2,allow_nan=False).encode();assert len(raw)<=64*1024
+              (out/(name+'.safe.json')).write_bytes(raw+b'\n')
+          def phase(name):
+              remaining=deadline-time.monotonic();assert remaining>0,'office_quota_host_deadline'
+              limits={'quota-status':10,'quota-quiesce':60,'quota-restore':75,'quota-baseline':75,'quota-verify':90}
+              packet=quota_owner.host_quota_phase(fixture,name,mutation,timeout=min(limits[name],remaining))
+              public('office-delegation-'+name,packet)
+              assert packet['passed'] is True,'office_quota_native_phase_failed'
+              return packet
+          def collect_context(provider,baseline):
+              count=baseline['provider_prefix_count']
+              assert type(count) is int and 0<=count<=len(provider['requests'])
+              prefix=dict(provider,requests=provider['requests'][:count])
+              assert digest(prefix)==baseline['provider_prefix_sha256'],'office_quota_provider_prefix'
+              suffix=provider['requests'][count:]
+              parents=[row for row in suffix if row['body']['model']=='goal584-fake-delegated-parent']
+              service=[row for row in suffix if row['body']['model']=='goal584-fake-office-service']
+              assert len(suffix)==7 and len(parents)==6 and len(service)==1,'office_quota_provider_suffix'
+              ids=[row['id'] for row in parents];assert len(set(ids))==6
+              reasoning=[[item for item in row['response']['output'] if item.get('type')=='reasoning'] for row in parents]
+              packets=[fixture.native_context(base,build,revision,reasoning[start:start+4]) for start in (0,4)]
+              qualification_raw=(private/'office-qualification.safe.json').read_bytes();qualification=json.loads(qualification_raw)
+              assert qualification['stage']=='complete' and qualification['preflight_passed'] is True
+              assert qualification_raw==(out/'qualification.safe.json').read_bytes()
+              context={'schema':1,'packets':packets,'provider_ids':ids,'binding':{
+                  'word_guide_binding':qualification['word_guide'],'source_commit':revision,
+                  'qualification_receipt_sha256':hashlib.sha256(qualification_raw).hexdigest()}}
+              write_private(private/'office-delegation-quota-context.private.json',context)
+              public('office-delegation-quota-context',{'schema':1,'passed':True,'native_office_accepted':False,
+                  'personal_provider_calls':6,'native_packet_sha256':[digest(packet) for packet in packets],
+                  'qualification_receipt_sha256':context['binding']['qualification_receipt_sha256']})
+          try:
+              accepted=json.loads((out/'office-delegation.safe.json').read_text())
+              assert accepted.get('passed') is True and accepted.get('stage')=='bounded_native_delegation'
+              assert accepted.get('financial',{}).get('passed') is True
+              container=subprocess.check_output(fixture.command+['ps','-q','webui'],text=True,timeout=10).strip()
+              networks=json.loads(subprocess.check_output(['docker','inspect','--format','{{json .NetworkSettings.Networks}}',container],timeout=10))
+              network,=networks.values();base='http://'+network['IPAddress']+':8080'
+              build=json.loads((Path(os.environ['BUILD_ROOT'])/'office-build.safe.json').read_text())
+              fixture.running_readback(base,build,revision)
+              stage='source_binding'
+              source_root=Path('scripts/goal584-budget-proof')
+              mounted_paths={name:source_root/name for name in ('prove_office_delegation_readback.py','mock_provider.py','capture_webui_auth.py')}
+              mounted_paths.update({'corporate_templates.py':Path('deploy/openwebui-tools/corporate_templates.py'),
+                  'corporate_template_models.json':Path('deploy/openwebui-tools/corporate_template_models.json'),
+                  'artifact-workflow.md':Path('deploy/openwebui-skills/artifact-workflow.md')})
+              host_paths={name:source_root/name for name in ('prove_office_delegation_browser.py','office_fixture.py')}
+              host_paths['goal584-office-proof.yml']=Path('.github/workflows/goal584-office-proof.yml')
+              hashes=lambda paths:{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in paths.items()}
+              mounted_sources=hashes(mounted_paths);host_sources=hashes(host_paths)
+              code='import hashlib,json,pathlib;import prove_office_delegation_readback as r;d=r.dependencies();print(json.dumps({"mounted_source_sha256":{n:hashlib.sha256((pathlib.Path("/proof")/n).read_bytes()).hexdigest() for n in '+repr(tuple(mounted_paths))+'},"MAX_RECORDS":d["capture"].MAX_RECORDS,"MAX_BYTES":d["capture"].MAX_BYTES,"capacity_owner":r.capacity_observations([],{})}))'
+              sources=fixture.command_json(['exec','-T','proxy','python','-B','-c',code],'office_quota_sources',timeout=30)
+              assert sources['mounted_source_sha256']==mounted_sources and sources['MAX_RECORDS']==36 and sources['MAX_BYTES']==4*1024*1024
+              assert sources['capacity_owner']['calls']==[]
+              public('office-delegation-quota-source',{'schema':1,'passed':True,'source_commit':revision,
+                  'host_source_sha256':host_sources,**sources})
+              setting('QUOTA_RESTORE_ARMED',True);armed=True;setting('QUOTA_BROWSER_CLOSED',True)
+              stage='quota-baseline';baseline=phase(stage)
+              stage='ordinary_negative_send'
+              with sync_playwright() as playwright:
+                  setting('QUOTA_BROWSER_CLOSED',False);browser_closed=False
+                  browser=playwright.chromium.launch(channel='chrome',headless=True)
+                  try: observed,raw=run(browser,fixture,base,build,revision,quota=True)
+                  finally:
+                      browser.close();browser_closed=True;setting('QUOTA_BROWSER_CLOSED',True)
+              assert fixture._office_private('office-delegation-quota.private.json')[1]==raw
+              stage='native_context'
+              provider=fixture.command_json(['exec','-T','provider','python','-B','-c',
+                  'import urllib.request;print(urllib.request.urlopen("http://127.0.0.1:8000/__proof/requests",timeout=3).read().decode())'],'office_quota_provider',timeout=15)
+              collect_context(provider,baseline)
+              stage='quota-verify';financial=phase(stage)
+              assert hashes(mounted_paths)==mounted_sources and hashes(host_paths)==host_sources,'office_quota_source_changed'
+              public('office-delegation-quota-browser',observed)
+          except BaseException as error:
+              public('office-delegation-quota',{'schema':1,'passed':False,'native_office_accepted':False,
+                  'stage':stage,'error_class':type(error).__name__,'mutation_unconfirmed':unconfirmed})
+              raise
+          finally:
+              deadline=time.monotonic()+140;signal.setitimer(signal.ITIMER_REAL,140)
+              try:
+                  if armed:
+                      assert not unconfirmed and browser_closed,'office_quota_restoration_unconfirmed'
+                      recovery=quota_owner.host_quota_restore(phase);restored=recovery['confirmed']
+                      setting('QUOTA_RESTORE_CONFIRMED',restored)
+                      public('office-delegation-quota-restore',{'schema':1,'native_office_accepted':False,**recovery})
+              finally:signal.setitimer(signal.ITIMER_REAL,0)
+          assert restored,'office_quota_restoration_unconfirmed'
+          public('office-delegation-quota',{'schema':1,'passed':True,'native_office_accepted':False,
+              'stage':'bounded_native_quota_refusal','browser':observed,'financial':financial,'restoration_confirmed':True})
+          PY
+      - name: Recover only a completed quota mutation before owned Compose teardown
+        if: always() && env.QUOTA_RESTORE_ARMED == 'true'
+        timeout-minutes: 2
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import json,os,signal,sys,time
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from office_fixture import OfficeFixture
+          from prove_pricing_snapshots import no_credentials,private_credentials
+          import prove_office_delegation_readback as quota_owner
+          out=Path(os.environ['OUTPUT']);private=Path(os.environ['PROOF_PRIVATE_DIR'])
+          if os.environ.get('QUOTA_RESTORE_CONFIRMED')=='true':raise SystemExit(0)
+          assert os.environ.get('QUOTA_MUTATION_UNCONFIRMED')!='true' and os.environ.get('QUOTA_BROWSER_CLOSED')=='true','office_quota_restoration_unconfirmed'
+          fixture=OfficeFixture(Path(os.environ['PROOF_ENV_FILE']),out,Path(os.environ['PROOF_CONFIG_FILE']),private,[])
+          fixture.command[2:2]=['--project-name',os.environ['OWNED']]
+          for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json'):
+              fixture.secrets.extend(private_credentials(fixture._office_private(name)[1]))
+          deadline=time.monotonic()+100
+          def timed_out(*args):raise TimeoutError('office_quota_recovery_deadline')
+          signal.signal(signal.SIGALRM,timed_out);signal.setitimer(signal.ITIMER_REAL,100)
+          def mutation(value):
+              with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as handle:handle.write('QUOTA_MUTATION_UNCONFIRMED='+str(value).lower()+'\n')
+          def phase(name):
+              remaining=deadline-time.monotonic();assert remaining>0
+              packet=quota_owner.host_quota_phase(fixture,name,mutation,timeout=min(45,remaining))
+              no_credentials(packet,fixture.secrets)
+              (out/('office-delegation-'+name+'-recovery.safe.json')).write_text(json.dumps(packet,indent=2)+'\n')
+              assert packet['passed'] is True
+              return packet
+          try:
+              result=quota_owner.host_quota_restore(phase)
+              no_credentials(result,fixture.secrets)
+              (out/'office-delegation-quota-recovery.safe.json').write_text(json.dumps({'schema':1,'native_office_accepted':False,**result},indent=2)+'\n')
+              assert result['confirmed'] is True
+          finally:signal.setitimer(signal.ITIMER_REAL,0)
+          PY
+      - name: Retain bounded sanitized stand diagnostics before cleanup
+        if: failure() && env.PROOF_ENV_FILE != ''
+        timeout-minutes: 2
+        run: |
+          "$RUNNER_TEMP/$OWNED-driver/bin/python" -B - <<'PY'
+          import json,os,re,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts/goal584-budget-proof')
+          from prove_gateway_auth import read_private
+          from prove_pricing_snapshots import private_credentials
+          out=Path(os.environ['OUTPUT']);env_file=Path(os.environ['PROOF_ENV_FILE'])
+          packet={'schema':1,'collected':False,'native_office_accepted':False}
+          try:
+              values=[line.partition('=')[2] for line in env_file.read_text().splitlines() if '=' in line]
+              private=Path(os.environ['PROOF_PRIVATE_DIR'])
+              for name in ('gateway-state.private.json','webui-state.private.json','office-state.private.json',
+                  'unknown-usage-policy.private.json','unknown-usage-gui-state.private.json','unknown-usage-browser.private.json',
+                  'admin-unknown-state.private.json','admin-unknown-accounts.private.json',
+                  'admin-unknown-browser.private.json'):
+                  path=private/name
+                  if path.exists(): values.extend(private_credentials(read_private(path)))
+              command=['docker','compose','--project-name',os.environ['OWNED'],'--env-file',str(env_file),
+                  '-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml','-f','compose/goal584.office-proof.yml']
+              result=subprocess.run(command+['logs','--no-color','--tail','80','proxy','webui'],
+                  capture_output=True,text=True,timeout=30)
+              text=result.stdout+result.stderr
+              packet.update(returncode=result.returncode,oversized=len(text.encode())>128*1024)
+              if not packet['oversized']:
+                  for value in sorted(set(values),key=len,reverse=True):
+                      if value: text=text.replace(value,'[redacted]')
+                  text=re.sub(r'sk-[A-Za-z0-9_-]+','[key-redacted]',text)
+                  text=re.sub(r'postgresql://[^\s]+','[database-url-redacted]',text)
+                  text=re.sub(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[session-redacted]',text)
+                  (out/'stand-diagnostics.log').write_text(text,encoding='utf8')
+                  packet['collected']=result.returncode==0
+          except Exception as error:
+              packet['error_class']=type(error).__name__
+          (out/'stand-diagnostics.safe.json').write_text(json.dumps(packet,indent=2)+'\n',encoding='utf8')
+          print(json.dumps(packet))
+          PY
+      - name: Remove only task containers and actual image IDs
+        if: always() && env.TASK_PREPARED == 'true'
+        timeout-minutes: 2
+        run: |
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          root=Path(os.environ['BUILD_ROOT']);out=Path(os.environ['OUTPUT']);out.mkdir(exist_ok=True)
+          run=lambda args:subprocess.run(['docker',*args],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True)
+          containers=[os.environ['OWNED']+'-readback',os.environ['OWNED']+'-preflight'];images=[];invalid=[];frontend=None;inventory_failed=False
+          # Compose owns its task-scoped containers, volumes and network.
+          project=os.environ['OWNED'];assert re.fullmatch('goal584-office-[0-9]+-[0-9]+',project)
+          env_file=os.environ.get('PROOF_ENV_FILE');down=None
+          if env_file and Path(env_file).is_file():
+              compose=['compose','--project-name',project,'--env-file',env_file,'-f','compose/goal584.native-budget-proof.yml','-f','compose/goal584.webui-proof.yml','-f','compose/goal584.office-proof.yml']
+              down=run(compose+['down','--volumes','--remove-orphans','--timeout','20']).returncode
+          residual={}
+          for kind,args in {'containers':['ps','-aq'],'volumes':['volume','ls','-q'],'networks':['network','ls','-q']}.items():
+              found=run(args+['--filter','label=com.docker.compose.project='+project])
+              inventory_failed=inventory_failed or found.returncode!=0
+              residual[kind]=found.stdout.splitlines()
+          for path in [out/'qualification.iid',root/'webui.iid',root/'office.iid',root/'frontend.iid',root/'native-floor/image-id.txt']:
+              if path.exists():
+                  value=path.read_text().strip()
+                  if re.fullmatch('sha256:[0-9a-f]{64}',value):
+                      images.append(value)
+                      if path.name=='frontend.iid':frontend=value
+                  else:invalid.append(path.name)
+          if frontend:
+              found=run(['ps','-aq','--no-trunc','--filter','ancestor='+frontend]);inventory_failed=inventory_failed or found.returncode!=0
+              for value in found.stdout.splitlines():
+                  if re.fullmatch('[0-9a-f]{64}',value) and run(['inspect','--format','{{.Image}}',value]).stdout.strip()==frontend:containers.append(value)
+                  else:inventory_failed=True
+          removed_containers={value:run(['rm','-f',value]).returncode for value in containers}
+          # Keep image evidence available if stand teardown is incomplete.
+          teardown_ok=not inventory_failed and not any(residual.values()) and down in (None,0)
+          removed_images={value:run(['image','rm','-f',value]).returncode for value in dict.fromkeys(images)} if teardown_ok else {}
+          remaining_containers=[value for value in containers if run(['container','inspect',value]).returncode==0]
+          remaining_images=[value for value in images if run(['image','inspect',value]).returncode==0]
+          reachable=run(['info','--format','{{.ServerVersion}}']).returncode==0
+          guide_remaining=None;guide_error=None
+          if teardown_ok and not remaining_containers:
+              try:
+                  temp=Path(os.environ['RUNNER_TEMP']).resolve();owned_root=root.resolve()
+                  private=Path(os.environ.get('PROOF_PRIVATE_DIR',str(temp/(project+'-private')))).resolve()
+                  assert owned_root.parent==private.parent==temp and owned_root.name==project+'-build' and private.name==project+'-private'
+                  guide_remaining=[]
+                  for label,directory in (('original',owned_root),('copy',private)):
+                      path=directory/'office-word-guide.private.json'
+                      assert path.resolve().parent==directory and not path.is_symlink()
+                      if path.exists():
+                          assert path.is_file();path.unlink()
+                      if path.exists():guide_remaining.append(label)
+              except (AssertionError,OSError,RuntimeError) as error:
+                  guide_error=type(error).__name__;guide_remaining=None
+          safe={'schema':1,'docker_reachable':reachable,'compose_down_returncode':down,'compose_remaining':residual,'container_remove_returncodes':removed_containers,'image_remove_returncodes':removed_images,'remaining_containers':remaining_containers,'remaining_images':remaining_images,'invalid_iid_files':invalid,'container_inventory_failed':inventory_failed,'build_cache_removed':False,'native_office_accepted':False}
+          safe.update(word_guide_remaining=guide_remaining,word_guide_cleanup_error=guide_error)
+          (out/'cleanup.safe.json').write_text(json.dumps(safe,indent=2)+'\n')
+          assert reachable and teardown_ok and not remaining_containers and not remaining_images and not invalid and guide_remaining==[],'Task cleanup incomplete'
+          PY
+      - name: Retain bounded build provenance and preflight diagnostics
+        if: always() && env.TASK_PREPARED == 'true'
+        timeout-minutes: 2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: goal584-office-build-${{ github.sha }}
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            ${{ env.OUTPUT }}/*.log
+            ${{ env.OUTPUT }}/*.safe.json
+            ${{ env.OUTPUT }}/office*.png
+            ${{ env.OUTPUT }}/unknown-usage-browser/*.png
+            ${{ env.OUTPUT }}/known-zero/*.safe.json
+            ${{ env.OUTPUT }}/known-zero/*.png
+            ${{ env.OUTPUT }}/known-zero/*.html
+            ${{ env.OUTPUT }}/office.docx
+            ${{ env.OUTPUT }}/office-delegation.docx
+            ${{ env.BUILD_ROOT }}/office-build.safe.json
+            ${{ env.BUILD_ROOT }}/build-inputs.json
+            ${{ env.BUILD_ROOT }}/git-inputs.json
+            ${{ env.BUILD_ROOT }}/frontend-sources.json
+            ${{ env.BUILD_ROOT }}/resources.json
+            ${{ env.BUILD_ROOT }}/commands.json
+            ${{ env.BUILD_ROOT }}/frontend/frontend-files.json
+            ${{ env.BUILD_ROOT }}/runtime-context/frontend-receipt.json
+            ${{ env.BUILD_ROOT }}/logs/*.log

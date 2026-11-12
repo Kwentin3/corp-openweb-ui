@@ -1,0 +1,17 @@
+{
+  "version": "0.12.2",
+  "upstream_commit": "6a18585ff4c2e5f6805f682222cfbc46dc669ef8",
+  "files": {
+    "src/lib/components/chat/Messages/ResponseMessage.svelte": {
+      "upstream_sha256": "24964180bac0b2be4151dc3b2002c90124984d49859e70eb2771b988e3909a69",
+      "candidate_sha256": "ab936fc1ae50dab0be8392f373d2e9597c4d41fc8134884cc5f254a4f0a937d3"
+    }
+  },
+  "build_identity": {
+    "package.json": "f077250b5cb8264f7f7b45fe1393bcfb181ed0392f2b0c1afcd5656720b520fc",
+    "package-lock.json": "aab2e5981a765b5789e7bedc0db845c78c51a338778bf4fff15dd46e96981748"
+  },
+  "patch_sha256": "3249d15fc318a08f0126e6103ed3b58ded9ccb140934fa72bc908cf7bcec53a8",
+  "runtime_acceptance": "not performed",
+  "upstream_tracking": "31897"
+}
