@@ -38,6 +38,7 @@ deploy/openwebui-patches/status-position-v0.12.2/* text eol=lf
 deploy/openwebui-patches/status-position-v0.12.2/status.patch whitespace=-trailing-space,-space-before-tab
 deploy/litellm-patches/positive-floor-v1.105.1/* text eol=lf
 deploy/litellm-patches/positive-floor-v1.105.1/floor.patch whitespace=-trailing-space,-space-before-tab
+deploy/litellm-patches/stream-usage-v1.105.1/*.patch text eol=lf whitespace=-trailing-space,-space-before-tab
 scripts/goal584-budget-proof/prove_calendar_reset.py text eol=lf
 scripts/goal584-budget-proof/prove_calendar_floor.py text eol=lf
 scripts/goal584-budget-proof/test_calendar_floor.py text eol=lf

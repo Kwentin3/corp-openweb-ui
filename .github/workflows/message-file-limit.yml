@@ -1,12 +1,8 @@
 name: Message file limit frontend
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - deploy/openwebui-patches/media-upload-v0.12.2/**
-      - deploy/openwebui-upgrade-0122/make_runtime_context.py
-      - .github/workflows/message-file-limit.yml
+  # Preserve the original isolated feature qualification explicitly. The current
+  # production export is Active CI export_webui_image, which composes all overlays.
   workflow_dispatch:
 
 permissions:
