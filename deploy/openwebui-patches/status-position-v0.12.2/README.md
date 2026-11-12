@@ -51,13 +51,16 @@ the optional string field; unknown strings are intentionally accepted/defaulted.
 
 The focused checks prove exact application/rejection, idempotence, source
 identity, actual component status projection on mixed/default/hidden/disabled
-inputs, non-mutation, and render-site ordering. They do not prove a Svelte build,
-persist/reload behavior or ordinary-user GUI acceptance. Those remain required
-before deployment. No production changes, full frontend build or model calls
-are part of this source candidate.
+inputs, non-mutation, and render-site ordering. Those checks alone do not prove a
+Svelte build, persist/reload behavior or ordinary-user GUI acceptance.
+The separate release at source `5458b49f` passed an actual frontend build,
+deployment, desktop/mobile long-answer PNG review, accumulated chat cost and
+exact saved-history/visible-status preservation after reload. See the
+[GOAL acceptance record](../../../docs/infra-ops/employee-budgets-goal584.md)
+for runtime identity and scope. Revalidate the affected path on upgrades.
 
 Retire the overlay when the pinned upstream version supports this status
-position contract natively; planned upstream issue/PR reference: #31897. Recheck
+position contract natively; [upstream proposal and patch](https://github.com/open-webui/open-webui/discussions/31897#discussioncomment-19563136). Recheck
 the exact upstream implementation before removing or rebasing. No CSS/DOM
 position workaround is used. Removing the overlay restores native upper-only
 display; existing persisted position fields remain harmless metadata.

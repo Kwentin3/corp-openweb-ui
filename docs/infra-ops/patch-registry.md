@@ -71,13 +71,17 @@ reviewable patch закреплены в [manifest](../../deploy/openwebui-patch
 Installer отвергает изменённый исходник; перенос при обновлении стека требует
 явной проверки, а не применения по совпавшим строкам.
 
-На момент записи — **source candidate, не deployed**. Пройдены installer/drift,
-reactive placement и совместимость source с media overlay; реальный frontend
-build, ordinary-user GUI/PNG, reload и production acceptance ещё обязательны.
+**Внедрён в production, runtime source `5458b49f`.** Пройдены installer/drift,
+reactive placement и совместимость source с media overlay, реальный frontend build
+([run 43196975066](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43196975066)),
+ordinary-user desktop/mobile GUI/PNG, две суммы/накопление и exact history/reload.
+Точные image/build digests и ограничение snapshot — в [GOAL](employee-budgets-goal584.md).
 Используется существующий build owner ниже; новый backend image собирается с
 прежними overlays. Upstream: найден точный [запрос #31886](https://github.com/open-webui/open-webui/issues/31886),
 перенесённый в [discussion #31897](https://github.com/open-webui/open-webui/discussions/31897).
-Нового внешнего сообщения пока нет. Условие снятия: выбранный upstream image
+[Предложение и inline patch опубликованы](https://github.com/open-webui/open-webui/discussions/31897#discussioncomment-19563136),
+доступность проверена анонимно. Ответ/принятие upstream пока не подтверждены.
+Условие снятия: выбранный upstream image
 штатно сохраняет и выводит per-status after-content placement; проверены длинный
 ответ, обычный progress сверху, unknown/missing position, hidden/capability и reload.
 
