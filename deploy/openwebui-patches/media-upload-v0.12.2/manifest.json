@@ -17,6 +17,22 @@
     "src/lib/components/chat/MessageInput.svelte": {
       "upstream_sha256": "f718aecd67e1c6359c5a80444becc78b09ed6ac7d3bc0645268e96832b6093e0",
       "candidate_sha256": "7b80254b34270e72450c96af468685478ff8ebf07c28a6ba2f865d1bffb8569f"
+    },
+    "src/lib/components/chat/Chat.svelte": {
+      "upstream_sha256": "2864642959fd5f6ffbbbb390dc7e27a3cd401e611ac96265265c03e6228d222e",
+      "candidate_sha256": "8d66d892ee33cbf4b23579aaf3413e120ee710a58104353ff6882f46960a0184"
+    },
+    "src/lib/i18n/locales/en-US/translation.json": {
+      "upstream_sha256": "e462f4e684998dd04bf2d78e5766ca66ed27af664df9e7215f8ae1bab3261bae",
+      "candidate_sha256": "fde0b86fb6a247690d10bcc34f3569956f9ea279d4e8479387edb46f497d01f7"
+    },
+    "src/lib/i18n/locales/ru-RU/translation.json": {
+      "upstream_sha256": "11a2d59edbb434dda52cd703e997c4b1e14d629ee790ae65cb3ee6594a346b92",
+      "candidate_sha256": "78a5b8d30035e2a85afb124f6a17c132f6b1d26e6eac4d075411d74be8bb6483"
+    },
+    "vite.config.ts": {
+      "upstream_sha256": "5ed96c77c0326d25caf7582047f51d57958d32fe062cff9077c22e18f7d6bc43",
+      "candidate_sha256": "b498dc1c8794b51630a4b3c2ce4275ab008c0a424e6f6bd2bcf62e5badd1c795"
     }
   },
   "build_identity": {
@@ -29,5 +45,5 @@
   "declared_node_engine": ">=18.13.0 <=22.x.x",
   "declared_npm_engine": ">=6.0.0",
   "runtime_acceptance": "not performed",
-  "patch_sha256": "e60b48697d27febec13b2a3051b20c3e2cd642467c52b2499743a33ee37d8664"
+  "patch_sha256": "8a38c2a7e1bc8b5d5ab4d640d3b37fd6a9df02ee0412d860383389fb4171dcc3"
 }
