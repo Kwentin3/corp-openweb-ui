@@ -649,6 +649,27 @@ def _overview_event(raw, deployment):
     return (observed, started, "success", raw)
 
 
+def _overview_account_events(result, deployments):
+    """Resolve only validated observations, including a partially read window."""
+    for account in result["accounts"]:
+        members = [d for d in deployments.values() if d["account"] == account["id"]]
+        events = [(event, deployment) for deployment in members for event in deployment["events"]]
+        successes = [event for event, _ in events if event[2] == "success"]
+        refusals = []
+        for failure, failed in events:
+            if failure[2] != "financial_refusal":
+                continue
+            recovered = any(success[2] == "success" and success[1] > failure[0]
+                and failed["immutable"] and paid["immutable"]
+                and (paid["id"] == failed["id"] or failed["grouped"] and paid["grouped"])
+                for success, paid in events)
+            if not recovered:
+                refusals.append(failure)
+        event = max(refusals or (successes if result["complete"] else []), key=lambda e: e[0], default=None)
+        account.update(status=("financial_refusal" if refusals else "success") if event else "unknown",
+                       event_at=event[0].isoformat() if event else None)
+
+
 async def read_admin_overview(session: ClientSession, *, base_url: str, admin_key: str,
                               models: dict, configsnapshots: dict) -> dict:
     """Native applied prices and bounded provider observations for admin display.
@@ -671,6 +692,7 @@ async def read_admin_overview(session: ClientSession, *, base_url: str, admin_ke
               for wire, label in models.items()]
     result = {"prices": prices, "accounts": [], "as_of": as_of,
               "coverage": "observed_native_rows_only", "complete": False}
+    deployments = {}
     try:
         async with asyncio.timeout(5):
             catalog = await _get_page(session, base_url.rstrip("/") + "/model/info", admin_key, {}, 5)
@@ -749,25 +771,11 @@ async def read_admin_overview(session: ClientSession, *, base_url: str, admin_ke
                 if page_number >= counts[1]:
                     result["complete"] = True
                     break
-            # Incomplete observation never announces recovery or absence of a
-            # refusal; known evidence remains available in the native journal.
-            if not result["complete"]:
-                return result
+            # Keep observed refusals even when the bounded scan is incomplete.
+            # Only a qualified later success can clear that evidence; an
+            # incomplete scan cannot establish an account-wide success state.
             for account in result["accounts"]:
                 members = [d for d in deployments.values() if d["account"] == account["id"]]
-                events = [(event, deployment) for deployment in members for event in deployment["events"]]
-                successes = [event for event, _ in events if event[2] == "success"]
-                refusals = []
-                for failure, failed_deployment in events:
-                    if failure[2] != "financial_refusal":
-                        continue
-                    recovered = any(success[2] == "success" and success[1] > failure[0]
-                        and failed_deployment["immutable"] and paid_deployment["immutable"]
-                        and (paid_deployment["id"] == failed_deployment["id"]
-                             or failed_deployment["grouped"] and paid_deployment["grouped"])
-                        for success, paid_deployment in events)
-                    if not recovered:
-                        refusals.append(failure)
                 for deployment in members:
                     events = sorted(deployment["events"], key=lambda e: e[0])
                     # Compare only qualified native billed rates for the same
@@ -788,12 +796,9 @@ async def read_admin_overview(session: ClientSession, *, base_url: str, admin_ke
                         if all(rate is not None for rate in old + current) and old != current:
                             next(p for p in prices if p["id"] == deployment["wire"])["changed"] = True
                         break
-                event = max(refusals or successes, key=lambda e: e[0], default=None)
-                if event is not None:
-                    account.update(status="financial_refusal" if refusals else "success", event_at=event[0].isoformat())
+            _overview_account_events(result, deployments)
             return result
     except (CostReadError, asyncio.TimeoutError):
-        for account in result["accounts"]:
-            account.update(status="unknown", event_at=None)
         result["complete"] = False
+        _overview_account_events(result, deployments)
         return result

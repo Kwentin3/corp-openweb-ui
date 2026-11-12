@@ -349,7 +349,8 @@ def public_employee(identity, state, *, unknown_presence=None):
                 <= state.max_budget * Decimal("1e-12")):
         with localcontext() as context:
             context.prec = 128
-            models = sorted(native, key=lambda item: item.model)
+            shares.update((model.model, Decimal(0)) for model in native if model.max_budget == 0)
+            models = sorted((model for model in native if model.max_budget > 0), key=lambda item: item.model)
             for model in models[:-1]:
                 shares[model.model] = (model.max_budget * 100 / state.max_budget).quantize(Decimal(".0001"), rounding="ROUND_DOWN")
             if models:

@@ -113,6 +113,24 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(public["models"][0]["cap_usd"], "5")
         self.assertEqual(public["budget_usd"], "10")
 
+    def test_share_rounding_residual_preserves_native_zero_caps_and_pending_assignments(self):
+        base = state()
+        before = replace(base, max_budget=D(3), models=tuple(
+            replace(base.models[0], model=model, max_budget=cap)
+            for model, cap in (("a", D(1)), ("b", D(1)), ("c", D(1)), ("z", D(0)))))
+        pending = contract.ModelBudget("zz", None, None, None, None, None, None, None, pending=True)
+        before = replace(before, models=(*before.models, pending))
+        original_revision = policy.revision(before)
+        public = policy.public_employee({"user_id": USER, "name": "Ada", "email": "a@example.invalid"}, before)
+        shares = {model["id"]: D(model["share_percent"]) for model in public["models"]}
+        self.assertEqual(shares, {"a": D("33.3333"), "b": D("33.3333"), "c": D("33.3334"),
+                                  "z": D(0), "zz": D(0)})
+        self.assertEqual(sum(shares.values()), 100)
+        self.assertEqual(policy.revision(before), original_revision)
+        change = prepared(before, "3", {model: str(share) for model, share in shares.items()})
+        self.assertEqual(dict(change.new_caps)["z"], 0)
+        self.assertEqual(dict(change.new_caps)["zz"], 0)
+
     def test_presence_projection_maps_only_true_to_unknown_without_changing_native_values(self):
         before = state()
         identity = {'user_id': USER, 'name': 'Ada', 'email': 'ada@example.invalid', 'models': ('a', 'b')}

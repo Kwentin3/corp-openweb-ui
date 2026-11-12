@@ -99,21 +99,20 @@ class RendererTests(unittest.TestCase):
         self.assertIn('Источник: Каталог LiteLLM', html)
         self.assertIn('Источник: Встроенный каталог LiteLLM', html)
         self.assertIn('Финансовый отказ', html)
-        self.assertIn('Успешный запрос', html)
-        self.assertIn('Нет данных', html)
-        self.assertIn('Последний известный баланс: -1.000000000000000001 USD', html)
-        self.assertIn('Server-owned actor', html)
+        self.assertNotIn('Успешный запрос', html)
+        self.assertIn('Наблюдение:', html)
+        self.assertIn('Событие запроса, не текущий баланс.', html)
+        self.assertLess(html.index('class="account-refusal"'), html.index('id="employee-table"'))
+        self.assertEqual(html.count('USD / 1M токенов · вход / выход'), 1)
+        self.assertNotIn('Последний известный баланс', html)
+        self.assertNotIn('Server-owned actor', html)
         self.assertNotIn('PRIVATE_', html)
-        self.assertEqual(json.loads(parser.scripts[1]), [
-            {'id': account['id'], 'revision': account['revision']} for account in supplied['accounts']])
+        self.assertEqual(len(parser.scripts), 2)
+        self.assertNotIn('opaque-account-', html)
+        self.assertNotIn('provider_balance_snapshot', html)
         fields = [attrs['data-balance-field'] for tag, attrs in parser.tags
                   if tag == 'input' and 'data-balance-field' in attrs]
-        self.assertEqual(fields, ['amount', 'currency', 'observed_at'] * 3)
-        observed = [attrs for tag, attrs in parser.tags if attrs.get('data-balance-field') == 'observed_at']
-        self.assertTrue(all(attrs['type'] == 'datetime-local' and attrs['step'] == '60'
-                            and attrs['title'] == 'Местное время' for attrs in observed))
-        self.assertIn('Проверено в ЛК', html)
-        self.assertNotIn('ISO 8601', html)
+        self.assertEqual(fields, [])
         self.assertEqual(supplied, before)
         empty = UI.render_editor([], as_of='owned', overview=supplied)
         self.assertIn('Model A', empty)
@@ -134,12 +133,12 @@ class RendererTests(unittest.TestCase):
         parser = Parser(html)
         self.assertNotIn('<img', html)
         self.assertIn('&lt;img', html)
-        self.assertNotIn('<', parser.scripts[1])
-        self.assertEqual(json.loads(parser.scripts[1])[0]['id'], attack)
+        self.assertNotIn('<', parser.scripts[0])
+        self.assertNotIn('class="account-refusal"', html)
         self.assertIn('data-money="4.750000000000000001"', html)
         self.assertIn('Остаток по учёту: <span data-money=""', html)
         self.assertIn('class="new-model">новая', html)
-        self.assertIn('class="unknown">Расход неизвестен.', html)
+        self.assertIn('<strong>Расход неизвестен.</strong>', html)
         projected = json.loads(parser.scripts[0])[0]['models']
         self.assertEqual(projected[0]['remaining_usd'], '4.750000000000000001')
         self.assertIs(projected[0]['pending'], True)
@@ -153,7 +152,7 @@ class RendererTests(unittest.TestCase):
                                    known_subtotal_usd='.2', blocked=True)
         before = copy.deepcopy(data)
         html = UI.render_editor(data, as_of='owned-global-time')
-        section = html.split('<tr data-employee-id=', 1)[1].split('</tr>', 1)[0]
+        section = html.split('<tr data-employee-id=', 1)[1].split('<tr data-employee-id=', 1)[0]
         spend = section.split('<td>', 2)[2].split('</td>', 1)[0]
         self.assertIn('data-money="9.99"', spend)
         self.assertIn('Неизвестен', spend)
@@ -167,7 +166,7 @@ class RendererTests(unittest.TestCase):
         self.assertNotIn('Остаток по учтённым расходам', section)
         self.assertIn('data-money="0.01"', section)
         self.assertIn('итог и доступность запроса не гарантированы', section)
-        self.assertIn('<small data-model-status>Заблокирована</small>', section)
+        self.assertIn('<small data-model-status class="blocked">Заблокирована</small>', section)
         self.assertEqual(data, before)
 
     def test_unavailable_and_invalid_explicit_status_never_reassure_with_zero_or_remaining(self):
@@ -177,7 +176,7 @@ class RendererTests(unittest.TestCase):
                            known_subtotal_usd=None)
             data[0]['models'][0].update(expense_status=status, spend_usd='0', blocked=False)
             html = UI.render_editor(data, as_of='owned')
-            section = html.split('<tr data-employee-id=', 1)[1].split('</tr>', 1)[0]
+            section = html.split('<tr data-employee-id=', 1)[1].split('<tr data-employee-id=', 1)[0]
             with self.subTest(status=status):
                 self.assertIn('data-money="0"', section.split('<td>', 2)[2].split('</td>', 1)[0])
                 self.assertIn('Расход неизвестен.' if status == 'unknown' else 'Полнота данных о расходе не подтверждена.', section)
@@ -192,7 +191,7 @@ class RendererTests(unittest.TestCase):
                 else:
                     self.assertIn('data-money="10.00"', section)
                     self.assertIn('итог и доступность запроса не гарантированы', section)
-                self.assertIn('<small data-model-status>Не заблокирована</small>', section)
+                self.assertNotIn('data-model-status', section)
 
     def test_expense_context_uses_only_owned_strings_and_does_not_derive_dates_or_sums(self):
         data = rows()
@@ -201,14 +200,14 @@ class RendererTests(unittest.TestCase):
             expense_window_end_exclusive='caller-end')
         data[0]['models'][0].update(expense_status='unknown', known_subtotal_usd='.3')
         data[0]['models'][1].update(expense_status='unavailable', known_subtotal_usd='.7')
-        section = UI.render_editor(data, as_of='global-header-time').split('<tr data-employee-id=', 1)[1].split('</tr>', 1)[0]
+        section = UI.render_editor(data, as_of='global-header-time').split('<tr data-employee-id=', 1)[1].split('<tr data-employee-id=', 1)[0]
         self.assertIn('Подтверждённая часть расхода: 7.1234567890123456789 USD.', section)
         self.assertIn('Наблюдение на: caller-completed-time.', section)
         self.assertIn('Диапазон наблюдения: с caller-start (включительно) до caller-end (не включается).', section)
         self.assertNotIn('Период:', section)
         self.assertNotIn('global-header-time', section)
         data[0] = rows()[0] | {'expense_status': 'unknown'}
-        section = UI.render_editor(data, as_of='global-header-time').split('<tr data-employee-id=', 1)[1].split('</tr>', 1)[0]
+        section = UI.render_editor(data, as_of='global-header-time').split('<tr data-employee-id=', 1)[1].split('<tr data-employee-id=', 1)[0]
         self.assertNotIn('Наблюдение на:', section)
         self.assertNotIn('Период:', section)
         self.assertNotIn('Диапазон наблюдения:', section)
@@ -234,7 +233,7 @@ class RendererTests(unittest.TestCase):
         cell = html.split('<td><strong class="unknown"', 1)[1].split('</td>', 1)[0]
         self.assertNotIn('<input', cell)
         self.assertNotIn('<button', cell)
-        self.assertEqual(len([attrs for tag, attrs in parser.tags if attrs.get('role') == 'status']), 2)
+        self.assertEqual(len([attrs for tag, attrs in parser.tags if tag == 'span' and attrs.get('role') == 'status']), 2)
 
     def test_expense_strings_and_status_cannot_inject_markup_or_client_authority(self):
         data = rows()
@@ -261,7 +260,7 @@ class RendererTests(unittest.TestCase):
         html = UI.render_editor(data, as_of='owned')
         self.assertEqual(html.split('<form id="editor">')[1].split('</form>')[0],
                          baseline.split('<form id="editor">')[1].split('</form>')[0])
-        self.assertNotIn('role="status"', html)
+        self.assertNotIn('<span role="status">', html)
 
     def test_native_block_tristate_is_readonly_and_does_not_enter_client_data(self):
         data = rows()
@@ -270,10 +269,9 @@ class RendererTests(unittest.TestCase):
         data[1]['models'][0]['blocked'] = None
         before = copy.deepcopy(data)
         html = UI.render_editor(data, as_of='now')
-        self.assertEqual(html.count('data-model-status>'), 4)
-        self.assertEqual(html.count('<small data-model-status>Заблокирована</small>'), 1)
-        self.assertEqual(html.count('<small data-model-status>Не заблокирована</small>'), 1)
-        self.assertEqual(html.count('<small data-model-status>Нет данных</small>'), 2)
+        self.assertEqual(html.count('data-model-status '), 1)
+        self.assertEqual(html.count('<small data-model-status class="blocked">Заблокирована</small>'), 1)
+        self.assertNotIn('Не заблокирована', html)
         self.assertIn('data-sort="spend"', html)
         self.assertIn('data-money="1.25"', html)
         self.assertIn('data-money="8.75"', html)
@@ -294,8 +292,7 @@ class RendererTests(unittest.TestCase):
         html = UI.render_editor(data, as_of='now')
         parser = Parser(html)
         self.assertNotIn('img', [tag for tag, _ in parser.tags])
-        self.assertEqual(html.count('<small data-model-status>Нет данных</small>'), 4)
-        self.assertNotIn('<small data-model-status>Заблокирована</small>', html)
+        self.assertNotIn('data-model-status', html)
         self.assertEqual(json.loads(parser.scripts[0])[0]['models'][0]['label'], attack)
         self.assertTrue(all('blocked' not in model for row in json.loads(parser.scripts[0]) for model in row['models']))
 
@@ -500,10 +497,13 @@ class ChromeSandboxTests(unittest.TestCase):
         self.frame.locator('#template-editor').wait_for()
 
     def employee_editor(self, index=0):
-        row = self.frame.locator('tr[data-employee-id]').nth(index)
-        if row.locator('.exact-shares').get_attribute('open') is None:
-            row.locator('.exact-shares>summary').click()
-        return row
+        row = self.employee_row(index)
+        if row.locator('.expand-editor').get_attribute('aria-expanded') != 'true':
+            row.locator('.expand-editor').click()
+        return self.frame.locator(f'[data-editor-index="{row.get_attribute("data-index")}"]')
+
+    def employee_row(self, index=0):
+        return self.frame.locator('tr[data-employee-id]').nth(index)
 
     def review_plan(self):
         review = self.frame.locator('#plan-review')
@@ -515,61 +515,27 @@ class ChromeSandboxTests(unittest.TestCase):
         html = UI.render_editor(data if data is not None else rows(), as_of='2026-11-11T13:00:00Z',
                                 overview=supplied if supplied is not None else overview(), **kwargs)
         self.page.locator('iframe').evaluate('(el,html)=>el.srcdoc=html', html)
-        self.frame.locator('[data-account-index="0"]').wait_for()
+        self.frame.locator('.account-refusal').wait_for()
         return html
 
-    def open_balance(self):
-        account = self.frame.locator('[data-account-index="0"]')
-        account.locator(':scope>summary').click()
-        account.locator('.balance-editor>summary').click()
-        return account
-
-    def test_overview_disclosures_keep_drafts_and_balance_uses_exact_native_transport(self):
+    def test_overview_disclosures_keep_drafts_and_only_show_financial_refusal(self):
         data = rows()
         data[0]['models'][0].update(remaining_usd='4.750000000000000001', new=True)
         self.load_overview(data)
         budget = self.frame.locator('[data-field="budget_usd"]').first
         budget.fill('20.000000000000000001')
         self.frame.locator('.legend-price>summary').first.click()
-        employee = self.frame.locator('.employee-info').first
-        employee.locator('summary').click()
+        employee = self.employee_editor()
+        employee.locator('.model-stats>summary').first.click()
         self.assertIn('4,75', employee.inner_text())
         self.assertEqual(employee.locator('[data-money="4.750000000000000001"]').get_attribute('title'),
                          '4.750000000000000001 USD')
-        employee.locator('summary').click()
-        account = self.open_balance()
-        account.locator('[data-balance-field="amount"]').fill('-123.000000000000000001')
-        account.locator('[data-balance-field="observed_at"]').fill('2026-11-11T12:34')
-        expected_observed = self.page.evaluate("new Date('2026-11-11T12:34').toISOString()")
-        account.locator('[data-submit-balance]').click()
-        self.assertIn('несохранённые правки бюджетов', account.locator('[data-balance-feedback]').inner_text())
+        self.assertEqual(self.frame.locator('.account-refusal').count(), 1)
+        self.assertIn('Наблюдение:', self.frame.locator('.account-refusal').inner_text())
+        self.assertEqual(self.frame.locator('[data-balance-field],#budget-account-data').count(), 0)
+        self.assertEqual(self.frame.locator('.legend-price [data-money]').first.get_attribute('title'),
+                         '0.1234567890123456789 USD')
         self.assertEqual(budget.input_value(), '20.000000000000000001')
-        self.assertEqual(self.prompts(), [])
-        self.frame.locator('#reset-drafts').click()
-        account.locator('[data-submit-balance]').click()
-        self.page.wait_for_function("received.some(x=>x.data.type==='input:prompt:submit')")
-        self.assertEqual(json.loads(self.prompts()[0]['data']['text']), {
-            'schema': 1, 'type': 'provider_balance_snapshot', 'account_id': 'opaque-account-0',
-            'expected_revision': 'account-revision-0', 'amount': '-123.000000000000000001',
-            'currency': 'USD', 'observed_at': expected_observed})
-        self.assertTrue(account.locator('[data-submit-balance]').is_disabled())
-        self.assertIn('ещё не сохранена', account.locator('[data-balance-feedback]').inner_text())
-        self.assertEqual(self.prompts()[0]['origin'], 'null')
-
-    def test_manual_balance_validation_and_bootstrap_draft_guard(self):
-        self.load_overview(template=template(), pending=pending_rows())
-        account = self.open_balance()
-        amount = account.locator('[data-balance-field="amount"]')
-        for invalid in ('1e3', '', ' 1', '.5'):
-            amount.fill(invalid)
-            account.locator('[data-submit-balance]').click()
-            self.assertIn('десятичной строкой', account.locator('[data-balance-feedback]').inner_text())
-        amount.fill('1.00')
-        self.frame.locator('.optional').first.locator(':scope>summary').click()
-        self.frame.locator('#template-budget').fill('2.00')
-        account.locator('[data-submit-balance]').click()
-        self.assertIn('несохранённые правки бюджетов', account.locator('[data-balance-feedback]').inner_text())
-        self.assertEqual(self.frame.locator('#template-budget').input_value(), '2.00')
         self.assertEqual(self.prompts(), [])
 
     def test_overview_820px_compact_rows_sticky_header_and_unknown_state(self):
@@ -586,11 +552,15 @@ class ChromeSandboxTests(unittest.TestCase):
             'source': 'cached-provider-price', 'changed': False})
         html = self.load_overview(data, supplied)
         self.page.set_viewport_size({'width': 820, 'height': 900})
-        self.assertIn('Нет данных', self.frame.locator('[data-account-index="2"]>summary').inner_text())
         self.assertIn('нет данных', self.frame.locator('.legend-price').nth(1).inner_text())
-        self.assertTrue(self.frame.locator('.balance-editor').first.is_hidden())
-        self.assertEqual(self.frame.locator('#employee-rows>tr').evaluate_all(
-            '(rows)=>rows.map(row=>row.getBoundingClientRect().height)'), [63] * 12)
+        self.assertEqual(self.frame.locator('.account-refusal').count(), 1)
+        heights = self.frame.locator('tr[data-employee-id]').evaluate_all(
+            '(rows)=>rows.map(row=>row.getBoundingClientRect().height)')
+        self.assertTrue(all(40 <= height <= 65 for height in heights), heights)
+        legend = self.frame.locator('.legend').evaluate(
+            'el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,height:el.clientHeight,scrollHeight:el.scrollHeight})')
+        self.assertEqual(legend['height'], legend['scrollHeight'])
+        self.assertEqual(legend['width'], legend['scrollWidth'])
         metrics = self.frame.locator('.table-scroll').evaluate(
             'el=>({width:el.clientWidth,scrollWidth:el.scrollWidth,top:el.getBoundingClientRect().top})')
         self.assertEqual(metrics['width'], metrics['scrollWidth'])
@@ -606,15 +576,6 @@ class ChromeSandboxTests(unittest.TestCase):
         if out:
             self.page.screenshot(path=str(out / 'overview-12-820-scrolled.png'), full_page=True)
         self.frame.locator('.table-scroll').evaluate('el=>el.scrollTop=0')
-        account = self.open_balance()
-        self.assertIn('Последний известный баланс', account.inner_text())
-        self.assertEqual(account.locator('[data-balance-field="amount"]').input_value(), '-1.000000000000000001')
-        self.assertEqual(account.locator('[data-balance-field="observed_at"]').input_value(),
-            self.page.evaluate("(()=>{const d=new Date('2026-11-10T10:00:00Z'),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes())})()"))
-        absent_time = self.frame.locator('[data-account-index="1"] [data-balance-field="observed_at"]')
-        self.assertRegex(absent_time.input_value(), r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$')
-        if out:
-            self.page.screenshot(path=str(out / 'overview-balance-disclosure-820.png'), full_page=True)
         self.assertEqual(self.prompts(), [])
 
     def test_template_exact_validation_preview_and_separate_native_payload(self):
@@ -709,15 +670,15 @@ class ChromeSandboxTests(unittest.TestCase):
         self.employee_editor(0)
         self.employee_editor(1)
         statuses = self.frame.locator('[data-model-status]')
-        self.assertEqual(statuses.count(), 4)
-        for index, label in enumerate(('Заблокирована', 'Не заблокирована', 'Нет данных', 'Нет данных')):
-            self.assertEqual(statuses.nth(index).inner_text(), label)
-            self.assertEqual(statuses.nth(index).locator('input,button').count(), 0)
+        self.assertEqual(statuses.count(), 1)
+        statuses.first.locator('..').locator('summary').click()
+        self.assertEqual(statuses.first.inner_text(), 'Заблокирована')
+        self.assertEqual(statuses.first.locator('input,button').count(), 0)
         self.assertEqual(self.prompts(), [])
 
     def test_changed_rows_precision_and_two_employee_submission(self):
         first = self.employee_editor(0)
-        first.locator('[data-field="budget_usd"]').fill('20.000000000000000001')
+        self.employee_row(0).locator('[data-field="budget_usd"]').fill('20.000000000000000001')
         first.locator('[data-model-id="model-a"]').fill('33.3333333333333333')
         first.locator('[data-model-id="model-b"]').fill('66.6666666666666667')
         self.frame.get_by_role('button', name='Применить изменения', exact=True).click()
@@ -731,7 +692,7 @@ class ChromeSandboxTests(unittest.TestCase):
         self.assertIn('10.00 → 20.000000000000000001 USD', self.review_plan().inner_text())
         self.assertTrue(self.frame.locator('#apply').is_disabled())
         second = self.employee_editor(1)
-        second.locator('[data-field="budget_usd"]').fill('40.000')
+        self.employee_row(1).locator('[data-field="budget_usd"]').fill('40.000')
         self.frame.get_by_role('button', name='Применить изменения', exact=True).click()
         self.page.wait_for_function("received.filter(x=>x.data.type==='input:prompt:submit').length===2")
         second_plan = json.loads(self.prompts()[1]['data']['text'])
@@ -742,30 +703,31 @@ class ChromeSandboxTests(unittest.TestCase):
     def test_invalid_and_unchanged_values_do_not_submit(self):
         self.assertTrue(self.frame.locator('#apply').is_disabled())
         first = self.employee_editor(0)
-        first.locator('[data-field="budget_usd"]').fill('20')
-        first.locator('[data-model-id="model-a"]').fill('49.999999999999999999')
+        self.employee_row(0).locator('[data-field="budget_usd"]').fill('20')
+        first.locator('[data-model-id="model-a"]').fill('49.')
         self.frame.get_by_role('button', name='Применить изменения', exact=True).click()
         self.assertIn('суммой 100%', self.frame.locator('#feedback').inner_text())
         first.locator('[data-model-id="model-a"]').fill('50.00')
-        first.locator('[data-field="budget_usd"]').fill('1e3')
+        self.employee_row(0).locator('[data-field="budget_usd"]').fill('1e3')
         self.frame.get_by_role('button', name='Применить изменения', exact=True).click()
         self.assertIn('десятичной строкой', self.frame.locator('#feedback').inner_text())
         self.assertEqual(self.prompts(), [])
 
     def test_local_filters_sort_slider_and_reset_preserve_exact_drafts_without_prompts(self):
         first = self.employee_editor(0)
-        first.locator('[data-field="budget_usd"]').fill('20.000000000000000001')
-        self.assertEqual(first.locator('.allocation-bar').count(), 1)
-        self.assertEqual(first.locator('[data-share-slider]').count(), 1)
-        first.locator('[data-share-slider]').press('Home')
-        first.locator('[data-share-slider]').press('ArrowRight')
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '1.00')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '99.00')
-        first.locator('[data-share-slider]').evaluate("el=>{el.value='35';el.dispatchEvent(new Event('input',{bubbles:true}))}")
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '35.00')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '65.00')
+        row = self.employee_row(0)
+        row.locator('[data-field="budget_usd"]').fill('20.000000000000000001')
+        self.assertEqual(row.locator('.allocation-bar input').count(), 0)
+        self.assertEqual(first.locator('[data-share-slider]').count(), 2)
+        first.locator('[data-share-slider]').first.press('Home')
+        first.locator('[data-share-slider]').first.press('ArrowRight')
+        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '1')
+        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '99')
+        first.locator('[data-share-slider]').first.evaluate("el=>{el.value='35';el.dispatchEvent(new Event('input',{bubbles:true}))}")
+        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '35')
+        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '65')
         self.assertEqual(Decimal(first.locator('[data-allocation="0"]').get_attribute('title').removesuffix(' USD')), Decimal('7.00000000000000000035'))
-        self.assertIn('50.00 → 35.00%', self.review_plan().inner_text())
+        self.assertIn('50.00 → 35%', self.review_plan().inner_text())
         self.frame.locator('#search').fill('user2@')
         self.assertFalse(first.is_visible())
         self.frame.locator('[data-sort="remaining"]').click()
@@ -775,69 +737,77 @@ class ChromeSandboxTests(unittest.TestCase):
         self.frame.locator('#department').select_option('')
         self.frame.locator('#only-changed').check()
         self.assertEqual(self.frame.locator('tr[data-employee-id]:visible').count(), 1)
-        self.assertEqual(first.locator('[data-field="budget_usd"]').input_value(), '20.000000000000000001')
+        self.assertEqual(row.locator('[data-field="budget_usd"]').input_value(), '20.000000000000000001')
+        self.assertEqual(row.locator('xpath=following-sibling::*[1]').get_attribute('data-editor-index'), row.get_attribute('data-index'))
         self.assertIn('Изменено: 1', self.frame.locator('#changed-count').inner_text())
         self.assertEqual(self.prompts(), [])
         self.frame.locator('#reset-drafts').click()
         self.assertTrue(self.frame.locator('#apply').is_disabled())
         self.assertTrue(self.frame.locator('#empty-result').is_visible())
         self.frame.locator('#only-changed').uncheck()
-        self.assertEqual(first.locator('[data-field="budget_usd"]').input_value(), '10.00')
+        self.assertEqual(row.locator('[data-field="budget_usd"]').input_value(), '10.00')
         self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '50.00')
         self.assertTrue(self.frame.locator('#plan-review').is_hidden())
         self.assertEqual(self.prompts(), [])
 
-    def test_three_models_tiny_negative_and_unavailable_values_keep_truth(self):
+    def test_proportional_shares_preserve_zeros_and_nine_model_explicit_equal_action(self):
         data = rows()
         data[0]['remaining_usd'] = '-0.000000000001'
         data[1]['remaining_usd'] = '0.000000000001'
         data[0].update(expense_status='unavailable', spend_usd='0.1')
         data[1].update(expense_status='unknown', spend_usd='2')
-        data[0]['models'].append({'id': 'model-c', 'label': 'Model C', 'cap_usd': None,
-                                 'spend_usd': None, 'share_percent': '0'})
-        data[0]['models'][0]['share_percent'] = '0'
-        data[0]['models'][1]['share_percent'] = '0'
+        data[0]['models'][0]['share_percent'] = '50'
+        data[0]['models'][1]['share_percent'] = '30'
+        data[0]['models'].extend({'id': f'model-{i}', 'label': f'Model {i}', 'cap_usd': None,
+                                 'spend_usd': None, 'share_percent': '20' if i == 2 else '0'}
+                                for i in range(2, 9))
         html = UI.render_editor(data, as_of='owned')
         self.page.locator('iframe').evaluate('(el,html)=>el.srcdoc=html', html)
         self.frame.locator('#employee-table').wait_for()
+        out = Path(os.environ['GOAL584_ADMIN_UI_EVIDENCE']) if os.environ.get('GOAL584_ADMIN_UI_EVIDENCE') else None
+        if out:
+            out.mkdir(parents=True, exist_ok=True)
+            (out / 'nine-models.html').write_text(html, encoding='utf-8')
+            self.page.screenshot(path=str(out / 'nine-models-normal.png'), full_page=True)
+        row = self.employee_row(0)
+        row.locator('.allocation-bar').press('Enter')
+        self.assertEqual(row.locator('.expand-editor').get_attribute('aria-expanded'), 'true')
         first = self.employee_editor(0)
         second = self.frame.locator(f'tr[data-employee-id="{IDS[1]}"]')
-        self.assertEqual(first.locator('.allocation-bar').count(), 1)
-        self.assertEqual(first.locator('[data-share-slider]').count(), 2)
-        self.assertTrue(first.locator('[data-share-slider]').first.is_disabled())
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '0')
-        self.assertIn('Сумма 0%', first.locator('[data-share-total]').inner_text())
-        first.locator('[data-field="budget_usd"]').fill('20')
+        self.assertAlmostEqual(first.bounding_box()['width'], row.bounding_box()['width'], delta=1)
+        self.assertEqual(first.locator('[data-share-slider]').count(), 9)
+        if out:
+            self.page.screenshot(path=str(out / 'nine-models-expanded.png'), full_page=True)
+        shares = lambda: first.locator('input[data-model-id]').evaluate_all('els=>els.map(el=>el.value)')
+        handles = first.locator('[data-share-slider]')
+        first.locator('[data-model-id="model-a"]').fill('40')
+        self.assertEqual(shares(), ['40', '36', '24'] + ['0'] * 6)
+        if out:
+            self.page.screenshot(path=str(out / 'nine-models-redistributed.png'), full_page=True)
+        # One drag keeps its original proportions, including a return to its starting point.
+        handles.first.dispatch_event('pointerdown')
+        for candidate in ('25', '40'):
+            handles.first.evaluate('(el,value)=>{el.value=value;el.dispatchEvent(new Event("input",{bubbles:true}))}', candidate)
+        self.assertEqual(shares(), ['40', '36', '24'] + ['0'] * 6)
+        handles.first.dispatch_event('pointerup')
+        handles.first.press('End')
+        self.assertEqual(shares(), ['100', '0', '0'] + ['0'] * 6)
+        handles.first.press('ArrowLeft')
+        self.assertEqual(shares(), ['100', '0', '0'] + ['0'] * 6)
+        self.assertIn('Сначала задайте долю другой модели', first.locator('[data-share-feedback]').inner_text())
+        first.locator('[data-model-id="model-b"]').fill('20')
+        self.assertEqual(shares(), ['80', '20', '0'] + ['0'] * 6)
+        first.locator('[data-equal-shares]').click()
+        equal = shares()
+        self.assertEqual(len(equal), 9)
+        self.assertTrue(all(Decimal(value) > 0 for value in equal))
+        self.assertEqual(sum(map(Decimal, equal)), Decimal(100))
+        first.locator('[data-model-id="model-a"]').fill('12.')
         self.frame.locator('#apply').click()
         self.assertIn('суммой 100%', self.frame.locator('#feedback').inner_text())
-        for model, value in (('a', '10'), ('b', '20'), ('c', '70')):
-            first.locator(f'[data-model-id="model-{model}"]').fill(value)
-        handles = first.locator('[data-share-slider]')
-        self.assertFalse(handles.first.is_disabled())
-        handles.first.evaluate("el=>{el.value='15';el.dispatchEvent(new Event('input',{bubbles:true}))}")
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '15')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '15')
-        self.assertEqual(first.locator('[data-model-id="model-c"]').input_value(), '70')
-        handles.nth(1).press('End')
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '15')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '85')
-        self.assertEqual(first.locator('[data-model-id="model-c"]').input_value(), '0')
-        handles.first.press('End')  # Coincident boundaries preserve a zero middle share.
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '100')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '0')
-        self.assertEqual(first.locator('[data-model-id="model-c"]').input_value(), '0')
-        self.assertEqual(first.locator('[data-segment="1"]').evaluate('el=>el.getBoundingClientRect().width'), 0)
-        self.assertEqual(first.locator('[data-segment="2"]').evaluate('el=>el.getBoundingClientRect().width'), 0)
-        handles.nth(1).press('Home')  # Clamped at the previous boundary.
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '100')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '0')
-        for model, value in (('a', '0.000000000000000001'), ('b', '49.999999999999999999'), ('c', '50')):
-            first.locator(f'[data-model-id="model-{model}"]').fill(value)
-        handles.nth(1).press('ArrowRight')
-        self.assertEqual(first.locator('[data-model-id="model-a"]').input_value(), '0.000000000000000001')
-        self.assertEqual(first.locator('[data-model-id="model-b"]').input_value(), '50.999999999999999999')
-        self.assertEqual(first.locator('[data-model-id="model-c"]').input_value(), '49.000000000000000000')
-        self.assertEqual(first.locator('[data-segment="0"] [data-segment-percent]').evaluate('el=>getComputedStyle(el).display'), 'none')
+        self.assertEqual(self.prompts(), [])
+        first.locator('[data-model-id="model-a"]').fill('12')
+        self.assertEqual(sum(map(Decimal, shares())), Decimal(100))
         self.frame.locator('#remaining-filter').select_option('exhausted')
         self.assertTrue(first.is_visible())
         self.assertFalse(second.is_visible())
@@ -851,6 +821,7 @@ class ChromeSandboxTests(unittest.TestCase):
         self.assertEqual(self.frame.locator('#employee-rows>tr').first.get_attribute('data-employee-id'), IDS[1])
         self.frame.locator('[data-sort="remaining"]').click()
         self.assertEqual(self.frame.locator('#employee-rows>tr').first.get_attribute('data-employee-id'), IDS[0])
+        self.assertEqual(self.frame.locator('#employee-rows>tr').nth(1).get_attribute('data-editor-index'), '0')
         self.assertEqual(self.prompts(), [])
 
     def test_refresh_prompt_and_reload_discards_drafts(self):

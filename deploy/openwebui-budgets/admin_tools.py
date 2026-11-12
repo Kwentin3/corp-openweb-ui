@@ -106,7 +106,6 @@ class LoadedDirectory:
     inspections: dict
     labels: dict
     service: dict | None = None
-    unknown_presence: dict | None = None
     overview: dict | None = None
 
     def configuration(self):
@@ -124,7 +123,7 @@ class Tools:
     def __init__(self):
         self.valves = self.Valves()
 
-    async def _load(self, request):
+    async def _load(self, request, *, include_overview=True):
         from open_webui.models.functions import Functions
         from open_webui.models.users import Users
         from open_webui.utils.models import check_model_access
@@ -201,16 +200,17 @@ class Tools:
                        "spend_usd": policy.money(budget.spend), "budget_reset_at": budget.budget_reset_at,
                        "remaining_usd": policy.money(budget.max_budget - budget.spend)
                            if budget.max_budget is not None else None}
-        unknown_presence = None  # Native user/key counters do not depend on historical guardrail telemetry.
-        overview = await read_admin_overview(session, base_url=url, admin_key=key, models=labels,
+        # Display-only observations are not part of the authority/config checks
+        # repeated before every native write.
+        overview = (await read_admin_overview(session, base_url=url, admin_key=key, models=labels,
                                             configsnapshots=config.get("provider_balance_snapshots", {}))
+                    if include_overview else None)
         return LoadedDirectory(url, identities, states, client, copy.deepcopy(config), secrets, inspections, labels,
-                               service, unknown_presence, overview)
+                               service, overview)
 
     @staticmethod
     def _result(data, *, view=None, status="", outcome="success"):
-        rows = [policy.public_employee(data.identities[user_id], state,
-                    unknown_presence=None if data.unknown_presence is None else data.unknown_presence.get(user_id, {}))
+        rows = [policy.public_employee(data.identities[user_id], state)
                 for user_id, state in data.states.items()]
         rows = policy.filter_view(rows, policy.parse_view("{}") if view is None else view)
         template = data.config.get("default_budget_template")
@@ -273,7 +273,7 @@ class Tools:
             require(policy.confirmation_text(fresh_prepared, fresh.identities) == confirmation, "stale_confirmation")
             async def before_write():
                 await authorize_source()
-                current = await self._load(__request__)
+                current = await self._load(__request__, include_overview=False)
                 await authorize_source()
                 require(current.configuration() == fresh.configuration(), "stale_configuration")
 
@@ -407,7 +407,7 @@ class Tools:
 
             async def before_write():
                 await authorize_source()
-                current = await self._load(request)
+                current = await self._load(request, include_overview=False)
                 await authorize_source()
                 require(current.configuration() == data.configuration(), "stale_configuration")
 

@@ -871,6 +871,7 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
                      "cache_read_input_token_cost": "0.0000001"}
         self.rows, self.requests, self.extra_models = [], [], []
         self.log_payload = None
+        self.fail_page = None
         self.source = {"source": "remote", "loaded_at": datetime.now(timezone.utc).isoformat(),
                        "url": "https://private-source.invalid/?token=do-not-project"}
         app = web.Application()
@@ -895,6 +896,8 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
             return web.json_response(self.source)
         if request.path == cost.ADMIN_ROUTE:
             number = int(request.query["page"])
+            if number == self.fail_page:
+                return web.Response(status=503)
             return web.json_response(self.log_payload or page(self.rows[(number - 1) * 100:number * 100],
                                                             number=number, total=len(self.rows)))
         return web.Response(status=500)
@@ -1041,6 +1044,24 @@ class AdminOverviewTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["prices"][0]["changed"])
         self.assertEqual(result["accounts"][0]["status"], "unknown")
         self.assertIsNone(result["accounts"][0]["balance"])
+
+    async def test_bounded_scan_keeps_observed_refusal_until_qualified_later_success(self):
+        refusal = self.event("financial_refusal")
+        self.rows = [refusal] + [self.event("success", -index - 1) for index in range(250)]
+        result = await self.read()
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["accounts"][0]["status"], "financial_refusal")
+        self.assertEqual(result["accounts"][0]["event_at"], refusal["endTime"])
+        self.fail_page = 2
+        result = await self.read()
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["accounts"][0]["status"], "financial_refusal")
+        self.assertEqual(result["accounts"][0]["event_at"], refusal["endTime"])
+        self.rows.insert(0, self.event("success", 2))
+        result = await self.read()
+        self.assertFalse(result["complete"])
+        self.assertEqual(result["accounts"][0]["status"], "unknown")
+        self.assertIsNone(result["accounts"][0]["event_at"])
 
 
 if __name__ == "__main__":

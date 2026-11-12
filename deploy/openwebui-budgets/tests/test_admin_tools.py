@@ -62,6 +62,7 @@ class PresenceSession:
     def __init__(self):
         self.requests, self.handler, self.active, self.peak = [], None, 0, 0
         self.overview_models = []
+        self.overview_requests = []
 
     def get(self, url, *, params, headers, allow_redirects, timeout):
         assert url in (URL + '/spend/logs/v2', URL + '/model/info', URL + '/model/cost_map/source') and allow_redirects is False
@@ -69,6 +70,7 @@ class PresenceSession:
         @asynccontextmanager
         async def response():
             if url != URL + '/spend/logs/v2':
+                self.overview_requests.append(url)
                 payload = ({'data': self.overview_models} if url.endswith('/model/info') else
                            {'source': 'remote', 'loaded_at': '2026-11-11T09:00:00Z'})
                 async def chunks(size): yield json.dumps(payload).encode()
@@ -178,10 +180,9 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
     async def balance_plan(self):
         self.session.overview_models = [{'model_name': MODELS[0], 'model_info': {
             'id': 'fixed-synthetic-route', 'owui_billing_account_id': 'google-main'}}]
-        result = await self.open()
-        text = self.html(result)
-        account = json.loads(text.split('<script id="budget-account-data" type="application/json">', 1)[1]
-                             .split('</script>', 1)[0])[0]
+        # Manual snapshots remain a protected backend operation; the editor no
+        # longer publishes a balance form or its transport data.
+        account = (await self.tools._load(self.request)).overview['accounts'][0]
         return {'schema': 1, 'type': 'provider_balance_snapshot', 'account_id': account['id'],
                 'expected_revision': account['revision'], 'amount': '-0.25', 'currency': 'USD',
                 'observed_at': '2026-11-10T10:00:00Z'}
@@ -200,7 +201,7 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.config['unrelated'], {'keep': True})
         self.assertEqual(self.states, before)
         self.assertEqual(self.writes, [])
-        self.assertIn('Последний известный баланс', self.html(result))
+        self.assertIn('Ручной снимок баланса сохранён.', self.html(result))
         self.assertIn('Ручной снимок', confirm.call_args.args[0]['data']['message'])
 
     async def test_manual_balance_cancel_and_concurrent_edit_do_not_overwrite_snapshot(self):
@@ -395,6 +396,8 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
             ["self", "__request__", "__user__", "__metadata__", "__event_call__"])
         confirm = AsyncMock(return_value=True)
         text = self.html(await self.apply(confirm))
+        self.assertEqual(self.session.overview_requests.count(URL + '/model/info'), 3)
+        self.assertEqual(self.session.overview_requests.count(URL + '/model/cost_map/source'), 3)
         self.assertEqual(self.states[USER].max_budget, Decimal("20"))
         self.assertEqual([m.max_budget for m in self.states[USER].models], [Decimal("15"), Decimal("5")])
         self.assertIn('value="20"', text)
@@ -542,6 +545,8 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.states, before_states)
         self.assertEqual(self.writes, [])
         self.assertIn("Существующие бюджеты", confirmation.call_args.args[0]["data"]["message"])
+        self.assertEqual(self.session.overview_requests.count(URL + '/model/info'), 3)
+        self.assertEqual(self.session.overview_requests.count(URL + '/model/cost_map/source'), 3)
 
     async def test_template_cancel_or_changed_configuration_cannot_write(self):
         self.parent["content"] = self.template_plan()
@@ -570,12 +575,15 @@ class AdminToolsTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result[1]["status"], "cancelled")
         self.assertNotIn(USER, self.states)
         self.client.initialize_employee.assert_not_awaited()
+        self.session.overview_requests.clear()
         confirmed = AsyncMock(return_value=True)
         result = await self.apply(confirmed)
         self.assertEqual(result[1]["status"], "success")
         self.assertEqual(self.states[USER].max_budget, Decimal(40))
         self.assertEqual(self.states[USER2], before)
         self.assertEqual([w[0] for w in self.writes], ["new_user", "new_model_a", "new_model_b"])
+        self.assertEqual(self.session.overview_requests.count(URL + '/model/info'), 3)
+        self.assertEqual(self.session.overview_requests.count(URL + '/model/cost_map/source'), 3)
         financial_diff = confirmed.call_args.args[0]["data"]["message"]
         self.assertIn("1mo", financial_diff)
         self.assertIn("1 личный бюджет и 2 назначений", financial_diff)
