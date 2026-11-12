@@ -6,8 +6,10 @@
 
 ## Финализация 12.11.2026: Git и передача заказчику
 
-**В работе.** Подготовлен [отчёт для заказчика](../commercial/COMPLETED_WORK_2026-11-12_EMPLOYEE_BUDGETS.md),
-предложение закрывается фактической поставкой; часы и стоимость не выдумываются.
+**Совмещённый frontend внедрён и прошёл продуктовую приёмку. Git-поставка —
+[PR #593](https://github.com/Kwentin3/corp-openweb-ui/pull/593).** Подготовлен
+[отчёт для заказчика](../commercial/COMPLETED_WORK_2026-11-12_EMPLOYEE_BUDGETS.md),
+предложение закрыто фактической поставкой; часы и стоимость не выдумываются.
 После обновления Git обнаружен интеграционный пропуск: runtime `5458b49f`
 не включил принятые main #591/#592. Подтверждено по связанному frontend source receipt:
 `Chat.svelte` имел upstream hash `28646429…222e` вместо `8d66d892…0184`.
@@ -24,9 +26,47 @@
 подготовки: легитимные пробелы unified patch не были учтены в scoped attributes,
 а OCR component CI не устанавливал используемый PyJWT. Исправлены только scoped
 attributes и точная зависимость CI (`2.13.0`, как в pinned upstream).
-Оставшиеся шаги: один точный WebUI-only build вне production, ограниченная приёмка
-совместного frontend (вложения и footer), финальное слияние, сохранение WIP/evidence
-и штатная уборка task worktrees. Посторонний STT WIP не входит в поставку.
+Проверенный совместный build — source `076c6349f640df9ceb159372dbdedf2b71fa730a`,
+[CI 43214181817](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43214181817).
+CI config image `sha256:5b2cdbb1b17bfd0991262cc65da481b803f77d53496e1bb8465addefd3bb1d14`
+связан с Docker manifest image
+`sha256:39f3fd9c25c2529767a0f4d5a99991216b3eda0d8891b3fcd49c2fd80ba7540a`;
+frontend build `2e1c74a0e066f2349de48dfe30a1eb802a388d200834932914fd96538623f76d`.
+Проверены полный frontend manifest, обе source identities и прежние backend hashes.
+Последующие изменения подготовки CI и документации не меняют build inputs.
+
+Обычный пользователь проверил 11 новых файлов и 10+1 одного draft: оба отказа
+происходят до лишнего upload. Затем реальные сообщения с 10 и 1 новым файлом
+успешно отправлены; native history содержит `[10,1]`, chat — 11 источников,
+фактические client API requests — 10 и 11 file refs без усечения старых.
+Получены обычный короткий и длинный ответ из 14 пунктов: `0.01143675` и
+`0.00563055 USD`, итог чата `0.0170673 USD`. Footer после текста/citations и
+перед controls осмотрен на настоящих desktop/mobile PNG; horizontal overflow нет.
+После reload history и statuses совпали точно. Проверенные ранее 10+10/20 refs
+и queue handler acceptance переиспользованы только для точно совпавшего
+`Chat.svelte`; в новой GUI-проверке этот большой сценарий повторно не заявляется.
+
+Пересоздан только WebUI; четыре сервиса healthy/restarts 0. Native Functions,
+все 221 Models, admin Tool/Skill/groups/connections и 15 mounted peers не менялись.
+34 роли, 306 ключей, лимиты и периоды сохранены; spend не уменьшен.
+Current Compose selector соответствует работающему image; прежний image и
+online SQLite backup сохранены. Новых финансовых правил, патчей и runtime-сервисов
+эта интеграционная поправка не добавила.
+
+Убраны только свой чат и 11 файлов: tasks 0, native API подтвердил 401/404,
+отсутствие чата отдельно проверено в DB. Месячный spend до и после удаления
+одинаков — `0.03372795 USD`, лимит 20 USD. Свой browser context закрыт,
+исходный about:blank сохранён. Два транспортных архива удалены (3 700 502 232 байта);
+active image ingests/load processes отсутствуют. Финансовая история не удалялась.
+
+Для Git-уборки сохранены 31 WIP-файл пяти исследовательских копий и проверенный
+bundle 25 локальных/удалённых refs; пять исследовательских worktrees убраны
+штатным Git. Устаревший draft #585 закрыт в пользу #593. Отдельный технический
+долг соразмерности тестов записан в существующий engineering backlog.
+Evidence и окончательный Git/cleanup receipt находятся в
+`local/repository-preservation-20261112-goal584/` основной копии; материалы
+пользовательских этапов сохранены там вместе с исходными данными поставки.
+Посторонний STT WIP не входит в поставку и сохраняется.
 
 ## Этап 12.11.2026: пользовательский биллинг
 
