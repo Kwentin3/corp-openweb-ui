@@ -6,8 +6,9 @@ FROM ${NODE_IMAGE} AS frontend
 ARG BUILD_HASH=6a18585ff4c2e5f6805f682222cfbc46dc669ef8
 WORKDIR /app
 COPY . .
-COPY --from=media_overlay manifest.json verify_frontend.mjs /media-overlay/
-RUN node /media-overlay/verify_frontend.mjs /app
+COPY --from=media_overlay manifest.json verify_frontend.mjs verify_message_file_limit.mjs /media-overlay/
+RUN node /media-overlay/verify_frontend.mjs /app \
+    && node /media-overlay/verify_message_file_limit.mjs /app
 # Retain native v0.12.2 scripts; Node CUDA is unused by the exported browser build.
 RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --force
 ENV APP_BUILD_HASH=${BUILD_HASH}

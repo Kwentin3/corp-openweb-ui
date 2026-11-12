@@ -1,25 +1,7 @@
 name: GOAL584 Office build proof
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/workflows/goal584-office-proof.yml
-      - scripts/goal584-budget-proof/build_office_profile.py
-      - scripts/goal584-budget-proof/**
-      - compose/goal584.native-budget-proof.yml
-      - compose/goal584.webui-proof.yml
-      - compose/goal584.office-proof.yml
-      - deploy/openwebui-budgets/**
-      - deploy/openwebui-functions/officecli_auto_attach_filter.py
-      - deploy/openwebui-tools/corporate_template_models.json
-      - deploy/openwebui-tools/corporate_templates.py
-      - deploy/openwebui-skills/artifact-workflow.md
-      - deploy/litellm-patches/positive-floor-v1.105.1/**
-      - deploy/openwebui-upgrade-0122/**
-      - deploy/openwebui-patches/media-upload-v0.12.2/**
-      - deploy/openwebui-patches/tool-context-v0.12.2/**
-      - deploy/openwebui-patches/provider-context-v0.12.2/**
-      - services/officecli-openapi-proof/**
+  # Historical stand qualification remains an explicit manual operation.
+  # Routine delivery uses Active CI and the affected product acceptance only.
   workflow_dispatch:
     inputs:
       acceptance:

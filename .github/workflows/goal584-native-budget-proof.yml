@@ -1,18 +1,8 @@
 name: GOAL 584 native budget proof
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/workflows/goal584-native-budget-proof.yml
-      - compose/goal584.native-budget-proof.yml
-      - compose/goal584.webui-proof.yml
-      - compose/goal584.overlap-proof.yml
-      - compose/goal584.calendar-proof.yml
-      - compose/goal584.pricing-proof.yml
-      - scripts/goal584-budget-proof/**
-      - deploy/openwebui-budgets/**
-      - deploy/litellm-patches/positive-floor-v1.105.1/**
+  # Retain historical stand qualification explicitly, without replaying its full
+  # matrix on every delivery PR. Active CI remains the normal PR check.
   workflow_dispatch:
     inputs:
       acceptance:
