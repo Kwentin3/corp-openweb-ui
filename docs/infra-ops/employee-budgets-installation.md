@@ -275,6 +275,8 @@ native Workspace/API ресурсы из выбранной поставки:
 | Cost Filter | `employee_budget_cost` / [cost_filter.py](../../deploy/openwebui-budgets/cost_filter.py) |
 | Details Action | `employee_budget_cost_details` / [cost_action.py](../../deploy/openwebui-budgets/cost_action.py) |
 | Admin Tool | admin-only Tool / [admin_tools.py](../../deploy/openwebui-budgets/admin_tools.py) |
+| Admin Skill | `goal584-budget-admin-guide` / [employee-budget-admin.md](../../deploy/openwebui-skills/employee-budget-admin.md) |
+| Admin entry Filter | `employee_budget_admin_entry` / [admin_entry_filter.py](../../deploy/openwebui-budgets/admin_entry_filter.py) |
 | Monthly budget Event | `employee_budget_monthly_view` / [monthly_view.py](../../deploy/openwebui-budgets/monthly_view.py) |
 | Service tasks | `employee_budget_service` / [service_pipe.py](../../deploy/openwebui-budgets/service_pipe.py) для согласованных задач |
 | OCR Event | существующий OCR Function / [luna_pdf_ocr.py](../../deploy/openwebui-functions/luna_pdf_ocr.py), с общими budget modules |
@@ -291,11 +293,47 @@ Tool Valves `managed_model_ids` содержат выбранные native Model
 не сбрасывая существующие назначения. Лимиты сотрудников задаются готовой формой
 с native подтверждением.
 
-Администратор открывает управление из чата («Давай поработаем с лимитами»).
+Для входа из обычного чата добавить `employee_budget_admin` к существующим
+`meta.toolIds` согласованных рабочих Models. Остальные metadata, params, grants
+и маршруты сохранить. Tool и активный Skill остаются приватными: READ grants
+каждому администратору, без публичного grant. Native GUI выберет доступные default
+Tools; native resolver дополнительно проверит ACL. Обычные сотрудники не получают
+приватный Tool/Skill. Builtin Skills/native function calling должны быть доступны;
+модели с явно отключёнными tools, специальные worker/Pipe и сравнительный multi-model
+режим автоматически не перенастраивать. При добавлении новой рабочей модели
+проверить тот же default Tool в её штатной настройке; фонового автоподключения нет.
+В этом этапе обычный вход ограничен восемью согласованными текстовыми моделями:
+gpt-5.4-mini, gpt-6-luna, gpt-6.1-sol, gpt-6.1-terra, deepseek-flash,
+Gemini3.5 Flash,3.5 Flash Lite и3.6 Flash. Nano Banana как image-модель не получает
+новый default Tool; её обычное использование и бюджетирование сохраняются.
+К тем же Models добавить `employee_budget_admin_entry` в `meta.filterIds`. Это active,
+non-global native Filter: только для main admin UI chat с выбранным budget Tool
+он отмечает существующий Skill в `chat_context.mentioned_skill_ids`. Native owner
+проверяет ACL/active version и вставляет полный текст ровно один раз. Filter не
+разбирает фразы/JSON, не копирует инструкцию, не меняет модель, не считает деньги
+и не вызывает backend. При смене0.12.2 его контракт нужно квалифицировать заново.
+
+Текст Skill устанавливать из указанного файла, name сохранить. Description для
+native discovery: «Бюджеты и лимиты сотрудников: открыть таблицу, настроить месячный
+бюджет и доли моделей. Перед open_budget_form/apply_budget_form прочитай этот Skill;
+он также объясняет применение JSON employee_budget_plan, employee_budget_template,
+employee_budget_initialize и provider_balance_snapshot.» При включённых Skills
+отдельное `meta.skillIds` не требуется: discovery показывает только читаемые Skills,
+а entry Filter обеспечивает полную native инструкцию для выбранного budget Tool.
+Профиль «Бюджеты сотрудников»
+с прежними Tool/Skill bindings сохраняется как необязательный быстрый вход.
+Нового маршрутизатора или изменения бюджетной бизнес-логики нет.
+
+После изменения defaults открыть новый обычный single-model чат; уже открытый
+черновик или явно сохранённые настройки чата могут сохранить прежний набор Tools.
+Проверять реальный GUI-запрос с `tool_ids`, а не прямой API-запрос без них.
+Администратор открывает управление из чата («Давай поработаем с лимитами сотрудников»).
 Рабочая карточка — плотная таблица с закреплённой шапкой: поиск/отдел, сортировка
-по учтённым суммам, фильтр остатка и легенда моделей. В строке одна полоса100%
-лимита; N−1 нативная граница меняет две соседние доли. Полоса даёт шаг1%, точные
-десятичные доли доступны в «Доли». Невалидные доли не нормализуются автоматически.
+по учтённым суммам, фильтр остатка и горизонтальная легенда тарифов. В строке одна
+диаграмма100% лимита; по нажатию «Доли» или диаграммы под сотрудником открывается
+широкий редактор всех доступных моделей. Изменение одной доли пропорционально меняет
+остальные положительные доли; нулевые автоматически не включаются. «Поровну» включает
+все модели явно. Невалидный незавершённый ввод не отправляется на сервер.
 Фильтры/сортировки не вызывают модель и не теряют черновик; применение включает
 все отдельно изменённые строки, даже скрытые фильтром. «Только изменённые», сброс
 и просмотр плана доступны внизу. Группового назначения этот этап не добавляет.
