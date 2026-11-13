@@ -71,7 +71,9 @@ reviewable patch закреплены в [manifest](../../deploy/openwebui-patch
 Installer отвергает изменённый исходник; перенос при обновлении стека требует
 явной проверки, а не применения по совпавшим строкам.
 
-**Внедрён в production, runtime source `5458b49f`.** Пройдены installer/drift,
+**Внедрён в production: первая поставка `5458b49f`, текущая совместная — `076c6349`.**
+Финальная сборка сохраняет и нижнюю строку, и принятое исправление вложений #591;
+проверены source hashes обоих компонентов и общий runtime. Пройдены installer/drift,
 reactive placement и совместимость source с media overlay, реальный frontend build
 ([run 43196975066](https://github.com/Kwentin3/corp-openweb-ui/actions/runs/43196975066)),
 ordinary-user desktop/mobile GUI/PNG, две суммы/накопление и exact history/reload.
