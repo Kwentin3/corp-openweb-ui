@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import json
+import logging
 import sys
 from types import ModuleType, SimpleNamespace
 
@@ -8,6 +10,70 @@ import httpx
 import pytest
 
 from openwebui_filters.stage2_audio_context_filter import Filter, DEFAULT_INITIAL_RESPONSE_INSTRUCTION
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["provider", "network", "non_json", "outer_timeout", "success"])
+async def test_sidecar_diagnostics_preserve_failure_without_logging_private_content(
+    monkeypatch, tmp_path, caplog, failure
+):
+    audio_path = tmp_path / "private-filename.mp3"
+    audio_path.write_bytes(b"PRIVATE AUDIO")
+    envelope = {"chat_id": "chat-1", "message_id": "message-1", "file": {"file_id": "file-1"},
+                "user_email": "private@example.invalid"}
+
+    async def handler(request):
+        await request.aread()
+        assert request.headers["Authorization"] == "Bearer PRIVATE TOKEN"
+        if failure == "outer_timeout":
+            raise httpx.ReadTimeout("PRIVATE transport message", request=request)
+        if failure == "non_json":
+            return httpx.Response(502, text="PRIVATE proxy response")
+        if failure == "success":
+            return httpx.Response(200, json={"result": {"text": "PRIVATE transcript"}})
+        return httpx.Response(502, json={"detail": {
+            "job_id": "stt-test-job", "code": "provider_error" if failure == "provider" else "provider_network_error",
+            "retryable": True, "provider_status_code": 429 if failure == "provider" else None,
+            "provider_error_code": "rate_limit" if failure == "provider" else None,
+            "message": "PRIVATE provider message", "unexpected": "PRIVATE extra field",
+        }})
+
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: client_type(
+        transport=httpx.MockTransport(handler), **kwargs
+    ))
+    with caplog.at_level(logging.WARNING):
+        if failure == "success":
+            result = await Filter()._call_sidecar(token="PRIVATE TOKEN", envelope=envelope,
+                audio_path=audio_path, filename=audio_path.name, mime_type="audio/mpeg")
+            assert result == {"result": {"text": "PRIVATE transcript"}}
+        else:
+            expected = httpx.ReadTimeout if failure == "outer_timeout" else httpx.HTTPStatusError
+            with pytest.raises(expected):
+                await Filter()._call_sidecar(token="PRIVATE TOKEN", envelope=envelope,
+                    audio_path=audio_path, filename=audio_path.name, mime_type="audio/mpeg")
+
+    records = [r for r in caplog.records if r.getMessage().startswith("stage2_stt_failure ")]
+    if failure == "success":
+        assert not records
+        return
+    assert len(records) == 1
+    diagnostic = json.loads(records[0].getMessage().split(" ", 1)[1])
+    assert diagnostic["chat_id"] == "chat-1"
+    assert diagnostic["message_id"] == "message-1"
+    assert diagnostic["file_id"] == "file-1"
+    if failure in {"provider", "network"}:
+        assert diagnostic["job_id"] == "stt-test-job"
+        assert diagnostic["code"] == ("provider_error" if failure == "provider" else "provider_network_error")
+        assert diagnostic.get("provider_status_code") == (429 if failure == "provider" else None)
+    if failure == "outer_timeout":
+        assert diagnostic["error_type"] == "ReadTimeout"
+        assert "sidecar_status_code" not in diagnostic
+    else:
+        assert diagnostic["sidecar_status_code"] == 502
+    assert "PRIVATE" not in caplog.text
+    assert "private@example.invalid" not in caplog.text
+    assert "private-filename" not in caplog.text
 
 
 @pytest.mark.asyncio

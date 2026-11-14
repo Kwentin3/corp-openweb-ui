@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -445,9 +446,33 @@ class Filter:
 
     async def _call_sidecar(self, *, token: str, envelope: dict, audio_path: Path, filename: str, mime_type: str) -> dict:
         async with httpx.AsyncClient(timeout=self.valves.request_timeout_seconds) as client:
-            with audio_path.open("rb") as audio:
-                response = await client.post(f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/jobs", headers={"Authorization": f"Bearer {token}"}, data={"envelope": json.dumps(envelope)}, files={"prepared_audio": (filename, audio, mime_type)})
-            response.raise_for_status()
+            try:
+                with audio_path.open("rb") as audio:
+                    response = await client.post(f"{self.valves.sidecar_base_url.rstrip('/')}/stage2-api/transcription/jobs", headers={"Authorization": f"Bearer {token}"}, data={"envelope": json.dumps(envelope)}, files={"prepared_audio": (filename, audio, mime_type)})
+                response.raise_for_status()
+            except httpx.HTTPError as exc:
+                diagnostic = {
+                    "chat_id": envelope.get("chat_id"),
+                    "message_id": envelope.get("message_id"),
+                    "file_id": (envelope.get("file") or {}).get("file_id"),
+                    "error_type": type(exc).__name__,
+                }
+                if isinstance(exc, httpx.HTTPStatusError):
+                    diagnostic["sidecar_status_code"] = exc.response.status_code
+                    try:
+                        payload = exc.response.json()
+                    except ValueError:
+                        payload = None
+                    detail = payload.get("detail") if isinstance(payload, dict) else None
+                    if isinstance(detail, dict):
+                        for key in ("job_id", "code", "retryable", "provider_status_code", "provider_error_code"):
+                            value = detail.get(key)
+                            if isinstance(value, (str, int, bool)):
+                                diagnostic[key] = value[:256] if isinstance(value, str) else value
+                # Keep provider messages, credentials and source content out of logs.
+                # The native job GET retains the provider message when job_id exists.
+                logging.getLogger(__name__).warning("stage2_stt_failure %s", json.dumps(diagnostic, ensure_ascii=True))
+                raise
             return response.json()
 
     def _append_context(self, body: dict, transcript: str, *, summary_only: bool = False) -> None:

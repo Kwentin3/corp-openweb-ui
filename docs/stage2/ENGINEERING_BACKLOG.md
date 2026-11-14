@@ -59,6 +59,18 @@ completed implementation proof from remaining decision/planning work.
 сохранены в `local/repository-preservation-20261112-goal584/`; это частный архив,
 не действующий контракт и не кандидат для переноса целой веткой.
 
+## Доступ к провайдерам через частный Smart DNS / DoH
+
+Зафиксировано по поручению пользователя 14.11.2026. Статус: **отложено**;
+текущий AmneziaWG работает и сохраняется без изменений.
+
+При возвращении использовать существующий проект Smart DNS с подключением по
+DoH. Проверить весь маршрут доступа к нужным провайдерам: DoH обслуживает DNS,
+а передача запросов зависит от остальной схемы Smart DNS. Существующий учёт
+LLM через LiteLLM сохранить. До переключения подготовить проверяемый откат
+на AmneziaWG. Новая инфраструктура и переключение в рамках финализации STT
+не выполняются.
+
 ## Delivery rule
 
 Stage 2 implementation must start from backend/server-side boundaries, policies and proofs.
