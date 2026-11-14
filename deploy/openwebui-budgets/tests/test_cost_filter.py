@@ -3,6 +3,7 @@
 import ast
 import copy
 from datetime import datetime, timezone
+from dataclasses import replace
 from decimal import Decimal
 import importlib.util
 import json
@@ -500,7 +501,8 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
                             __metadata__=self.metadata, __event_emitter__=emitter)
                     expected = "Ответ: $0.20 · Чат: $0.60"
                     if pending:
-                        expected += ", учёт обновляется"
+                        expected = "≈ " + expected
+                    expected += " · Остаток недоступен"
                     self.assertEqual(emitter.call_args.args[0], {"type": "status", "data": {
                         "action": "employee_budget_cost", "description": expected, "done": True,
                         "position": "after_content"}})
@@ -568,7 +570,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
             await self.filter.outlet({"messages": []}, __user__=self.actor, __metadata__=self.metadata, __event_emitter__=emitter)
         self.assertEqual(reader.call_args.kwargs["observed_call_ids"], [first, second])
         self.assertEqual(reader.call_args.kwargs["observed_request_ids"], ["cc-physical"])
-        self.assertNotIn("учёт обновляется", emitter.call_args.args[0]["data"]["description"])
+        self.assertFalse(emitter.call_args.args[0]["data"]["description"].startswith("≈ "))
 
     async def test_unbound_responses_marker_is_safe_and_cannot_make_mixed_display_complete(self):
         await self.sign()
@@ -589,7 +591,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(real_reader, "read_cost_snapshot", AsyncMock(return_value=snapshot)), patch.dict(sys.modules,
                 {"open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object()))}):
             await self.filter.outlet({"messages": []}, __user__=self.actor, __metadata__=self.metadata, __event_emitter__=emitter)
-        self.assertIn("учёт обновляется", emitter.call_args.args[0]["data"]["description"])
+        self.assertTrue(emitter.call_args.args[0]["data"]["description"].startswith("≈ "))
 
     async def test_actual_native_detached_logging_id_differs_but_server_nonce_survives(self):
         cache = Path(os.environ.get("GOAL584_LITELLM_SOURCE_ROOT", str(HERE.parents[1] / "local/goal584/litellm/upstream")))
@@ -636,7 +638,16 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(schema["writeOnly"])
         self.assertEqual(schema["format"], "password")
         self.assertEqual(extension.money_text(Decimal("0.20")), "$0.20")
-        self.assertEqual(extension.money_text(Decimal("0.000000001")), "<$0.00000001")
+        self.assertEqual(extension.money_text(Decimal("0.000000001")), "<$0.0001")
+
+    def test_money_text_compact_rounding_preserves_small_positive_amounts(self):
+        for amount, places, expected in (
+                ("0", 4, "$0.00"), ("0.20", 4, "$0.20"),
+                ("1.23456", 4, "$1.2346"), ("2.34501", 4, "$2.345"),
+                ("0.00009", 4, "<$0.0001"), ("0.0001", 4, "$0.0001"),
+                ("7.126", 2, "$7.13"), ("0.009", 2, "<$0.01")):
+            with self.subTest(amount=amount, places=places):
+                self.assertEqual(extension.money_text(Decimal(amount), places=places), expected)
 
     async def test_outlet_emits_separate_snapshot_without_changing_model_history(self):
         await self.sign()
@@ -659,7 +670,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
         event = emitter.call_args.args[0]
         self.assertEqual(event["type"], "status")
         self.assertEqual(event["data"]["description"],
-                         "Ответ: $0.20 · Чат: $0.60")
+                         "Ответ: $0.20 · Чат: $0.60 · Остаток недоступен")
         self.assertEqual(event["data"]["position"], "after_content")
         self.assertEqual(reader.call_args.args, (get_session.return_value,))
         self.assertEqual(reader.call_args.kwargs, {
@@ -668,6 +679,146 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
             "user_id": USER, "root_chat_id": CHAT, "root_answer_id": ANSWER,
             "observed_request_ids": ["provider-one"], "observed_call_ids": [],
             "wait_seconds": self.filter.valves.read_wait_seconds})
+
+    def monthly_owner(self):
+        # Real public Event + projection; only native DB/cache and ledger IO
+        # are leaves. A different chat cost must never become the monthly spend.
+        contract = load("employee_budget_admin_contract", HERE / "admin_contract.py")
+        load("employee_budget_admin_policy", HERE / "admin_policy.py")
+        event = load("monthly_view_for_cost_test", HERE / "monthly_view.py").Event()
+        self.user.name, self.user.email, self.user.info = "Employee", "employee@synthetic.invalid", {}
+        state = contract.EmployeeBudget(USER, Decimal("10"), Decimal("3"), "1mo",
+            "2099-01-01T00:00:00Z", ())
+        read_service = AsyncMock(return_value=state)
+        class Reader:
+            def __init__(self, *args): pass
+            async def read_service(self, uid): return await read_service(uid)
+        function = SimpleNamespace(type="event", is_active=True)
+        lookup = AsyncMock(return_value=function)
+        cached = AsyncMock(return_value=(event, None, None))
+        replacements = {
+            "employee_budget_admin_client": module(BudgetAdminClient=Reader),
+            "open_webui.models.functions": module(Functions=SimpleNamespace(get_function_by_id=lookup,
+                get_function_valves_by_id=AsyncMock(return_value={"ledger_base_url": "http://proxy:4000",
+                    "ledger_admin_key": "synthetic-private-key"}))),
+            "open_webui.utils.plugin": module(get_function_module_from_cache=cached),
+            "open_webui.utils.session_pool": module(get_session=AsyncMock(return_value=object())),
+        }
+        return SimpleNamespace(event=event, state=state, read_service=read_service,
+            function=function, lookup=lookup, cached=cached, modules=replacements)
+
+    async def monthly_outlet(self, native):
+        real_reader = load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        costs = SimpleNamespace(answer=SimpleNamespace(spend=Decimal("0.20")),
+            chat=SimpleNamespace(spend=Decimal("0.60")), pending=False)
+        body = {"messages": [{"id": ANSWER, "role": "assistant", "content": "Completed answer"}]}
+        before, metadata = copy.deepcopy(body), copy.deepcopy(self.metadata)
+        emitter = AsyncMock()
+        with patch.object(real_reader, "read_cost_snapshot", AsyncMock(return_value=costs)), \
+                patch.dict(sys.modules, native.modules):
+            result = await self.filter.outlet(body, __user__=self.actor, __metadata__=self.metadata,
+                __request__=self.request, __event_emitter__=emitter)
+        self.assertIs(result, body)
+        self.assertEqual(body, before)
+        self.assertEqual(self.metadata, metadata)
+        emitter.assert_awaited_once()
+        event = emitter.call_args.args[0]
+        self.assertEqual((event["type"], event["data"]["position"], event["data"]["done"]),
+            ("status", "after_content", True))
+        self.assertTrue(event["data"]["description"].startswith("Ответ: $0.20 · Чат: $0.60 · "))
+        return event["data"]["description"]
+
+    async def test_monthly_snapshot_uses_public_self_reader_for_finite_zero_and_unlimited(self):
+        await self.sign()
+        native = self.monthly_owner()
+        public_read = AsyncMock(wraps=native.event.read_monthly)
+        native.event.read_monthly = public_read
+        for cap, spend, expected in ((Decimal("10"), Decimal("3"), "Остаток: $7.00"),
+                (Decimal("0"), Decimal("0"), "Остаток: $0.00"), (None, Decimal("3"), "Без лимита")):
+            with self.subTest(cap=cap):
+                native.read_service.return_value = replace(native.state, max_budget=cap, spend=spend)
+                self.assertTrue((await self.monthly_outlet(native)).endswith(" · " + expected))
+                native.read_service.assert_awaited_with(USER)
+                public_read.assert_awaited_with(self.request, self.user, None)
+                native.cached.assert_awaited_with(self.request, "employee_budget_monthly_view", function=native.function)
+        self.assertTrue(all(call.args == (USER,) for call in native.read_service.await_args_list))
+
+    async def test_monthly_missing_failed_inactive_or_foreign_owner_preserves_confirmed_costs(self):
+        await self.sign()
+        for defect in ("missing", "inactive", "wrong_type", "read_failure", "foreign_state", "inactive_user", "foreign_user"):
+            with self.subTest(defect=defect):
+                native = self.monthly_owner()
+                self.user.id, self.user.role = USER, "user"
+                if defect == "missing": native.lookup.return_value = None
+                elif defect == "inactive": native.function.is_active = False
+                elif defect == "wrong_type": native.function.type = "tool"
+                elif defect == "read_failure": native.read_service.side_effect = RuntimeError("private-key-must-not-disclose")
+                elif defect == "foreign_state": native.read_service.return_value = replace(native.state, user_id=OTHER)
+                elif defect == "inactive_user": self.user.role = "pending"
+                else: self.user.id = OTHER
+                self.assertTrue((await self.monthly_outlet(native)).endswith("Остаток недоступен"))
+                if defect in ("missing", "inactive", "wrong_type", "inactive_user", "foreign_user"):
+                    native.cached.assert_not_awaited()
+                    native.read_service.assert_not_awaited()
+        self.user.id, self.user.role = USER, "user"
+
+    async def test_malformed_monthly_public_response_never_becomes_zero_or_unlimited(self):
+        await self.sign()
+        for defect in ("missing_cap", "missing_remaining", "foreign_identity", "unknown_remaining", "malformed_remaining", "nonfinite_remaining", "non200", "wrong_period"):
+            with self.subTest(defect=defect):
+                native = self.monthly_owner()
+                public_read = native.event.read_monthly
+                async def damaged(request, user, selected):
+                    response = await public_read(request, user, selected)
+                    snapshot = json.loads(response.body)
+                    if defect == "missing_cap": snapshot.pop("budget_usd")
+                    elif defect == "missing_remaining": snapshot.pop("remaining_usd")
+                    elif defect == "foreign_identity": snapshot["user_id"] = OTHER
+                    elif defect == "unknown_remaining": snapshot["remaining_usd"] = None
+                    elif defect == "malformed_remaining": snapshot["remaining_usd"] = {}
+                    elif defect == "nonfinite_remaining": snapshot["remaining_usd"] = "NaN"
+                    elif defect == "wrong_period": snapshot["budget_duration"] = "1d"
+                    return SimpleNamespace(status_code=503 if defect == "non200" else 200,
+                        body=json.dumps(snapshot).encode())
+                native.event.read_monthly = damaged
+                self.assertTrue((await self.monthly_outlet(native)).endswith("Остаток недоступен"))
+
+    async def test_changed_current_identity_after_monthly_read_does_not_disclose_balance(self):
+        await self.sign()
+        native = self.monthly_owner()
+        public_read = native.event.read_monthly
+        async def changed(request, user, selected):
+            response = await public_read(request, user, selected)
+            request.state.user = SimpleNamespace(id=OTHER)
+            return response
+        native.event.read_monthly = changed
+        self.assertTrue((await self.monthly_outlet(native)).endswith("Остаток недоступен"))
+
+    async def test_monthly_reader_is_not_reached_for_suppressed_or_invalid_scope(self):
+        await self.sign()
+        load("employee_budget_cost_readback", HERE / "cost_readback.py")
+        baseline = copy.deepcopy(self.metadata)
+        for path in ("off", "service", "api", "skipped", "invalid_scope"):
+            with self.subTest(path=path):
+                self.metadata = copy.deepcopy(baseline)
+                self.actor["valves"] = self.filter.UserValves(enabled=path != "off")
+                if path == "service": self.metadata["internal"] = True
+                elif path == "api": self.metadata[extension.ISSUED_SCOPE]["category"] = "api"
+                elif path == "skipped": self.metadata[extension.SKIPPED_SCOPE] = True
+                elif path == "invalid_scope": self.metadata[extension.ISSUED_SCOPE]["user_id"] = OTHER
+                native = self.monthly_owner()
+                emitter = AsyncMock()
+                body = {"messages": [{"role": "assistant", "content": "Completed answer"}]}
+                with patch.dict(sys.modules, native.modules):
+                    self.assertIs(await self.filter.outlet(body, __user__=self.actor,
+                        __metadata__=self.metadata, __request__=self.request, __event_emitter__=emitter), body)
+                native.lookup.assert_not_awaited()
+                native.cached.assert_not_awaited()
+                native.read_service.assert_not_awaited()
+                if path == "invalid_scope":
+                    self.assertNotIn("Остаток", emitter.call_args.args[0]["data"]["description"])
+                else:
+                    emitter.assert_not_awaited()
 
     async def test_display_scope_mismatch_does_not_query_foreign_costs(self):
         await self.sign()
@@ -762,7 +913,7 @@ class CostFilterTests(unittest.IsolatedAsyncioTestCase):
                         if call.args[0]["type"] == "status"]
         self.assertEqual(len(descriptions), 1)
         self.assertIn("Ответ: $0.20 · Чат: $0.20", descriptions[0])
-        self.assertNotIn("учёт обновляется", descriptions[0])
+        self.assertFalse(descriptions[0].startswith("≈ "))
         native["publish_chat_failed_event"].assert_not_awaited()
         self.chats.get_accessible_chat_by_id.assert_awaited_with(CHAT, self.user, permission="write")
 

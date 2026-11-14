@@ -15,6 +15,7 @@ It is mandatory; UserValves changes only future display, never signing/budgets.
 from __future__ import annotations
 
 from decimal import Decimal
+import json
 import logging
 import uuid
 
@@ -60,12 +61,64 @@ def replace_provenance(body, token):
     body["litellm_metadata"] = carrier
 
 
-def money_text(amount):
-    if 0 < amount < Decimal("0.00000001"):
-        return "<$0.00000001"
-    whole, _, fraction = format(amount, ".8f").partition(".")
+def money_text(amount, places=4):
+    unit = Decimal(1).scaleb(-places)
+    if 0 < amount < unit:
+        return "<$" + format(unit, f".{places}f")
+    whole, _, fraction = format(amount, f".{places}f").partition(".")
     fraction = fraction.rstrip("0").ljust(2, "0")
     return "$" + whole + "." + fraction
+
+
+async def monthly_balance_text(request, actor, metadata, scope):
+    """Represent the existing self-only monthly owner; never calculate a balance."""
+    try:
+        from open_webui.models.functions import Functions
+        from open_webui.models.users import Users
+        from open_webui.utils.plugin import get_function_module_from_cache
+
+        user_id = canonical_uuid(scope.get("user_id"), "user_id")
+
+        async def verified_user():
+            require(request is not None and isinstance(actor, dict)
+                    and actor.get("id") == user_id and metadata.get("user_id") == user_id
+                    and metadata.get(ISSUED_SCOPE) == scope
+                    and metadata.get("chat_id") == scope.get("root_chat_id")
+                    and metadata.get("message_id") == scope.get("root_answer_id")
+                    and metadata.get("task") in (None, "") and not metadata.get("internal")
+                    and not metadata.get("direct") and not getattr(request.state, "direct", False)
+                    and not getattr(request.state, "internal", False)
+                    and getattr(request.state, "auth_type", None) != "api_key"
+                    and getattr(getattr(request.state, "user", None), "id", user_id) == user_id,
+                    "monthly_caller")
+            user = await Users.get_user_by_id(user_id)
+            require(user is not None and user.id == user_id and user.role in ("user", "admin"), "active_user")
+            return user
+
+        user = await verified_user()
+        owner = await Functions.get_function_by_id("employee_budget_monthly_view")
+        require(owner is not None and owner.type == "event" and owner.is_active is True, "monthly_owner")
+        module, _, _ = await get_function_module_from_cache(request, "employee_budget_monthly_view", function=owner)
+        response = await module.read_monthly(request, user, None)
+        require(response.status_code == 200, "monthly_response")
+        snapshot = json.loads(response.body)
+        require(isinstance(snapshot, dict)
+                and {"user_id", "budget_usd", "remaining_usd", "budget_duration"} <= snapshot.keys()
+                and snapshot["user_id"] == user_id and snapshot["budget_duration"] == "1mo", "monthly_snapshot")
+        cap, remaining = snapshot["budget_usd"], snapshot["remaining_usd"]
+        if cap is None:
+            require(remaining is None, "monthly_unlimited")
+            value = "Без лимита"
+        else:
+            require(isinstance(cap, str) and isinstance(remaining, str), "monthly_amount")
+            cap, remaining = Decimal(cap), Decimal(remaining)
+            require(cap.is_finite() and cap >= 0 and remaining.is_finite(), "monthly_amount")
+            value = "Остаток: " + money_text(remaining, places=2)
+        await verified_user()
+        return value
+    except Exception:
+        # A missing/failed optional read never removes already confirmed costs.
+        return "Остаток недоступен"
 
 
 async def native_answer(chat_id, answer_id, user, *, permission="write"):
@@ -341,7 +394,8 @@ class Filter:
                 if snapshot.answer.spend is not None and snapshot.chat.spend is not None:
                     description = f"Ответ: {money_text(snapshot.answer.spend)} · Чат: {money_text(snapshot.chat.spend)}"
                     if snapshot.pending or metadata.get(UNBOUND_RESPONSE) is True:
-                        description += ", учёт обновляется"
+                        description = "≈ " + description
+                    description += " · " + await monthly_balance_text(__request__, __user__, metadata, dict(scope))
             except CostReadError as error:
                 log.warning("Budget cost readback unavailable: %s", error.code)
                 if error.code in ("usage_unavailable", "accounting_unavailable"):
