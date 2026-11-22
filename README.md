@@ -44,6 +44,12 @@ LiteLLM с постоянным штатным учётом расходов и 
 - [Диагностика окончательного запроса](deploy/openwebui-patches/provider-context-v0.12.2/README.md)
 - [Результаты работ от 29 октября](docs/commercial/COMPLETED_WORK_2026-10-29_DICTATION_PROVIDER_DEBUG.md)
 
+18 ноября включён штатный Realtime через OpenAI `gpt-realtime-2.1` для
+администраторов и пользователей группы «Realtime». Микрофонная диктовка
+остаётся доступна обычным пользователям по действующим правам.
+
+- [Голосовой диалог: использование, доступ, проверка и восстановление](docs/infra-ops/realtime-voice.md)
+
 ## Актуальный Office-маршрут
 
 В production OpenWebUI подключены OfficeCLI и официальный Open Terminal. OfficeCLI
