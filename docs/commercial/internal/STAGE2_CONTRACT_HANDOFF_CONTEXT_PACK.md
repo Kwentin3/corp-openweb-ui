@@ -83,7 +83,7 @@ PR #532 раскрыт и в офисных, и в диагностически�
 
 ## Где находятся остальные источники
 
-[Июльский план](../planning/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md)
+[Июльский план](../archive/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md)
 не является сентябрьским реестром поставок.
 [Полный прежний handoff](https://github.com/Kwentin3/corp-openweb-ui/blob/939914d792a3fbabe0a3f539458b9744e4efdccd/docs/commercial/STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK.md)
 сохранён как исторический снимок, а не действующая инструкция рантайма.

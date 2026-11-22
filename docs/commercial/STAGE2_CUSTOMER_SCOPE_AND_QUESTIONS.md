@@ -1,6 +1,6 @@
 # План Этапа 2 перенесён
 
-[Открыть документ](planning/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md).
+[Открыть документ](archive/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md).
 
 Прежний план и его часовая карта относятся к истории планирования, не к последующим актам.
 
