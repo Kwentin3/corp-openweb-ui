@@ -28,7 +28,7 @@
 | Подэтапы дополнительных Office Tools и отдельно диагностики | [Дополнительный отчёт](../OFFICE_TOOLS_ADDITIONAL_REFACTOR_COMPLETED_WORK.md) |
 | Подэтапы рефакторинга видео и транскрибации | [Отчёт STT](../STT_VIDEO_INTAKE_REFACTOR_COMPLETED_WORK_48H.md) |
 | Проверка оснований, статусов и рисков повторного учёта по этой поставке | [Внутренняя памятка](STAGE2_CONTRACT_HANDOFF_CONTEXT_PACK.md) |
-| Прежний план Этапа 2 и границы его применения | [Планирование](../planning/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md) |
+| Прежний план Этапа 2 и границы его применения | [Архив: план Этапа 2](../archive/STAGE2_CUSTOMER_SCOPE_AND_QUESTIONS.md) |
 | Старые аудиты и неизменяемые исходные версии | [Архив](../archive/README.md) |
 
 Сводка агрегирует оценки подробных отчётов, а не вводит собственные

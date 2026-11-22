@@ -180,5 +180,5 @@
 Подтверждения и точные границы: [канонический технический отчёт](../infra-ops/employee-budgets-goal584.md),
 [установка и откат](../infra-ops/employee-budgets-installation.md),
 [реестр патчей](../infra-ops/patch-registry.md).
-[Предварительное предложение, редакция 5](planning/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md)
+[Предварительное предложение, редакция 5](archive/TOKEN_LIMITS_CUSTOMER_PROPOSAL_2026-10-20.md)
 сохранено как исторический материал; его обещания не заменяют описанный здесь результат.
