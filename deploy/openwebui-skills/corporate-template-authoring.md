@@ -9,6 +9,14 @@ Use this workflow when the user asks to prepare, clean up, mark or publish a
 reusable corporate Word template. Use the existing OfficeCLI tools and native
 Skills/Knowledge/Files. Keep the binary DOCX outside the Skill.
 
+Employees may prepare template copies and create their own private template
+Skills. Publication in the shared corporate library remains an administrator's
+operation. An unavailable publication Tool does not block preparation: return
+the checked draft DOCX, the full text of its `SKILL.md` and their native IDs for
+manual handoff to an administrator. A private chat link or Skill/File ID alone
+does not grant access. Do not claim that a private draft is already available
+to colleagues.
+
 Use the OfficeCLI API operations actually available in this chat and their
 installed skill/help; command examples do not imply access to a local CLI or
 filesystem. Before an available Terminal is used for a named unsupported
@@ -63,8 +71,14 @@ unchanged. Do not use Terminal to bypass publication approval or native ACL.
    preserve page-number fields. Describe all
    remaining unknowns honestly. Do not include binary/base64 or private test data.
 9. Create the private Skill with native `create_skill`, keeping only `SKILL.md`.
-   Once the user approves sharing, call
-   `publish_template(skill_id=<returned id>, file_id=<verified prepared result>)`.
+   For an employee, return the checked DOCX and full Skill text so the user can
+   explicitly send both to an administrator through an approved company channel.
+   Preparation does not require publication access. The administrator uploads
+   the received DOCX in their own saved chat and creates their own private Skill
+   from the received text. Verify the uploaded bytes and any File ID/SHA-256
+   bindings in the instructions before publication. Once the user approves
+   sharing, the administrator may call
+   `publish_template(skill_id=<admin-owned skill id>, file_id=<verified uploaded file id>)`.
    The configured native Knowledge library owns access to the original. The
    publication Tool adds its authoritative original reference and shares the
    instructions with that library's read audience.
