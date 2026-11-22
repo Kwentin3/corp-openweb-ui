@@ -31,7 +31,7 @@ services:
         condition: service_healthy
 
   searxng:
-    image: ${SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}
+    image: ${SEARXNG_IMAGE:-docker.io/searxng/searxng@sha256:e7b769bbf99bbef7c93c1aee2299c085e3f18e3da046fdc59148c0ff1eef6869}
     container_name: searxng
     restart: unless-stopped
     environment:

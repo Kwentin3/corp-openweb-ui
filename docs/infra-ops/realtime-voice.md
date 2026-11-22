@@ -32,6 +32,11 @@ the native End call control. Manage membership under
 **Admin → Users → Groups → Realtime**. Audio settings are under
 **Admin Panel → Settings → Audio → Voice calls**.
 
+Web Search is enabled in model defaults for the accepted catalog as of
+18 November. Realtime hands off with the selected chat's enabled features;
+refresh and start a new chat to load its defaults. See
+[search configuration and model onboarding](web-search-defaults.md).
+
 The existing WebUI environment must contain `WSS_PROXY` using the approved
 outbound proxy. aiohttp selects proxies by URL scheme: an HTTPS proxy alone
 does not cover `wss://`. Preserve this variable during deployments without
