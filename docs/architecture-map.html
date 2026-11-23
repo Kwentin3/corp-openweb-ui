@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>corp-openweb-ui — Карта архитектуры и воркфлоу (OpenWebUI 0.12.2)</title>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #d8e0ea;
+    --text: #111827;
+    --muted: #5b667a;
+    --core-bg: #f1f5f9;
+    --core-border: #94a3b8;
+    --core-text: #334155;
+    --patch-bg: #fff7ed;
+    --patch-border: #f97316;
+    --patch-text: #9a3412;
+    --ext-bg: #eff6ff;
+    --ext-border: #3b82f6;
+    --ext-text: #1e40af;
+    --svc-bg: #ecfdf5;
+    --svc-border: #10b981;
+    --svc-text: #065f46;
+    --infra-bg: #f5f3ff;
+    --infra-border: #8b5cf6;
+    --infra-text: #5b21b6;
+    --frozen-bg: #f8fafc;
+    --frozen-border: #94a3b8;
+    --frozen-text: #64748b;
+    --accent: #2563eb;
+    --edge-default: #cbd5e1;
+    --shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+  [data-theme="dark"] {
+    --bg: #0b1120;
+    --surface: #111827;
+    --surface-2: #172033;
+    --border: #263248;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --core-bg: #1e293b;
+    --core-border: #64748b;
+    --core-text: #e2e8f0;
+    --patch-bg: #361b0e;
+    --patch-border: #fb923c;
+    --patch-text: #fed7aa;
+    --ext-bg: #102446;
+    --ext-border: #60a5fa;
+    --ext-text: #bfdbfe;
+    --svc-bg: #0a2e25;
+    --svc-border: #34d399;
+    --svc-text: #a7f3d0;
+    --infra-bg: #231644;
+    --infra-border: #a78bfa;
+    --infra-text: #ddd6fe;
+    --frozen-bg: #141c2b;
+    --frozen-border: #475569;
+    --frozen-text: #94a3b8;
+    --accent: #60a5fa;
+    --edge-default: #334155;
+    --shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.4;
+    overflow-x: auto;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: var(--shadow);
+  }
+  .top-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .brand h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .brand .sub {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    padding: 6px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 12.5px;
+    width: 210px;
+  }
+  .btn {
+    padding: 6px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn:hover { border-color: var(--accent); }
+
+  .toolbar-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .wf-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .wf-btn {
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .wf-btn:hover { border-color: var(--accent); }
+  .wf-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .wf-btn[data-wf="patches"].active {
+    background: #ea580c;
+    border-color: #ea580c;
+    color: #fff;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    border: 1.5px solid;
+    display: inline-block;
+  }
+
+  .wf-banner {
+    display: none;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 20px;
+    font-size: 12.5px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .wf-banner.visible { display: flex; }
+  .wf-banner strong { color: var(--accent); }
+
+  .workspace {
+    display: flex;
+    min-height: calc(100vh - 115px);
+  }
+
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    padding: 20px 24px 28px;
+    min-width: 1180px;
+  }
+
+  #edges-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 15;
+    overflow: visible;
+  }
+
+  .board {
+    position: relative;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: 200px minmax(470px, 1.45fr) 265px 255px;
+    gap: 34px;
+    align-items: start;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .col-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 0 2px;
+  }
+
+  .owui-frame {
+    background: var(--surface);
+    border: 2px solid var(--core-border);
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .frame-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 8px;
+  }
+  .frame-header .title {
+    font-size: 13.5px;
+    font-weight: 700;
+  }
+  .frame-header .meta {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .subzone {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .subzone-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .subgrid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+  }
+
+  .node {
+    position: relative;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    padding: 9px 11px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: transform 0.14s ease, opacity 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    box-shadow: var(--shadow);
+  }
+  .node:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+  }
+  .node.selected {
+    outline: 2.5px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .node.dimmed {
+    opacity: 0.2;
+    filter: grayscale(0.5);
+  }
+  .node.highlighted {
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--accent), 0 6px 18px rgba(37, 99, 235, 0.18);
+  }
+
+  .node.cat-core { background: var(--core-bg); border-color: var(--core-border); }
+  .node.cat-patch { background: var(--patch-bg); border-color: var(--patch-border); }
+  .node.cat-ext { background: var(--ext-bg); border-color: var(--ext-border); }
+  .node.cat-svc { background: var(--svc-bg); border-color: var(--svc-border); }
+  .node.cat-infra { background: var(--infra-bg); border-color: var(--infra-border); }
+  .node.cat-frozen {
+    background: var(--frozen-bg);
+    border-color: var(--frozen-border);
+    border-style: dashed;
+  }
+
+  .node-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .node-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .node-desc {
+    margin-top: 3px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.3;
+  }
+  .badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .cat-core .badge { background: rgba(100,116,139,0.16); color: var(--core-text); }
+  .cat-patch .badge { background: rgba(249,115,22,0.18); color: var(--patch-text); }
+  .cat-ext .badge { background: rgba(59,130,246,0.16); color: var(--ext-text); }
+  .cat-svc .badge { background: rgba(16,185,129,0.16); color: var(--svc-text); }
+  .cat-infra .badge { background: rgba(139,92,246,0.16); color: var(--infra-text); }
+  .cat-frozen .badge { background: rgba(148,163,184,0.18); color: var(--frozen-text); }
+
+  .bottom-strip {
+    position: relative;
+    z-index: 5;
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .strip-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .strip-box h3 {
+    margin: 0 0 10px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .strip-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  /* Inspector Sidebar */
+  aside.inspector {
+    width: 340px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    padding: 18px 18px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: sticky;
+    top: 105px;
+    height: calc(100vh - 105px);
+    overflow-y: auto;
+  }
+  .insp-empty {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .insp-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .insp-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .insp-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .insp-text {
+    font-size: 12.5px;
+    margin: 0;
+  }
+  .path-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .path-chip {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    word-break: break-all;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+  }
+  .path-chip:hover { border-color: var(--accent); }
+  .path-chip .copy-hint {
+    font-family: sans-serif;
+    font-size: 10px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .wf-tag {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .wf-tag:hover { border-color: var(--accent); color: var(--accent); }
+  .warn-box {
+    background: var(--patch-bg);
+    border: 1px solid var(--patch-border);
+    color: var(--patch-text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .edge-path {
+    fill: none;
+    transition: opacity 0.2s ease, stroke 0.2s ease;
+  }
+  .edge-active {
+    stroke-dasharray: 7 4;
+    animation: dash 1.1s linear infinite;
+  }
+  @keyframes dash {
+    to { stroke-dashoffset: -22; }
+  }
+  .edge-label-bg {
+    fill: var(--surface);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .edge-label-text {
+    font-size: 10px;
+    font-weight: 700;
+    fill: var(--text);
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top-row">
+    <div class="brand">
+      <h1>corp-openweb-ui · Карта архитектуры и воркфлоу</h1>
+      <div class="sub">Срез: OpenWebUI 0.12.2 (gpt.alpha-soft.ru) · Extension-first: 4 патча ядра + штатные расширения + Docker-сервисы</div>
+    </div>
+    <div class="controls">
+      <input id="search" class="search-input" type="search" placeholder="Поиск по узлам и путям..." />
+      <button id="theme-toggle" class="btn" type="button">Тёмная тема</button>
+      <button id="reset-btn" class="btn" type="button">Сброс</button>
+    </div>
+  </div>
+
+  <div class="toolbar-row">
+    <div class="wf-tabs" id="wf-tabs">
+      <button class="wf-btn active" data-wf="all">Вся карта</button>
+      <button class="wf-btn" data-wf="chat">1. Чат + Бюджеты</button>
+      <button class="wf-btn" data-wf="office">2. Офис и шаблоны</button>
+      <button class="wf-btn" data-wf="ocr">3. PDF OCR (Luna)</button>
+      <button class="wf-btn" data-wf="audio">4. Голос и аудио (3 пути)</button>
+      <button class="wf-btn" data-wf="search">5. Веб-поиск</button>
+      <button class="wf-btn" data-wf="patches">⚠ Зона апгрейда (патчи)</button>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><span class="dot" style="background:var(--core-bg);border-color:var(--core-border)"></span>Ядро 0.12.2</span>
+      <span class="legend-item"><span class="dot" style="background:var(--patch-bg);border-color:var(--patch-border)"></span>Патч ядра</span>
+      <span class="legend-item"><span class="dot" style="background:var(--ext-bg);border-color:var(--ext-border)"></span>Штатное расширение</span>
+      <span class="legend-item"><span class="dot" style="background:var(--svc-bg);border-color:var(--svc-border)"></span>Docker-сервис</span>
+      <span class="legend-item"><span class="dot" style="background:var(--infra-bg);border-color:var(--infra-border)"></span>Инфра / API</span>
+      <span class="legend-item"><span class="dot" style="background:var(--frozen-bg);border-color:var(--frozen-border);border-style:dashed"></span>Заморожено</span>
+    </div>
+  </div>
+</header>
+
+<div id="wf-banner" class="wf-banner">
+  <div id="wf-banner-text"></div>
+  <button class="btn" id="wf-close-btn" type="button">Показать всю карту</button>
+</div>
+
+<div class="workspace">
+  <div class="canvas-wrap" id="canvas-wrap">
+    <svg id="edges-svg"></svg>
+
+    <div class="board">
+      <!-- COLUMN 1: ENTRY / CLIENT -->
+      <div class="col">
+        <div class="col-title">1. Клиент и вход</div>
+        <div class="node cat-infra" id="node-user" data-id="user">
+          <div class="node-top"><div class="node-title">Сотрудник / Браузер</div><span class="badge">Клиент</span></div>
+          <div class="node-desc">Чат, файлы, микрофон (MediaRecorder) и Voice Mode</div>
+        </div>
+        <div class="node cat-infra" id="node-traefik" data-id="traefik">
+          <div class="node-top"><div class="node-title">Traefik (HTTPS)</div><span class="badge">Edge</span></div>
+          <div class="node-desc">TLS-терминация и роутинг на gpt.alpha-soft.ru</div>
+        </div>
+        <div class="node cat-ext" id="node-static-shim" data-id="static-shim">
+          <div class="node-top"><div class="node-title">Browser Shim / ffmpeg.wasm</div><span class="badge">Static</span></div>
+          <div class="node-desc">Браузерная нормализация аудио для Stage2 STT</div>
+        </div>
+      </div>
+
+      <!-- COLUMN 2: OPENWEBUI CONTAINER -->
+      <div class="col">
+        <div class="col-title">2. Контейнер OpenWebUI 0.12.2 (openwebui-0122)</div>
+        <div class="owui-frame">
+          <div class="frame-header">
+            <div class="title">OpenWebUI 0.12.2 — единая точка входа и UI</div>
+            <div class="meta">SQLite + ChromaDB · extension-first</div>
+          </div>
+
+          <div class="subzone">
+            <div class="subzone-label">Ядро OpenWebUI (upstream)</div>
+            <div class="subgrid-2">
+              <div class="node cat-core" id="node-owui-core" data-id="owui-core">
+                <div class="node-top"><div class="node-title">Ядро: Chat / Files / RAG / ACL</div><span class="badge">Ядро</span></div>
+                <div class="node-desc">UI, чаты, права, tool loop, SQLite + ChromaDB (embedded)</div>
+              </div>
+              <div class="node cat-core" id="node-owui-audio" data-id="owui-audio">
+                <div class="node-top"><div class="node-title">Ядро: Audio / Realtime WS</div><span class="badge">Ядро</span></div>
+                <div class="node-desc">Штатный STT (/audio/transcriptions) и WebSocket для Voice Mode</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="subzone">
+            <div class="subzone-label">4 патча ядра (overlays — проверять при апгрейде OpenWebUI)</div>
+            <div class="subgrid-2">
+              <div class="node cat-patch" id="node-patch-toolctx" data-id="patch-toolctx">
+                <div class="node-top"><div class="node-title">tool-context-v0.12.2</div><span class="badge">Патч · 3 backend</span></div>
+                <div class="node-desc">Reasoning/картинки из tools, проекция длинных call ID (&gt;64)</div>
+              </div>
+              <div class="node cat-patch" id="node-patch-media" data-id="patch-media">
+                <div class="node-top"><div class="node-title">media-upload-v0.12.2</div><span class="badge">Патч · 2B+2F</span></div>
+                <div class="node-desc">Лимит файлов на сообщение, same-ID media handoff в UI</div>
+              </div>
+              <div class="node cat-patch" id="node-patch-status" data-id="patch-status">
+                <div class="node-top"><div class="node-title">status-position-v0.12.2</div><span class="badge">Патч · 1 Svelte</span></div>
+                <div class="node-desc">Статус after_content под ответом (для строки стоимости)</div>
+              </div>
+              <div class="node cat-patch" id="node-patch-capture" data-id="patch-capture">
+                <div class="node-top"><div class="node-title">provider-context-v0.12.2</div><span class="badge">Патч · default-off</span></div>
+                <div class="node-desc">Операторская запись финального JSON-запроса к провайдеру</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="subzone">
+            <div class="subzone-label">Штатные расширения внутри OpenWebUI (без правок ядра)</div>
+            <div class="subgrid-2">
+              <div class="node cat-ext" id="node-ext-budgets" data-id="ext-budgets">
+                <div class="node-top"><div class="node-title">Бюджеты: Cost Filter &amp; Tools</div><span class="badge">Filter / Pipe / Tools</span></div>
+                <div class="node-desc">Строка «Ответ · Чат · Остаток», лимиты и админка из чата</div>
+              </div>
+              <div class="node cat-ext" id="node-ext-office" data-id="ext-office">
+                <div class="node-top"><div class="node-title">Office Filters, Actions &amp; Tools</div><span class="badge">Filter / Action / Tool</span></div>
+                <div class="node-desc">Auto-attach, Word Export Action, terminal_file_transfer, templates</div>
+              </div>
+              <div class="node cat-ext" id="node-ext-ocr" data-id="ext-ocr">
+                <div class="node-top"><div class="node-title">luna_pdf_ocr</div><span class="badge">Event Function</span></div>
+                <div class="node-desc">Внутренний PUT /process для OCR PDF через gpt-6-luna</div>
+              </div>
+              <div class="node cat-ext" id="node-ext-media" data-id="ext-media">
+                <div class="node-top"><div class="node-title">stage2_media_intake</div><span class="badge">Function</span></div>
+                <div class="node-desc">Перехват аудио/видео вложений и отправка в Stage2 STT</div>
+              </div>
+              <div class="node cat-ext" id="node-ext-skills" data-id="ext-skills" style="grid-column: 1 / -1;">
+                <div class="node-top"><div class="node-title">Skills &amp; Knowledge (5 Skills + База знаний портала)</div><span class="badge">Native Skills / KB</span></div>
+                <div class="node-desc">artifact-workflow, corporate-template-authoring, employee-budget-admin, experience-packaging, portal-help</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COLUMN 3: DOCKER SIDECARS & GATEWAYS -->
+      <div class="col">
+        <div class="col-title">3. Внутренние Docker-сервисы</div>
+        <div class="node cat-svc" id="node-litellm" data-id="litellm">
+          <div class="node-top"><div class="node-title">LiteLLM (google-gateway-0122)</div><span class="badge">Шлюз + 1 патч</span></div>
+          <div class="node-desc">v1.105.1 + floor.patch · Единый LLM-шлюз, нормализация сигнатур, владелец биллинга и бюджетов</div>
+        </div>
+        <div class="node cat-svc" id="node-officecli" data-id="officecli">
+          <div class="node-top"><div class="node-title">OfficeCLI (officecli-0122)</div><span class="badge">OpenAPI</span></div>
+          <div class="node-desc">DOCX / XLSX / PPTX: создание, правка, рендер, пересчёт формул</div>
+        </div>
+        <div class="node cat-svc" id="node-terminal" data-id="terminal">
+          <div class="node-top"><div class="node-title">Open Terminal (open-terminal-0122)</div><span class="badge">Linux sandbox</span></div>
+          <div class="node-desc">Multi-user Linux-среда для сложной многоэтапной обработки файлов</div>
+        </div>
+        <div class="node cat-svc" id="node-stt" data-id="stt">
+          <div class="node-top"><div class="node-title">Stage2 STT (stage2-stt-0122)</div><span class="badge">Sidecar</span></div>
+          <div class="node-desc">Приватный сервис транскрибации приложенных аудио/видео файлов</div>
+        </div>
+        <div class="node cat-svc" id="node-searxng" data-id="searxng">
+          <div class="node-top"><div class="node-title">SearXNG (private)</div><span class="badge">Поиск</span></div>
+          <div class="node-desc">Локальный метапоисковик (2026.11.18), включён по умолчанию на 14 моделях</div>
+        </div>
+      </div>
+
+      <!-- COLUMN 4: EGRESS & EXTERNAL APIS -->
+      <div class="col">
+        <div class="col-title">4. Egress и внешние API</div>
+        <div class="node cat-infra" id="node-transport" data-id="transport">
+          <div class="node-top"><div class="node-title">AmneziaWG + Privoxy</div><span class="badge">Egress Proxy</span></div>
+          <div class="node-desc">Исходящий HTTPS_PROXY и WSS_PROXY (с NO_PROXY для внутренних сетей)</div>
+        </div>
+        <div class="node cat-infra" id="node-llm-apis" data-id="llm-apis">
+          <div class="node-top"><div class="node-title">LLM APIs (OpenAI / Anthropic / Google)</div><span class="badge">Провайдеры</span></div>
+          <div class="node-desc">Responses и Chat Completions + gpt-6-luna для OCR</div>
+        </div>
+        <div class="node cat-infra" id="node-realtime-api" data-id="realtime-api">
+          <div class="node-top"><div class="node-title">OpenAI Realtime (gpt-realtime-2.1)</div><span class="badge">Мимо LiteLLM!</span></div>
+          <div class="node-desc">Прямой WebSocket через WSS_PROXY для группы Realtime (вне лимитов LiteLLM)</div>
+        </div>
+        <div class="node cat-infra" id="node-lemonfox" data-id="lemonfox">
+          <div class="node-top"><div class="node-title">Lemonfox STT API</div><span class="badge">Whisper API</span></div>
+          <div class="node-desc">Транскрибация: и для микрофонной диктовки, и для Stage2 STT</div>
+        </div>
+        <div class="node cat-infra" id="node-web" data-id="web">
+          <div class="node-top"><div class="node-title">DuckDuckGo / Web</div><span class="badge">Внешний web</span></div>
+          <div class="node-desc">Источники поиска для SearXNG</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM STRIP: HOST INFRA & FROZEN -->
+    <div class="bottom-strip">
+      <div class="strip-box">
+        <h3>Эксплуатация и наблюдаемость хоста</h3>
+        <div class="strip-grid">
+          <div class="node cat-infra" id="node-recorder" data-id="recorder">
+            <div class="node-top"><div class="node-title">Flight Recorder (systemd)</div><span class="badge">Хост</span></div>
+            <div class="node-desc">Самописец метрик/логов 5 контейнеров перед OOM и рестартами</div>
+          </div>
+          <div class="node cat-infra" id="node-ops" data-id="ops">
+            <div class="node-top"><div class="node-title">CI, Backup &amp; Preflight</div><span class="badge">Ops / GitHub</span></div>
+            <div class="node-desc">active-ci (OfficeCLI + STT), backup.sh, smoke-test.sh, cutover scripts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="strip-box">
+        <h3>Отдельные / замороженные контуры в репозитории (не в проде)</h3>
+        <div class="strip-grid">
+          <div class="node cat-frozen" id="node-broker" data-id="broker">
+            <div class="node-top"><div class="node-title">Broker Reports / НДФЛ / XML</div><span class="badge">Заморожен</span></div>
+            <div class="node-desc">Отдельный сервис proof/CI (broker-reports-ci запускается вручную)</div>
+          </div>
+          <div class="node cat-frozen" id="node-hermes" data-id="hermes">
+            <div class="node-top"><div class="node-title">hermes-corporate-v1</div><span class="badge">Задел</span></div>
+            <div class="node-desc">Шаблоны Authelia / node-registry, не часть текущего стека OpenWebUI</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT INSPECTOR -->
+  <aside class="inspector" id="inspector">
+    <div class="insp-empty">
+      <strong>Кликните на любой блок</strong> на карте, чтобы увидеть:
+      <ul>
+        <li>роль компонента и связь с ядром;</li>
+        <li>точные пути в репозитории;</li>
+        <li>в каких воркфлоу он участвует;</li>
+        <li>риски при обновлении ядра.</li>
+      </ul>
+      <p style="margin-top:12px;">Сверху можно переключать <strong>5 рабочих воркфлоу</strong> или подсветить <strong>зону апгрейда (патчи)</strong>.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+const NODES = {
+  user: {
+    title: "Сотрудник / Браузер",
+    cat: "Инфраструктура / Клиент",
+    summary: "Обычные пользователи и администраторы портала gpt.alpha-soft.ru.",
+    coreLink: "Работает через стандартный веб-интерфейс OpenWebUI, MediaRecorder (микрофон) и Voice Mode (для группы Realtime).",
+    paths: ["docs/commercial/CORPORATE_DOCUMENTS_USER_GUIDE.md", "docs/infra-ops/portal-help.md"],
+    workflows: ["chat", "office", "ocr", "audio", "search"],
+    notes: "Голосовой Realtime доступен только администраторам и участникам группы Realtime; диктовка микрофоном доступна всем."
+  },
+  traefik: {
+    title: "Traefik (HTTPS Edge)",
+    cat: "Инфраструктура",
+    summary: "Единая внешняя точка входа с TLS на домене gpt.alpha-soft.ru.",
+    coreLink: "Маршрутизирует внешний трафик только на активный контейнер openwebui-0122. Внутренние сервисы (LiteLLM, OfficeCLI, STT, Terminal, SearXNG) наружу не публикуются.",
+    paths: ["compose/openwebui.release-0122.route.compose.yml", "docs/infra/DOMAIN_AND_TRAEFIK_PLAN.md"],
+    workflows: ["chat", "office", "ocr", "audio", "search"],
+    notes: "Один активный production writer на роутере; при выкатке обновлений переключение происходит через отдельный route overlay."
+  },
+  "static-shim": {
+    title: "Browser Shim / ffmpeg.wasm",
+    cat: "Штатное расширение (Static)",
+    summary: "Тонкий клиентский конфиг и загрузчик для нормализации аудио в браузере перед отправкой в Stage2 STT.",
+    coreLink: "Подключается как статический ресурс без переписывания фронтенда чата.",
+    paths: ["deploy/openwebui-static/loader.js", "deploy/openwebui-static/stage2-stt-normalization.json", "scripts/render-stage2-stt-browser-config.sh"],
+    workflows: ["audio"],
+    notes: ""
+  },
+  "owui-core": {
+    title: "Ядро OpenWebUI 0.12.2 (Chat / Files / RAG / ACL)",
+    cat: "Ядро OpenWebUI",
+    summary: "Upstream OpenWebUI 0.12.2 (commit 6a18585f). Владеет чатами, файлами, правами доступа, tool loop, SQLite и встроенной ChromaDB.",
+    coreLink: "Все кастомные возможности строятся поверх ядра по принципу extension-first; ядро остаётся владельцем истории и выполнения инструментов.",
+    paths: ["compose/openwebui.release-0122.compose.yml", "deploy/openwebui-upgrade-0122/runtime.Dockerfile", "docs/infra-ops/openwebui-0122-cutover.md"],
+    workflows: ["chat", "office", "ocr", "audio", "search"],
+    notes: "Stateful Responses и автоматическое сжатие контекста (compaction) намеренно выключены в production."
+  },
+  "owui-audio": {
+    title: "Ядро: Audio STT & Realtime WebSocket",
+    cat: "Ядро OpenWebUI",
+    summary: "Штатная аудио-подсистема OpenWebUI: диктовка через /api/v1/audio/transcriptions (Lemonfox) и WebSocket-мост для Voice Mode (OpenAI Realtime).",
+    coreLink: "Настроено полностью через штатные Audio Settings в БД OpenWebUI — без патчей ядра и без новых контейнеров.",
+    paths: ["docs/infra-ops/microphone-stt.md", "docs/infra-ops/realtime-voice.md"],
+    workflows: ["audio", "search"],
+    notes: "Микрофонная диктовка идёт в Lemonfox мимо Stage2 STT; Realtime идёт напрямую в OpenAI мимо LiteLLM-бюджетов."
+  },
+  "patch-toolctx": {
+    title: "Патч: tool-context-v0.12.2",
+    cat: "Патч ядра (overlay)",
+    summary: "Исправляет реконструкцию reasoning и изображений из результатов инструментов и проецирует длинные call/result ID (>64 символов) для Responses API.",
+    coreLink: "Меняет 3 backend-файла OpenWebUI при сборке образа. Не меняет сохранённую историю чата (оригинальные Google-сигнатуры сохраняются).",
+    paths: ["deploy/openwebui-patches/tool-context-v0.12.2/README.md", "deploy/openwebui-patches/tool-context-v0.12.2/apply_context.py", "docs/infra-ops/patch-registry.md"],
+    workflows: ["chat", "office", "patches"],
+    notes: "ЗОНА АПГРЕЙДА: проверять при каждом обновлении OpenWebUI. Upstream issue #32473 / discussion #32474."
+  },
+  "patch-media": {
+    title: "Патч: media-upload-v0.12.2",
+    cat: "Патч ядра (overlay)",
+    summary: "Ограничивает количество файлов на сообщение (#591), добавляет bounded upload и handoff на подготовку медиа с сохранением исходного File ID.",
+    coreLink: "Меняет 2 backend и 2 frontend-файла OpenWebUI. Установщик проверяет точные SHA256-хэши исходников.",
+    paths: ["deploy/openwebui-patches/media-upload-v0.12.2/README.md", "deploy/openwebui-patches/media-upload-v0.12.2/media.patch", "deploy/openwebui-patches/media-upload-v0.12.2/manifest.json"],
+    workflows: ["audio", "patches"],
+    notes: "ЗОНА АПГРЕЙДА: при обновлении ядра сверять совместимость frontend build с status-position-v0.12.2."
+  },
+  "patch-status": {
+    title: "Патч: status-position-v0.12.2",
+    cat: "Патч ядра (overlay)",
+    summary: "Добавляет поддержку status.data.position = 'after_content' для вывода строки стоимости/бюджета под ответом, а не сверху.",
+    coreLink: "Меняет ровно 1 frontend-компонент ResponseMessage.svelte. Не меняет backend, маршруты и учёт.",
+    paths: ["deploy/openwebui-patches/status-position-v0.12.2/README.md", "deploy/openwebui-patches/status-position-v0.12.2/status.patch", "deploy/openwebui-patches/status-position-v0.12.2/manifest.json"],
+    workflows: ["chat", "patches"],
+    notes: "ЗОНА АПГРЕЙДА: upstream discussion #31897. Можно удалить, когда OpenWebUI поддержит after_content штатно."
+  },
+  "patch-capture": {
+    title: "Патч: provider-context-v0.12.2",
+    cat: "Патч ядра (overlay)",
+    summary: "Выключенный по умолчанию диагностический перехватчик: позволяет оператору записать финальный сериализованный запрос к провайдеру для конкретного чата.",
+    coreLink: "Один router seam в backend OpenWebUI; в обычной работе неактивен и на трафик не влияет.",
+    paths: ["deploy/openwebui-patches/provider-context-v0.12.2/README.md", "deploy/openwebui-patches/provider-context-v0.12.2/apply_capture.py"],
+    workflows: ["patches"],
+    notes: "ЗОНА АПГРЕЙДА: включается только точечно для отладки и обязательно отключается после снятия дампа."
+  },
+  "ext-budgets": {
+    title: "Бюджеты: Cost Filter, Service Pipe & Tools",
+    cat: "Штатное расширение",
+    summary: "Личные месячные бюджеты сотрудников, администрирование лимитов из обычного чата и компактная строка «Ответ · Чат · Остаток» под каждым сообщением.",
+    coreLink: "Подключается через штатные Functions/Tools и read-only bind-модули в compose/openwebui.employee-budgets.compose.yml. Сами деньги и лимиты считает LiteLLM, а Cost Filter.outlet только читает и форматирует остаток.",
+    paths: ["deploy/openwebui-budgets/cost_filter.py", "deploy/openwebui-budgets/admin_entry_filter.py", "deploy/openwebui-budgets/service_pipe.py", "deploy/openwebui-budgets/admin_tools.py", "compose/openwebui.employee-budgets.compose.yml", "docs/infra-ops/employee-budgets-goal584.md"],
+    workflows: ["chat"],
+    notes: "Для отображения строки под ответом использует патч status-position-v0.12.2."
+  },
+  "ext-office": {
+    title: "Office Filters, Actions & Tools",
+    cat: "Штатное расширение",
+    summary: "Связка штатных расширений для офисной работы: автоприкрепление файлов для OfficeCLI, экспорт выделенного ответа в Word, передача файлов в Open Terminal и публикация корп-шаблонов.",
+    coreLink: "Работает полностью через штатные Filter, Action и Tool API OpenWebUI без правок ядра.",
+    paths: ["deploy/openwebui-functions/officecli_auto_attach_filter.py", "deploy/openwebui-functions/officecli_word_export_action.py", "deploy/openwebui-tools/terminal_file_transfer.py", "deploy/openwebui-tools/corporate_templates.py", "deploy/openwebui-tools/office_workflow_release.py"],
+    workflows: ["office"],
+    notes: "При добавлении новой LLM-модели её нужно добавить в allowlist OfficeCLI Filter (см. чек-лист в officecli-openapi-docx-release.md)."
+  },
+  "ext-ocr": {
+    title: "luna_pdf_ocr (Event Function)",
+    cat: "Штатное расширение",
+    summary: "Распознавание сканов и сложных PDF через модель gpt-6-luna с сохранением таблиц, нумерации и исходного File ID.",
+    coreLink: "Event Function регистрирует внутренний FastAPI-роут PUT /process при старте OpenWebUI; штатный External Document Extraction вызывает его, а полученный текст сохраняется в обычный File/RAG-кэш.",
+    paths: ["deploy/openwebui-functions/luna_pdf_ocr.py", "docs/infra-ops/luna-ocr.md"],
+    workflows: ["ocr"],
+    notes: "Не требует отдельного sidecar или нового API-ключа: использует штатный Responses endpoint OpenWebUI."
+  },
+  "ext-media": {
+    title: "stage2_media_intake (Function)",
+    cat: "Штатное расширение",
+    summary: "Перехватывает загруженные аудио/видео вложения и передаёт их на транскрибацию в sidecar stage2-stt-0122.",
+    coreLink: "Работает в паре с патчем media-upload-v0.12.2, чтобы подготовка происходила под тем же File ID до отправки сообщения модели.",
+    paths: ["deploy/openwebui-functions/stage2_media_intake.py", "services/stage2-stt/openwebui_actions", "services/stage2-stt/openwebui_filters"],
+    workflows: ["audio"],
+    notes: "Исторические аудио-вложения не перетранскрибируются повторно при следующих вопросах в чате."
+  },
+  "ext-skills": {
+    title: "Skills & Knowledge (5 Skills + База знаний)",
+    cat: "Штатное расширение",
+    summary: "Методики и справка внутри портала: офисный workflow, авторство и заполнение корп-шаблонов, админка бюджетов, «Упаковка опыта» и «Помощь по порталу».",
+    coreLink: "Хранятся в штатных Skills и Knowledge OpenWebUI с разграничением прав (ACL): чтение всем сотрудникам, публикация шаблонов — только администраторам.",
+    paths: ["deploy/openwebui-skills/artifact-workflow.md", "deploy/openwebui-skills/corporate-template-authoring.md", "deploy/openwebui-skills/employee-budget-admin.md", "deploy/openwebui-skills/experience-packaging.md", "deploy/openwebui-skills/portal-help.md", "deploy/openwebui-knowledge/portal-help/"],
+    workflows: ["office", "chat"],
+    notes: "Обновляются через штатный API/UI Skills без пересборки контейнера."
+  },
+  litellm: {
+    title: "LiteLLM (google-gateway-0122) + floor.patch",
+    cat: "Docker-сервис / Шлюз",
+    summary: "Единый внутренний LLM-шлюз (v1.105.1) для OpenAI, Anthropic и Google. Нормализует сигнатуры при смене модели в чате и является единственным владельцем учёта расходов и месячных бюджетов.",
+    coreLink: "Подключён как стандартный OpenAI-compatible connection в OpenWebUI. В production применяется 1 патч ядра LiteLLM (positive-floor-v1.105.1/floor.patch) для корректного месячного сброса счётчика.",
+    paths: ["compose/openwebui.release-0122.google.compose.yml", "compose/openwebui.employee-budgets.compose.yml", "deploy/litellm-patches/positive-floor-v1.105.1/floor.patch", "deploy/openwebui-budgets/litellm_auth.py"],
+    workflows: ["chat", "office", "ocr", "patches"],
+    notes: "ЗОНА АПГРЕЙДА: содержит 1 production-патч (floor.patch). Не выполняет инструменты (tool loop остаётся в OpenWebUI)."
+  },
+  officecli: {
+    title: "OfficeCLI (officecli-0122)",
+    cat: "Docker-сервис (OpenAPI)",
+    summary: "Изолированный read-only контейнер с OpenAPI для штатных операций над DOCX, XLSX и PPTX (создание, правка, рендер страниц, пересчёт формул).",
+    coreLink: "Подключён к OpenWebUI как OpenAPI Tool Server. Исходные файлы не перезаписываются; результат возвращается пользователю как обычное вложение OpenWebUI.",
+    paths: ["services/officecli-openapi-proof/", "compose/openwebui.release-0122.compose.yml", "docs/infra-ops/officecli-openapi-docx-release.md"],
+    workflows: ["office"],
+    notes: "Покрыт обязательным active-ci при каждом PR в main."
+  },
+  terminal: {
+    title: "Open Terminal (open-terminal-0122)",
+    cat: "Docker-сервис (Linux)",
+    summary: "Официальный multi-user Linux-контейнер для сложной многоэтапной обработки файлов (Python/скрипты), когда готовых команд OfficeCLI недостаточно.",
+    coreLink: "Штатная интеграция OpenWebUI с Open Terminal + тонкий инструмент terminal_file_transfer.py для передачи и публикации файлов.",
+    paths: ["compose/open-terminal-office.compose.yml", "compose/openwebui.release-0122.compose.yml", "deploy/openwebui-tools/terminal_file_transfer.py"],
+    workflows: ["office"],
+    notes: "OPEN_TERMINAL_MULTI_USER=true — изоляция домашних каталогов между пользователями."
+  },
+  stt: {
+    title: "Stage2 STT (stage2-stt-0122)",
+    cat: "Docker-сервис (Sidecar)",
+    summary: "Приватный backend-sidecar для транскрибации приложенных аудио и видео файлов.",
+    coreLink: "Вызывается из OpenWebUI через STAGE2_STT_BASE_URL=http://stage2-stt-0122:8080; хранит временные артефакты в отдельном volume stt_data.",
+    paths: ["services/stage2-stt/", "compose/openwebui.release-0122.compose.yml"],
+    workflows: ["audio"],
+    notes: "Покрыт обязательным active-ci. Не используется для микрофонной диктовки (та идёт напрямую из OpenWebUI в Lemonfox)."
+  },
+  searxng: {
+    title: "SearXNG (private)",
+    cat: "Docker-сервис",
+    summary: "Приватный метапоисковик (официальный образ 2026.11.18 с поддержкой DuckDuckGo challenge handling).",
+    coreLink: "Подключён через штатные Web Search настройки OpenWebUI; включён по умолчанию (defaultFeatureIds: web_search) для 14 видимых моделей и Realtime handoff.",
+    paths: ["compose/searxng.private.compose.yml", "deploy/searxng/settings.yml", "docs/infra-ops/web-search-defaults.md"],
+    workflows: ["search"],
+    notes: "Новые модели не наследуют web_search автоматически — включать при онбординге модели."
+  },
+  transport: {
+    title: "AmneziaWG + Privoxy (Egress)",
+    cat: "Инфраструктура хоста",
+    summary: "Выделенный исходящий транспорт (VPN + HTTP/WS прокси) для стабильного доступа к внешним API провайдеров.",
+    coreLink: "Контейнеры используют HTTPS_PROXY и WSS_PROXY (aiohttp требует отдельный WSS_PROXY для wss://) с явным NO_PROXY для внутренних Docker-сервисов.",
+    paths: ["deploy/transport/amneziawg-egress.service", "deploy/transport/privoxy-awg-egress.service", "deploy/transport/awg-egress-netns.sh"],
+    workflows: ["chat", "office", "ocr", "audio"],
+    notes: "Критично сохранять WSS_PROXY при пересоздании контейнера OpenWebUI — без него ломается Realtime Voice."
+  },
+  "llm-apis": {
+    title: "Внешние LLM API (OpenAI / Anthropic / Google)",
+    cat: "Внешние API",
+    summary: "Облачные провайдеры моделей (Responses и Chat Completions), включая gpt-6-luna для PDF OCR.",
+    coreLink: "Обращения идут через LiteLLM (учёт бюджетов и нормализация) и исходящий прокси AmneziaWG/Privoxy.",
+    paths: ["docs/infra/PROVIDER_CONNECTIONS_PLAN.md", "docs/ops/PROVIDER_SETUP_RUNBOOK.md"],
+    workflows: ["chat", "office", "ocr"],
+    notes: ""
+  },
+  "realtime-api": {
+    title: "OpenAI Realtime API (gpt-realtime-2.1)",
+    cat: "Внешние API (Мимо LiteLLM)",
+    summary: "Голосовой диалог в реальном времени (голос marin, транскрибация gpt-transcribe) с возможностью handoff в выбранную чат-модель.",
+    coreLink: "OpenWebUI открывает прямой WebSocket через WSS_PROXY, используя серверный OpenAI API-ключ из Audio settings.",
+    paths: ["docs/infra-ops/realtime-voice.md"],
+    workflows: ["audio", "search"],
+    notes: "ВАЖНО: трафик Realtime идёт напрямую в OpenAI и НЕ учитывается в личных лимитах LiteLLM."
+  },
+  lemonfox: {
+    title: "Lemonfox STT API",
+    cat: "Внешние API",
+    summary: "Внешний OpenAI-compatible Whisper API для распознавания речи.",
+    coreLink: "Используется сразу двумя путями: нативно из OpenWebUI Audio (диктовка микрофоном) и из sidecar stage2-stt-0122 (аудио/видео файлы).",
+    paths: ["docs/infra-ops/microphone-stt.md", "services/stage2-stt/"],
+    workflows: ["audio"],
+    notes: "При ротации API-ключа Lemonfox нужно обновлять оба потребителя (Audio settings в OpenWebUI и env stage2-stt)."
+  },
+  web: {
+    title: "DuckDuckGo / Web",
+    cat: "Внешние источники",
+    summary: "Внешние поисковые движки, к которым обращается приватный SearXNG.",
+    coreLink: "Изолированы за SearXNG; OpenWebUI получает готовый JSON-список сниппетов.",
+    paths: ["docs/infra-ops/web-search-defaults.md", "deploy/searxng/settings.yml"],
+    workflows: ["search"],
+    notes: ""
+  },
+  recorder: {
+    title: "Flight Recorder (systemd)",
+    cat: "Эксплуатация хоста",
+    summary: "Хостовый systemd-самописец: непрерывно фиксирует состояние 5 контейнеров, память и логи перед перезапусками и OOM.",
+    coreLink: "Работает на хосте вне Docker, читается администратором по SSH. При обновлении имён контейнеров обновляется drop-in 474-targets.conf.",
+    paths: ["deploy/openwebui-flight-recorder/recorder.py", "deploy/openwebui-flight-recorder/openwebui-flight-recorder.service", "docs/infra-ops/openwebui-flight-recorder.md"],
+    workflows: [],
+    notes: ""
+  },
+  ops: {
+    title: "CI, Backup, Preflight & Cutover",
+    cat: "Эксплуатация / GitHub",
+    summary: "Обязательный PR-чек active-ci (тесты OfficeCLI и STT), скрипты резервного копирования, preflight и управляемой миграции релизов.",
+    coreLink: "Обеспечивает безопасные обновления и откат без потери данных SQLite/ChromaDB.",
+    paths: [".github/workflows/active-ci.yml", "scripts/backup.sh", "scripts/preflight.sh", "scripts/smoke-test.sh", "deploy/openwebui-upgrade-0122/"],
+    workflows: [],
+    notes: ""
+  },
+  broker: {
+    title: "Broker Reports / НДФЛ / XML (Заморожен)",
+    cat: "Замороженный контур",
+    summary: "Исследовательский/профильный пайплайн разбора брокерских отчётов и НДФЛ. Не активен в production и исключён из обязательного PR CI.",
+    coreLink: "Изолирован в services/broker-reports-gate1-proof; при возобновлении запускается вручную через broker-reports-ci.yml.",
+    paths: ["services/broker-reports-gate1-proof/", ".github/workflows/broker-reports-ci.yml", "docs/stage2/BROKER_REPORTS_GATE2.md"],
+    workflows: [],
+    notes: "Не относится к текущему production-стеку портала."
+  },
+  hermes: {
+    title: "hermes-corporate-v1 (Задел)",
+    cat: "Отдельный задел",
+    summary: "Шаблоны конфигурации Authelia и реестра нод, не подключённые к текущему production OpenWebUI.",
+    coreLink: "Отдельный каталог deploy/hermes-corporate-v1.",
+    paths: ["deploy/hermes-corporate-v1/README.md"],
+    workflows: [],
+    notes: "Не участвует в текущих рабочих маршрутах."
+  }
+};
+
+const WORKFLOWS = {
+  all: {
+    desc: "",
+    nodes: null,
+    edges: [
+      { from: "user", to: "traefik", color: "#94a3b8" },
+      { from: "traefik", to: "owui-core", color: "#94a3b8" },
+      { from: "owui-core", to: "litellm", color: "#10b981" },
+      { from: "ext-office", to: "officecli", color: "#3b82f6" },
+      { from: "ext-office", to: "terminal", color: "#3b82f6" },
+      { from: "ext-media", to: "stt", color: "#3b82f6" },
+      { from: "owui-core", to: "searxng", color: "#10b981" },
+      { from: "litellm", to: "transport", color: "#8b5cf6" },
+      { from: "transport", to: "llm-apis", color: "#8b5cf6" },
+      { from: "owui-audio", to: "realtime-api", color: "#f59e0b" },
+      { from: "stt", to: "lemonfox", color: "#8b5cf6" },
+      { from: "searxng", to: "web", color: "#8b5cf6" }
+    ]
+  },
+  chat: {
+    desc: "<strong>1. Чат + Бюджеты:</strong> Пользователь → Traefik → OpenWebUI [patch: tool-context] → LiteLLM (auth + floor.patch) → AmneziaWG/Privoxy → LLM API → Cost Filter.outlet читает остаток из LiteLLM → [patch: status-position] → компактная строка «Ответ · Чат · Остаток» под сообщением.",
+    nodes: ["user", "traefik", "owui-core", "patch-toolctx", "litellm", "transport", "llm-apis", "ext-budgets", "patch-status"],
+    edges: [
+      { from: "user", to: "traefik", label: "1", color: "#2563eb" },
+      { from: "traefik", to: "owui-core", label: "2", color: "#2563eb" },
+      { from: "owui-core", to: "patch-toolctx", label: "3", color: "#ea580c" },
+      { from: "patch-toolctx", to: "litellm", label: "4", color: "#10b981" },
+      { from: "litellm", to: "transport", label: "5", color: "#7c3aed" },
+      { from: "transport", to: "llm-apis", label: "6", color: "#7c3aed" },
+      { from: "litellm", to: "ext-budgets", label: "7 учёт", color: "#059669" },
+      { from: "ext-budgets", to: "patch-status", label: "8 UI", color: "#ea580c" }
+    ]
+  },
+  office: {
+    desc: "<strong>2. Офис и корп-шаблоны:</strong> Запрос → OpenWebUI + Skills/Knowledge (artifact-workflow / шаблоны) → LLM через LiteLLM решает вызвать инструмент → Office Filters/Tools → OfficeCLI (DOCX/XLSX/PPTX) или Open Terminal (сложная обработка) → готовый файл возвращается вложением OpenWebUI.",
+    nodes: ["user", "traefik", "owui-core", "ext-skills", "ext-office", "patch-toolctx", "litellm", "llm-apis", "officecli", "terminal"],
+    edges: [
+      { from: "user", to: "traefik", label: "1", color: "#2563eb" },
+      { from: "traefik", to: "owui-core", label: "2", color: "#2563eb" },
+      { from: "owui-core", to: "ext-skills", label: "3 план", color: "#2563eb" },
+      { from: "owui-core", to: "litellm", label: "4 LLM", color: "#10b981" },
+      { from: "litellm", to: "llm-apis", label: "5", color: "#7c3aed" },
+      { from: "owui-core", to: "ext-office", label: "6 tools", color: "#2563eb" },
+      { from: "ext-office", to: "officecli", label: "7a DOCX/XLSX", color: "#059669" },
+      { from: "ext-office", to: "terminal", label: "7b Linux", color: "#059669" }
+    ]
+  },
+  ocr: {
+    desc: "<strong>3. PDF OCR (Luna):</strong> Загрузка PDF → OpenWebUI Files → External Document Extraction → Event Function luna_pdf_ocr (внутренний PUT /process) → native Responses API (gpt-6-luna) через LiteLLM → распознанный текст кладётся в штатный File/RAG кэш без отдельного sidecar.",
+    nodes: ["user", "traefik", "owui-core", "ext-ocr", "litellm", "transport", "llm-apis"],
+    edges: [
+      { from: "user", to: "traefik", label: "1 PDF", color: "#2563eb" },
+      { from: "traefik", to: "owui-core", label: "2 Files", color: "#2563eb" },
+      { from: "owui-core", to: "ext-ocr", label: "3 /process", color: "#2563eb" },
+      { from: "ext-ocr", to: "litellm", label: "4 gpt-6-luna", color: "#10b981" },
+      { from: "litellm", to: "transport", label: "5", color: "#7c3aed" },
+      { from: "transport", to: "llm-apis", label: "6 OCR", color: "#7c3aed" }
+    ]
+  },
+  audio: {
+    desc: "<strong>4. Голос и аудио (3 разных пути):</strong> <b>A (Файлы):</b> media-upload + stage2_media_intake → stage2-stt → Lemonfox. <b>B (Микрофон):</b> Audio STT → Lemonfox (мимо sidecar). <b>C (Realtime):</b> Voice Mode WS → WSS_PROXY → OpenAI gpt-realtime-2.1 (<b>мимо LiteLLM!</b>).",
+    nodes: ["user", "traefik", "static-shim", "owui-audio", "patch-media", "ext-media", "stt", "transport", "lemonfox", "realtime-api"],
+    edges: [
+      { from: "user", to: "static-shim", label: "A1 norm", color: "#2563eb" },
+      { from: "static-shim", to: "patch-media", label: "A2 upload", color: "#ea580c" },
+      { from: "patch-media", to: "ext-media", label: "A3 intake", color: "#2563eb" },
+      { from: "ext-media", to: "stt", label: "A4 sidecar", color: "#059669" },
+      { from: "stt", to: "lemonfox", label: "A5 STT", color: "#7c3aed" },
+      { from: "user", to: "owui-audio", label: "B/C голос", color: "#0284c7" },
+      { from: "owui-audio", to: "lemonfox", label: "B диктовка", color: "#7c3aed" },
+      { from: "owui-audio", to: "transport", label: "C1 WSS_PROXY", color: "#d97706" },
+      { from: "transport", to: "realtime-api", label: "C2 Realtime", color: "#d97706" }
+    ]
+  },
+  search: {
+    desc: "<strong>5. Веб-поиск:</strong> Обычный чат или Realtime handoff → встроенный web_search (включён по умолчанию для 14 моделей) → приватный SearXNG → DuckDuckGo → сниппеты возвращаются в контекст модели.",
+    nodes: ["user", "traefik", "owui-core", "owui-audio", "searxng", "web", "realtime-api"],
+    edges: [
+      { from: "user", to: "traefik", label: "1", color: "#2563eb" },
+      { from: "traefik", to: "owui-core", label: "2 чат", color: "#2563eb" },
+      { from: "owui-audio", to: "owui-core", label: "handoff", color: "#d97706" },
+      { from: "owui-core", to: "searxng", label: "3 search_web", color: "#059669" },
+      { from: "searxng", to: "web", label: "4 DuckDuckGo", color: "#7c3aed" }
+    ]
+  },
+  patches: {
+    desc: "<strong>⚠ Зона апгрейда (все патчи ядра):</strong> 4 узких оверлея поверх OpenWebUI 0.12.2 (tool-context, media-upload, status-position, provider-context) и 1 патч LiteLLM (positive-floor-v1.105.1). Все остальные функции — штатные расширения без правок ядра.",
+    nodes: ["patch-toolctx", "patch-media", "patch-status", "patch-capture", "litellm"],
+    edges: []
+  }
+};
+
+let activeWf = "all";
+let selectedId = null;
+
+function renderInspector(id) {
+  const el = document.getElementById("inspector");
+  const d = NODES[id];
+  if (!d) {
+    el.innerHTML = `<div class="insp-empty"><strong>Кликните на любой блок</strong> на карте, чтобы увидеть его роль, связь с ядром и пути в репозитории.</div>`;
+    return;
+  }
+  const wfNames = {
+    chat: "1. Чат + Бюджеты",
+    office: "2. Офис и шаблоны",
+    ocr: "3. PDF OCR",
+    audio: "4. Голос и аудио",
+    search: "5. Веб-поиск",
+    patches: "⚠ Зона апгрейда"
+  };
+  const pathsHtml = (d.paths || []).map(p =>
+    `<div class="path-chip" data-copy="${p}" title="Нажмите, чтобы скопировать путь"><span>${p}</span><span class="copy-hint">копир.</span></div>`
+  ).join("");
+  const wfHtml = (d.workflows || []).length
+    ? d.workflows.map(w => `<button type="button" class="wf-tag" data-jump-wf="${w}">${wfNames[w] || w}</button>`).join("")
+    : `<span style="font-size:12px;color:var(--muted)">Фоновый / не в активном runtime-потоке</span>`;
+
+  el.innerHTML = `
+    <div>
+      <div class="insp-label">${d.cat}</div>
+      <h2 class="insp-title">${d.title}</h2>
+    </div>
+    <div class="insp-section">
+      <div class="insp-label">Назначение</div>
+      <p class="insp-text">${d.summary}</p>
+    </div>
+    <div class="insp-section">
+      <div class="insp-label">Связь с ядром / граница</div>
+      <p class="insp-text">${d.coreLink}</p>
+    </div>
+    ${d.notes ? `<div class="warn-box">${d.notes}</div>` : ""}
+    <div class="insp-section">
+      <div class="insp-label">Файлы в репозитории</div>
+      <div class="path-list">${pathsHtml}</div>
+    </div>
+    <div class="insp-section">
+      <div class="insp-label">Участвует в воркфлоу</div>
+      <div class="tag-row">${wfHtml}</div>
+    </div>
+  `;
+
+  el.querySelectorAll(".path-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const txt = chip.getAttribute("data-copy");
+      if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(() => {});
+      const hint = chip.querySelector(".copy-hint");
+      hint.textContent = "готово";
+      setTimeout(() => { hint.textContent = "копир."; }, 1100);
+    });
+  });
+
+  el.querySelectorAll("[data-jump-wf]").forEach(btn => {
+    btn.addEventListener("click", () => setWorkflow(btn.getAttribute("data-jump-wf")));
+  });
+}
+
+function getAnchor(el, wrapRect, side) {
+  const r = el.getBoundingClientRect();
+  const x = r.left - wrapRect.left;
+  const y = r.top - wrapRect.top;
+  if (side === "right") return { x: x + r.width, y: y + r.height / 2 };
+  if (side === "left") return { x: x, y: y + r.height / 2 };
+  if (side === "top") return { x: x + r.width / 2, y: y };
+  return { x: x + r.width / 2, y: y + r.height };
+}
+
+function drawEdges() {
+  const svg = document.getElementById("edges-svg");
+  const wrap = document.getElementById("canvas-wrap");
+  const wrapRect = wrap.getBoundingClientRect();
+  svg.setAttribute("width", wrap.scrollWidth);
+  svg.setAttribute("height", wrap.scrollHeight);
+
+  const wf = WORKFLOWS[activeWf] || WORKFLOWS.all;
+  const edges = wf.edges || [];
+  const isOverview = activeWf === "all";
+
+  let defs = `<defs>`;
+  const colors = [...new Set(edges.map(e => e.color || "#64748b"))];
+  colors.forEach((c, idx) => {
+    defs += `<marker id="arr-${idx}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="${c}" /></marker>`;
+  });
+  defs += `</defs>`;
+
+  let paths = "";
+  let labels = "";
+
+  edges.forEach((edge) => {
+    const fromEl = document.getElementById("node-" + edge.from);
+    const toEl = document.getElementById("node-" + edge.to);
+    if (!fromEl || !toEl) return;
+
+    const r1 = fromEl.getBoundingClientRect();
+    const r2 = toEl.getBoundingClientRect();
+    const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
+    const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+
+    let p1, p2, c1, c2;
+    if (Math.abs(dx) > 65) {
+      const goRight = dx > 0;
+      p1 = getAnchor(fromEl, wrapRect, goRight ? "right" : "left");
+      p2 = getAnchor(toEl, wrapRect, goRight ? "left" : "right");
+      const curve = Math.max(36, Math.abs(p2.x - p1.x) * 0.42);
+      c1 = { x: p1.x + (goRight ? curve : -curve), y: p1.y };
+      c2 = { x: p2.x + (goRight ? -curve : curve), y: p2.y };
+    } else {
+      const goDown = dy > 0;
+      p1 = getAnchor(fromEl, wrapRect, goDown ? "bottom" : "top");
+      p2 = getAnchor(toEl, wrapRect, goDown ? "top" : "bottom");
+      const curve = Math.max(24, Math.abs(p2.y - p1.y) * 0.45);
+      c1 = { x: p1.x, y: p1.y + (goDown ? curve : -curve) };
+      c2 = { x: p2.x, y: p2.y + (goDown ? -curve : curve) };
+    }
+
+    const color = edge.color || "#64748b";
+    const markerIdx = colors.indexOf(color);
+    const d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
+    const strokeW = isOverview ? 1.6 : 2.4;
+    const opacity = isOverview ? 0.55 : 0.95;
+    const cls = isOverview ? "edge-path" : "edge-path edge-active";
+
+    paths += `<path class="${cls}" d="${d}" stroke="${color}" stroke-width="${strokeW}" opacity="${opacity}" marker-end="url(#arr-${markerIdx})" />`;
+
+    if (edge.label && !isOverview) {
+      const mx = 0.125 * p1.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * p2.x;
+      const my = 0.125 * p1.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * p2.y;
+      const w = Math.max(22, edge.label.length * 6.4 + 10);
+      labels += `<rect class="edge-label-bg" x="${mx - w / 2}" y="${my - 9}" width="${w}" height="18" rx="9" />`;
+      labels += `<text class="edge-label-text" x="${mx}" y="${my}">${edge.label}</text>`;
+    }
+  });
+
+  svg.innerHTML = defs + paths + labels;
+}
+
+function applyVisualState() {
+  const query = document.getElementById("search").value.trim().toLowerCase();
+  const wf = WORKFLOWS[activeWf];
+  const wfSet = wf.nodes ? new Set(wf.nodes) : null;
+
+  document.querySelectorAll(".node").forEach(el => {
+    const id = el.getAttribute("data-id");
+    const d = NODES[id] || {};
+    const hay = `${d.title || ""} ${d.summary || ""} ${(d.paths || []).join(" ")}`.toLowerCase();
+    const matchesSearch = !query || hay.includes(query);
+    const inWf = !wfSet || wfSet.has(id);
+
+    el.classList.toggle("selected", id === selectedId);
+    if (query) {
+      el.classList.toggle("dimmed", !matchesSearch);
+      el.classList.toggle("highlighted", matchesSearch);
+    } else if (wfSet) {
+      el.classList.toggle("dimmed", !inWf);
+      el.classList.toggle("highlighted", inWf);
+    } else {
+      el.classList.remove("dimmed", "highlighted");
+    }
+  });
+
+  const banner = document.getElementById("wf-banner");
+  const bannerText = document.getElementById("wf-banner-text");
+  if (wf.desc) {
+    bannerText.innerHTML = wf.desc;
+    banner.classList.add("visible");
+  } else {
+    banner.classList.remove("visible");
+  }
+
+  requestAnimationFrame(drawEdges);
+}
+
+function setWorkflow(wfId) {
+  activeWf = WORKFLOWS[wfId] ? wfId : "all";
+  document.querySelectorAll(".wf-btn").forEach(b => {
+    b.classList.toggle("active", b.getAttribute("data-wf") === activeWf);
+  });
+  applyVisualState();
+}
+
+document.querySelectorAll(".wf-btn").forEach(btn => {
+  btn.addEventListener("click", () => setWorkflow(btn.getAttribute("data-wf")));
+});
+
+document.querySelectorAll(".node").forEach(el => {
+  el.addEventListener("click", () => {
+    selectedId = el.getAttribute("data-id");
+    renderInspector(selectedId);
+    applyVisualState();
+  });
+});
+
+document.getElementById("search").addEventListener("input", applyVisualState);
+document.getElementById("wf-close-btn").addEventListener("click", () => setWorkflow("all"));
+document.getElementById("reset-btn").addEventListener("click", () => {
+  document.getElementById("search").value = "";
+  selectedId = null;
+  renderInspector(null);
+  setWorkflow("all");
+});
+
+document.getElementById("theme-toggle").addEventListener("click", (e) => {
+  const dark = document.documentElement.getAttribute("data-theme") === "dark";
+  document.documentElement.setAttribute("data-theme", dark ? "" : "dark");
+  e.target.textContent = dark ? "Тёмная тема" : "Светлая тема";
+  requestAnimationFrame(drawEdges);
+});
+
+window.addEventListener("resize", () => requestAnimationFrame(drawEdges));
+window.addEventListener("load", () => {
+  applyVisualState();
+  setTimeout(drawEdges, 80);
+});
+</script>
+</body>
+</html>
