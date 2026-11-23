@@ -1,0 +1,46 @@
+name: Publish Architecture Map (GitHub Pages)
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "docs/architecture-map.html"
+      - ".github/workflows/pages-architecture-map.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages-architecture-map"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Stage only architecture-map.html
+        run: |
+          mkdir -p _site
+          cp docs/architecture-map.html _site/index.html
+          cp docs/architecture-map.html _site/architecture-map.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "_site"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
