@@ -109,4 +109,3 @@ flowchart LR
    - все `from`/`to` в `WORKFLOWS` соответствуют существующим `id="node-..."`;
    - `<script>` в `docs/architecture-map.html` не содержит синтаксических ошибок JS.
 4. После слияния PR в `main` workflow [`.github/workflows/pages-architecture-map.yml`](../.github/workflows/pages-architecture-map.yml) автоматически перепубликует `docs/architecture-map.html` на GitHub Pages.
-
