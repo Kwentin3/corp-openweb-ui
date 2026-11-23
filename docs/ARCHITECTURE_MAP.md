@@ -42,7 +42,7 @@ flowchart LR
   end
 
   subgraph External["Egress и внешние API"]
-    Proxy["AmneziaWG + Privoxy\n(HTTPS_PROXY / WSS_PROXY)"]
+    Proxy["Privoxy :8118\n(AmneziaWG / Xray)\nHTTPS_PROXY / WSS_PROXY"]
     LLM["OpenAI / Anthropic / Google"]
     RT["OpenAI Realtime\ngpt-realtime-2.1 (мимо LiteLLM!)"]
     LF["Lemonfox STT API"]
@@ -58,22 +58,24 @@ flowchart LR
   Core --> EOff --> OfficeCLI
   EOff --> Terminal
   Core --> EOCR --> LiteLLM
-  P2 --> EMed --> STT --> LF
-  Audio -->|"диктовка"| LF
-  Audio -->|"WSS_PROXY"| Proxy --> RT
-  LiteLLM --> Proxy --> LLM
-  Core --> SearXNG --> Web
+  P2 --> EMed --> STT -->|"HTTPS"| Proxy
+  Audio -->|"HTTPS / WSS"| Proxy
+  LiteLLM -->|"HTTPS"| Proxy
+  Proxy --> LLM
+  Proxy --> RT
+  Proxy --> LF
+  Core --> SearXNG -->|"прямой выход"| Web
 ```
 
 ## 5 ключевых потоков данных (воркфлоу)
 
 | Воркфлоу | Как идут данные | Ключевые файлы |
 | --- | --- | --- |
-| **1. Чат + Бюджеты** | `Пользователь → Traefik → OpenWebUI [tool-context] → LiteLLM (auth + floor.patch) → Proxy → LLM → Cost Filter.outlet (читает остаток из LiteLLM) → [status-position] → строка «Ответ · Чат · Остаток»` | [`deploy/openwebui-budgets/`](../deploy/openwebui-budgets), [`compose/openwebui.employee-budgets.compose.yml`](../compose/openwebui.employee-budgets.compose.yml), [`docs/infra-ops/employee-budgets-goal584.md`](infra-ops/employee-budgets-goal584.md) |
-| **2. Офис и корп-шаблоны** | `Запрос + файл → Skills (artifact-workflow / corporate-template) + Knowledge → officecli_auto_attach_filter → OfficeCLI (DOCX/XLSX/PPTX) или Open Terminal (terminal_file_transfer) → готовый файл вложением` | [`services/officecli-openapi-proof/`](../services/officecli-openapi-proof), [`deploy/openwebui-tools/`](../deploy/openwebui-tools), [`docs/infra-ops/officecli-openapi-docx-release.md`](infra-ops/officecli-openapi-docx-release.md) |
-| **3. PDF OCR (Luna)** | `Загрузка PDF → OpenWebUI Files → External Document Extraction → Event Function luna_pdf_ocr (/process) → native Responses (gpt-6-luna) → текст в штатный File/RAG кэш` | [`deploy/openwebui-functions/luna_pdf_ocr.py`](../deploy/openwebui-functions/luna_pdf_ocr.py), [`docs/infra-ops/luna-ocr.md`](infra-ops/luna-ocr.md) |
-| **4. Голос и аудио (3 пути)** | **A (Файлы):** `media-upload → stage2_media_intake → stage2-stt → Lemonfox`. **B (Микрофон):** `Audio STT → Lemonfox` (мимо sidecar). **C (Realtime):** `Voice Mode WS → WSS_PROXY → OpenAI gpt-realtime-2.1` *(мимо LiteLLM-бюджетов!)* | [`services/stage2-stt/`](../services/stage2-stt), [`docs/infra-ops/microphone-stt.md`](infra-ops/microphone-stt.md), [`docs/infra-ops/realtime-voice.md`](infra-ops/realtime-voice.md) |
-| **5. Веб-поиск** | `Чат / Realtime handoff → native web_search (по умолчанию на 14 моделях) → приватный SearXNG → DuckDuckGo → контекст модели` | [`compose/searxng.private.compose.yml`](../compose/searxng.private.compose.yml), [`docs/infra-ops/web-search-defaults.md`](infra-ops/web-search-defaults.md) |
+| **1. Чат + Бюджеты** | `Пользователь → Traefik → OpenWebUI [tool-context] → LiteLLM (auth + floor.patch) → Privoxy (AmneziaWG/Xray) → LLM → Cost Filter.outlet (читает остаток из LiteLLM) → [status-position] → строка «Ответ · Чат · Остаток»` | [`deploy/openwebui-budgets/`](../deploy/openwebui-budgets), [`compose/openwebui.employee-budgets.compose.yml`](../compose/openwebui.employee-budgets.compose.yml), [`docs/infra-ops/employee-budgets-goal584.md`](infra-ops/employee-budgets-goal584.md) |
+| **2. Офис и корп-шаблоны** | `Запрос + файл → Skills (artifact-workflow / corporate-template) + Knowledge → LiteLLM → Privoxy → LLM → officecli_auto_attach_filter → OfficeCLI (DOCX/XLSX/PPTX) или Open Terminal (terminal_file_transfer) → готовый файл вложением` | [`services/officecli-openapi-proof/`](../services/officecli-openapi-proof), [`deploy/openwebui-tools/`](../deploy/openwebui-tools), [`docs/infra-ops/officecli-openapi-docx-release.md`](infra-ops/officecli-openapi-docx-release.md) |
+| **3. PDF OCR (Luna)** | `Загрузка PDF → OpenWebUI Files → External Document Extraction → Event Function luna_pdf_ocr (/process) → native Responses (gpt-6-luna) через LiteLLM и Privoxy → текст в штатный File/RAG кэш` | [`deploy/openwebui-functions/luna_pdf_ocr.py`](../deploy/openwebui-functions/luna_pdf_ocr.py), [`docs/infra-ops/luna-ocr.md`](infra-ops/luna-ocr.md) |
+| **4. Голос и аудио (3 пути, все через Privoxy)** | **A (Файлы):** `media-upload → stage2_media_intake → stage2-stt → Privoxy → Lemonfox`. **B (Микрофон / TTS):** `Audio → Privoxy → Lemonfox / OpenAI tts-1` (мимо sidecar). **C (Realtime):** `Voice Mode WS → Privoxy (WSS_PROXY) → OpenAI gpt-realtime-2.1` *(мимо LiteLLM-бюджетов!)* | [`services/stage2-stt/`](../services/stage2-stt), [`docs/infra-ops/microphone-stt.md`](infra-ops/microphone-stt.md), [`docs/infra-ops/realtime-voice.md`](infra-ops/realtime-voice.md) |
+| **5. Веб-поиск** | `Чат / Realtime handoff → native web_search (по умолчанию на 14 моделях) → приватный SearXNG (+ Valkey) → прямой выход в DuckDuckGo → контекст модели` *(дозагрузка страниц `fetch_url` идёт из OpenWebUI через Privoxy)* | [`compose/searxng.private.compose.yml`](../compose/searxng.private.compose.yml), [`docs/infra-ops/web-search-defaults.md`](infra-ops/web-search-defaults.md) |
 
 ## Зона апгрейда (все патчи ядра)
 
