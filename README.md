@@ -14,7 +14,7 @@ LLM-чат для 3-4 пользователей. Репозиторий так�
 Визуальная карта проекта на одном листе (связь ядра OpenWebUI 0.12.2, 4 патчей, штатных расширений, Docker-сервисов и 5 потоков данных):
 
 - [Схема архитектуры и 5 воркфлоу (Mermaid + сводка для GitHub)](docs/ARCHITECTURE_MAP.md)
-- [Интерактивная HTML-карта (открывать локально в браузере)](docs/architecture-map.html)
+- [Интерактивная HTML-карта (открыть в браузере)](https://kwentin3.github.io/corp-openweb-ui/architecture-map.html) · [исходник](docs/architecture-map.html)
 
 ## Рабочая установка: OpenWebUI 0.12.2
 
@@ -419,7 +419,7 @@ bash scripts/smoke-test.sh --strict-tls
 
 ## Навигация
 
-- Карта архитектуры и воркфлоу (0.12.2): [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md) и интерактивная версия [docs/architecture-map.html](docs/architecture-map.html)
+- Карта архитектуры и воркфлоу (0.12.2): [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md) и [интерактивная карта в браузере](https://kwentin3.github.io/corp-openweb-ui/architecture-map.html) ([исходник](docs/architecture-map.html))
 - PRD-0: [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_0.md)
 - PRD-1 / Stage 2 source of truth:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1.md)
