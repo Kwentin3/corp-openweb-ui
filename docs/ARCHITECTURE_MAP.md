@@ -89,3 +89,23 @@ flowchart LR
 
 - **Хост:** `Flight Recorder` (`deploy/openwebui-flight-recorder/`, systemd-самописец 5 контейнеров), `AmneziaWG + Privoxy` (`deploy/transport/`), CI `active-ci` (`.github/workflows/active-ci.yml`).
 - **Не в проде (отдельные контуры в репе):** `services/broker-reports-gate1-proof/` (замороженный контур Broker Reports / НДФЛ / XML, ручной `broker-reports-ci.yml`) и `deploy/hermes-corporate-v1/` (отдельный задел).
+
+## Контракт актуализации карты
+
+Карта поддерживается в актуальном состоянии как часть PR (см. также корневой [`AGENTS.md`](../AGENTS.md)).
+
+### Когда обновлять
+- **Обязательно:** добавлен/снят патч ядра (`deploy/openwebui-patches/`, `deploy/litellm-patches/`), добавлен/удалён Docker-сервис (`compose/`, `services/`), добавлена/перенесена точка расширения OpenWebUI (`deploy/openwebui-*`), либо изменился маршрут данных (воркфлоу, egress/прокси, контур биллинга).
+- **Не обновлять:** обычные багфиксы, тесты, внутренние рефакторинги без смены границ, коммерческие предложения и разовые отчёты.
+
+### Чек-лист для кодового агента
+1. В [`docs/architecture-map.html`](architecture-map.html) обновить три места согласованно:
+   - DOM-карточку узла (`id="node-<id>"`, `data-id="<id>"`, категория `cat-core` / `cat-patch` / `cat-ext` / `cat-svc` / `cat-infra` / `cat-frozen`);
+   - описание узла в объекте `NODES` (включая реальные относительные пути в `paths`);
+   - затронутые маршруты в `WORKFLOWS` (и вкладку `patches`, если менялась зона апгрейда).
+2. Синхронизировать Mermaid-схему, таблицу потоков и список патчей в [`docs/ARCHITECTURE_MAP.md`](ARCHITECTURE_MAP.md).
+3. Проверить перед коммитом, что:
+   - все пути в `NODES.*.paths` реально существуют в репозитории;
+   - все `from`/`to` в `WORKFLOWS` соответствуют существующим `id="node-..."`;
+   - `<script>` в `docs/architecture-map.html` не содержит синтаксических ошибок JS.
+4. После слияния PR в `main` workflow [`.github/workflows/pages-architecture-map.yml`](../.github/workflows/pages-architecture-map.yml) автоматически перепубликует `docs/architecture-map.html` на GitHub Pages.
