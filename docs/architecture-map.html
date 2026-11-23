@@ -71,7 +71,7 @@
     background: var(--bg);
     color: var(--text);
     line-height: 1.4;
-    overflow-x: auto;
+    overflow-x: hidden;
   }
 
   header {
@@ -201,14 +201,16 @@
 
   .workspace {
     display: flex;
+    width: 100%;
     min-height: calc(100vh - 115px);
   }
 
   .canvas-wrap {
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
     position: relative;
-    padding: 20px 24px 28px;
-    min-width: 1180px;
+    padding: 16px 20px 24px;
   }
 
   #edges-svg {
@@ -225,15 +227,16 @@
     position: relative;
     z-index: 5;
     display: grid;
-    grid-template-columns: 200px minmax(470px, 1.45fr) 265px 255px;
-    gap: 34px;
+    grid-template-columns: minmax(150px, 0.72fr) minmax(380px, 1.65fr) minmax(195px, 0.92fr) minmax(195px, 0.92fr);
+    gap: 22px;
     align-items: start;
   }
 
   .col {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
+    min-width: 0;
   }
   .col-title {
     font-size: 11px;
@@ -248,26 +251,29 @@
     background: var(--surface);
     border: 2px solid var(--core-border);
     border-radius: 14px;
-    padding: 14px;
+    padding: 12px 13px;
     box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 11px;
   }
   .frame-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     border-bottom: 1px dashed var(--border);
-    padding-bottom: 8px;
+    padding-bottom: 7px;
   }
   .frame-header .title {
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 700;
+    white-space: nowrap;
   }
   .frame-header .meta {
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--muted);
+    white-space: nowrap;
   }
 
   .subzone {
@@ -307,8 +313,11 @@
     outline-offset: 2px;
   }
   .node.dimmed {
-    opacity: 0.2;
-    filter: grayscale(0.5);
+    opacity: 0.3;
+    filter: grayscale(0.45);
+  }
+  [data-theme="dark"] .node.dimmed {
+    opacity: 0.34;
   }
   .node.highlighted {
     opacity: 1;
@@ -387,14 +396,15 @@
 
   /* Inspector Sidebar */
   aside.inspector {
-    width: 340px;
+    width: 310px;
     flex-shrink: 0;
+    z-index: 20;
     background: var(--surface);
     border-left: 1px solid var(--border);
-    padding: 18px 18px 24px;
+    padding: 16px 16px 24px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 13px;
     position: sticky;
     top: 105px;
     height: calc(100vh - 105px);
@@ -459,9 +469,10 @@
   }
   .wf-tag {
     font-size: 11px;
-    padding: 3px 8px;
+    padding: 4px 9px;
     border-radius: 999px;
     background: var(--surface-2);
+    color: var(--text);
     border: 1px solid var(--border);
     cursor: pointer;
   }
@@ -569,7 +580,7 @@
         <div class="col-title">2. Контейнер OpenWebUI 0.12.2 (openwebui-0122)</div>
         <div class="owui-frame">
           <div class="frame-header">
-            <div class="title">OpenWebUI 0.12.2 — единая точка входа и UI</div>
+            <div class="title">OpenWebUI 0.12.2 — точка входа и UI</div>
             <div class="meta">SQLite + ChromaDB · extension-first</div>
           </div>
 
@@ -1147,10 +1158,10 @@ function renderInspector(id) {
   });
 }
 
-function getAnchor(el, wrapRect, side) {
+function getAnchor(el, wrap, wrapRect, side) {
   const r = el.getBoundingClientRect();
-  const x = r.left - wrapRect.left;
-  const y = r.top - wrapRect.top;
+  const x = r.left - wrapRect.left + wrap.scrollLeft;
+  const y = r.top - wrapRect.top + wrap.scrollTop;
   if (side === "right") return { x: x + r.width, y: y + r.height / 2 };
   if (side === "left") return { x: x, y: y + r.height / 2 };
   if (side === "top") return { x: x + r.width / 2, y: y };
@@ -1191,25 +1202,37 @@ function drawEdges() {
     let p1, p2, c1, c2;
     if (Math.abs(dx) > 65) {
       const goRight = dx > 0;
-      p1 = getAnchor(fromEl, wrapRect, goRight ? "right" : "left");
-      p2 = getAnchor(toEl, wrapRect, goRight ? "left" : "right");
-      const curve = Math.max(36, Math.abs(p2.x - p1.x) * 0.42);
+      p1 = getAnchor(fromEl, wrap, wrapRect, goRight ? "right" : "left");
+      p2 = getAnchor(toEl, wrap, wrapRect, goRight ? "left" : "right");
+      const curve = Math.max(30, Math.abs(p2.x - p1.x) * 0.42);
       c1 = { x: p1.x + (goRight ? curve : -curve), y: p1.y };
       c2 = { x: p2.x + (goRight ? -curve : curve), y: p2.y };
     } else {
       const goDown = dy > 0;
-      p1 = getAnchor(fromEl, wrapRect, goDown ? "bottom" : "top");
-      p2 = getAnchor(toEl, wrapRect, goDown ? "top" : "bottom");
-      const curve = Math.max(24, Math.abs(p2.y - p1.y) * 0.45);
-      c1 = { x: p1.x, y: p1.y + (goDown ? curve : -curve) };
-      c2 = { x: p2.x, y: p2.y + (goDown ? -curve : curve) };
+      const vGap = goDown ? (r2.top - r1.bottom) : (r1.top - r2.bottom);
+      if (vGap > 42) {
+        // Jumping over an intermediate card in the same column: route cleanly in the side gutter
+        const centerRelX = (r1.left - wrapRect.left + r1.width / 2) / Math.max(1, wrapRect.width);
+        const side = centerRelX > 0.65 ? "left" : "right";
+        const bow = side === "right" ? 26 : -26;
+        p1 = getAnchor(fromEl, wrap, wrapRect, side);
+        p2 = getAnchor(toEl, wrap, wrapRect, side);
+        c1 = { x: p1.x + bow, y: p1.y + (goDown ? 18 : -18) };
+        c2 = { x: p2.x + bow, y: p2.y + (goDown ? -18 : 18) };
+      } else {
+        p1 = getAnchor(fromEl, wrap, wrapRect, goDown ? "bottom" : "top");
+        p2 = getAnchor(toEl, wrap, wrapRect, goDown ? "top" : "bottom");
+        const curve = Math.max(18, Math.abs(p2.y - p1.y) * 0.45);
+        c1 = { x: p1.x, y: p1.y + (goDown ? curve : -curve) };
+        c2 = { x: p2.x, y: p2.y + (goDown ? -curve : curve) };
+      }
     }
 
     const color = edge.color || "#64748b";
     const markerIdx = colors.indexOf(color);
     const d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
-    const strokeW = isOverview ? 1.6 : 2.4;
-    const opacity = isOverview ? 0.55 : 0.95;
+    const strokeW = isOverview ? 1.5 : 2.3;
+    const opacity = isOverview ? 0.52 : 0.95;
     const cls = isOverview ? "edge-path" : "edge-path edge-active";
 
     paths += `<path class="${cls}" d="${d}" stroke="${color}" stroke-width="${strokeW}" opacity="${opacity}" marker-end="url(#arr-${markerIdx})" />`;
@@ -1218,7 +1241,7 @@ function drawEdges() {
       const mx = 0.125 * p1.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * p2.x;
       const my = 0.125 * p1.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * p2.y;
       const w = Math.max(22, edge.label.length * 6.4 + 10);
-      labels += `<rect class="edge-label-bg" x="${mx - w / 2}" y="${my - 9}" width="${w}" height="18" rx="9" />`;
+      labels += `<rect class="edge-label-bg" x="${mx - w / 2}" y="${my - 9}" width="${w}" height="18" rx="9" stroke="${color}" />`;
       labels += `<text class="edge-label-text" x="${mx}" y="${my}">${edge.label}</text>`;
     }
   });
