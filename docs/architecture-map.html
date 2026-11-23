@@ -677,8 +677,8 @@
       <div class="col">
         <div class="col-title">4. Egress и внешние API</div>
         <div class="node cat-infra" id="node-transport" data-id="transport">
-          <div class="node-top"><div class="node-title">AmneziaWG + Privoxy</div><span class="badge">Egress Proxy</span></div>
-          <div class="node-desc">Исходящий HTTPS_PROXY и WSS_PROXY (с NO_PROXY для внутренних сетей)</div>
+          <div class="node-top"><div class="node-title">Privoxy :8118 → AmneziaWG / Xray</div><span class="badge">Egress Proxy</span></div>
+          <div class="node-desc">Единый прокси для OpenWebUI, LiteLLM и Stage2 STT (HTTPS_PROXY / WSS_PROXY)</div>
         </div>
         <div class="node cat-infra" id="node-llm-apis" data-id="llm-apis">
           <div class="node-top"><div class="node-title">LLM APIs (OpenAI / Anthropic / Google)</div><span class="badge">Провайдеры</span></div>
@@ -785,13 +785,13 @@ const NODES = {
     notes: "Stateful Responses и автоматическое сжатие контекста (compaction) намеренно выключены в production."
   },
   "owui-audio": {
-    title: "Ядро: Audio STT & Realtime WebSocket",
+    title: "Ядро: Audio STT / TTS & Realtime WebSocket",
     cat: "Ядро OpenWebUI",
-    summary: "Штатная аудио-подсистема OpenWebUI: диктовка через /api/v1/audio/transcriptions (Lemonfox) и WebSocket-мост для Voice Mode (OpenAI Realtime).",
-    coreLink: "Настроено полностью через штатные Audio Settings в БД OpenWebUI — без патчей ядра и без новых контейнеров.",
+    summary: "Штатная аудио-подсистема OpenWebUI: диктовка через /api/v1/audio/transcriptions (Lemonfox), обычный TTS (OpenAI tts-1) и WebSocket-мост для Voice Mode (OpenAI Realtime).",
+    coreLink: "Настроено полностью через штатные Audio Settings в БД OpenWebUI — без патчей ядра. Весь внешний трафик идёт через Privoxy (HTTPS_PROXY / WSS_PROXY).",
     paths: ["docs/infra-ops/microphone-stt.md", "docs/infra-ops/realtime-voice.md"],
     workflows: ["audio", "search"],
-    notes: "Микрофонная диктовка идёт в Lemonfox мимо Stage2 STT; Realtime идёт напрямую в OpenAI мимо LiteLLM-бюджетов."
+    notes: "Микрофонная диктовка идёт в Lemonfox через Privoxy мимо Stage2 STT; Realtime и tts-1 идут в OpenAI через Privoxy, но мимо LiteLLM-бюджетов."
   },
   "patch-toolctx": {
     title: "Патч: tool-context-v0.12.2",
@@ -911,22 +911,22 @@ const NODES = {
     notes: "Покрыт обязательным active-ci. Не используется для микрофонной диктовки (та идёт напрямую из OpenWebUI в Lemonfox)."
   },
   searxng: {
-    title: "SearXNG (private)",
+    title: "SearXNG + Valkey (private)",
     cat: "Docker-сервис",
-    summary: "Приватный метапоисковик (официальный образ 2026.11.18 с поддержкой DuckDuckGo challenge handling).",
-    coreLink: "Подключён через штатные Web Search настройки OpenWebUI; включён по умолчанию (defaultFeatureIds: web_search) для 14 видимых моделей и Realtime handoff.",
+    summary: "Приватный метапоисковик (образ 2026.11.18 + searxng-valkey), включён по умолчанию для 14 видимых моделей и Realtime handoff.",
+    coreLink: "Подключён через штатные Web Search настройки OpenWebUI. У контейнера SearXNG нет proxy env — в DuckDuckGo/Web он ходит напрямую с хоста (а последующий fetch_url страниц идёт уже из OpenWebUI через Privoxy).",
     paths: ["compose/searxng.private.compose.yml", "deploy/searxng/settings.yml", "docs/infra-ops/web-search-defaults.md"],
     workflows: ["search"],
     notes: "Новые модели не наследуют web_search автоматически — включать при онбординге модели."
   },
   transport: {
-    title: "AmneziaWG + Privoxy (Egress)",
+    title: "Privoxy :8118 → AmneziaWG / Xray (Egress)",
     cat: "Инфраструктура хоста",
-    summary: "Выделенный исходящий транспорт (VPN + HTTP/WS прокси) для стабильного доступа к внешним API провайдеров.",
-    coreLink: "Контейнеры используют HTTPS_PROXY и WSS_PROXY (aiohttp требует отдельный WSS_PROXY для wss://) с явным NO_PROXY для внутренних Docker-сервисов.",
-    paths: ["deploy/transport/amneziawg-egress.service", "deploy/transport/privoxy-awg-egress.service", "deploy/transport/awg-egress-netns.sh"],
+    summary: "Единый хостовый прокси Privoxy (Docker gateway:8118), переключаемый через openwebui-transport.py между AmneziaWG (privoxy-awg-egress) и Xray (SOCKS5).",
+    coreLink: "Через него ходят ровно 3 контейнера: openwebui-0122 (HTTPS_PROXY + WSS_PROXY), google-gateway-0122 (LiteLLM) и stage2-stt-0122. У SearXNG, OfficeCLI и Open Terminal proxy env нет.",
+    paths: ["deploy/transport/openwebui-transport.py", "deploy/transport/amneziawg-egress.service", "deploy/transport/privoxy-awg-egress.service", "deploy/transport/awg-egress-netns.sh", "docs/reports/2026-11-06/TRANSPORT_SOCKS5_XRAY_AUDIT.md"],
     workflows: ["chat", "office", "ocr", "audio"],
-    notes: "Критично сохранять WSS_PROXY при пересоздании контейнера OpenWebUI — без него ломается Realtime Voice."
+    notes: "Критично сохранять WSS_PROXY при пересоздании OpenWebUI (без него ломается Realtime) и NO_PROXY для внутренних Docker-сервисов."
   },
   "llm-apis": {
     title: "Внешние LLM API (OpenAI / Anthropic / Google)",
@@ -1015,14 +1015,16 @@ const WORKFLOWS = {
       { from: "ext-media", to: "stt", color: "#3b82f6" },
       { from: "owui-core", to: "searxng", color: "#10b981" },
       { from: "litellm", to: "transport", color: "#8b5cf6" },
+      { from: "owui-audio", to: "transport", color: "#f59e0b" },
+      { from: "stt", to: "transport", color: "#8b5cf6" },
       { from: "transport", to: "llm-apis", color: "#8b5cf6" },
-      { from: "owui-audio", to: "realtime-api", color: "#f59e0b" },
-      { from: "stt", to: "lemonfox", color: "#8b5cf6" },
-      { from: "searxng", to: "web", color: "#8b5cf6" }
+      { from: "transport", to: "realtime-api", color: "#f59e0b" },
+      { from: "transport", to: "lemonfox", color: "#8b5cf6" },
+      { from: "searxng", to: "web", color: "#64748b" }
     ]
   },
   chat: {
-    desc: "<strong>1. Чат + Бюджеты:</strong> Пользователь → Traefik → OpenWebUI [patch: tool-context] → LiteLLM (auth + floor.patch) → AmneziaWG/Privoxy → LLM API → Cost Filter.outlet читает остаток из LiteLLM → [patch: status-position] → компактная строка «Ответ · Чат · Остаток» под сообщением.",
+    desc: "<strong>1. Чат + Бюджеты:</strong> Пользователь → Traefik → OpenWebUI [patch: tool-context] → LiteLLM (auth + floor.patch) → Privoxy (AmneziaWG/Xray) → LLM API → Cost Filter.outlet читает остаток из LiteLLM → [patch: status-position] → компактная строка «Ответ · Чат · Остаток» под сообщением.",
     nodes: ["user", "traefik", "owui-core", "patch-toolctx", "litellm", "transport", "llm-apis", "ext-budgets", "patch-status"],
     edges: [
       { from: "user", to: "traefik", label: "1", color: "#2563eb" },
@@ -1036,21 +1038,22 @@ const WORKFLOWS = {
     ]
   },
   office: {
-    desc: "<strong>2. Офис и корп-шаблоны:</strong> Запрос → OpenWebUI + Skills/Knowledge (artifact-workflow / шаблоны) → LLM через LiteLLM решает вызвать инструмент → Office Filters/Tools → OfficeCLI (DOCX/XLSX/PPTX) или Open Terminal (сложная обработка) → готовый файл возвращается вложением OpenWebUI.",
-    nodes: ["user", "traefik", "owui-core", "ext-skills", "ext-office", "patch-toolctx", "litellm", "llm-apis", "officecli", "terminal"],
+    desc: "<strong>2. Офис и корп-шаблоны:</strong> Запрос → OpenWebUI + Skills/Knowledge (artifact-workflow / шаблоны) → LLM через LiteLLM и Privoxy решает вызвать инструмент → Office Filters/Tools → OfficeCLI (DOCX/XLSX/PPTX) или Open Terminal (сложная обработка) → готовый файл возвращается вложением OpenWebUI.",
+    nodes: ["user", "traefik", "owui-core", "ext-skills", "ext-office", "patch-toolctx", "litellm", "transport", "llm-apis", "officecli", "terminal"],
     edges: [
       { from: "user", to: "traefik", label: "1", color: "#2563eb" },
       { from: "traefik", to: "owui-core", label: "2", color: "#2563eb" },
       { from: "owui-core", to: "ext-skills", label: "3 план", color: "#2563eb" },
       { from: "owui-core", to: "litellm", label: "4 LLM", color: "#10b981" },
-      { from: "litellm", to: "llm-apis", label: "5", color: "#7c3aed" },
-      { from: "owui-core", to: "ext-office", label: "6 tools", color: "#2563eb" },
-      { from: "ext-office", to: "officecli", label: "7a DOCX/XLSX", color: "#059669" },
-      { from: "ext-office", to: "terminal", label: "7b Linux", color: "#059669" }
+      { from: "litellm", to: "transport", label: "5 proxy", color: "#7c3aed" },
+      { from: "transport", to: "llm-apis", label: "6 API", color: "#7c3aed" },
+      { from: "owui-core", to: "ext-office", label: "7 tools", color: "#2563eb" },
+      { from: "ext-office", to: "officecli", label: "8a DOCX/XLSX", color: "#059669" },
+      { from: "ext-office", to: "terminal", label: "8b Linux", color: "#059669" }
     ]
   },
   ocr: {
-    desc: "<strong>3. PDF OCR (Luna):</strong> Загрузка PDF → OpenWebUI Files → External Document Extraction → Event Function luna_pdf_ocr (внутренний PUT /process) → native Responses API (gpt-6-luna) через LiteLLM → распознанный текст кладётся в штатный File/RAG кэш без отдельного sidecar.",
+    desc: "<strong>3. PDF OCR (Luna):</strong> Загрузка PDF → OpenWebUI Files → External Document Extraction → Event Function luna_pdf_ocr (внутренний PUT /process) → native Responses API (gpt-6-luna) через LiteLLM и Privoxy → распознанный текст кладётся в штатный File/RAG кэш без отдельного sidecar.",
     nodes: ["user", "traefik", "owui-core", "ext-ocr", "litellm", "transport", "llm-apis"],
     edges: [
       { from: "user", to: "traefik", label: "1 PDF", color: "#2563eb" },
@@ -1062,18 +1065,18 @@ const WORKFLOWS = {
     ]
   },
   audio: {
-    desc: "<strong>4. Голос и аудио (3 разных пути):</strong> <b>A (Файлы):</b> media-upload + stage2_media_intake → stage2-stt → Lemonfox. <b>B (Микрофон):</b> Audio STT → Lemonfox (мимо sidecar). <b>C (Realtime):</b> Voice Mode WS → WSS_PROXY → OpenAI gpt-realtime-2.1 (<b>мимо LiteLLM!</b>).",
+    desc: "<strong>4. Голос и аудио (все 3 пути идут через Privoxy):</strong> <b>A (Файлы):</b> media-upload + stage2_media_intake → stage2-stt → Privoxy → Lemonfox. <b>B (Микрофон):</b> Audio STT → Privoxy → Lemonfox (мимо sidecar). <b>C (Realtime):</b> Voice Mode WS → Privoxy (WSS_PROXY) → OpenAI gpt-realtime-2.1 (<b>мимо LiteLLM!</b>).",
     nodes: ["user", "traefik", "static-shim", "owui-audio", "patch-media", "ext-media", "stt", "transport", "lemonfox", "realtime-api"],
     edges: [
       { from: "user", to: "static-shim", label: "A1 norm", color: "#2563eb" },
       { from: "static-shim", to: "patch-media", label: "A2 upload", color: "#ea580c" },
       { from: "patch-media", to: "ext-media", label: "A3 intake", color: "#2563eb" },
       { from: "ext-media", to: "stt", label: "A4 sidecar", color: "#059669" },
-      { from: "stt", to: "lemonfox", label: "A5 STT", color: "#7c3aed" },
+      { from: "stt", to: "transport", label: "A5 proxy", color: "#7c3aed" },
       { from: "user", to: "owui-audio", label: "B/C голос", color: "#0284c7" },
-      { from: "owui-audio", to: "lemonfox", label: "B диктовка", color: "#7c3aed" },
-      { from: "owui-audio", to: "transport", label: "C1 WSS_PROXY", color: "#d97706" },
-      { from: "transport", to: "realtime-api", label: "C2 Realtime", color: "#d97706" }
+      { from: "owui-audio", to: "transport", label: "B/C proxy", color: "#d97706" },
+      { from: "transport", to: "realtime-api", label: "C Realtime", color: "#d97706" },
+      { from: "transport", to: "lemonfox", label: "A6/B STT", color: "#7c3aed" }
     ]
   },
   search: {
