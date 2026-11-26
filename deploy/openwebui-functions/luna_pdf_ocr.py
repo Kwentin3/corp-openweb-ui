@@ -399,7 +399,10 @@ class Event:
         if not model or model.get("owned_by") != "openai" or model.get("pipe") or model.get("pipeline") or capabilities.get("vision") is not True:
             raise HTTPException(503, "Configured Luna model must be a native OpenAI vision model")
         model_info = await Models.get_model_by_id(valves.model_id)
-        if model_info and (model_info.base_model_id or model_info.params.model_dump()):
+        # OCR owns its instructions. Native Responses does not merge model
+        # params; the Chat Completions path below bypasses the model system.
+        # Keep routing and all other inference overrides forbidden.
+        if model_info and (model_info.base_model_id or model_info.params.model_dump(exclude={"system"})):
             raise HTTPException(503, "Luna OCR requires its direct native model without parameter overrides")
         provider_model = request.app.state.OPENAI_MODELS.get(valves.model_id)
         if not provider_model or provider_model.get("pipeline") or "urlIdx" not in provider_model:

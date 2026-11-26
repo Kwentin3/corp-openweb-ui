@@ -14,7 +14,23 @@ cells, inspection of actual OCR/model input and output, retained original hash,
 cache reuse and error behavior, and recorded time/token cost. Green unit tests
 alone are insufficient. Private source/chat/provider artifacts stay outside Git.
 
-## Current verified state
+## Current verified state, 2026-11-26
+
+Native Event Function `luna_pdf_ocr` is active on OpenWebUI 0.12.2. The native
+extraction engine is `external`, using
+`http://127.0.0.1:8080/api/v1/luna-pdf-ocr`. Files/Storage, native model routing
+and RAG remain the owners of file bytes, provider calls and cached text.
+OCR is charged to the separate platform service payer; see
+[employee budget installation](employee-budgets-installation.md).
+
+[PR #620](https://github.com/Kwentin3/corp-openweb-ui/pull/620) fixes a conflict
+with the portal-help instruction saved in the shared Luna model's `params.system`.
+The deployed Function source SHA-256 is
+`1fff4fb87a31e1a537e8a98761565ac68959b2c9ad8038bca197a26f73b1398c`.
+The dated acceptance sections below distinguish the initial ordinary-user upload
+from the later administrator reprocessing check.
+
+## Original diagnosis, 2026-10-29
 
 - Base: `7c759316cd50656071c09bffd7f7c2fe5d9751f9`, branch
   `agent/luna-ocr`, isolated worktree `D:/Users/Roman/Desktop/corp-openweb-ui-luna-ocr`.
@@ -27,7 +43,7 @@ alone are insufficient. Private source/chat/provider artifacts stay outside Git.
 - Effective extraction engine is empty/default, PDF image OCR is off. The
   unused uppercase `rag.CONTENT_EXTRACTION_ENGINE` key is not the native setting.
 
-## Selected native seam, pending qualification
+## Native integration
 
 Official Event Functions can register FastAPI endpoints on startup. Official
 External Document Extraction calls a raw-byte PUT `/process` and consumes
@@ -54,16 +70,9 @@ inside OCR. It must not globally toggle extraction settings while handling a
 request. Preserve non-PDF/media handling; selecting External otherwise expands
 image/video admission and intercepts all document types.
 
-## Work slices and current next step
+## Initial qualification, 2026-10-29
 
-1. Verify installed lifecycle, loader and provider contracts; rehearse final
-   request/schema offline on the real source and qualify a bounded page sample.
-2. Implement the smallest Event adapter and behavior checks for byte/access
-   binding, complete/error output, non-PDF delegation and lifecycle.
-3. Qualify full-source extraction and native cache reuse, run necessary CI,
-   prepare a reversible activation and verify ordinary-user portal behavior.
-
-Current state: installed, ordinary-user acceptance passed and the original
+The adapter was installed, ordinary-user acceptance passed and the original
 failed attachment reprocessed. Independent outcome review passed for the exact
 installed module; source delivery is tracked in
 [PR #578](https://github.com/Kwentin3/corp-openweb-ui/pull/578). Three
@@ -86,12 +95,41 @@ status. The adapter therefore uses the existing native Responses endpoint for
 a Responses connection and checks its raw status/output. It preserves native
 model ACL, connection and transport ownership and sets `store=false`.
 
+## Shared chat model and OCR instructions
+
+The chat model selected by the user does not select the OCR model: the adapter
+uses `gpt-6-luna`. A chat-only `params.system`, including the portal-help discovery
+rule, is permitted. The adapter supplies its own OCR instructions. The native
+Responses route does not merge saved model parameters; the Chat Completions path
+uses the existing `bypass_system_prompt=True` flag. Neither path should include
+the chat help instruction in the OCR request.
+
+Base-model redirects and every other saved inference parameter remain forbidden.
+After changing a shared model or upgrading OpenWebUI, verify this boundary with
+its actual saved parameters and final native OCR payload, including the PDF,
+instructions, strict page schema and platform budget signature.
+
+`503 Luna OCR requires its direct native model without parameter overrides`
+is an adapter configuration rejection before budget signing/provider dispatch.
+Check the native model's `base_model_id` and `params`. In the older adapter even
+`params.system` caused this error; install the corrected Function rather than
+removing the chat help rule or changing employee budgets.
+
 ## Installation and rollback
 
 Install the exact source as native Event Function `luna_pdf_ocr`, enable it and
 verify its unauthenticated PUT route returns 401 before selecting the loader.
 No image build, container restart, package install or upstream edit is needed.
 The installed runtime already provides FastAPI, Pydantic and pypdf.
+
+For a Function-only bug fix, retain the current Function content/meta and Valves,
+then update the existing ID through native
+`POST /api/v1/functions/id/luna_pdf_ocr/update`. Verify source hash, active state,
+Valves and the unauthenticated 401 response. The registered route resolves the
+current Function cache on each request, so a source update requires no toggle or
+restart. To roll back that update, restore only the previous Function source via
+the same API after checking the installed revision; preserve Documents settings,
+budgets, model system prompts and already extracted file content.
 
 Retain a private backup of only the five affected native Documents settings.
 Set them through `/api/v1/retrieval/config/update`:
@@ -120,6 +158,33 @@ An absent/deleted/inactive Function fails closed. The module is removable and
 the previous default loader is the recorded baseline. Live rollback was not
 exercised; registration, enable/disable and failure behavior have component
 coverage. The installed route was verified before changing the loader.
+
+## Compatibility fix acceptance, 2026-11-26
+
+- Before the fix, both supported API types reproduced the 503 with the actual
+  portal-help system rule. After the fix, 69 component/ASGI checks passed locally,
+  including native Responses converter/form replay from the installed source,
+  without skips. Hosted Native Luna OCR and required Active CI also passed.
+- The exact source was installed through the native Function API. Readback
+  matched the SHA-256 above; active/global state, Valves and the shared chat model
+  were preserved. The unauthenticated route still returned 401. No image rebuild
+  or container restart was needed.
+- One existing failed five-page PDF was reprocessed through native
+  `/api/v1/retrieval/process/file`: 31.895 seconds, 8,189 stored characters,
+  `status=completed`, `error=null`, native file collection populated. Original
+  bytes, File ID and owner were preserved. This was an administrator server-side
+  check; a fresh ordinary-user browser upload was not repeated.
+- One successful SpendLogs row recorded `category=service`, `task=document_ocr`
+  and the platform payer: 14,537 input / 3,252 output tokens, 0.00344305 USD.
+  The OCR call was not charged to the employee's personal budget.
+- Main source instructions and rendered pages 1 and 5 were compared with the
+  result. Small screenshot labels retain explicit OCR uncertainty; exact
+  transcription of every screenshot cell is not claimed.
+
+Private audit, deployment/readback and acceptance receipts remain in ignored
+`local/luna-ocr-audit-20261126/`. The previous Function/Valves snapshot is retained
+at `/opt/openwebui-ops/luna-ocr-system-fix-20261126/before.private.json`.
+No private PDF, extracted text, user identifiers or credentials are published.
 
 ## Acceptance receipts, 2026-10-29
 
@@ -209,8 +274,9 @@ messages were not edited; existing tools/RAG can now read the original File ID.
   diagnostic needs explicit resource/stop/retention ownership.
 - Whole-document generation can omit source content despite valid JSON; review
   original pages and omissions, not just page/token counts.
-- Current static-bearer Responses connection was verified. Session-auth routes,
-  model aliases/parameter overrides and non-vision models fail closed.
+- The static-bearer Responses connection was verified. Session-auth routes,
+  base-model redirects, inference overrides other than the isolated chat `system`,
+  and non-vision models fail closed.
 - No hidden retries, fallback model, duplicate OCR storage or original-byte
   replacement. Reprocessing must remain an explicit native operation.
 - Event installation/configuration and production activation must be reviewable
