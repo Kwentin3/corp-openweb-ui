@@ -39,6 +39,13 @@ GATEWAY = "http://managed-gateway.invalid"
 SECRET = "synthetic-ocr-shared-inference-secret-" * 2
 
 
+class ModelParams(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
+PORTAL_HELP_SYSTEM = (SOURCE.parents[1] / "openwebui-skills" / "portal-help-discovery.txt").read_text(encoding="utf-8").strip()
+
+
 def budget_module(monkeypatch, name, filename):
     spec = importlib.util.spec_from_file_location(name, SOURCE.parents[1] / "openwebui-budgets" / filename)
     module = importlib.util.module_from_spec(spec)
@@ -264,7 +271,8 @@ def native(monkeypatch, tmp_path):
     module("open_webui.models.files", Files=files)
     module("open_webui.models.users", Users=users)
     module("open_webui.models.functions", Functions=functions)
-    module("open_webui.models.models", Models=SimpleNamespace(get_model_by_id=AsyncMock(return_value=None)))
+    models = SimpleNamespace(get_model_by_id=AsyncMock(return_value=None))
+    module("open_webui.models.models", Models=models)
     module("open_webui.storage.provider", Storage=storage)
     module("open_webui.utils.access_control.files", has_access_to_file=access)
     module("open_webui.utils.plugin", get_function_module_from_cache=cached)
@@ -302,7 +310,7 @@ def native(monkeypatch, tmp_path):
                            cached=cached, provider=provider, access=access, storage=storage, files=files,
                            users=users, loader=loader, build_loader=build_loader, connection=connection,
                            converter=converter, projected=projected, completion_provider=completion_provider,
-                           protocol=protocol, common=common, model_access=model_access)
+                           protocol=protocol, common=common, model_access=model_access, models=models)
 
 
 def test_pdf_route_returns_native_documents_and_exact_isolated_provider_request(native):
@@ -403,7 +411,10 @@ def test_managed_budget_binding_fails_closed_before_any_native_dispatch(native, 
     native.completion_provider.assert_not_awaited()
 
 
-def test_cached_native_converter_and_form_retain_full_ocr_request_after_signing(native):
+@pytest.mark.parametrize("system", [None, PORTAL_HELP_SYSTEM], ids=["plain", "portal-help"])
+def test_cached_native_converter_and_form_retain_full_ocr_request_after_signing(native, system):
+    native.models.get_model_by_id.return_value = SimpleNamespace(
+        base_model_id=None, params=ModelParams(**({"system": system} if system else {})))
     root = Path(os.environ.get("GOAL584_NATIVE_SOURCE_ROOT", str(SOURCE.parents[2] /
                 "local/goal584/cost-display/open-webui/backend/open_webui")))
     path = root / "routers/openai.py"
@@ -437,6 +448,52 @@ def test_cached_native_converter_and_form_retain_full_ocr_request_after_signing(
     assert "tools" not in forwarded
     nested = native.provider.await_args.args[0]
     assert nested.scope["headers"] == []  # No synthetic TASK header injection.
+
+
+@pytest.mark.parametrize("api_type", ["responses", "chat_completions"])
+def test_chat_system_does_not_block_ocr_or_change_its_request(native, api_type):
+    native.models.get_model_by_id.return_value = SimpleNamespace(
+        base_model_id=None, params=ModelParams(system=PORTAL_HELP_SYSTEM))
+    native.connection.return_value = (GATEWAY + "/v1", SECRET, {"auth_type": "bearer", "api_type": api_type})
+    response = asyncio.run(native.request())
+    assert response.status_code == 200, response.text
+    assert [d["page_content"] for d in response.json()] == [p["text"] for p in extracted_pages()["pages"]]
+    expected = MODULE.build_ocr_request(native.original, native.file.filename, 2, api_type=api_type)
+    expected["metadata"]["file_id"] = FILE_ID
+    if api_type == "responses":
+        native.converter.assert_called_once_with(expected)
+        forwarded = native.provider.await_args.args[1].model_dump(exclude_none=True)
+        token = forwarded.pop("litellm_metadata")["owui_budget_provenance"]
+        assert forwarded == native.projected
+        native.completion_provider.assert_not_awaited()
+    else:
+        args = native.completion_provider.await_args
+        forwarded = copy.deepcopy(args.args[1])
+        token = forwarded.pop("litellm_metadata")["owui_budget_provenance"]
+        assert forwarded == expected
+        assert args.kwargs == {"bypass_filter": False, "bypass_system_prompt": True}
+        native.provider.assert_not_awaited()
+    assert PORTAL_HELP_SYSTEM not in json.dumps(expected, ensure_ascii=False)
+    claims = native.protocol.decode_service_operation(token, SECRET, user_id=ACTOR, model="gpt-6-luna")
+    assert claims["payer_id"] == PAYER and claims["file_id"] == FILE_ID
+
+
+@pytest.mark.parametrize("base_model_id,params", [
+    ("another-model", {"system": PORTAL_HELP_SYSTEM}),
+    (None, {"system": PORTAL_HELP_SYSTEM, "temperature": 0}),
+    (None, {"system": PORTAL_HELP_SYSTEM, "max_tokens": 16}),
+    (None, {"system": PORTAL_HELP_SYSTEM, "custom_params": {"store": True}}),
+    (None, {"system": PORTAL_HELP_SYSTEM, "unknown_parameter": False}),
+])
+def test_routing_and_inference_overrides_still_fail_before_dispatch(native, base_model_id, params):
+    native.models.get_model_by_id.return_value = SimpleNamespace(
+        base_model_id=base_model_id, params=ModelParams(**params))
+    response = asyncio.run(native.request())
+    assert response.status_code == 503, response.text
+    assert response.json() == {"detail": "Luna OCR requires its direct native model without parameter overrides"}
+    native.provider.assert_not_awaited()
+    native.completion_provider.assert_not_awaited()
+    native.converter.assert_not_called()
 
 
 def test_nonpdf_uses_native_loader_and_only_request_local_config(native):
