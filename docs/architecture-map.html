@@ -147,18 +147,19 @@
   .wf-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
   }
   .wf-btn {
-    padding: 5px 11px;
+    padding: 4px 9px;
     border-radius: 999px;
     border: 1px solid var(--border);
     background: var(--surface-2);
     color: var(--text);
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap;
   }
   .wf-btn:hover { border-color: var(--accent); }
   .wf-btn.active {
@@ -216,7 +217,7 @@
     min-width: 0;
     overflow-x: auto;
     position: relative;
-    padding: 16px 20px 24px;
+    padding: 14px 16px 26px;
   }
 
   #edges-svg {
@@ -233,8 +234,8 @@
     position: relative;
     z-index: 5;
     display: grid;
-    grid-template-columns: minmax(150px, 0.72fr) minmax(380px, 1.65fr) minmax(195px, 0.92fr) minmax(195px, 0.92fr);
-    gap: 22px;
+    grid-template-columns: minmax(140px, 0.72fr) minmax(315px, 1.56fr) minmax(175px, 0.88fr) minmax(175px, 0.88fr);
+    gap: 20px;
     align-items: start;
   }
 
@@ -265,21 +266,20 @@
   }
   .frame-header {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    align-items: center;
-    gap: 8px;
+    align-items: baseline;
+    gap: 4px 10px;
     border-bottom: 1px dashed var(--border);
     padding-bottom: 7px;
   }
   .frame-header .title {
     font-size: 13px;
     font-weight: 700;
-    white-space: nowrap;
   }
   .frame-header .meta {
     font-size: 10.5px;
     color: var(--muted);
-    white-space: nowrap;
   }
 
   .subzone {
@@ -345,20 +345,23 @@
 
   .node-top {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 6px;
+    gap: 4px 6px;
   }
   .node-title {
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 700;
     line-height: 1.25;
+    min-width: 0;
+    overflow-wrap: break-word;
   }
   .node-desc {
-    margin-top: 3px;
-    font-size: 11px;
+    margin-top: 4px;
+    font-size: 10.8px;
     color: var(--muted);
-    line-height: 1.3;
+    line-height: 1.32;
   }
   .badge {
     font-size: 9.5px;
@@ -367,6 +370,9 @@
     border-radius: 999px;
     white-space: nowrap;
     flex-shrink: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .cat-core .badge { background: rgba(100,116,139,0.16); color: var(--core-text); }
   .cat-patch .badge { background: rgba(249,115,22,0.18); color: var(--patch-text); }
@@ -379,7 +385,7 @@
   .onec-band {
     position: relative;
     z-index: 5;
-    margin-top: 22px;
+    margin-top: 44px;
     background: var(--surface);
     border: 2px solid var(--onec-border);
     border-radius: 14px;
@@ -387,32 +393,47 @@
     box-shadow: var(--shadow);
     display: flex;
     flex-direction: column;
-    gap: 11px;
+    gap: 12px;
   }
   .onec-grid {
     display: grid;
-    grid-template-columns: 1.45fr 1fr;
-    gap: 16px;
-    align-items: start;
+    grid-template-columns: 1.85fr 1fr;
+    gap: 56px;
+    align-items: stretch;
   }
   .onec-subzone {
     background: var(--surface-2);
     border: 1px dashed var(--border);
     border-radius: 10px;
-    padding: 10px 11px;
+    padding: 11px 12px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .onec-cards-3 {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
+    min-width: 0;
   }
-  .onec-cards-2 {
+  .onec-client-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: 1fr 1.08fr;
+    column-gap: 54px;
+    row-gap: 44px;
+    align-items: start;
+  }
+  .onec-broker-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 44px;
+  }
+  .onec-note-card {
+    border-radius: 9px;
+    border: 1px dashed var(--border);
+    padding: 9px 11px;
+    font-size: 10.8px;
+    color: var(--muted);
+    line-height: 1.38;
+    background: var(--surface);
+  }
+  .onec-note-card strong {
+    color: var(--onec-text);
   }
   .ext-ref-chip {
     text-decoration: none;
@@ -451,19 +472,22 @@
 
   /* Inspector Sidebar */
   aside.inspector {
-    width: 310px;
+    width: 278px;
     flex-shrink: 0;
     z-index: 20;
     background: var(--surface);
     border-left: 1px solid var(--border);
-    padding: 16px 16px 24px;
+    padding: 14px 14px 22px;
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: 12px;
     position: sticky;
-    top: 105px;
-    height: calc(100vh - 105px);
+    top: 98px;
+    height: calc(100vh - 98px);
     overflow-y: auto;
+  }
+  .workspace.inspector-hidden aside.inspector {
+    display: none;
   }
   .insp-empty {
     color: var(--muted);
@@ -498,12 +522,13 @@
   }
   .path-chip {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 11px;
+    font-size: 10.5px;
+    line-height: 1.35;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 5px 8px;
-    word-break: break-all;
+    overflow-wrap: anywhere;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
@@ -576,6 +601,7 @@
     </div>
     <div class="controls">
       <input id="search" class="search-input" type="search" placeholder="Поиск по узлам и путям..." />
+      <button id="inspector-toggle" class="btn" type="button">Скрыть инспектор</button>
       <button id="theme-toggle" class="btn" type="button">Тёмная тема</button>
       <button id="reset-btn" class="btn" type="button">Сброс</button>
     </div>
@@ -587,10 +613,10 @@
       <button class="wf-btn" data-wf="chat">1. Чат + Бюджеты</button>
       <button class="wf-btn" data-wf="office">2. Офис и шаблоны</button>
       <button class="wf-btn" data-wf="ocr">3. PDF OCR (Luna)</button>
-      <button class="wf-btn" data-wf="audio">4. Голос и аудио (3 пути)</button>
+      <button class="wf-btn" data-wf="audio">4. Голос и аудио</button>
       <button class="wf-btn" data-wf="search">5. Веб-поиск</button>
-      <button class="wf-btn" data-wf="onec">6. 1С: «Нейро-помощник»</button>
-      <button class="wf-btn" data-wf="patches">⚠ Зона апгрейда (патчи)</button>
+      <button class="wf-btn" data-wf="onec">6. 1С: Нейро-помощник</button>
+      <button class="wf-btn" data-wf="patches">⚠ Зона апгрейда</button>
     </div>
 
     <div class="legend">
@@ -761,7 +787,7 @@
     </div>
 
     <!-- EXTERNAL 1C CONTOUR BAND -->
-    <div class="onec-band">
+    <div class="onec-band" id="onec-band">
       <div class="frame-header">
         <div class="title">Внешний контур 1С «Нейро-помощник» (отдельный деплой · без правок ядра OpenWebUI)</div>
         <div class="meta">Работающий пилот (УНФ стенд; БП/УТ — отдельные испытания) · API портала</div>
@@ -769,7 +795,7 @@
       <div class="onec-grid">
         <div class="onec-subzone">
           <div class="subzone-label">Контур информационной базы 1С (у клиента)</div>
-          <div class="onec-cards-3">
+          <div class="onec-client-grid">
             <div class="node cat-1c" id="node-onec-chat" data-id="onec-chat">
               <div class="node-top"><div class="node-title">Пользователь 1С / «Нейро-помощник»</div><span class="badge">HTML-чат 1С</span></div>
               <div class="node-desc">HTML-чат в управляемой форме, ссылки на объекты, фоновые запросы</div>
@@ -777,6 +803,9 @@
             <div class="node cat-1c" id="node-onec-ext" data-id="onec-ext">
               <div class="node-top"><div class="node-title">Расширение «НейроИнтеграция»</div><span class="badge">1С / BSL</span></div>
               <div class="node-desc">Метаданные, чтение, проекты документов, создание/проведение после подтверждения</div>
+            </div>
+            <div class="onec-note-card">
+              <strong>Границы контура 1С:</strong> прямого SQL-подключения модели к БД нет — все операции исполняет расширение в правах пользователя 1С. Маршрут 1С вынесен за рамки первого контура обезличивания.
             </div>
             <div class="node cat-1c" id="node-onec-db" data-id="onec-db">
               <div class="node-top"><div class="node-title">Информационная база 1С</div><span class="badge">БД + права 1С</span></div>
@@ -786,7 +815,7 @@
         </div>
         <div class="onec-subzone">
           <div class="subzone-label">Внешний сервер-посредник (вне контура OpenWebUI)</div>
-          <div class="onec-cards-2">
+          <div class="onec-broker-stack">
             <div class="node cat-1c" id="node-onec-broker" data-id="onec-broker">
               <div class="node-top"><div class="node-title">Сервер-посредник интеграции</div><span class="badge">Отдельный сервис</span></div>
               <div class="node-desc">Контекст модели, проверка структурированных ответов, задания; POST /api/chat/completions</div>
@@ -855,7 +884,7 @@ const NODES = {
     summary: "Обычные пользователи и администраторы портала gpt.alpha-soft.ru.",
     coreLink: "Работает через стандартный веб-интерфейс OpenWebUI, MediaRecorder (микрофон) и Voice Mode (для группы Realtime).",
     paths: ["docs/commercial/CORPORATE_DOCUMENTS_USER_GUIDE.md", "docs/infra-ops/portal-help.md"],
-    workflows: ["chat", "office", "ocr", "audio", "search", "onec"],
+    workflows: ["chat", "office", "ocr", "audio", "search"],
     notes: "Голосовой Realtime доступен только администраторам и участникам группы Realtime; диктовка микрофоном доступна всем."
   },
   traefik: {
@@ -1194,12 +1223,12 @@ const WORKFLOWS = {
       { from: "transport", to: "realtime-api", color: "#f59e0b" },
       { from: "transport", to: "lemonfox", color: "#8b5cf6" },
       { from: "searxng", to: "web", color: "#64748b" },
-      { from: "onec-chat", to: "onec-ext", color: "#0891b2" },
-      { from: "onec-ext", to: "onec-db", color: "#0891b2" },
-      { from: "onec-ext", to: "onec-broker", color: "#0891b2" },
+      { from: "onec-chat", to: "onec-ext", color: "#0891b2", bi: true },
+      { from: "onec-ext", to: "onec-db", color: "#0891b2", bi: true },
+      { from: "onec-ext", to: "onec-broker", color: "#0891b2", bi: true },
       { from: "onec-broker", to: "onec-license", color: "#0891b2" },
-      { from: "onec-broker", to: "traefik", color: "#0891b2" },
-      { from: "ext-1c-tool", to: "onec-broker", color: "#64748b", dashed: true }
+      { from: "onec-broker", to: "traefik", color: "#0891b2", bi: true, route: "left-gutter" },
+      { from: "ext-1c-tool", to: "onec-broker", color: "#64748b", dashed: true, route: "bottom-to-top" }
     ]
   },
   chat: {
@@ -1209,10 +1238,10 @@ const WORKFLOWS = {
       { from: "user", to: "traefik", label: "1", color: "#2563eb" },
       { from: "traefik", to: "owui-core", label: "2", color: "#2563eb" },
       { from: "owui-core", to: "patch-toolctx", label: "3", color: "#ea580c" },
-      { from: "patch-toolctx", to: "litellm", label: "4", color: "#10b981" },
+      { from: "patch-toolctx", to: "litellm", label: "4", color: "#10b981", labelT: 0.68 },
       { from: "litellm", to: "transport", label: "5", color: "#7c3aed" },
       { from: "transport", to: "llm-apis", label: "6", color: "#7c3aed" },
-      { from: "litellm", to: "ext-budgets", label: "7 учёт", color: "#059669" },
+      { from: "litellm", to: "ext-budgets", label: "7 учёт", color: "#059669", labelT: 0.42 },
       { from: "ext-budgets", to: "patch-status", label: "8 UI", color: "#ea580c" }
     ]
   },
@@ -1247,15 +1276,15 @@ const WORKFLOWS = {
     desc: "<strong>4. Голос и аудио (все 3 пути идут через Privoxy):</strong> <b>A (Файлы):</b> media-upload + stage2_media_intake → stage2-stt → Privoxy → Lemonfox. <b>B (Микрофон):</b> Audio STT → Privoxy → Lemonfox (мимо sidecar). <b>C (Realtime):</b> Voice Mode WS → Privoxy (WSS_PROXY) → OpenAI gpt-realtime-2.1 (<b>мимо LiteLLM!</b>).",
     nodes: ["user", "traefik", "static-shim", "owui-audio", "patch-media", "ext-media", "stt", "transport", "lemonfox", "realtime-api"],
     edges: [
-      { from: "user", to: "static-shim", label: "A1 norm", color: "#2563eb" },
-      { from: "static-shim", to: "patch-media", label: "A2 upload", color: "#ea580c" },
+      { from: "user", to: "static-shim", label: "A1 norm", color: "#2563eb", labelT: 0.55 },
+      { from: "static-shim", to: "patch-media", label: "A2 upload", color: "#ea580c", labelT: 0.45 },
       { from: "patch-media", to: "ext-media", label: "A3 intake", color: "#2563eb" },
-      { from: "ext-media", to: "stt", label: "A4 sidecar", color: "#059669" },
-      { from: "stt", to: "transport", label: "A5 proxy", color: "#7c3aed" },
-      { from: "user", to: "owui-audio", label: "B/C голос", color: "#0284c7" },
-      { from: "owui-audio", to: "transport", label: "B/C proxy", color: "#d97706" },
-      { from: "transport", to: "realtime-api", label: "C Realtime", color: "#d97706" },
-      { from: "transport", to: "lemonfox", label: "A6/B STT", color: "#7c3aed" }
+      { from: "ext-media", to: "stt", label: "A4 sidecar", color: "#059669", labelT: 0.5 },
+      { from: "stt", to: "transport", label: "A5 proxy", color: "#7c3aed", labelT: 0.42 },
+      { from: "user", to: "owui-audio", label: "B/C голос", color: "#0284c7", labelT: 0.3 },
+      { from: "owui-audio", to: "transport", label: "B/C proxy", color: "#d97706", labelT: 0.62 },
+      { from: "transport", to: "realtime-api", label: "C Realtime", color: "#d97706", labelT: 0.55 },
+      { from: "transport", to: "lemonfox", label: "A6/B STT", color: "#7c3aed", labelT: 0.7 }
     ]
   },
   search: {
@@ -1270,24 +1299,20 @@ const WORKFLOWS = {
     ]
   },
   onec: {
-    desc: "<strong>6. 1С: «Нейро-помощник» (внешний контур · пилот):</strong> <b>Основной путь (чат в 1С):</b> Пользователь 1С → HTML-чат → Расширение НейроИнтеграция ↔ HTTPS ↔ Посредник (проверка лицензии и рабочих мест) ↔ API портала (POST /api/chat/completions) ↔ Traefik → OpenWebUI → LiteLLM (общий токен лицензии) → Privoxy → LLM. Цикл повторяется для метаданных/данных; операции в БД исполняет расширение (создание/проведение — после подтверждения). <b>Пунктир:</b> отдельная ветка Tool из чата портала (пилот, требует сверки актуального Tool; веб-публикация без сеанса — в планах).",
-    nodes: ["onec-chat", "onec-ext", "onec-db", "onec-broker", "onec-license", "traefik", "owui-core", "litellm", "transport", "llm-apis", "ext-1c-tool", "user"],
+    desc: "<strong>6. 1С: «Нейро-помощник» (внешний контур · пилот):</strong> <b>Основной путь (чат в 1С):</b> 1 Пользователь 1С ↔ Расширение (2 БД/права) ↔ 3 Посредник (4 лицензия) ↔ 5 API портала → Traefik ↔ 6 OpenWebUI (POST /api/chat/completions) → 7 LiteLLM (общий токен лицензии) → 8 Privoxy → 9 LLM. Цикл повторяется для метаданных/данных; создание и проведение — только после подтверждения пользователя. <b>Пунктир:</b> отдельная ветка Tool из чата портала (пилот, требует сверки актуального Tool; веб-публикация без сеанса — в планах).",
+    nodes: ["onec-chat", "onec-ext", "onec-db", "onec-broker", "onec-license", "traefik", "owui-core", "litellm", "transport", "llm-apis", "ext-1c-tool"],
     edges: [
-      { from: "onec-chat", to: "onec-ext", label: "1 запрос", color: "#0891b2" },
-      { from: "onec-ext", to: "onec-broker", label: "2 HTTPS", color: "#0891b2" },
-      { from: "onec-broker", to: "onec-license", label: "3 лицензия", color: "#0e7490" },
-      { from: "onec-broker", to: "traefik", label: "4 API портала", color: "#0891b2" },
-      { from: "traefik", to: "owui-core", label: "5 /chat/completions", color: "#2563eb" },
-      { from: "owui-core", to: "litellm", label: "6 общий токен", color: "#10b981" },
-      { from: "litellm", to: "transport", label: "7 proxy", color: "#7c3aed" },
-      { from: "transport", to: "llm-apis", label: "8 LLM", color: "#7c3aed" },
-      { from: "owui-core", to: "onec-broker", label: "9 ответ / шаг", color: "#0284c7" },
-      { from: "onec-broker", to: "onec-ext", label: "10 операция", color: "#0284c7" },
-      { from: "onec-ext", to: "onec-db", label: "11 БД 1С", color: "#0f766e" },
-      { from: "onec-db", to: "onec-ext", label: "12 данные", color: "#0f766e" },
-      { from: "onec-ext", to: "onec-chat", label: "13 ответ / проект", color: "#0e7490" },
-      { from: "user", to: "ext-1c-tool", label: "ветка Tool (сверка)", color: "#64748b", dashed: true },
-      { from: "ext-1c-tool", to: "onec-broker", label: "HTTPS (пилот)", color: "#64748b", dashed: true }
+      { from: "onec-chat", to: "onec-ext", label: "1 запрос / ответ", color: "#0891b2", bi: true },
+      { from: "onec-ext", to: "onec-db", label: "2 БД / права 1С", color: "#0f766e", bi: true },
+      { from: "onec-ext", to: "onec-broker", label: "3 HTTPS (цикл)", color: "#0891b2", bi: true },
+      { from: "onec-broker", to: "onec-license", label: "4 лицензия", color: "#0e7490" },
+      { from: "onec-broker", to: "traefik", label: "5 API портала", color: "#0891b2", bi: true, route: "left-gutter" },
+      { from: "traefik", to: "owui-core", label: "6 /chat/completions", color: "#2563eb", bi: true },
+      { from: "owui-core", to: "litellm", label: "7 общий токен", color: "#10b981", labelT: 0.6 },
+      { from: "litellm", to: "transport", label: "8 proxy", color: "#7c3aed" },
+      { from: "transport", to: "llm-apis", label: "9 LLM", color: "#7c3aed" },
+      { from: "owui-core", to: "ext-1c-tool", label: "Tool (сверка)", color: "#64748b", dashed: true, labelT: 0.72 },
+      { from: "ext-1c-tool", to: "onec-broker", label: "HTTPS (пилот)", color: "#64748b", dashed: true, route: "bottom-to-top", labelT: 0.55 }
     ]
   },
   patches: {
@@ -1316,9 +1341,10 @@ function renderInspector(id) {
     onec: "6. 1С: «Нейро-помощник»",
     patches: "⚠ Зона апгрейда"
   };
-  const pathsHtml = (d.paths || []).map(p =>
-    `<div class="path-chip" data-copy="${p}" title="Нажмите, чтобы скопировать путь"><span>${p}</span><span class="copy-hint">копир.</span></div>`
-  ).join("");
+  const pathsHtml = (d.paths || []).map(p => {
+    const pretty = p.replace(/([/_-])/g, "$1<wbr>");
+    return `<div class="path-chip" data-copy="${p}" title="Нажмите, чтобы скопировать путь"><span>${pretty}</span><span class="copy-hint">копир.</span></div>`;
+  }).join("");
   const extRefsHtml = (d.externalRefs || []).map(ref =>
     `<a class="path-chip ext-ref-chip" href="${ref.url}" target="_blank" rel="noopener noreferrer"><span>${ref.label}</span><span class="copy-hint">↗</span></a>`
   ).join("");
@@ -1379,6 +1405,18 @@ function getAnchor(el, wrap, wrapRect, side) {
   return { x: x + r.width / 2, y: y + r.height };
 }
 
+function cubicPoint(p1, c1, c2, p2, t) {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * mt * p1.x + 3 * mt * mt * t * c1.x + 3 * mt * t * t * c2.x + t * t * t * p2.x,
+    y: mt * mt * mt * p1.y + 3 * mt * mt * t * c1.y + 3 * mt * t * t * c2.y + t * t * t * p2.y
+  };
+}
+
+function rectsOverlap(a, b, pad) {
+  return !(a.x2 + pad <= b.x1 || a.x1 - pad >= b.x2 || a.y2 + pad <= b.y1 || a.y1 - pad >= b.y2);
+}
+
 function drawEdges() {
   const svg = document.getElementById("edges-svg");
   const wrap = document.getElementById("canvas-wrap");
@@ -1397,6 +1435,49 @@ function drawEdges() {
   });
   defs += `</defs>`;
 
+  // Collect active node boxes for label collision avoidance
+  const activeNodeBoxes = [];
+  if (!isOverview) {
+    const wfSet = wf.nodes ? new Set(wf.nodes) : null;
+    document.querySelectorAll(".node").forEach(el => {
+      const id = el.getAttribute("data-id");
+      if (wfSet && !wfSet.has(id)) return;
+      const r = el.getBoundingClientRect();
+      activeNodeBoxes.push({
+        x1: r.left - wrapRect.left + wrap.scrollLeft,
+        y1: r.top - wrapRect.top + wrap.scrollTop,
+        x2: r.right - wrapRect.left + wrap.scrollLeft,
+        y2: r.bottom - wrapRect.top + wrap.scrollTop
+      });
+    });
+  }
+  const placedLabels = [];
+
+  function pickLabelPos(candidates, w, h) {
+    let best = candidates[0];
+    let bestScore = Infinity;
+    for (const pt of candidates) {
+      const box = { x1: pt.x - w / 2, y1: pt.y - h / 2, x2: pt.x + w / 2, y2: pt.y + h / 2 };
+      let score = pt.penalty || 0;
+      for (const lb of placedLabels) {
+        if (rectsOverlap(box, lb, 5)) score += 1000;
+      }
+      for (const nb of activeNodeBoxes) {
+        if (rectsOverlap(box, nb, 2)) score += 60;
+      }
+      if (score < bestScore) {
+        bestScore = score;
+        best = pt;
+        if (score === 0) break;
+      }
+    }
+    placedLabels.push({ x1: best.x - w / 2, y1: best.y - h / 2, x2: best.x + w / 2, y2: best.y + h / 2 });
+    return best;
+  }
+
+  const onecBandEl = document.getElementById("onec-band");
+  const traefikEl = document.getElementById("node-traefik");
+
   let paths = "";
   let labels = "";
 
@@ -1409,63 +1490,122 @@ function drawEdges() {
 
     const r1 = fromEl.getBoundingClientRect();
     const r2 = toEl.getBoundingClientRect();
-    const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
-    const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
-    const hasReverse = pairKeys.has(`${edge.to}->${edge.from}`);
-
-    let p1, p2, c1, c2;
-    if (Math.abs(dx) > 65) {
-      const goRight = dx > 0;
-      p1 = getAnchor(fromEl, wrap, wrapRect, goRight ? "right" : "left");
-      p2 = getAnchor(toEl, wrap, wrapRect, goRight ? "left" : "right");
-      const curve = Math.max(30, Math.abs(p2.x - p1.x) * 0.42);
-      const yShift = hasReverse ? (goRight ? -16 : 16) : 0;
-      const bowY = hasReverse ? (goRight ? -26 : 26) : 0;
-      p1 = { x: p1.x, y: p1.y + yShift };
-      p2 = { x: p2.x, y: p2.y + yShift };
-      c1 = { x: p1.x + (goRight ? curve : -curve), y: p1.y + bowY };
-      c2 = { x: p2.x + (goRight ? -curve : curve), y: p2.y + bowY };
-    } else {
-      const goDown = dy > 0;
-      const vGap = goDown ? (r2.top - r1.bottom) : (r1.top - r2.bottom);
-      if (vGap > 42) {
-        // Jumping over an intermediate card in the same column: route cleanly in the side gutter
-        const centerRelX = (r1.left - wrapRect.left + r1.width / 2) / Math.max(1, wrapRect.width);
-        const side = centerRelX > 0.65 ? "left" : "right";
-        const bow = (side === "right" ? 26 : -26) + (hasReverse ? (goDown ? 14 : -14) : 0);
-        p1 = getAnchor(fromEl, wrap, wrapRect, side);
-        p2 = getAnchor(toEl, wrap, wrapRect, side);
-        c1 = { x: p1.x + bow, y: p1.y + (goDown ? 18 : -18) };
-        c2 = { x: p2.x + bow, y: p2.y + (goDown ? -18 : 18) };
-      } else {
-        p1 = getAnchor(fromEl, wrap, wrapRect, goDown ? "bottom" : "top");
-        p2 = getAnchor(toEl, wrap, wrapRect, goDown ? "top" : "bottom");
-        const xShift = hasReverse ? (goDown ? -16 : 16) : 0;
-        const bowX = hasReverse ? (goDown ? -24 : 24) : 0;
-        const curve = Math.max(18, Math.abs(p2.y - p1.y) * 0.45);
-        p1 = { x: p1.x + xShift, y: p1.y };
-        p2 = { x: p2.x + xShift, y: p2.y };
-        c1 = { x: p1.x + bowX, y: p1.y + (goDown ? curve : -curve) };
-        c2 = { x: p2.x + bowX, y: p2.y + (goDown ? -curve : curve) };
-      }
-    }
-
     const color = edge.color || "#64748b";
     const markerIdx = colors.indexOf(color);
-    const d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
-    const strokeW = isOverview ? 1.5 : (edge.dashed ? 1.9 : 2.3);
-    const opacity = isOverview ? (edge.dashed ? 0.4 : 0.52) : (edge.dashed ? 0.8 : 0.95);
+    const strokeW = isOverview ? 1.5 : (edge.dashed ? 1.85 : 2.25);
+    const opacity = isOverview ? (edge.dashed ? 0.4 : 0.52) : (edge.dashed ? 0.82 : 0.95);
     const cls = (isOverview || edge.dashed) ? "edge-path" : "edge-path edge-active";
     const dashAttr = edge.dashed ? ' stroke-dasharray="5 4"' : "";
+    const startMarker = edge.bi ? ` marker-start="url(#arr-${markerIdx})"` : "";
 
-    paths += `<path class="${cls}" d="${d}" stroke="${color}" stroke-width="${strokeW}" opacity="${opacity}"${dashAttr} marker-end="url(#arr-${markerIdx})" />`;
+    let d = "";
+    let labelCandidates = [];
 
-    if (edge.label && !isOverview) {
-      const mx = 0.125 * p1.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * p2.x;
-      const my = 0.125 * p1.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * p2.y;
-      const w = Math.max(22, edge.label.length * 6.4 + 10);
-      labels += `<rect class="edge-label-bg" x="${mx - w / 2}" y="${my - 9}" width="${w}" height="18" rx="9" stroke="${color}" />`;
-      labels += `<text class="edge-label-text" x="${mx}" y="${my}">${edge.label}</text>`;
+    if (edge.route === "left-gutter" && onecBandEl && traefikEl) {
+      // Clean orthogonal rounded highway: top-left of source -> horizontal highway above 1C band -> vertical gutter right of Col 1 -> lower-right of Traefik
+      const bandRect = onecBandEl.getBoundingClientRect();
+      const trRect = traefikEl.getBoundingClientRect();
+      const xStart = (r1.left - wrapRect.left + wrap.scrollLeft) + r1.width * 0.28;
+      const yStart = (r1.top - wrapRect.top + wrap.scrollTop);
+      const highwayY = (bandRect.top - wrapRect.top + wrap.scrollTop) - 22;
+      const gutterX = (trRect.right - wrapRect.left + wrap.scrollLeft) + 10;
+      const xEnd = (trRect.right - wrapRect.left + wrap.scrollLeft);
+      const yEnd = (trRect.bottom - wrapRect.top + wrap.scrollTop) - 14;
+      const rad = 12;
+
+      d = [
+        `M ${xStart} ${yStart}`,
+        `L ${xStart} ${highwayY + rad}`,
+        `Q ${xStart} ${highwayY}, ${xStart - rad} ${highwayY}`,
+        `L ${gutterX + rad} ${highwayY}`,
+        `Q ${gutterX} ${highwayY}, ${gutterX} ${highwayY - rad}`,
+        `L ${gutterX} ${yEnd + rad}`,
+        `Q ${gutterX} ${yEnd}, ${gutterX - Math.min(rad, Math.abs(gutterX - xEnd))} ${yEnd}`,
+        `L ${xEnd} ${yEnd}`
+      ].join(" ");
+
+      const midHighwayX = gutterX + (xStart - gutterX) * 0.28;
+      labelCandidates = [
+        { x: midHighwayX, y: highwayY, penalty: 0 },
+        { x: gutterX + (xStart - gutterX) * 0.5, y: highwayY, penalty: 2 },
+        { x: gutterX + (xStart - gutterX) * 0.16, y: highwayY, penalty: 4 }
+      ];
+    } else if (edge.route === "bottom-to-top") {
+      const p1 = getAnchor(fromEl, wrap, wrapRect, "bottom");
+      const p2 = {
+        x: (r2.left - wrapRect.left + wrap.scrollLeft) + r2.width * 0.68,
+        y: (r2.top - wrapRect.top + wrap.scrollTop)
+      };
+      const midY = p1.y + (p2.y - p1.y) * 0.55;
+      const c1 = { x: p1.x, y: midY };
+      const c2 = { x: p2.x, y: midY };
+      d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
+      const baseT = typeof edge.labelT === "number" ? edge.labelT : 0.5;
+      [baseT, 0.5, 0.35, 0.65].forEach((t, i) => {
+        const pt = cubicPoint(p1, c1, c2, p2, t);
+        labelCandidates.push({ x: pt.x, y: pt.y, penalty: i * 4 });
+      });
+    } else {
+      const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
+      const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+      const hasReverse = pairKeys.has(`${edge.to}->${edge.from}`);
+
+      let p1, p2, c1, c2;
+      if (Math.abs(dx) > 65) {
+        const goRight = dx > 0;
+        p1 = getAnchor(fromEl, wrap, wrapRect, goRight ? "right" : "left");
+        p2 = getAnchor(toEl, wrap, wrapRect, goRight ? "left" : "right");
+        const curve = Math.max(26, Math.abs(p2.x - p1.x) * 0.4);
+        const yShift = hasReverse ? (goRight ? -16 : 16) : 0;
+        const bowY = hasReverse ? (goRight ? -24 : 24) : 0;
+        p1 = { x: p1.x, y: p1.y + yShift };
+        p2 = { x: p2.x, y: p2.y + yShift };
+        c1 = { x: p1.x + (goRight ? curve : -curve), y: p1.y + bowY };
+        c2 = { x: p2.x + (goRight ? -curve : curve), y: p2.y + bowY };
+      } else {
+        const goDown = dy > 0;
+        const vGap = goDown ? (r2.top - r1.bottom) : (r1.top - r2.bottom);
+        if (vGap > 64) {
+          const centerRelX = (r1.left - wrapRect.left + r1.width / 2) / Math.max(1, wrapRect.width);
+          const side = centerRelX > 0.65 ? "left" : "right";
+          const bow = (side === "right" ? 26 : -26) + (hasReverse ? (goDown ? 14 : -14) : 0);
+          p1 = getAnchor(fromEl, wrap, wrapRect, side);
+          p2 = getAnchor(toEl, wrap, wrapRect, side);
+          c1 = { x: p1.x + bow, y: p1.y + (goDown ? 18 : -18) };
+          c2 = { x: p2.x + bow, y: p2.y + (goDown ? -18 : 18) };
+        } else {
+          p1 = getAnchor(fromEl, wrap, wrapRect, goDown ? "bottom" : "top");
+          p2 = getAnchor(toEl, wrap, wrapRect, goDown ? "top" : "bottom");
+          const xShift = hasReverse ? (goDown ? -16 : 16) : 0;
+          const bowX = hasReverse ? (goDown ? -22 : 22) : 0;
+          const curve = Math.max(16, Math.abs(p2.y - p1.y) * 0.45);
+          p1 = { x: p1.x + xShift, y: p1.y };
+          p2 = { x: p2.x + xShift, y: p2.y };
+          c1 = { x: p1.x + bowX, y: p1.y + (goDown ? curve : -curve) };
+          c2 = { x: p2.x + bowX, y: p2.y + (goDown ? -curve : curve) };
+        }
+      }
+
+      d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
+      const baseT = typeof edge.labelT === "number" ? edge.labelT : 0.5;
+      const tList = [baseT, 0.5, 0.38, 0.62, 0.28, 0.72];
+      tList.forEach((t, i) => {
+        const pt = cubicPoint(p1, c1, c2, p2, t);
+        labelCandidates.push({ x: pt.x, y: pt.y, penalty: i * 4 });
+      });
+      const midPt = cubicPoint(p1, c1, c2, p2, baseT);
+      labelCandidates.push({ x: midPt.x, y: midPt.y - 20, penalty: 28 });
+      labelCandidates.push({ x: midPt.x, y: midPt.y + 20, penalty: 28 });
+    }
+
+    paths += `<path class="${cls}" d="${d}" stroke="${color}" stroke-width="${strokeW}" opacity="${opacity}"${dashAttr}${startMarker} marker-end="url(#arr-${markerIdx})" />`;
+
+    if (edge.label && !isOverview && labelCandidates.length) {
+      const w = Math.max(22, edge.label.length * 6.3 + 12);
+      const h = 18;
+      const pos = pickLabelPos(labelCandidates, w, h);
+      labels += `<rect class="edge-label-bg" x="${pos.x - w / 2}" y="${pos.y - h / 2}" width="${w}" height="${h}" rx="9" stroke="${color}" />`;
+      labels += `<text class="edge-label-text" x="${pos.x}" y="${pos.y}">${edge.label}</text>`;
     }
   });
 
@@ -1535,6 +1675,13 @@ document.getElementById("reset-btn").addEventListener("click", () => {
   selectedId = null;
   renderInspector(null);
   setWorkflow("all");
+});
+
+document.getElementById("inspector-toggle").addEventListener("click", (e) => {
+  const ws = document.querySelector(".workspace");
+  const hidden = ws.classList.toggle("inspector-hidden");
+  e.target.textContent = hidden ? "Показать инспектор" : "Скрыть инспектор";
+  requestAnimationFrame(drawEdges);
 });
 
 document.getElementById("theme-toggle").addEventListener("click", (e) => {
