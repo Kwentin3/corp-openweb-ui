@@ -27,6 +27,9 @@
     --infra-bg: #f5f3ff;
     --infra-border: #8b5cf6;
     --infra-text: #5b21b6;
+    --onec-bg: #ecfeff;
+    --onec-border: #0891b2;
+    --onec-text: #155e75;
     --frozen-bg: #f8fafc;
     --frozen-border: #94a3b8;
     --frozen-text: #64748b;
@@ -56,6 +59,9 @@
     --infra-bg: #231644;
     --infra-border: #a78bfa;
     --infra-text: #ddd6fe;
+    --onec-bg: #082f49;
+    --onec-border: #22d3ee;
+    --onec-text: #a5f3fc;
     --frozen-bg: #141c2b;
     --frozen-border: #475569;
     --frozen-text: #94a3b8;
@@ -329,6 +335,8 @@
   .node.cat-ext { background: var(--ext-bg); border-color: var(--ext-border); }
   .node.cat-svc { background: var(--svc-bg); border-color: var(--svc-border); }
   .node.cat-infra { background: var(--infra-bg); border-color: var(--infra-border); }
+  .node.cat-1c { background: var(--onec-bg); border-color: var(--onec-border); }
+  .node.node-planned { border-style: dashed; }
   .node.cat-frozen {
     background: var(--frozen-bg);
     border-color: var(--frozen-border);
@@ -365,7 +373,54 @@
   .cat-ext .badge { background: rgba(59,130,246,0.16); color: var(--ext-text); }
   .cat-svc .badge { background: rgba(16,185,129,0.16); color: var(--svc-text); }
   .cat-infra .badge { background: rgba(139,92,246,0.16); color: var(--infra-text); }
+  .cat-1c .badge { background: rgba(8,145,178,0.16); color: var(--onec-text); }
   .cat-frozen .badge { background: rgba(148,163,184,0.18); color: var(--frozen-text); }
+
+  .onec-band {
+    position: relative;
+    z-index: 5;
+    margin-top: 22px;
+    background: var(--surface);
+    border: 2px solid var(--onec-border);
+    border-radius: 14px;
+    padding: 13px 15px 15px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+  .onec-grid {
+    display: grid;
+    grid-template-columns: 1.45fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .onec-subzone {
+    background: var(--surface-2);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 10px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .onec-cards-3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .onec-cards-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .ext-ref-chip {
+    text-decoration: none;
+    color: var(--accent);
+  }
+  .ext-ref-chip:hover {
+    text-decoration: underline;
+  }
 
   .bottom-strip {
     position: relative;
@@ -534,6 +589,7 @@
       <button class="wf-btn" data-wf="ocr">3. PDF OCR (Luna)</button>
       <button class="wf-btn" data-wf="audio">4. Голос и аудио (3 пути)</button>
       <button class="wf-btn" data-wf="search">5. Веб-поиск</button>
+      <button class="wf-btn" data-wf="onec">6. 1С: «Нейро-помощник»</button>
       <button class="wf-btn" data-wf="patches">⚠ Зона апгрейда (патчи)</button>
     </div>
 
@@ -543,7 +599,8 @@
       <span class="legend-item"><span class="dot" style="background:var(--ext-bg);border-color:var(--ext-border)"></span>Штатное расширение</span>
       <span class="legend-item"><span class="dot" style="background:var(--svc-bg);border-color:var(--svc-border)"></span>Docker-сервис</span>
       <span class="legend-item"><span class="dot" style="background:var(--infra-bg);border-color:var(--infra-border)"></span>Инфра / API</span>
-      <span class="legend-item"><span class="dot" style="background:var(--frozen-bg);border-color:var(--frozen-border);border-style:dashed"></span>Заморожено</span>
+      <span class="legend-item"><span class="dot" style="background:var(--onec-bg);border-color:var(--onec-border)"></span>Внешний контур 1С</span>
+      <span class="legend-item"><span class="dot" style="background:var(--frozen-bg);border-color:var(--frozen-border);border-style:dashed"></span>Заморожено / пилот</span>
     </div>
   </div>
 </header>
@@ -639,9 +696,13 @@
                 <div class="node-top"><div class="node-title">stage2_media_intake</div><span class="badge">Function</span></div>
                 <div class="node-desc">Перехват аудио/видео вложений и отправка в Stage2 STT</div>
               </div>
-              <div class="node cat-ext" id="node-ext-skills" data-id="ext-skills" style="grid-column: 1 / -1;">
-                <div class="node-top"><div class="node-title">Skills &amp; Knowledge (5 Skills + База знаний портала)</div><span class="badge">Native Skills / KB</span></div>
+              <div class="node cat-ext" id="node-ext-skills" data-id="ext-skills">
+                <div class="node-top"><div class="node-title">Skills &amp; Knowledge (5 Skills + База знаний)</div><span class="badge">Native Skills / KB</span></div>
                 <div class="node-desc">artifact-workflow, corporate-template-authoring, employee-budget-admin, experience-packaging, portal-help</div>
+              </div>
+              <div class="node cat-ext node-planned" id="node-ext-1c-tool" data-id="ext-1c-tool">
+                <div class="node-top"><div class="node-title">Инструмент 1С в чате портала</div><span class="badge">Пилот · сверка Tool</span></div>
+                <div class="node-desc">Отдельная ветка из веб-чата портала → посредник → исполнитель в 1С (статус требует сверки)</div>
               </div>
             </div>
           </div>
@@ -699,6 +760,46 @@
       </div>
     </div>
 
+    <!-- EXTERNAL 1C CONTOUR BAND -->
+    <div class="onec-band">
+      <div class="frame-header">
+        <div class="title">Внешний контур 1С «Нейро-помощник» (отдельный деплой · без правок ядра OpenWebUI)</div>
+        <div class="meta">Работающий пилот (УНФ стенд; БП/УТ — отдельные испытания) · API портала</div>
+      </div>
+      <div class="onec-grid">
+        <div class="onec-subzone">
+          <div class="subzone-label">Контур информационной базы 1С (у клиента)</div>
+          <div class="onec-cards-3">
+            <div class="node cat-1c" id="node-onec-chat" data-id="onec-chat">
+              <div class="node-top"><div class="node-title">Пользователь 1С / «Нейро-помощник»</div><span class="badge">HTML-чат 1С</span></div>
+              <div class="node-desc">HTML-чат в управляемой форме, ссылки на объекты, фоновые запросы</div>
+            </div>
+            <div class="node cat-1c" id="node-onec-ext" data-id="onec-ext">
+              <div class="node-top"><div class="node-title">Расширение «НейроИнтеграция»</div><span class="badge">1С / BSL</span></div>
+              <div class="node-desc">Метаданные, чтение, проекты документов, создание/проведение после подтверждения</div>
+            </div>
+            <div class="node cat-1c" id="node-onec-db" data-id="onec-db">
+              <div class="node-top"><div class="node-title">Информационная база 1С</div><span class="badge">БД + права 1С</span></div>
+              <div class="node-desc">Документы, справочники, регистры, права 1С, регистр ас_ИсторияНейроЧата</div>
+            </div>
+          </div>
+        </div>
+        <div class="onec-subzone">
+          <div class="subzone-label">Внешний сервер-посредник (вне контура OpenWebUI)</div>
+          <div class="onec-cards-2">
+            <div class="node cat-1c" id="node-onec-broker" data-id="onec-broker">
+              <div class="node-top"><div class="node-title">Сервер-посредник интеграции</div><span class="badge">Отдельный сервис</span></div>
+              <div class="node-desc">Контекст модели, проверка структурированных ответов, задания; POST /api/chat/completions</div>
+            </div>
+            <div class="node cat-1c" id="node-onec-license" data-id="onec-license">
+              <div class="node-top"><div class="node-title">Лицензии, рабочие места и учёт</div><span class="badge">Серверный код</span></div>
+              <div class="node-desc">1 пользователь 1С = 1 место; 1 API-токен портала на лицензию (отдельно от LiteLLM)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- BOTTOM STRIP: HOST INFRA & FROZEN -->
     <div class="bottom-strip">
       <div class="strip-box">
@@ -741,7 +842,7 @@
         <li>в каких воркфлоу он участвует;</li>
         <li>риски при обновлении ядра.</li>
       </ul>
-      <p style="margin-top:12px;">Сверху можно переключать <strong>5 рабочих воркфлоу</strong> или подсветить <strong>зону апгрейда (патчи)</strong>.</p>
+      <p style="margin-top:12px;">Сверху можно переключать <strong>6 рабочих воркфлоу</strong> (включая внешний контур 1С) или подсветить <strong>зону апгрейда (патчи)</strong>.</p>
     </div>
   </aside>
 </div>
@@ -754,16 +855,16 @@ const NODES = {
     summary: "Обычные пользователи и администраторы портала gpt.alpha-soft.ru.",
     coreLink: "Работает через стандартный веб-интерфейс OpenWebUI, MediaRecorder (микрофон) и Voice Mode (для группы Realtime).",
     paths: ["docs/commercial/CORPORATE_DOCUMENTS_USER_GUIDE.md", "docs/infra-ops/portal-help.md"],
-    workflows: ["chat", "office", "ocr", "audio", "search"],
+    workflows: ["chat", "office", "ocr", "audio", "search", "onec"],
     notes: "Голосовой Realtime доступен только администраторам и участникам группы Realtime; диктовка микрофоном доступна всем."
   },
   traefik: {
     title: "Traefik (HTTPS Edge)",
     cat: "Инфраструктура",
     summary: "Единая внешняя точка входа с TLS на домене gpt.alpha-soft.ru.",
-    coreLink: "Маршрутизирует внешний трафик только на активный контейнер openwebui-0122. Внутренние сервисы (LiteLLM, OfficeCLI, STT, Terminal, SearXNG) наружу не публикуются.",
+    coreLink: "Маршрутизирует внешний трафик (включая API-запросы от сервера-посредника 1С) только на активный контейнер openwebui-0122. Внутренние сервисы (LiteLLM, OfficeCLI, STT, Terminal, SearXNG) наружу не публикуются.",
     paths: ["compose/openwebui.release-0122.route.compose.yml", "docs/infra/DOMAIN_AND_TRAEFIK_PLAN.md"],
-    workflows: ["chat", "office", "ocr", "audio", "search"],
+    workflows: ["chat", "office", "ocr", "audio", "search", "onec"],
     notes: "Один активный production writer на роутере; при выкатке обновлений переключение происходит через отдельный route overlay."
   },
   "static-shim": {
@@ -779,9 +880,9 @@ const NODES = {
     title: "Ядро OpenWebUI 0.12.2 (Chat / Files / RAG / ACL)",
     cat: "Ядро OpenWebUI",
     summary: "Upstream OpenWebUI 0.12.2 (commit 6a18585f). Владеет чатами, файлами, правами доступа, tool loop, SQLite и встроенной ChromaDB.",
-    coreLink: "Все кастомные возможности строятся поверх ядра по принципу extension-first; ядро остаётся владельцем истории и выполнения инструментов.",
+    coreLink: "Все кастомные возможности строятся поверх ядра по принципу extension-first; внешний сервер-посредник 1С обращается через штатный API POST /api/chat/completions и /api/v1/chats/new без правок ядра.",
     paths: ["compose/openwebui.release-0122.compose.yml", "deploy/openwebui-upgrade-0122/runtime.Dockerfile", "docs/infra-ops/openwebui-0122-cutover.md"],
-    workflows: ["chat", "office", "ocr", "audio", "search"],
+    workflows: ["chat", "office", "ocr", "audio", "search", "onec"],
     notes: "Stateful Responses и автоматическое сжатие контекста (compaction) намеренно выключены в production."
   },
   "owui-audio": {
@@ -879,9 +980,9 @@ const NODES = {
     cat: "Docker-сервис / Шлюз",
     summary: "Единый внутренний LLM-шлюз (v1.105.1) для OpenAI, Anthropic и Google. Нормализует сигнатуры при смене модели в чате и является единственным владельцем учёта расходов и месячных бюджетов.",
     coreLink: "Подключён как стандартный OpenAI-compatible connection в OpenWebUI. В production применяется 1 патч ядра LiteLLM (positive-floor-v1.105.1/floor.patch) для корректного месячного сброса счётчика.",
-    paths: ["compose/openwebui.release-0122.google.compose.yml", "compose/openwebui.employee-budgets.compose.yml", "deploy/litellm-patches/positive-floor-v1.105.1/floor.patch", "deploy/openwebui-budgets/litellm_auth.py"],
-    workflows: ["chat", "office", "ocr", "patches"],
-    notes: "ЗОНА АПГРЕЙДА: содержит 1 production-патч (floor.patch). Не выполняет инструменты (tool loop остаётся в OpenWebUI)."
+    paths: ["compose/openwebui.release-0122.google.compose.yml", "compose/openwebui.employee-budgets.compose.yml", "deploy/litellm-patches/positive-floor-v1.105.1/floor.patch", "deploy/openwebui-budgets/litellm_auth.py", "docs/commercial/COMPLETED_WORK_2026-11-12_EMPLOYEE_BUDGETS.md"],
+    workflows: ["chat", "office", "ocr", "onec", "patches"],
+    notes: "ЗОНА АПГРЕЙДА: содержит 1 production-патч (floor.patch). Для интеграции 1С общий API-токен лицензии относит расход на владельца токена (общий плательщик, не персональные бюджеты сотрудников 1С); сквозная бюджетная приёмка реального клиента 1С не проводилась."
   },
   officecli: {
     title: "OfficeCLI (officecli-0122)",
@@ -925,7 +1026,7 @@ const NODES = {
     summary: "Единый хостовый прокси Privoxy (Docker gateway:8118), переключаемый через openwebui-transport.py между AmneziaWG (privoxy-awg-egress) и Xray (SOCKS5).",
     coreLink: "Через него ходят ровно 3 контейнера: openwebui-0122 (HTTPS_PROXY + WSS_PROXY), google-gateway-0122 (LiteLLM) и stage2-stt-0122. У SearXNG, OfficeCLI и Open Terminal proxy env нет.",
     paths: ["deploy/transport/openwebui-transport.py", "deploy/transport/amneziawg-egress.service", "deploy/transport/privoxy-awg-egress.service", "deploy/transport/awg-egress-netns.sh", "docs/reports/2026-11-06/TRANSPORT_SOCKS5_XRAY_AUDIT.md"],
-    workflows: ["chat", "office", "ocr", "audio"],
+    workflows: ["chat", "office", "ocr", "audio", "onec"],
     notes: "Критично сохранять WSS_PROXY при пересоздании OpenWebUI (без него ломается Realtime) и NO_PROXY для внутренних Docker-сервисов."
   },
   "llm-apis": {
@@ -934,7 +1035,7 @@ const NODES = {
     summary: "Облачные провайдеры моделей (Responses и Chat Completions), включая gpt-6-luna для PDF OCR.",
     coreLink: "Обращения идут через LiteLLM (учёт бюджетов и нормализация) и исходящий прокси AmneziaWG/Privoxy.",
     paths: ["docs/infra/PROVIDER_CONNECTIONS_PLAN.md", "docs/ops/PROVIDER_SETUP_RUNBOOK.md"],
-    workflows: ["chat", "office", "ocr"],
+    workflows: ["chat", "office", "ocr", "onec"],
     notes: ""
   },
   "realtime-api": {
@@ -991,6 +1092,78 @@ const NODES = {
     workflows: [],
     notes: "Не относится к текущему production-стеку портала."
   },
+  "ext-1c-tool": {
+    title: "Инструмент 1С в чате портала (OpenWebUI Tool)",
+    cat: "Штатное расширение (пилот · сверка)",
+    summary: "Отдельная ветка обращения к 1С непосредственно из веб-чата OpenWebUI: пользователь портала → OpenWebUI Tool → сервер-посредник → исполнитель задания в 1С → результат в чат.",
+    coreLink: "Не смешивать с основным чатом внутри открытого сеанса 1С. На 27.11.2026 актуальный Tool в текущем OpenWebUI, его имя и способ выбора базы этой сверкой не подтверждены — обозначается как «Пилот / требует проверки актуального Tool». Доступ к веб-публикации 1С через служебного пользователя без открытого сеанса пользователя — планируемый вариант.",
+    paths: [],
+    externalRefs: [
+      { label: "Документация пилота интеграции 1С", url: "https://github.com/Severus56/alfinator-demo/blob/main/docs/1c-integration.md" }
+    ],
+    workflows: ["onec"],
+    notes: "Статус: Пилот / требует проверки актуального Tool (не подтверждённый production-маршрут)."
+  },
+  "onec-chat": {
+    title: "Пользователь 1С / «Нейро-помощник»",
+    cat: "Внешний контур 1С (клиент 1С)",
+    summary: "HTML-чат внутри управляемой формы 1С: история диалогов, интерактивные ссылки на объекты базы, фоновое выполнение запросов и получение результата.",
+    coreLink: "Работает внутри открытого пользовательского сеанса 1С; открытие карточек и отчётов выполняет клиентская часть 1С. Зависит от работающего сеанса/исполнителя 1С.",
+    paths: [],
+    externalRefs: [
+      { label: "Документация пилота интеграции 1С", url: "https://github.com/Severus56/alfinator-demo/blob/main/docs/1c-integration.md" }
+    ],
+    workflows: ["onec"],
+    notes: "Основной подтверждённый маршрут пилота: чат внутри сеанса 1С. HTML-демка на GitHub Pages не является рабочим компонентом интеграции."
+  },
+  "onec-ext": {
+    title: "Расширение 1С «НейроИнтеграция»",
+    cat: "Внешний контур 1С (контур БД)",
+    summary: "Исполняет все операции на стороне 1С: чтение метаданных и структуры объектов, разрешённые запросы, подготовку и проверку проектов документов, создание и проведение после подтверждения пользователя.",
+    coreLink: "Обменивается с сервером-посредником по HTTPS (запрос помощника, передача данных/результатов, активация). Все действия в базе исполняются в контуре 1С с правами пользователя 1С; модель и OpenWebUI не подключаются к СУБД напрямую.",
+    paths: [],
+    externalRefs: [
+      { label: "Документация пилота интеграции 1С", url: "https://github.com/Severus56/alfinator-demo/blob/main/docs/1c-integration.md" }
+    ],
+    workflows: ["onec"],
+    notes: "Статус конфигураций (27.11.2026): УНФ — работающий пилот на внутреннем локальном стенде (не полная совместимость со всеми версиями УНФ); БП и УТ — отдельные удалённые испытания без подтверждённой сквозной приёмки конкретных баз."
+  },
+  "onec-db": {
+    title: "Информационная база 1С",
+    cat: "Внешний контур 1С (хранилище)",
+    summary: "Документы, справочники, регистры, планы счетов, отчёты и права пользователей 1С. История чатов хранится в регистре ас_ИсторияНейроЧата, настройки подключения — средствами 1С.",
+    coreLink: "Прямое SQL-подключение от модели или OpenWebUI отсутствует: доступ к объектам идёт строго через расширение НейроИнтеграция с проверкой прав пользователя 1С. Авторизация в портале и права в 1С — разные уровни доступа.",
+    paths: [],
+    externalRefs: [
+      { label: "Документация пилота интеграции 1С", url: "https://github.com/Severus56/alfinator-demo/blob/main/docs/1c-integration.md" }
+    ],
+    workflows: ["onec"],
+    notes: "Создание и проведение документов разделены и требуют проверки проекта и явного подтверждения пользователя 1С."
+  },
+  "onec-broker": {
+    title: "Сервер-посредник интеграции 1С",
+    cat: "Внешний контур 1С (отдельный сервис)",
+    summary: "Самостоятельный сервис вне контура развёртывания OpenWebUI: принимает запросы расширения по HTTPS, готовит контекст модели, проверяет структурированные ответы и координирует обмен заданиями и результатами.",
+    coreLink: "Подтверждено по развёрнутому коду (27.11.2026): обращается к OpenWebUI через Traefik по публичному API POST /api/chat/completions (и /api/v1/chats/new для контекста чата) без патчей ядра OpenWebUI. Прямого обращения к провайдеру в этой функции нет; далее цепочка идёт по настройке выбранной модели портала (OpenWebUI → LiteLLM → Privoxy → LLM).",
+    paths: ["docs/commercial/planning/DATA_ANONYMIZATION_CUSTOMER_PROPOSAL_2026-11-21.md"],
+    externalRefs: [
+      { label: "Документация пилота интеграции 1С", url: "https://github.com/Severus56/alfinator-demo/blob/main/docs/1c-integration.md" }
+    ],
+    workflows: ["onec"],
+    notes: "Один запрос пользователя 1С может требовать нескольких циклов обращения к модели (метаданные/данные → итоговый ответ/проект). Маршрут 1С вынесен за рамки первого контура обезличивания."
+  },
+  "onec-license": {
+    title: "Администрирование и хранилище лицензий 1С",
+    cat: "Внешний контур 1С (лицензирование)",
+    summary: "Лицензии баз, активации, рабочие места, привязка к пользователям 1С и учёт использования интеграции.",
+    coreLink: "Проверки лицензии, рабочих мест и доступа выполняются серверным кодом посредника, а не промптом. Один пользователь 1С = одно рабочее место; один API-токен Альфинатора используется на лицензию независимо от числа рабочих мест.",
+    paths: ["docs/commercial/COMPLETED_WORK_2026-11-12_EMPLOYEE_BUDGETS.md"],
+    externalRefs: [
+      { label: "Документация пилота интеграции 1С", url: "https://github.com/Severus56/alfinator-demo/blob/main/docs/1c-integration.md" }
+    ],
+    workflows: ["onec"],
+    notes: "Лицензирование сервиса и бюджеты LiteLLM — разные механизмы: общий токен лицензии относит расход к общему плательщику (владельцу токена), а не к персональным бюджетам сотрудников 1С. Сквозная бюджетная приёмка реального клиента 1С не проводилась."
+  },
   hermes: {
     title: "hermes-corporate-v1 (Задел)",
     cat: "Отдельный задел",
@@ -1020,7 +1193,13 @@ const WORKFLOWS = {
       { from: "transport", to: "llm-apis", color: "#8b5cf6" },
       { from: "transport", to: "realtime-api", color: "#f59e0b" },
       { from: "transport", to: "lemonfox", color: "#8b5cf6" },
-      { from: "searxng", to: "web", color: "#64748b" }
+      { from: "searxng", to: "web", color: "#64748b" },
+      { from: "onec-chat", to: "onec-ext", color: "#0891b2" },
+      { from: "onec-ext", to: "onec-db", color: "#0891b2" },
+      { from: "onec-ext", to: "onec-broker", color: "#0891b2" },
+      { from: "onec-broker", to: "onec-license", color: "#0891b2" },
+      { from: "onec-broker", to: "traefik", color: "#0891b2" },
+      { from: "ext-1c-tool", to: "onec-broker", color: "#64748b", dashed: true }
     ]
   },
   chat: {
@@ -1090,6 +1269,27 @@ const WORKFLOWS = {
       { from: "searxng", to: "web", label: "4 DuckDuckGo", color: "#7c3aed" }
     ]
   },
+  onec: {
+    desc: "<strong>6. 1С: «Нейро-помощник» (внешний контур · пилот):</strong> <b>Основной путь (чат в 1С):</b> Пользователь 1С → HTML-чат → Расширение НейроИнтеграция ↔ HTTPS ↔ Посредник (проверка лицензии и рабочих мест) ↔ API портала (POST /api/chat/completions) ↔ Traefik → OpenWebUI → LiteLLM (общий токен лицензии) → Privoxy → LLM. Цикл повторяется для метаданных/данных; операции в БД исполняет расширение (создание/проведение — после подтверждения). <b>Пунктир:</b> отдельная ветка Tool из чата портала (пилот, требует сверки актуального Tool; веб-публикация без сеанса — в планах).",
+    nodes: ["onec-chat", "onec-ext", "onec-db", "onec-broker", "onec-license", "traefik", "owui-core", "litellm", "transport", "llm-apis", "ext-1c-tool", "user"],
+    edges: [
+      { from: "onec-chat", to: "onec-ext", label: "1 запрос", color: "#0891b2" },
+      { from: "onec-ext", to: "onec-broker", label: "2 HTTPS", color: "#0891b2" },
+      { from: "onec-broker", to: "onec-license", label: "3 лицензия", color: "#0e7490" },
+      { from: "onec-broker", to: "traefik", label: "4 API портала", color: "#0891b2" },
+      { from: "traefik", to: "owui-core", label: "5 /chat/completions", color: "#2563eb" },
+      { from: "owui-core", to: "litellm", label: "6 общий токен", color: "#10b981" },
+      { from: "litellm", to: "transport", label: "7 proxy", color: "#7c3aed" },
+      { from: "transport", to: "llm-apis", label: "8 LLM", color: "#7c3aed" },
+      { from: "owui-core", to: "onec-broker", label: "9 ответ / шаг", color: "#0284c7" },
+      { from: "onec-broker", to: "onec-ext", label: "10 операция", color: "#0284c7" },
+      { from: "onec-ext", to: "onec-db", label: "11 БД 1С", color: "#0f766e" },
+      { from: "onec-db", to: "onec-ext", label: "12 данные", color: "#0f766e" },
+      { from: "onec-ext", to: "onec-chat", label: "13 ответ / проект", color: "#0e7490" },
+      { from: "user", to: "ext-1c-tool", label: "ветка Tool (сверка)", color: "#64748b", dashed: true },
+      { from: "ext-1c-tool", to: "onec-broker", label: "HTTPS (пилот)", color: "#64748b", dashed: true }
+    ]
+  },
   patches: {
     desc: "<strong>⚠ Зона апгрейда (все патчи ядра):</strong> 4 узких оверлея поверх OpenWebUI 0.12.2 (tool-context, media-upload, status-position, provider-context) и 1 патч LiteLLM (positive-floor-v1.105.1). Все остальные функции — штатные расширения без правок ядра.",
     nodes: ["patch-toolctx", "patch-media", "patch-status", "patch-capture", "litellm"],
@@ -1113,10 +1313,14 @@ function renderInspector(id) {
     ocr: "3. PDF OCR",
     audio: "4. Голос и аудио",
     search: "5. Веб-поиск",
+    onec: "6. 1С: «Нейро-помощник»",
     patches: "⚠ Зона апгрейда"
   };
   const pathsHtml = (d.paths || []).map(p =>
     `<div class="path-chip" data-copy="${p}" title="Нажмите, чтобы скопировать путь"><span>${p}</span><span class="copy-hint">копир.</span></div>`
+  ).join("");
+  const extRefsHtml = (d.externalRefs || []).map(ref =>
+    `<a class="path-chip ext-ref-chip" href="${ref.url}" target="_blank" rel="noopener noreferrer"><span>${ref.label}</span><span class="copy-hint">↗</span></a>`
   ).join("");
   const wfHtml = (d.workflows || []).length
     ? d.workflows.map(w => `<button type="button" class="wf-tag" data-jump-wf="${w}">${wfNames[w] || w}</button>`).join("")
@@ -1136,10 +1340,14 @@ function renderInspector(id) {
       <p class="insp-text">${d.coreLink}</p>
     </div>
     ${d.notes ? `<div class="warn-box">${d.notes}</div>` : ""}
-    <div class="insp-section">
+    ${pathsHtml ? `<div class="insp-section">
       <div class="insp-label">Файлы в репозитории</div>
       <div class="path-list">${pathsHtml}</div>
-    </div>
+    </div>` : ""}
+    ${extRefsHtml ? `<div class="insp-section">
+      <div class="insp-label">Внешний контур / документация</div>
+      <div class="path-list">${extRefsHtml}</div>
+    </div>` : ""}
     <div class="insp-section">
       <div class="insp-label">Участвует в воркфлоу</div>
       <div class="tag-row">${wfHtml}</div>
@@ -1192,6 +1400,8 @@ function drawEdges() {
   let paths = "";
   let labels = "";
 
+  const pairKeys = new Set(edges.map(e => `${e.from}->${e.to}`));
+
   edges.forEach((edge) => {
     const fromEl = document.getElementById("node-" + edge.from);
     const toEl = document.getElementById("node-" + edge.to);
@@ -1201,6 +1411,7 @@ function drawEdges() {
     const r2 = toEl.getBoundingClientRect();
     const dx = (r2.left + r2.width / 2) - (r1.left + r1.width / 2);
     const dy = (r2.top + r2.height / 2) - (r1.top + r1.height / 2);
+    const hasReverse = pairKeys.has(`${edge.to}->${edge.from}`);
 
     let p1, p2, c1, c2;
     if (Math.abs(dx) > 65) {
@@ -1208,8 +1419,12 @@ function drawEdges() {
       p1 = getAnchor(fromEl, wrap, wrapRect, goRight ? "right" : "left");
       p2 = getAnchor(toEl, wrap, wrapRect, goRight ? "left" : "right");
       const curve = Math.max(30, Math.abs(p2.x - p1.x) * 0.42);
-      c1 = { x: p1.x + (goRight ? curve : -curve), y: p1.y };
-      c2 = { x: p2.x + (goRight ? -curve : curve), y: p2.y };
+      const yShift = hasReverse ? (goRight ? -16 : 16) : 0;
+      const bowY = hasReverse ? (goRight ? -26 : 26) : 0;
+      p1 = { x: p1.x, y: p1.y + yShift };
+      p2 = { x: p2.x, y: p2.y + yShift };
+      c1 = { x: p1.x + (goRight ? curve : -curve), y: p1.y + bowY };
+      c2 = { x: p2.x + (goRight ? -curve : curve), y: p2.y + bowY };
     } else {
       const goDown = dy > 0;
       const vGap = goDown ? (r2.top - r1.bottom) : (r1.top - r2.bottom);
@@ -1217,7 +1432,7 @@ function drawEdges() {
         // Jumping over an intermediate card in the same column: route cleanly in the side gutter
         const centerRelX = (r1.left - wrapRect.left + r1.width / 2) / Math.max(1, wrapRect.width);
         const side = centerRelX > 0.65 ? "left" : "right";
-        const bow = side === "right" ? 26 : -26;
+        const bow = (side === "right" ? 26 : -26) + (hasReverse ? (goDown ? 14 : -14) : 0);
         p1 = getAnchor(fromEl, wrap, wrapRect, side);
         p2 = getAnchor(toEl, wrap, wrapRect, side);
         c1 = { x: p1.x + bow, y: p1.y + (goDown ? 18 : -18) };
@@ -1225,20 +1440,25 @@ function drawEdges() {
       } else {
         p1 = getAnchor(fromEl, wrap, wrapRect, goDown ? "bottom" : "top");
         p2 = getAnchor(toEl, wrap, wrapRect, goDown ? "top" : "bottom");
+        const xShift = hasReverse ? (goDown ? -16 : 16) : 0;
+        const bowX = hasReverse ? (goDown ? -24 : 24) : 0;
         const curve = Math.max(18, Math.abs(p2.y - p1.y) * 0.45);
-        c1 = { x: p1.x, y: p1.y + (goDown ? curve : -curve) };
-        c2 = { x: p2.x, y: p2.y + (goDown ? -curve : curve) };
+        p1 = { x: p1.x + xShift, y: p1.y };
+        p2 = { x: p2.x + xShift, y: p2.y };
+        c1 = { x: p1.x + bowX, y: p1.y + (goDown ? curve : -curve) };
+        c2 = { x: p2.x + bowX, y: p2.y + (goDown ? -curve : curve) };
       }
     }
 
     const color = edge.color || "#64748b";
     const markerIdx = colors.indexOf(color);
     const d = `M ${p1.x} ${p1.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${p2.x} ${p2.y}`;
-    const strokeW = isOverview ? 1.5 : 2.3;
-    const opacity = isOverview ? 0.52 : 0.95;
-    const cls = isOverview ? "edge-path" : "edge-path edge-active";
+    const strokeW = isOverview ? 1.5 : (edge.dashed ? 1.9 : 2.3);
+    const opacity = isOverview ? (edge.dashed ? 0.4 : 0.52) : (edge.dashed ? 0.8 : 0.95);
+    const cls = (isOverview || edge.dashed) ? "edge-path" : "edge-path edge-active";
+    const dashAttr = edge.dashed ? ' stroke-dasharray="5 4"' : "";
 
-    paths += `<path class="${cls}" d="${d}" stroke="${color}" stroke-width="${strokeW}" opacity="${opacity}" marker-end="url(#arr-${markerIdx})" />`;
+    paths += `<path class="${cls}" d="${d}" stroke="${color}" stroke-width="${strokeW}" opacity="${opacity}"${dashAttr} marker-end="url(#arr-${markerIdx})" />`;
 
     if (edge.label && !isOverview) {
       const mx = 0.125 * p1.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * p2.x;
@@ -1260,7 +1480,7 @@ function applyVisualState() {
   document.querySelectorAll(".node").forEach(el => {
     const id = el.getAttribute("data-id");
     const d = NODES[id] || {};
-    const hay = `${d.title || ""} ${d.summary || ""} ${(d.paths || []).join(" ")}`.toLowerCase();
+    const hay = `${d.title || ""} ${d.summary || ""} ${(d.paths || []).join(" ")} ${(d.externalRefs || []).map(r => r.label).join(" ")}`.toLowerCase();
     const matchesSearch = !query || hay.includes(query);
     const inWf = !wfSet || wfSet.has(id);
 
